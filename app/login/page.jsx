@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../components/providers/AuthProvider";
@@ -8,6 +8,14 @@ import { useAuth } from "../../components/providers/AuthProvider";
 const initialForm = { email: "", password: "", name: "" };
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-white">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const { user, loading, login, register, error } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
