@@ -1,12 +1,14 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import TicketModal from "./TicketModal";
 import GuestlistModal from "./GuestlistModal";
 import { useAuth } from "./providers/AuthProvider";
+import { useToast } from "./providers/ToastProvider";
 
 const avatarPalette = ["#FDE047", "#F43F5E", "#A855F7", "#38BDF8", "#34D399", "#F97316"];
 const fallbackGuests = ["Ari", "Dev", "Ira", "Nia", "Vik", "Reva", "Luna", "Taj", "Mira", "Noah", "Kian", "Sara"];
@@ -67,13 +69,12 @@ const ticketState = (quantity = 0) => {
 export default function EventRSVP({ event, host }) {
   const [guestModalOpen, setGuestModalOpen] = useState(false);
   const [ticketModalOpen, setTicketModalOpen] = useState(false);
-  const [shareFeedback, setShareFeedback] = useState("");
-  const [likeLoading, setLikeLoading] = useState(false);
+
   const [rsvpLoading, setRsvpLoading] = useState(false);
-  const shareTimer = useRef(null);
   const router = useRouter();
   const pathname = usePathname();
   const { user, profile, updateEventList } = useAuth();
+  const { toast } = useToast();
 
   const guestDirectory = useMemo(() => createGuestDirectory(event?.guests), [event?.guests]);
   const previewGuests = guestDirectory.slice(0, 6);
@@ -82,16 +83,8 @@ export default function EventRSVP({ event, host }) {
   const gradientStart = Array.isArray(event?.gradient) ? event.gradient[0] : event?.gradientStart || "#18181b";
   const gradientEnd = Array.isArray(event?.gradient) ? event.gradient[1] : event?.gradientEnd || "#0b0b0f";
   const guestCount = event?.guestCount ?? 580 + previewGuests.length * 14;
-  const isLiked = Boolean(event?.id && profile?.likedEvents?.includes(event.id));
-  const hasRSVPd = Boolean(event?.userHasRSVPd) || Boolean(event?.id && profile?.attendedEvents?.includes(event.id));
 
-  useEffect(() => {
-    return () => {
-      if (shareTimer.current) {
-        window.clearTimeout(shareTimer.current);
-      }
-    };
-  }, []);
+  const hasRSVPd = Boolean(event?.userHasRSVPd) || Boolean(event?.id && profile?.attendedEvents?.includes(event.id));
 
   const ensureAuthenticated = () => {
     if (user) return true;
@@ -102,20 +95,6 @@ export default function EventRSVP({ event, host }) {
     return false;
   };
 
-  const handleLikeToggle = async () => {
-    if (!event?.id || !ensureAuthenticated()) return;
-    setLikeLoading(true);
-    try {
-      await updateEventList("likedEvents", event.id, !isLiked);
-      showShareFeedback(!isLiked ? "Saved to profile" : "Removed from saved");
-    } catch (error) {
-      console.error("Like toggle failed", error);
-      showShareFeedback("Unable to update saved events.");
-    } finally {
-      setLikeLoading(false);
-    }
-  };
-
   const handleRSVP = async ({ openTickets = false } = {}) => {
     if (!event?.id || !ensureAuthenticated()) return;
     if (openTickets) {
@@ -124,10 +103,10 @@ export default function EventRSVP({ event, host }) {
     setRsvpLoading(true);
     try {
       await updateEventList("attendedEvents", event.id, !hasRSVPd);
-      showShareFeedback(!hasRSVPd ? "RSVP confirmed" : "RSVP removed");
+      toast(!hasRSVPd ? "RSVP confirmed" : "RSVP removed", "success");
     } catch (error) {
       console.error("RSVP update failed", error);
-      showShareFeedback("Unable to update RSVP status.");
+      toast("Unable to update RSVP status.", "error");
     } finally {
       setRsvpLoading(false);
     }
@@ -140,8 +119,8 @@ export default function EventRSVP({ event, host }) {
     if (target === "copy") {
       navigator.clipboard
         ?.writeText(url)
-        .then(() => showShareFeedback("Link copied"))
-        .catch(() => showShareFeedback("Unable to copy"));
+        .then(() => toast("Link copied to clipboard", "success"))
+        .catch(() => toast("Unable to copy link", "error"));
       return;
     }
     const encoded = encodeURIComponent(payload);
@@ -154,17 +133,11 @@ export default function EventRSVP({ event, host }) {
     }
   };
 
-  const showShareFeedback = (message) => {
-    setShareFeedback(message);
-    if (shareTimer.current) {
-      window.clearTimeout(shareTimer.current);
-    }
-    shareTimer.current = window.setTimeout(() => setShareFeedback(""), 2200);
-  };
-
   const headerGradient = {
     backgroundImage: `linear-gradient(120deg, ${gradientStart}, ${gradientEnd})`
   };
+
+  console.log("EventRSVP render:", { eventId: event?.id, image: event?.image });
 
   return (
     <div className="relative isolate overflow-hidden pb-28 pt-2 text-white">
@@ -172,14 +145,32 @@ export default function EventRSVP({ event, host }) {
         className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),transparent_45%)]"
         aria-hidden="true"
       />
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px]"
-        style={{
-          backgroundImage: `linear-gradient(180deg, ${gradientStart}, rgba(0,0,0,0.1) 60%, #000)`,
-          filter: "blur(50px)",
-          opacity: 0.5
-        }}
-      />
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[800px] overflow-hidden">
+        {event?.image ? (
+          <motion.div
+            className="relative h-full w-full"
+            layoutId={`event-image-${event?.id || ""}`}
+          >
+            <Image
+              src={event.image}
+              alt=""
+              fill
+              className="object-cover opacity-70 blur-[60px] saturate-200"
+              priority
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/60 to-black" />
+          </motion.div>
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `linear-gradient(180deg, ${gradientStart}, rgba(0,0,0,0.1) 60%, #000)`,
+              filter: "blur(50px)",
+              opacity: 0.5
+            }}
+          />
+        )}
+      </div>
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -194,17 +185,6 @@ export default function EventRSVP({ event, host }) {
             </p>
           </div>
           <div className="flex items-center gap-2 text-white">
-            <button
-              type="button"
-              onClick={handleLikeToggle}
-              disabled={likeLoading}
-              className={`flex h-9 w-9 items-center justify-center rounded-2xl border text-white transition ${
-                isLiked ? "border-white bg-white/40" : "border-white/40 bg-white/20 hover:border-white hover:bg-white/30"
-              }`}
-              aria-label={isLiked ? "Remove from liked events" : "Save event"}
-            >
-              <HeartIcon filled={isLiked} />
-            </button>
             {shareActions.map(({ id, label, Icon }) => (
               <button
                 key={id}
@@ -239,7 +219,6 @@ export default function EventRSVP({ event, host }) {
               <span className="rounded-full border border-white/20 px-4 py-1 text-[11px] uppercase tracking-[0.4em] text-white/60">
                 {event?.category || "Drop"}
               </span>
-              {shareFeedback && <span className="text-xs text-emerald-300">{shareFeedback}</span>}
             </div>
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-6">
@@ -268,10 +247,10 @@ export default function EventRSVP({ event, host }) {
               </button>
               <button
                 type="button"
-                onClick={() => handleRSVP({ openTickets: true })}
+                onClick={() => event?.isFree ? handleRSVP({ openTickets: true }) : setTicketModalOpen(true)}
                 className="rounded-full bg-white/90 px-6 py-2 text-[11px] uppercase tracking-[0.45em] text-black transition hover:bg-white"
               >
-                Get On List
+                {event?.isFree ? "Get On List" : "Buy Tickets"}
               </button>
             </div>
           </div>
@@ -295,6 +274,53 @@ export default function EventRSVP({ event, host }) {
                   {event?.date} · {event?.time || "Time TBA"}
                 </p>
                 <p className="text-white/60">Doors hold your RSVP for 30 minutes past start time.</p>
+              </div>
+            </motion.section>
+
+            <motion.section
+              variants={sectionVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-120px" }}
+              transition={{ duration: 0.55, delay: 0.05 }}
+              className="glass-panel rounded-[36px] border border-white/10 bg-black/70 p-6 shadow-glow"
+            >
+              <div className="flex items-center justify-between gap-4 mb-6">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.5em] text-white/40">Guestlist</p>
+                  <h3 className="mt-2 text-xl font-display">Who&apos;s Going</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setGuestModalOpen(true)}
+                  className="text-xs uppercase tracking-[0.2em] text-white/60 hover:text-white transition-colors"
+                >
+                  View All
+                </button>
+              </div>
+              <div className="space-y-3">
+                {previewGuests.map((guest) => (
+                  <div key={guest.id} className="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur transition hover:bg-white/10">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="flex h-10 w-10 items-center justify-center rounded-full text-xs font-semibold text-black"
+                        style={{ backgroundColor: guest.color }}
+                      >
+                        {guest.initials}
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-white">{guest.name}</p>
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">{guest.handle}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="rounded-full border border-white/20 px-3 py-1 text-[9px] uppercase tracking-[0.2em] text-white/70 transition hover:border-white/50 hover:text-white"
+                    >
+                      Follow
+                    </button>
+                  </div>
+                ))}
               </div>
             </motion.section>
 
@@ -335,17 +361,20 @@ export default function EventRSVP({ event, host }) {
               transition={{ duration: 0.55, delay: 0.15 }}
               className="glass-panel rounded-[36px] border border-white/10 bg-black/70 p-6 shadow-glow space-y-6"
             >
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-white/15">
+              <Link
+                href={`/host/${event?.host}`}
+                className="flex flex-wrap items-center gap-4 group cursor-pointer"
+              >
+                <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-white/15 transition-all group-hover:border-white/40 group-hover:scale-105">
                   <Image src={host?.avatar || "/events/holi-edit.svg"} alt={host?.name || "Host"} fill className="object-cover" />
                 </div>
                 <div>
-                  <p className="text-lg font-semibold">{host?.name || event?.host}</p>
+                  <p className="text-lg font-semibold group-hover:text-iris transition-colors">{host?.name || event?.host}</p>
                   <p className="text-sm text-white/60">
                     {host?.followers} followers · {host?.location}
                   </p>
                 </div>
-              </div>
+              </Link>
               <p className="text-sm text-white/70">{host?.bio}</p>
               <div className="flex flex-wrap gap-3">
                 <button
@@ -408,7 +437,7 @@ export default function EventRSVP({ event, host }) {
                   onClick={() => setTicketModalOpen(true)}
                   className="w-full rounded-full bg-white px-5 py-3 text-[11px] uppercase tracking-[0.4em] text-black transition hover:bg-white/90"
                 >
-                  See Tickets
+                  {event?.isFree ? "RSVP Options" : "See Tickets"}
                 </button>
                 <button
                   type="button"
@@ -445,7 +474,7 @@ export default function EventRSVP({ event, host }) {
         </div>
       </div>
       <GuestlistModal open={guestModalOpen} guests={guestDirectory} onClose={() => setGuestModalOpen(false)} />
-      <TicketModal open={ticketModalOpen} onClose={() => setTicketModalOpen(false)} tickets={tickets} />
+      <TicketModal open={ticketModalOpen} onClose={() => setTicketModalOpen(false)} tickets={tickets} eventId={event?.id} />
       <motion.div
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
@@ -454,29 +483,44 @@ export default function EventRSVP({ event, host }) {
         <div className="glass-panel flex w-full max-w-2xl flex-wrap items-center justify-between gap-3 rounded-full border border-white/15 bg-black/70 px-6 py-3 text-sm shadow-glow">
           {hasRSVPd ? (
             <>
-              <p className="text-white/80">You have RSVP’d to this event.</p>
-              <button
-                type="button"
-                disabled={rsvpLoading}
-                onClick={() => handleRSVP()}
-                className="rounded-full border border-white/20 px-4 py-1 text-[11px] uppercase tracking-[0.35em] text-white/80 transition hover:border-white/60 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {rsvpLoading ? "Updating..." : "Cancel RSVP"}
-              </button>
+              <p className="text-white/80">You have {event?.isFree ? "RSVP’d to" : "tickets for"} this event.</p>
+              {event?.isFree && (
+                <button
+                  type="button"
+                  disabled={rsvpLoading}
+                  onClick={() => handleRSVP()}
+                  className="rounded-full border border-white/20 px-4 py-1 text-[11px] uppercase tracking-[0.35em] text-white/80 transition hover:border-white/60 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {rsvpLoading ? "Updating..." : "Cancel RSVP"}
+                </button>
+              )}
+              {!event?.isFree && (
+                <button
+                  type="button"
+                  onClick={() => setTicketModalOpen(true)}
+                  className="rounded-full bg-white px-6 py-2 text-[11px] uppercase tracking-[0.4em] text-black transition hover:bg-white/90"
+                >
+                  Buy More
+                </button>
+              )}
             </>
           ) : (
             <>
               <div>
-                <p className="text-white font-semibold uppercase tracking-[0.35em]">Get on the list</p>
-                <p className="text-xs text-white/60">Secure your RSVP before doors close.</p>
+                <p className="text-white font-semibold uppercase tracking-[0.35em]">
+                  {event?.isFree ? "Get on the list" : "Tickets Available"}
+                </p>
+                <p className="text-xs text-white/60">
+                  {event?.isFree ? "Secure your RSVP before doors close." : `Starting from ₹${event?.priceRange?.min || event?.startingPrice || 0}`}
+                </p>
               </div>
               <button
                 type="button"
                 disabled={rsvpLoading}
-                onClick={() => handleRSVP({ openTickets: true })}
+                onClick={() => event?.isFree ? handleRSVP({ openTickets: true }) : setTicketModalOpen(true)}
                 className="rounded-full bg-white px-6 py-2 text-[11px] uppercase tracking-[0.4em] text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:bg-white/60"
               >
-                {rsvpLoading ? "Processing..." : "RSVP Now"}
+                {rsvpLoading ? "Processing..." : (event?.isFree ? "RSVP Now" : "Buy Tickets")}
               </button>
             </>
           )}
@@ -532,15 +576,4 @@ function InstagramIcon() {
   );
 }
 
-function HeartIcon({ filled }) {
-  return (
-    <svg width="17" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 20s-6.5-4.2-8.5-7.8C2.4 9.5 3 6.4 5.6 5.2 8.2 4 10.4 5.8 12 7.6c1.6-1.8 3.8-3.6 6.4-2.4 2.6 1.2 3.2 4.3 2.1 7-2 3.6-8.5 7.8-8.5 7.8Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        fill={filled ? "currentColor" : "none"}
-      />
-    </svg>
-  );
-}
+

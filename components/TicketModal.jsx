@@ -1,10 +1,25 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 
-export default function TicketModal({ open, onClose, tickets = [] }) {
+export default function TicketModal({ open, onClose, tickets = [], eventId }) {
+  const router = useRouter();
   const [quantities, setQuantities] = useState({});
+
+  const handlePurchase = () => {
+    const queryParams = new URLSearchParams();
+    Object.entries(quantities).forEach(([ticketId, qty]) => {
+      if (qty > 0) {
+        queryParams.append(`t_${ticketId}`, qty);
+      }
+    });
+
+    if (queryParams.toString()) {
+      router.push(`/checkout/${eventId}?${queryParams.toString()}`);
+    }
+  };
 
   const total = useMemo(() => {
     return tickets.reduce((sum, ticket) => {
@@ -55,15 +70,35 @@ export default function TicketModal({ open, onClose, tickets = [] }) {
                     <p className="text-xl font-semibold">₹{ticket.price}</p>
                   </div>
                   <div className="mt-4 flex items-center justify-between gap-3">
-                    <label className="text-xs uppercase tracking-[0.3em] text-white/50">Quantity</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max={ticket.quantity}
-                      value={quantities[ticket.id] || 0}
-                      onChange={handleQuantityChange(ticket.id)}
-                      className="w-24 rounded-2xl border border-white/10 bg-black/40 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                    />
+                    <div className="flex items-center gap-3 bg-black/40 rounded-2xl border border-white/10 p-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = quantities[ticket.id] || 0;
+                          if (current > 0) {
+                            setQuantities(prev => ({ ...prev, [ticket.id]: current - 1 }));
+                          }
+                        }}
+                        className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                        disabled={!quantities[ticket.id]}
+                      >
+                        -
+                      </button>
+                      <span className="w-8 text-center font-medium text-white">{quantities[ticket.id] || 0}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = quantities[ticket.id] || 0;
+                          if (current < ticket.quantity) {
+                            setQuantities(prev => ({ ...prev, [ticket.id]: current + 1 }));
+                          }
+                        }}
+                        className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                        disabled={(quantities[ticket.id] || 0) >= ticket.quantity}
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -74,7 +109,8 @@ export default function TicketModal({ open, onClose, tickets = [] }) {
             </div>
             <button
               type="button"
-              className="mt-6 w-full rounded-full bg-white px-4 py-3 text-xs uppercase tracking-[0.35em] text-black"
+              onClick={handlePurchase}
+              className="mt-6 w-full rounded-full bg-white px-4 py-3 text-xs uppercase tracking-[0.35em] text-black transition hover:bg-white/90"
             >
               Purchase Tickets
             </button>

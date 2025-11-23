@@ -8,6 +8,7 @@ import ExploreCarouselHeader from "../../components/ExploreCarouselHeader";
 import ExploreFilterBar from "../../components/ExploreFilterBar";
 import CategoryTabs from "../../components/CategoryTabs";
 import ExploreEventGrid from "../../components/ExploreEventGrid";
+import Skeleton from "../../components/ui/Skeleton";
 
 const sortTabs = ["Trending", "This Week", "New", "Soonest", "Price Low to High"];
 const dateFilters = [
@@ -366,61 +367,73 @@ export default function ExplorePage() {
   );
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Filter Bar */}
-      <div className="sticky top-24 z-40 w-full bg-black/80 backdrop-blur-xl border-b border-white/5 py-4">
-        <ExploreFilterBar
-          sort={activeSort}
-          setSort={setActiveSort}
-          date={filters.datePreset}
-          setDate={(val) => handleFilterChange("datePreset", val)}
-          city={selectedCity}
-          setCity={setSelectedCity}
-          cityOptions={cityDropdownOptions}
-        />
-      </div>
+    <div className="min-h-screen relative bg-white dark:bg-[#0A0A0A]">
+      {/* Content wrapper */}
+      <div className="relative z-10">
+        {heroSection}
 
-      {heroSection}
-
-      <section className="mx-auto w-full max-w-[1600px] px-4 pb-24 pt-8 sm:px-6 lg:px-8">
-        <div className="space-y-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-            <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-iris-glow">
-                Explore
-              </p>
-              <h2 className="text-3xl font-heading font-bold uppercase tracking-tight text-white sm:text-4xl">
-                What&apos;s on in <span className="text-white/60">{activeCityLabel}</span>
-              </h2>
-            </div>
-            <div className="text-right hidden md:block">
-              <p className="text-2xl font-bold text-white">{filteredEvents.length}</p>
-              <p className="text-[10px] uppercase tracking-widest text-white/40">Events Found</p>
-            </div>
-          </div>
-
-          <div className="min-h-[400px]">
-            {status === "loading" && <LoadingSkeletonGrid />}
-            {status === "error" && <ErrorBlock message={error || "Failed to load events."} />}
-            {status === "ready" && filteredEvents.length === 0 && (
-              <EmptyState
-                city={activeCityLabel}
-                fallbackCities={fallbackCities}
-                onCitySelect={setSelectedCity}
-                onReset={clearFilters}
-              />
-            )}
-            {filteredEvents.length > 0 && (
-              <>
-                <ExploreEventGrid events={paginatedEvents} />
-                {filteredEvents.length > pageSize && (
-                  <Pagination current={currentPage} total={totalPages} onChange={setCurrentPage} />
-                )}
-              </>
-            )}
-          </div>
+        {/* Filter Bar */}
+        <div className="w-full bg-white/80 dark:bg-[#0A0A0A]/80 backdrop-blur-xl border-y border-black/5 dark:border-white/5 py-4 transition-all duration-300">
+          <ExploreFilterBar
+            sort={activeSort}
+            setSort={setActiveSort}
+            date={filters.datePreset}
+            setDate={(val) => handleFilterChange("datePreset", val)}
+            city={selectedCity}
+            setCity={setSelectedCity}
+            cityOptions={cityDropdownOptions}
+          />
         </div>
-      </section>
+
+        <section className="mx-auto w-full max-w-[1600px] px-4 pb-24 pt-16 sm:px-6 lg:px-12">
+          <div className="space-y-12">
+            <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-1 w-12 bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] rounded-full" />
+                  <p className="text-xs font-black uppercase tracking-[0.3em] text-[#F44A22]">
+                    Explore Events
+                  </p>
+                </div>
+                <h2 className="text-4xl md:text-5xl lg:text-6xl font-heading font-black uppercase tracking-tight text-black dark:text-white leading-tight">
+                  What&apos;s on in{" "}
+                  <span className="inline-block bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] bg-clip-text text-transparent">
+                    {activeCityLabel}
+                  </span>
+                </h2>
+              </div>
+              <div className="text-center md:text-right">
+                <div className="inline-flex flex-col gap-1 px-8 py-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10">
+                  <p className="text-4xl font-black bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] bg-clip-text text-transparent">{filteredEvents.length}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-black/60 dark:text-white/60">Events Found</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="min-h-[400px]">
+              {status === "loading" && <LoadingSkeletonGrid />}
+              {status === "error" && <ErrorBlock message={error || "Failed to load events."} />}
+              {status === "ready" && filteredEvents.length === 0 && (
+                <EmptyState
+                  city={activeCityLabel}
+                  fallbackCities={fallbackCities}
+                  onCitySelect={setSelectedCity}
+                  onReset={clearFilters}
+                />
+              )}
+              {filteredEvents.length > 0 && (
+                <>
+                  <ExploreEventGrid events={paginatedEvents} />
+                  {filteredEvents.length > pageSize && (
+                    <Pagination current={currentPage} total={totalPages} onChange={setCurrentPage} />
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+      {/* End content wrapper */}
     </div>
   );
 }
@@ -453,16 +466,16 @@ function FilterDropdown({ label, value, options = [], onChange }) {
     <div className="relative" ref={containerRef}>
       <button
         type="button"
-        className="flex min-w-[185px] items-center justify-between rounded-full border border-white/10 bg-white/5 px-6 py-3.5 backdrop-blur-md transition-all hover:bg-white/10 hover:border-white/20"
+        className="flex min-w-[185px] items-center justify-between rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-6 py-3.5 backdrop-blur-md transition-all hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/20 dark:hover:border-white/20"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
       >
         <div className="flex flex-col text-left leading-tight">
-          <span className="text-[9px] uppercase tracking-[0.5em] text-white/40 mb-0.5">{label}</span>
-          <span className="text-sm font-bold text-white tracking-wide">{selected.label}</span>
-          {selected.description && <span className="text-[10px] text-white/40">{selected.description}</span>}
+          <span className="text-[9px] uppercase tracking-[0.5em] text-black/40 dark:text-white/40 mb-0.5">{label}</span>
+          <span className="text-sm font-bold text-black dark:text-white tracking-wide">{selected.label}</span>
+          {selected.description && <span className="text-[10px] text-black/40 dark:text-white/40">{selected.description}</span>}
         </div>
-        <ChevronDownIcon className={clsx("h-4 w-4 text-white/60 transition-transform duration-300", open && "rotate-180")} />
+        <ChevronDownIcon className={clsx("h-4 w-4 text-black/60 dark:text-white/60 transition-transform duration-300", open && "rotate-180")} />
       </button>
       <AnimatePresence>
         {open && (
@@ -471,7 +484,7 @@ function FilterDropdown({ label, value, options = [], onChange }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="absolute left-0 z-30 mt-2 w-72 overflow-hidden rounded-[24px] border border-white/10 bg-[#0A0A0A]/95 p-2 shadow-floating backdrop-blur-xl"
+            className="absolute left-0 z-30 mt-2 w-72 overflow-hidden rounded-[24px] border border-black/10 dark:border-white/10 bg-white/95 dark:bg-[#0A0A0A]/95 p-2 shadow-floating backdrop-blur-xl"
           >
             <div className="max-h-[300px] overflow-y-auto scrollbar-hide">
               {options.map((option) => (
@@ -484,14 +497,14 @@ function FilterDropdown({ label, value, options = [], onChange }) {
                   }}
                   className={clsx(
                     "flex w-full items-center justify-between rounded-xl px-4 py-3 text-left transition-all",
-                    option.value === value ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
+                    option.value === value ? "bg-black/10 dark:bg-white/10 text-black dark:text-white" : "text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white"
                   )}
                 >
                   <span className="flex flex-col gap-0.5">
                     <span className="text-sm font-bold tracking-wide">{option.label}</span>
-                    {option.description && <span className="text-[10px] uppercase tracking-wider text-white/30">{option.description}</span>}
+                    {option.description && <span className="text-[10px] uppercase tracking-wider text-black/30 dark:text-white/30">{option.description}</span>}
                   </span>
-                  {option.value === value && <CheckIcon />}
+                  {option.value === value && <CheckIcon className="text-black dark:text-white" />}
                 </button>
               ))}
             </div>
@@ -507,19 +520,28 @@ function HeroSkeleton({ status, error }) {
     return (
       <section className="relative w-full py-12">
         <div className="mx-auto w-full max-w-[1400px] px-6">
-          <div className="rounded-[40px] border border-red-500/20 bg-red-500/5 p-12 text-center">
-            <p className="text-xl font-bold text-red-200">Failed to load featured events</p>
-            <p className="mt-2 text-sm text-red-200/60">{error || "Please try refreshing the page."}</p>
+          <div className="rounded-[40px] border border-red-500/20 bg-red-500/5 backdrop-blur-xl p-16 text-center">
+            <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <p className="text-2xl font-black text-red-500 dark:text-red-400 mb-2">Failed to load featured events</p>
+            <p className="text-base text-red-500/70 dark:text-red-400/70">{error || "Please try refreshing the page."}</p>
           </div>
         </div>
       </section>
     );
   }
   return (
-    <section className="relative w-full py-8">
-      <div className="mx-auto w-full max-w-[1400px] px-6">
-        <div className="relative overflow-hidden rounded-[40px] border border-white/10 bg-surface h-[500px]">
-          <div className="absolute inset-0 bg-gradient-to-r from-white/5 via-transparent to-transparent shimmer-block" />
+    <section className="relative w-full py-12">
+      <div className="mx-auto w-full max-w-[1600px] px-6">
+        <div className="relative overflow-hidden rounded-[40px] border border-black/5 dark:border-white/5 bg-gradient-to-br from-black/5 to-transparent dark:from-white/5 dark:to-transparent h-[750px] flex items-center justify-center">
+          <div className="absolute inset-0 bg-gradient-to-r from-black/5 dark:from-white/5 via-transparent to-transparent shimmer-block" />
+          <div className="relative z-10 text-center space-y-4">
+            <div className="w-16 h-16 border-4 border-black/10 dark:border-white/10 border-t-black dark:border-t-white rounded-full animate-spin mx-auto" />
+            <p className="text-sm font-bold uppercase tracking-widest text-black/40 dark:text-white/40">Loading Featured Events</p>
+          </div>
         </div>
       </div>
     </section>
@@ -532,13 +554,13 @@ function LoadingSkeletonGrid() {
       {Array.from({ length: 8 }).map((_, index) => (
         <div
           key={index}
-          className="relative h-[420px] overflow-hidden rounded-[32px] border border-white/10 bg-surface"
+          className="relative h-[420px] overflow-hidden rounded-[32px] border border-black/10 dark:border-white/10 bg-white dark:bg-surface"
         >
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-transparent shimmer-block" />
+          <Skeleton className="absolute inset-0 h-full w-full rounded-none" />
           <div className="absolute bottom-0 left-0 right-0 p-6 space-y-3">
-            <div className="h-3 w-20 rounded-full bg-white/10" />
-            <div className="h-8 w-3/4 rounded-lg bg-white/10" />
-            <div className="h-4 w-1/2 rounded-full bg-white/10" />
+            <Skeleton className="h-3 w-20 rounded-full" />
+            <Skeleton className="h-8 w-3/4 rounded-lg" />
+            <Skeleton className="h-4 w-1/2 rounded-full" />
           </div>
         </div>
       ))}
@@ -548,25 +570,25 @@ function LoadingSkeletonGrid() {
 
 function EmptyState({ city, fallbackCities, onCitySelect, onReset }) {
   return (
-    <div className="rounded-[32px] border border-white/10 bg-surface p-12 text-center">
-      <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-white/5">
+    <div className="rounded-[32px] border border-black/10 dark:border-white/10 bg-gradient-to-br from-black/5 to-transparent dark:from-white/5 dark:to-transparent backdrop-blur-xl p-16 text-center">
+      <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-[#F44A22]/20 to-[#FF6B4A]/20 border border-[#F44A22]/30">
         <SearchIcon />
       </div>
-      <h3 className="text-2xl font-heading font-bold text-white mb-2">No events found</h3>
-      <p className="text-white/60 max-w-md mx-auto mb-8">
-        We couldn't find any events matching your filters in {city}. Try adjusting your search or check out other cities.
+      <h3 className="text-3xl md:text-4xl font-heading font-black text-black dark:text-white mb-3 uppercase">No events found</h3>
+      <p className="text-lg text-black/60 dark:text-white/60 max-w-lg mx-auto mb-10">
+        We couldn't find any events matching your filters in <span className="font-bold text-[#F44A22]">{city}</span>. Try adjusting your search or check out other cities.
       </p>
 
       <div className="flex flex-wrap justify-center gap-4">
         <button
           onClick={onReset}
-          className="rounded-full border border-white/20 px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-colors"
+          className="rounded-full border border-black/20 dark:border-white/20 px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest text-black dark:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
         >
           Clear Filters
         </button>
         <Link
           href="/create"
-          className="rounded-full bg-white px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest text-black hover:bg-white/90 transition-colors"
+          className="rounded-full bg-black dark:bg-white px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest text-white dark:text-black hover:bg-black/90 dark:hover:bg-white/90 transition-colors"
         >
           Create Event
         </Link>
@@ -580,7 +602,7 @@ function EmptyState({ city, fallbackCities, onCitySelect, onReset }) {
               <button
                 key={option.value}
                 onClick={() => onCitySelect(option.value)}
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+                className="rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-black/70 dark:text-white/70 hover:bg-black/10 dark:hover:bg-white/10 hover:text-black dark:hover:text-white transition-colors"
               >
                 {option.label}
               </button>
@@ -607,7 +629,7 @@ function Pagination({ current, total, onChange }) {
       <button
         onClick={() => onChange(Math.max(current - 1, 1))}
         disabled={current === 1}
-        className="group flex items-center gap-2 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white/60 disabled:opacity-30 hover:text-white transition-colors"
+        className="group flex items-center gap-2 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-black/60 dark:text-white/60 disabled:opacity-30 hover:text-black dark:hover:text-white transition-colors"
       >
         <ArrowLeftIcon />
         <span className="group-hover:-translate-x-1 transition-transform">Previous</span>
@@ -620,7 +642,7 @@ function Pagination({ current, total, onChange }) {
             onClick={() => onChange(i + 1)}
             className={clsx(
               "h-2 rounded-full transition-all duration-300",
-              current === i + 1 ? "w-8 bg-white" : "w-2 bg-white/20 hover:bg-white/40"
+              current === i + 1 ? "w-8 bg-black dark:bg-white" : "w-2 bg-black/20 dark:bg-white/20 hover:bg-black/40 dark:hover:bg-white/40"
             )}
             aria-label={`Page ${i + 1}`}
           />
@@ -630,7 +652,7 @@ function Pagination({ current, total, onChange }) {
       <button
         onClick={() => onChange(Math.min(current + 1, total))}
         disabled={current === total}
-        className="group flex items-center gap-2 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-white/60 disabled:opacity-30 hover:text-white transition-colors"
+        className="group flex items-center gap-2 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-black/60 dark:text-white/60 disabled:opacity-30 hover:text-black dark:hover:text-white transition-colors"
       >
         <span className="group-hover:translate-x-1 transition-transform">Next</span>
         <ArrowRightIcon />
@@ -647,9 +669,9 @@ function ChevronDownIcon({ className = "" }) {
   );
 }
 
-function CheckIcon() {
+function CheckIcon({ className }) {
   return (
-    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" aria-hidden="true">
+    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={clsx("h-4 w-4", className)} aria-hidden="true">
       <path d="m5 10 3 3 7-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -657,7 +679,7 @@ function CheckIcon() {
 
 function SearchIcon() {
   return (
-    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white/60" aria-hidden="true">
+    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-black/60 dark:text-white/60" aria-hidden="true">
       <path
         d="M9 15.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Zm5.5-1 4 4"
         stroke="currentColor"

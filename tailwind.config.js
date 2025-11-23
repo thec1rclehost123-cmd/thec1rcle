@@ -5,37 +5,46 @@ module.exports = {
     "./components/**/*.{js,jsx,ts,tsx}",
     "./lib/**/*.{js,jsx,ts,tsx}"
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
         base: {
-          DEFAULT: "#050505", // Void Black
-          50: "#0A0A0A",
-          100: "#111111",
-          200: "#1A1A1A",
-          300: "#262626",
-          400: "#333333",
-          500: "#4D4D4D",
-          600: "#666666",
-          700: "#808080",
-          800: "#999999",
-          900: "#B3B3B3",
+          DEFAULT: "#161616", // Midnight
+          50: "#1F1F1F",
+          100: "#292929",
+          200: "#3D3D3D",
+          300: "#525252",
+          400: "#666666",
+          500: "#808080",
+          600: "#999999",
+          700: "#B3B3B3",
+          800: "#CCCCCC",
+          900: "#E6E6E6",
         },
         iris: {
-          DEFAULT: "#8845FF", // Neon Iris
-          glow: "#A875FF",
-          dim: "#6633CC",
+          DEFAULT: "#F44A22", // Orange
+          glow: "#FF6B4A",
+          dim: "#CC3311",
         },
         gold: {
-          DEFAULT: "#FFD700", // Pure Gold
-          light: "#FFE55C",
-          dark: "#D4AF37",
-          metallic: "#F4C430",
-          rose: "#ECC94B",
+          DEFAULT: "#FEF8E8", // Silver
+          light: "#FFFFFF",
+          dark: "#E4E2E3", // Grey
+          metallic: "#A8AAAC", // Stone
+          rose: "#F44A22", // Orange as accent
         },
-        cream: "#F5E6D7",
-        peach: "#FFB5A7",
-        midnight: "#020204",
+        orange: {
+          DEFAULT: "#F44A22",
+          glow: "#FF6B4A",
+          dim: "#CC3311",
+        },
+        midnight: "#161616",
+        silver: "#FEF8E8",
+        grey: "#E4E2E3",
+        stone: "#A8AAAC",
+        cream: "#FEF8E8", // Mapped to Silver
+        peach: "#F44A22", // Mapped to Orange
         surface: {
           DEFAULT: "rgba(255, 255, 255, 0.03)",
           hover: "rgba(255, 255, 255, 0.08)",
@@ -58,18 +67,26 @@ module.exports = {
         body: ["var(--font-body)", "Inter", "sans-serif"],
         display: ["var(--font-heading)", "Satoshi", "Inter", "sans-serif"]
       },
+      fontWeight: {
+        light: "300",
+        normal: "400",
+        medium: "500",
+        semibold: "600",
+        bold: "700",
+        black: "900"
+      },
       boxShadow: {
-        glow: "0 0 40px rgba(136, 69, 255, 0.3)",
-        "glow-lg": "0 0 80px rgba(136, 69, 255, 0.45)",
+        glow: "0 0 40px rgba(244, 74, 34, 0.3)",
+        "glow-lg": "0 0 80px rgba(244, 74, 34, 0.45)",
         card: "0 8px 32px rgba(0, 0, 0, 0.4)",
         elevate: "0 20px 60px rgba(0, 0, 0, 0.6)",
         floating: "0 30px 100px rgba(0, 0, 0, 0.8)",
         glass: "inset 0 1px 0 0 rgba(255, 255, 255, 0.1)",
       },
       backgroundImage: {
-        "hero-fade": "linear-gradient(180deg, rgba(5,5,5,0) 0%, #050505 100%)",
+        "hero-fade": "linear-gradient(180deg, rgba(22,22,22,0) 0%, #161616 100%)",
         "glass-gradient": "linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%)",
-        "holographic": "linear-gradient(135deg, rgba(136,69,255,0.2), rgba(255,181,167,0.2), rgba(147,197,180,0.2))",
+        "holographic": "linear-gradient(135deg, rgba(244,74,34,0.2), rgba(254,248,232,0.2), rgba(168,170,172,0.2))",
       },
       keyframes: {
         shimmer: {
@@ -90,7 +107,7 @@ module.exports = {
         float: 'float 6s ease-in-out infinite',
         "pulse-glow": 'pulse-glow 3s ease-in-out infinite',
       }
-    },
+    }
   },
   plugins: [],
 };

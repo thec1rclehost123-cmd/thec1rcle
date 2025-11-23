@@ -14,7 +14,10 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
-  updateProfile as updateFirebaseProfile
+  updateProfile as updateFirebaseProfile,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence
 } from "firebase/auth";
 import { getFirebaseAuth, getFirebaseDb } from "../../lib/firebase/client";
 
@@ -22,10 +25,10 @@ const AuthContext = createContext({
   user: null,
   profile: null,
   loading: true,
-  login: async () => {},
-  register: async () => {},
-  logout: async () => {},
-  updateEventList: async () => {}
+  login: async () => { },
+  register: async () => { },
+  logout: async () => { },
+  updateEventList: async () => { }
 });
 
 const buildProfilePayload = (firebaseUser, overrides = {}) => {
@@ -33,11 +36,12 @@ const buildProfilePayload = (firebaseUser, overrides = {}) => {
   return {
     uid: firebaseUser.uid,
     email: firebaseUser.email || "",
-    displayName: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "Guest",
+    displayName: firebaseUser.displayName || "Member",
     photoURL: firebaseUser.photoURL || "",
-    likedEvents: [],
+
     attendedEvents: [],
     city: "",
+    instagram: "",
     createdAt: now,
     updatedAt: now,
     ...overrides
@@ -96,8 +100,9 @@ export function AuthProvider({ children }) {
     return () => unsubscribe?.();
   }, [ensureProfile]);
 
-  const login = useCallback(async (email, password) => {
+  const login = useCallback(async (email, password, rememberMe = true) => {
     const auth = getFirebaseAuth();
+    await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
     const credential = await signInWithEmailAndPassword(auth, email, password);
     await ensureProfile(credential.user);
     return credential.user;
@@ -151,6 +156,20 @@ export function AuthProvider({ children }) {
     [user?.uid]
   );
 
+  const updateUserProfile = useCallback(
+    async (updates) => {
+      if (!user?.uid) throw new Error("Not logged in");
+      const db = getFirebaseDb();
+      const profileRef = doc(db, "users", user.uid);
+      await updateDoc(profileRef, {
+        ...updates,
+        updatedAt: new Date().toISOString()
+      });
+      setProfile((prev) => ({ ...prev, ...updates }));
+    },
+    [user?.uid]
+  );
+
   const value = useMemo(
     () => ({
       user,
@@ -160,9 +179,10 @@ export function AuthProvider({ children }) {
       login,
       register,
       logout,
-      updateEventList
+      updateEventList,
+      updateUserProfile
     }),
-    [user, profile, loading, error, login, register, logout, updateEventList]
+    [user, profile, loading, error, login, register, logout, updateEventList, updateUserProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

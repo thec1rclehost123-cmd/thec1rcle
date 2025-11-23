@@ -2,18 +2,26 @@ import CreateEventForm from "../../components/CreateEventForm";
 
 export default function CreatePage() {
   return (
-    <section className="relative isolate overflow-hidden px-4 pb-24 pt-12 sm:px-6">
-      <div className="create-grid absolute inset-0 -z-10 opacity-30" aria-hidden="true" />
-      <div className="absolute inset-x-0 top-0 -z-10 mx-auto h-[420px] w-[90%] rounded-full bg-gradient-to-b from-white/20 via-transparent to-transparent blur-[200px]" />
-      <div className="relative mx-auto flex max-w-5xl flex-col items-center text-center">
-        <p className="text-xs uppercase tracking-[0.6em] text-white/40">Studio Build Mode</p>
-        <h1 className="mt-4 text-4xl font-display uppercase tracking-[0.2em] sm:text-5xl">Create an Event</h1>
-        <p className="mt-3 max-w-3xl text-white/60">
-          Craft a dark, premium drop page. Every field below feeds the flyer, tickets, and RSVP data your guests see inside the
-          app.
+    <section className="relative isolate min-h-screen overflow-hidden bg-white dark:bg-black px-4 pb-24 pt-12 sm:px-6">
+      {/* Subtle grid background */}
+      <div className="create-grid absolute inset-0 -z-10 opacity-20" aria-hidden="true" />
+
+      {/* Gradient glow */}
+      <div className="absolute inset-x-0 top-0 -z-10 mx-auto h-[520px] w-full bg-gradient-to-b from-iris/10 via-transparent to-transparent blur-[100px] dark:opacity-100 opacity-50" />
+
+      {/* Header */}
+      <div className="relative mx-auto mb-12 max-w-4xl text-center">
+        <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-iris">Studio</p>
+        <h1 className="mt-4 text-5xl font-heading font-bold uppercase tracking-tight text-black dark:text-white sm:text-6xl md:text-7xl">
+          Create Event
+        </h1>
+        <p className="mt-4 text-lg text-black/60 dark:text-white/60 max-w-2xl mx-auto">
+          Build your event in minutes. Every detail you add shows up beautifully on your event page.
         </p>
       </div>
-      <div className="mx-auto mt-12 max-w-6xl">
+
+      {/* Form */}
+      <div className="mx-auto max-w-5xl">
         <CreateEventForm />
       </div>
     </section>

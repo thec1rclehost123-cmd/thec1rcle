@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState("login");
   const [status, setStatus] = useState({ type: "", message: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const redirect = useMemo(() => searchParams.get("next") || "/profile", [searchParams]);
 
@@ -47,7 +48,7 @@ export default function LoginPage() {
     setStatus({ type: "", message: "" });
     try {
       if (mode === "login") {
-        await login(form.email, form.password);
+        await login(form.email, form.password, rememberMe);
       } else {
         if (!form.name.trim()) {
           throw new Error("Add your name so we can personalize your profile.");
@@ -83,9 +84,8 @@ export default function LoginPage() {
         >
           {status.message && (
             <div
-              className={`mb-5 rounded-2xl border px-4 py-3 text-sm ${
-                status.type === "error" ? "border-red-500/30 text-red-200" : "border-emerald-500/30 text-emerald-200"
-              }`}
+              className={`mb-5 rounded-2xl border px-4 py-3 text-sm ${status.type === "error" ? "border-red-500/30 text-red-200" : "border-emerald-500/30 text-emerald-200"
+                }`}
             >
               {status.message}
             </div>
@@ -113,7 +113,7 @@ export default function LoginPage() {
               required
             />
           </label>
-          <label className="mb-6 flex flex-col gap-2 text-sm text-white/70">
+          <label className="mb-2 flex flex-col gap-2 text-sm text-white/70">
             <span className="text-xs uppercase tracking-[0.4em] text-white/50">Password</span>
             <input
               type="password"
@@ -125,6 +125,25 @@ export default function LoginPage() {
               required
             />
           </label>
+          {mode === "login" && (
+            <div className="mb-6 flex items-center justify-between">
+              <label className="flex items-center gap-2 text-xs text-white/60 hover:text-white cursor-pointer transition-colors">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-white/20 bg-black/40 text-white focus:ring-0 focus:ring-offset-0"
+                />
+                Remember me
+              </label>
+              <Link
+                href="/forgot-password"
+                className="text-xs text-white/60 hover:text-white transition-colors"
+              >
+                Forgot Password?
+              </Link>
+            </div>
+          )}
           <button
             type="submit"
             disabled={submitting}

@@ -36,15 +36,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       variant === "primary"
         ? { backgroundImage: accentToken.gradient, boxShadow: accentToken.shadow }
         : variant === "secondary"
-        ? { boxShadow: accentToken.shadow.replace("0 15px 30px", "0 12px 24px") }
-        : {};
+          ? { boxShadow: accentToken.shadow.replace("0 15px 30px", "0 12px 24px") }
+          : {};
 
     return (
-      <motion.button
+      <button
         ref={ref}
-        className={clsx(baseStyles, variantStyles[variant], fullWidth && "w-full", "disabled:cursor-not-allowed disabled:opacity-60", className)}
-        whileHover={{ scale: 1.015 }}
-        whileTap={{ scale: 0.98 }}
+        className={clsx(baseStyles, variantStyles[variant], fullWidth && "w-full", "disabled:cursor-not-allowed disabled:opacity-60 hover:scale-[1.015] active:scale-[0.98] transition-transform", className)}
         disabled={disabled || loading}
         style={inlineStyles}
         {...rest}
@@ -59,7 +57,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         />
         {loading ? <Spinner /> : icon}
         <span className={clsx("relative z-10 flex items-center gap-2", loading && "opacity-80")}>{children}</span>
-      </motion.button>
+      </button>
     );
   }
 );

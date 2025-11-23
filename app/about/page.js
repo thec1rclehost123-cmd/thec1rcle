@@ -2,7 +2,9 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { motion, useScroll, useTransform, useInView, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import { useScroll, useTransform, useInView } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 
 // --- Data ---
 
@@ -12,7 +14,7 @@ const features = [
     title: "Create Timeless Events",
     subtitle: "In Under a Minute",
     description: "Encapsulate your vision with images, music, and lightning-fast flows. The most powerful editor in the game.",
-    color: "gold",
+    color: "orange",
     visual: "ComposerUI"
   },
   {
@@ -20,7 +22,7 @@ const features = [
     title: "Grow Your Community",
     subtitle: "Like Clockwork",
     description: "Automated SMS nudges, affiliate boosts, and waitlist pings. Sell out every drop without the manual hustle.",
-    color: "iris",
+    color: "silver",
     visual: "GrowthUI"
   },
   {
@@ -28,7 +30,7 @@ const features = [
     title: "Instant Access to Capital",
     subtitle: "Financial Flexibility",
     description: "Track payouts in real-time. Unlock splits for your crew. No waiting for settlement to fund your production.",
-    color: "cyan",
+    color: "grey",
     visual: "CapitalUI"
   },
   {
@@ -36,7 +38,7 @@ const features = [
     title: "Understand Your Audience",
     subtitle: "Powerful Analytics",
     description: "Drill into location heatmaps, demographic charts, and guest actions. Own your data.",
-    color: "rose",
+    color: "stone",
     visual: "AnalyticsUI"
   }
 ];
@@ -58,7 +60,27 @@ const faqs = [
 
 // --- Components ---
 
+import { useAuth } from "../../components/providers/AuthProvider";
+import HostVerificationForm from "../../components/HostVerificationForm";
+import { useRouter } from "next/navigation";
+
 export default function AboutPage() {
+  const [showHostModal, setShowHostModal] = useState(false);
+  const { user, profile } = useAuth();
+  const router = useRouter();
+
+  const handleHostAccess = () => {
+    if (!user) {
+      router.push("/login?next=/about");
+      return;
+    }
+    if (profile?.hostStatus === "approved") {
+      router.push("/profile"); // Or host dashboard
+      return;
+    }
+    setShowHostModal(true);
+  };
+
   return (
     <div className="-mx-4 -mt-28 sm:-mx-8 sm:-mt-40 min-h-screen bg-black text-white selection:bg-iris/30 overflow-x-hidden">
       <BackgroundGrid />
@@ -69,9 +91,68 @@ export default function AboutPage() {
         <NetworkSection />
         <UseCasesSection />
         <FAQSection />
+        <HostAccessSection onAccess={handleHostAccess} />
         <CTASection />
       </div>
+
+      <AnimatePresence>
+        {showHostModal && (
+          <HostModal onClose={() => setShowHostModal(false)} />
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function HostModal({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="relative w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-3xl shadow-2xl overflow-hidden"
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 text-white/40 hover:text-white transition-colors z-10"
+        >
+          ✕
+        </button>
+        <HostVerificationForm onClose={onClose} />
+      </motion.div>
+    </div>
+  );
+}
+
+function HostAccessSection({ onAccess }) {
+  return (
+    <section className="py-24 px-6 border-y border-white/5 bg-white/[0.02]">
+      <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-12">
+        <div className="space-y-4 text-center md:text-left">
+          <h2 className="font-heading text-3xl sm:text-4xl font-bold">
+            Are you an Event Producer?
+          </h2>
+          <p className="text-white/60 max-w-md">
+            Join our curated network of hosts. Get access to advanced tools, analytics, and our exclusive community.
+          </p>
+        </div>
+        <button
+          onClick={onAccess}
+          className="group relative px-8 py-4 bg-white text-black rounded-full font-bold uppercase tracking-widest text-xs overflow-hidden"
+        >
+          <span className="relative z-10 group-hover:text-white transition-colors duration-300">Host Access</span>
+          <div className="absolute inset-0 bg-black transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -100,11 +181,11 @@ function HeroSection() {
           transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
           className="relative"
         >
-          <h1 className="font-heading text-7xl sm:text-9xl font-bold tracking-tighter text-white leading-[0.85] mix-blend-overlay opacity-80">
+          <h1 className="font-heading text-7xl sm:text-9xl font-black tracking-tighter text-white leading-[0.85] mix-blend-overlay opacity-90">
             BUILD THE<br />IMPOSSIBLE
           </h1>
           <motion.div
-            className="absolute inset-0 bg-gradient-to-r from-iris via-white to-cyan-400 opacity-30 blur-[100px] -z-10"
+            className="absolute inset-0 bg-gradient-to-r from-orange via-white to-orange-400 opacity-30 blur-[100px] -z-10"
             animate={{ scale: [0.8, 1.2, 0.8], rotate: [0, 45, 0] }}
             transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
           />
@@ -118,7 +199,7 @@ function HeroSection() {
         >
           The operating system for the next generation of experience creators.
           <br />
-          <span className="text-white font-medium">Ticketing. CRM. Finance.</span> All in one.
+          <span className="text-white font-semibold">Ticketing. CRM. Finance.</span> All in one.
         </motion.p>
       </motion.div>
 
@@ -216,21 +297,21 @@ function ComposerUI() {
             <span className="animate-pulse">|</span>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="h-10 border border-dashed border-yellow-500/30 rounded-lg flex items-center px-3 text-xs text-yellow-500/70 bg-yellow-500/5">
+            <div className="h-10 border border-dashed border-orange-500/30 rounded-lg flex items-center px-3 text-xs text-orange-500/70 bg-orange-500/5">
               Event Start
             </div>
-            <div className="h-10 border border-dashed border-yellow-500/30 rounded-lg flex items-center px-3 text-xs text-yellow-500/70 bg-yellow-500/5">
+            <div className="h-10 border border-dashed border-orange-500/30 rounded-lg flex items-center px-3 text-xs text-orange-500/70 bg-orange-500/5">
               Event End
             </div>
           </div>
-          <div className="h-10 border border-dashed border-yellow-500/30 rounded-lg flex items-center px-3 text-xs text-yellow-500/70 bg-yellow-500/5">
+          <div className="h-10 border border-dashed border-orange-500/30 rounded-lg flex items-center px-3 text-xs text-orange-500/70 bg-orange-500/5">
             <span className="mr-2">📍</span> Event Location
           </div>
         </div>
 
         {/* Floating Elements */}
         <motion.div
-          className="absolute -right-12 top-12 bg-yellow-500 text-black font-bold text-xs px-4 py-2 rounded-full shadow-lg"
+          className="absolute -right-12 top-12 bg-orange-500 text-black font-bold text-xs px-4 py-2 rounded-full shadow-lg"
           animate={{ y: [0, -10, 0] }}
           transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
         >
@@ -254,7 +335,7 @@ function GrowthUI() {
           whileInView={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
         >
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-black font-bold">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-black font-bold">
             📢
           </div>
           <div>
@@ -272,7 +353,7 @@ function GrowthUI() {
           whileInView={{ x: 20, opacity: 1 }}
           transition={{ delay: 0.5 }}
         >
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-indigo-500 flex items-center justify-center text-white font-bold">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-stone-400 to-stone-600 flex items-center justify-center text-white font-bold">
             🚀
           </div>
           <div>
@@ -292,7 +373,7 @@ function CapitalUI() {
   return (
     <div className="absolute inset-0 bg-[#050505] p-8 flex items-center justify-center">
       <div className="w-full h-full border border-white/10 rounded-3xl p-6 relative overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-orange-500/50 to-transparent" />
 
         <div className="flex justify-between items-end mb-8">
           <div>
@@ -316,20 +397,20 @@ function CapitalUI() {
           <svg className="absolute inset-0 w-full h-full overflow-visible">
             <defs>
               <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.5" />
-                <stop offset="100%" stopColor="#06b6d4" stopOpacity="0" />
+                <stop offset="0%" stopColor="#F44A22" stopOpacity="0.5" />
+                <stop offset="100%" stopColor="#F44A22" stopOpacity="0" />
               </linearGradient>
             </defs>
             <motion.path
               d="M0,120 C50,100 100,130 150,60 C200,0 250,40 300,20 C350,0 400,30 450,10"
               fill="none"
-              stroke="#06b6d4"
+              stroke="#F44A22"
               strokeWidth="3"
               strokeLinecap="round"
               initial={{ pathLength: 0 }}
               whileInView={{ pathLength: 1 }}
               transition={{ duration: 2, ease: "easeInOut" }}
-              filter="drop-shadow(0 0 8px rgba(6,182,212,0.5))"
+              filter="drop-shadow(0 0 8px rgba(244,74,34,0.5))"
             />
             <motion.path
               d="M0,120 C50,100 100,130 150,60 C200,0 250,40 300,20 C350,0 400,30 450,10 L450,160 L0,160 Z"
@@ -349,7 +430,7 @@ function CapitalUI() {
                 cy={p.cy}
                 r="4"
                 fill="#050505"
-                stroke="#06b6d4"
+                stroke="#F44A22"
                 strokeWidth="2"
                 initial={{ scale: 0 }}
                 whileInView={{ scale: 1 }}
@@ -392,7 +473,7 @@ function AnalyticsUI() {
               <motion.circle
                 cx="50" cy="50" r="40"
                 fill="transparent"
-                stroke="#fb7185"
+                stroke="#F44A22"
                 strokeWidth="20"
                 strokeDasharray="251.2"
                 strokeDashoffset="251.2"
@@ -403,7 +484,7 @@ function AnalyticsUI() {
               <motion.circle
                 cx="50" cy="50" r="40"
                 fill="transparent"
-                stroke="#818cf8"
+                stroke="#A8AAAC"
                 strokeWidth="20"
                 strokeDasharray="251.2"
                 strokeDashoffset="251.2"
@@ -429,7 +510,7 @@ function NetworkSection() {
     <section className="py-32 px-6 bg-black relative overflow-hidden">
       <div className="max-w-4xl mx-auto text-center mb-20 relative z-10">
         <h2 className="font-heading text-5xl sm:text-7xl font-bold mb-6">
-          The <span className="text-iris">Network</span> Effect
+          The <span className="text-orange">Network</span> Effect
         </h2>
         <p className="text-xl text-white/60 max-w-2xl mx-auto">
           Turn every attendee into a promoter. Our Kickback system incentivizes your community to sell tickets for you.
@@ -441,7 +522,7 @@ function NetworkSection() {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_80%)]" />
 
         {/* Ambient Glow */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(136,69,255,0.15),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(244,74,34,0.15),transparent_60%)]" />
 
         <NetworkGraph />
       </div>
@@ -471,9 +552,9 @@ function NetworkGraph() {
       <svg className="absolute inset-0 w-full h-full pointer-events-none">
         <defs>
           <linearGradient id="netGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#4c1d95" stopOpacity="0.1" />
-            <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#4c1d95" stopOpacity="0.1" />
+            <stop offset="0%" stopColor="#F44A22" stopOpacity="0.1" />
+            <stop offset="50%" stopColor="#FF6B4A" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#F44A22" stopOpacity="0.1" />
           </linearGradient>
         </defs>
         {connections.map(([startId, endId], i) => {
@@ -506,7 +587,7 @@ function NetworkGraph() {
       {nodes.map((node, i) => (
         <motion.div
           key={node.id}
-          className="absolute w-3 h-3 -ml-1.5 -mt-1.5 rounded-full bg-[#0a0a0a] border border-iris/60 shadow-[0_0_20px_rgba(139,92,246,0.6)] z-10"
+          className="absolute w-3 h-3 -ml-1.5 -mt-1.5 rounded-full bg-[#0a0a0a] border border-orange/60 shadow-[0_0_20px_rgba(244,74,34,0.6)] z-10"
           style={{ left: `${node.x}%`, top: `${node.y}%` }}
           initial={{ scale: 0, opacity: 0 }}
           whileInView={{ scale: 1, opacity: 1 }}
@@ -514,7 +595,7 @@ function NetworkGraph() {
         >
           {/* Inner Glow Pulse */}
           <motion.div
-            className="absolute inset-0 bg-iris rounded-full"
+            className="absolute inset-0 bg-orange rounded-full"
             animate={{ opacity: [0.2, 0.5, 0.2], scale: [1, 1.5, 1] }}
             transition={{ duration: 3, repeat: Infinity, delay: i * 0.2 }}
           />
@@ -527,7 +608,7 @@ function NetworkGraph() {
 function ConnectionParticle({ start, end, delay }) {
   return (
     <motion.div
-      className="absolute w-1 h-1 rounded-full bg-iris shadow-[0_0_8px_rgba(139,92,246,1)] z-0"
+      className="absolute w-1 h-1 rounded-full bg-orange shadow-[0_0_8px_rgba(244,74,34,1)] z-0"
       initial={{ left: `${start.x}%`, top: `${start.y}%`, opacity: 0 }}
       animate={{
         left: [`${start.x}%`, `${end.x}%`],
@@ -553,7 +634,7 @@ function UseCasesSection() {
     <section ref={scrollRef} className="py-32 bg-black overflow-hidden">
       <div className="px-6 mb-16 max-w-7xl mx-auto">
         <div className="flex items-center gap-3 mb-4">
-          <span className="text-gold text-xl">⚡️</span>
+          <span className="text-orange text-xl">⚡️</span>
           <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/50">Limitless Use Cases</span>
         </div>
         <h2 className="font-heading text-5xl sm:text-6xl font-bold leading-tight">
@@ -578,7 +659,7 @@ function UseCasesSection() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-80" />
             <div className="absolute bottom-0 left-0 p-8">
-              <div className="flex items-center gap-2 text-yellow-400 mb-2">
+              <div className="flex items-center gap-2 text-orange-400 mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider">{useCase.title}</span>
               </div>
               <p className="text-xl text-white/80">{useCase.subtitle}</p>
@@ -645,15 +726,15 @@ function FAQItem({ faq }) {
 function CTASection() {
   return (
     <section className="py-32 px-6 text-center relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent to-iris/10 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent to-orange/10 pointer-events-none" />
       <div className="max-w-4xl mx-auto space-y-10 relative z-10">
-        <h2 className="font-heading text-5xl sm:text-8xl font-bold tracking-tighter">
-          Ready to <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-white to-gold">Ascend?</span>
+        <h2 className="font-heading text-5xl sm:text-8xl font-black tracking-tighter">
+          Ready to <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange via-white to-orange">Ascend?</span>
         </h2>
         <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
           <a
             href="/create"
-            className="px-10 py-5 bg-white text-black rounded-full font-bold uppercase tracking-widest hover:scale-105 transition-transform duration-300 shadow-[0_0_40px_rgba(255,255,255,0.3)]"
+            className="btn-lift px-10 py-5 bg-white text-black rounded-full font-bold uppercase tracking-widest shadow-[0_0_40px_rgba(255,255,255,0.3)]"
           >
             Start Creating
           </a>

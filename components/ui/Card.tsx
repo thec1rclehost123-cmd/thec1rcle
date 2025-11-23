@@ -23,18 +23,16 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ interactive = true, padding = "md", accent = "iris", blur = true, className, children, ...rest }, ref) => {
     const accentToken = getAccentToken(accent);
     return (
-      <motion.article
+      <article
         ref={ref}
         className={clsx(
           "group relative overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.03] text-white",
           blur && "backdrop-blur-xl",
-          interactive && "transition hover:-translate-y-1 hover:border-white/30",
+          interactive && "transition-all hover:-translate-y-1 hover:border-white/30 hover:scale-[1.01]",
           paddingMap[padding],
           className
         )}
         style={{ boxShadow: accentToken.soft }}
-        whileHover={interactive ? { boxShadow: accentToken.shadow, scale: 1.01 } : undefined}
-        transition={{ type: "spring", stiffness: 200, damping: 24 }}
         {...rest}
       >
         <span
@@ -42,7 +40,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
           style={{ background: accentToken.soft }}
         />
         <div className="relative z-10 flex flex-col gap-4">{children}</div>
-      </motion.article>
+      </article>
     );
   }
 );

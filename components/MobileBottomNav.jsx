@@ -7,6 +7,8 @@ import { useAuth } from "./providers/AuthProvider";
 export default function MobileBottomNav() {
   const pathname = usePathname();
   const { user } = useAuth();
+
+  if (pathname?.startsWith("/host")) return null;
   const navItems = [
     { label: "Explore", href: "/explore" },
     { label: "Create", href: "/create" },
@@ -21,9 +23,8 @@ export default function MobileBottomNav() {
             <li key={item.href}>
               <Link
                 href={item.href}
-                className={`px-3 py-1 transition ${
-                  active ? "text-cream" : "text-white/70"
-                }`}
+                className={`px-3 py-1 transition ${active ? "text-cream" : "text-white/70"
+                  }`}
               >
                 {item.label}
               </Link>

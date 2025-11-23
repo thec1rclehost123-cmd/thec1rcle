@@ -10,7 +10,7 @@ export default function InterviewSection({ interviews }) {
         <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-iris-glow">
           Voices of the Culture
         </p>
-        <h2 className="font-heading text-4xl font-bold uppercase tracking-tight text-white sm:text-6xl">
+        <h2 className="font-heading text-4xl font-bold uppercase tracking-tight text-black dark:text-white sm:text-6xl">
           In Conversation
         </h2>
       </div>
@@ -20,7 +20,7 @@ export default function InterviewSection({ interviews }) {
           <ScrollReveal key={item.slug} delay={index * 0.1}>
             <article className={`flex flex-col gap-8 lg:items-center lg:gap-16 ${index % 2 === 1 ? "lg:flex-row-reverse" : "lg:flex-row"
               }`}>
-              <div className="relative aspect-[4/3] flex-1 overflow-hidden rounded-[32px] border border-white/10 bg-surface lg:aspect-[16/10]">
+              <div className="relative aspect-[4/3] flex-1 overflow-hidden rounded-[32px] border border-black/10 dark:border-white/10 bg-black/5 dark:bg-surface lg:aspect-[16/10]">
                 <Image
                   src={item.image}
                   alt={item.title}
@@ -32,23 +32,23 @@ export default function InterviewSection({ interviews }) {
               <div className="flex-1 space-y-6">
                 <div className="flex items-center gap-3">
                   <span className="h-px w-8 bg-iris" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-black/60 dark:text-white/60">
                     Exclusive Interview
                   </span>
                 </div>
 
-                <h3 className="font-heading text-3xl font-bold uppercase leading-[0.9] text-white sm:text-5xl">
+                <h3 className="font-heading text-3xl font-bold uppercase leading-[0.9] text-black dark:text-white sm:text-5xl">
                   {item.title}
                 </h3>
 
-                <p className="text-lg leading-relaxed text-white/60">
+                <p className="text-lg leading-relaxed text-black/60 dark:text-white/60">
                   {item.excerpt}
                 </p>
 
                 <div className="pt-4">
                   <Link
                     href={`/interviews/${item.slug}`}
-                    className="group inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white transition hover:text-iris-glow"
+                    className="group inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-black dark:text-white transition hover:text-iris-glow"
                   >
                     Read Full Story
                     <svg

@@ -34,24 +34,24 @@ export const spacingScale = {
 };
 
 export const gradients = {
-  aurora: "linear-gradient(120deg, rgba(136,69,255,0.8), rgba(255,181,167,0.8))",
-  midnight: "linear-gradient(160deg, rgba(5,5,9,0.95), rgba(15,15,25,0.95))",
-  peachGlow: "linear-gradient(140deg, #FFB5A7, #FFD7BA, #F5E6D7)",
+  aurora: "linear-gradient(120deg, rgba(244,74,34,0.8), rgba(254,248,232,0.8))",
+  midnight: "linear-gradient(160deg, #161616, #1F1F1F)",
+  peachGlow: "linear-gradient(140deg, #F44A22, #FF6B4A, #FEF8E8)",
   emeraldPulse: "linear-gradient(140deg, #0EA5E9, #22D3EE, #14B8A6)",
 };
 
 export const palette = {
-  base: "#050509",
-  surface: "#0B0B14",
-  surfaceElevated: "#151522",
+  base: "#161616",
+  surface: "#1F1F1F",
+  surfaceElevated: "#292929",
   outline: "rgba(255,255,255,0.08)",
   outlineBold: "rgba(255,255,255,0.18)",
-  textHigh: "#F9FAFB",
-  textMuted: "rgba(249,250,251,0.6)",
-  cream: "#F5E6D7",
-  peach: "#FFB5A7",
-  iris: "#8845FF",
-  midnight: "#0A0A12",
+  textHigh: "#FEF8E8",
+  textMuted: "rgba(254,248,232,0.6)",
+  cream: "#FEF8E8",
+  peach: "#F44A22",
+  iris: "#F44A22",
+  midnight: "#161616",
 };
 
 export type AccentName = "iris" | "peach" | "emerald" | "rose";
@@ -68,20 +68,20 @@ export const accentTokens: Record<
   }
 > = {
   iris: {
-    base: "#8845FF",
-    soft: "rgba(136,69,255,0.15)",
-    text: "#F5E6D7",
-    gradient: "linear-gradient(130deg, #8845FF, #B794FF)",
-    border: "rgba(136,69,255,0.6)",
-    shadow: "0 15px 30px rgba(136,69,255,0.35)",
+    base: "#F44A22",
+    soft: "rgba(244,74,34,0.15)",
+    text: "#FEF8E8",
+    gradient: "linear-gradient(130deg, #F44A22, #FF6B4A)",
+    border: "rgba(244,74,34,0.6)",
+    shadow: "0 15px 30px rgba(244,74,34,0.35)",
   },
   peach: {
-    base: "#FF9E80",
-    soft: "rgba(255,158,128,0.18)",
-    text: "#0A0A12",
-    gradient: "linear-gradient(130deg, #FF9E80, #FFD7BA)",
-    border: "rgba(255,158,128,0.5)",
-    shadow: "0 15px 30px rgba(255,158,128,0.3)",
+    base: "#FF6B4A",
+    soft: "rgba(255,107,74,0.18)",
+    text: "#161616",
+    gradient: "linear-gradient(130deg, #FF6B4A, #FEF8E8)",
+    border: "rgba(255,107,74,0.5)",
+    shadow: "0 15px 30px rgba(255,107,74,0.3)",
   },
   emerald: {
     base: "#34D399",

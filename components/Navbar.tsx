@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useRef } from "react";
 import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
 import { useAuth } from "./providers/AuthProvider";
+import ThemeToggle from "./ThemeToggle";
 
 const navLinks = [
   { label: "Explore", href: "/explore" },
@@ -19,11 +20,13 @@ export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, profile, logout, loading } = useAuth();
 
+  if (pathname?.startsWith("/host")) return null;
+
   const navWidth = useTransform(scrollY, [0, 100], ["100%", "90%"]);
   const navY = useTransform(scrollY, [0, 100], [0, 20]);
   const navBackdrop = useTransform(scrollY, [0, 100], ["blur(0px)", "blur(20px)"]);
-  const navBackground = useTransform(scrollY, [0, 100], ["rgba(5, 5, 5, 0)", "rgba(5, 5, 5, 0.6)"]);
-  const navBorder = useTransform(scrollY, [0, 100], ["rgba(255, 255, 255, 0)", "rgba(255, 255, 255, 0.08)"]);
+  const navBackground = useTransform(scrollY, [0, 100], ["rgba(5, 5, 5, 0)", "var(--nav-bg-opaque)"]);
+  const navBorder = useTransform(scrollY, [0, 100], ["rgba(255, 255, 255, 0)", "var(--nav-border)"]);
 
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
   const closeMenu = () => setIsMenuOpen(false);
@@ -48,19 +51,19 @@ export default function Navbar() {
               <span className="absolute inset-0 bg-gradient-to-tr from-gold via-transparent to-transparent opacity-30" />
               <span className="relative text-sm font-bold bg-gradient-to-br from-gold to-gold-dark bg-clip-text text-transparent">C1</span>
             </div>
-            <span className="text-sm font-bold tracking-widest uppercase text-white/90 group-hover:text-gold-light transition-colors">
+            <span className="text-sm font-bold tracking-widest uppercase text-black/90 dark:text-white/90 group-hover:text-gold-light transition-colors">
               The C1rcle
             </span>
           </Link>
 
-          <div className="hidden items-center gap-1 lg:flex bg-white/5 rounded-full p-1 border border-white/5 backdrop-blur-md">
+          <div className="hidden items-center gap-1 lg:flex bg-black/5 dark:bg-white/5 rounded-full p-1 border border-black/5 dark:border-white/5 backdrop-blur-md">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`relative px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-300 ${isActive ? "text-black" : "text-white/60 hover:text-gold-light"
+                  className={`relative px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-300 ${isActive ? "text-black dark:text-white" : "text-black/60 dark:text-white/60 hover:text-gold-light"
                     }`}
                 >
                   {isActive && (
@@ -81,15 +84,22 @@ export default function Navbar() {
               <>
                 <Link
                   href="/profile"
-                  className="hidden lg:inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-white/5 border border-white/10 text-xs font-bold uppercase tracking-widest text-white hover:bg-white/10 hover:border-white/20 transition-all"
+                  className="hidden lg:inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-bold uppercase tracking-widest text-black dark:text-white hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/20 dark:hover:border-white/20 transition-all"
                 >
-                  {profile?.displayName || "Profile"}
+                  {(() => {
+                    const name = profile?.displayName;
+                    const emailHandle = user?.email?.split("@")[0];
+                    if (name && emailHandle && name.toLowerCase() === emailHandle.toLowerCase()) {
+                      return "Profile";
+                    }
+                    return name || "Profile";
+                  })()}
                 </Link>
                 <button
                   type="button"
                   onClick={logout}
                   disabled={loading}
-                  className="hidden lg:inline-flex items-center justify-center h-10 w-10 rounded-full bg-white/5 border border-white/10 text-white hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-200 transition-all"
+                  className="hidden lg:inline-flex items-center justify-center h-10 w-10 rounded-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-black dark:text-white hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-200 transition-all"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
@@ -99,34 +109,36 @@ export default function Navbar() {
             ) : (
               <Link
                 href="/login"
-                className="hidden lg:inline-flex items-center justify-center px-6 py-2.5 rounded-full bg-white text-black text-xs font-bold uppercase tracking-widest hover:bg-white/90 hover:scale-105 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.3)]"
+                className="hidden lg:inline-flex items-center justify-center px-6 py-2.5 rounded-full bg-black dark:bg-white text-white dark:text-black text-xs font-bold uppercase tracking-widest hover:bg-black/90 dark:hover:bg-white/90 hover:scale-105 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.3)]"
               >
                 Login
               </Link>
             )}
 
+            <ThemeToggle />
+
             <button
               type="button"
-              className="relative flex h-10 w-10 flex-col items-center justify-center gap-1.5 rounded-full bg-white/5 border border-white/10 lg:hidden"
+              className="relative flex h-10 w-10 flex-col items-center justify-center gap-1.5 rounded-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 lg:hidden"
               onClick={toggleMenu}
               aria-label="Toggle menu"
             >
               <motion.span
                 animate={isMenuOpen ? { rotate: 45, y: 6 } : { rotate: 0, y: 0 }}
-                className="h-0.5 w-5 bg-white origin-center transition-transform"
+                className="h-0.5 w-5 bg-black dark:bg-white origin-center transition-transform"
               />
               <motion.span
                 animate={isMenuOpen ? { opacity: 0 } : { opacity: 1 }}
-                className="h-0.5 w-5 bg-white transition-opacity"
+                className="h-0.5 w-5 bg-black dark:bg-white transition-opacity"
               />
               <motion.span
                 animate={isMenuOpen ? { rotate: -45, y: -6 } : { rotate: 0, y: 0 }}
-                className="h-0.5 w-5 bg-white origin-center transition-transform"
+                className="h-0.5 w-5 bg-black dark:bg-white origin-center transition-transform"
               />
             </button>
           </div>
         </motion.nav>
-      </motion.header>
+      </motion.header >
 
       <AnimatePresence>
         {isMenuOpen && (
