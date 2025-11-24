@@ -24,9 +24,15 @@ export default function PageLoadingAnimation() {
                 setTimeout(() => setIsLoading(false), 500);
             }, 1500);
 
+            // Safety fallback
+            const safetyTimer = setTimeout(() => {
+                setIsLoading(false);
+            }, 4000);
+
             return () => {
                 clearInterval(interval);
                 clearTimeout(timer);
+                clearTimeout(safetyTimer);
                 document.body.style.overflow = '';
             };
         }
