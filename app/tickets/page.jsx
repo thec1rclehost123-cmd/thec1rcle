@@ -333,11 +333,7 @@ function TicketsContent() {
     const [selectedTicket, setSelectedTicket] = useState(null);
     const searchParams = useSearchParams();
 
-    useEffect(() => {
-        if (!authLoading && !user) {
-            router.push(`/login?returnUrl=/tickets`);
-        }
-    }, [user, authLoading, router]);
+    // Redirect logic removed to render guest view instead
 
     useEffect(() => {
         if (!user?.uid) return;
@@ -372,7 +368,7 @@ function TicketsContent() {
         loadTickets();
     }, [user?.uid, searchParams]);
 
-    if (authLoading || (!user && !authLoading)) {
+    if (authLoading) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-[var(--bg-color)]">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-black/10 dark:border-white/20 border-t-orange dark:border-t-white" />
@@ -382,78 +378,120 @@ function TicketsContent() {
 
     const currentTickets = activeTab === "upcoming" ? tickets.upcomingTickets : tickets.pastTickets;
 
+    const GuestView = () => (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+            <div className="p-10 rounded-[40px] border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] backdrop-blur-md max-w-lg w-full relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-tr from-orange/5 dark:from-gold/5 via-transparent to-transparent opacity-50" />
+
+                <div className="relative z-10 flex flex-col items-center gap-6">
+                    <div className="h-20 w-20 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center mb-2 border border-black/5 dark:border-white/5">
+                        <svg className="w-8 h-8 text-black/40 dark:text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                        </svg>
+                    </div>
+
+                    <h2 className="text-3xl font-heading font-black uppercase tracking-tight text-black dark:text-white">
+                        Your Tickets
+                    </h2>
+
+                    <p className="text-sm font-medium text-black/60 dark:text-white/60 leading-relaxed max-w-md">
+                        Buy tickets to exclusive events and view them here. <br /> Sign up or login to get started.
+                    </p>
+
+                    <div className="flex gap-4 w-full mt-4">
+                        <Link href="/login" className="flex-1 py-4 rounded-full bg-black dark:bg-white text-white dark:text-black text-xs font-bold uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg text-center flex items-center justify-center">
+                            Login
+                        </Link>
+                        <Link href="/login?mode=register" className="flex-1 py-4 rounded-full bg-transparent border border-black/10 dark:border-white/10 text-black dark:text-white text-xs font-bold uppercase tracking-widest hover:bg-black/5 dark:hover:bg-white/5 hover:scale-[1.02] active:scale-[0.98] transition-all text-center flex items-center justify-center">
+                            Sign Up
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div className="bg-[var(--bg-color)] text-[var(--text-primary)] transition-colors duration-500 selection:bg-orange/30 flex-1 flex flex-col">
             <AuroraBackground />
 
-            <div className="relative z-10 mx-auto max-w-5xl px-4 pb-20 pt-32 sm:px-6 lg:px-8">
+            {!user ? (
+                <div className="relative z-10 mx-auto max-w-5xl px-4 pt-32 pb-20 sm:px-6 lg:px-8 flex-1 flex flex-col">
+                    <h1 className="text-5xl md:text-8xl font-heading font-black uppercase tracking-tighter text-black dark:text-white mb-12">
+                        Tickets
+                    </h1>
+                    <GuestView />
+                </div>
+            ) : (
+                <div className="relative z-10 mx-auto max-w-5xl px-4 pb-20 pt-32 sm:px-6 lg:px-8">
 
-                <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
-                    <div>
-                        <h1 className="text-5xl md:text-8xl font-heading font-black uppercase tracking-tighter text-black dark:text-white">
-                            Tickets
-                        </h1>
-                        <div className="mt-8 flex gap-8">
-                            <button
-                                onClick={() => setActiveTab("upcoming")}
-                                className={`text-[10px] font-bold uppercase tracking-[0.3em] transition-colors ${activeTab === "upcoming" ? "text-orange dark:text-white" : "text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60"}`}
-                            >
-                                Upcoming
-                                {activeTab === "upcoming" && <motion.div layoutId="ticketTab" className="h-0.5 bg-orange dark:bg-white mt-2" />}
-                            </button>
-                            <button
-                                onClick={() => setActiveTab("past")}
-                                className={`text-[10px] font-bold uppercase tracking-[0.3em] transition-colors ${activeTab === "past" ? "text-orange dark:text-white" : "text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60"}`}
-                            >
-                                Past
-                                {activeTab === "past" && <motion.div layoutId="ticketTab" className="h-0.5 bg-orange dark:bg-white mt-2" />}
-                            </button>
+                    <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+                        <div>
+                            <h1 className="text-5xl md:text-8xl font-heading font-black uppercase tracking-tighter text-black dark:text-white">
+                                Tickets
+                            </h1>
+                            <div className="mt-8 flex gap-8">
+                                <button
+                                    onClick={() => setActiveTab("upcoming")}
+                                    className={`text-[10px] font-bold uppercase tracking-[0.3em] transition-colors ${activeTab === "upcoming" ? "text-orange dark:text-white" : "text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60"}`}
+                                >
+                                    Upcoming
+                                    {activeTab === "upcoming" && <motion.div layoutId="ticketTab" className="h-0.5 bg-orange dark:bg-white mt-2" />}
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab("past")}
+                                    className={`text-[10px] font-bold uppercase tracking-[0.3em] transition-colors ${activeTab === "past" ? "text-orange dark:text-white" : "text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60"}`}
+                                >
+                                    Past
+                                    {activeTab === "past" && <motion.div layoutId="ticketTab" className="h-0.5 bg-orange dark:bg-white mt-2" />}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="min-h-[400px]">
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={activeTab}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ duration: 0.3 }}
-                        >
-                            {loading ? (
-                                <div className="grid gap-10 sm:grid-cols-2">
-                                    <TicketSkeleton />
-                                    <TicketSkeleton />
-                                    <TicketSkeleton />
-                                    <TicketSkeleton />
-                                </div>
-                            ) : currentTickets.length > 0 ? (
-                                <div className="grid gap-10 sm:grid-cols-2">
-                                    {currentTickets.map((ticket) => (
-                                        <TicketCard
-                                            key={ticket.ticketId}
-                                            ticket={ticket}
-                                            onClick={setSelectedTicket}
-                                        />
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="py-32 text-center rounded-[40px] border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02]">
-                                    <p className="text-black/30 dark:text-white/40 text-sm font-bold uppercase tracking-widest">
-                                        {activeTab === "upcoming" ? "No upcoming tickets" : "No past tickets yet"}
-                                    </p>
-                                    {activeTab === "upcoming" && (
-                                        <Link href="/explore" className="mt-8 inline-block rounded-full bg-black dark:bg-white px-8 py-4 text-xs font-bold uppercase tracking-widest text-white dark:text-black hover:scale-105 transition-transform shadow-md">
-                                            Explore events
-                                        </Link>
-                                    )}
-                                </div>
-                            )}
-                        </motion.div>
-                    </AnimatePresence>
+                    <div className="min-h-[400px]">
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={activeTab}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                transition={{ duration: 0.3 }}
+                            >
+                                {loading ? (
+                                    <div className="grid gap-10 sm:grid-cols-2">
+                                        <TicketSkeleton />
+                                        <TicketSkeleton />
+                                        <TicketSkeleton />
+                                        <TicketSkeleton />
+                                    </div>
+                                ) : currentTickets.length > 0 ? (
+                                    <div className="grid gap-10 sm:grid-cols-2">
+                                        {currentTickets.map((ticket) => (
+                                            <TicketCard
+                                                key={ticket.ticketId}
+                                                ticket={ticket}
+                                                onClick={setSelectedTicket}
+                                            />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="py-32 text-center rounded-[40px] border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02]">
+                                        <p className="text-black/30 dark:text-white/40 text-sm font-bold uppercase tracking-widest">
+                                            {activeTab === "upcoming" ? "No upcoming tickets" : "No past tickets yet"}
+                                        </p>
+                                        {activeTab === "upcoming" && (
+                                            <Link href="/explore" className="mt-8 inline-block rounded-full bg-black dark:bg-white px-8 py-4 text-xs font-bold uppercase tracking-widest text-white dark:text-black hover:scale-105 transition-transform shadow-md">
+                                                Explore events
+                                            </Link>
+                                        )}
+                                    </div>
+                                )}
+                            </motion.div>
+                        </AnimatePresence>
+                    </div>
                 </div>
-            </div>
+            )}
 
             <AnimatePresence>
                 {selectedTicket && (

@@ -7,6 +7,5 @@
     </linearGradient>
   </defs>
   <rect width="480" height="640" fill="url(#grad)" rx="32"/>
-  <text x="40" y="320" font-family="'Arial', sans-serif" font-size="48" fill="#F5E6D7" letter-spacing="2" font-weight="700">THE C1RCLE</text>
-  <text x="40" y="380" font-family="'Arial', sans-serif" font-size="28" fill="#fff" opacity="0.6">Poster</text>
+
 </svg>

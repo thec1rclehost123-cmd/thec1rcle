@@ -43,14 +43,14 @@ export default function Navbar() {
             backgroundColor: navBackground,
             borderColor: navBorder,
           }}
-          className="pointer-events-auto flex items-center justify-between px-6 py-4 border border-transparent rounded-full transition-all duration-500 max-w-5xl mx-auto"
+          className="pointer-events-auto flex items-center justify-between px-6 py-2 border border-transparent rounded-full transition-all duration-500 max-w-5xl mx-auto"
         >
-          <Link href="/" className="group flex items-center gap-3">
-            <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-orange/10 dark:bg-gold/20 border border-orange/20 dark:border-gold/20 transition-all duration-500 group-hover:rotate-180 group-hover:border-orange/40 dark:group-hover:border-gold/40">
-              <span className="absolute inset-0 bg-gradient-to-tr from-orange dark:from-gold via-transparent to-transparent opacity-30" />
-              <span className="relative text-sm font-bold text-orange dark:text-gold">C1</span>
+          <Link href="/" className="group flex items-center gap-4">
+            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-orange/20 dark:border-white/10 transition-all duration-500 group-hover:rotate-180 group-hover:border-orange/40 dark:group-hover:border-white/20">
+              <span className="absolute inset-0 bg-gradient-to-tr from-orange dark:from-gold via-transparent to-transparent opacity-10" />
+              <img src="/logo-circle.jpg" alt="The C1rcle" className="h-full w-full object-cover scale-125" />
             </div>
-            <span className="text-sm font-bold tracking-widest uppercase text-black dark:text-white group-hover:text-orange dark:group-hover:text-gold-light transition-colors">
+            <span className="font-heading text-xl font-black tracking-tighter uppercase text-black dark:text-white group-hover:text-orange dark:group-hover:text-white transition-colors">
               The C1rcle
             </span>
           </Link>
@@ -58,7 +58,7 @@ export default function Navbar() {
           <div className="hidden items-center gap-1 lg:flex bg-black/[0.03] dark:bg-white/5 rounded-full p-1 border border-black/5 dark:border-white/5 backdrop-blur-md">
             {[
               ...navLinks.slice(0, 1),
-              ...(user ? [{ label: "Tickets", href: "/tickets" }] : []),
+              { label: "Tickets", href: "/tickets" },
               ...navLinks.slice(1)
             ].map((link) => {
               const isActive = pathname === link.href;
@@ -137,7 +137,7 @@ export default function Navbar() {
             <div className="flex flex-col items-center gap-8 p-8 w-full max-w-sm">
               {[
                 ...navLinks.slice(0, 1),
-                ...(user ? [{ label: "Tickets", href: "/tickets" }] : []),
+                { label: "Tickets", href: "/tickets" },
                 ...navLinks.slice(1)
               ].map((link, i) => (
                 <motion.div

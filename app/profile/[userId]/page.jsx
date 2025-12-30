@@ -35,9 +35,21 @@ const Badge = ({ label, type = "default" }) => {
     );
 };
 
-const MemberCard = ({ user, profile, displayName, initials, isOwner, onEdit }) => (
+const MemberCard = ({ user, profile, displayName, initials, isOwner, onEdit, onLogout }) => (
     <div className="relative w-full overflow-hidden rounded-[32px] border border-black/5 dark:border-white/10 bg-white dark:bg-white/5 p-8 transition-all duration-500 shadow-sm dark:shadow-none md:p-10">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange/20 dark:via-white/20 to-transparent" />
+
+        {isOwner && (
+            <button
+                onClick={onLogout}
+                className="absolute top-6 right-6 p-3 rounded-full text-black/40 dark:text-white/40 hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 transition-all duration-300 group ring-1 ring-transparent hover:ring-red-500/20 z-20"
+                title="Sign Out"
+            >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+            </button>
+        )}
 
         <div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-6">
@@ -178,7 +190,7 @@ export default function PublicProfilePage() {
     const params = useParams();
     const router = useRouter();
     const { userId } = params;
-    const { user: currentUser, profile: currentProfile } = useAuth();
+    const { user: currentUser, profile: currentProfile, logout } = useAuth();
 
     const [profile, setProfile] = useState(null);
     const [events, setEvents] = useState({ upcoming: [], attended: [] });
@@ -262,6 +274,10 @@ export default function PublicProfilePage() {
                         initials={initials}
                         isOwner={isOwner}
                         onEdit={() => setEditModalOpen(true)}
+                        onLogout={() => {
+                            logout();
+                            router.replace('/login');
+                        }}
                     />
                 </motion.div>
 
