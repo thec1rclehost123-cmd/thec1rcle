@@ -419,37 +419,60 @@ function TicketsContent() {
             <div className="relative w-full max-w-5xl grid md:grid-cols-2 gap-16 items-center">
 
                 {/* Visual Side - Fanned Stack */}
-                <div className="relative h-[400px] w-full flex items-center justify-center md:order-2 perspective-1000">
-                    <div className="relative w-2">
+                <div className="relative h-[500px] w-full flex items-center justify-center md:order-2 perspective-1000">
+                    <div className="relative w-2 flex items-center justify-center">
                         {/* Glow behind */}
-                        <div className="absolute -top-32 -left-32 w-64 h-64 bg-orange/20 rounded-full blur-[100px]" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-orange/10 rounded-full blur-[120px]" />
 
+                        {/* Card 1 - Leftmost */}
+                        <MockTicket
+                            color="#1a1a1a"
+                            type="Standard"
+                            title="Entry"
+                            rotate={-24}
+                            x={-140}
+                            y={60}
+                            delay={0.4}
+                        />
+                        {/* Card 2 - Left */}
                         <MockTicket
                             color="#333"
-                            type="Standard"
-                            title="General Admission"
-                            rotate={-15}
-                            x={-40}
-                            y={40}
-                            delay={0}
+                            type="General"
+                            title="Regular"
+                            rotate={-12}
+                            x={-70}
+                            y={20}
+                            delay={0.3}
                         />
-                        <MockTicket
-                            color="#666"
-                            type="Presale"
-                            title="Early Bird"
-                            rotate={0}
-                            x={0}
-                            y={10}
-                            delay={0.15}
-                        />
+                        {/* Card 3 - Center */}
                         <MockTicket
                             color="#FF4500"
                             type="Exclusive"
                             title="VIP Access"
-                            rotate={15}
-                            x={40}
-                            y={-20}
+                            rotate={0}
+                            x={0}
+                            y={0}
+                            delay={0.2}
+                        />
+                        {/* Card 4 - Right */}
+                        <MockTicket
+                            color="#666"
+                            type="Presale"
+                            title="Early Bird"
+                            rotate={12}
+                            x={70}
+                            y={20}
                             delay={0.3}
+                        />
+                        {/* Card 5 - Rightmost */}
+                        <MockTicket
+                            color="#999"
+                            type="Backstage"
+                            title="All Access"
+                            rotate={24}
+                            x={140}
+                            y={60}
+                            delay={0.4}
                         />
                     </div>
                 </div>
