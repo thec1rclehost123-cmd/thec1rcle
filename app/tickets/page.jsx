@@ -8,6 +8,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
+import clsx from "clsx";
 
 // --- Hooks ---
 
@@ -378,128 +379,175 @@ function TicketsContent() {
 
     const currentTickets = activeTab === "upcoming" ? tickets.upcomingTickets : tickets.pastTickets;
 
-    const MockTicket = ({ color, rotate, x, y, delay, title, type }) => (
-        <motion.div
-            initial={{ opacity: 0, y: y + 100, x: x, rotate: 0 }}
-            animate={{ opacity: 1, y: y, x: x, rotate: rotate }}
-            transition={{ type: "spring", damping: 15, stiffness: 80, delay: delay }}
-            className="absolute origin-bottom w-72 h-40 rounded-[32px] border border-white/10 bg-[#0A0A0A] shadow-2xl flex flex-col overflow-hidden"
-            style={{
-                zIndex: 10 + delay * 10,
-                boxShadow: `0 10px 30px -10px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.05)`
-            }}
-        >
-            {/* Glossy sheen */}
-            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent opacity-50" />
+    const TICKETS_DATA = [
+        { id: 1, type: "STANDARD", title: "ENTRY", price: "₹ 2,000", color: "from-zinc-800 to-zinc-900" },
+        { id: 2, type: "PRESALE", title: "EARLY BIRD", price: "₹ 1,500", color: "from-zinc-700 to-zinc-800" },
+        { id: 3, type: "VIP", title: "ALL ACCESS", price: "₹ 5,000", color: "from-orange-900/40 to-black border-orange-500/50" },
+        { id: 4, type: "GROUP", title: "SQUAD PACK", price: "₹ 8,000", color: "from-zinc-800 to-zinc-900" },
+        { id: 5, type: "BACKSTAGE", title: "ARTIST PASS", price: "₹ 12,000", color: "from-zinc-800 to-black" },
+    ];
 
-            <div className="flex-1 p-6 flex flex-col justify-between relative z-10">
-                <div className="flex justify-between items-start">
-                    <div className="h-10 w-10 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
-                        <div className="h-6 w-6 rounded-full border border-dashed border-white/20 animate-[spin_10s_linear_infinite]" />
-                    </div>
-                    <div className="flex flex-col gap-1.5 items-end">
-                        <div className="h-1.5 w-12 bg-white/20 rounded-full" />
-                        <div className="h-1.5 w-8 bg-white/10 rounded-full" />
-                    </div>
+    const TicketCarousel = () => {
+        const [activeIndex, setActiveIndex] = useState(2);
+
+        const handleNext = () => {
+            setActiveIndex((prev) => (prev + 1 < TICKETS_DATA.length ? prev + 1 : 0));
+        };
+
+        const handlePrev = () => {
+            setActiveIndex((prev) => (prev - 1 >= 0 ? prev - 1 : TICKETS_DATA.length - 1));
+        };
+
+        return (
+            <div className="relative w-full h-[500px] flex flex-col items-center justify-center perspective-1000">
+                {/* Glow behind */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-orange/10 rounded-full blur-[120px] pointer-events-none" />
+
+                <div className="relative h-[450px] w-full flex justify-center items-center">
+                    <AnimatePresence>
+                        {TICKETS_DATA.map((ticket, index) => {
+                            const offset = index - activeIndex;
+                            const isActive = index === activeIndex;
+
+                            return (
+                                <motion.div
+                                    key={ticket.id}
+                                    layout
+                                    onClick={() => setActiveIndex(index)}
+                                    className={clsx(
+                                        "absolute w-[260px] h-[420px] rounded-[32px] cursor-pointer flex flex-col justify-between p-6 overflow-hidden",
+                                        "bg-gradient-to-br border shadow-2xl backdrop-blur-md",
+                                        isActive ? "border-white/20 z-50" : "border-white/5",
+                                        ticket.color.includes("from-") ? ticket.color : "bg-zinc-900"
+                                    )}
+                                    style={{
+                                        boxShadow: isActive
+                                            ? "0 25px 50px -12px rgba(0, 0, 0, 0.5)"
+                                            : "0 10px 30px -10px rgba(0, 0, 0, 0.8)",
+                                    }}
+                                    initial={false}
+                                    animate={{
+                                        x: offset * 140, // Horizontal spread
+                                        y: Math.abs(offset) * 40 + (isActive ? 0 : 20), // Arc curve (dropping sides)
+                                        scale: 1 - Math.abs(offset) * 0.1, // Scale down sides
+                                        rotateZ: offset * 8, // Fan rotation
+                                        zIndex: 100 - Math.abs(offset),
+                                        opacity: Math.abs(offset) > 2.5 ? 0 : 1,
+                                    }}
+                                    transition={{
+                                        type: "spring",
+                                        stiffness: 200,
+                                        damping: 25,
+                                    }}
+                                    whileHover={{
+                                        scale: isActive ? 1.05 : 1 - Math.abs(offset) * 0.1 + 0.02,
+                                        y: isActive ? -10 : Math.abs(offset) * 40
+                                    }}
+                                >
+                                    {/* Ticket Texture/Pattern */}
+                                    <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+
+                                    {/* Header */}
+                                    <div className="relative flex justify-between items-start opacity-70">
+                                        <div className="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center">
+                                            <div className="w-6 h-6 rounded-full border border-white/20 border-dashed animate-[spin_10s_linear_infinite]" />
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-[9px] font-bold tracking-[0.2em] text-white/40">THE C1RCLE</span>
+                                            <div className="h-0.5 w-8 bg-white/20 mt-1" />
+                                        </div>
+                                    </div>
+
+                                    {/* Main Content */}
+                                    <div className="relative text-center my-auto transform rotate-[-90deg] translate-y-4">
+                                        <h2 className="text-5xl font-heading font-black text-white uppercase tracking-tighter whitespace-nowrap">
+                                            {ticket.title}
+                                        </h2>
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="relative w-full">
+                                        <div className="flex justify-between items-end mb-4">
+                                            <div>
+                                                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-1">Price</p>
+                                                <p className="text-lg font-bold text-white">{ticket.price}</p>
+                                            </div>
+                                            <div className="h-8 w-12 rounded bg-white/10 flex items-center justify-center">
+                                                <div className="w-1 h-4 bg-white/20 mx-[1px]" />
+                                                <div className="w-0.5 h-3 bg-white/20 mx-[1px]" />
+                                                <div className="w-1.5 h-4 bg-white/20 mx-[1px]" />
+                                                <div className="w-0.5 h-2 bg-white/20 mx-[1px]" />
+                                            </div>
+                                        </div>
+
+                                        {/* Use Button */}
+                                        <div className={clsx(
+                                            "w-full py-3 rounded-xl flex items-center justify-center gap-2 transition-colors",
+                                            isActive ? "bg-white text-black" : "bg-white/10 text-white/60"
+                                        )}>
+                                            <span className="text-[10px] font-bold uppercase tracking-widest">
+                                                {isActive ? "Select Ticket" : "View"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
+                    </AnimatePresence>
                 </div>
 
-                <div>
-                    <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">{type}</p>
-                    <h3 className="font-heading text-2xl font-black uppercase tracking-tighter text-white">{title}</h3>
+                {/* Navigation Controls */}
+                <div className="flex gap-6 mt-8 z-50">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); handlePrev(); }}
+                        className="w-12 h-12 rounded-full border border-white/10 bg-white/5 text-white flex items-center justify-center hover:bg-white hover:text-black transition-all active:scale-95"
+                    >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); handleNext(); }}
+                        className="w-12 h-12 rounded-full border border-white/10 bg-white/5 text-white flex items-center justify-center hover:bg-white hover:text-black transition-all active:scale-95"
+                    >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    </button>
                 </div>
             </div>
-
-            {/* Bottom colored accent */}
-            <div className="h-2 w-full" style={{ backgroundColor: color }} />
-        </motion.div>
-    );
+        );
+    };
 
     const GuestView = () => (
         <div className="flex flex-col items-center justify-center min-h-[70vh] px-4 w-full relative">
-            <div className="relative w-full max-w-5xl grid md:grid-cols-2 gap-16 items-center">
+            <div className="relative w-full max-w-7xl grid lg:grid-cols-2 gap-16 items-center">
 
-                {/* Visual Side - Fanned Stack */}
-                <div className="relative h-[500px] w-full flex items-center justify-center md:order-2 perspective-1000">
-                    <div className="relative w-2 flex items-center justify-center">
-                        {/* Glow behind */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-orange/10 rounded-full blur-[120px]" />
-
-                        {/* Card 1 - Leftmost */}
-                        <MockTicket
-                            color="#1a1a1a"
-                            type="Standard"
-                            title="Entry"
-                            rotate={-24}
-                            x={-140}
-                            y={60}
-                            delay={0.4}
-                        />
-                        {/* Card 2 - Left */}
-                        <MockTicket
-                            color="#333"
-                            type="General"
-                            title="Regular"
-                            rotate={-12}
-                            x={-70}
-                            y={20}
-                            delay={0.3}
-                        />
-                        {/* Card 3 - Center */}
-                        <MockTicket
-                            color="#FF4500"
-                            type="Exclusive"
-                            title="VIP Access"
-                            rotate={0}
-                            x={0}
-                            y={0}
-                            delay={0.2}
-                        />
-                        {/* Card 4 - Right */}
-                        <MockTicket
-                            color="#666"
-                            type="Presale"
-                            title="Early Bird"
-                            rotate={12}
-                            x={70}
-                            y={20}
-                            delay={0.3}
-                        />
-                        {/* Card 5 - Rightmost */}
-                        <MockTicket
-                            color="#999"
-                            type="Backstage"
-                            title="All Access"
-                            rotate={24}
-                            x={140}
-                            y={60}
-                            delay={0.4}
-                        />
-                    </div>
+                {/* Visual Side - Interactive Carousel */}
+                <div className="relative w-full flex items-center justify-center lg:order-2">
+                    <TicketCarousel />
                 </div>
 
                 {/* Content Side */}
-                <div className="text-center md:text-left flex flex-col items-center md:items-start relative z-10 md:order-1">
+                <div className="text-center lg:text-left flex flex-col items-center lg:items-start relative z-10 lg:order-1">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
                     >
-                        <h2 className="text-5xl md:text-7xl font-heading font-black uppercase tracking-tighter text-white mb-6 leading-[0.85]">
+                        <h2 className="text-5xl md:text-7xl font-heading font-black uppercase tracking-tighter text-black dark:text-white mb-6 leading-[0.85]">
                             Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange to-gold">Pass</span> <br />
                             To The Circle
                         </h2>
 
-                        <p className="text-sm font-medium text-white/60 leading-relaxed max-w-md mb-10">
+                        <p className="text-sm font-medium text-black/60 dark:text-white/60 leading-relaxed max-w-md mb-10 mx-auto lg:mx-0">
                             Secure your spot at exclusive events. Your digital wallet for instant access, live updates, and effortless entry.
                         </p>
 
-                        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-                            <Link href="/login" className="flex-1 group relative overflow-hidden px-8 py-4 rounded-full bg-white text-black font-bold uppercase tracking-widest shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)] transition-all hover:scale-[1.02] hover:shadow-[0_0_60px_-10px_rgba(255,255,255,0.5)]">
+                        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md mx-auto lg:mx-0">
+                            <Link href="/login" className="flex-1 group relative overflow-hidden px-8 py-4 rounded-full bg-black dark:bg-white text-white dark:text-black font-bold uppercase tracking-widest shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)] transition-all hover:scale-[1.02] hover:shadow-[0_0_60px_-10px_rgba(255,255,255,0.5)]">
                                 <span className="relative text-xs flex items-center justify-center gap-2">
                                     Login to Access
                                 </span>
                             </Link>
-                            <Link href="/login?mode=register" className="flex-1 px-8 py-4 rounded-full border border-white/10 text-white font-bold uppercase tracking-widest hover:bg-white/5 transition-colors active:scale-95 flex items-center justify-center">
+                            <Link href="/login?mode=register" className="flex-1 px-8 py-4 rounded-full border border-black/10 dark:border-white/10 text-black dark:text-white font-bold uppercase tracking-widest hover:bg-black/5 dark:hover:bg-white/5 transition-colors active:scale-95 flex items-center justify-center">
                                 <span className="text-xs">Sign Up</span>
                             </Link>
                         </div>
