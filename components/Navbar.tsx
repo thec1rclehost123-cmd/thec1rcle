@@ -9,9 +9,9 @@ import ThemeToggle from "./ThemeToggle";
 
 const navLinks = [
   { label: "Explore", href: "/explore" },
-  { label: "Circle", href: "/about" },
+  { label: "Tickets", href: "/tickets" },
   { label: "App", href: "/app" }
-].filter(link => link.label !== "Circle");
+];
 
 export default function Navbar() {
   const { scrollY } = useScroll();
@@ -56,11 +56,7 @@ export default function Navbar() {
           </Link>
 
           <div className="hidden items-center gap-1 lg:flex bg-black/[0.03] dark:bg-white/5 rounded-full p-1 border border-black/5 dark:border-white/5 backdrop-blur-md">
-            {[
-              ...navLinks.slice(0, 1),
-              { label: "Tickets", href: "/tickets" },
-              ...navLinks.slice(1)
-            ].map((link) => {
+            {navLinks.map((link) => {
               const isActive = pathname === link.href;
               return (
                 <Link
@@ -135,11 +131,7 @@ export default function Navbar() {
             className="fixed inset-0 z-40 bg-black/90 backdrop-blur-xl lg:hidden flex items-center justify-center"
           >
             <div className="flex flex-col items-center gap-8 p-8 w-full max-w-sm">
-              {[
-                ...navLinks.slice(0, 1),
-                { label: "Tickets", href: "/tickets" },
-                ...navLinks.slice(1)
-              ].map((link, i) => (
+              {navLinks.map((link, i) => (
                 <motion.div
                   key={link.href}
                   initial={{ opacity: 0, y: 20 }}
