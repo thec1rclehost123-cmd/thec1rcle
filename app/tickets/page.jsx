@@ -378,32 +378,92 @@ function TicketsContent() {
 
     const currentTickets = activeTab === "upcoming" ? tickets.upcomingTickets : tickets.pastTickets;
 
-    const GuestView = () => (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-            <div className="p-10 rounded-[40px] border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] backdrop-blur-md max-w-lg w-full relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-tr from-orange/5 dark:from-gold/5 via-transparent to-transparent opacity-50" />
-
-                <div className="relative z-10 flex flex-col items-center gap-6">
-                    <div className="h-20 w-20 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center mb-2 border border-black/5 dark:border-white/5">
-                        <svg className="w-8 h-8 text-black/40 dark:text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-                        </svg>
+    const MockTicket = ({ color, rotate, y, delay, title }) => (
+        <motion.div
+            initial={{ opacity: 0, y: y + 50, rotate: rotate - 10 }}
+            animate={{ opacity: 1, y: y, rotate: rotate }}
+            transition={{ type: "spring", damping: 20, stiffness: 100, delay: delay }}
+            className="absolute top-0 left-0 w-64 h-32 rounded-3xl border border-white/10 dark:border-white/5 bg-white/80 dark:bg-black/40 backdrop-blur-xl shadow-2xl flex flex-col overflow-hidden"
+            style={{
+                zIndex: 10 + delay * 10,
+                boxShadow: `0 20px 40px -10px ${color}`
+            }}
+        >
+            <div className="h-1.5 w-full opacity-60" style={{ backgroundColor: color }} />
+            <div className="flex-1 p-5 flex flex-col justify-between relative">
+                <div className="flex justify-between items-start">
+                    <div className="h-8 w-8 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center">
+                        <div className="h-4 w-4 rounded-full border-2 border-dashed border-black/20 dark:border-white/20" />
                     </div>
+                    <div className="text-right">
+                        <div className="h-2 w-16 bg-black/5 dark:bg-white/10 rounded-full mb-1.5" />
+                        <div className="h-1.5 w-10 bg-black/5 dark:bg-white/10 rounded-full ml-auto" />
+                    </div>
+                </div>
+                <div>
+                    <h3 className="text-sm font-black uppercase tracking-widest text-black/80 dark:text-white/80">{title}</h3>
+                </div>
 
-                    <h2 className="text-3xl font-heading font-black uppercase tracking-tight text-black dark:text-white">
-                        Your Tickets
+                {/* Decorative circles */}
+                <div className="absolute -left-3 top-1/2 h-6 w-6 rounded-full bg-[var(--bg-color)]" />
+                <div className="absolute -right-3 top-1/2 h-6 w-6 rounded-full bg-[var(--bg-color)]" />
+            </div>
+        </motion.div>
+    );
+
+    const GuestView = () => (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 w-full">
+            <div className="relative w-full max-w-4xl grid md:grid-cols-2 gap-12 items-center">
+
+                {/* Visual Side */}
+                <div className="relative h-[300px] w-full flex items-center justify-center md:order-2 perspective-1000">
+                    <div className="relative w-64 h-32">
+                        <MockTicket color="rgba(255, 100, 0, 0.2)" rotate={6} y={-40} delay={0.2} title="VIP Access" />
+                        <MockTicket color="rgba(100, 200, 255, 0.2)" rotate={-4} y={0} delay={0.1} title="Early Bird" />
+                        <MockTicket color="rgba(255, 215, 0, 0.2)" rotate={2} y={40} delay={0} title="General Admission" />
+
+                        {/* Floating elements */}
+                        <motion.div
+                            animate={{ y: [0, -10, 0] }}
+                            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                            className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-tr from-orange/20 to-transparent rounded-full blur-2xl"
+                        />
+                    </div>
+                </div>
+
+                {/* Content Side */}
+                <div className="text-center md:text-left flex flex-col items-center md:items-start relative z-10 md:order-1">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.5 }}
+                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange/10 border border-orange/20 mb-6"
+                    >
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange animate-pulse" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-orange">Wallet Locked</span>
+                    </motion.div>
+
+                    <h2 className="text-4xl md:text-5xl font-heading font-black uppercase tracking-tighter text-black dark:text-white mb-6 leading-[0.9]">
+                        Your Digital <br />
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange to-gold">Event Wallet</span>
                     </h2>
 
-                    <p className="text-sm font-medium text-black/60 dark:text-white/60 leading-relaxed max-w-md">
-                        Buy tickets to exclusive events and view them here. <br /> Sign up or login to get started.
+                    <p className="text-sm font-medium text-black/60 dark:text-white/60 leading-relaxed max-w-md mb-8">
+                        Experience events like never before. Store, manage, and share your tickets instantly. Secure execution, dynamic updates, and exclusive perks await.
                     </p>
 
-                    <div className="flex gap-4 w-full mt-4">
-                        <Link href="/login" className="flex-1 py-4 rounded-full bg-black dark:bg-white text-white dark:text-black text-xs font-bold uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg text-center flex items-center justify-center">
-                            Login
+                    <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+                        <Link href="/login" className="flex-1 group relative overflow-hidden px-8 py-4 rounded-full bg-black dark:bg-white text-white dark:text-black font-bold uppercase tracking-widest shadow-xl transition-transform active:scale-95 hover:scale-[1.02]">
+                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                            <span className="relative text-xs flex items-center justify-center gap-2">
+                                Access Wallet
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                                </svg>
+                            </span>
                         </Link>
-                        <Link href="/login?mode=register" className="flex-1 py-4 rounded-full bg-transparent border border-black/10 dark:border-white/10 text-black dark:text-white text-xs font-bold uppercase tracking-widest hover:bg-black/5 dark:hover:bg-white/5 hover:scale-[1.02] active:scale-[0.98] transition-all text-center flex items-center justify-center">
-                            Sign Up
+                        <Link href="/login?mode=register" className="flex-1 px-8 py-4 rounded-full border border-black/10 dark:border-white/10 text-black dark:text-white font-bold uppercase tracking-widest hover:bg-black/5 dark:hover:bg-white/5 transition-colors active:scale-95 flex items-center justify-center">
+                            <span className="text-xs">Create Account</span>
                         </Link>
                     </div>
                 </div>
