@@ -11,7 +11,6 @@ export default function HeroBackground() {
       </p>
       <div className="flex flex-wrap justify-center gap-4">
         <Link href="/explore" className="rounded-full bg-white px-6 py-2 text-xs uppercase tracking-[0.3em] text-black">Dive Into Explore</Link>
-        <Link href="/create" className="rounded-full border border-white/20 px-5 py-2 text-xs uppercase tracking-[0.3em]">Create Event</Link>
       </div>
     </section>
   );

@@ -3,12 +3,16 @@
 import ThemeProvider from "./ThemeProvider";
 import AuthProvider from "./AuthProvider";
 import ToastProvider from "./ToastProvider";
+import GlobalAuthManager from "../GlobalAuthManager";
 
 export default function AppProviders({ children }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <AuthProvider>
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <GlobalAuthManager />
+          {children}
+        </ToastProvider>
       </AuthProvider>
     </ThemeProvider>
   );

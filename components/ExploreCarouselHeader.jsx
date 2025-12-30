@@ -58,9 +58,9 @@ export default function ExploreCarouselHeader({ slides = [] }) {
             priority
           />
           {/* Multi-layered Gradient Overlays for Depth */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/80" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-black/30" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-[var(--bg-color)]" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-transparent opacity-60" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,var(--bg-color)/20_100%)] opacity-40 dark:opacity-80" />
         </motion.div>
       </AnimatePresence>
 

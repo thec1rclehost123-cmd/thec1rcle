@@ -1,122 +1,209 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 
+/**
+ * PageLoadingAnimation - Highly Refined Production Version
+ * 
+ * Features:
+ * - Ultra-smooth spring physics for "text slam".
+ * - Hardware-accelerated SVG and transform animations.
+ * - Responsive sizing with fluid transitions.
+ * - Perfectly timed "Portal" exit reveal.
+ */
 export default function PageLoadingAnimation() {
     const [isLoading, setIsLoading] = useState(true);
-    const [progress, setProgress] = useState(0);
+    const [isFinished, setIsFinished] = useState(false);
+    const [radius, setRadius] = useState(200);
+
+    const BRAND_COLOR = '#FF3D00';
+    const circumference = useMemo(() => 2 * Math.PI * radius, [radius]);
 
     useEffect(() => {
-        if (isLoading) {
-            document.body.style.overflow = 'hidden';
+        const updateSizing = () => {
+            const screenWidth = window.innerWidth;
+            // Fluid radius: 42% of width on mobile, capped at 240px for desktop
+            const newRadius = Math.min(screenWidth * 0.42, 240);
+            setRadius(newRadius);
+        };
 
-            // Smooth progress simulation
-            const interval = setInterval(() => {
-                setProgress(prev => {
-                    if (prev >= 90) return prev;
-                    return prev + Math.random() * 10;
-                });
-            }, 100);
+        updateSizing();
+        window.addEventListener('resize', updateSizing);
 
-            const timer = setTimeout(() => {
-                setProgress(100);
-                setTimeout(() => setIsLoading(false), 500);
-            }, 1500);
+        // Prevent scroll interaction during load
+        document.documentElement.style.overflow = 'hidden';
+        document.body.style.overflow = 'hidden';
 
-            // Safety fallback
-            const safetyTimer = setTimeout(() => {
-                setIsLoading(false);
-            }, 4000);
+        // Cinematic Sequence Timing
+        const PORTAL_EXPAND_TIME = 2200; // When the portal starts growing
+        const COMPONENT_EXIT_TIME = PORTAL_EXPAND_TIME + 1200; // Complete unmount
 
-            return () => {
-                clearInterval(interval);
-                clearTimeout(timer);
-                clearTimeout(safetyTimer);
-                document.body.style.overflow = '';
-            };
+        const portalTimer = setTimeout(() => setIsFinished(true), PORTAL_EXPAND_TIME);
+        const exitTimer = setTimeout(() => setIsLoading(false), COMPONENT_EXIT_TIME);
+
+        return () => {
+            window.removeEventListener('resize', updateSizing);
+            document.documentElement.style.overflow = '';
+            document.body.style.overflow = '';
+            clearTimeout(portalTimer);
+            clearTimeout(exitTimer);
+        };
+    }, []);
+
+    // Optimized Animation Variants
+    const portalVariants = {
+        initial: { rotate: 0, scale: 0.9, opacity: 0 },
+        animate: {
+            rotate: 360,
+            scale: isFinished ? 2.5 : 1,
+            opacity: isFinished ? 0 : 1,
+            transition: {
+                rotate: { duration: 12, repeat: Infinity, ease: "linear" },
+                scale: { duration: 1.5, ease: [0.16, 1, 0.3, 1] },
+                opacity: { duration: 1, ease: "easeInOut" }
+            }
         }
-    }, [isLoading]);
+    };
+
+    const textVariants = {
+        initial: { opacity: 0, scale: 1.4, letterSpacing: '0.6em' },
+        animate: {
+            opacity: 1,
+            scale: 1,
+            letterSpacing: '-0.03em',
+            transition: {
+                opacity: { duration: 0.8, delay: 1.1 },
+                scale: {
+                    type: "spring",
+                    damping: 15,
+                    stiffness: 90,
+                    mass: 1.2,
+                    delay: 1.1
+                },
+                letterSpacing: { duration: 1.4, delay: 1.1, ease: [0.22, 1, 0.36, 1] }
+            }
+        }
+    };
 
     return (
         <AnimatePresence mode="wait">
             {isLoading && (
                 <motion.div
+                    key="splash-container"
+                    className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black font-heading select-none pointer-events-none"
                     initial={{ opacity: 1 }}
-                    exit={{ opacity: 0, filter: "blur(20px)" }}
-                    transition={{ duration: 0.8, ease: "easeInOut" }}
-                    className="fixed inset-0 z-[9999] bg-black overflow-hidden flex items-center justify-center"
+                    exit={{ opacity: 0, transition: { duration: 0.8, ease: "easeInOut" } }}
                 >
-                    {/* CSS-based Scanlines (High Performance) */}
-                    <div
-                        className="absolute inset-0 opacity-20 pointer-events-none"
-                        style={{
-                            backgroundImage: 'linear-gradient(transparent 50%, rgba(0, 255, 255, 0.05) 50%)',
-                            backgroundSize: '100% 4px',
-                            animation: 'scanline 10s linear infinite'
-                        }}
+                    {/* Background Layer Reveal */}
+                    <motion.div
+                        className="absolute inset-0 bg-black"
+                        animate={{ opacity: isFinished ? 0 : 1 }}
+                        transition={{ duration: 1, ease: "easeInOut" }}
                     />
 
-                    {/* Hex Grid Background */}
-                    <div className="absolute inset-0 opacity-10">
-                        <svg width="100%" height="100%">
+                    {/* Glowing Portal Ring */}
+                    <motion.div
+                        className="absolute flex items-center justify-center will-change-transform"
+                        variants={portalVariants}
+                        initial="initial"
+                        animate="animate"
+                    >
+                        <svg
+                            width={radius * 2.8}
+                            height={radius * 2.8}
+                            viewBox={`0 0 ${radius * 2.8} ${radius * 2.8}`}
+                            className="drop-shadow-[0_0_30px_rgba(255,61,0,0.3)]"
+                        >
                             <defs>
-                                <pattern id="hexagons" width="50" height="43.4" patternUnits="userSpaceOnUse" patternTransform="scale(2)">
-                                    <polygon points="24.8,22 37.3,29.2 37.3,43.7 24.8,50.9 12.3,43.7 12.3,29.2" fill="none" stroke="rgba(0,255,255,0.3)" strokeWidth="0.5" />
-                                </pattern>
+                                <linearGradient id="portalGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor={BRAND_COLOR} stopOpacity="1" />
+                                    <stop offset="50%" stopColor="#FF8F70" stopOpacity="0.7" />
+                                    <stop offset="100%" stopColor={BRAND_COLOR} stopOpacity="1" />
+                                </linearGradient>
                             </defs>
-                            <rect width="100%" height="100%" fill="url(#hexagons)" />
+                            <motion.circle
+                                cx={radius * 1.4}
+                                cy={radius * 1.4}
+                                r={radius}
+                                stroke="url(#portalGrad)"
+                                strokeWidth="4.5"
+                                fill="transparent"
+                                strokeLinecap="round"
+                                strokeDasharray={circumference}
+                                initial={{ strokeDashoffset: circumference }}
+                                animate={{ strokeDashoffset: 0 }}
+                                transition={{ duration: 2, ease: [0.22, 1, 0.36, 1] }}
+                            />
                         </svg>
-                    </div>
+                    </motion.div>
 
-                    {/* Central Holographic Core */}
+                    {/* Brand Lockup */}
                     <div className="relative z-10 flex flex-col items-center justify-center">
-                        <div className="relative w-64 h-64 flex items-center justify-center">
-                            {/* Spinning Rings (CSS Animation) */}
-                            <div className="absolute inset-0 border border-cyan-500/30 rounded-full animate-[spin_4s_linear_infinite]" />
-                            <div className="absolute inset-4 border border-purple-500/30 rounded-full animate-[spin_6s_linear_infinite_reverse]" />
-                            <div className="absolute inset-8 border border-white/20 rounded-full animate-[spin_8s_linear_infinite]" />
 
-                            {/* Core Logo */}
-                            <motion.div
-                                initial={{ scale: 0.8, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                transition={{ duration: 0.5 }}
-                                className="relative z-20 text-center"
+                        {/* "THE" Prefix */}
+                        <motion.span
+                            className="text-white text-xl md:text-2xl font-light tracking-[0.7em] mb-4 uppercase opacity-0"
+                            animate={{ opacity: 0.5, y: [10, 0] }}
+                            transition={{ duration: 1.2, delay: 0.8, ease: "easeOut" }}
+                        >
+                            THE
+                        </motion.span>
+
+                        {/* "C1RCLE" Text */}
+                        <div className="relative flex items-center justify-center px-12 py-6">
+                            <motion.h1
+                                className="text-white text-6xl sm:text-7xl md:text-9xl font-black tracking-[-0.03em] uppercase will-change-transform"
+                                style={{ textShadow: `0 0 40px ${BRAND_COLOR}40` }}
+                                variants={textVariants}
+                                initial="initial"
+                                animate="animate"
                             >
-                                <h1 className="text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-400 to-white filter drop-shadow-[0_0_10px_rgba(0,255,255,0.5)]">
-                                    C1
-                                </h1>
-                                <p className="text-[10px] font-mono text-cyan-400/80 tracking-[0.5em] mt-2 animate-pulse">
-                                    SYSTEM LOADING
-                                </p>
-                            </motion.div>
+                                C1RCLE
+                            </motion.h1>
+
+                            {/* Dual Shine Sweep */}
+                            {[0, 0.15].map((stagger) => (
+                                <motion.div
+                                    key={`shine-${stagger}`}
+                                    className="absolute inset-0 z-20 pointer-events-none"
+                                    initial={{ x: '-150%', opacity: 0 }}
+                                    animate={{ x: '180%', opacity: [0, 1, 0] }}
+                                    transition={{
+                                        duration: 2, // 2s duration
+                                        delay: 1.8 + stagger,
+                                        ease: [0.4, 0, 0.2, 1]
+                                    }}
+                                >
+                                    <div className="h-full w-24 bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-[-25deg]" />
+                                </motion.div>
+                            ))}
                         </div>
 
-                        {/* Progress Bar */}
-                        <div className="w-64 h-1 bg-white/10 rounded-full mt-8 overflow-hidden relative">
+                        {/* Subtle Progress Bar */}
+                        <div className="h-[2px] w-64 mt-8 bg-white/5 rounded-full overflow-hidden">
                             <motion.div
-                                className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-400 to-purple-500"
-                                style={{ width: `${progress}%` }}
-                                layoutId="progress"
+                                className="h-full bg-white/30"
+                                initial={{ x: '-100%' }}
+                                animate={{ x: '0%' }}
+                                transition={{ duration: 2.5, ease: "easeInOut" }}
                             />
                         </div>
-                        <div className="flex justify-between w-64 mt-2 text-[9px] font-mono text-white/40">
-                            <span>INITIALIZING...</span>
-                            <span>{Math.round(progress)}%</span>
-                        </div>
                     </div>
 
-                    {/* Corner HUD Elements */}
-                    <div className="absolute top-8 left-8 w-8 h-8 border-t-2 border-l-2 border-cyan-500/50" />
-                    <div className="absolute top-8 right-8 w-8 h-8 border-t-2 border-r-2 border-cyan-500/50" />
-                    <div className="absolute bottom-8 left-8 w-8 h-8 border-b-2 border-l-2 border-cyan-500/50" />
-                    <div className="absolute bottom-8 right-8 w-8 h-8 border-b-2 border-r-2 border-cyan-500/50" />
+                    {/* Background Particles (Subtle Depth) */}
+                    <div className="absolute inset-0 z-[-1] opacity-20">
+                        <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-white rounded-full animate-pulse-slow" />
+                        <div className="absolute bottom-1/3 right-1/4 w-1 h-1 bg-white rounded-full animate-pulse-slow delay-700" />
+                    </div>
 
-                    <style jsx>{`
-                        @keyframes scanline {
-                            0% { background-position: 0 0; }
-                            100% { background-position: 0 100%; }
+                    <style jsx global>{`
+                        @keyframes pulse-slow {
+                            0%, 100% { opacity: 0.2; transform: scale(1); }
+                            50% { opacity: 0.6; transform: scale(1.5); }
+                        }
+                        .animate-pulse-slow {
+                            animation: pulse-slow 4s ease-in-out infinite;
                         }
                     `}</style>
                 </motion.div>

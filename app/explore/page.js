@@ -9,7 +9,6 @@ import ExploreFilterBar from "../../components/ExploreFilterBar";
 import CategoryTabs from "../../components/CategoryTabs";
 import ExploreEventGrid from "../../components/ExploreEventGrid";
 import Skeleton from "../../components/ui/Skeleton";
-import Footer from "../../components/Footer";
 
 const sortTabs = ["Trending", "This Week", "New", "Soonest", "Price Low to High"];
 const dateFilters = [
@@ -381,7 +380,7 @@ export default function ExplorePage() {
   );
 
   return (
-    <div className="min-h-screen relative bg-white dark:bg-[#0A0A0A]">
+    <div className="relative bg-white dark:bg-[#0A0A0A]">
       {/* Content wrapper */}
       <div className="relative z-10">
         {heroSection}
@@ -446,7 +445,6 @@ export default function ExplorePage() {
             </div>
           </div>
         </section>
-        <Footer />
       </div>
       {/* End content wrapper */}
     </div>
@@ -601,12 +599,6 @@ function EmptyState({ city, fallbackCities, onCitySelect, onReset }) {
         >
           Clear Filters
         </button>
-        <Link
-          href="/create"
-          className="rounded-full bg-black dark:bg-white px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest text-white dark:text-black hover:bg-black/90 dark:hover:bg-white/90 transition-colors"
-        >
-          Create Event
-        </Link>
       </div>
 
       {fallbackCities.length > 0 && (

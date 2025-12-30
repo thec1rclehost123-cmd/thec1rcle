@@ -116,13 +116,6 @@ export default function HeroVideo({ src }) {
               <span className="relative z-10">Explore Events</span>
               <div className="absolute inset-0 bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </Link>
-
-            <Link
-              href="/create"
-              className="group px-8 py-4 md:px-10 md:py-5 border-2 border-white/30 text-white font-black uppercase tracking-[0.2em] text-xs md:text-sm rounded-full backdrop-blur-md hover:bg-white/10 hover:border-white/50 transition-all duration-300"
-            >
-              Create Event
-            </Link>
           </motion.div>
         </motion.div>
       </motion.div>

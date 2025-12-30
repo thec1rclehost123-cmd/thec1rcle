@@ -2,16 +2,41 @@
 const nextConfig = {
   // Disabled optimizePackageImports for framer-motion due to Next.js 14.2.x bug
   typescript: {
-    // Skip type checking during build for speed
-    ignoreBuildErrors: true,
+    // Enforce type checking during build for production safety (Fix: Build Safety is Disabled)
+    ignoreBuildErrors: false,
   },
   eslint: {
-    // Skip ESLint during build for speed
-    ignoreDuringBuilds: true,
+    // Enforce linting during build for production safety
+    ignoreDuringBuilds: false,
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'api.dicebear.com', // Fix: External Single Point of Failure (Allowing Dicebear)
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        port: '',
+        pathname: '/**',
+      }
+    ],
   },
 };
 
-
 export default nextConfig;
-// Trigger rebuild 5
-

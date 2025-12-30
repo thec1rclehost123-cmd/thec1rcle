@@ -4,7 +4,6 @@ import CategoryBar from "../components/CategoryBar";
 import EventGrid from "../components/EventGrid";
 import Selects from "../components/Selects";
 import InterviewSection from "../components/InterviewSection";
-import Footer from "../components/Footer";
 import SectionReveal from "../components/SectionReveal";
 import { heroVideoSrc, getHomepageContent } from "../lib/homepageData";
 
@@ -22,7 +21,6 @@ export default async function HomePage() {
       <EventGrid events={eventGrid} />
       <Selects items={selects} />
       <InterviewSection interviews={interviews} />
-      <Footer />
     </>
   );
 }

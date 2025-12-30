@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import ShimmerImage from "./ShimmerImage";
 import { motion } from "framer-motion";
+import LikeButton from "./LikeButton";
 
 export default function EventCard({ event, index = 0, height = "h-[280px] sm:h-[340px] md:h-[420px]" }) {
   const price = event.price || "Free";
@@ -23,21 +24,21 @@ export default function EventCard({ event, index = 0, height = "h-[280px] sm:h-[
       className="h-full"
     >
       <Link href={`/event/${event.id || event.slug}`} className="group relative block h-full w-full">
-        <div className={`gradient-border relative ${height} w-full overflow-hidden rounded-[20px] sm:rounded-[32px] bg-white dark:bg-surface transition-all duration-500 btn-lift`}>
+        <div className={`gradient-border relative ${height} w-full overflow-hidden rounded-[20px] sm:rounded-[32px] bg-white dark:bg-surface transition-all duration-500 btn-lift shadow-sm dark:shadow-none`}>
           {/* Image or Gradient Fallback */}
           <motion.div
-            className="absolute inset-0 transition-transform duration-700 group-hover:scale-105"
+            className="absolute inset-0 transition-transform duration-700 group-hover:scale-110"
             layoutId={`event-image-${event.id || event.slug}`}
           >
             {isDefaultImage ? (
-              <div className="h-full w-full bg-gradient-to-br from-iris/20 via-black to-surface" />
+              <div className="h-full w-full bg-gradient-to-br from-orange/10 via-white dark:via-black to-surface" />
             ) : (
               <ShimmerImage
                 src={event.image}
                 alt={event.title}
                 fill
                 wrapperClassName="h-full w-full"
-                className="object-cover opacity-90 transition-opacity duration-500 group-hover:opacity-70"
+                className="object-cover opacity-95 dark:opacity-90 transition-opacity duration-500 group-hover:opacity-100"
                 sizes="(max-width: 640px) 50vw, (max-width: 1024px) 50vw, 33vw"
                 loading="lazy"
               />
@@ -45,36 +46,44 @@ export default function EventCard({ event, index = 0, height = "h-[280px] sm:h-[
           </motion.div>
 
           {/* Stronger Gradient Overlay for Text Readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-90 transition-opacity duration-500 group-hover:opacity-100" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 dark:via-black/60 to-transparent opacity-90 transition-opacity duration-500 group-hover:opacity-95" />
 
           {/* Content */}
           <div className="absolute inset-0 flex flex-col justify-between p-3 sm:p-6">
-            {/* Top Tags */}
-            <div className="flex items-start justify-between">
-              <span className="inline-flex items-center rounded-full border border-white/10 bg-black/40 px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur-md">
-                {event.category || "Event"}
-              </span>
-              {isFree ? (
-                <span className="inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-emerald-300 backdrop-blur-md">
-                  Free
+            {/* Top Tags & Like Button */}
+            <div className="flex items-start justify-between relative z-30">
+              <div className="flex flex-col gap-2">
+                <span className="inline-flex items-center rounded-full border border-white/20 bg-black/30 dark:bg-black/40 px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur-md">
+                  {event.category || "Event"}
                 </span>
-              ) : (
-                <span className="inline-flex items-center rounded-full border border-gold/40 bg-gradient-to-r from-gold/20 to-gold-dark/20 px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gold backdrop-blur-md shadow-[0_0_15px_rgba(255,215,0,0.2)]">
-                  ₹{price}
-                </span>
-              )}
+                {isFree ? (
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-400/20 dark:bg-emerald-400/10 px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-emerald-300 backdrop-blur-md">
+                    Free
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full border border-orange/40 dark:border-gold/40 bg-gradient-to-r from-orange/20 dark:from-gold/20 to-orange-dark/20 dark:to-gold-dark/20 px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-orange-light dark:text-gold backdrop-blur-md">
+                    ₹{price}
+                  </span>
+                )}
+              </div>
+
+              <div className="absolute top-0 right-0">
+                <LikeButton
+                  eventId={event.id || event.slug}
+                />
+              </div>
             </div>
 
             {/* Bottom Info */}
             <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-6 transform transition-transform duration-500 group-hover:translate-y-[-4px] z-20">
               {/* Glass Background on Hover */}
-              <div className="absolute inset-0 -z-10 bg-black/40 backdrop-blur-xl opacity-0 group-hover:opacity-100 transition-all duration-500 rounded-t-[16px] sm:rounded-t-[24px] translate-y-full group-hover:translate-y-0" />
+              <div className="absolute inset-0 -z-10 bg-black/60 dark:bg-black/40 backdrop-blur-xl opacity-0 group-hover:opacity-100 transition-all duration-500 rounded-t-[16px] sm:rounded-t-[24px] translate-y-full group-hover:translate-y-0" />
 
               <div className="relative z-10">
-                <p className="mb-1 sm:mb-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-iris-glow drop-shadow-md">
+                <p className="mb-1 sm:mb-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-white/80 dark:text-iris-glow drop-shadow-md">
                   {event.date} • {event.time}
                 </p>
-                <h3 className="mb-1 sm:mb-2 font-heading text-sm sm:text-xl md:text-2xl font-bold leading-tight text-white drop-shadow-lg line-clamp-2">
+                <h3 className="mb-1 sm:mb-2 font-heading text-sm sm:text-xl md:text-2xl font-black leading-tight text-white drop-shadow-lg line-clamp-2 uppercase tracking-tight">
                   {event.title}
                 </h3>
                 <p className="text-[10px] sm:text-sm font-medium text-white/70 drop-shadow-md line-clamp-1">
@@ -90,7 +99,7 @@ export default function EventCard({ event, index = 0, height = "h-[280px] sm:h-[
                         {event.guests.slice(0, 4).map((guest, i) => (
                           <div
                             key={i}
-                            className="relative h-5 w-5 sm:h-7 sm:w-7 rounded-full ring-1 sm:ring-2 ring-black/50 bg-gradient-to-br from-purple-400 to-pink-400 transition-all duration-300 group-hover/guestlist:ring-white/30"
+                            className="relative h-5 w-5 sm:h-7 sm:w-7 rounded-full ring-1 sm:ring-2 ring-black/50 dark:ring-black/50 bg-gradient-to-br from-purple-400 to-pink-400 transition-all duration-300 group-hover/guestlist:ring-white/30"
                             style={{ zIndex: 4 - i }}
                           >
                             <img
@@ -101,7 +110,7 @@ export default function EventCard({ event, index = 0, height = "h-[280px] sm:h-[
                           </div>
                         ))}
                         {event.guests.length > 4 && (
-                          <div className="relative h-5 w-5 sm:h-7 sm:w-7 flex items-center justify-center rounded-full ring-1 sm:ring-2 ring-black/50 bg-gradient-to-br from-zinc-800 to-zinc-900 text-[8px] sm:text-[9px] font-extrabold text-white z-0 group-hover/guestlist:ring-white/30 transition-all duration-300">
+                          <div className="relative h-5 w-5 sm:h-7 sm:w-7 flex items-center justify-center rounded-full ring-1 sm:ring-2 ring-black/50 dark:ring-black/50 bg-gradient-to-br from-zinc-800 to-zinc-900 text-[8px] sm:text-[9px] font-extrabold text-white z-0 group-hover/guestlist:ring-white/30 transition-all duration-300">
                             +{event.guests.length - 4}
                           </div>
                         )}
@@ -120,7 +129,7 @@ export default function EventCard({ event, index = 0, height = "h-[280px] sm:h-[
 
                 {/* Hover Reveal Button */}
                 <div className="mt-4 sm:mt-6 hidden sm:flex items-center gap-3 opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 delay-75">
-                  <span className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-black font-bold text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-colors">
+                  <span className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-black font-bold text-[10px] uppercase tracking-widest hover:bg-white/90 transition-colors shadow-lg">
                     View Details
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
                       <path fillRule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clipRule="evenodd" />

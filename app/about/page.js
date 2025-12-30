@@ -61,7 +61,6 @@ const faqs = [
 // --- Components ---
 
 import { useAuth } from "../../components/providers/AuthProvider";
-import HostVerificationForm from "../../components/HostVerificationForm";
 import { useRouter } from "next/navigation";
 
 export default function AboutPage() {
@@ -70,19 +69,11 @@ export default function AboutPage() {
   const router = useRouter();
 
   const handleHostAccess = () => {
-    if (!user) {
-      router.push("/login?next=/about");
-      return;
-    }
-    if (profile?.hostStatus === "approved") {
-      router.push("/profile"); // Or host dashboard
-      return;
-    }
-    setShowHostModal(true);
+    window.open("https://thec1rclehost.com/host", "_blank");
   };
 
   return (
-    <div className="-mx-4 -mt-28 sm:-mx-8 sm:-mt-40 min-h-screen bg-black text-white selection:bg-iris/30 overflow-x-hidden">
+    <div className="-mx-4 -mt-28 sm:-mx-8 sm:-mt-40 bg-black text-white selection:bg-iris/30 overflow-x-hidden flex-1 flex flex-col">
       <BackgroundGrid />
 
       <div className="relative z-10">
@@ -91,6 +82,7 @@ export default function AboutPage() {
         <NetworkSection />
         <UseCasesSection />
         <FAQSection />
+        <CareersSection />
         <HostAccessSection onAccess={handleHostAccess} />
         <CTASection />
       </div>
@@ -105,30 +97,55 @@ export default function AboutPage() {
 }
 
 function HostModal({ onClose }) {
+  return null; // Host modal removed, moved to dedicated site
+}
+
+function CareersSection() {
+  const jobs = [
+    { title: "Founding Engineer", team: "Engineering", type: "Full-Time" },
+    { title: "Product Designer", team: "Design", type: "Full-time" },
+    { title: "Brand Strategist", team: "Marketing", type: "Full-time" },
+  ];
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-      />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-3xl shadow-2xl overflow-hidden"
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-white/40 hover:text-white transition-colors z-10"
-        >
-          ✕
-        </button>
-        <HostVerificationForm onClose={onClose} />
-      </motion.div>
-    </div>
+    <section id="careers" className="py-32 px-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row justify-between items-end gap-8 mb-16">
+          <div className="space-y-4">
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-orange">Join the mission</span>
+            <h2 className="font-heading text-5xl sm:text-7xl font-bold leading-tight">
+              We're building the future<br /> of life offline.
+            </h2>
+          </div>
+          <p className="max-w-md text-white/50 text-lg leading-relaxed">
+            We are looking for obsessed builders who want to fix the loneliness epidemic by building tools that get people out of their screens.
+          </p>
+        </div>
+
+        <div className="grid gap-4">
+          {jobs.map((job) => (
+            <div key={job.title} className="group relative overflow-hidden rounded-[32px] border border-white/5 bg-white/[0.02] p-8 transition-colors hover:bg-white/[0.05]">
+              <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-bold">{job.title}</h3>
+                  <div className="flex gap-4 text-xs font-medium uppercase tracking-widest text-white/40">
+                    <span>{job.team}</span>
+                    <span>•</span>
+                    <span>{job.type}</span>
+                  </div>
+                </div>
+                <a
+                  href={`mailto:careers@thec1rcle.host?subject=Application for ${job.title}`}
+                  className="px-6 py-3 rounded-full border border-white/10 text-[10px] font-bold uppercase tracking-widest group-hover:bg-white group-hover:text-black transition-all"
+                >
+                  Apply Now
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -733,7 +750,7 @@ function CTASection() {
         </h2>
         <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
           <a
-            href="/create"
+            href="https://thec1rclehost.com/host"
             className="btn-lift px-10 py-5 bg-white text-black rounded-full font-bold uppercase tracking-widest shadow-[0_0_40px_rgba(255,255,255,0.3)]"
           >
             Start Creating

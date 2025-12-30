@@ -17,7 +17,9 @@ import {
   updateProfile as updateFirebaseProfile,
   setPersistence,
   browserLocalPersistence,
-  browserSessionPersistence
+  browserSessionPersistence,
+  GoogleAuthProvider,
+  signInWithPopup
 } from "firebase/auth";
 import { getFirebaseAuth, getFirebaseDb } from "../../lib/firebase/client";
 
@@ -131,6 +133,14 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const loginWithGoogle = useCallback(async () => {
+    const auth = getFirebaseAuth();
+    const provider = new GoogleAuthProvider();
+    const credential = await signInWithPopup(auth, provider);
+    await ensureProfile(credential.user);
+    return credential.user;
+  }, [ensureProfile]);
+
   const updateEventList = useCallback(
     async (field, eventId, shouldInclude) => {
       if (!user?.uid) {
@@ -178,11 +188,12 @@ export function AuthProvider({ children }) {
       error,
       login,
       register,
+      loginWithGoogle,
       logout,
       updateEventList,
       updateUserProfile
     }),
-    [user, profile, loading, error, login, register, logout, updateEventList, updateUserProfile]
+    [user, profile, loading, error, login, register, loginWithGoogle, logout, updateEventList, updateUserProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

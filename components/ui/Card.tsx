@@ -19,7 +19,7 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   blur?: boolean;
 }
 
-export const Card = forwardRef<HTMLDivElement, CardProps>(
+const CardBase = forwardRef<HTMLDivElement, CardProps>(
   ({ interactive = true, padding = "md", accent = "iris", blur = true, className, children, ...rest }, ref) => {
     const accentToken = getAccentToken(accent);
     return (
@@ -45,7 +45,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
   }
 );
 
-Card.displayName = "Card";
+CardBase.displayName = "Card";
 
 export interface CardMediaProps extends HTMLAttributes<HTMLDivElement> {
   src: string;
@@ -79,9 +79,11 @@ export const CardFooter = ({ className, ...rest }: HTMLAttributes<HTMLDivElement
   <div className={clsx("mt-auto flex flex-wrap items-center gap-4", className)} {...rest} />
 );
 
-Card.Media = CardMedia;
-Card.Body = CardBody;
-Card.Footer = CardFooter;
-Card.Stat = CardStat;
+export const Card = Object.assign(CardBase, {
+  Media: CardMedia,
+  Body: CardBody,
+  Footer: CardFooter,
+  Stat: CardStat,
+});
 
 export default Card;

@@ -3,8 +3,8 @@ import EventCard from "./EventCard";
 export default function EventGrid({ events = [] }) {
   if (!events.length) {
     return (
-      <div className="flex h-64 w-full items-center justify-center rounded-[32px] border border-white/10 bg-white/5">
-        <p className="text-sm font-medium uppercase tracking-widest text-white/50">
+      <div className="flex h-64 w-full items-center justify-center rounded-[32px] border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/5">
+        <p className="text-sm font-medium uppercase tracking-widest text-black/40 dark:text-white/50">
           No events found
         </p>
       </div>

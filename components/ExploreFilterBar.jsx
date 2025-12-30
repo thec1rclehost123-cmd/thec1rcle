@@ -51,7 +51,7 @@ function FilterPill({ label, value, options, onChange, icon: Icon }) {
                         animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
                         exit={{ opacity: 0, y: 8, scale: 0.95, filter: "blur(10px)" }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="absolute left-0 top-full mt-4 min-w-[240px] overflow-hidden rounded-2xl border border-white/20 bg-white/80 dark:bg-[#0A0A0A]/80 backdrop-blur-3xl shadow-[0_20px_40px_rgba(0,0,0,0.2)] z-50"
+                        className="absolute left-0 top-full mt-4 min-w-[240px] overflow-hidden rounded-2xl border border-black/10 dark:border-white/20 bg-white/95 dark:bg-[#0A0A0A]/90 backdrop-blur-3xl shadow-xl z-50"
                     >
                         <div className="p-2 space-y-1">
                             {options.map((option) => (
@@ -62,7 +62,7 @@ function FilterPill({ label, value, options, onChange, icon: Icon }) {
                                         setIsOpen(false);
                                     }}
                                     className={clsx(
-                                        "flex w-full items-center justify-between px-4 py-3 rounded-xl text-left text-xs font-bold uppercase tracking-wider transition-all duration-200",
+                                        "flex w-full items-center justify-between px-4 py-3 rounded-xl text-left text-[10px] font-black uppercase tracking-widest transition-all duration-200",
                                         value === option.label
                                             ? "bg-black/5 dark:bg-white/10 text-black dark:text-white"
                                             : "text-black/50 dark:text-white/50 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white"
@@ -121,7 +121,7 @@ export default function ExploreFilterBar({
                 initial={{ y: -20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.6, ease: "easeOut" }}
-                className="inline-flex items-center gap-1 p-1.5 rounded-full border border-black/5 dark:border-white/10 bg-white/80 dark:bg-[#111]/80 shadow-[0_8px_30px_rgba(0,0,0,0.04)] backdrop-blur-2xl"
+                className="inline-flex items-center gap-1 p-1.5 rounded-full border border-black/5 dark:border-white/10 bg-white/50 dark:bg-black/50 shadow-sm dark:shadow-glow backdrop-blur-2xl"
             >
                 <FilterPill
                     label="Sort"

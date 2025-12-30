@@ -1,8 +1,13 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { motion, useScroll, useTransform, useMotionValue, useSpring, useMotionTemplate, useInView } from 'framer-motion';
-import Footer from '../../components/Footer';
+import { useState, useRef, Suspense, useEffect } from 'react';
+import { motion, useScroll, useTransform, useMotionValue, useSpring, useMotionTemplate, useInView, AnimatePresence } from 'framer-motion';
+import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { X, Heart, Download, Apple, PlayCircle } from 'lucide-react';
+import { addDoc, collection } from "firebase/firestore";
+import { getFirebaseDb } from "../../lib/firebase/client";
+import { trackEvent } from '../../lib/utils/analytics';
 
 // --- ASSETS ---
 const VIDEOS = {
@@ -82,12 +87,14 @@ const FeatureCard = ({ title, subtitle, video, index, align }) => {
             {subtitle}
           </p>
 
-          <MagneticButton className="px-8 py-4 border border-white/20 rounded-full overflow-hidden">
-            <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
-            <span className="relative z-10 text-white group-hover:text-black font-bold uppercase tracking-widest text-sm transition-colors duration-300">
-              Experience It
-            </span>
-          </MagneticButton>
+          <Link href="/explore">
+            <MagneticButton className="px-8 py-4 border border-white/20 rounded-full overflow-hidden">
+              <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+              <span className="relative z-10 text-white group-hover:text-black font-bold uppercase tracking-widest text-sm transition-colors duration-300">
+                Experience It
+              </span>
+            </MagneticButton>
+          </Link>
         </motion.div>
 
         {/* Visual Card */}
@@ -145,10 +152,89 @@ const ManifestoLine = ({ children, className = "" }) => {
   );
 };
 
-import { addDoc, collection } from "firebase/firestore";
-import { getFirebaseDb } from "../../lib/firebase/client";
+const AppLikeGate = () => {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const reason = searchParams.get("reason");
+  const eventId = searchParams.get("eventId");
+  const returnTo = searchParams.get("returnTo") || "/events";
+  const [isOpen, setIsOpen] = useState(reason === "like");
 
-// ... (existing imports)
+  useEffect(() => {
+    if (reason === "like") {
+      trackEvent("app_like_gate_viewed", { eventId, reason: "like" });
+    }
+  }, [reason, eventId]);
+
+  const closeModal = () => {
+    setIsOpen(false);
+    trackEvent("app_gate_dismissed", { eventId, method: "x" });
+    setTimeout(() => {
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, "", newUrl);
+      router.push(returnTo);
+    }, 300);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={closeModal}
+        className="absolute inset-0 bg-black/80 backdrop-blur-xl"
+      />
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 30 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 30 }}
+        className="relative w-full max-w-lg overflow-hidden rounded-[40px] border border-white/10 bg-zinc-900/50 p-8 sm:p-12 shadow-2xl backdrop-blur-2xl"
+      >
+        <button onClick={closeModal} className="absolute right-8 top-8 text-white/40 hover:text-white transition-colors">
+          <X size={24} />
+        </button>
+        <div className="flex flex-col items-center text-center">
+          <div className="mb-10 relative flex h-24 w-24 items-center justify-center rounded-[32px] bg-white/5 border border-white/10">
+            <Heart size={42} className="text-white fill-white/10" />
+            <div className="absolute -top-2 -right-2 h-8 w-8 rounded-full bg-white flex items-center justify-center text-black">
+              <Download size={14} />
+            </div>
+          </div>
+          <h1 className="mb-4 text-3xl font-display uppercase tracking-widest text-white">Download to like</h1>
+          <p className="mb-10 text-base text-white/50 max-w-xs">
+            Likes live in the app. Download it to like events and see everyone who’s interested.
+          </p>
+          <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
+            <button
+              onClick={() => {
+                trackEvent("app_download_clicked", { eventId, platform: "ios" });
+                window.open("https://apps.apple.com/app/the-c1rcle", "_blank");
+              }}
+              className="flex items-center justify-center gap-3 rounded-2xl bg-white py-4 text-sm font-bold uppercase tracking-widest text-black transition hover:bg-zinc-200"
+            >
+              <Apple size={20} fill="currentColor" /> App Store
+            </button>
+            <button
+              onClick={() => {
+                trackEvent("app_download_clicked", { eventId, platform: "android" });
+                window.open("https://play.google.com/store/apps/details?id=com.thec1rcle", "_blank");
+              }}
+              className="flex items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/5 py-4 text-sm font-bold uppercase tracking-widest text-white transition hover:bg-white/10"
+            >
+              <PlayCircle size={20} /> Play Store
+            </button>
+          </div>
+          <button onClick={closeModal} className="mt-8 text-xs font-bold uppercase tracking-[0.3em] text-white/30 hover:text-white transition-colors">
+            Continue Browsing
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
 
 export default function AppPage() {
   const [email, setEmail] = useState('');
@@ -183,130 +269,137 @@ export default function AppPage() {
   };
 
   return (
-    <div className="bg-black text-white selection:bg-[#F44A22] selection:text-black overflow-x-hidden">
+    <Suspense fallback={<div className="min-h-screen bg-black" />}>
+      <AppLikeGate />
+      <div className="bg-black text-white selection:bg-[#F44A22] selection:text-black overflow-x-hidden">
 
-      {/* --- HERO --- */}
-      <section className="relative h-screen w-full flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <video autoPlay loop muted playsInline className="w-full h-full object-cover opacity-50 scale-105">
-            <source src={VIDEOS.hero} type="video/mp4" />
-          </video>
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black" />
-        </div>
+        {/* --- HERO --- */}
+        <section className="relative h-screen w-full flex items-center justify-center overflow-hidden">
+          <div className="absolute inset-0 z-0">
+            <video autoPlay loop muted playsInline className="w-full h-full object-cover opacity-50 scale-105">
+              <source src={VIDEOS.hero} type="video/mp4" />
+            </video>
+            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black" />
+          </div>
 
-        <div className="relative z-10 text-center px-6">
-          <motion.h1
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-            className="text-[15vw] leading-[0.75] font-black tracking-tighter text-white uppercase mb-8"
-          >
-            THE C1RCLE
-          </motion.h1>
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5, duration: 1 }}
-            className="flex flex-col items-center gap-6"
-          >
-            <p className="text-xl md:text-3xl font-bold text-white uppercase tracking-[0.3em]">
-              The Future of <span className="text-[#F44A22]">Nightlife</span>
-            </p>
-
-            <div className="mt-10 flex flex-col sm:flex-row gap-5 items-center justify-center">
-              <MagneticButton className="group relative px-8 py-4 bg-white text-black rounded-full font-black text-sm md:text-base uppercase tracking-wider hover:scale-105 transition-all duration-300 min-w-[200px] flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(255,255,255,0.3)]">
-                <svg viewBox="0 0 384 512" fill="currentColor" className="w-5 h-5 mb-1">
-                  <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 46.9 104.3 84.7 104.3 29.6 0 36.1-20.7 75.8-20.7 36.9 0 45.8 20.7 77.2 20.7 35.2 0 66.4-64.9 81.2-104.3-53.5-26.4-62.4-69.8-58.6-86.1zM206.5 71.1c17.6-21.6 30.6-50.6 26.9-80.1-25.3 2.8-56.8 16.7-74.8 40.6-15.5 19.4-28.6 49.4-25.3 78.8 28.1 2.8 54.2-16.1 73.2-39.3z" />
-                </svg>
-                <span>App Store</span>
-              </MagneticButton>
-
-              <MagneticButton className="group relative px-8 py-4 bg-transparent border-2 border-white !text-white rounded-full font-black text-sm md:text-base uppercase tracking-wider hover:bg-white hover:!text-black transition-all duration-300 min-w-[200px] flex items-center justify-center gap-3 shadow-[0_0_15px_rgba(255,255,255,0.1)]">
-                <svg viewBox="0 0 576 512" fill="currentColor" className="w-5 h-5 mb-0.5 fill-white group-hover:fill-black">
-                  <path d="M420.55,301.93a24,24,0,1,1,24-24,24,24,0,0,1-24,24m-265.1,0a24,24,0,1,1,24-24,24,24,0,0,1-24,24m273.7-144.48,47.94-83a10,10,0,1,0-17.36-10l-48.53,84.07a255.52,255.52,0,0,0-242.4,0l-48.53-84.07a10,10,0,1,0-17.36,10l47.94,83C66.6,203.34,0,292.5,0,392c0,12.33,1.34,24.25,3.79,35.82V448a64,64,0,0,0,64,64H508.21a64,64,0,0,0,64-64V427.82c2.45-11.57,3.79-23.49,3.79-35.82C576,292.5,509.4,203.34,429.15,157.45Z" />
-                </svg>
-                <span className="text-white group-hover:text-black">Play Store</span>
-              </MagneticButton>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* --- MANIFESTO --- */}
-      <section className="py-32 px-6 bg-black relative overflow-hidden">
-        <div className="max-w-5xl mx-auto text-center relative z-10">
-          <ManifestoLine className="text-4xl md:text-6xl font-black leading-tight text-white/90 uppercase">
-            "The night is not just a time.<br />
-            It's a <span className="text-[#F44A22]">place</span>."
-          </ManifestoLine>
-          <ManifestoLine className="mt-12 text-xl text-white/50 max-w-2xl mx-auto leading-relaxed font-light">
-            We are rewriting the code of social interaction. No more guessing. No more waiting. Just pure, unfiltered connection with the people and places that match your energy.
-          </ManifestoLine>
-        </div>
-      </section>
-
-      {/* --- FEATURES --- */}
-      <FeatureCard
-        index={1}
-        title="THE HEAT"
-        subtitle="Real-time crowd density maps. See where the city is alive before you even leave your house."
-        video={VIDEOS.heatmap}
-        align="left"
-      />
-
-      <FeatureCard
-        index={2}
-        title="THE SCAN"
-        subtitle="Augmented reality social discovery. Point your phone to see who's who. Connect on vibe instantly."
-        video={VIDEOS.scanner}
-        align="right"
-      />
-
-      <FeatureCard
-        index={3}
-        title="THE KEY"
-        subtitle="Your digital identity is your access pass. Skip lines, unlock VIP areas, and own the night."
-        video={VIDEOS.vip}
-        align="left"
-      />
-
-      {/* --- CTA --- */}
-      <section id="waitlist" className="relative h-screen flex items-center justify-center bg-[#F44A22] overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-40 mix-blend-overlay" />
-
-        <div className="relative z-10 max-w-4xl w-full px-6 text-center">
-          <h2 className="text-[12vw] font-black text-black leading-[0.8] tracking-tighter mb-12 uppercase">
-            GET IN<br />THE C1RCLE
-          </h2>
-
-          {joined ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-black p-8 rounded-3xl shadow-2xl inline-block"
+          <div className="relative z-10 text-center px-6">
+            <motion.h1
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+              className="text-[15vw] leading-[0.75] font-black tracking-tighter text-white uppercase mb-8"
             >
-              <span className="text-white font-black text-2xl uppercase tracking-wider">Welcome to the list.</span>
-            </motion.div>
-          ) : (
-            <form onSubmit={handleJoin} className="bg-black p-2 sm:p-4 rounded-[2rem] sm:rounded-full flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 shadow-2xl transform hover:scale-105 transition-transform duration-300">
-              <input
-                type="email"
-                placeholder="ENTER YOUR EMAIL"
-                className="w-full sm:flex-1 bg-transparent text-white px-6 py-4 sm:px-8 focus:outline-none placeholder-white/40 font-bold text-lg sm:text-xl uppercase tracking-wider text-center sm:text-left"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-              <button type="submit" disabled={loading} className="w-full sm:w-auto bg-white text-black px-8 py-4 sm:px-12 sm:py-6 rounded-full font-black uppercase tracking-wider hover:bg-gray-200 transition-colors text-lg whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
-                {loading ? "Joining..." : "Join Now"}
-              </button>
-            </form>
-          )}
-        </div>
-      </section>
+              THE C1RCLE
+            </motion.h1>
 
-      <Footer />
-    </div>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5, duration: 1 }}
+              className="flex flex-col items-center gap-6"
+            >
+              <p className="text-xl md:text-3xl font-bold text-white uppercase tracking-[0.3em]">
+                The Future of <span className="text-[#F44A22]">Nightlife</span>
+              </p>
+
+              <div className="mt-10 flex flex-col sm:flex-row gap-5 items-center justify-center">
+                <MagneticButton
+                  onClick={() => alert("The C1rcle App is coming soon to the App Store!")}
+                  className="group relative px-8 py-4 bg-white text-black rounded-full font-black text-sm md:text-base uppercase tracking-wider hover:scale-105 transition-all duration-300 min-w-[200px] flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(255,255,255,0.3)]"
+                >
+                  <svg viewBox="0 0 384 512" fill="currentColor" className="w-5 h-5 mb-1">
+                    <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 46.9 104.3 84.7 104.3 29.6 0 36.1-20.7 75.8-20.7 36.9 0 45.8 20.7 77.2 20.7 35.2 0 66.4-64.9 81.2-104.3-53.5-26.4-62.4-69.8-58.6-86.1zM206.5 71.1c17.6-21.6 30.6-50.6 26.9-80.1-25.3 2.8-56.8 16.7-74.8 40.6-15.5 19.4-28.6 49.4-25.3 78.8 28.1 2.8 54.2-16.1 73.2-39.3z" />
+                  </svg>
+                  <span>App Store</span>
+                </MagneticButton>
+
+                <MagneticButton
+                  onClick={() => alert("The C1rcle App is coming soon to the Play Store!")}
+                  className="group relative px-8 py-4 bg-transparent border-2 border-white !text-white rounded-full font-black text-sm md:text-base uppercase tracking-wider hover:bg-white hover:!text-black transition-all duration-300 min-w-[200px] flex items-center justify-center gap-3 shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+                >
+                  <svg viewBox="0 0 576 512" fill="currentColor" className="w-5 h-5 mb-0.5 fill-white group-hover:fill-black">
+                    <path d="M420.55,301.93a24,24,0,1,1,24-24,24,24,0,0,1-24,24m-265.1,0a24,24,0,1,1,24-24,24,24,0,0,1-24,24m273.7-144.48,47.94-83a10,10,0,1,0-17.36-10l-48.53,84.07a255.52,255.52,0,0,0-242.4,0l-48.53-84.07a10,10,0,1,0-17.36,10l47.94,83C66.6,203.34,0,292.5,0,392c0,12.33,1.34,24.25,3.79,35.82V448a64,64,0,0,0,64,64H508.21a64,64,0,0,0,64-64V427.82c2.45-11.57,3.79-23.49,3.79-35.82C576,292.5,509.4,203.34,429.15,157.45Z" />
+                  </svg>
+                  <span className="text-white group-hover:text-black">Play Store</span>
+                </MagneticButton>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* --- MANIFESTO --- */}
+        <section className="py-32 px-6 bg-black relative overflow-hidden">
+          <div className="max-w-5xl mx-auto text-center relative z-10">
+            <ManifestoLine className="text-4xl md:text-6xl font-black leading-tight text-white/90 uppercase">
+              "The night is not just a time.<br />
+              It's a <span className="text-[#F44A22]">place</span>."
+            </ManifestoLine>
+            <ManifestoLine className="mt-12 text-xl text-white/50 max-w-2xl mx-auto leading-relaxed font-light">
+              We are rewriting the code of social interaction. No more guessing. No more waiting. Just pure, unfiltered connection with the people and places that match your energy.
+            </ManifestoLine>
+          </div>
+        </section>
+
+        {/* --- FEATURES --- */}
+        <FeatureCard
+          index={1}
+          title="THE HEAT"
+          subtitle="Real-time crowd density maps. See where the city is alive before you even leave your house."
+          video={VIDEOS.heatmap}
+          align="left"
+        />
+
+        <FeatureCard
+          index={2}
+          title="THE SCAN"
+          subtitle="Augmented reality social discovery. Point your phone to see who's who. Connect on vibe instantly."
+          video={VIDEOS.scanner}
+          align="right"
+        />
+
+        <FeatureCard
+          index={3}
+          title="THE KEY"
+          subtitle="Your digital identity is your access pass. Skip lines, unlock VIP areas, and own the night."
+          video={VIDEOS.vip}
+          align="left"
+        />
+
+        {/* --- CTA --- */}
+        <section id="waitlist" className="relative h-screen flex items-center justify-center bg-[#F44A22] overflow-hidden">
+          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-40 mix-blend-overlay" />
+
+          <div className="relative z-10 max-w-4xl w-full px-6 text-center">
+            <h2 className="text-[12vw] font-black text-black leading-[0.8] tracking-tighter mb-12 uppercase">
+              GET IN<br />THE C1RCLE
+            </h2>
+
+            {joined ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-black p-8 rounded-3xl shadow-2xl inline-block"
+              >
+                <span className="text-white font-black text-2xl uppercase tracking-wider">Welcome to the list.</span>
+              </motion.div>
+            ) : (
+              <form onSubmit={handleJoin} className="bg-black p-2 sm:p-4 rounded-[2rem] sm:rounded-full flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 shadow-2xl transform hover:scale-105 transition-transform duration-300">
+                <input
+                  type="email"
+                  placeholder="ENTER YOUR EMAIL"
+                  className="w-full sm:flex-1 bg-transparent text-white px-6 py-4 sm:px-8 focus:outline-none placeholder-white/40 font-bold text-lg sm:text-xl uppercase tracking-wider text-center sm:text-left"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+                <button type="submit" disabled={loading} className="w-full sm:w-auto bg-white text-black px-8 py-4 sm:px-12 sm:py-6 rounded-full font-black uppercase tracking-wider hover:bg-gray-200 transition-colors text-lg whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                  {loading ? "Joining..." : "Join Now"}
+                </button>
+              </form>
+            )}
+          </div>
+        </section>
+      </div>
+    </Suspense>
   );
 }

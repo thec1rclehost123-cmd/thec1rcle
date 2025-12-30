@@ -11,7 +11,7 @@ export default function MobileBottomNav() {
   if (pathname?.startsWith("/host")) return null;
   const navItems = [
     { label: "Explore", href: "/explore" },
-    { label: "Create", href: "/create" },
+    ...(user ? [{ label: "Tickets", href: "/tickets" }] : []),
     { label: user ? "Profile" : "Account", href: user ? "/profile" : "/login" }
   ];
   return (

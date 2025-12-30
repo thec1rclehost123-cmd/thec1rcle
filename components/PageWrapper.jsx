@@ -10,7 +10,7 @@ export default function PageWrapper({ children }) {
 
     return (
         <main
-            className={`
+            className={`flex-1 flex flex-col
         ${isHost || isHomepage || pathname === "/app" || pathname === "/explore" || pathname === "/profile" ? "p-0" : "px-4 pt-24 pb-20 sm:px-8 sm:pt-32 sm:pb-32"}
       `}
         >

@@ -17,11 +17,13 @@ async function handler(request) {
 
         // Verify authentication
         const decodedToken = await verifyAuth(request);
-        if (decodedToken) {
-            // If authenticated, enforce the correct userId
-            payload.userId = decodedToken.uid;
-            payload.userEmail = decodedToken.email || payload.userEmail;
+        if (!decodedToken) {
+            return NextResponse.json({ error: "Authentication required to book tickets." }, { status: 401 });
         }
+
+        // Enforce the correct userId from the auth token
+        payload.userId = decodedToken.uid;
+        payload.userEmail = decodedToken.email || payload.userEmail;
 
 
 

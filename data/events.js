@@ -316,12 +316,12 @@ const metadataById = {
     venue: "Kalyani Nagar Mansion",
     eventType: "clubs",
     tags: ["Clubs", "Nightlife", "After hours", "College party"],
-    startDateTime: "2024-11-21T19:00:00+05:30",
-    endDateTime: "2024-11-22T01:00:00+05:30",
+    startDateTime: "2025-11-21T19:00:00+05:30",
+    endDateTime: "2025-11-22T01:00:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 1599,
-    stats: { heatScore: 94, rsvpsLast48h: 184, views: 2380, saves: 402, shares: 118, createdAt: "2024-10-12T09:00:00+05:30" },
+    stats: { heatScore: 94, rsvpsLast48h: 184, views: 2380, saves: 402, shares: 118, createdAt: "2025-10-12T09:00:00+05:30" },
     tickets: [
       {
         id: "after-ga",
@@ -333,8 +333,8 @@ const metadataById = {
         description: "All dance floors plus rooftop access.",
         minPerOrder: 1,
         maxPerOrder: 4,
-        salesStart: "2024-10-10T10:00:00+05:30",
-        salesEnd: "2024-11-21T17:00:00+05:30"
+        salesStart: "2025-10-10T10:00:00+05:30",
+        salesEnd: "2025-11-21T17:00:00+05:30"
       },
       {
         id: "after-vip",
@@ -346,8 +346,8 @@ const metadataById = {
         description: "Private booth, host concierge, and bottle service.",
         minPerOrder: 2,
         maxPerOrder: 8,
-        salesStart: "2024-10-10T10:00:00+05:30",
-        salesEnd: "2024-11-21T18:00:00+05:30"
+        salesStart: "2025-10-10T10:00:00+05:30",
+        salesEnd: "2025-11-21T18:00:00+05:30"
       },
       {
         id: "after-rsvp",
@@ -366,12 +366,12 @@ const metadataById = {
     venue: "FC Road Courtyard",
     eventType: "day-parties",
     tags: ["Day parties", "College", "Cookout"],
-    startDateTime: "2024-11-22T16:00:00+05:30",
-    endDateTime: "2024-11-22T21:00:00+05:30",
+    startDateTime: "2025-11-22T16:00:00+05:30",
+    endDateTime: "2025-11-22T21:00:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 299,
-    stats: { heatScore: 76, rsvpsLast48h: 126, views: 1640, saves: 230, shares: 72, createdAt: "2024-10-15T08:30:00+05:30" },
+    stats: { heatScore: 76, rsvpsLast48h: 126, views: 1640, saves: 230, shares: 72, createdAt: "2025-10-15T08:30:00+05:30" },
     tickets: [
       {
         id: "cookout-student",
@@ -410,12 +410,12 @@ const metadataById = {
     venue: "Baner Terrace Loft",
     eventType: "wellness",
     tags: ["Wellness", "Rooftop", "Breathwork"],
-    startDateTime: "2024-11-23T18:00:00+05:30",
-    endDateTime: "2024-11-23T22:00:00+05:30",
+    startDateTime: "2025-11-23T18:00:00+05:30",
+    endDateTime: "2025-11-23T22:00:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 699,
-    stats: { heatScore: 68, rsvpsLast48h: 92, views: 1120, saves: 180, shares: 52, createdAt: "2024-10-18T09:30:00+05:30" },
+    stats: { heatScore: 68, rsvpsLast48h: 92, views: 1120, saves: 180, shares: 52, createdAt: "2025-10-18T09:30:00+05:30" },
     tickets: [
       {
         id: "lofi-flow",
@@ -444,12 +444,12 @@ const metadataById = {
     venue: "Koregaon Park Social",
     eventType: "clubs",
     tags: ["Clubs", "Late night", "Pop edits"],
-    startDateTime: "2024-11-29T22:00:00+05:30",
-    endDateTime: "2024-11-30T03:00:00+05:30",
+    startDateTime: "2025-11-29T22:00:00+05:30",
+    endDateTime: "2025-11-30T03:00:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 899,
-    stats: { heatScore: 89, rsvpsLast48h: 158, views: 2100, saves: 345, shares: 118, createdAt: "2024-10-05T10:00:00+05:30" },
+    stats: { heatScore: 89, rsvpsLast48h: 158, views: 2100, saves: 345, shares: 118, createdAt: "2025-10-05T10:00:00+05:30" },
     tickets: [
       {
         id: "genz-floor",
@@ -478,12 +478,12 @@ const metadataById = {
     venue: "Underground Studio",
     eventType: "live-music",
     tags: ["Live music", "Live art", "Spoken word", "Indie"],
-    startDateTime: "2024-12-01T20:00:00+05:30",
-    endDateTime: "2024-12-02T00:00:00+05:30",
+    startDateTime: "2025-12-01T20:00:00+05:30",
+    endDateTime: "2025-12-02T00:00:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "link",
     startingPrice: 699,
-    stats: { heatScore: 73, rsvpsLast48h: 102, views: 1400, saves: 180, shares: 55, createdAt: "2024-10-20T11:00:00+05:30" },
+    stats: { heatScore: 73, rsvpsLast48h: 102, views: 1400, saves: 180, shares: 55, createdAt: "2025-10-20T11:00:00+05:30" },
     tickets: [
       {
         id: "diy-floor",
@@ -510,12 +510,12 @@ const metadataById = {
     venue: "Mula Riverwalk",
     eventType: "wellness",
     tags: ["Wellness", "Run club", "Community", "Sunrise"],
-    startDateTime: "2024-11-26T07:00:00+05:30",
-    endDateTime: "2024-11-26T09:00:00+05:30",
+    startDateTime: "2025-11-26T07:00:00+05:30",
+    endDateTime: "2025-11-26T09:00:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 0,
-    stats: { heatScore: 61, rsvpsLast48h: 90, views: 880, saves: 140, shares: 40, createdAt: "2024-10-08T07:30:00+05:30" },
+    stats: { heatScore: 61, rsvpsLast48h: 90, views: 880, saves: 140, shares: 40, createdAt: "2025-10-08T07:30:00+05:30" },
     tickets: [
       {
         id: "river-rsvp",
@@ -535,12 +535,12 @@ const metadataById = {
     venue: "Magnetic Fields Lab",
     eventType: "concerts",
     tags: ["Live music", "Live electronica", "Analog synths", "Clubs"],
-    startDateTime: "2024-12-05T21:00:00+05:30",
-    endDateTime: "2024-12-06T01:30:00+05:30",
+    startDateTime: "2025-12-05T21:00:00+05:30",
+    endDateTime: "2025-12-06T01:30:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 1299,
-    stats: { heatScore: 82, rsvpsLast48h: 132, views: 1750, saves: 260, shares: 82, createdAt: "2024-10-22T10:00:00+05:30" },
+    stats: { heatScore: 82, rsvpsLast48h: 132, views: 1750, saves: 260, shares: 82, createdAt: "2025-10-22T10:00:00+05:30" },
     tickets: [
       {
         id: "synth-floor",
@@ -569,13 +569,13 @@ const metadataById = {
     venue: "Yerawada Courtyard",
     eventType: "house-parties",
     tags: ["House parties", "Brunch", "Chef pop up", "House party"],
-    startDateTime: "2024-11-30T11:00:00+05:30",
-    endDateTime: "2024-11-30T15:00:00+05:30",
+    startDateTime: "2025-11-30T11:00:00+05:30",
+    endDateTime: "2025-11-30T15:00:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "password",
     passwordCode: "TABLE22",
     startingPrice: 0,
-    stats: { heatScore: 67, rsvpsLast48h: 94, views: 1200, saves: 150, shares: 46, createdAt: "2024-10-18T15:30:00+05:30" },
+    stats: { heatScore: 67, rsvpsLast48h: 94, views: 1200, saves: 150, shares: 46, createdAt: "2025-10-18T15:30:00+05:30" },
     tickets: [
       {
         id: "brunch-rsvp",
@@ -603,12 +603,12 @@ const metadataById = {
     venue: "FC Road Studios",
     eventType: "college",
     tags: ["College parties", "College crews", "Dance battle", "Hip hop"],
-    startDateTime: "2024-11-28T20:00:00+05:30",
-    endDateTime: "2024-11-28T23:00:00+05:30",
+    startDateTime: "2025-11-28T20:00:00+05:30",
+    endDateTime: "2025-11-28T23:00:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 299,
-    stats: { heatScore: 65, rsvpsLast48h: 110, views: 980, saves: 140, shares: 44, createdAt: "2024-10-24T12:00:00+05:30" },
+    stats: { heatScore: 65, rsvpsLast48h: 110, views: 980, saves: 140, shares: 44, createdAt: "2025-10-24T12:00:00+05:30" },
     tickets: [
       {
         id: "cypher-crew",
@@ -636,12 +636,12 @@ const metadataById = {
     venue: "The Block Parade",
     eventType: "festivals",
     tags: ["Festivals", "Block party", "Graffiti", "House music"],
-    startDateTime: "2024-12-12T17:00:00+05:30",
-    endDateTime: "2024-12-13T00:00:00+05:30",
+    startDateTime: "2025-12-12T17:00:00+05:30",
+    endDateTime: "2025-12-13T00:00:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 1499,
-    stats: { heatScore: 72, rsvpsLast48h: 108, views: 1600, saves: 200, shares: 60, createdAt: "2024-10-25T10:30:00+05:30" },
+    stats: { heatScore: 72, rsvpsLast48h: 108, views: 1600, saves: 200, shares: 60, createdAt: "2025-10-25T10:30:00+05:30" },
     tickets: [
       {
         id: "block-pass",
@@ -702,12 +702,12 @@ const metadataById = {
     venue: "Pashan Ridge",
     eventType: "day-parties",
     tags: ["Day parties", "Sunset", "Acoustic", "Film swap"],
-    startDateTime: "2024-11-28T18:00:00+05:30",
-    endDateTime: "2024-11-28T21:30:00+05:30",
+    startDateTime: "2025-11-28T18:00:00+05:30",
+    endDateTime: "2025-11-28T21:30:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 0,
-    stats: { heatScore: 64, rsvpsLast48h: 105, views: 1300, saves: 170, shares: 55, createdAt: "2024-10-18T08:00:00+05:30" },
+    stats: { heatScore: 64, rsvpsLast48h: 105, views: 1300, saves: 170, shares: 55, createdAt: "2025-10-18T08:00:00+05:30" },
     tickets: [
       {
         id: "sunset-rsvp",
@@ -726,13 +726,13 @@ const metadataById = {
     venue: "KP Annex Studio",
     eventType: "workshops",
     tags: ["Workshop", "Intention", "Community"],
-    startDateTime: "2024-12-08T18:30:00+05:30",
-    endDateTime: "2024-12-08T21:00:00+05:30",
+    startDateTime: "2025-12-08T18:30:00+05:30",
+    endDateTime: "2025-12-08T21:00:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "password",
     passwordCode: "HONESTY",
     startingPrice: 399,
-    stats: { heatScore: 58, rsvpsLast48h: 80, views: 960, saves: 180, shares: 42, createdAt: "2024-10-26T13:30:00+05:30" },
+    stats: { heatScore: 58, rsvpsLast48h: 80, views: 960, saves: 180, shares: 42, createdAt: "2025-10-26T13:30:00+05:30" },
     tickets: [
       {
         id: "honesty-circle",
@@ -751,12 +751,12 @@ const metadataById = {
     venue: "Neon Bazaar",
     eventType: "markets",
     tags: ["Markets", "Night market", "Thrift", "Car meet"],
-    startDateTime: "2024-12-20T20:00:00+05:30",
-    endDateTime: "2024-12-21T02:00:00+05:30",
+    startDateTime: "2025-12-20T20:00:00+05:30",
+    endDateTime: "2025-12-21T02:00:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 499,
-    stats: { heatScore: 75, rsvpsLast48h: 140, views: 1800, saves: 220, shares: 78, createdAt: "2024-10-30T11:30:00+05:30" },
+    stats: { heatScore: 75, rsvpsLast48h: 140, views: 1800, saves: 220, shares: 78, createdAt: "2025-10-30T11:30:00+05:30" },
     tickets: [
       {
         id: "market-pass",
@@ -783,12 +783,12 @@ const metadataById = {
     venue: "Sky Deck, Viman Nagar",
     eventType: "gala",
     tags: ["Gala", "Black Tie", "Cocktails", "VIP"],
-    startDateTime: "2024-12-27T20:00:00+05:30",
-    endDateTime: "2024-12-28T02:00:00+05:30",
+    startDateTime: "2025-12-27T20:00:00+05:30",
+    endDateTime: "2025-12-28T02:00:00+05:30",
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 2499,
-    stats: { heatScore: 98, rsvpsLast48h: 210, views: 3500, saves: 560, shares: 190, createdAt: "2024-11-01T10:00:00+05:30" },
+    stats: { heatScore: 98, rsvpsLast48h: 210, views: 3500, saves: 560, shares: 190, createdAt: "2025-11-01T10:00:00+05:30" },
     tickets: [
       {
         id: "gala-ga",
@@ -906,7 +906,7 @@ const applyMetadata = (event) => {
   const endDateTime = metadata.endDateTime || event.endDateTime || startDateTime;
   const startDate = metadata.startDate || toIsoString(startDateTime);
   const endDate = metadata.endDate || toIsoString(endDateTime);
-  const createdAt = metadata.createdAt || stats.createdAt || startDate || "2024-10-01T10:00:00+05:30";
+  const createdAt = metadata.createdAt || stats.createdAt || startDate || "2025-10-01T10:00:00+05:30";
   const updatedAt = metadata.updatedAt || createdAt;
   const priceRange = metadata.priceRange || {
     min: startPrice,

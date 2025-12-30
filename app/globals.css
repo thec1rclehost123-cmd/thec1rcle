@@ -6,21 +6,45 @@
   --font-heading: "Satoshi", "Inter", sans-serif;
   --font-body: "Inter", sans-serif;
   --bg-color: #ffffff;
-  --text-color: #161616;
-  --bg-gradient: radial-gradient(circle at 50% 0%, rgba(244, 74, 34, 0.08), transparent 40%);
-  --nav-bg-opaque: rgba(255, 255, 255, 0.8);
-  --nav-border: rgba(0, 0, 0, 0.1);
+  --text-primary: #111111;
+  --text-secondary: #444444;
+  --text-muted: #888888;
+  --surface-1: #ffffff;
+  --surface-2: #f8f8f8;
+  --surface-3: #f0f0f0;
+  --border-primary: rgba(0, 0, 0, 0.08);
+  --border-secondary: rgba(0, 0, 0, 0.04);
+  --nav-bg-opaque: rgba(255, 255, 255, 0.85);
+  --nav-border: rgba(0, 0, 0, 0.06);
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --bg-gradient: radial-gradient(circle at 50% 0%, rgba(244, 74, 34, 0.05), transparent 50%);
 }
 
 .dark {
-  --bg-color: #161616;
-  --text-color: #ffffff;
+  --bg-color: #030303;
+  --text-primary: #ffffff;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --surface-1: #0A0A0A;
+  --surface-2: #161616;
+  --surface-3: #1c1c1c;
+  --border-primary: rgba(255, 255, 255, 0.08);
+  --border-secondary: rgba(255, 255, 255, 0.04);
+  --nav-bg-opaque: rgba(3, 3, 3, 0.75);
+  --nav-border: rgba(255, 255, 255, 0.06);
+  --glass-bg: rgba(10, 10, 10, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
   --bg-gradient:
-    radial-gradient(circle at 50% 0%, rgba(244, 74, 34, 0.15), transparent 40%),
-    radial-gradient(circle at 0% 50%, rgba(244, 74, 34, 0.05), transparent 40%),
-    radial-gradient(circle at 100% 50%, rgba(244, 74, 34, 0.05), transparent 40%);
-  --nav-bg-opaque: rgba(5, 5, 5, 0.6);
-  --nav-border: rgba(255, 255, 255, 0.08);
+    radial-gradient(circle at 50% 0%, rgba(244, 74, 34, 0.12), transparent 45%),
+    radial-gradient(circle at 0% 50%, rgba(244, 74, 34, 0.04), transparent 40%),
+    radial-gradient(circle at 100% 50%, rgba(244, 74, 34, 0.04), transparent 40%);
 }
 
 @layer base {
@@ -53,40 +77,32 @@
   body {
     @apply font-body antialiased transition-colors duration-300;
     background-color: var(--bg-color);
-    color: var(--text-color);
+    color: var(--text-primary);
     background-image: var(--bg-gradient);
     background-attachment: fixed;
   }
 
-  /* Custom Scrollbar with Orange */
+  /* Custom Scrollbar */
   ::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    background: rgba(22, 22, 22, 0.5);
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, rgba(244, 74, 34, 0.6), rgba(244, 74, 34, 0.3));
+    background: var(--text-muted);
     border-radius: 10px;
-    border: 2px solid rgba(22, 22, 22, 0.5);
-  }
-
-  .dark ::-webkit-scrollbar-track {
-    background: rgba(22, 22, 22, 0.5);
-  }
-
-  .dark ::-webkit-scrollbar-thumb {
-    border: 2px solid rgba(22, 22, 22, 0.5);
+    opacity: 0.2;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, rgba(244, 74, 34, 0.9), rgba(244, 74, 34, 0.6));
+    background: var(--text-secondary);
   }
 
   ::selection {
-    @apply bg-orange/30 text-white;
+    @apply bg-orange/40 text-white;
   }
 
   /* Support for reduced motion */
