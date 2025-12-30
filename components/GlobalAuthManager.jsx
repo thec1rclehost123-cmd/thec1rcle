@@ -32,6 +32,8 @@ export default function GlobalAuthManager() {
                 } else {
                     router.push(`/event/${intent.eventId}?autoBook=true`);
                 }
+            } else if (intent.type === "VIEW_TICKETS") {
+                router.push("/tickets");
             }
             // After replay, clear it
             clearIntent();
