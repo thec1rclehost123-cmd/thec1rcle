@@ -35,16 +35,16 @@ export default function TicketModal({ open, onClose, tickets = [], eventId }) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="modal-backdrop items-start pt-20 sm:pt-24"
+          className="modal-backdrop items-end sm:items-center p-0 sm:p-4"
           onClick={onClose}
         >
           <motion.div
-            initial={{ y: -20, opacity: 0 }}
+            initial={{ y: "100%", opacity: 0.5 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -20, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
+            exit={{ y: "100%", opacity: 0.5 }}
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
             onClick={(event) => event.stopPropagation()}
-            className="w-full max-w-md overflow-hidden rounded-[32px] border border-white/10 bg-black p-6 shadow-2xl shadow-glow"
+            className="w-full sm:max-w-md overflow-hidden rounded-t-[40px] sm:rounded-[32px] border-t sm:border border-white/10 bg-black p-6 sm:p-8 shadow-2xl shadow-glow"
           >
             <div className="mb-6 flex items-start justify-between">
               <div>

@@ -320,7 +320,7 @@ export default function PublicProfilePage() {
                             transition={{ duration: 0.3 }}
                         >
                             {events[activeTab].length > 0 ? (
-                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
                                     {events[activeTab].map((event) => (
                                         <EventCard key={event.eventId} event={event} isOwner={isOwner} />
                                     ))}

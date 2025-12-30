@@ -22,6 +22,11 @@
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
   --bg-gradient: radial-gradient(circle at 50% 0%, rgba(244, 74, 34, 0.05), transparent 50%);
+
+  /* Mobile Spacing System */
+  --page-px-mobile: 1rem;
+  --page-px-tablet: 1.5rem;
+  --page-px-desktop: 2rem;
 }
 
 .dark {
@@ -80,6 +85,8 @@
     color: var(--text-primary);
     background-image: var(--bg-gradient);
     background-attachment: fixed;
+    overflow-x: hidden;
+    width: 100%;
   }
 
   /* Custom Scrollbar */
@@ -133,7 +140,43 @@
 
 @layer components {
   .page-shell {
-    @apply relative min-h-screen w-full;
+    @apply relative min-h-screen w-full overflow-x-hidden;
+    padding-left: var(--page-px-mobile);
+    padding-right: var(--page-px-mobile);
+  }
+
+  @media (min-width: 640px) {
+    .page-shell {
+      padding-left: var(--page-px-tablet);
+      padding-right: var(--page-px-tablet);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .page-shell {
+      /* Keep desktop paddings unchanged - use default or specific overrides */
+      padding-left: 0;
+      padding-right: 0;
+    }
+  }
+
+  /* Mobile Typography Clarity */
+  @media (max-width: 768px) {
+    h1 {
+      @apply text-3xl font-black leading-tight tracking-tighter;
+    }
+
+    h2 {
+      @apply text-2xl font-black leading-tight tracking-tight;
+    }
+
+    h3 {
+      @apply text-xl font-bold leading-snug;
+    }
+
+    p {
+      @apply leading-relaxed;
+    }
   }
 
   /* Noise Texture Overlay */

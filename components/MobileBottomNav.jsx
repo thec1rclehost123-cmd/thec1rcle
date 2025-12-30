@@ -8,7 +8,7 @@ export default function MobileBottomNav() {
   const pathname = usePathname();
   const { user } = useAuth();
 
-  if (pathname?.startsWith("/host")) return null;
+  if (pathname?.startsWith("/host") || pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/auth") return null;
   const navItems = [
     { label: "Explore", href: "/explore" },
     ...(user ? [{ label: "Tickets", href: "/tickets" }] : []),

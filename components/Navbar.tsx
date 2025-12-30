@@ -25,7 +25,7 @@ export default function Navbar() {
   const navBackground = useTransform(scrollY, [0, 100], ["rgba(5, 5, 5, 0)", "var(--nav-bg-opaque)"]);
   const navBorder = useTransform(scrollY, [0, 100], ["rgba(255, 255, 255, 0)", "var(--nav-border)"]);
 
-  if (pathname?.startsWith("/host")) return null;
+  if (pathname?.startsWith("/host") || pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/auth") return null;
 
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
   const closeMenu = () => setIsMenuOpen(false);
@@ -43,14 +43,14 @@ export default function Navbar() {
             backgroundColor: navBackground,
             borderColor: navBorder,
           }}
-          className="pointer-events-auto flex items-center justify-between px-6 py-2 border border-transparent rounded-full transition-all duration-500 max-w-5xl mx-auto"
+          className="pointer-events-auto flex items-center justify-between px-4 py-2 sm:px-6 sm:py-2.5 border border-transparent rounded-full transition-all duration-500 max-w-5xl mx-auto"
         >
-          <Link href="/" className="group flex items-center gap-4">
-            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-orange/20 dark:border-white/10 transition-all duration-500 group-hover:rotate-180 group-hover:border-orange/40 dark:group-hover:border-white/20">
+          <Link href="/" className="group flex items-center gap-2 sm:gap-4">
+            <div className="relative flex h-10 w-10 sm:h-14 sm:w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-orange/20 dark:border-white/10 transition-all duration-500 group-hover:rotate-180 group-hover:border-orange/40 dark:group-hover:border-white/20">
               <span className="absolute inset-0 bg-gradient-to-tr from-orange dark:from-gold via-transparent to-transparent opacity-10" />
               <img src="/logo-circle.jpg" alt="The C1rcle" className="h-full w-full object-cover scale-125" />
             </div>
-            <span className="font-heading text-xl font-black tracking-tighter uppercase text-black dark:text-white group-hover:text-orange dark:group-hover:text-white transition-colors">
+            <span className="font-heading text-lg sm:text-xl font-black tracking-tighter uppercase text-black dark:text-white group-hover:text-orange dark:group-hover:text-white transition-colors">
               The C1rcle
             </span>
           </Link>
@@ -101,7 +101,7 @@ export default function Navbar() {
 
             <button
               type="button"
-              className="relative flex h-10 w-10 flex-col items-center justify-center gap-1.5 rounded-full bg-black/[0.03] dark:bg-white/5 border border-black/5 dark:border-white/10 lg:hidden"
+              className="relative flex h-11 w-11 flex-col items-center justify-center gap-1.5 rounded-full bg-black/[0.03] dark:bg-white/5 border border-black/5 dark:border-white/10 lg:hidden"
               onClick={toggleMenu}
               aria-label="Toggle menu"
             >

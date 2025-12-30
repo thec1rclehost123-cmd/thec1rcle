@@ -385,8 +385,8 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setIsLiked(!isLiked)}
                 className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border transition-all duration-500 backdrop-blur-xl ${isLiked
-                    ? "border-orange/30 bg-orange/10 dark:bg-orange/20 shadow-[0_0_20px_rgba(244,74,34,0.15)]"
-                    : "border-black/[0.08] dark:border-white/10 bg-black/5 dark:bg-white/[0.05]"
+                  ? "border-orange/30 bg-orange/10 dark:bg-orange/20 shadow-[0_0_20px_rgba(244,74,34,0.15)]"
+                  : "border-black/[0.08] dark:border-white/10 bg-black/5 dark:bg-white/[0.05]"
                   }`}
                 aria-label="Like event"
               >
@@ -416,8 +416,8 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
           </div>
         </motion.section>
 
-        <div className="lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] lg:gap-10">
-          <div className="space-y-6 lg:space-y-7">
+        <div className="flex flex-col lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] lg:gap-10">
+          <div className="order-2 lg:order-1 space-y-6 lg:space-y-7">
             <motion.section
               variants={sectionVariants}
               initial="hidden"
@@ -636,7 +636,7 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
             whileInView="visible"
             viewport={{ once: true, margin: "-120px" }}
             transition={{ duration: 0.55, delay: 0.2 }}
-            className="mt-8 space-y-6 lg:mt-0"
+            className="order-1 lg:order-2 mt-0 space-y-6 lg:mt-0 mb-8 lg:mb-0"
           >
             <div className="rounded-[40px] border border-black/5 dark:border-white/10 bg-white dark:bg-black/70 p-5 shadow-xl dark:shadow-glow backdrop-blur-md">
               <div className="group relative">
@@ -725,9 +725,9 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
       <motion.div
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
-        className="fixed inset-x-0 bottom-8 z-40 flex justify-center px-4"
+        className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-0 sm:px-4 pb-8 sm:pb-8"
       >
-        <div className="flex w-full max-w-2xl flex-wrap items-center justify-between gap-3 rounded-full border border-black/10 dark:border-white/15 bg-white/90 dark:bg-black/70 px-6 py-4 text-sm shadow-2xl backdrop-blur-xl">
+        <div className="flex w-full max-w-2xl flex-wrap items-center justify-between gap-3 rounded-none sm:rounded-full border-t sm:border border-black/10 dark:border-white/15 bg-white/95 dark:bg-black/80 px-6 py-4 sm:py-4 text-sm shadow-2xl backdrop-blur-2xl transition-all duration-500">
           {hasRSVPd ? (
             <>
               <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-primary)]">You have {event?.isFree ? "RSVP’d to" : "tickets for"} this event.</p>

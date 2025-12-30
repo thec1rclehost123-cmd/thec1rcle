@@ -1,15 +1,16 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "../../components/providers/AuthProvider";
-import { Chrome, Mail, Loader2, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { Mail, Lock, User, ArrowRight, Chrome, Loader2, AlertCircle } from "lucide-react";
+import { useAuth } from "../../components/providers/AuthProvider";
+import PageShell from "../../components/PageShell";
 
 export default function AuthPage() {
     return (
-        <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-black text-white">Loading...</div>}>
+        <Suspense fallback={<div className="min-h-screen bg-black" />}>
             <AuthContent />
         </Suspense>
     );
@@ -28,7 +29,7 @@ function AuthContent() {
 
     useEffect(() => {
         if (user && !loading) {
-            router.replace(returnUrl);
+            router.replace(`/auth/callback?returnUrl=${encodeURIComponent(returnUrl)}`);
         }
     }, [user, loading, router, returnUrl]);
 
@@ -37,10 +38,9 @@ function AuthContent() {
         setStatus({ type: "", message: "" });
         try {
             await loginWithGoogle();
-            router.replace(returnUrl);
+            router.replace(`/auth/callback?returnUrl=${encodeURIComponent(returnUrl)}`);
         } catch (err) {
             setStatus({ type: "error", message: err.message });
-        } finally {
             setSubmitting(false);
         }
     };
@@ -56,155 +56,148 @@ function AuthContent() {
                 if (!form.name.trim()) throw new Error("Name is required");
                 await register(form.email, form.password, form.name);
             }
-            router.replace(returnUrl);
+            router.replace(`/auth/callback?returnUrl=${encodeURIComponent(returnUrl)}`);
         } catch (err) {
             setStatus({ type: "error", message: err.message });
-        } finally {
             setSubmitting(false);
         }
     };
 
     return (
-        <div className="relative min-h-screen w-full overflow-hidden bg-black flex items-center justify-center px-4 py-20">
-            {/* Background aesthetic */}
-            <div className="absolute inset-0 z-0">
-                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/20 blur-[120px] rounded-full" />
-                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/10 blur-[120px] rounded-full" />
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.03]" />
-            </div>
-
-            <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                className="relative z-10 w-full max-w-md"
-            >
-                <div className="mb-10 text-center">
-                    <Link href="/" className="inline-block mb-6">
-                        <h1 className="text-3xl font-display uppercase tracking-[0.3em] text-white">
-                            The C1rcle
-                        </h1>
-                    </Link>
-                    <h2 className="text-xl font-medium text-white/90">
-                        {mode === "login" ? "Welcome Back" : "Start Your Journey"}
-                    </h2>
-                    <p className="mt-2 text-sm text-white/40">
+        <PageShell title={mode === "login" ? "Identity" : "Citizenship"} showLogo={true} backHref="/explore">
+            <div className="max-w-md mx-auto pb-8">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="text-center space-y-4 mb-10"
+                >
+                    <h1 className="text-4xl sm:text-5xl font-black uppercase tracking-[-0.04em] leading-[0.9]">
+                        {mode === "login" ? (
+                            <>Authenticating <span className="text-orange">Access.</span></>
+                        ) : (
+                            <>Initialize your <span className="text-orange">Access.</span></>
+                        )}
+                    </h1>
+                    <p className="text-sm font-medium text-black/40 dark:text-white/40 uppercase tracking-widest max-w-[280px] mx-auto">
                         {mode === "login"
-                            ? "Sign in to access exclusive events and your circle."
-                            : "Join a community of the most influential people."}
+                            ? "Verify your credentials to enter the circle."
+                            : "Create your unique digital identity for the network."}
                     </p>
-                </div>
+                </motion.div>
 
-                {status.message && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        className={`mb-6 overflow-hidden rounded-2xl border ${status.type === "error" ? "border-red-500/20 bg-red-500/10 text-red-400" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-                            } px-4 py-3 text-sm text-center`}
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.1, duration: 0.4 }}
+                    className="glass-panel p-8 rounded-[40px] border border-black/[0.05] dark:border-white/10 bg-white/50 dark:bg-white/[0.02] shadow-2xl space-y-8"
+                >
+                    <button
+                        onClick={handleGoogleLogin}
+                        disabled={submitting}
+                        className="group relative w-full h-14 flex items-center justify-center gap-3 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/5 dark:border-white/10 text-sm font-bold uppercase tracking-widest transition-all hover:bg-black/[0.05] dark:hover:bg-white/10 active:scale-95 disabled:opacity-50"
                     >
-                        {status.message}
-                    </motion.div>
-                )}
+                        {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Chrome className="h-5 w-5" />}
+                        Continue with Google
+                    </button>
 
-                <div className="glass-panel overflow-hidden rounded-[32px] border border-white/10 bg-white/5 p-8 backdrop-blur-2xl shadow-2xl">
-                    <div className="space-y-4">
-                        <button
-                            onClick={handleGoogleLogin}
-                            disabled={submitting}
-                            className="group relative flex w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-white/5 py-4 text-sm font-medium text-white transition-all hover:bg-white/10 active:scale-95 disabled:opacity-50"
-                        >
-                            <div className="absolute inset-0 translate-x-[-100%] bg-gradient-to-r from-transparent via-white/5 to-transparent transition-transform duration-500 group-hover:translate-x-[100%]" />
-                            {submitting ? <Loader2 className="animate-spin" size={20} /> : <Chrome size={20} />}
-                            Continue with Google
-                        </button>
+                    <div className="relative py-2">
+                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-black/[0.05] dark:border-white/5" /></div>
+                        <div className="relative flex justify-center text-[10px]"><span className="bg-white dark:bg-[#121212] px-4 font-black uppercase tracking-[0.3em] text-black/20 dark:text-white/20">identity vault</span></div>
+                    </div>
 
-                        <div className="relative my-8 flex items-center py-2">
-                            <div className="flex-grow border-t border-white/5"></div>
-                            <span className="mx-4 flex-shrink text-[10px] uppercase tracking-[0.3em] text-white/20 font-bold">or</span>
-                            <div className="flex-grow border-t border-white/5"></div>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <AnimatePresence mode="wait">
-                                {mode === "register" && (
-                                    <motion.div
-                                        key="name"
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: "auto", opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        className="space-y-2"
-                                    >
-                                        <label className="text-[10px] uppercase tracking-[0.2em] text-white/40 ml-4">Full Name</label>
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <AnimatePresence mode="wait">
+                            {mode === "register" && (
+                                <motion.div
+                                    key="full-name"
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="space-y-2 overflow-hidden"
+                                >
+                                    <label className="text-[10px] uppercase tracking-widest text-black/60 dark:text-white/60 ml-4 font-bold">Display Name</label>
+                                    <div className="relative">
+                                        <User className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-black/20 dark:text-white/20" />
                                         <input
                                             type="text"
                                             required
-                                            placeholder="Alexander Pierce"
                                             value={form.name}
                                             onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                            className="w-full rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-white placeholder:text-white/20 focus:border-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all outline-none"
+                                            placeholder="Alexander P."
+                                            className="w-full h-14 pl-14 pr-6 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/5 dark:border-white/10 focus:border-orange/50 focus:outline-none transition-all"
                                         />
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
-                            <div className="space-y-2">
-                                <label className="text-[10px] uppercase tracking-[0.2em] text-white/40 ml-4">Email</label>
+                        <div className="space-y-2">
+                            <label className="text-[10px] uppercase tracking-widest text-black/60 dark:text-white/60 ml-4 font-bold">Access Email</label>
+                            <div className="relative">
+                                <Mail className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-black/20 dark:text-white/20" />
                                 <input
                                     type="email"
                                     required
-                                    placeholder="name@exclusive.com"
                                     value={form.email}
                                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-white placeholder:text-white/20 focus:border-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all outline-none"
+                                    placeholder="vault@thecircle.com"
+                                    className="w-full h-14 pl-14 pr-6 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/5 dark:border-white/10 focus:border-orange/50 focus:outline-none transition-all"
                                 />
                             </div>
+                        </div>
 
-                            <div className="space-y-2">
-                                <label className="text-[10px] uppercase tracking-[0.2em] text-white/40 ml-4">Password</label>
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center px-4">
+                                <label className="text-[10px] uppercase tracking-widest text-black/60 dark:text-white/60 font-bold">Passkey</label>
+                                {mode === "login" && (
+                                    <Link href="/forgot-password" core-link="true" className="text-[10px] uppercase tracking-widest text-orange/60 hover:text-orange font-bold transition-colors">
+                                        Reset
+                                    </Link>
+                                )}
+                            </div>
+                            <div className="relative">
+                                <Lock className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-black/20 dark:text-white/20" />
                                 <input
                                     type="password"
                                     required
-                                    placeholder="••••••••"
                                     value={form.password}
                                     onChange={(e) => setForm({ ...form, password: e.target.value })}
-                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-white placeholder:text-white/20 focus:border-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all outline-none"
+                                    placeholder="••••••••"
+                                    className="w-full h-14 pl-14 pr-6 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/5 dark:border-white/10 focus:border-orange/50 focus:outline-none transition-all"
                                 />
                             </div>
-
-                            <button
-                                type="submit"
-                                disabled={submitting}
-                                className="mt-6 group relative w-full overflow-hidden rounded-2xl bg-white py-4 text-sm font-bold uppercase tracking-widest text-black transition-all hover:bg-zinc-200 active:scale-95 disabled:opacity-50"
-                            >
-                                <span className="relative z-10 flex items-center justify-center gap-2">
-                                    {submitting ? <Loader2 className="animate-spin" size={20} /> : (
-                                        <>
-                                            {mode === "login" ? "Enter The Circle" : "Create Account"}
-                                            <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
-                                        </>
-                                    )}
-                                </span>
-                            </button>
-                        </form>
-
-                        <div className="mt-8 text-center">
-                            <button
-                                onClick={() => setMode(mode === "login" ? "register" : "login")}
-                                className="text-xs text-white/40 transition-colors hover:text-white"
-                            >
-                                {mode === "login"
-                                    ? "New here? Create an account"
-                                    : "Already a member? Sign in"}
-                            </button>
                         </div>
-                    </div>
-                </div>
 
-                <p className="mt-8 text-center text-[10px] uppercase tracking-[0.2em] text-white/20 leading-relaxed">
-                    By entering, you agree to our <br />
-                    <Link href="/terms" className="text-white/40 hover:text-white transition-colors underline underline-offset-4">Terms of Service</Link> and <Link href="/privacy" className="text-white/40 hover:text-white transition-colors underline underline-offset-4">Privacy Policy</Link>
-                </p>
-            </motion.div>
-        </div>
+                        {status.message && (
+                            <div className="flex items-center gap-3 p-4 rounded-2xl bg-red-500/5 border border-red-500/10 text-red-500">
+                                <AlertCircle className="h-4 w-4" />
+                                <p className="text-[10px] font-bold uppercase tracking-widest">{status.message}</p>
+                            </div>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={submitting}
+                            className="group relative w-full h-16 flex items-center justify-center rounded-full bg-black dark:bg-white text-white dark:text-black font-black uppercase tracking-[0.3em] transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 shadow-xl"
+                        >
+                            {submitting ? <Loader2 className="h-6 w-6 animate-spin" /> : (
+                                <>
+                                    {mode === "login" ? "Verify Access" : "Secure Identity"}
+                                    <ArrowRight className="ml-3 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                                </>
+                            )}
+                        </button>
+                    </form>
+
+                    <button
+                        onClick={() => setMode(mode === "login" ? "register" : "login")}
+                        className="w-full text-[10px] font-black uppercase tracking-[0.4em] text-black/30 dark:text-white/30 hover:text-orange transition-colors"
+                    >
+                        {mode === "login" ? "New Citizen? Register" : "Existing Member? Verify"}
+                    </button>
+                </motion.div>
+            </div>
+        </PageShell>
     );
 }

@@ -13,7 +13,7 @@ export default function EventGrid({ events = [] }) {
 
   return (
     <section className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:gap-8">
+      <div className="grid grid-cols-1 gap-6 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:gap-8">
         {events.map((event, index) => (
           <EventCard key={event.id || index} event={event} index={index} />
         ))}

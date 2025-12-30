@@ -4,7 +4,7 @@ import { useState, useRef, Suspense, useEffect } from 'react';
 import { motion, useScroll, useTransform, useMotionValue, useSpring, useMotionTemplate, useInView, AnimatePresence } from 'framer-motion';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { X, Heart, Download, Apple, PlayCircle } from 'lucide-react';
+import { X, Heart, Download, Apple, PlayCircle, ChevronRight, QrCode } from 'lucide-react';
 import { addDoc, collection } from "firebase/firestore";
 import { getFirebaseDb } from "../../lib/firebase/client";
 import { trackEvent } from '../../lib/utils/analytics';
@@ -129,6 +129,87 @@ const FeatureCard = ({ title, subtitle, video, index, align }) => {
             </div>
           </div>
         </motion.div>
+
+      </div>
+    </section>
+  );
+};
+
+const GridSection = ({ title, subtitle, number }) => {
+  return (
+    <section className="min-h-[80vh] flex items-center justify-center py-24 relative overflow-hidden bg-white selection:bg-black selection:text-white">
+      {/* Grid Background */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.05)_1px,transparent_1px)] bg-[size:40px_40px]" />
+
+      <div className="max-w-7xl w-full px-6 grid lg:grid-cols-2 gap-12 items-center relative z-10">
+
+        {/* Content */}
+        <div className="flex flex-col items-start text-left lg:order-1">
+          <div className="flex items-center gap-4 mb-6">
+            <span className="text-black font-mono text-xl">0{number}</span>
+            <div className="h-[1px] w-20 bg-black/20" />
+            <span className="px-3 py-1 border border-black/10 bg-black/5 rounded-full text-xs font-bold uppercase tracking-wider text-black/60">
+              Identity Layer
+            </span>
+          </div>
+
+          <div className="relative mb-8 group">
+            <div className="absolute inset-0 bg-[#F44A22] translate-x-2 translate-y-2 transition-transform duration-300 group-hover:translate-x-4 group-hover:translate-y-4" />
+            <div className="relative bg-black text-white px-8 py-4">
+              <h2 className="text-6xl sm:text-8xl md:text-9xl font-black tracking-tighter uppercase leading-[0.8]">
+                {title}
+              </h2>
+            </div>
+          </div>
+
+          <p className="text-xl text-black/60 max-w-lg leading-relaxed font-medium mb-10">
+            {subtitle}
+          </p>
+
+          <Link href="/explore">
+            <button className="relative bg-[#2a5bf5] text-white px-10 py-5 rounded-full font-bold uppercase tracking-widest text-sm hover:bg-[#1a4bd5] transition-all duration-300 shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center gap-2 group">
+              Get Access
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </button>
+          </Link>
+        </div>
+
+        {/* Visual - Astronaut/Floaty Element */}
+        <div className="relative h-[50vh] flex items-center justify-center lg:order-2">
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            whileInView={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.8 }}
+            className="relative z-10"
+          >
+            <img
+              src="https://images.unsplash.com/photo-1614726365723-49cfae92782f?auto=format&fit=crop&q=80&w=1000"
+              alt="Astronaut"
+              className="w-full max-w-md object-contain drop-shadow-2xl mix-blend-darken filter contrast-125"
+            />
+          </motion.div>
+
+          {/* Geometric Decors */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[140%] border border-black/5 rounded-full animate-[spin_30s_linear_infinite]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] border border-black/10 rounded-full animate-[spin_20s_linear_infinite_reverse] border-dashed" />
+
+          {/* Floating Elements */}
+          <motion.div
+            animate={{ y: [0, -20, 0] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute top-0 right-10 bg-white p-4 rounded-xl shadow-xl border border-black/5 z-20"
+          >
+            <QrCode className="w-8 h-8 text-black" />
+          </motion.div>
+
+          <motion.div
+            animate={{ y: [0, 30, 0] }}
+            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+            className="absolute bottom-10 left-10 bg-black text-white px-4 py-2 rounded-lg shadow-xl z-20 font-mono text-xs"
+          >
+            ACCESS GRANTED
+          </motion.div>
+        </div>
 
       </div>
     </section>
@@ -357,12 +438,10 @@ export default function AppPage() {
           align="right"
         />
 
-        <FeatureCard
-          index={3}
+        <GridSection
+          number="03"
           title="THE KEY"
           subtitle="Your digital identity is your access pass. Skip lines, unlock VIP areas, and own the night."
-          video={VIDEOS.vip}
-          align="left"
         />
 
         {/* --- CTA --- */}

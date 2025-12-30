@@ -12,6 +12,7 @@
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
     "@react-three/postprocessing": "^2.16.2",
+    "@react-three/rapier": "^2.2.0",
     "@types/three": "^0.150.0",
     "clsx": "^2.1.1",
     "firebase": "^12.6.0",

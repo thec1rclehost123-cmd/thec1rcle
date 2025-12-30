@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { getFirebaseAuth } from "../../lib/firebase/client";
 import { sendPasswordResetEmail } from "firebase/auth";
+import PageShell from "../../components/PageShell";
+import { Mail, CheckCircle, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
 
 export default function ForgotPasswordPage() {
     const [email, setEmail] = useState("");
@@ -32,126 +34,104 @@ export default function ForgotPasswordPage() {
             setSuccess(true);
         } catch (err) {
             console.error("Password reset error:", err);
-            if (err.code === "auth/user-not-found") {
-                setError("No account found with this email address");
-            } else if (err.code === "auth/invalid-email") {
-                setError("Invalid email address");
-            } else if (err.code === "auth/too-many-requests") {
-                setError("Too many requests. Please try again later");
-            } else {
-                setError("Failed to send reset email. Please try again");
-            }
+            // Generic error to avoid account enumeration
+            setError("Something went wrong. If that account exists, we sent a link.");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <main className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6">
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="w-full max-w-md"
-            >
-                <div className="glass-panel rounded-[32px] border border-white/10 bg-black/60 p-8 shadow-glow">
-                    <div className="mb-8 text-center">
-                        <Link href="/" className="inline-flex items-center gap-2 mb-6">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-gold/20 via-gold-dark/10 to-transparent border border-gold/20">
-                                <span className="text-sm font-bold bg-gradient-to-br from-gold to-gold-dark bg-clip-text text-transparent">C1</span>
-                            </div>
-                            <span className="text-sm font-bold tracking-widest uppercase text-white/90">The C1rcle</span>
-                        </Link>
-                        <h1 className="mt-6 text-2xl font-heading font-bold uppercase tracking-widest text-white">
-                            Reset Password
-                        </h1>
-                        <p className="mt-3 text-sm text-white/60">
-                            Enter your email and we'll send you a reset link
-                        </p>
-                    </div>
-
+        <PageShell title="Recovery" showLogo={true} backHref="/login">
+            <div className="max-w-md mx-auto py-12">
+                <AnimatePresence mode="wait">
                     {success ? (
-                        <div className="space-y-6 text-center">
-                            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-500/40">
-                                <svg className="h-8 w-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
+                        <motion.div
+                            key="success"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="glass-panel p-8 rounded-[40px] border border-emerald-500/20 bg-emerald-500/5 text-center space-y-6"
+                        >
+                            <div className="mx-auto h-20 w-20 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                                <CheckCircle className="h-10 w-10 text-emerald-500" />
                             </div>
-                            <div>
-                                <h2 className="text-lg font-semibold text-white">Check your email</h2>
-                                <p className="mt-2 text-sm text-white/60">
-                                    We've sent a password reset link to <span className="text-white">{email}</span>
-                                </p>
-                                <p className="mt-4 text-xs text-white/40">
-                                    Didn't receive the email? Check your spam folder or try again in a few minutes.
+                            <div className="space-y-2">
+                                <h2 className="text-2xl font-black uppercase tracking-tight">Check your inbox</h2>
+                                <p className="text-sm text-black/60 dark:text-white/60 font-medium">
+                                    A recovery link has been sent to <span className="text-black dark:text-white font-bold">{email}</span>.
                                 </p>
                             </div>
-                            <div className="flex flex-col gap-3">
+                            <div className="pt-4 space-y-4">
                                 <Link
                                     href="/login"
-                                    className="w-full rounded-full bg-white px-6 py-3 text-xs font-bold uppercase tracking-[0.2em] text-black transition hover:bg-white/90"
+                                    className="block w-full h-14 rounded-full bg-black dark:bg-white text-white dark:text-black font-black uppercase tracking-widest flex items-center justify-center transition-transform hover:scale-[1.02]"
                                 >
-                                    Back to Login
+                                    Return to Login
                                 </Link>
                                 <button
-                                    onClick={() => {
-                                        setSuccess(false);
-                                        setEmail("");
-                                    }}
-                                    className="w-full rounded-full border border-white/20 px-6 py-3 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition hover:border-white/60"
+                                    onClick={() => setSuccess(false)}
+                                    className="text-[10px] font-black uppercase tracking-[0.3em] text-black/40 dark:text-white/40 hover:text-orange transition-colors"
                                 >
-                                    Send Again
+                                    Try another email
                                 </button>
                             </div>
-                        </div>
+                        </motion.div>
                     ) : (
-                        <form onSubmit={handleSubmit} className="space-y-6">
-                            <div>
-                                <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-white/60">
-                                    Email Address
-                                </label>
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/20 focus:border-white/30 focus:outline-none focus:ring-0"
-                                    placeholder="your@email.com"
-                                    required
-                                />
+                        <motion.div
+                            key="form"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="space-y-8"
+                        >
+                            <div className="text-center space-y-2">
+                                <h2 className="text-4xl font-black uppercase tracking-tight leading-none">Recover <span className="text-orange">Access.</span></h2>
+                                <p className="text-sm text-black/40 dark:text-white/40 font-medium uppercase tracking-widest">Enter your email to reset your circle credentials.</p>
                             </div>
 
-                            {error && (
-                                <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                                    {error}
+                            <form onSubmit={handleSubmit} className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] uppercase tracking-widest text-black/60 dark:text-white/60 ml-4 font-bold">Email Address</label>
+                                    <div className="relative">
+                                        <Mail className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-black/20 dark:text-white/20" />
+                                        <input
+                                            type="email"
+                                            required
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            placeholder="alex@thecircle.com"
+                                            className="w-full h-14 pl-14 pr-6 rounded-2xl bg-black/[0.03] dark:bg-white/5 border border-black/5 dark:border-white/10 focus:border-orange/50 focus:outline-none transition-all"
+                                        />
+                                    </div>
                                 </div>
-                            )}
 
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full rounded-full bg-white px-6 py-4 text-xs font-bold uppercase tracking-[0.2em] text-black transition hover:bg-white/90 disabled:opacity-50"
-                            >
-                                {loading ? "Sending..." : "Send Reset Link"}
-                            </button>
+                                {error && (
+                                    <div className="flex items-center gap-3 p-4 rounded-2xl bg-orange/5 border border-orange/10 text-orange">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <p className="text-[10px] font-bold uppercase tracking-widest">{error}</p>
+                                    </div>
+                                )}
 
-                            <div className="text-center">
-                                <Link
-                                    href="/login"
-                                    className="text-xs text-white/60 hover:text-white transition-colors"
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="group relative w-full h-16 flex items-center justify-center rounded-full bg-black dark:bg-white text-white dark:text-black font-black uppercase tracking-[0.3em] transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 overflow-hidden"
                                 >
-                                    Back to Login
-                                </Link>
-                            </div>
-                        </form>
-                    )}
-                </div>
+                                    {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : (
+                                        <>
+                                            Send Recovery Link
+                                            <ArrowRight className="ml-3 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                                        </>
+                                    )}
+                                </button>
+                            </form>
 
-                <p className="mt-6 text-center text-xs text-white/40">
-                    New to The C1rcle?{" "}
-                    <Link href="/register" className="text-white/80 hover:text-white transition-colors font-semibold">
-                        Create an account
-                    </Link>
-                </p>
-            </motion.div>
-        </main>
+                            <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-black/20 dark:text-white/20">
+                                Remembered your password? <Link href="/login" className="text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white underline underline-offset-4">Sign in</Link>
+                            </p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+        </PageShell>
     );
 }

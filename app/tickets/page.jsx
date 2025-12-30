@@ -173,7 +173,7 @@ const QRModal = ({ ticket, onClose }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-8"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-0 md:p-8"
             onClick={onClose}
         >
             {/* Softened Backdrop */}
@@ -209,7 +209,7 @@ const QRModal = ({ ticket, onClose }) => {
                 animate={{ scale: 1, y: 0, opacity: 1 }}
                 exit={{ scale: 0.9, y: 40, opacity: 0 }}
                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                className="relative w-full max-w-[380px] overflow-hidden rounded-[48px] p-[1px] shadow-[0_32px_120px_-20px_rgba(0,0,0,0.5)]"
+                className="relative w-full h-full md:h-auto md:max-w-[380px] overflow-hidden md:rounded-[48px] p-[1px] shadow-[0_32px_120px_-20px_rgba(0,0,0,0.5)]"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Border Glow Gradient */}
@@ -219,12 +219,15 @@ const QRModal = ({ ticket, onClose }) => {
                 />
                 {/* Inner Container with Glassmorphism */}
                 <div
-                    className="rounded-[44px] h-full w-full p-8 flex flex-col items-center bg-white/40 dark:bg-black/40 backdrop-blur-3xl border border-white/60 dark:border-white/20 shadow-2xl"
+                    className="rounded-none md:rounded-[44px] h-full w-full p-8 md:p-8 pt-20 md:pt-8 flex flex-col items-center justify-center bg-white/40 dark:bg-black/40 backdrop-blur-3xl border-none md:border md:border-white/60 dark:md:border-white/20 shadow-none md:shadow-2xl"
                 >
-                    {/* Header without Thumbnail */}
-                    <div className="mb-8 w-full text-center">
+                    {/* Safe area padding for mobile */}
+                    <div className="md:hidden h-safe-top" />
+
+                    {/* Header */}
+                    <div className="mb-6 md:mb-8 w-full text-center">
                         <p className="text-[10px] font-black uppercase tracking-[0.4em] text-black/60 dark:text-white/40">Entry Pass</p>
-                        <h2 className="mt-2 font-heading text-3xl font-black uppercase text-black dark:text-white max-w-[300px] leading-tight mx-auto">
+                        <h2 className="mt-2 font-heading text-3xl md:text-4xl font-black uppercase text-black dark:text-white max-w-[320px] leading-tight mx-auto">
                             {ticket.eventTitle}
                         </h2>
 
@@ -234,20 +237,21 @@ const QRModal = ({ ticket, onClose }) => {
                                 className="h-[4px] w-24 rounded-full opacity-90 blur-[0.5px] transition-all duration-700"
                                 style={{
                                     backgroundColor: color,
-                                    boxShadow: `0 0 20px 4px rgba(${rgb}, 0.45)`
+                                    boxShadow: `0 0 24px 6px rgba(${rgb}, 0.5)`
                                 }}
                             />
-                            <div className="h-[1px] w-40 bg-gradient-to-r from-transparent via-black/20 dark:via-white/10 to-transparent" />
+                            <div className="h-[1px] w-48 bg-gradient-to-r from-transparent via-black/20 dark:via-white/10 to-transparent" />
                         </div>
                     </div>
 
                     {/* QR Section */}
-                    <div className="relative w-full aspect-square max-w-[260px] flex justify-center items-center bg-white rounded-[40px] p-6 shadow-2xl border border-white/40">
+                    <div className="relative w-full aspect-square max-w-[300px] md:max-w-[260px] flex justify-center items-center bg-white rounded-[40px] md:rounded-[40px] p-8 md:p-6 shadow-2xl border border-white/40">
                         <div className={`relative ${isUsed || isCancelled ? "opacity-10 grayscale" : ""}`}>
                             <QRCodeSVG
                                 value={ticket.qrPayload}
-                                size={200}
+                                size={240}
                                 level="H"
+                                className="w-full h-full md:w-[200px] md:h-[200px]"
                                 includeMargin={false}
                             />
                         </div>
@@ -270,39 +274,48 @@ const QRModal = ({ ticket, onClose }) => {
                     </div>
 
                     {/* Meta Info */}
-                    <div className="mt-8 w-full flex justify-around items-center border-y border-black/5 dark:border-white/5 py-4">
+                    <div className="mt-8 md:mt-10 w-full max-w-[300px] flex justify-around items-center border-y border-black/5 dark:border-white/5 py-6">
                         <div className="text-center px-4">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-black/40 dark:text-white/40">Tier</p>
-                            <p className="text-xs font-bold uppercase text-black dark:text-white">{ticket.ticketType}</p>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-black/40 dark:text-white/40 mb-1">Tier</p>
+                            <p className="text-sm font-bold uppercase text-black dark:text-white">{ticket.ticketType}</p>
                         </div>
-                        <div className="h-8 w-[1px] bg-black/5 dark:bg-white/5" />
+                        <div className="h-10 w-[1px] bg-black/10 dark:bg-white/10" />
                         <div className="text-center px-4">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-black/40 dark:text-white/40">Status</p>
-                            <p className={`text-xs font-black uppercase ${ticket.status === 'active' ? 'text-emerald-500' : 'text-red-500'}`}>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-black/40 dark:text-white/40 mb-1">Status</p>
+                            <p className={`text-sm font-black uppercase ${ticket.status === 'active' ? 'text-emerald-500' : 'text-red-500'}`}>
                                 {ticket.status}
                             </p>
                         </div>
                     </div>
 
                     {/* Final Hint */}
-                    <div className="mt-8 text-center text-black dark:text-white">
+                    <div className="mt-8 md:mt-10 text-center text-black dark:text-white">
                         {!isUsed && !isCancelled ? (
-                            <div className="space-y-4">
+                            <div className="space-y-6">
                                 <div className="inline-flex flex-col items-center">
                                     <p
-                                        className="text-[11px] font-black uppercase tracking-widest transition-colors duration-700"
+                                        className="text-xs font-black uppercase tracking-[0.25em] transition-colors duration-700"
                                         style={{ color: color }}
                                     >
                                         Present this QR at entry
                                     </p>
-                                    <div
-                                        className="h-[2.5px] w-full blur-[3px] mt-1.5 transition-colors duration-700"
+                                    <motion.div
+                                        animate={{ opacity: [0.4, 1, 0.4] }}
+                                        transition={{ duration: 2, repeat: Infinity }}
+                                        className="h-[3px] w-full blur-[4px] mt-2 transition-colors duration-700"
                                         style={{ backgroundColor: color }}
                                     />
                                 </div>
-                                <p className="text-[9px] font-bold text-black/40 dark:text-white/30 uppercase tracking-[0.2em]">
-                                    Full brightness recommended
-                                </p>
+                                <div className="flex flex-col items-center gap-2">
+                                    <p className="text-[10px] font-bold text-black/50 dark:text-white/40 uppercase tracking-[0.3em]">
+                                        Full brightness recommended
+                                    </p>
+                                    <div className="flex gap-1">
+                                        {[1, 2, 3].map(i => (
+                                            <div key={i} className="w-1 h-1 rounded-full bg-orange/40" />
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         ) : (
                             <p className="text-xs font-bold text-black/40 dark:text-white/40 uppercase tracking-widest">
@@ -313,12 +326,15 @@ const QRModal = ({ ticket, onClose }) => {
 
                     <button
                         onClick={onClose}
-                        className="absolute top-8 right-8 p-2 text-black/20 dark:text-white/20 hover:text-black dark:hover:text-white transition-colors"
+                        className="absolute top-6 right-6 md:top-8 md:right-8 p-3 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors bg-white/10 md:bg-transparent rounded-full backdrop-blur-md md:backdrop-blur-none"
                     >
                         <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
+
+                    {/* Bottom Safe Area Padding */}
+                    <div className="md:hidden h-safe-bottom" />
                 </div>
             </motion.div>
         </motion.div>

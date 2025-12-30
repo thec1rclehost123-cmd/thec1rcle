@@ -15,9 +15,10 @@ const links = [
 export default function Footer() {
   const pathname = usePathname();
 
-  // Hide footer on host dashboard internal routes, but show on public host profiles
   const isHostDashboard = pathname?.startsWith("/host") && !pathname.includes("%40") && !pathname.includes("@");
-  if (isHostDashboard) return null;
+  const isFocusedFlow = pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/auth";
+
+  if (isHostDashboard || isFocusedFlow) return null;
 
   return (
     <footer className="bg-black text-white pt-32 pb-12 px-6">

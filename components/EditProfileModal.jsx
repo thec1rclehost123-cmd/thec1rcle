@@ -244,12 +244,12 @@ export default function EditProfileModal({ open, onClose }) {
                     {/* Edit Form Modal */}
                     {!cropperOpen && (
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            initial={{ opacity: 0, scale: 0.95, y: "100%" }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 px-4"
+                            exit={{ opacity: 0, scale: 0.95, y: "100%" }}
+                            className="fixed left-0 bottom-0 sm:left-1/2 sm:top-1/2 z-50 w-full max-w-none sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 px-0 sm:px-4"
                         >
-                            <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-[#0A0A0A] to-black/95 p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+                            <div className="relative overflow-hidden rounded-t-[40px] sm:rounded-[32px] border-t sm:border border-white/10 bg-gradient-to-br from-[#0A0A0A] to-black p-8 shadow-2xl max-h-[95vh] overflow-y-auto">
                                 <div className="mb-6 flex items-center justify-between">
                                     <h2 className="text-xl font-heading font-bold uppercase tracking-widest text-white">
                                         Edit Profile
