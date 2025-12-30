@@ -378,55 +378,78 @@ function TicketsContent() {
 
     const currentTickets = activeTab === "upcoming" ? tickets.upcomingTickets : tickets.pastTickets;
 
-    const MockTicket = ({ color, rotate, y, delay, title }) => (
+    const MockTicket = ({ color, rotate, x, y, delay, title, type }) => (
         <motion.div
-            initial={{ opacity: 0, y: y + 50, rotate: rotate - 10 }}
-            animate={{ opacity: 1, y: y, rotate: rotate }}
-            transition={{ type: "spring", damping: 20, stiffness: 100, delay: delay }}
-            className="absolute top-0 left-0 w-64 h-32 rounded-3xl border border-white/10 dark:border-white/5 bg-white/80 dark:bg-black/40 backdrop-blur-xl shadow-2xl flex flex-col overflow-hidden"
+            initial={{ opacity: 0, y: y + 100, x: x, rotate: 0 }}
+            animate={{ opacity: 1, y: y, x: x, rotate: rotate }}
+            transition={{ type: "spring", damping: 15, stiffness: 80, delay: delay }}
+            className="absolute origin-bottom w-72 h-40 rounded-[32px] border border-white/10 bg-[#0A0A0A] shadow-2xl flex flex-col overflow-hidden"
             style={{
                 zIndex: 10 + delay * 10,
-                boxShadow: `0 20px 40px -10px ${color}`
+                boxShadow: `0 10px 30px -10px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.05)`
             }}
         >
-            <div className="h-1.5 w-full opacity-60" style={{ backgroundColor: color }} />
-            <div className="flex-1 p-5 flex flex-col justify-between relative">
+            {/* Glossy sheen */}
+            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent opacity-50" />
+
+            <div className="flex-1 p-6 flex flex-col justify-between relative z-10">
                 <div className="flex justify-between items-start">
-                    <div className="h-8 w-8 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center">
-                        <div className="h-4 w-4 rounded-full border-2 border-dashed border-black/20 dark:border-white/20" />
+                    <div className="h-10 w-10 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
+                        <div className="h-6 w-6 rounded-full border border-dashed border-white/20 animate-[spin_10s_linear_infinite]" />
                     </div>
-                    <div className="text-right">
-                        <div className="h-2 w-16 bg-black/5 dark:bg-white/10 rounded-full mb-1.5" />
-                        <div className="h-1.5 w-10 bg-black/5 dark:bg-white/10 rounded-full ml-auto" />
+                    <div className="flex flex-col gap-1.5 items-end">
+                        <div className="h-1.5 w-12 bg-white/20 rounded-full" />
+                        <div className="h-1.5 w-8 bg-white/10 rounded-full" />
                     </div>
-                </div>
-                <div>
-                    <h3 className="text-sm font-black uppercase tracking-widest text-black/80 dark:text-white/80">{title}</h3>
                 </div>
 
-                {/* Decorative circles */}
-                <div className="absolute -left-3 top-1/2 h-6 w-6 rounded-full bg-[var(--bg-color)]" />
-                <div className="absolute -right-3 top-1/2 h-6 w-6 rounded-full bg-[var(--bg-color)]" />
+                <div>
+                    <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">{type}</p>
+                    <h3 className="font-heading text-2xl font-black uppercase tracking-tighter text-white">{title}</h3>
+                </div>
             </div>
+
+            {/* Bottom colored accent */}
+            <div className="h-2 w-full" style={{ backgroundColor: color }} />
         </motion.div>
     );
 
     const GuestView = () => (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 w-full">
-            <div className="relative w-full max-w-4xl grid md:grid-cols-2 gap-12 items-center">
+        <div className="flex flex-col items-center justify-center min-h-[70vh] px-4 w-full relative">
+            <div className="relative w-full max-w-5xl grid md:grid-cols-2 gap-16 items-center">
 
-                {/* Visual Side */}
-                <div className="relative h-[300px] w-full flex items-center justify-center md:order-2 perspective-1000">
-                    <div className="relative w-64 h-32">
-                        <MockTicket color="rgba(255, 100, 0, 0.2)" rotate={6} y={-40} delay={0.2} title="VIP Access" />
-                        <MockTicket color="rgba(100, 200, 255, 0.2)" rotate={-4} y={0} delay={0.1} title="Early Bird" />
-                        <MockTicket color="rgba(255, 215, 0, 0.2)" rotate={2} y={40} delay={0} title="General Admission" />
+                {/* Visual Side - Fanned Stack */}
+                <div className="relative h-[400px] w-full flex items-center justify-center md:order-2 perspective-1000">
+                    <div className="relative w-2">
+                        {/* Glow behind */}
+                        <div className="absolute -top-32 -left-32 w-64 h-64 bg-orange/20 rounded-full blur-[100px]" />
 
-                        {/* Floating elements */}
-                        <motion.div
-                            animate={{ y: [0, -10, 0] }}
-                            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                            className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-tr from-orange/20 to-transparent rounded-full blur-2xl"
+                        <MockTicket
+                            color="#333"
+                            type="Standard"
+                            title="General Admission"
+                            rotate={-15}
+                            x={-40}
+                            y={40}
+                            delay={0}
+                        />
+                        <MockTicket
+                            color="#666"
+                            type="Presale"
+                            title="Early Bird"
+                            rotate={0}
+                            x={0}
+                            y={10}
+                            delay={0.15}
+                        />
+                        <MockTicket
+                            color="#FF4500"
+                            type="Exclusive"
+                            title="VIP Access"
+                            rotate={15}
+                            x={40}
+                            y={-20}
+                            delay={0.3}
                         />
                     </div>
                 </div>
@@ -434,38 +457,30 @@ function TicketsContent() {
                 {/* Content Side */}
                 <div className="text-center md:text-left flex flex-col items-center md:items-start relative z-10 md:order-1">
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange/10 border border-orange/20 mb-6"
                     >
-                        <span className="w-1.5 h-1.5 rounded-full bg-orange animate-pulse" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-orange">Wallet Locked</span>
+                        <h2 className="text-5xl md:text-7xl font-heading font-black uppercase tracking-tighter text-white mb-6 leading-[0.85]">
+                            Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange to-gold">Pass</span> <br />
+                            To The Circle
+                        </h2>
+
+                        <p className="text-sm font-medium text-white/60 leading-relaxed max-w-md mb-10">
+                            Secure your spot at exclusive events. Your digital wallet for instant access, live updates, and effortless entry.
+                        </p>
+
+                        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+                            <Link href="/login" className="flex-1 group relative overflow-hidden px-8 py-4 rounded-full bg-white text-black font-bold uppercase tracking-widest shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)] transition-all hover:scale-[1.02] hover:shadow-[0_0_60px_-10px_rgba(255,255,255,0.5)]">
+                                <span className="relative text-xs flex items-center justify-center gap-2">
+                                    Login to Access
+                                </span>
+                            </Link>
+                            <Link href="/login?mode=register" className="flex-1 px-8 py-4 rounded-full border border-white/10 text-white font-bold uppercase tracking-widest hover:bg-white/5 transition-colors active:scale-95 flex items-center justify-center">
+                                <span className="text-xs">Sign Up</span>
+                            </Link>
+                        </div>
                     </motion.div>
-
-                    <h2 className="text-4xl md:text-5xl font-heading font-black uppercase tracking-tighter text-black dark:text-white mb-6 leading-[0.9]">
-                        Your Digital <br />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange to-gold">Event Wallet</span>
-                    </h2>
-
-                    <p className="text-sm font-medium text-black/60 dark:text-white/60 leading-relaxed max-w-md mb-8">
-                        Experience events like never before. Store, manage, and share your tickets instantly. Secure execution, dynamic updates, and exclusive perks await.
-                    </p>
-
-                    <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-                        <Link href="/login" className="flex-1 group relative overflow-hidden px-8 py-4 rounded-full bg-black dark:bg-white text-white dark:text-black font-bold uppercase tracking-widest shadow-xl transition-transform active:scale-95 hover:scale-[1.02]">
-                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                            <span className="relative text-xs flex items-center justify-center gap-2">
-                                Access Wallet
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                                </svg>
-                            </span>
-                        </Link>
-                        <Link href="/login?mode=register" className="flex-1 px-8 py-4 rounded-full border border-black/10 dark:border-white/10 text-black dark:text-white font-bold uppercase tracking-widest hover:bg-black/5 dark:hover:bg-white/5 transition-colors active:scale-95 flex items-center justify-center">
-                            <span className="text-xs">Create Account</span>
-                        </Link>
-                    </div>
                 </div>
             </div>
         </div>
