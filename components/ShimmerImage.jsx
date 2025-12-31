@@ -6,14 +6,17 @@ import { useEffect, useRef, useState } from "react";
 export default function ShimmerImage({ className = "", wrapperClassName = "", onLoad, onLoadingComplete, ...props }) {
   const imgRef = useRef(null);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+  const isPlaceholder = props.src === "placeholder";
 
   useEffect(() => {
     setLoaded(false);
+    setError(false);
     const img = imgRef.current;
-    if (img && img.complete && img.naturalWidth > 0) {
+    if (img && img.complete && img.naturalWidth > 0 && !isPlaceholder) {
       setLoaded(true);
     }
-  }, [props.src]);
+  }, [props.src, isPlaceholder]);
 
   const handleLoad = (event) => {
     setLoaded(true);
@@ -37,13 +40,23 @@ export default function ShimmerImage({ className = "", wrapperClassName = "", on
       >
         <div className="absolute inset-0 -translate-x-full animate-[shimmer-block_2s_infinite] bg-gradient-to-r from-transparent via-black/10 to-transparent dark:via-white/10" />
       </div>
-      <Image
-        {...props}
-        ref={imgRef}
-        className={`relative z-10 ${className}`}
-        onLoad={handleLoad}
-        onLoadingComplete={handleComplete}
-      />
+
+      {!isPlaceholder && !error ? (
+        <Image
+          {...props}
+          ref={imgRef}
+          className={`relative z-10 ${className}`}
+          onLoad={(event) => {
+            handleLoad(event);
+            handleComplete(event.target);
+          }}
+          onError={() => setError(true)}
+        />
+      ) : (
+        <div className={`relative z-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold uppercase text-zinc-400 ${className}`}>
+          {props.alt?.slice(0, 2) || "IM"}
+        </div>
+      )}
     </div>
   );
 }

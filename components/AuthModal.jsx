@@ -6,11 +6,14 @@ import { X, Mail, Github, Chrome, Loader2 } from "lucide-react";
 import { useAuth } from "./providers/AuthProvider";
 import { getIntent, clearIntent } from "../lib/utils/intentStore";
 import { useRouter } from "next/navigation";
+import GenderSelector from "./GenderSelector";
+import { useToast } from "./providers/ToastProvider";
 
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     const { login, register, loginWithGoogle } = useAuth();
     const [mode, setMode] = useState("login"); // "login" | "register" | "email_otp"
-    const [form, setForm] = useState({ email: "", password: "", name: "" });
+    const [form, setForm] = useState({ email: "", password: "", name: "", gender: "" });
+    const { toast } = useToast();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const router = useRouter();
@@ -37,7 +40,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 await login(form.email, form.password);
             } else {
                 if (!form.name.trim()) throw new Error("Name is required");
-                await register(form.email, form.password, form.name);
+                if (!form.gender) {
+                    toast({
+                        type: "error",
+                        message: "Select a gender to continue."
+                    });
+                    throw new Error("Select a gender to continue.");
+                }
+                await register(form.email, form.password, form.name, form.gender);
             }
             handleSuccess();
         } catch (err) {
@@ -117,17 +127,25 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
                         <form onSubmit={handleEmailAuth} className="space-y-4">
                             {mode === "register" && (
-                                <div className="space-y-2">
-                                    <label className="text-[10px] uppercase tracking-[0.2em] text-white/40 ml-4">Full Name</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="John Doe"
-                                        value={form.name}
-                                        onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-white placeholder:text-white/20 focus:border-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all"
+                                <>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] uppercase tracking-[0.2em] text-white/40 ml-4">Full Name</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            placeholder="John Doe"
+                                            value={form.name}
+                                            onChange={(e) => setForm({ ...form, name: e.target.value })}
+                                            className="w-full rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-white placeholder:text-white/20 focus:border-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all"
+                                        />
+                                    </div>
+                                    <GenderSelector
+                                        value={form.gender}
+                                        onChange={(val) => setForm({ ...form, gender: val })}
+                                        disabled={loading}
+                                        error={error && !form.gender ? "Selection Required" : null}
                                     />
-                                </div>
+                                </>
                             )}
                             <div className="space-y-2">
                                 <label className="text-[10px] uppercase tracking-[0.2em] text-white/40 ml-4">Email Address</label>

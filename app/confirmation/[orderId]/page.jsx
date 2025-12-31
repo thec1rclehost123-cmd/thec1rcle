@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getEvent } from "../../../lib/server/eventStore";
 import { getOrderById } from "../../../lib/server/orderStore";
-import PageShell from "../../../components/PageShell";
+import FunnelShell from "../../../components/FunnelShell";
 import OrderConfirmationDetails from "../../../components/OrderConfirmationDetails";
 import { getAdminAuth } from "../../../lib/firebase/admin";
 import { cookies } from "next/headers";
@@ -30,11 +30,11 @@ export default async function ConfirmationPage({ params, searchParams }) {
     }
 
     return (
-        <PageShell title="Confirmation" showLogo={true} backHref="/explore">
+        <FunnelShell title="Mission Accomplished" showLogo={true} backHref="/explore">
             <OrderConfirmationDetails
                 order={order}
                 event={event}
             />
-        </PageShell>
+        </FunnelShell>
     );
 }

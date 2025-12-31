@@ -68,7 +68,12 @@ export default function TicketModal({ open, onClose, tickets = [], eventId }) {
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-base font-semibold text-white">{ticket.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-base font-semibold text-white">{ticket.name}</p>
+                        {(ticket.name.toLowerCase().includes("couple") || ticket.name.toLowerCase().includes("pair")) && (
+                          <span className="rounded-full bg-orange/20 border border-orange/40 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-orange mt-0.5">Couple</span>
+                        )}
+                      </div>
                       <p className="mt-0.5 text-xs text-white/40">{ticket.quantity} available</p>
                     </div>
                     <p className="text-lg font-bold text-white">₹{ticket.price}</p>
@@ -119,7 +124,7 @@ export default function TicketModal({ open, onClose, tickets = [], eventId }) {
                 onClick={handlePurchase}
                 className="w-full rounded-full bg-white py-4 text-xs font-bold uppercase tracking-[0.3em] text-black transition hover:bg-white/90 active:scale-[0.98]"
               >
-                Purchase Tickets
+                {total === 0 ? "Confirm RSVP" : "Purchase Tickets"}
               </button>
             </div>
           </motion.div>

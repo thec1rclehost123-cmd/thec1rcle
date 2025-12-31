@@ -69,5 +69,24 @@ service cloud.firestore {
         allow create: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members;
       }
     }
+
+    // Share Bundles
+    match /share_bundles/{bundleId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Ticket Assignments
+    match /ticket_assignments/{assignmentId} {
+      allow read: if isAuthenticated() && (resource.data.redeemerId == request.auth.uid || resource.data.originalPurchaserId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated(); // Should be done via transaction/server but rules allow creation
+    }
+
+    // Ticket Scans
+    match /ticket_scans/{scanId} {
+      allow read: if isAuthenticated() && (isHost() || isAdmin());
+      allow create: if isAuthenticated() && (isHost() || isAdmin());
+    }
   }
 }

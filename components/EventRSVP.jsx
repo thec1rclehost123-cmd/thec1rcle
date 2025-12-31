@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import ShimmerImage from "./ShimmerImage";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -104,14 +105,15 @@ const createGuestDirectory = (guests = []) => {
   }));
 };
 
-const ticketState = (quantity = 0) => {
+const ticketState = (quantity = 0, name = "") => {
+  const isCouple = name.toLowerCase().includes("couple") || name.toLowerCase().includes("pair");
   if (quantity <= 0) {
-    return { label: "Sold Out", tone: "border-red-500/20 text-red-200 bg-red-500/10" };
+    return { label: "Sold Out", tone: "border-red-500/20 text-red-200 bg-red-500/10", isCouple };
   }
   if (quantity < 35) {
-    return { label: "Few Left", tone: "border-amber-400/40 text-amber-200 bg-amber-500/10" };
+    return { label: "Few Left", tone: "border-amber-400/40 text-amber-200 bg-amber-500/10", isCouple };
   }
-  return { label: "Available", tone: "border-emerald-400/30 text-emerald-200 bg-emerald-500/10" };
+  return { label: "Available", tone: "border-emerald-400/30 text-emerald-200 bg-emerald-500/10", isCouple };
 };
 
 export default function EventRSVP({ event, host, interestedData = { count: 0, users: [] }, guestlist = [] }) {
@@ -251,9 +253,9 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
             className="relative h-full w-full"
             layoutId={`event-image-${event?.id || ""}`}
           >
-            <Image
+            <ShimmerImage
               src={event.image}
-              alt=""
+              alt={event.title || "Event Image"}
               fill
               className="object-cover opacity-40 dark:opacity-80 blur-[80px] saturate-[1.8]"
               priority
@@ -351,12 +353,11 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
               <div className="flex -space-x-3.5">
                 {previewInterested.map((guest) => (
                   <span
-                    key={guest.id}
                     className="flex h-14 w-14 items-center justify-center rounded-full border-[3px] border-white dark:border-black text-[10px] font-black text-black overflow-hidden bg-black/[0.05] dark:bg-white/10 shadow-sm"
-                    style={{ backgroundColor: !guest.photoURL ? guest.color : undefined }}
+                    style={{ backgroundColor: !guest.photoURL || guest.photoURL === "placeholder" ? guest.color : undefined }}
                   >
-                    {guest.photoURL ? (
-                      <Image src={guest.photoURL} alt={guest.name} width={56} height={56} className="object-cover" />
+                    {guest.photoURL && guest.photoURL !== "placeholder" ? (
+                      <ShimmerImage src={guest.photoURL} alt={guest.name} width={56} height={56} className="object-cover" />
                     ) : (
                       guest.initials
                     )}
@@ -470,10 +471,10 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
                     <div className="flex items-center gap-4">
                       <span
                         className="flex h-12 w-12 items-center justify-center rounded-2xl text-[10px] font-black text-black overflow-hidden bg-black/[0.05] dark:bg-white/10 shadow-sm"
-                        style={{ backgroundColor: !guest.photoURL ? guest.color : undefined }}
+                        style={{ backgroundColor: !guest.photoURL || guest.photoURL === "placeholder" ? guest.color : undefined }}
                       >
-                        {guest.photoURL ? (
-                          <Image src={guest.photoURL} alt={guest.name} width={48} height={48} className="object-cover" />
+                        {guest.photoURL && guest.photoURL !== "placeholder" ? (
+                          <ShimmerImage src={guest.photoURL} alt={guest.name} width={48} height={48} className="object-cover" />
                         ) : (
                           guest.initials
                         )}
@@ -532,10 +533,10 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
                       <div className="flex items-center gap-3">
                         <span
                           className="flex h-10 w-10 items-center justify-center rounded-full text-xs font-semibold text-black overflow-hidden bg-black/5 dark:bg-white/10"
-                          style={{ backgroundColor: !guest.photoURL ? guest.color : undefined }}
+                          style={{ backgroundColor: !guest.photoURL || guest.photoURL === "placeholder" ? guest.color : undefined }}
                         >
-                          {guest.photoURL ? (
-                            <Image src={guest.photoURL} alt={guest.name} width={40} height={40} className="object-cover" />
+                          {guest.photoURL && guest.photoURL !== "placeholder" ? (
+                            <ShimmerImage src={guest.photoURL} alt={guest.name} width={40} height={40} className="object-cover" />
                           ) : (
                             guest.initials
                           )}
@@ -641,9 +642,9 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
             <div className="rounded-[40px] border border-black/5 dark:border-white/10 bg-white dark:bg-black/70 p-5 shadow-xl dark:shadow-glow backdrop-blur-md">
               <div className="group relative">
                 <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[32px] border border-black/5 dark:border-white/10 bg-black shadow-2xl">
-                  <Image
+                  <ShimmerImage
                     src={event?.image}
-                    alt={event?.title}
+                    alt={event?.title || "Event Image"}
                     fill
                     sizes="(max-width: 768px) 100vw, 380px"
                     className="object-cover transition duration-500 group-hover:scale-[1.01] group-hover:rotate-[1deg]"
@@ -672,15 +673,23 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
                   <p className="text-[10px] font-black uppercase tracking-[0.5em] text-[var(--text-muted)] mb-4">Tiers</p>
                   <div className="space-y-3">
                     {tickets.map((ticket) => {
-                      const state = ticketState(ticket.quantity);
+                      const state = ticketState(ticket.quantity, ticket.name);
                       return (
                         <div
                           key={ticket.id}
                           className="group relative rounded-[32px] border border-black/[0.04] dark:border-white/[0.08] bg-white/50 dark:bg-white/[0.02] p-5 transition-all duration-300 hover:border-black/[0.1] dark:hover:border-white/20 hover:bg-white/80 dark:hover:bg-white/[0.05] hover:shadow-xl dark:hover:shadow-glow-sm backdrop-blur-sm"
                         >
+                          {state.isCouple && (
+                            <div className="absolute -top-3 -right-3 rounded-xl bg-orange dark:bg-white px-3 py-1.5 shadow-lg rotate-3">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-white dark:text-black">Couple · 2 Entries</p>
+                            </div>
+                          )}
                           <div className="flex items-start justify-between">
                             <div className="space-y-1.5">
                               <p className="text-base font-black uppercase tracking-tight text-black dark:text-white leading-none">{ticket.name}</p>
+                              {state.isCouple && (
+                                <p className="text-[10px] font-bold text-orange uppercase tracking-widest mt-1">Arrive Together · 1 QR</p>
+                              )}
                               <p className="text-[9px] font-bold uppercase text-black/40 dark:text-white/40 tracking-[0.2em]">{ticket.quantity} spots available</p>
                             </div>
                             <div className="text-right">

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getEvent } from "../../../lib/server/eventStore";
 import CheckoutContainer from "../../../components/CheckoutContainer";
-import PageShell from "../../../components/PageShell";
+import FunnelShell from "../../../components/FunnelShell";
 
 export async function generateMetadata({ params }) {
     const identifier = decodeURIComponent(params.eventId);
@@ -33,11 +33,11 @@ export default async function CheckoutPage({ params, searchParams }) {
     }
 
     return (
-        <PageShell title="Checkout" showLogo={true}>
+        <FunnelShell title="Mission Auth" showLogo={true} backHref={`/event/${event.id}`}>
             <CheckoutContainer
                 event={event}
                 initialTickets={initialTickets}
             />
-        </PageShell>
+        </FunnelShell>
     );
 }

@@ -7,6 +7,7 @@ import { getFirebaseStorage } from "../lib/firebase/client";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import Image from "next/image";
 import Cropper from "react-easy-crop";
+import GenderSelector from "./GenderSelector";
 
 export default function EditProfileModal({ open, onClose }) {
     const { profile, updateUserProfile } = useAuth();
@@ -24,7 +25,8 @@ export default function EditProfileModal({ open, onClose }) {
         displayName: profile?.displayName || "",
         instagram: profile?.instagram || "",
         photoURL: profile?.photoURL || "",
-        city: profile?.city || ""
+        city: profile?.city || "",
+        gender: profile?.gender || ""
     });
 
     const handleChange = (e) => {
@@ -355,6 +357,12 @@ export default function EditProfileModal({ open, onClose }) {
                                             placeholder="Your City"
                                         />
                                     </div>
+
+                                    <GenderSelector
+                                        value={formData.gender}
+                                        onChange={(val) => setFormData(prev => ({ ...prev, gender: val }))}
+                                        disabled={loading}
+                                    />
 
                                     {error && <p className="text-center text-sm text-red-400">{error}</p>}
 

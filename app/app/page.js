@@ -9,6 +9,9 @@ import { addDoc, collection } from "firebase/firestore";
 import { getFirebaseDb } from "../../lib/firebase/client";
 import { trackEvent } from '../../lib/utils/analytics';
 
+import { useTheme } from 'next-themes';
+import Head from 'next/head';
+
 // --- ASSETS ---
 const VIDEOS = {
   hero: "https://cdn.coverr.co/videos/coverr-people-dancing-in-a-nightclub-5429/1080p.mp4",
@@ -18,6 +21,144 @@ const VIDEOS = {
 };
 
 // --- COMPONENTS ---
+
+const BillboardHero = () => {
+  const [isActivated, setIsActivated] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return <div className="h-screen w-full bg-black" />;
+
+  return (
+    <>
+      <Head>
+        <link rel="preload" href="/hero-day.png" as="image" fetchpriority="high" />
+        <link rel="preload" href="/hero-night.png" as="image" fetchpriority="high" />
+      </Head>
+
+      <section className="relative h-screen w-full overflow-hidden bg-black isolation-isolate">
+        {/* Night Image Layer (Sits below) */}
+        <div
+          className="absolute inset-0 w-full h-full transition-opacity duration-300 ease-in-out"
+          style={{
+            opacity: isActivated ? 1 : 0,
+            transitionDelay: isActivated ? '50ms' : '0ms',
+            zIndex: 1
+          }}
+        >
+          <img
+            src="/hero-night.png"
+            alt="The C1rcle Billboard Night"
+            className="w-full h-full object-cover object-[center_bottom] antialiased"
+            style={{
+              imageRendering: '-webkit-optimize-contrast',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+              transform: 'translate3d(0, 0, 0)'
+            }}
+            loading="eager"
+            fetchPriority="high"
+          />
+        </div>
+
+        {/* Day Image Layer (Sits above by default) */}
+        <div
+          className="absolute inset-0 w-full h-full transition-opacity duration-300 ease-in-out"
+          style={{
+            opacity: isActivated ? 0 : 1,
+            zIndex: 2
+          }}
+        >
+          <img
+            src="/hero-day.png"
+            alt="The C1rcle Billboard Day"
+            className="w-full h-full object-cover object-[center_bottom] antialiased"
+            style={{
+              imageRendering: '-webkit-optimize-contrast',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+              transform: 'translate3d(0, 0, 0)'
+            }}
+            loading="eager"
+            fetchPriority="high"
+          />
+        </div>
+
+        {/* Subtle Overlay - Reduced opacity to maintain maximal image clarity */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/40 z-[10] pointer-events-none" />
+
+        {/* Content Overlay */}
+        <div className="relative z-[30] h-full w-full flex flex-col items-center justify-end pb-24 px-6">
+          <div className="text-center max-w-4xl mx-auto flex flex-col items-center gap-12">
+
+            {/* EXPERIENTIAL TOGGLE */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.8 }}
+              className="flex flex-col items-center gap-4"
+            >
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40">
+                {isActivated ? "Night Activated" : "Activate the night"}
+              </span>
+              <button
+                onClick={() => setIsActivated(!isActivated)}
+                className="group relative flex h-12 w-24 items-center rounded-full bg-white/5 p-1 backdrop-blur-md border border-white/10 transition-colors hover:bg-white/10"
+                aria-label="Toggle Night Scene"
+              >
+                <motion.div
+                  className="flex h-10 w-10 items-center justify-center rounded-full shadow-2xl"
+                  animate={{
+                    x: isActivated ? 48 : 0,
+                    backgroundColor: isActivated ? "#F44A22" : "#ffffff",
+                  }}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                >
+                  {isActivated ? (
+                    <PlayCircle className="h-5 w-5 text-black" fill="currentColor" />
+                  ) : (
+                    <div className="h-2 w-2 rounded-full bg-black animate-pulse" />
+                  )}
+                </motion.div>
+
+                {isActivated && (
+                  <div className="absolute inset-0 rounded-full shadow-[0_0_20px_rgba(244,74,34,0.4)] pointer-events-none" />
+                )}
+              </button>
+            </motion.div>
+
+            {/* APP CTA BUTTONS */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.8 }}
+              className="flex flex-col sm:flex-row gap-5 items-center justify-center"
+            >
+              <MagneticButton
+                onClick={() => alert("The C1rcle App is coming soon to the App Store!")}
+                className="group relative px-8 py-4 bg-white text-black rounded-full font-black text-sm md:text-base uppercase tracking-wider hover:scale-105 transition-all duration-300 min-w-[200px] flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(255,255,255,0.3)]"
+              >
+                <Apple size={20} fill="currentColor" />
+                <span>App Store</span>
+              </MagneticButton>
+
+              <MagneticButton
+                onClick={() => alert("The C1rcle App is coming soon to the Play Store!")}
+                className="group relative px-8 py-4 bg-black/40 backdrop-blur-md border border-white/20 !text-white rounded-full font-black text-sm md:text-base uppercase tracking-wider hover:bg-white hover:!text-black transition-all duration-300 min-w-[200px] flex items-center justify-center gap-3"
+              >
+                <PlayCircle size={20} />
+                <span className="text-white group-hover:text-black">Play Store</span>
+              </MagneticButton>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+};
 
 const MagneticButton = ({ children, className = "" }) => {
   const ref = useRef(null);
@@ -352,70 +493,19 @@ export default function AppPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-black" />}>
       <AppLikeGate />
-      <div className="bg-black text-white selection:bg-[#F44A22] selection:text-black overflow-x-hidden">
+      <div className="bg-[var(--bg-color)] text-[var(--text-primary)] selection:bg-[#F44A22] selection:text-black transition-colors duration-500 overflow-x-hidden">
 
         {/* --- HERO --- */}
-        <section className="relative h-screen w-full flex items-center justify-center overflow-hidden">
-          <div className="absolute inset-0 z-0">
-            <video autoPlay loop muted playsInline className="w-full h-full object-cover opacity-50 scale-105">
-              <source src={VIDEOS.hero} type="video/mp4" />
-            </video>
-            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black" />
-          </div>
-
-          <div className="relative z-10 text-center px-6">
-            <motion.h1
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-              className="text-[15vw] leading-[0.75] font-black tracking-tighter text-white uppercase mb-8"
-            >
-              THE C1RCLE
-            </motion.h1>
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5, duration: 1 }}
-              className="flex flex-col items-center gap-6"
-            >
-              <p className="text-xl md:text-3xl font-bold text-white uppercase tracking-[0.3em]">
-                The Future of <span className="text-[#F44A22]">Nightlife</span>
-              </p>
-
-              <div className="mt-10 flex flex-col sm:flex-row gap-5 items-center justify-center">
-                <MagneticButton
-                  onClick={() => alert("The C1rcle App is coming soon to the App Store!")}
-                  className="group relative px-8 py-4 bg-white text-black rounded-full font-black text-sm md:text-base uppercase tracking-wider hover:scale-105 transition-all duration-300 min-w-[200px] flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(255,255,255,0.3)]"
-                >
-                  <svg viewBox="0 0 384 512" fill="currentColor" className="w-5 h-5 mb-1">
-                    <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 46.9 104.3 84.7 104.3 29.6 0 36.1-20.7 75.8-20.7 36.9 0 45.8 20.7 77.2 20.7 35.2 0 66.4-64.9 81.2-104.3-53.5-26.4-62.4-69.8-58.6-86.1zM206.5 71.1c17.6-21.6 30.6-50.6 26.9-80.1-25.3 2.8-56.8 16.7-74.8 40.6-15.5 19.4-28.6 49.4-25.3 78.8 28.1 2.8 54.2-16.1 73.2-39.3z" />
-                  </svg>
-                  <span>App Store</span>
-                </MagneticButton>
-
-                <MagneticButton
-                  onClick={() => alert("The C1rcle App is coming soon to the Play Store!")}
-                  className="group relative px-8 py-4 bg-transparent border-2 border-white !text-white rounded-full font-black text-sm md:text-base uppercase tracking-wider hover:bg-white hover:!text-black transition-all duration-300 min-w-[200px] flex items-center justify-center gap-3 shadow-[0_0_15px_rgba(255,255,255,0.1)]"
-                >
-                  <svg viewBox="0 0 576 512" fill="currentColor" className="w-5 h-5 mb-0.5 fill-white group-hover:fill-black">
-                    <path d="M420.55,301.93a24,24,0,1,1,24-24,24,24,0,0,1-24,24m-265.1,0a24,24,0,1,1,24-24,24,24,0,0,1-24,24m273.7-144.48,47.94-83a10,10,0,1,0-17.36-10l-48.53,84.07a255.52,255.52,0,0,0-242.4,0l-48.53-84.07a10,10,0,1,0-17.36,10l47.94,83C66.6,203.34,0,292.5,0,392c0,12.33,1.34,24.25,3.79,35.82V448a64,64,0,0,0,64,64H508.21a64,64,0,0,0,64-64V427.82c2.45-11.57,3.79-23.49,3.79-35.82C576,292.5,509.4,203.34,429.15,157.45Z" />
-                  </svg>
-                  <span className="text-white group-hover:text-black">Play Store</span>
-                </MagneticButton>
-              </div>
-            </motion.div>
-          </div>
-        </section>
+        <BillboardHero />
 
         {/* --- MANIFESTO --- */}
-        <section className="py-32 px-6 bg-black relative overflow-hidden">
+        <section className="py-32 px-6 bg-[var(--surface-1)] relative overflow-hidden transition-colors duration-500">
           <div className="max-w-5xl mx-auto text-center relative z-10">
-            <ManifestoLine className="text-4xl md:text-6xl font-black leading-tight text-white/90 uppercase">
+            <ManifestoLine className="text-4xl md:text-6xl font-black leading-tight text-[var(--text-primary)] uppercase">
               "The night is not just a time.<br />
               It's a <span className="text-[#F44A22]">place</span>."
             </ManifestoLine>
-            <ManifestoLine className="mt-12 text-xl text-white/50 max-w-2xl mx-auto leading-relaxed font-light">
+            <ManifestoLine className="mt-12 text-xl text-[var(--text-secondary)] max-w-2xl mx-auto leading-relaxed font-light">
               We are rewriting the code of social interaction. No more guessing. No more waiting. Just pure, unfiltered connection with the people and places that match your energy.
             </ManifestoLine>
           </div>

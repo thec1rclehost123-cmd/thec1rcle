@@ -40,6 +40,7 @@ const buildProfilePayload = (firebaseUser, overrides = {}) => {
     email: firebaseUser.email || "",
     displayName: firebaseUser.displayName || "Member",
     photoURL: firebaseUser.photoURL || "",
+    gender: overrides.gender || "", // Added gender field
 
     attendedEvents: [],
     city: "",
@@ -66,7 +67,9 @@ export function AuthProvider({ children }) {
         setProfile(data);
         return data;
       }
-      const payload = buildProfilePayload(firebaseUser);
+      const payload = buildProfilePayload(firebaseUser, {
+        gender: firebaseUser.gender || ""
+      });
       await setDoc(profileRef, payload);
       setProfile(payload);
       return payload;
@@ -111,7 +114,7 @@ export function AuthProvider({ children }) {
   }, [ensureProfile]);
 
   const register = useCallback(
-    async (email, password, displayName) => {
+    async (email, password, displayName, gender) => {
       const auth = getFirebaseAuth();
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       if (displayName) {
@@ -119,7 +122,8 @@ export function AuthProvider({ children }) {
       }
       await ensureProfile({
         ...credential.user,
-        displayName: displayName || credential.user.displayName
+        displayName: displayName || credential.user.displayName,
+        gender: gender // Pass gender to ensureProfile
       });
       return credential.user;
     },
