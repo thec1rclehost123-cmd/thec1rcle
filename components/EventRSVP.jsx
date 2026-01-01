@@ -277,7 +277,7 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-30 border-b border-black/[0.03] dark:border-white/[0.05] px-4 py-3 backdrop-blur-3xl sm:px-6 bg-[var(--bg-color)]/40"
+        className="sticky top-[72px] sm:top-[88px] z-30 border-b border-black/[0.03] dark:border-white/[0.05] px-4 py-3 backdrop-blur-3xl sm:px-6 bg-[var(--bg-color)]/40"
       >
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">
           <div>

@@ -71,7 +71,7 @@ export default function NotFound() {
             </div>
 
             {/* Noise Overlay */}
-            <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: "url('/noise.png')" }} />
+            <div className="pointer-events-none absolute inset-0 opacity-[0.03] mix-blend-overlay" style={{ backgroundImage: "url('https://grainy-gradients.vercel.app/noise.svg')" }} />
         </div>
     );
 }

@@ -17,47 +17,34 @@ export default function PageShell({ children, title, backHref, showLogo = true }
                 <div className="absolute bottom-0 right-0 w-[40vw] h-[40vh] bg-[radial-gradient(circle_at_bottom_right,_rgba(244,74,34,0.05),transparent_70%)] blur-[80px]" />
             </div>
 
-            {/* Header */}
-            <header className="sticky top-0 z-50 w-full border-b border-black/[0.03] dark:border-white/[0.05] bg-white/40 dark:bg-black/40 backdrop-blur-xl">
-                <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+            {/* Header - Adjusted for Global Navbar */}
+            <header className="sticky top-[72px] sm:top-[88px] z-40 w-full border-b border-black/[0.03] dark:border-white/[0.05] bg-white/40 dark:bg-black/40 backdrop-blur-xl">
+                <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
                     <div className="flex items-center gap-4">
                         {backHref ? (
                             <Link
                                 href={backHref}
-                                className="group flex h-10 w-10 items-center justify-center rounded-full border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/5 transition-all hover:bg-black/[0.05] dark:hover:bg-white/10"
+                                className="group flex h-9 w-9 items-center justify-center rounded-full border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/5 transition-all hover:bg-black/[0.05] dark:hover:bg-white/10"
                             >
-                                <ArrowLeft className="h-5 w-5 text-black/60 dark:text-white/60 transition-colors group-hover:text-black dark:group-hover:text-white" />
+                                <ArrowLeft className="h-4 w-4 text-black/60 dark:text-white/60 transition-colors group-hover:text-black dark:group-hover:text-white" />
                             </Link>
                         ) : (
                             <button
                                 onClick={() => router.back()}
-                                className="group flex h-10 w-10 items-center justify-center rounded-full border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/5 transition-all hover:bg-black/[0.05] dark:hover:bg-white/10"
+                                className="group flex h-9 w-9 items-center justify-center rounded-full border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/5 transition-all hover:bg-black/[0.05] dark:hover:bg-white/10"
                             >
-                                <ArrowLeft className="h-5 w-5 text-black/60 dark:text-white/60 transition-colors group-hover:text-black dark:group-hover:text-white" />
+                                <ArrowLeft className="h-4 w-4 text-black/60 dark:text-white/60 transition-colors group-hover:text-black dark:group-hover:text-white" />
                             </button>
                         )}
 
                         {title && (
-                            <h1 className="text-sm font-bold uppercase tracking-[0.2em] text-black/80 dark:text-white/80">
+                            <h1 className="text-[10px] font-black uppercase tracking-[0.2em] text-black/80 dark:text-white/80">
                                 {title}
                             </h1>
                         )}
                     </div>
 
-                    {showLogo && (
-                        <Link href="/" className="flex items-center gap-3">
-                            <div className="h-8 w-8 overflow-hidden rounded-full border border-orange/20">
-                                <img src="/logo-circle.jpg" alt="Logo" className="h-full w-full object-cover" />
-                            </div>
-                            <span className="hidden sm:inline font-heading text-xs font-black uppercase tracking-widest">
-                                THE C1RCLE
-                            </span>
-                        </Link>
-                    )}
-
-                    <div className="w-10 sm:w-24 flex justify-end">
-                        {/* Minimal nav / Space for future */}
-                    </div>
+                    <div className="w-9" />
                 </div>
             </header>
 

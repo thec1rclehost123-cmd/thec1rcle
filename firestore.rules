@@ -2,91 +2,72 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions
-    function isAuthenticated() {
+    
+    // --- 🛡️ CRYPTOGRAPHIC IDENTITY HELPERS ---
+    
+    function isSignedIn() {
       return request.auth != null;
     }
-
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isHost() {
-      // Fix: The Read Amplification Attack (Issue #3)
-      // Check custom claim first to avoid DB read, fallback to DB if needed for transition
-      return request.auth.token.role == 'host' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'host';
+    
+    // Enforce that only users with the 'admin' claim (set via Firebase Admin SDK) 
+    // can access administrative data. We don't trust the Firestore document 'role' field.
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
     }
     
-    function isAdmin() {
-       return request.auth.token.role == 'admin' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    function isSuper() {
+      return isAdmin() && request.auth.token.admin_role == 'super';
     }
 
-    // Users Collection
-    match /users/{userId} {
-      allow read: if isAuthenticated();
-      // Block client-side role updates (e.g. self-promotion)
-      allow create: if isAuthenticated() && isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == 'user');
-      allow update: if isAuthenticated() && isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role);
+    // --- 🧾 TASK 3: IMMUTABLE AUDIT TRAIL ---
+    match /admin_logs/{logId} {
+      // Allow admins to read logs for the UI
+      allow read: if isAdmin();
+      // Only the server (Admin SDK) should be writing these, but we keep create: if isAdmin 
+      // as a fallback for potential future client-side logging if ever needed, 
+      // but CRITICALLY: update and delete are forbidden forever.
+      allow create: if isAdmin();
+      allow update, delete: if false; 
+    }
+
+    // --- 🚦 PLATFORM COMMAND DATA ---
+    match /platform_stats/{stat} {
+      allow read: if isAdmin();
+      allow write: if false; // Only server-side Admin SDK via increment/set
+    }
+
+    // --- 🏛️ SHARED DIRECTORIES ---
+    
+    match /venues/{venueId} {
+      allow read: if true; // Publicly visible for exploration
+      allow write: if isAdmin(); // Only admins can onboard/suspend
+    }
+
+    match /events/{eventId} {
+      allow read: if true; 
+      allow write: if isAdmin(); 
+      // Specific restriction: Non-admins cannot edit event status
+    }
+
+    match /host_applications/{appId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update: if isAdmin(); // Only admins can approve/reject
       allow delete: if false;
     }
 
-    // Host Applications
-    match /host_applications/{applicationId} {
-      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
-      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+    // --- 👤 USER IDENTITY ---
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      // Prevent role escalation: Users cannot change their own 'role' or 'isBanned' status
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == userId 
+                      && !request.resource.data.diff(resource.data).affectedKeys()
+                        .hasAny(['role', 'isBanned', 'admin_role', 'admin']));
     }
 
-    // Events Collection
-    match /events/{eventId} {
-      allow read: if true;
-      allow create: if isAuthenticated(); 
-      allow update: if isAuthenticated() && (resource.data.hostId == request.auth.uid || isAdmin());
-      allow delete: if isAuthenticated() && (resource.data.hostId == request.auth.uid || isAdmin());
-    }
-
-    // Tickets Collection
-    match /tickets/{ticketId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid; 
-      allow update: if false;
-    }
-    
-    // Orders Collection
-    match /orders/{orderId} {
-      allow create: if isAuthenticated();
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.eventHostId == request.auth.uid);
-    }
-
-    // Chats Collection
-    match /chats/{chatId} {
-      allow read: if isAuthenticated() && request.auth.uid in resource.data.members;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && request.auth.uid in resource.data.members;
-
-      match /messages/{messageId} {
-        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members;
-        allow create: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members;
-      }
-    }
-
-    // Share Bundles
-    match /share_bundles/{bundleId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-    }
-
-    // Ticket Assignments
-    match /ticket_assignments/{assignmentId} {
-      allow read: if isAuthenticated() && (resource.data.redeemerId == request.auth.uid || resource.data.originalPurchaserId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated(); // Should be done via transaction/server but rules allow creation
-    }
-
-    // Ticket Scans
-    match /ticket_scans/{scanId} {
-      allow read: if isAuthenticated() && (isHost() || isAdmin());
-      allow create: if isAuthenticated() && (isHost() || isAdmin());
+    // --- 📦 DEFAULT CATCH-ALL (DENY BY DEFAULT) ---
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

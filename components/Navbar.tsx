@@ -10,6 +10,7 @@ import { saveIntent } from "../lib/utils/intentStore";
 
 const navLinks = [
   { label: "Explore", href: "/explore" },
+  { label: "Hosts", href: "/hosts" },
   { label: "Tickets", href: "/tickets" },
   { label: "App", href: "/app" }
 ];
@@ -26,7 +27,7 @@ export default function Navbar() {
   const navBackground = useTransform(scrollY, [0, 100], ["rgba(5, 5, 5, 0)", "var(--nav-bg-opaque)"]);
   const navBorder = useTransform(scrollY, [0, 100], ["rgba(255, 255, 255, 0)", "var(--nav-border)"]);
 
-  if (pathname?.startsWith("/host") || pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/auth") return null;
+
 
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
   const closeMenu = () => setIsMenuOpen(false);
@@ -34,7 +35,7 @@ export default function Navbar() {
   return (
     <>
       <motion.header
-        className="fixed inset-x-0 top-0 z-50 flex justify-center pt-4 pointer-events-none"
+        className={`fixed inset-x-0 top-0 z-50 flex justify-center pt-4 pointer-events-none transition-all duration-700 ${pathname?.startsWith('/admin') ? 'opacity-10 blur-[2px] grayscale-[0.8] hover:opacity-100 hover:blur-none hover:grayscale-0' : ''}`}
         style={{ y: navY }}
       >
         <motion.nav
@@ -49,7 +50,7 @@ export default function Navbar() {
           <Link href="/" className="group flex items-center gap-2 sm:gap-4">
             <div className="relative flex h-10 w-10 sm:h-14 sm:w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-orange/20 dark:border-white/10 transition-all duration-500 group-hover:rotate-180 group-hover:border-orange/40 dark:group-hover:border-white/20">
               <span className="absolute inset-0 bg-gradient-to-tr from-orange dark:from-gold via-transparent to-transparent opacity-10" />
-              <img src="/logo-circle.jpg" alt="The C1rcle" className="h-full w-full object-cover scale-125" />
+              <img src="/logo-circle.jpg" alt="The C1rcle" className="h-full w-full object-cover" />
             </div>
             <span className="font-heading text-lg sm:text-xl font-black tracking-tighter uppercase text-black dark:text-white group-hover:text-orange dark:group-hover:text-white transition-colors">
               The C1rcle
@@ -58,7 +59,9 @@ export default function Navbar() {
 
           <div className="hidden items-center gap-1 lg:flex bg-black/[0.03] dark:bg-white/5 rounded-full p-1 border border-black/5 dark:border-white/5 backdrop-blur-md">
             {navLinks.map((link) => {
-              const isActive = pathname === link.href;
+              const isActive = link.href === "/"
+                ? pathname === "/"
+                : pathname?.startsWith(link.href) || (link.label === "Hosts" && pathname?.startsWith("/venues"));
               return (
                 <Link
                   key={link.href}
