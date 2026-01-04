@@ -587,26 +587,29 @@ export async function getEventGuestlist(eventId, limit = 50) {
   const buyerIds = Array.from(new Set(ordersSnapshot.docs.map(doc => doc.data().userId).filter(Boolean)));
 
   // 2. Get RSVPs (Users)
-  const usersSnapshot = await db.collection("users")
-    .where("attendedEvents", "array-contains", eventId)
+  const rsvpsQuerySnapshot = await db.collection("rsvp_orders")
+    .where("eventId", "==", eventId)
+    .where("status", "==", "confirmed")
     .limit(limit)
     .get();
+  const rsvpUserIds = Array.from(new Set(rsvpsQuerySnapshot.docs.map(doc => doc.data().userId).filter(Boolean)));
 
-  const rsvpUsers = usersSnapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+  // 3. Get Claimants (Ticket Assignments)
+  const assignmentsSnapshot = await db.collection("ticket_assignments")
+    .where("eventId", "==", eventId)
+    .limit(limit)
+    .get();
+  const claimantIds = Array.from(new Set(assignmentsSnapshot.docs.map(doc => doc.data().redeemerId).filter(Boolean)));
 
   // Combine and deduplicate
   const combinedUserIds = Array.from(new Set([
     ...buyerIds,
-    ...rsvpUsers.map(u => u.id)
+    ...rsvpUserIds,
+    ...claimantIds
   ])).slice(0, limit);
 
   // Fetch full profiles
   const profiles = await Promise.all(combinedUserIds.map(async (uid) => {
-    const existing = rsvpUsers.find(u => u.id === uid);
-    if (existing) return existing;
     const fresh = await db.collection("users").doc(uid).get();
     return fresh.exists ? { id: fresh.id, ...fresh.data() } : null;
   }));

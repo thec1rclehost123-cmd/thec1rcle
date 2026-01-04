@@ -151,7 +151,12 @@ const formatTickets = (tickets, fallbackName, fallbackPrice, startDate) => {
       salesEnd: ticket.salesEnd || "",
       minPerOrder: Number(ticket.minPerOrder) || 1,
       maxPerOrder: Number(ticket.maxPerOrder) || Math.max(quantity, 1),
+      maxPerOrder: Number(ticket.maxPerOrder) || Math.max(quantity, 1),
       rsvpOnly: Boolean(ticket.rsvpOnly),
+      // Gender Entry Enforcement
+      genderRequirement: ticket.genderRequirement || "any", // any, male, female, couple
+      requiredGender: ticket.requiredGender || null, // male, female (for single slots)
+      isCouple: ticket.isCouple || (ticket.genderRequirement === "couple") || false,
       // Promoter Settings
       promoterEnabled: ticket.promoterEnabled ?? true,
       overrideCommission: !!ticket.overrideCommission,

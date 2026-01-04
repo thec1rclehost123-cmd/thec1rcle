@@ -10,7 +10,10 @@ import {
     assignPartner as assignPartnerStore,
     createPartnerClaimLink as createPartnerClaimLinkStore,
     claimPartnerSlot as claimPartnerSlotStore,
-    transferCoupleTicket as transferCoupleTicketStore
+    transferCoupleTicket as transferCoupleTicketStore,
+    initiateTransfer as initiateTransferStore,
+    acceptTransfer as acceptTransferStore,
+    cancelTransfer as cancelTransferStore
 } from "../../lib/server/ticketShareStore";
 import { getEvent } from "../../lib/server/eventStore";
 import { findUserByEmail as findUserByEmailStore } from "../../lib/server/profileStore";
@@ -21,11 +24,11 @@ export async function getUserTickets(userId) {
     return await getUserTicketsStore(userId);
 }
 
-export async function createShareBundle(orderId, eventId, quantity) {
+export async function createShareBundle(orderId, eventId, quantity, tierId = null) {
     const user = await verifyAuth();
     if (!user) throw new Error("Unauthorized");
 
-    return await createShareBundleStore(orderId, user.uid, eventId, quantity);
+    return await createShareBundleStore(orderId, user.uid, eventId, quantity, tierId);
 }
 
 export async function getShareBundle(token) {
@@ -96,3 +99,22 @@ export async function assignPartnerByEmail(ticketId, email, metadata) {
 
     return await assignPartnerStore(ticketId, user.uid, partner.uid, metadata);
 }
+
+export async function initiateTransfer(ticketId, recipientEmail) {
+    const user = await verifyAuth();
+    if (!user) throw new Error("Unauthorized");
+    return await initiateTransferStore(ticketId, user.uid, recipientEmail);
+}
+
+export async function acceptTransfer(transferId) {
+    const user = await verifyAuth();
+    if (!user) throw new Error("Unauthorized");
+    return await acceptTransferStore(transferId, user.uid);
+}
+
+export async function cancelTransfer(transferId) {
+    const user = await verifyAuth();
+    if (!user) throw new Error("Unauthorized");
+    return await cancelTransferStore(transferId, user.uid);
+}
+

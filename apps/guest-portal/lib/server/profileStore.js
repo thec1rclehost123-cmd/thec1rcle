@@ -3,7 +3,7 @@ import { getUserOrders } from "./orderStore";
 import { fetchEventsByIds } from "../firebase/eventsClient"; // Actually this is a client-side thing, let's use a server-side one
 import { getEvent } from "./eventStore";
 import { createHmac } from "node:crypto";
-import { getUserClaimedTickets, getOrderShareBundles, getCoupleAssignment } from "./ticketShareStore";
+import { getUserClaimedTickets, getOrderShareBundles, getOrderAssignments, getCoupleAssignment, getPendingTransfers } from "./ticketShareStore";
 
 const USERS_COLLECTION = "users";
 
@@ -153,7 +153,11 @@ export async function getUserEvents(profileUserId, viewerUserId) {
 }
 
 export async function getUserTickets(userId) {
-    if (!userId) return { upcomingTickets: [], pastTickets: [] };
+    if (!userId) return { upcoming: [], past: [], actionNeeded: [], cancelled: [] };
+
+    const userProfile = await getUserProfile(userId);
+    const userGender = userProfile?.gender || "any";
+    const userEmail = userProfile?.email;
 
     if (!isFirebaseConfigured()) {
         const { events } = require("../../data/events");
@@ -161,7 +165,8 @@ export async function getUserTickets(userId) {
             const isRSVP = i % 2 !== 0;
             const isPast = i >= 2;
             const ticketId = isRSVP ? `RSVP-${event.id}-${i}` : `mock-${event.id}-${i}`;
-            const signature = createHmac("sha256", "mock-secret").update(ticketId).digest("hex").slice(0, 16);
+            const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
+            const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
 
             return {
                 ticketId,
@@ -179,13 +184,15 @@ export async function getUserTickets(userId) {
 
         return {
             upcomingTickets: mockTickets.filter(t => t.status === "active"),
-            pastTickets: mockTickets.filter(t => t.status === "used")
+            pastTickets: mockTickets.filter(t => t.status === "used"),
+            actionNeeded: [],
+            cancelledTickets: []
         };
     }
 
     const db = getAdminDb();
 
-    // 1. Fetch confirmed/used/cancelled orders
+    // 1. Fetch ALL orders for this user
     const ordersSnapshot = await db.collection("orders")
         .where("userId", "==", userId)
         .get();
@@ -193,20 +200,21 @@ export async function getUserTickets(userId) {
     const orderDocs = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     // 2. Fetch RSVPs from profile
-    const profileDoc = await db.collection("users").doc(userId).get();
-    const profileData = profileDoc.exists ? profileDoc.data() : {};
-    const rsvpEventIds = profileData.attendedEvents || [];
+    const rsvpEventIds = userProfile?.attendedEvents || [];
 
-    // 3. Fetch Claimed Tickets (from other people's shares)
+    // 3. Fetch Claimed Tickets (from other people's shares or transfers)
     const claimedTickets = await getUserClaimedTickets(userId);
 
-    // 3b. Fetch Couple Ticket Partner Assignments
+    // 4. Fetch Pending Transfers (Sent or Received)
+    const transfers = userEmail ? await getPendingTransfers(userId, userEmail) : [];
+    const pendingSentTicketIds = transfers.filter(t => t.isSender).map(t => t.ticketId);
+
+    // 5. Fetch Couple Assignments
     const partnerAssignmentsSnapshot = await db.collection("couple_assignments")
         .where("partnerId", "==", userId)
         .get();
     const partnerAssignments = partnerAssignmentsSnapshot.docs.map(doc => ({ ticketId: doc.id, ...doc.data() }));
 
-    // 3c. Fetch Couple Ticket Owner Assignments
     const ownerAssignmentsSnapshot = await db.collection("couple_assignments")
         .where("ownerId", "==", userId)
         .get();
@@ -215,17 +223,17 @@ export async function getUserTickets(userId) {
         ownerAssignmentsMap[doc.id] = doc.data();
     });
 
-    // 4. Fetch Event Details for all involved events
+    // 6. Collect all event IDs
     const allEventIds = Array.from(new Set([
         ...orderDocs.map(o => o.eventId),
         ...rsvpEventIds,
         ...claimedTickets.map(t => t.eventId),
-        ...partnerAssignments.map(t => t.eventId)
+        ...partnerAssignments.map(t => t.eventId),
+        ...transfers.map(t => t.eventId)
     ].filter(Boolean)));
 
     const eventsData = {};
     if (allEventIds.length > 0) {
-        // Fetch events in batches
         const snapshots = await Promise.all(allEventIds.map(id => db.collection("events").doc(id).get()));
         snapshots.forEach(s => {
             if (s.exists) eventsData[s.id] = { id: s.id, ...s.data() };
@@ -235,36 +243,40 @@ export async function getUserTickets(userId) {
     const now = new Date();
     const upcoming = [];
     const past = [];
+    const actionNeeded = [];
+    const cancelled = [];
 
-    // 5. Fetch share bundles for the user's orders to know what's shared
+    // 7. Get share bundles and assignments for skipping/tagging shared tickets
     const shareBundlesMap = {};
     await Promise.all(orderDocs.map(async (order) => {
-        const bundles = await getOrderShareBundles(order.id);
+        const [bundles, assignments] = await Promise.all([
+            getOrderShareBundles(order.id),
+            getOrderAssignments(order.id)
+        ]);
         const totalShared = bundles.reduce((sum, b) => b.status !== "cancelled" ? sum + b.totalSlots : sum, 0);
-        const totalInOrder = order.tickets.reduce((sum, t) => sum + t.quantity, 0);
-        shareBundlesMap[order.id] = { totalShared, totalInOrder, bundles };
+        const totalClaimed = assignments.filter(a => a.bundleId).length; // Only bundle claims
+        shareBundlesMap[order.id] = { totalShared, totalClaimed, bundles, assignments };
     }));
 
-    // 6. Fetch scans for direct tickets
-    const allTicketIdsForOrders = [];
+    // 8. Fetch scans
+    const allTicketIdsToCheck = [];
     orderDocs.forEach(order => {
-        order.tickets.forEach(ticketGroup => {
-            for (let i = 0; i < ticketGroup.quantity; i++) {
-                allTicketIdsForOrders.push(`${order.id}-${ticketGroup.ticketId}-${i}`);
-            }
+        order.tickets?.forEach(tg => {
+            for (let i = 0; i < tg.quantity; i++) allTicketIdsToCheck.push(`${order.id}-${tg.ticketId}-${i}`);
         });
     });
 
     const scansMap = {};
-    if (allTicketIdsForOrders.length > 0) {
-        // Fetch scans in batches
-        const scanSnapshots = await Promise.all(allTicketIdsForOrders.map(id => db.collection("ticket_scans").doc(id).get()));
-        scanSnapshots.forEach(s => {
-            if (s.exists) scansMap[s.id] = s.data();
-        });
+    if (allTicketIdsToCheck.length > 0) {
+        const chunks = [];
+        for (let i = 0; i < allTicketIdsToCheck.length; i += 30) chunks.push(allTicketIdsToCheck.slice(i, i + 30));
+        await Promise.all(chunks.map(async chunk => {
+            const snap = await Promise.all(chunk.map(id => db.collection("ticket_scans").doc(id).get()));
+            snap.forEach(s => { if (s.exists) scansMap[s.id] = s.data(); });
+        }));
     }
 
-    // 7. Transform Orders into Tickets
+    // 9. Process Orders
     orderDocs.forEach(order => {
         const event = eventsData[order.eventId];
         if (!event) return;
@@ -272,60 +284,137 @@ export async function getUserTickets(userId) {
         const eventStart = new Date(event.startDate || event.startAt);
         const isEventPast = eventStart < now;
 
-        // Skip orders that are not confirmed/used/cancelled for the tickets view
-        if (!["confirmed", "used", "cancelled"].includes(order.status)) return;
+        // A. Handle Pending Payment
+        if (order.status === "pending_payment") {
+            actionNeeded.push({
+                type: "order",
+                id: order.id,
+                eventId: event.id,
+                eventTitle: event.title,
+                eventStartAt: event.startDate || event.startAt,
+                posterUrl: event.image,
+                reason: "Payment Pending",
+                amount: order.totalAmount,
+                status: "pending_payment"
+            });
+            return;
+        }
 
-        const { totalShared = 0 } = shareBundlesMap[order.id] || {};
-        let skippedCount = 0;
+        // B. Handle Cancelled/Refunded Orders
+        if (order.status === "cancelled" || order.status === "refunded") {
+            cancelled.push({
+                type: "order",
+                id: order.id,
+                eventId: event.id,
+                eventTitle: event.title,
+                eventStartAt: event.startDate || event.startAt,
+                posterUrl: event.image,
+                status: order.status,
+                totalAmount: order.totalAmount
+            });
+            return;
+        }
 
-        order.tickets.forEach((ticketGroup) => {
-            const isCoupleTicket = ticketGroup.name.toLowerCase().includes("couple") || ticketGroup.name.toLowerCase().includes("pair");
+        // C. Process Confirmed Tickets
+        if (order.status === "confirmed" || order.status === "used") {
+            const { bundles = [], totalClaimed = 0 } = shareBundlesMap[order.id] || {};
 
-            for (let i = 0; i < ticketGroup.quantity; i++) {
-                // If we have shared slots, skip the last N tickets of the order
-                if (skippedCount < totalShared) {
-                    skippedCount++;
-                    continue; // This ticket is shared
-                }
+            order.tickets?.forEach(ticketGroup => {
+                const tierId = ticketGroup.ticketId;
+                const isCouple = ticketGroup.name.toLowerCase().includes("couple");
 
-                const ticketId = `${order.id}-${ticketGroup.ticketId}-${i}`;
-                const assignment = ownerAssignmentsMap[ticketId];
+                // Find if there's a bundle for this specific tier
+                const bundle = bundles.find(b => b.tierId === tierId);
+
+                // If we have a bundle, use its slot logic
+                // If not, we treat it as a virtual bundle for now
+                const totalTickets = ticketGroup.quantity;
+                const claimedCount = bundle ? (bundle.totalSlots - bundle.remainingSlots - 1) : 0; // -1 for owner
+                const availableToShare = totalTickets - claimedCount - 1; // -1 for owner
+
+                const ticketId = `${order.id}-${tierId}-0`; // Slot 1 is always index 0 internally here? 
+                // Wait, let's use a consistent ID format for Slot 1
+                const ownerTicketId = `${order.id}-${tierId}-owner`;
+
+                // Handle transfers for owner's slot
+                const isTransferPending = pendingSentTicketIds.includes(ownerTicketId) || pendingSentTicketIds.includes(`${order.id}-${tierId}-0`);
+
+                // Fetch couple assignment for the owner's slot
+                const assignment = ownerAssignmentsMap[ownerTicketId] || ownerAssignmentsMap[`${order.id}-${tierId}-0`];
+
+                // Check if this specific ticket (Slot 1 / Owner Slot) has been transferred OUT
+                // We find an assignment for this ticketId where redeemerId != current user
+                const isTransferredOut = (shareBundlesMap[order.id]?.assignments || []).some(a =>
+                    (a.originalTicketId === ownerTicketId || a.originalTicketId === `${order.id}-${tierId}-0`) &&
+                    a.redeemerId !== userId
+                );
+
+                if (isTransferredOut) return;
+
+                const tier = event.tickets?.find(t => t.id === tierId);
+                const requiredGender = tier?.requiredGender || (isCouple ? "male" : (tier?.genderRequirement || "any"));
+                const genderMismatch = (requiredGender !== "any" && requiredGender !== userGender);
 
                 const ticket = {
-                    ticketId,
+                    ticketId: ownerTicketId,
                     orderId: order.id,
                     eventId: event.id,
+                    tierId,
                     eventTitle: event.title,
                     eventStartAt: event.startDate || event.startAt,
                     venueName: event.venue || event.location,
                     city: event.city,
                     posterUrl: event.image,
                     ticketType: ticketGroup.name,
-                    qrPayload: "", // Will be signed if active and (not couple or couple+assigned)
                     status: "active",
-                    isCouple: isCoupleTicket,
-                    coupleAssignment: isCoupleTicket ? (assignment || { status: 'unassigned', ownerId: userId }) : null
+                    isCouple,
+                    requiredGender,
+                    genderMismatch,
+                    isTransferPending,
+                    isBundle: totalTickets > 1,
+                    totalSlots: totalTickets,
+                    heldSlots: 1,
+                    shareableSlots: totalTickets - 1,
+                    claimedSlots: claimedCount,
+                    remainingToShare: availableToShare,
+                    bundleId: bundle?.id,
+                    mode: bundle?.mode || "individual",
+                    scansRemaining: bundle?.scanCreditsRemaining ?? totalTickets,
+                    shareToken: bundle?.token,
+                    coupleAssignment: isCouple ? (assignment || { status: 'unassigned', ownerId: userId }) : null,
+                    orderType: order.totalAmount === 0 ? "₹0 Checkout" : "Paid"
                 };
 
-                // Add scan status
-                const isScanned = !!scansMap[ticketId] || order.status === "used";
-                ticket.status = order.status === "cancelled" ? "cancelled" : (isScanned || isEventPast ? "used" : "active");
-
-                // Generate QR only if valid
-                const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
-                const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
-                ticket.qrPayload = `${ticketId}:${signature}`;
-
-                if (ticket.status === "active") {
-                    upcoming.push(ticket);
-                } else {
+                const scan = scansMap[`${order.id}-${tierId}-0`] || scansMap[ownerTicketId];
+                if (scan || order.status === "used") {
+                    ticket.status = "used";
+                    ticket.scannedAt = scan?.scannedAt || order.updatedAt;
                     past.push(ticket);
+                } else if (isEventPast) {
+                    ticket.status = "used";
+                    past.push(ticket);
+                } else {
+                    // Secret for QR (Owner's QR)
+                    const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
+                    const signature = createHmac("sha256", secret).update(ownerTicketId).digest("hex").slice(0, 16);
+
+                    // CRITICAL: Only provide QR if gender matches
+                    const canViewQR = !isTransferPending && !genderMismatch;
+
+                    if (bundle?.mode === "shared_qr") {
+                        ticket.qrPayload = canViewQR ? bundle.groupQrPayload : null;
+                        ticket.isSharedQr = true;
+                    } else {
+                        ticket.qrPayload = canViewQR ? `${ownerTicketId}:${signature}` : null;
+                    }
+
+                    upcoming.push(ticket);
                 }
-            }
-        });
+            });
+        }
     });
 
-    // 8. Transform Claimed Tickets into Tickets View
+    // 10. Process Claimed/Transferred Tickets
     claimedTickets.forEach(claim => {
         const event = eventsData[claim.eventId];
         if (!event) return;
@@ -333,8 +422,8 @@ export async function getUserTickets(userId) {
         const eventStart = new Date(event.startDate || event.startAt);
         const isEventPast = eventStart < now;
 
-        const isScanned = claim.status === "used" || isEventPast;
-        const status = claim.status === "cancelled" ? "cancelled" : (isScanned ? "used" : "active");
+        const requiredGender = claim.requiredGender || "any";
+        const genderMismatch = (requiredGender !== "any" && requiredGender !== userGender);
 
         const ticket = {
             ticketId: claim.assignmentId,
@@ -345,21 +434,25 @@ export async function getUserTickets(userId) {
             venueName: event.venue || event.location,
             city: event.city,
             posterUrl: event.image,
-            ticketType: "Shared Pass", // Maybe fetch tier from order if needed
-            qrPayload: claim.qrPayload,
-            status,
+            ticketType: claim.isSharedQr ? "Shared Group Pass" : (claim.originalTicketId ? "Transferred Pass" : "Shared Pass"),
+            status: claim.status === "used" || isEventPast ? "used" : "active",
             isClaimed: true,
-            bundleId: claim.bundleId
+            isSharedQr: claim.isSharedQr,
+            requiredGender,
+            genderMismatch,
+            couplePairId: claim.couplePairId || null,
+            qrPayload: (genderMismatch || claim.status === "used" || isEventPast) ? null : claim.qrPayload,
+            orderType: "Paid"
         };
 
-        if (status === "active") {
+        if (ticket.status === "active") {
             upcoming.push(ticket);
         } else {
             past.push(ticket);
         }
     });
 
-    // 9. Transform Partner Assignments into Tickets View
+    // 11. Process Partner Assignments
     partnerAssignments.forEach(assignment => {
         const event = eventsData[assignment.eventId];
         if (!event) return;
@@ -367,13 +460,12 @@ export async function getUserTickets(userId) {
         const eventStart = new Date(event.startDate || event.startAt);
         const isEventPast = eventStart < now;
 
-        const ticketId = assignment.ticketId; // This is the original ticketId
-        const isScanned = !!scansMap[ticketId]; // Partners check the same scan record
+        const ticketId = assignment.ticketId;
+        const isScanned = !!scansMap[ticketId];
         const status = isScanned || isEventPast ? "used" : "active";
 
         const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
         const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
-        const qrPayload = `${ticketId}:${signature}`;
 
         const ticket = {
             ticketId,
@@ -383,25 +475,24 @@ export async function getUserTickets(userId) {
             venueName: event.venue || event.location,
             city: event.city,
             posterUrl: event.image,
-            ticketType: assignment.ticketType || "Couple Ticket",
-            qrPayload,
+            ticketType: "Couple Pass (Female)", // Couple partners are usually the female slot
             status,
-            isCouple: true,
-            isPartner: true,
+            isCouplePartner: true,
+            requiredGender: "female",
+            genderMismatch: userGender !== "female",
+            qrPayload: (status === "active" && userGender === "female") ? `${ticketId}:${signature}` : null,
+            orderType: "Paid",
             coupleAssignment: assignment
         };
 
-        if (status === "active") {
-            upcoming.push(ticket);
-        } else {
-            past.push(ticket);
-        }
+        if (status === "active") upcoming.push(ticket);
+        else past.push(ticket);
     });
 
-    // 10. Transform RSVPs into Tickets
+    // 12. Process RSVPs
     rsvpEventIds.forEach(eventId => {
-        if (orderDocs.some(o => o.eventId === eventId && o.status !== "cancelled")) return;
-        if (claimedTickets.some(t => t.eventId === eventId && t.status !== "cancelled")) return;
+        // Skip if they have a real ticket for the same event
+        if (upcoming.some(t => t.eventId === eventId) || past.some(t => t.eventId === eventId)) return;
 
         const event = eventsData[eventId];
         if (!event) return;
@@ -413,7 +504,6 @@ export async function getUserTickets(userId) {
         const ticketId = `RSVP-${userId}-${eventId}`;
         const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
         const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
-        const qrPayload = `${ticketId}:${signature}`;
 
         const ticket = {
             ticketId,
@@ -424,15 +514,29 @@ export async function getUserTickets(userId) {
             city: event.city,
             posterUrl: event.image,
             ticketType: "RSVP",
-            qrPayload,
-            status
+            qrPayload: status === "active" ? `${ticketId}:${signature}` : null,
+            status,
+            orderType: "RSVP"
         };
 
-        if (status === "active") {
-            upcoming.push(ticket);
-        } else {
-            past.push(ticket);
-        }
+        if (status === "active") upcoming.push(ticket);
+        else past.push(ticket);
+    });
+
+    // 13. Process Pending Transfers for recipient
+    transfers.filter(t => !t.isSender).forEach(transfer => {
+        const event = eventsData[transfer.eventId];
+        actionNeeded.push({
+            type: "transfer",
+            id: transfer.id,
+            transfer,
+            eventId: transfer.eventId,
+            eventTitle: event?.title || "Unknown Event",
+            eventStartAt: event?.startDate || event?.startAt,
+            posterUrl: event?.image,
+            reason: "Incoming Transfer",
+            status: "pending"
+        });
     });
 
     // Sort
@@ -442,6 +546,8 @@ export async function getUserTickets(userId) {
     return {
         upcomingTickets: upcoming,
         pastTickets: past,
-        shareBundles: shareBundlesMap // Include so UI can show "X of Y shared"
+        actionNeeded,
+        cancelledTickets: cancelled,
+        shareBundles: shareBundlesMap
     };
 }

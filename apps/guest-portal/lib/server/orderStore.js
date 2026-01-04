@@ -347,6 +347,14 @@ export async function createOrder(payload) {
 
                 const currentRemaining = Number(updatedTickets[ticketIndex].remaining ?? updatedTickets[ticketIndex].quantity) || 0;
 
+                // Optimization: If it's a free tier in a paid event, we might defer reduction until claim
+                const isClaimBasedFreeTier = updatedTickets[ticketIndex].price === 0 && updatedTickets[ticketIndex].genderRequirement;
+
+                if (isClaimBasedFreeTier) {
+                    // Skip inventory reduction now; will happen on claimTicketSlot
+                    continue;
+                }
+
                 if (currentRemaining < update.quantity) {
                     throw new Error(
                         `Ticket sold out during purchase: "${updatedTickets[ticketIndex].name}". Available: ${currentRemaining}`
@@ -657,6 +665,31 @@ export async function cancelOrder(orderId) {
 
         // Update order status
         const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
+        transaction.update(orderRef, {
+            status: "cancelled",
+            updatedAt: now,
+        });
+
+        // VOID BUNDLES & ASSIGNMENTS (Refinement 237)
+        const bundlesSnapshot = await transaction.get(
+            db.collection("share_bundles").where("orderId", "==", orderId)
+        );
+        bundlesSnapshot.forEach(bundleDoc => {
+            transaction.update(bundleDoc.ref, {
+                status: "cancelled",
+                updatedAt: now
+            });
+        });
+
+        const assignmentsSnapshot = await transaction.get(
+            db.collection("ticket_assignments").where("orderId", "==", orderId)
+        );
+        assignmentsSnapshot.forEach(assignmentDoc => {
+            transaction.update(assignmentDoc.ref, {
+                status: "voided",
+                updatedAt: now
+            });
+        });
         transaction.update(orderRef, {
             status: "cancelled",
             updatedAt: now,
