@@ -1,0 +1,19 @@
+{
+    "name": "@c1rcle/ui",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "build": "echo 'No build step required for ui'"
+    },
+    "main": "./src/index.js",
+    "exports": {
+        ".": "./src/index.js"
+    },
+    "peerDependencies": {
+        "react": "^18.0.0",
+        "react-dom": "^18.0.0",
+        "next": "^13.0.0 || ^14.0.0",
+        "framer-motion": "^10.0.0 || ^11.0.0",
+        "lucide-react": "^0.284.0"
+    }
+}

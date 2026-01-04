@@ -1,0 +1,119 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getClubCalendar, getDateAvailability, blockDate, unblockDate } from "@/lib/server/calendarStore";
+import { checkPartnership } from "@/lib/server/partnershipStore";
+
+/**
+ * GET /api/clubs/[id]/calendar
+ * Get club availability calendar
+ */
+export async function GET(
+    req: NextRequest,
+    { params }: { params: { id: string } }
+) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const clubId = params.id;
+        const startDate = searchParams.get("startDate");
+        const endDate = searchParams.get("endDate");
+        const hostId = searchParams.get("hostId");
+
+        if (!startDate || !endDate) {
+            // Default to next 30 days
+            const today = new Date();
+            const defaultStart = today.toISOString().split("T")[0];
+            const defaultEnd = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
+                .toISOString().split("T")[0];
+
+            const calendar = await getClubCalendar(clubId, defaultStart, defaultEnd, hostId || undefined);
+            return NextResponse.json({ calendar });
+        }
+
+        // If hostId is provided, verify partnership
+        if (hostId) {
+            const hasPartnership = await checkPartnership(hostId, clubId);
+            if (!hasPartnership) {
+                return NextResponse.json(
+                    { error: "No active partnership with this club" },
+                    { status: 403 }
+                );
+            }
+        }
+
+        const calendar = await getClubCalendar(clubId, startDate, endDate, hostId || undefined);
+
+        return NextResponse.json({ calendar });
+    } catch (error: any) {
+        console.error("[Calendar API] GET Error:", error);
+        return NextResponse.json(
+            { error: error.message || "Failed to fetch calendar" },
+            { status: 500 }
+        );
+    }
+}
+
+/**
+ * POST /api/clubs/[id]/calendar
+ * Block or unblock a date (club action only)
+ */
+export async function POST(
+    req: NextRequest,
+    { params }: { params: { id: string } }
+) {
+    try {
+        const clubId = params.id;
+        const body = await req.json();
+        const { action, date, reason, actor } = body;
+
+        if (!actor || !actor.uid || !actor.role) {
+            return NextResponse.json(
+                { error: "Actor information required" },
+                { status: 400 }
+            );
+        }
+
+        // Verify actor is from this club
+        if (actor.role !== "club" && actor.role !== "admin") {
+            return NextResponse.json(
+                { error: "Only club managers can modify the calendar" },
+                { status: 403 }
+            );
+        }
+
+        if (!date) {
+            return NextResponse.json(
+                { error: "Date is required" },
+                { status: 400 }
+            );
+        }
+
+        let result;
+
+        switch (action) {
+            case "block":
+                result = await blockDate(clubId, date, reason || "", actor);
+                break;
+
+            case "unblock":
+                result = await unblockDate(clubId, date, actor);
+                break;
+
+            case "availability":
+                result = await getDateAvailability(clubId, date);
+                break;
+
+            default:
+                return NextResponse.json(
+                    { error: "Invalid action. Use: block, unblock, or availability" },
+                    { status: 400 }
+                );
+        }
+
+        return NextResponse.json({ result });
+    } catch (error: any) {
+        console.error("[Calendar API] POST Error:", error);
+        return NextResponse.json(
+            { error: error.message || "Failed to update calendar" },
+            { status: 500 }
+        );
+    }
+}

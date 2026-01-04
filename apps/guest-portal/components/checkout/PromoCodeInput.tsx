@@ -1,0 +1,165 @@
+"use client";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Tag, Check, X, Loader2 } from "lucide-react";
+
+interface PromoCodeInputProps {
+    eventId: string;
+    onApply: (code: string) => Promise<{
+        valid: boolean;
+        discountAmount?: number;
+        message?: string;
+        error?: string;
+    }>;
+    appliedCode?: string | null;
+    onRemove?: () => void;
+    disabled?: boolean;
+    className?: string;
+}
+
+export function PromoCodeInput({
+    eventId,
+    onApply,
+    appliedCode = null,
+    onRemove,
+    disabled = false,
+    className = ""
+}: PromoCodeInputProps) {
+    const [code, setCode] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<{ code: string; message: string; amount: number } | null>(null);
+
+    const handleApply = async () => {
+        if (!code.trim() || isLoading || disabled) return;
+
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const result = await onApply(code.trim().toUpperCase());
+
+            if (result.valid) {
+                setSuccess({
+                    code: code.trim().toUpperCase(),
+                    message: result.message || 'Discount applied!',
+                    amount: result.discountAmount || 0
+                });
+                setCode("");
+            } else {
+                setError(result.error || 'Invalid promo code');
+            }
+        } catch (err: any) {
+            setError(err.message || 'Failed to apply code');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleRemove = () => {
+        setSuccess(null);
+        setError(null);
+        if (onRemove) onRemove();
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleApply();
+        }
+    };
+
+    // Show applied code state
+    if (appliedCode || success) {
+        const displayCode = appliedCode || success?.code;
+        const displayMessage = success?.message || 'Promo code applied';
+
+        return (
+            <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`p-4 rounded-2xl bg-[#34c759]/10 border border-[#34c759]/20 ${className}`}
+            >
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#34c759]/20 flex items-center justify-center">
+                            <Check className="w-5 h-5 text-[#34c759]" />
+                        </div>
+                        <div>
+                            <p className="text-[14px] font-semibold text-[#34c759]">
+                                {displayCode}
+                            </p>
+                            <p className="text-[12px] text-[#34c759]/80">
+                                {displayMessage}
+                            </p>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={handleRemove}
+                        disabled={disabled}
+                        className="w-8 h-8 rounded-full hover:bg-[#34c759]/20 flex items-center justify-center transition-colors"
+                    >
+                        <X className="w-4 h-4 text-[#34c759]" />
+                    </button>
+                </div>
+            </motion.div>
+        );
+    }
+
+    return (
+        <div className={`space-y-2 ${className}`}>
+            <div className="flex gap-2">
+                <div className="relative flex-1">
+                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#86868b]" />
+                    <input
+                        type="text"
+                        value={code}
+                        onChange={(e) => {
+                            setCode(e.target.value.toUpperCase());
+                            setError(null);
+                        }}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Promo code"
+                        disabled={disabled || isLoading}
+                        className={`w-full pl-10 pr-4 py-3 rounded-xl bg-[#f5f5f7] border text-[15px] font-medium text-[#1d1d1f] placeholder:text-[#86868b]/50 focus:outline-none focus:bg-white transition-all ${error
+                                ? "border-[#ff3b30] focus:border-[#ff3b30]"
+                                : "border-transparent focus:border-[#007aff]"
+                            }`}
+                    />
+                </div>
+
+                <button
+                    onClick={handleApply}
+                    disabled={!code.trim() || isLoading || disabled}
+                    className={`px-5 py-3 rounded-xl font-semibold text-[14px] transition-all ${!code.trim() || isLoading || disabled
+                            ? "bg-[#e5e5ea] text-[#86868b] cursor-not-allowed"
+                            : "bg-[#007aff] text-white hover:bg-[#0056b3]"
+                        }`}
+                >
+                    {isLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                        "Apply"
+                    )}
+                </button>
+            </div>
+
+            <AnimatePresence>
+                {error && (
+                    <motion.p
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        className="text-[12px] text-[#ff3b30] font-medium pl-1"
+                    >
+                        {error}
+                    </motion.p>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+}
+
+export default PromoCodeInput;

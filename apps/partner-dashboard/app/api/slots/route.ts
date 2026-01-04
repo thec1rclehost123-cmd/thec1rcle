@@ -1,0 +1,116 @@
+import { NextRequest, NextResponse } from "next/server";
+import {
+    createSlotRequest,
+    listSlotRequests,
+    getSlotRequest,
+    approveSlotRequest,
+    rejectSlotRequest,
+    suggestAlternatives
+} from "@/lib/server/slotStore";
+import { isSlotAvailable } from "@/lib/server/calendarStore";
+import { checkPartnership } from "@/lib/server/partnershipStore";
+
+/**
+ * GET /api/slots
+ * List slot requests (filtered by club or host)
+ */
+export async function GET(req: NextRequest) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const clubId = searchParams.get("clubId");
+        const hostId = searchParams.get("hostId");
+        const status = searchParams.get("status");
+        const limit = parseInt(searchParams.get("limit") || "50");
+
+        const requests = await listSlotRequests({
+            clubId: clubId || undefined,
+            hostId: hostId || undefined,
+            status: status || undefined,
+            limit
+        });
+
+        return NextResponse.json({ requests });
+    } catch (error: any) {
+        console.error("[Slots API] GET Error:", error);
+        return NextResponse.json(
+            { error: error.message || "Failed to fetch slot requests" },
+            { status: 500 }
+        );
+    }
+}
+
+/**
+ * POST /api/slots
+ * Create a new slot request
+ */
+export async function POST(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const {
+            eventId,
+            hostId,
+            hostName,
+            clubId,
+            clubName,
+            requestedDate,
+            requestedStartTime,
+            requestedEndTime,
+            notes,
+            priority
+        } = body;
+
+        // Validation
+        if (!eventId || !hostId || !clubId || !requestedDate || !requestedStartTime || !requestedEndTime) {
+            return NextResponse.json(
+                { error: "Missing required fields" },
+                { status: 400 }
+            );
+        }
+
+        // Verify partnership exists
+        const hasPartnership = await checkPartnership(hostId, clubId);
+        if (!hasPartnership) {
+            return NextResponse.json(
+                { error: "No active partnership with this club" },
+                { status: 403 }
+            );
+        }
+
+        // Check if slot is available
+        const availability = await isSlotAvailable(
+            clubId,
+            requestedDate,
+            requestedStartTime,
+            requestedEndTime
+        );
+
+        if (!availability.available) {
+            return NextResponse.json(
+                { error: availability.reason || "Slot is not available" },
+                { status: 409 }
+            );
+        }
+
+        // Create the slot request
+        const slotRequest = await createSlotRequest({
+            eventId,
+            hostId,
+            hostName,
+            clubId,
+            clubName,
+            requestedDate,
+            requestedStartTime,
+            requestedEndTime,
+            notes,
+            priority
+        });
+
+        return NextResponse.json({ slotRequest }, { status: 201 });
+    } catch (error: any) {
+        console.error("[Slots API] POST Error:", error);
+        return NextResponse.json(
+            { error: error.message || "Failed to create slot request" },
+            { status: 500 }
+        );
+    }
+}

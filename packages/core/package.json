@@ -1,0 +1,17 @@
+{
+    "name": "@c1rcle/core",
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "build": "echo 'No build step required for core'"
+    },
+    "exports": {
+        "./client": "./client.js",
+        "./admin": "./admin.js",
+        "./events": "./events.js"
+    },
+    "dependencies": {
+        "firebase": "^12.6.0",
+        "firebase-admin": "^13.6.0"
+    }
+}
