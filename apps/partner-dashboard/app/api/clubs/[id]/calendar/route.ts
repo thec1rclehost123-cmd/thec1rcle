@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClubCalendar, getDateAvailability, blockDate, unblockDate } from "@/lib/server/calendarStore";
 import { checkPartnership } from "@/lib/server/partnershipStore";
+import { verifyAuth } from "@/lib/server/auth";
+import { getAdminDb } from "@/lib/firebase/admin";
 
 /**
  * GET /api/clubs/[id]/calendar
@@ -16,6 +18,11 @@ export async function GET(
         const startDate = searchParams.get("startDate");
         const endDate = searchParams.get("endDate");
         const hostId = searchParams.get("hostId");
+
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
 
         if (!startDate || !endDate) {
             // Default to next 30 days
@@ -64,11 +71,21 @@ export async function POST(
         const body = await req.json();
         const { action, date, reason, actor } = body;
 
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
         if (!actor || !actor.uid || !actor.role) {
             return NextResponse.json(
                 { error: "Actor information required" },
                 { status: 400 }
             );
+        }
+
+        // Security: Ensure actor UID matches authenticated user
+        if (actor.uid !== decodedToken.uid) {
+            return NextResponse.json({ error: "Actor UID mismatch" }, { status: 403 });
         }
 
         // Verify actor is from this club

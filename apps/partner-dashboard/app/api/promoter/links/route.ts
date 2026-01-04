@@ -7,6 +7,8 @@ import {
     deactivateLink
 } from "@/lib/server/promoterLinkStore";
 import { getEvent } from "@/lib/server/eventStore";
+import { isConnected } from "@/lib/server/promoterConnectionStore";
+import { verifyAuth } from "@/lib/server/auth";
 
 /**
  * GET /api/promoter/links
@@ -43,6 +45,11 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
     try {
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
         const body = await req.json();
         const {
             promoterId,
@@ -69,7 +76,24 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        if (!event.promotersEnabled && event.promotersEnabled !== undefined) {
+        // 🟢 Connection Verification
+        // Only allow if promoter is connected to the event's host or venue
+        const hostId = event.hostId || event.creatorId;
+        const clubId = event.venueId || event.clubId;
+
+        const [isHostPartner, isClubPartner] = await Promise.all([
+            hostId ? isConnected(promoterId, hostId) : Promise.resolve(false),
+            clubId ? isConnected(promoterId, clubId) : Promise.resolve(false)
+        ]);
+
+        if (!isHostPartner && !isClubPartner) {
+            return NextResponse.json(
+                { error: "You must be connected with the host or venue to promote this event" },
+                { status: 403 }
+            );
+        }
+
+        if (!event.promoterSettings?.enabled && event.promoterSettings?.enabled !== undefined) {
             return NextResponse.json(
                 { error: "Promoter sales are not enabled for this event" },
                 { status: 403 }
@@ -86,7 +110,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Use custom commission if provided and allowed, otherwise use event default
-        const commissionRate = customCommission || event.commissionRate || event.commission || 15;
+        const commissionRate = customCommission || event.promoterSettings?.defaultCommission || event.commission || 15;
 
         const link = await createPromoterLink({
             promoterId,

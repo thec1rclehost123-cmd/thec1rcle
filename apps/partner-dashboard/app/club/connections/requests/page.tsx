@@ -19,11 +19,15 @@ import {
     AlertCircle,
     MapPin,
     ChevronRight,
-    Loader2
+    Loader2,
+    Zap,
+    ShieldCheck
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { getFirebaseDb } from "@/lib/firebase/client";
-import { collection, query, where, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { DiscoveryView } from "@/components/discovery/DiscoveryView";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface PromoterRequest {
     id: string;
@@ -48,7 +52,7 @@ interface HostPartnership {
 }
 
 export default function ClubConnectionsPage() {
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
     const [hostPartnerships, setHostPartnerships] = useState<HostPartnership[]>([]);
     const [promoterRequests, setPromoterRequests] = useState<PromoterRequest[]>([]);
     const [loading, setLoading] = useState(true);
@@ -65,7 +69,6 @@ export default function ClubConnectionsPage() {
 
         const db = getFirebaseDb();
 
-        // Listen to promoter_connections where this club is the target
         const connectionsQuery = query(
             collection(db, "promoter_connections"),
             where("targetId", "==", clubId),
@@ -78,7 +81,6 @@ export default function ClubConnectionsPage() {
                 ...doc.data()
             })) as PromoterRequest[];
 
-            console.log(`[Club Connections] Found ${requests.length} promoter requests`);
             setPromoterRequests(requests);
             setLoading(false);
         }, (error) => {
@@ -89,37 +91,46 @@ export default function ClubConnectionsPage() {
         return () => unsubscribe();
     }, [clubId]);
 
-    // Fetch host partnerships (from partnerships collection)
-    useEffect(() => {
+    // Fetch host partnerships
+    const fetchHostPartnerships = useCallback(async () => {
         if (!clubId) return;
-
-        const fetchHostPartnerships = async () => {
-            try {
-                const res = await fetch(`/api/club/partnerships?clubId=${clubId}`);
-                const data = await res.json();
-                setHostPartnerships(data.partnerships || []);
-            } catch (err) {
-                console.error("Failed to fetch host partnerships:", err);
-            }
-        };
-
-        fetchHostPartnerships();
+        try {
+            const res = await fetch(`/api/club/partnerships?clubId=${clubId}`);
+            const data = await res.json();
+            setHostPartnerships(data.partnerships || []);
+        } catch (err) {
+            console.error("Failed to fetch host partnerships:", err);
+        }
     }, [clubId]);
 
-    const handlePromoterAction = async (connectionId: string, action: 'approve' | 'reject') => {
+    useEffect(() => {
+        fetchHostPartnerships();
+    }, [fetchHostPartnerships]);
+
+    const handleAction = async (connectionId: string, action: 'approve' | 'reject', type: 'host' | 'promoter') => {
         setProcessingRequest(connectionId);
         try {
-            const db = getFirebaseDb();
-            const now = new Date().toISOString();
-
-            await updateDoc(doc(db, "promoter_connections", connectionId), {
-                status: action === 'approve' ? 'approved' : 'rejected',
-                updatedAt: now,
-                resolvedAt: now,
-                resolvedBy: { uid: clubId, name: clubName }
+            const token = await user?.getIdToken();
+            const res = await fetch('/api/discovery', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    connectionId,
+                    action,
+                    role: 'club',
+                    partnerId: clubId,
+                    partnerName: clubName
+                })
             });
 
-            console.log(`[Club] ${action}d connection ${connectionId}`);
+            if (!res.ok) throw new Error("Failed to process request");
+
+            if (type === 'host') {
+                fetchHostPartnerships();
+            }
         } catch (err: any) {
             console.error(`Failed to ${action} request:`, err);
             alert(err.message || `Failed to ${action} request`);
@@ -128,31 +139,14 @@ export default function ClubConnectionsPage() {
         }
     };
 
-    const handleHostAction = async (partnershipId: string, action: 'approve' | 'reject') => {
-        try {
-            await fetch('/api/club/partnerships', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ partnershipId, action, clubId })
-            });
-
-            // Refresh host partnerships
-            const res = await fetch(`/api/club/partnerships?clubId=${clubId}`);
-            const data = await res.json();
-            setHostPartnerships(data.partnerships || []);
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
     const pendingPromoterRequests = promoterRequests.filter(r => r.status === 'pending');
-    const approvedPromoterConnections = promoterRequests.filter(r => r.status === 'approved');
+    const approvedPromoterConnections = promoterRequests.filter(r => r.status === 'approved' || r.status === 'active');
     const pendingHostRequests = hostPartnerships.filter(h => h.status === 'pending');
-    const approvedHostPartnerships = hostPartnerships.filter(h => h.status === 'approved');
+    const approvedHostPartnerships = hostPartnerships.filter(h => h.status === 'approved' || h.status === 'active');
 
     const formatDate = (timestamp: any) => {
         if (!timestamp) return "";
-        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        const date = timestamp.toDate ? timestamp.toDate() : (timestamp.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp));
         return date.toLocaleDateString("en-IN", {
             day: "numeric",
             month: "short",
@@ -161,415 +155,212 @@ export default function ClubConnectionsPage() {
     };
 
     return (
-        <div className="space-y-8">
+        <div className="max-w-7xl mx-auto px-4 py-8 space-y-12 animate-in fade-in duration-700">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Connections</h1>
-                <p className="text-slate-500 text-sm mt-1">Manage host partnerships and promoter connections.</p>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div>
+                    <div className="flex items-center gap-3 mb-2 text-indigo-600">
+                        <div className="p-2 bg-indigo-50 rounded-xl">
+                            <Handshake className="w-5 h-5" />
+                        </div>
+                        <span className="text-[13px] font-bold uppercase tracking-[0.2em]">Network</span>
+                    </div>
+                    <h1 className="text-4xl font-semibold text-slate-900 tracking-tight">Connections</h1>
+                    <p className="text-slate-500 text-lg font-medium mt-2 max-w-xl">
+                        Manage your verified host partnerships and sales network.
+                    </p>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex items-center p-1.5 bg-slate-100/80 backdrop-blur-sm rounded-2xl w-fit">
+                    <button
+                        onClick={() => setActiveTab('promoters')}
+                        className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2.5 ${activeTab === 'promoters' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                    >
+                        <Zap className={`w-4 h-4 ${activeTab === 'promoters' ? 'text-blue-500 fill-blue-500' : ''}`} />
+                        Promoters
+                        {pendingPromoterRequests.length > 0 && (
+                            <span className="ml-1 px-1.5 py-0.5 bg-blue-500 text-white rounded-md text-[10px] font-bold">
+                                {pendingPromoterRequests.length}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('hosts')}
+                        className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2.5 ${activeTab === 'hosts' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                    >
+                        <UserCircle className={`w-4 h-4 ${activeTab === 'hosts' ? 'text-indigo-500' : ''}`} />
+                        Hosts
+                        {pendingHostRequests.length > 0 && (
+                            <span className="ml-1 px-1.5 py-0.5 bg-indigo-500 text-white rounded-md text-[10px] font-bold">
+                                {pendingHostRequests.length}
+                            </span>
+                        )}
+                    </button>
+                    <div className="w-px h-4 bg-slate-200 mx-1" />
+                    <button
+                        onClick={() => setActiveTab('discover')}
+                        className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2.5 ${activeTab === 'discover' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                    >
+                        <Search className="w-4 h-4" />
+                        Discover
+                    </button>
+                </div>
             </div>
 
-            {/* Tabs */}
-            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-fit">
-                <button
-                    onClick={() => setActiveTab('promoters')}
-                    className={`px-6 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'promoters' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                >
-                    <Handshake className="w-4 h-4" />
-                    Promoters
-                    {pendingPromoterRequests.length > 0 && (
-                        <span className="px-1.5 py-0.5 bg-amber-500 text-white rounded-full text-[10px]">
-                            {pendingPromoterRequests.length}
-                        </span>
-                    )}
-                </button>
-                <button
-                    onClick={() => setActiveTab('hosts')}
-                    className={`px-6 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'hosts' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                >
-                    <UserCircle className="w-4 h-4" />
-                    Hosts
-                    {pendingHostRequests.length > 0 && (
-                        <span className="px-1.5 py-0.5 bg-purple-500 text-white rounded-full text-[10px]">
-                            {pendingHostRequests.length}
-                        </span>
-                    )}
-                </button>
-                <button
-                    onClick={() => setActiveTab('discover')}
-                    className={`px-6 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'discover' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                >
-                    <Search className="w-4 h-4" />
-                    Discover
-                </button>
-            </div>
-
-            {/* Loading State */}
-            {loading && activeTab !== 'discover' && (
-                <div className="flex items-center justify-center py-20">
-                    <Loader2 className="w-8 h-8 text-slate-300 animate-spin" />
-                </div>
-            )}
-
-            {/* Hosts Tab */}
-            {!loading && activeTab === 'hosts' && (
-                <div className="space-y-6">
-                    {/* Pending Host Requests */}
-                    <div>
-                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-purple-500" />
-                            Pending Host Partnerships ({pendingHostRequests.length})
-                        </h3>
-
-                        {pendingHostRequests.length === 0 ? (
-                            <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
-                                <UserCircle className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                                <p className="text-slate-500 font-medium">No pending host requests</p>
-                                <p className="text-xs text-slate-400 mt-2">When hosts request to partner with your venue, they'll appear here.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {pendingHostRequests.map(partner => (
-                                    <div key={partner.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-12 w-12 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600">
-                                                <UserCircle className="w-6 h-6" />
-                                            </div>
-                                            <div>
-                                                <h3 className="font-bold text-slate-900">{partner.hostName}</h3>
-                                                <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                                                    <Star className="w-3 h-3 text-amber-500 fill-amber-500" /> Host Partner Request
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <button
-                                                onClick={() => handleHostAction(partner.id, 'reject')}
-                                                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50"
-                                            >
-                                                Decline
-                                            </button>
-                                            <button
-                                                onClick={() => handleHostAction(partner.id, 'approve')}
-                                                className="px-4 py-2 bg-purple-600 text-white rounded-lg text-xs font-bold hover:bg-purple-700 shadow-sm"
-                                            >
-                                                Approve
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Approved Host Partnerships */}
-                    <div>
-                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                            Partner Hosts ({approvedHostPartnerships.length})
-                        </h3>
-
-                        {approvedHostPartnerships.length === 0 ? (
-                            <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-8 text-center">
-                                <p className="text-slate-400 text-sm">No approved host partnerships yet.</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {approvedHostPartnerships.map(partner => (
-                                    <div key={partner.id} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-sm">
-                                                {partner.hostName?.[0] || "H"}
-                                            </div>
-                                            <div>
-                                                <h4 className="font-semibold text-slate-900 text-sm">{partner.hostName}</h4>
-                                                <p className="text-[10px] text-slate-400">Host Partner</p>
-                                            </div>
-                                        </div>
-                                        <span className="px-2 py-1 bg-purple-50 text-purple-600 rounded-full text-[10px] font-bold uppercase">
-                                            Partner
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Promoters Tab */}
-            {!loading && activeTab === 'promoters' && (
-                <div className="space-y-6">
-                    {/* Pending Promoter Requests */}
-                    <div>
-                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-amber-500" />
-                            Pending Connection Requests ({pendingPromoterRequests.length})
-                        </h3>
-
-                        {pendingPromoterRequests.length === 0 ? (
-                            <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
-                                <Handshake className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                                <p className="text-slate-500 font-medium">No pending promoter requests</p>
-                                <p className="text-xs text-slate-400 mt-2">When promoters request to connect with your venue, they'll appear here.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {pendingPromoterRequests.map(request => (
-                                    <div key={request.id} className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-all">
-                                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-8">
-                                            <div className="flex-1 space-y-6">
-                                                <div className="flex items-start gap-4">
-                                                    <div className="h-14 w-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-black text-xl">
-                                                        {request.promoterName?.[0] || "P"}
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="text-lg font-bold text-slate-900">{request.promoterName || "Unknown Promoter"}</h4>
-                                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
-                                                            <p className="text-xs font-bold text-slate-400 flex items-center gap-1 uppercase tracking-wider">
-                                                                <Mail className="w-3 h-3" />
-                                                                {request.promoterEmail || "No email"}
-                                                            </p>
-                                                            {request.promoterInstagram && (
-                                                                <p className="text-xs font-bold text-pink-500 flex items-center gap-1 uppercase tracking-wider">
-                                                                    <Instagram className="w-3 h-3" />
-                                                                    {request.promoterInstagram.startsWith('@') ? request.promoterInstagram : `@${request.promoterInstagram}`}
-                                                                </p>
-                                                            )}
-                                                            {request.promoterPhone && (
-                                                                <p className="text-xs font-bold text-slate-400 flex items-center gap-1 uppercase tracking-wider">
-                                                                    <PhoneCall className="w-3 h-3" />
-                                                                    {request.promoterPhone}
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                        <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-2 flex items-center gap-1">
-                                                            <Clock className="w-3 h-3" />
-                                                            Requested {formatDate(request.createdAt)}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                {/* Bio & Message */}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Promoter Biography</p>
-                                                        <p className="text-xs font-bold text-slate-600 italic leading-relaxed">
-                                                            "{request.promoterBio || "No biography provided."}"
-                                                        </p>
-                                                    </div>
-                                                    {request.message && (
-                                                        <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-100/50">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-2">Personal Message</p>
-                                                            <p className="text-xs font-bold text-amber-600 leading-relaxed">
-                                                                "{request.message}"
-                                                            </p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex flex-col gap-3 min-w-[140px]">
-                                                <button
-                                                    onClick={() => handlePromoterAction(request.id, 'approve')}
-                                                    disabled={processingRequest === request.id}
-                                                    className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
-                                                >
-                                                    {processingRequest === request.id ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                                                    ) : (
-                                                        "Confirm Partner"
-                                                    )}
-                                                </button>
-                                                <button
-                                                    onClick={() => handlePromoterAction(request.id, 'reject')}
-                                                    disabled={processingRequest === request.id}
-                                                    className="w-full py-4 bg-white border border-slate-200 text-slate-400 rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-slate-50 transition-all disabled:opacity-50"
-                                                >
-                                                    {processingRequest === request.id ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                                                    ) : (
-                                                        "Decline"
-                                                    )}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Approved Promoter Connections */}
-                    <div>
-                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                            Connected Promoters ({approvedPromoterConnections.length})
-                        </h3>
-
-                        {approvedPromoterConnections.length === 0 ? (
-                            <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-8 text-center">
-                                <p className="text-slate-400 text-sm">No connected promoters yet.</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {approvedPromoterConnections.map(connection => (
-                                    <div key={connection.id} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm">
-                                                {connection.promoterName?.[0] || "P"}
-                                            </div>
-                                            <div>
-                                                <h4 className="font-semibold text-slate-900 text-sm">{connection.promoterName}</h4>
-                                                <p className="text-[10px] text-slate-400">{connection.promoterEmail}</p>
-                                            </div>
-                                        </div>
-                                        <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-bold uppercase">
-                                            Active
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Discover Tab */}
-            {activeTab === 'discover' && (
-                <DiscoverView clubId={clubId} profile={profile} />
-            )}
-        </div>
-    );
-}
-
-function DiscoverView({ clubId, profile }: { clubId: string | undefined, profile: any }) {
-    const [partners, setPartners] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [filterType, setFilterType] = useState<string>("all");
-    const [sendingRequest, setSendingRequest] = useState<string | null>(null);
-
-    const fetchPartners = useCallback(async () => {
-        if (!clubId) return;
-        setLoading(true);
-        try {
-            const params = new URLSearchParams({
-                promoterId: clubId,
-                action: "discover",
-                limit: "30"
-            });
-            if (filterType !== "all") params.set("type", filterType);
-            if (searchQuery) params.set("search", searchQuery);
-
-            const res = await fetch(`/api/promoter/connections?${params}`);
-            const data = await res.json();
-            setPartners(data.partners || []);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    }, [clubId, filterType, searchQuery]);
-
-    useEffect(() => {
-        fetchPartners();
-    }, [fetchPartners]);
-
-    const handleRequest = async (partner: any) => {
-        if (!clubId) return;
-        setSendingRequest(partner.id);
-        try {
-            await fetch('/api/promoter/connections', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    promoterId: clubId,
-                    promoterName: profile?.activeMembership?.partnerName || profile?.displayName,
-                    targetId: partner.id,
-                    targetType: partner.type,
-                    targetName: partner.name
-                })
-            });
-            fetchPartners();
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setSendingRequest(null);
-        }
-    };
-
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search for hosts or promoters..."
-                        className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
+            {/* Content Container */}
+            <div className="min-h-[600px]">
+                {activeTab === 'discover' ? (
+                    <DiscoveryView
+                        allowedTypes={["host", "promoter"]}
+                        partnerId={clubId}
+                        role="club"
                     />
-                </div>
-                <select
-                    value={filterType}
-                    onChange={(e) => setFilterType(e.target.value)}
-                    className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 focus:outline-none cursor-pointer"
-                >
-                    <option value="all">All Partners</option>
-                    <option value="host">Hosts Only</option>
-                    <option value="promoter">Promoters Only</option>
-                    <option value="club">Clubs Only</option>
-                </select>
-            </div>
-
-            {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[1, 2, 3].map(i => <div key={i} className="h-40 bg-slate-50 rounded-2xl animate-pulse" />)}
-                </div>
-            ) : partners.length === 0 ? (
-                <div className="py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center">
-                    <Users className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                    <p className="text-slate-500 font-medium">No partners found</p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {partners.map(partner => (
-                        <div key={partner.id} className="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all flex flex-col">
-                            <div className="flex items-start justify-between mb-4">
-                                <div className={`px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${partner.type === 'host' ? 'bg-purple-50 text-purple-600' : partner.type === 'club' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'
-                                    }`}>
-                                    {partner.type}
-                                </div>
-                                {partner.isVerified && <CheckCircle2 className="w-4 h-4 text-indigo-500" />}
-                            </div>
-                            <h4 className="font-bold text-slate-900 mb-1">{partner.name}</h4>
-                            <p className="text-xs text-slate-500 line-clamp-2 mb-4">{partner.bio || "Verified partner in the Circle network."}</p>
-                            <div className="mt-auto flex items-center justify-between pt-4 border-t border-slate-50">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                                    <MapPin className="w-3 h-3" /> {partner.city}
+                ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                        {/* Requests Column */}
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between px-2">
+                                <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-slate-400" />
+                                    {activeTab === 'promoters' ? 'Promoter Requests' : 'Host Requests'}
+                                </h3>
+                                <span className="text-[12px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md">
+                                    {activeTab === 'promoters' ? pendingPromoterRequests.length : pendingHostRequests.length} Incoming
                                 </span>
-                                {partner.connectionStatus === 'approved' ? (
-                                    <span className="text-[10px] font-bold text-emerald-600 uppercase">Connected</span>
-                                ) : partner.connectionStatus === 'pending' ? (
-                                    <span className="text-[10px] font-bold text-amber-600 uppercase flex items-center gap-1"><Clock className="w-3 h-3" /> Pending</span>
-                                ) : (
-                                    <button
-                                        onClick={() => handleRequest(partner)}
-                                        disabled={!!sendingRequest}
-                                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 uppercase flex items-center gap-1 group"
+                            </div>
+
+                            <AnimatePresence mode="popLayout">
+                                {loading ? (
+                                    <div className="p-20 flex justify-center"><Loader2 className="w-8 h-8 text-slate-200 animate-spin" /></div>
+                                ) : (activeTab === 'promoters' ? pendingPromoterRequests : pendingHostRequests).length === 0 ? (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className="py-16 bg-white/50 rounded-[2.5rem] border border-dashed border-slate-200 flex flex-col items-center text-center px-10"
                                     >
-                                        Connect <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
-                                    </button>
-                                )}
+                                        <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mb-4">
+                                            <Clock className="w-6 h-6 text-slate-200" />
+                                        </div>
+                                        <h4 className="text-lg font-semibold text-slate-900">Quiet for now</h4>
+                                        <p className="text-slate-500 text-sm font-medium mt-1">Pending connection requests will appear here.</p>
+                                    </motion.div>
+                                ) : (activeTab === 'promoters' ? pendingPromoterRequests : pendingHostRequests).map((request: any) => (
+                                    <motion.div
+                                        key={request.id}
+                                        layout
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, scale: 0.95 }}
+                                        className="group bg-white border border-slate-200/60 rounded-[2rem] p-6 pr-4 hover:border-slate-300 hover:shadow-sm transition-all"
+                                    >
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="flex items-start gap-4">
+                                                <div className="h-14 w-14 rounded-2xl bg-slate-100 flex items-center justify-center text-xl font-bold text-slate-400 shrink-0">
+                                                    {(activeTab === 'promoters' ? (request.promoterName?.[0] || 'P') : (request.hostName?.[0] || 'H'))}
+                                                </div>
+                                                <div className="pt-0.5">
+                                                    <h4 className="text-lg font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                                                        {activeTab === 'promoters' ? request.promoterName : request.hostName}
+                                                    </h4>
+                                                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                                                        <span className="text-[12px] font-medium text-slate-400 flex items-center gap-1.5">
+                                                            <Clock className="w-3.5 h-3.5" /> {formatDate(request.createdAt)}
+                                                        </span>
+                                                        {(activeTab === 'promoters' ? request.promoterEmail : request.hostEmail) && (
+                                                            <span className="text-[12px] font-medium text-slate-400 flex items-center gap-1.5">
+                                                                <Mail className="w-3.5 h-3.5" /> {activeTab === 'promoters' ? request.promoterEmail : request.hostEmail}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-2 p-1">
+                                                <button
+                                                    onClick={() => handleAction(request.id, 'approve', activeTab === 'promoters' ? 'promoter' : 'host')}
+                                                    disabled={!!processingRequest}
+                                                    className="h-10 px-4 rounded-xl bg-slate-900 text-white text-[13px] font-bold hover:bg-black transition-all active:scale-95 disabled:opacity-50"
+                                                >
+                                                    {processingRequest === request.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Approve'}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleAction(request.id, 'reject', activeTab === 'promoters' ? 'promoter' : 'host')}
+                                                    disabled={!!processingRequest}
+                                                    className="h-10 w-10 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all active:scale-95 disabled:opacity-50"
+                                                >
+                                                    <X className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {request.message && (
+                                            <div className="mt-5 p-4 bg-slate-50 rounded-2xl border border-slate-100/50">
+                                                <p className="text-[13px] text-slate-600 font-medium leading-relaxed italic">"{request.message}"</p>
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                ))
+                                }
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Approved Column */}
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between px-2">
+                                <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                    {activeTab === 'promoters' ? 'Partnered Promoters' : 'Verified Hosts'}
+                                </h3>
+                                <span className="text-[12px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">
+                                    {activeTab === 'promoters' ? approvedPromoterConnections.length : approvedHostPartnerships.length} Active
+                                </span>
+                            </div>
+
+                            <div className="space-y-3">
+                                {(activeTab === 'promoters' ? approvedPromoterConnections : approvedHostPartnerships).length === 0 ? (
+                                    <div className="py-16 bg-slate-50/50 rounded-[2.5rem] border border-dashed border-slate-200 flex flex-col items-center text-center px-10">
+                                        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center mb-4 border border-slate-100">
+                                            <CheckCircle2 className="w-6 h-6 text-slate-100" />
+                                        </div>
+                                        <h4 className="text-lg font-semibold text-slate-900">No active network</h4>
+                                        <p className="text-slate-500 text-sm font-medium mt-1">Once approved, partners will appear here.</p>
+                                    </div>
+                                ) : (activeTab === 'promoters' ? approvedPromoterConnections : approvedHostPartnerships).map((conn: any) => (
+                                    <motion.div
+                                        key={conn.id}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className="bg-white border border-slate-200/60 rounded-[2rem] p-5 flex items-center justify-between hover:border-slate-300 hover:shadow-sm transition-all group"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-12 w-12 rounded-2xl bg-slate-50 flex items-center justify-center text-lg font-bold text-slate-300">
+                                                {(activeTab === 'promoters' ? (conn.promoterName?.[0] || 'P') : (conn.hostName?.[0] || 'H'))}
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                                                    {activeTab === 'promoters' ? conn.promoterName : conn.hostName}
+                                                </h4>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="text-[11px] font-medium text-slate-400">Since {formatDate(conn.updatedAt || conn.createdAt)}</span>
+                                                    <span className="h-1 w-1 rounded-full bg-emerald-400" />
+                                                    <span className="text-[11px] font-bold text-emerald-500">Active</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button className="h-10 w-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-900 transition-all active:scale-95">
+                                            <ChevronRight className="w-5 h-5" />
+                                        </button>
+                                    </motion.div>
+                                ))
+                                }
                             </div>
                         </div>
-                    ))}
-                </div>
-            )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
