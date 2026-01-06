@@ -36,7 +36,7 @@ interface Partner {
     eventsCount: number;
     followersCount: number;
     isVerified: boolean;
-    connectionStatus: "pending" | "approved" | "rejected" | null;
+    connectionStatus: "pending" | "approved" | "rejected" | "blocked" | null;
     connectionId: string | null;
 }
 
@@ -254,7 +254,7 @@ function PartnerCard({ partner, onAction, isActionLoading }: { partner: Partner,
                         {partner.city}
                     </div>
                     <div className={`px-3.5 py-1.5 backdrop-blur-md rounded-full text-[11px] font-bold tracking-tight text-white flex items-center gap-1.5 border border-white/20 shadow-sm ${partner.type === 'host' ? 'bg-purple-500/80' :
-                            partner.type === 'club' ? 'bg-blue-500/80' : 'bg-emerald-500/80'
+                        partner.type === 'club' ? 'bg-blue-500/80' : 'bg-emerald-500/80'
                         }`}>
                         {partner.type === 'host' ? <UserCircle className="w-3.5 h-3.5" /> : partner.type === 'club' ? <Building2 className="w-3.5 h-3.5" /> : <Users className="w-3.5 h-3.5" />}
                         {partner.type.charAt(0).toUpperCase() + partner.type.slice(1)}
@@ -302,6 +302,10 @@ function PartnerCard({ partner, onAction, isActionLoading }: { partner: Partner,
                     ) : partner.connectionStatus === 'rejected' ? (
                         <div className="w-full py-4 bg-slate-50 text-slate-500 rounded-2xl text-[13px] font-bold tracking-tight flex items-center justify-center gap-2 border border-slate-200">
                             <XCircle className="w-4 h-4" /> Not Interested
+                        </div>
+                    ) : partner.connectionStatus === 'blocked' ? (
+                        <div className="w-full py-4 bg-red-50 text-red-600 rounded-2xl text-[13px] font-bold tracking-tight flex items-center justify-center gap-2 border border-red-100/50">
+                            <ShieldCheck className="w-4 h-4" /> Blocked
                         </div>
                     ) : (
                         <button

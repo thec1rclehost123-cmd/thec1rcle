@@ -402,25 +402,7 @@ function TicketTierCard({
                                 </p>
                             </div>
 
-                            {/* Order Limits - Not shown for RSVP as it's forced to 1 */}
-                            {!isRSVP && (
-                                <div className="grid grid-cols-2 gap-3">
-                                    <AppleInput
-                                        label="Min Per Order"
-                                        type="number"
-                                        value={tier.minPerOrder}
-                                        onChange={(e: any) => onUpdate({ minPerOrder: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
-                                        min="1"
-                                    />
-                                    <AppleInput
-                                        label="Max Per Order"
-                                        type="number"
-                                        value={tier.maxPerOrder}
-                                        onChange={(e: any) => onUpdate({ maxPerOrder: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
-                                        min="1"
-                                    />
-                                </div>
-                            )}
+                            {/* Order Limits Removed from per-tier - Centralized now */}
 
                             {/* Promoter Settings - Only show if global promoters enabled */}
                             {promotersEnabled && (
@@ -640,7 +622,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
             price: 0,
             quantity: 50,
             minPerOrder: 1,
-            maxPerOrder: formData.isRSVP ? 1 : 10,
+            maxPerOrder: 10,
             promoterEnabled: true,
             promoterCommissionType: formData.isRSVP ? "amount" : "percent",
             promoterCommission: formData.isRSVP ? 0 : 15
@@ -672,16 +654,17 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                             if (newIsRSVP) {
                                 // If switching to RSVP, disable pricing features
                                 updates.scheduledPricingEnabled = false;
-                                // Force all existing tickets to 0 price and 1/1 limits
+                                // Force all existing tickets to 0 price
                                 updates.tickets = (formData.tickets || []).map((t: any) => ({
                                     ...t,
                                     price: 0,
-                                    minPerOrder: 1,
-                                    maxPerOrder: 1,
                                     // Set default RSVP commission to fixed 0
                                     promoterCommissionType: "amount",
                                     promoterCommission: t.promoterCommission ?? 0
                                 }));
+                                // Ensure 1/1 limits for RSVP
+                                updates.minTicketsPerOrder = 1;
+                                updates.maxTicketsPerOrder = 1;
                                 // Ensure amount-based default for global setting too
                                 updates.commissionType = "amount";
                                 // Disable buyer discounts as price is 0
@@ -1172,6 +1155,42 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                         )}
                     </div>
 
+                    {/* Centralized Order Limits */}
+                    {!formData.isRSVP && (
+                        <div className="p-5 rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white shadow-sm space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-black/5 flex items-center justify-center text-black/40">
+                                    <Users className="w-5 h-5" />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-[15px] font-semibold text-[#1d1d1f]">Booking Limits</p>
+                                    <p className="text-[12px] text-[#86868b]">Set min/max tickets allowed per account for this event</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 pt-2">
+                                <AppleInput
+                                    label="Min Per Order"
+                                    type="number"
+                                    value={formData.minTicketsPerOrder || 1}
+                                    onChange={(e: any) => updateFormData({ minTicketsPerOrder: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
+                                    min="1"
+                                />
+                                <AppleInput
+                                    label="Max Per Account"
+                                    type="number"
+                                    value={formData.maxTicketsPerOrder || 10}
+                                    onChange={(e: any) => updateFormData({ maxTicketsPerOrder: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
+                                    min="1"
+                                />
+                            </div>
+                            <p className="text-[11px] text-[#86868b] bg-[#f5f5f7] p-3 rounded-lg flex items-start gap-2">
+                                <span>💡</span>
+                                <span>These limits apply per user/account across the entire event. <strong>Couple tickets</strong> count as 1 unit towards these limits.</span>
+                            </p>
+                        </div>
+                    )}
+
                     {/* Capacity Overview */}
                     < div className="p-5 rounded-2xl bg-[#f5f5f7]" >
                         <div className="flex items-center justify-between mb-4">
@@ -1311,12 +1330,14 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                         const newTickets = preset.tiers.map((t, i) => ({
                                             id: `preset-${Date.now()}-${i}`,
                                             ...t,
-                                            minPerOrder: 1,
-                                            maxPerOrder: t.entryType === "table" ? 1 : 10,
                                             promoterEnabled: true,
                                             promoterCommissionType: "percent"
                                         }));
-                                        updateFormData({ tickets: newTickets });
+                                        updateFormData({
+                                            tickets: newTickets,
+                                            minTicketsPerOrder: 1,
+                                            maxTicketsPerOrder: 10
+                                        });
                                     }}
                                     className="px-4 py-2 rounded-full border border-[rgba(0,0,0,0.06)] text-[13px] font-medium text-[#1d1d1f] hover:border-[#007aff] hover:text-[#007aff] transition-colors"
                                 >

@@ -24,7 +24,19 @@ const menuSections = [
     {
         items: [
             { icon: LayoutDashboard, label: "Overview", href: "/club" },
-            { icon: BarChart3, label: "Analytics", href: "/club/analytics" },
+            {
+                icon: BarChart3,
+                label: "Analytics",
+                href: "/club/analytics",
+                children: [
+                    { label: "Overview", href: "/club/analytics/overview" },
+                    { label: "Audience & Demographics", href: "/club/analytics/audience" },
+                    { label: "Discovery & Funnel", href: "/club/analytics/funnel" },
+                    { label: "Entry & Safety", href: "/club/analytics/ops" },
+                    { label: "Host & Promoter ROI", href: "/club/analytics/partners" },
+                    { label: "Strategy & Insights", href: "/club/analytics/strategy" },
+                ]
+            },
         ]
     },
     {

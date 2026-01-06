@@ -483,3 +483,137 @@ export async function updateOrderStatus(orderId, status, paymentDetails = {}) {
 
     return { ...order, ...updates };
 }
+/**
+ * Get comprehensive guestlist for an event
+ * Aggregates claimed tickets (identities) and pending slots
+ */
+export async function getEventGuestlist(eventId) {
+    if (!eventId) return [];
+
+    if (!isFirebaseConfigured()) {
+        // Mock fallback logic
+        const orders = [...fallbackOrders, ...fallbackRSVPs].filter(o => o.eventId === eventId);
+        return orders.map(o => ({
+            id: o.id,
+            name: o.userName,
+            email: o.userEmail,
+            ticketName: o.tickets[0]?.name,
+            status: "confirmed",
+            type: o.isRSVP ? "RSVP" : "Paid"
+        }));
+    }
+
+    const db = getAdminDb();
+
+    // 1. Fetch all assignments (Claimed Identities)
+    const assignmentsSnapshot = await db.collection("ticket_assignments")
+        .where("eventId", "==", eventId)
+        .get();
+
+    const claimed = assignmentsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            name: data.userName || "Guest", // Need to join with user profile if missing
+            userId: data.redeemerId,
+            ticketId: data.tierId,
+            orderId: data.orderId,
+            status: data.status === "used" ? "checked_in" : "confirmed",
+            claimedAt: data.claimedAt,
+            gender: data.requiredGender,
+            type: "identity"
+        };
+    });
+
+    // 2. Fetch all share bundles (to find pending slots)
+    const bundlesSnapshot = await db.collection("share_bundles")
+        .where("eventId", "==", eventId)
+        .get();
+
+    const pending = [];
+    bundlesSnapshot.forEach(doc => {
+        const bundle = doc.data();
+        if (bundle.status === "active" || bundle.status === "exhausted") {
+            const unclaimedSlots = (bundle.slots || []).filter(s => s.claimStatus === "unclaimed");
+            unclaimedSlots.forEach(slot => {
+                pending.push({
+                    id: `PENDING-${doc.id}-${slot.slotIndex}`,
+                    name: "Claim Pending",
+                    ticketId: bundle.tierId,
+                    orderId: bundle.orderId,
+                    status: "pending",
+                    gender: slot.requiredGender,
+                    type: "placeholder"
+                });
+            });
+        }
+    });
+
+    // 3. Fetch RSVP orders (Separated collection)
+    const rsvpsSnapshot = await db.collection("rsvp_orders")
+        .where("eventId", "==", eventId)
+        .get();
+
+    const rsvps = rsvpsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            name: data.userName,
+            userId: data.userId,
+            ticketId: data.tickets[0]?.ticketId,
+            orderId: doc.id,
+            status: "confirmed",
+            claimedAt: data.confirmedAt,
+            type: "rsvp"
+        };
+    });
+
+    // 4. Join User Profiles for real names/identities
+    const userIds = [...new Set([
+        ...claimed.map(c => c.userId),
+        ...rsvps.map(r => r.userId)
+    ])].filter(Boolean);
+
+    let profiles = {};
+    if (userIds.length > 0) {
+        // Batch fetch users (max 10 at a time for where-in)
+        for (let i = 0; i < userIds.length; i += 10) {
+            const batch = userIds.slice(i, i + 10);
+            const usersSnapshot = await db.collection("users")
+                .where("__name__", "in", batch)
+                .get();
+            usersSnapshot.forEach(udoc => {
+                profiles[udoc.id] = udoc.data();
+            });
+        }
+    }
+
+    // Enhance claimed tickets with real names
+    const enrichedClaimed = claimed.map(c => ({
+        ...c,
+        name: profiles[c.userId]?.name || c.name,
+        email: profiles[c.userId]?.email,
+        phone: profiles[c.userId]?.phone,
+        avatar: profiles[c.userId]?.avatar
+    }));
+
+    // Enhance RSVPs
+    const enrichedRsvps = rsvps.map(r => ({
+        ...r,
+        name: profiles[r.userId]?.name || r.name,
+        email: profiles[r.userId]?.email,
+        phone: profiles[r.userId]?.phone,
+        avatar: profiles[r.userId]?.avatar
+    }));
+
+    // Combine all
+    const guestlist = [...enrichedClaimed, ...enrichedRsvps, ...pending];
+
+    // Sort by status and then time
+    return guestlist.sort((a, b) => {
+        if (a.status === b.status) return 0;
+        if (a.status === "pending") return 1;
+        if (b.status === "pending") return -1;
+        return 0;
+    });
+}

@@ -192,15 +192,18 @@ export async function getUserTickets(userId) {
 
     const db = getAdminDb();
 
-    // 1. Fetch ALL orders for this user
-    const ordersSnapshot = await db.collection("orders")
-        .where("userId", "==", userId)
-        .get();
+    // 1. Fetch ALL orders (Paid and RSVP) for this user
+    const [ordersSnapshot, rsvpsSnapshot] = await Promise.all([
+        db.collection("orders").where("userId", "==", userId).get(),
+        db.collection("rsvp_orders").where("userId", "==", userId).get()
+    ]);
 
-    const orderDocs = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const orderDocs = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), isRSVP: false }));
+    const rsvpOrderDocs = rsvpsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), isRSVP: true }));
+    const allOrders = [...orderDocs, ...rsvpOrderDocs];
 
-    // 2. Fetch RSVPs from profile
-    const rsvpEventIds = userProfile?.attendedEvents || [];
+    // 2. Event IDs for RSVPs in profile (Legacy support)
+    const profileRsvpEventIds = userProfile?.attendedEvents || [];
 
     // 3. Fetch Claimed Tickets (from other people's shares or transfers)
     const claimedTickets = await getUserClaimedTickets(userId);
@@ -225,8 +228,8 @@ export async function getUserTickets(userId) {
 
     // 6. Collect all event IDs
     const allEventIds = Array.from(new Set([
-        ...orderDocs.map(o => o.eventId),
-        ...rsvpEventIds,
+        ...allOrders.map(o => o.eventId),
+        ...profileRsvpEventIds,
         ...claimedTickets.map(t => t.eventId),
         ...partnerAssignments.map(t => t.eventId),
         ...transfers.map(t => t.eventId)
@@ -248,19 +251,17 @@ export async function getUserTickets(userId) {
 
     // 7. Get share bundles and assignments for skipping/tagging shared tickets
     const shareBundlesMap = {};
-    await Promise.all(orderDocs.map(async (order) => {
+    await Promise.all(allOrders.map(async (order) => {
         const [bundles, assignments] = await Promise.all([
             getOrderShareBundles(order.id),
             getOrderAssignments(order.id)
         ]);
-        const totalShared = bundles.reduce((sum, b) => b.status !== "cancelled" ? sum + b.totalSlots : sum, 0);
-        const totalClaimed = assignments.filter(a => a.bundleId).length; // Only bundle claims
-        shareBundlesMap[order.id] = { totalShared, totalClaimed, bundles, assignments };
+        shareBundlesMap[order.id] = { bundles, assignments };
     }));
 
     // 8. Fetch scans
     const allTicketIdsToCheck = [];
-    orderDocs.forEach(order => {
+    allOrders.forEach(order => {
         order.tickets?.forEach(tg => {
             for (let i = 0; i < tg.quantity; i++) allTicketIdsToCheck.push(`${order.id}-${tg.ticketId}-${i}`);
         });
@@ -276,15 +277,14 @@ export async function getUserTickets(userId) {
         }));
     }
 
-    // 9. Process Orders
-    orderDocs.forEach(order => {
+    // 9. Process All Orders (Unroll identities)
+    allOrders.forEach(order => {
         const event = eventsData[order.eventId];
         if (!event) return;
 
         const eventStart = new Date(event.startDate || event.startAt);
         const isEventPast = eventStart < now;
 
-        // A. Handle Pending Payment
         if (order.status === "pending_payment") {
             actionNeeded.push({
                 type: "order",
@@ -300,7 +300,6 @@ export async function getUserTickets(userId) {
             return;
         }
 
-        // B. Handle Cancelled/Refunded Orders
         if (order.status === "cancelled" || order.status === "refunded") {
             cancelled.push({
                 type: "order",
@@ -315,100 +314,88 @@ export async function getUserTickets(userId) {
             return;
         }
 
-        // C. Process Confirmed Tickets
         if (order.status === "confirmed" || order.status === "used") {
-            const { bundles = [], totalClaimed = 0 } = shareBundlesMap[order.id] || {};
+            const { bundles = [], assignments = [] } = shareBundlesMap[order.id] || {};
 
             order.tickets?.forEach(ticketGroup => {
                 const tierId = ticketGroup.ticketId;
-                const isCouple = ticketGroup.name.toLowerCase().includes("couple");
-
-                // Find if there's a bundle for this specific tier
+                const units = ticketGroup.quantity;
                 const bundle = bundles.find(b => b.tierId === tierId);
+                const isCouple = ticketGroup.name.toLowerCase().includes("couple") || !!ticketGroup.isCouple;
 
-                // If we have a bundle, use its slot logic
-                // If not, we treat it as a virtual bundle for now
-                const totalTickets = ticketGroup.quantity;
-                const claimedCount = bundle ? (bundle.totalSlots - bundle.remainingSlots - 1) : 0; // -1 for owner
-                const availableToShare = totalTickets - claimedCount - 1; // -1 for owner
+                // One unit of couple ticket = 2 identities/slots
+                const effectiveQuantity = isCouple ? units * 2 : units;
 
-                const ticketId = `${order.id}-${tierId}-0`; // Slot 1 is always index 0 internally here? 
-                // Wait, let's use a consistent ID format for Slot 1
-                const ownerTicketId = `${order.id}-${tierId}-owner`;
+                // For each identity slot (1-based to match bundle slots)
+                for (let i = 1; i <= effectiveQuantity; i++) {
+                    const slotTicketId = `${order.id}-${tierId}-${i}`;
 
-                // Handle transfers for owner's slot
-                const isTransferPending = pendingSentTicketIds.includes(ownerTicketId) || pendingSentTicketIds.includes(`${order.id}-${tierId}-0`);
+                    // Match assignment by slot index or identity ID
+                    const assignment = assignments.find(a => a.slotIndex === i || a.originalTicketId === slotTicketId);
+                    const bundleSlot = bundle?.slots?.find(s => s.slotIndex === i);
 
-                // Fetch couple assignment for the owner's slot
-                const assignment = ownerAssignmentsMap[ownerTicketId] || ownerAssignmentsMap[`${order.id}-${tierId}-0`];
-
-                // Check if this specific ticket (Slot 1 / Owner Slot) has been transferred OUT
-                // We find an assignment for this ticketId where redeemerId != current user
-                const isTransferredOut = (shareBundlesMap[order.id]?.assignments || []).some(a =>
-                    (a.originalTicketId === ownerTicketId || a.originalTicketId === `${order.id}-${tierId}-0`) &&
-                    a.redeemerId !== userId
-                );
-
-                if (isTransferredOut) return;
-
-                const tier = event.tickets?.find(t => t.id === tierId);
-                const requiredGender = tier?.requiredGender || (isCouple ? "male" : (tier?.genderRequirement || "any"));
-                const genderMismatch = (requiredGender !== "any" && requiredGender !== userGender);
-
-                const ticket = {
-                    ticketId: ownerTicketId,
-                    orderId: order.id,
-                    eventId: event.id,
-                    tierId,
-                    eventTitle: event.title,
-                    eventStartAt: event.startDate || event.startAt,
-                    venueName: event.venue || event.location,
-                    city: event.city,
-                    posterUrl: event.image,
-                    ticketType: ticketGroup.name,
-                    status: "active",
-                    isCouple,
-                    requiredGender,
-                    genderMismatch,
-                    isTransferPending,
-                    isBundle: totalTickets > 1,
-                    totalSlots: totalTickets,
-                    heldSlots: 1,
-                    shareableSlots: totalTickets - 1,
-                    claimedSlots: claimedCount,
-                    remainingToShare: availableToShare,
-                    bundleId: bundle?.id,
-                    mode: bundle?.mode || "individual",
-                    scansRemaining: bundle?.scanCreditsRemaining ?? totalTickets,
-                    shareToken: bundle?.token,
-                    coupleAssignment: isCouple ? (assignment || { status: 'unassigned', ownerId: userId }) : null,
-                    orderType: order.totalAmount === 0 ? "₹0 Checkout" : "Paid"
-                };
-
-                const scan = scansMap[`${order.id}-${tierId}-0`] || scansMap[ownerTicketId];
-                if (scan || order.status === "used") {
-                    ticket.status = "used";
-                    ticket.scannedAt = scan?.scannedAt || order.updatedAt;
-                    past.push(ticket);
-                } else if (isEventPast) {
-                    ticket.status = "used";
-                    past.push(ticket);
-                } else {
-                    // Secret for QR (Owner's QR)
-                    const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
-                    const signature = createHmac("sha256", secret).update(ownerTicketId).digest("hex").slice(0, 16);
-
-                    // CRITICAL: Only provide QR if gender matches
-                    const canViewQR = !isTransferPending && !genderMismatch;
-
-                    if (bundle?.mode === "shared_qr") {
-                        ticket.qrPayload = canViewQR ? bundle.groupQrPayload : null;
-                        ticket.isSharedQr = true;
-                    } else {
-                        ticket.qrPayload = canViewQR ? `${ownerTicketId}:${signature}` : null;
+                    // If claimed by someone else, we only show it to the order owner
+                    if (assignment && assignment.redeemerId !== userId && order.userId !== userId) {
+                        continue;
                     }
 
-                    upcoming.push(ticket);
+                    const isTransferPending = pendingSentTicketIds.includes(slotTicketId);
+                    const tier = event.tickets?.find(t => t.id === tierId);
+
+                    // Priority: Bundle Slot Gender > Tier Gender > Couple Parity
+                    let requiredGender = bundleSlot?.requiredGender || tier?.requiredGender;
+                    if (!requiredGender || requiredGender === "any") {
+                        if (isCouple) {
+                            // If buyer is male (usual case for owner slot 1), slot 2 is female
+                            // We assume slot 1 is buyer's gender parity
+                            requiredGender = (i % 2 === 1) ? (bundleSlot?.requiredGender || "any") : "female";
+                        } else {
+                            requiredGender = "any";
+                        }
+                    }
+
+                    const genderMismatch = (requiredGender !== "any" && requiredGender !== userGender);
+
+                    const ticket = {
+                        ticketId: slotTicketId,
+                        orderId: order.id,
+                        eventId: event.id,
+                        tierId,
+                        eventTitle: event.title,
+                        eventStartAt: event.startDate || event.startAt,
+                        venueName: event.venue || event.location,
+                        city: event.city,
+                        posterUrl: event.image,
+                        ticketType: ticketGroup.name,
+                        status: "active",
+                        isCouple,
+                        requiredGender,
+                        genderMismatch,
+                        isTransferPending,
+                        isBundle: effectiveQuantity > 1,
+                        slotIndex: i,
+                        bundleId: bundle?.id,
+                        shareToken: bundle?.token,
+                        assignment: assignment || null,
+                        isClaimedByOther: assignment && assignment.redeemerId !== userId,
+                        isClaimed: (assignment && assignment.redeemerId === userId) || (bundleSlot?.slotType === "owner_locked" && bundleSlot?.claimStatus === "claimed"),
+                        orderType: order.isRSVP ? "RSVP" : (order.totalAmount === 0 ? "₹0 Checkout" : "Paid")
+                    };
+
+                    const scan = scansMap[slotTicketId];
+                    if (scan || order.status === "used" || isEventPast) {
+                        ticket.status = "used";
+                        ticket.scannedAt = scan?.scannedAt || order.updatedAt;
+                        past.push(ticket);
+                    } else {
+                        const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
+                        const signature = createHmac("sha256", secret).update(slotTicketId).digest("hex").slice(0, 16);
+
+                        const canViewQR = !isTransferPending && !genderMismatch;
+                        ticket.qrPayload = canViewQR ? `${slotTicketId}:${signature}` : null;
+
+                        upcoming.push(ticket);
+                    }
                 }
             });
         }
@@ -434,7 +421,7 @@ export async function getUserTickets(userId) {
             venueName: event.venue || event.location,
             city: event.city,
             posterUrl: event.image,
-            ticketType: claim.isSharedQr ? "Shared Group Pass" : (claim.originalTicketId ? "Transferred Pass" : "Shared Pass"),
+            ticketType: claim.isRSVP ? "RSVP" : (claim.isSharedQr ? "Shared Group Pass" : (claim.originalTicketId ? "Transferred Pass" : "Shared Pass")),
             status: claim.status === "used" || isEventPast ? "used" : "active",
             isClaimed: true,
             isSharedQr: claim.isSharedQr,
@@ -442,7 +429,7 @@ export async function getUserTickets(userId) {
             genderMismatch,
             couplePairId: claim.couplePairId || null,
             qrPayload: (genderMismatch || claim.status === "used" || isEventPast) ? null : claim.qrPayload,
-            orderType: "Paid"
+            orderType: claim.isRSVP ? "RSVP" : "Paid"
         };
 
         if (ticket.status === "active") {
@@ -489,9 +476,8 @@ export async function getUserTickets(userId) {
         else past.push(ticket);
     });
 
-    // 12. Process RSVPs
-    rsvpEventIds.forEach(eventId => {
-        // Skip if they have a real ticket for the same event
+    // 12. Process Legacy RSVPs (Only if not already processed as identities)
+    profileRsvpEventIds.forEach(eventId => {
         if (upcoming.some(t => t.eventId === eventId) || past.some(t => t.eventId === eventId)) return;
 
         const event = eventsData[eventId];

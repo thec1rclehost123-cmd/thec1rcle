@@ -151,7 +151,6 @@ const formatTickets = (tickets, fallbackName, fallbackPrice, startDate) => {
       salesEnd: ticket.salesEnd || "",
       minPerOrder: Number(ticket.minPerOrder) || 1,
       maxPerOrder: Number(ticket.maxPerOrder) || Math.max(quantity, 1),
-      maxPerOrder: Number(ticket.maxPerOrder) || Math.max(quantity, 1),
       rsvpOnly: Boolean(ticket.rsvpOnly),
       // Gender Entry Enforcement
       genderRequirement: ticket.genderRequirement || "any", // any, male, female, couple
@@ -302,6 +301,7 @@ const buildEvent = (payload = {}) => {
     location: payload.location?.trim() || "",
     venue: payload.venue?.trim() || "",
     venueId: payload.venueId || "",
+    promoterVisibility: payload.promotersEnabled ?? payload.promoterSettings?.enabled ?? true, // Top-level for indexing
     city: cityLabel, // Canonical label
     cityKey, // Canonical key
     country: payload.country?.trim() || "India",
@@ -321,6 +321,7 @@ const buildEvent = (payload = {}) => {
     gallery: gallery.length ? gallery : [poster],
     tickets,
     tables: Array.isArray(payload.tables) ? payload.tables : [],
+    promoCodes: Array.isArray(payload.promoCodes) ? payload.promoCodes : [],
     priceRange,
     isRSVP: !!payload.isRSVP,
     // Global Promotion Toggles
@@ -396,25 +397,7 @@ const createFallbackEvent = (payload) => {
 };
 
 const mapEventDocument = (doc) => {
-  const data = doc.data();
-  // Fix: Security: Clean sensitive data (Issue #1 Security: Critical Data Leak)
-  const safeSettings = data.settings ? { ...data.settings } : {};
-  if (safeSettings.passwordCode) delete safeSettings.passwordCode;
-
-  // Resolve image from multiple possible field names
-  const resolvedImage = data.image || data.poster || data.flyer ||
-    (Array.isArray(data.images) && data.images.length > 0 ? data.images[0] : null) ||
-    (Array.isArray(data.gallery) && data.gallery.length > 0 ? data.gallery[0] : null) ||
-    "/events/holi-edit.svg";
-
-  return {
-    id: doc.id,
-    ...data,
-    image: resolvedImage,
-    settings: safeSettings,
-    createdAt: toIsoDate(data.createdAt),
-    updatedAt: toIsoDate(data.updatedAt)
-  };
+  return mapEventForClient(doc.data(), doc.id);
 };
 
 const seedEventPayload = (seed, index) => {
@@ -456,7 +439,7 @@ const ensureSeedEvents = async () => {
   await batch.commit();
 };
 
-export async function listEvents({ city, limit = 12, sort = "heat", search, host } = {}) {
+export async function listEvents({ city, limit = 12, sort = "heat", search, host, venueId, creatorId, lifecycle, creatorRole } = {}) {
   // Fix: Hardcoded "Toy Mode" check
   if (isToyMode()) {
     console.warn("Listing events from Toy Mode memory.");
@@ -476,10 +459,30 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
     query = query.where("host", "==", host);
   }
 
+  if (creatorId) {
+    query = query.where("creatorId", "==", creatorId);
+  }
+
   // Apply City Filter using cityKey
   if (city) {
     const cityKey = normalizeCity(city);
     query = query.where("cityKey", "==", cityKey);
+  }
+
+  if (venueId) {
+    query = query.where("venueId", "==", venueId);
+  }
+
+  if (lifecycle) {
+    if (Array.isArray(lifecycle)) {
+      query = query.where("lifecycle", "in", lifecycle);
+    } else {
+      query = query.where("lifecycle", "==", lifecycle);
+    }
+  }
+
+  if (creatorRole) {
+    query = query.where("creatorRole", "==", creatorRole);
   }
 
   // Apply search filter
@@ -530,6 +533,9 @@ export async function createEvent(payload) {
 
   await db.collection(EVENT_COLLECTION).doc(event.id).set(event);
 
+  // Sync promo codes to dedicated collection
+  await syncPromoCodes(event.id, event.promoCodes, { uid: event.creatorId, role: event.creatorRole });
+
   // Log the creation
   await logEventLifecycleAction(event.id, "created", { role: event.creatorRole, uid: event.creatorId });
 
@@ -547,13 +553,47 @@ export async function updateEvent(eventId, payload) {
   if (!doc.exists) throw new Error("Event not found");
 
   const existingData = doc.data();
+
+  // Enforce locking: Host cannot edit if submitted
+  if (existingData.creatorRole === "host" && existingData.lifecycle === "submitted" && payload.creatorRole !== "club" && payload.creatorRole !== "admin") {
+    throw new Error("Event is locked for club review. Cannot edit while submitted.");
+  }
+
   const event = buildEvent({ ...existingData, ...payload, id: eventId });
 
   await eventRef.set(event);
+
+  // Sync promo codes to dedicated collection
+  await syncPromoCodes(eventId, event.promoCodes, { uid: payload.creatorId || event.creatorId, role: payload.creatorRole || event.creatorRole });
+
   await logEventLifecycleAction(eventId, "updated", { role: payload.creatorRole || "system", uid: payload.creatorId || "system" });
 
   return event;
 }
+
+/**
+ * Sync promo codes from event to dedicated collections
+ */
+async function syncPromoCodes(eventId, promoCodes, context) {
+  if (!Array.isArray(promoCodes) || !promoCodes.length) return;
+
+  try {
+    const { upsertPromoCode } = await import("@c1rcle/core/promo-service");
+
+    for (const codeData of promoCodes) {
+      if (!codeData.code) continue;
+
+      await upsertPromoCode(eventId, codeData, {
+        uid: context?.uid || "system",
+        name: context?.name || "System",
+        role: context?.role || "admin"
+      });
+    }
+  } catch (err) {
+    console.error("Failed to sync promo codes:", err);
+  }
+}
+
 async function logEventLifecycleAction(eventId, action, context) {
   if (!isFirebaseConfigured()) return;
   const db = getAdminDb();
@@ -582,6 +622,7 @@ export async function updateEventLifecycle(eventId, newStatus, context, notes = 
 
   // Role-based validation
   if (context.role === "host") {
+    // Hosts can only submit or move back to draft
     const allowedTransitions = ["submitted", "draft"];
     if (!allowedTransitions.includes(newStatus)) {
       throw new Error(`Hosts cannot move event to ${newStatus}`);
@@ -589,10 +630,30 @@ export async function updateEventLifecycle(eventId, newStatus, context, notes = 
     if (event.creatorId !== context.uid) {
       throw new Error("Host does not own this event.");
     }
+    // Prevent edits if already submitted
+    if (event.lifecycle === "submitted" && newStatus === "submitted") {
+      return { success: true, alreadySubmitted: true };
+    }
   }
 
-  // Handle Publish Action
+  // Club-specific rules: Club events never need approval
+  if (event.creatorRole === "club") {
+    if (newStatus === "submitted" || newStatus === "approved" || newStatus === "denied") {
+      // If a club event is "approved" or "submitted", it just goes to scheduled/live
+      console.log(`[Lifecycle] Club event ${eventId} bypassing approval state. Moving to publish pipeline.`);
+      return await publishEvent(eventId, context);
+    }
+  }
+
+  // Handle Publish/Approval Action (Club/Admin only)
   if (newStatus === "scheduled" || newStatus === "approved") {
+    if (context.role !== "club" && context.role !== "admin") {
+      throw new Error("Only clubs or admins can approve/publish events.");
+    }
+    // Hard fail if trying to approve a club event using host-style approval
+    if (event.creatorRole === "club" && newStatus === "approved") {
+      return await publishEvent(eventId, context);
+    }
     return await publishEvent(eventId, context);
   }
 
@@ -601,12 +662,54 @@ export async function updateEventLifecycle(eventId, newStatus, context, notes = 
     updatedAt: new Date().toISOString(),
   };
 
-  if (newStatus === "needs_changes") updateData.rejectionReason = notes;
+  if (newStatus === "needs_changes" || newStatus === "denied") {
+    updateData.rejectionReason = notes;
+    if (newStatus === "needs_changes") updateData.lifecycle = "denied"; // Standardize lifecycle
+  }
+
+  if (newStatus === "submitted") {
+    updateData.submittedAt = new Date().toISOString();
+
+    // Ensure host events have a slot request on submission
+    if (event.creatorRole === "host" && event.venueId && !event.slotRequest) {
+      try {
+        const { createSlotRequest } = await import("./slotStore");
+        const slot = await createSlotRequest({
+          eventId: eventId,
+          hostId: event.creatorId,
+          hostName: event.host,
+          clubId: event.venueId,
+          clubName: event.venue,
+          requestedDate: event.startDate,
+          requestedStartTime: event.startTime,
+          requestedEndTime: event.endTime,
+          notes: `Auto-generated on submission of event: ${event.title}`
+        });
+        updateData.slotRequest = { id: slot.id, status: slot.status };
+      } catch (e) {
+        console.error("Failed to create slot request during submission:", e);
+      }
+    }
+  }
+
   if (newStatus === "cancelled") {
     updateData.status = "past";
     if (updateData.publicSnapshot) {
       updateData.publicSnapshot.isActive = false;
       updateData.publicSnapshot.statusLabel = "Cancelled";
+    }
+
+    // Release calendar slot if it exists
+    if (event.venueId && event.startDate) {
+      try {
+        const { releaseCalendarSlot } = await import("./slotStore");
+        const slotId = event.slotRequest?.id || event.slotRequestId;
+        if (slotId) {
+          await releaseCalendarSlot(event.venueId, event.startDate, slotId);
+        }
+      } catch (e) {
+        console.error("Failed to release calendar slot during cancellation:", e);
+      }
     }
   }
 
@@ -645,14 +748,30 @@ export async function publishEvent(eventId, context) {
       if (eventData.creatorId !== context.uid) {
         throw new Error("Unauthorized: You do not own this event.");
       }
-      // Hosts can't publish directly to public if a slot is required
-      // But they can 'submit' for approval.
-      if (eventData.venueId && eventData.lifecycle === EVENT_LIFECYCLE.DRAFT) {
-        console.log(`[PublishPipeline][${requestId}] Host submitting event for venue approval.`);
-        return await updateEventLifecycle(eventId, EVENT_LIFECYCLE.SUBMITTED, context);
+
+      // Verification of Partnership
+      const { checkPartnership } = await import("./partnershipStore");
+      const isPartnered = await checkPartnership(eventData.creatorId, eventData.venueId);
+      if (!isPartnered) {
+        throw new Error("No active partnership with this club. Cannot publish event.");
+      }
+
+      // Hosts can't publish directly to public if it's for a venue
+      if (eventData.venueId && eventData.lifecycle !== EVENT_LIFECYCLE.SUBMITTED) {
+        // Special case: if it was already approved, allow re-publish
+        if (eventData.lifecycle !== EVENT_LIFECYCLE.APPROVED && eventData.lifecycle !== EVENT_LIFECYCLE.SCHEDULED) {
+          console.log(`[PublishPipeline][${requestId}] Host submitting event for venue approval.`);
+          return await updateEventLifecycle(eventId, EVENT_LIFECYCLE.SUBMITTED, context);
+        }
       }
     } else {
       throw new Error("Unauthorized: Only Partners or Admins can publish events.");
+    }
+  } else if (context.role === "club") {
+    // Club publishing a host event is actually an approval
+    if (eventData.creatorRole === "host" && eventData.lifecycle !== EVENT_LIFECYCLE.SUBMITTED) {
+      // if club tries to publish a host draft that wasn't submitted, maybe block it?
+      // For now, allow it if they really want to, but normally it should be submitted.
     }
   }
 
@@ -678,6 +797,84 @@ export async function publishEvent(eventId, context) {
   const poster = resolvePoster(eventData);
   if (poster === "/events/placeholder.svg") {
     console.warn(`[PublishPipeline][${requestId}] Event ${eventId} is publishing with a placeholder poster.`);
+  }
+
+  // 3. Slot Request & Hold Verification (New Hardening)
+  if (eventData.creatorRole === "host" && eventData.venueId) {
+    console.log(`[PublishPipeline][${requestId}] Verifying slot hold for host event...`);
+    const { getSlotRequest } = await import("./slotStore");
+
+    // Find if there's an associated slot request
+    // If not in eventData, we assume it's mandatory unless it's a legacy event
+    let slotRequest = eventData.slotRequest;
+
+    // If we don't have it explicitly, try to find one for this venue/date/host
+    if (!slotRequest) {
+      const slotSnap = await db.collection("slot_requests")
+        .where("hostId", "==", eventData.creatorId)
+        .where("clubId", "==", eventData.venueId)
+        .where("requestedDate", "==", eventData.startDate)
+        .where("status", "==", "approved")
+        .limit(1)
+        .get();
+
+      if (!slotSnap.empty) {
+        slotRequest = { id: slotSnap.docs[0].id, ...slotSnap.docs[0].data() };
+      }
+    } else if (typeof slotRequest === 'string') {
+      slotRequest = await getSlotRequest(slotRequest);
+    }
+
+    if (!slotRequest || slotRequest.status !== 'approved') {
+      // Hardening: If club is approving, we can auto-block the calendar to satisfy the system integrity
+      if (context.role === 'club' || context.role === 'admin') {
+        console.log(`[PublishPipeline][${requestId}] Club overrides missing hold. Checking for pending requests to resolve...`);
+        const { updateCalendarSlot, listSlotRequests, approveSlotRequest } = await import("./slotStore");
+
+        // Try to find a pending one to close the loop
+        const pendings = await listSlotRequests({
+          clubId: eventData.venueId,
+          hostId: eventData.creatorId,
+          status: 'pending'
+        });
+        const match = pendings.find(p => p.requestedDate === eventData.startDate);
+
+        if (match) {
+          console.log(`[PublishPipeline][${requestId}] Found matching pending slot request ${match.id}. Approving it...`);
+          await approveSlotRequest(match.id, context, "Auto-approved via event dashboard", { skipLifecycleUpdate: true });
+          slotRequest = match;
+        } else {
+          console.log(`[PublishPipeline][${requestId}] No pending request found. Creating direct calendar block.`);
+          await updateCalendarSlot(eventData.venueId, eventData.startDate, {
+            status: "booked",
+            eventId: eventId,
+            hostId: eventData.creatorId,
+            startTime: eventData.startTime || "21:00",
+            endTime: eventData.endTime || "03:00"
+          });
+          // Mocking slotRequest for the time-match check below
+          slotRequest = {
+            requestedStartTime: eventData.startTime,
+            requestedEndTime: eventData.endTime,
+            status: 'approved'
+          };
+        }
+      } else {
+        throw new Error("No approved hold found for this venue and date. Please request a slot first.");
+      }
+    }
+
+    // Verify time matches
+    if (slotRequest.requestedStartTime !== eventData.startTime || slotRequest.requestedEndTime !== eventData.endTime) {
+      throw new Error(`Event time (${eventData.startTime}-${eventData.endTime}) must match the approved slot hold (${slotRequest.requestedStartTime}-${slotRequest.requestedEndTime}).`);
+    }
+
+    // Check expiry
+    if (slotRequest.expiresAt && new Date(slotRequest.expiresAt) < new Date()) {
+      throw new Error(`The approved hold for this slot has expired on ${new Date(slotRequest.expiresAt).toLocaleString()}. Please request another slot.`);
+    }
+
+    console.log(`[PublishPipeline][${requestId}] Slot hold verified successfully.`);
   }
 
   if (validationErrors.length > 0) {

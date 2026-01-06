@@ -84,7 +84,23 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     // Handle promo code application
     const handleApplyPromoCode = async (code) => {
         try {
-            const res = await fetch(`/api/checkout/promo?eventId=${event.id}&code=${code}`);
+            const token = user ? await user.getIdToken() : null;
+            const res = await fetch(`/api/checkout/promo`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({
+                    eventId: event.id,
+                    code,
+                    items: selectedTickets.map(t => ({
+                        tierId: t.id,
+                        quantity: t.quantity,
+                        subtotal: t.price * t.quantity
+                    }))
+                })
+            });
             const data = await res.json();
 
             if (res.ok && data.valid) {
@@ -122,7 +138,17 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
         setStep(1);
     };
 
-    const canProceedStep1 = selectedTickets.some(t => t.quantity > 0);
+    const totalSelectedQuantity = useMemo(() => {
+        return selectedTickets.reduce((sum, t) => sum + Number(t.quantity), 0);
+    }, [selectedTickets]);
+
+    const minTickets = event.isRSVP ? 1 : (event.minTicketsPerOrder || 1);
+    const maxTickets = event.isRSVP ? 1 : (event.maxTicketsPerOrder || 10);
+
+    const isBelowMin = totalSelectedQuantity > 0 && totalSelectedQuantity < minTickets;
+    const isAboveMax = totalSelectedQuantity > maxTickets;
+
+    const canProceedStep1 = totalSelectedQuantity >= minTickets && totalSelectedQuantity <= maxTickets;
     const canProceedStep2 = attendeeDetails.name.trim() !== "" && attendeeDetails.email.trim() !== "";
 
     const handleTicketChange = (ticketId, delta) => {
@@ -131,11 +157,15 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             const currentQty = sel ? sel.quantity : 0;
             let newQty = currentQty;
             if (t.id === ticketId) {
+                // If adding, check against max total limit
+                if (delta > 0 && totalSelectedQuantity >= maxTickets) {
+                    return { ...t, quantity: currentQty };
+                }
                 newQty = Math.max(0, currentQty + delta);
                 const available = Number(t.remaining ?? t.quantity ?? 10);
                 if (newQty > available) newQty = available;
             }
-            return { ...t, quantity: newQty };
+            return { ...t, id: t.id, quantity: newQty, price: Number(t.price || 0), name: t.name };
         });
         setSelectedTickets(updated.filter(t => t.quantity > 0));
     };
@@ -337,10 +367,18 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                         );
                                     })}
                                 </div>
-                                <button onClick={() => setStep(2)} disabled={!canProceedStep1} className="w-full h-16 flex items-center justify-center rounded-full bg-white text-black font-black uppercase tracking-[0.3em] transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-30 group shadow-[0_20px_40px_rgba(255,255,255,0.1)]">
-                                    Continue to Details
-                                    <ArrowRight className="ml-3 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                                </button>
+                                <div className="space-y-2">
+                                    {isBelowMin && (
+                                        <p className="text-[10px] text-orange font-bold uppercase tracking-widest text-center">Minimum {minTickets} tickets required</p>
+                                    )}
+                                    {isAboveMax && (
+                                        <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest text-center">Maximum {maxTicketsPerOrder} tickets allowed per account</p>
+                                    )}
+                                    <button onClick={() => setStep(2)} disabled={!canProceedStep1} className="w-full h-16 flex items-center justify-center rounded-full bg-white text-black font-black uppercase tracking-[0.3em] transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-30 group shadow-[0_20px_40px_rgba(255,255,255,0.1)]">
+                                        Continue to Details
+                                        <ArrowRight className="ml-3 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                                    </button>
+                                </div>
                             </motion.div>
                         )}
 

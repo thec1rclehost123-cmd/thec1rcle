@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPromoterStats } from "@/lib/server/promoterLinkStore";
+import { getPromoterAnalytics } from "@/lib/server/analyticsStore";
 
 /**
  * GET /api/promoter/stats
- * Get promoter statistics
+ * Fetches combined stats and timeline for a promoter
  */
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const promoterId = searchParams.get("promoterId");
+        const range = searchParams.get("range") || "30d";
 
         if (!promoterId) {
             return NextResponse.json(
@@ -17,9 +18,9 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        const stats = await getPromoterStats(promoterId);
+        const analytics = await getPromoterAnalytics(promoterId, range);
 
-        return NextResponse.json({ stats });
+        return NextResponse.json({ ...analytics });
     } catch (error: any) {
         console.error("[Promoter Stats API] GET Error:", error);
         return NextResponse.json(

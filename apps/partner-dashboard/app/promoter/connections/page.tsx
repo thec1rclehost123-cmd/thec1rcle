@@ -5,7 +5,7 @@ import {
     Clock,
     CheckCircle2,
     XCircle,
-    Handshake,
+    Users,
     Search,
     RefreshCw,
     Loader2
@@ -79,7 +79,7 @@ export default function PromoterConnectionsPage() {
                 <div>
                     <div className="flex items-center gap-3 mb-2 text-indigo-600">
                         <div className="p-2 bg-indigo-50 rounded-xl">
-                            <Handshake className="w-5 h-5" />
+                            <Users className="w-5 h-5" />
                         </div>
                         <span className="text-[13px] font-bold uppercase tracking-[0.2em]">Partner Network</span>
                     </div>

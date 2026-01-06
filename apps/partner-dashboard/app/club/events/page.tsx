@@ -9,21 +9,25 @@ import {
     Search,
     Filter,
     Plus,
-    MoreHorizontal,
-    Eye,
-    Edit,
-    Pause,
-    Play,
-    Lock,
-    AlertCircle,
-    Loader2,
     CheckCircle2,
+    CheckCircle,
+    XCircle,
+    RotateCcw,
+    Play,
+    Pause,
+    AlertCircle,
+    Edit,
+    Loader2,
+    ArrowRight
 } from "lucide-react";
 import Link from "next/link";
+import { DashboardEventCard } from "@c1rcle/ui";
 import { EventDetailsModal } from "@/components/club-layout/EventDetailsModal";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { collection, query, where, onSnapshot, orderBy, or } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/client";
+import { mapEventForClient } from "@c1rcle/core/events";
+import { parseAsIST } from "@c1rcle/core/time";
 
 interface Event {
     id: string;
@@ -46,6 +50,10 @@ interface Event {
         ticketsSold?: number;
         revenue?: number;
     };
+    eventType: "club" | "host";
+    canApprove: boolean;
+    canEdit: boolean;
+    canRequestEdits: boolean;
 }
 
 const STATUS_BADGES: Record<string, string> = {
@@ -75,7 +83,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function EventsManagementPage() {
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
     const [events, setEvents] = useState<Event[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<string>("all");
@@ -100,32 +108,39 @@ export default function EventsManagementPage() {
         console.log("[Club Events] Setting up listener for clubId:", clubId);
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetchedEvents: Event[] = snapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    title: data.title || data.name || "Untitled Event",
-                    date: data.startDate ? new Date(data.startDate) : new Date(),
-                    startDate: data.startDate,
-                    hostId: data.hostId || data.creatorId,
-                    hostName: data.hostName || data.host || "Unknown Host",
-                    venueId: data.venueId || clubId,
-                    lifecycle: data.lifecycle,
-                    status: data.lifecycle || data.status || "draft",
-                    ticketsSold: data.stats?.ticketsSold || 0,
-                    ticketsTotal: data.capacity || data.tickets?.reduce((sum: number, t: any) => sum + (t.quantity || 0), 0) || 0,
-                    capacity: data.capacity,
-                    expectedCrowd: data.capacity || 0,
-                    promotersEnabled: data.promotersEnabled !== false,
-                    promotersCount: 0, // Would need separate query
-                    revenue: data.stats?.revenue || 0,
-                    stats: data.stats
-                };
-            }).sort((a, b) => {
-                const dateA = new Date(a.startDate || 0).getTime();
-                const dateB = new Date(b.startDate || 0).getTime();
-                return dateB - dateA; // Descending
-            });
+            const fetchedEvents: Event[] = snapshot.docs
+                .map(doc => {
+                    const mapped = mapEventForClient(doc.data(), doc.id) as any;
+
+                    return {
+                        ...mapped,
+                        title: mapped.title || mapped.name || "Untitled Event",
+                        date: parseAsIST(mapped.startDate),
+                        hostName: mapped.hostName || mapped.host || "Unknown Host",
+                        hostId: mapped.hostId || mapped.creatorId,
+                        venueId: mapped.venueId || clubId,
+                        status: mapped.lifecycle as any,
+                        ticketsSold: mapped.stats?.ticketsSold || 0,
+                        ticketsTotal: mapped.capacity || mapped.tickets?.reduce((sum: number, t: any) => sum + (t.quantity || 0), 0) || 0,
+                        expectedCrowd: mapped.capacity || 0,
+                        promotersCount: 0,
+                        revenue: mapped.stats?.revenue || 0,
+                    };
+                })
+                .filter(event => {
+                    // Privacy Filter:
+                    // 1. Club's own events: Show always
+                    // 2. Host's events: Show only if NOT in draft
+                    if (event.eventType === 'host') {
+                        return event.lifecycle !== 'draft';
+                    }
+                    return true;
+                })
+                .sort((a, b) => {
+                    const dateA = parseAsIST(a.startDate).getTime();
+                    const dateB = parseAsIST(b.startDate).getTime();
+                    return dateB - dateA;
+                });
             setEvents(fetchedEvents);
             setLoading(false);
         }, (error) => {
@@ -139,15 +154,20 @@ export default function EventsManagementPage() {
         return () => unsubscribe();
     }, [profile]);
 
-    const handleEventUpdate = async (action: string, data?: any) => {
-        if (!selectedEvent) return;
+    const handleEventUpdate = async (action: string, data?: any, overrideEventId?: string) => {
+        const eventId = overrideEventId || selectedEvent?.id;
+        if (!eventId || !user) return;
 
         try {
+            const token = await user.getIdToken();
             const response = await fetch("/api/club/events", {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
                 body: JSON.stringify({
-                    eventId: selectedEvent.id,
+                    eventId: eventId,
                     action,
                     data,
                 }),
@@ -158,11 +178,10 @@ export default function EventsManagementPage() {
                 throw new Error(error.error || "Failed to update event");
             }
 
-            // Refresh events list (in production, fetch from API)
-            // For now, update local state
+            // Refresh events list - simple local update for immediate feedback
             setEvents(prevEvents =>
                 prevEvents.map(e =>
-                    e.id === selectedEvent.id
+                    e.id === eventId
                         ? { ...e, status: getNewStatus(action, e.status) as any }
                         : e
                 )
@@ -193,11 +212,27 @@ export default function EventsManagementPage() {
 
     const filteredEvents = events.filter((event) => {
         const effectiveStatus = getEffectiveStatus(event);
-        const matchesFilter = filter === "all" ||
-            effectiveStatus === filter ||
-            (filter === "pending" && (effectiveStatus === "submitted" || effectiveStatus === "pending")) ||
-            (filter === "approved" && (effectiveStatus === "approved" || effectiveStatus === "scheduled")) ||
-            (filter === "draft" && effectiveStatus === "draft");
+
+        // Strict Bucket Filtering
+        let matchesFilter = filter === "all";
+
+        if (filter === "draft") {
+            // My Drafts: Club events in draft only
+            matchesFilter = event.eventType === "club" && effectiveStatus === "draft";
+        } else if (filter === "pending") {
+            // Pending: Host submissions only
+            matchesFilter = event.eventType === "host" && (effectiveStatus === "submitted" || effectiveStatus === "pending");
+        } else if (filter === "live") {
+            matchesFilter = effectiveStatus === "live";
+        } else if (filter === "approved") {
+            // Published: Both club and host, if approved/scheduled
+            matchesFilter = effectiveStatus === "approved" || effectiveStatus === "scheduled";
+        } else if (filter === "completed") {
+            matchesFilter = effectiveStatus === "completed";
+        } else if (filter === "locked") {
+            matchesFilter = effectiveStatus === "locked";
+        }
+
         const matchesSearch =
             event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             event.hostName.toLowerCase().includes(searchQuery.toLowerCase());
@@ -205,11 +240,11 @@ export default function EventsManagementPage() {
     });
 
     const liveEvents = events.filter((e) => getEffectiveStatus(e) === "live").length;
-    const pendingApprovals = events.filter((e) => ["pending", "submitted"].includes(getEffectiveStatus(e))).length;
-    const draftEvents = events.filter((e) => getEffectiveStatus(e) === "draft").length;
+    const pendingApprovals = events.filter((e) => e.eventType === "host" && ["pending", "submitted"].includes(getEffectiveStatus(e))).length;
+    const draftEvents = events.filter((e) => e.eventType === "club" && getEffectiveStatus(e) === "draft").length;
     const publishedEvents = events.filter((e) => ["scheduled", "approved"].includes(getEffectiveStatus(e))).length;
     const completedThisMonth = events.filter(
-        (e) => getEffectiveStatus(e) === "completed" && e.date.getMonth() === new Date().getMonth()
+        (e) => getEffectiveStatus(e) === "completed" && e.date.getMonth() === parseAsIST(null).getMonth()
     ).length;
 
     return (
@@ -345,121 +380,73 @@ export default function EventsManagementPage() {
                         <Loader2 className="h-8 w-8 text-indigo-600 mx-auto mb-4 animate-spin" />
                         <p className="text-slate-500 font-semibold">Loading events...</p>
                     </div>
-                ) : filteredEvents.length === 0 ? (
-                    <div className="bg-white p-12 rounded-xl border border-slate-200 text-center">
-                        <Calendar className="h-16 w-16 text-slate-300 mx-auto mb-4" />
-                        <p className="text-slate-500 font-semibold">
-                            {events.length === 0 ? "No events yet" : "No events match your filters"}
-                        </p>
-                        {events.length === 0 && (
-                            <Link href="/club/create" className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700">
-                                <Plus className="h-4 w-4" />
-                                Create First Event
-                            </Link>
-                        )}
-                    </div>
                 ) : (
-                    filteredEvents.map((event) => (
-                        <div
-                            key={event.id}
-                            className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
-                        >
-                            <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-                                {/* Event Info */}
-                                <div className="flex-1">
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div>
-                                            <h3 className="text-lg font-bold text-slate-900">
-                                                {event.title}
-                                            </h3>
-                                            <p className="text-sm text-slate-500 mt-1">
-                                                Hosted by{" "}
-                                                <span className="font-semibold text-indigo-600">
-                                                    {event.hostName}
-                                                </span>
-                                            </p>
-                                        </div>
-                                        <span
-                                            className={`px-3 py-1 rounded-full text-[10px] font-bold border uppercase ${STATUS_BADGES[getEffectiveStatus(event)] || STATUS_BADGES.draft
-                                                }`}
-                                        >
-                                            {STATUS_LABELS[getEffectiveStatus(event)] || getEffectiveStatus(event)}
-                                        </span>
-                                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {filteredEvents.map((event, index) => {
+                            const effectiveStatus = getEffectiveStatus(event);
 
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div className="flex items-center gap-2">
-                                            <Calendar className="h-4 w-4 text-slate-400" />
-                                            <span className="text-sm font-medium text-slate-600">
-                                                {event.date.toLocaleDateString("en-US", {
-                                                    month: "short",
-                                                    day: "numeric",
-                                                })}
-                                            </span>
-                                        </div>
+                            const getPrimaryAction = (e: any) => {
+                                if (e.canApprove) return {
+                                    label: "Review / Approve",
+                                    onClick: () => handleEventUpdate("approve", null, e.id),
+                                    icon: <CheckCircle size={16} />
+                                };
+                                return {
+                                    label: "Manage Event",
+                                    href: `/club/events/${e.id}`,
+                                    icon: <ArrowRight size={16} />
+                                };
+                            };
 
-                                        <div className="flex items-center gap-2">
-                                            <Ticket className="h-4 w-4 text-slate-400" />
-                                            <span className="text-sm font-medium text-slate-600">
-                                                {event.ticketsSold}/{event.ticketsTotal} sold
-                                            </span>
-                                        </div>
+                            const secondaryActions = [];
 
-                                        <div className="flex items-center gap-2">
-                                            <Users className="h-4 w-4 text-slate-400" />
-                                            <span className="text-sm font-medium text-slate-600">
-                                                {event.expectedCrowd} expected
-                                            </span>
-                                        </div>
+                            if (event.canRequestEdits) {
+                                secondaryActions.push({
+                                    label: "Request Edits",
+                                    icon: <AlertCircle size={16} />,
+                                    onClick: () => {
+                                        const reason = prompt("Enter reason for requesting edits:");
+                                        if (reason) handleEventUpdate("reject", { notes: reason }, event.id);
+                                    }
+                                });
+                            }
 
-                                        {event.revenue && (
-                                            <div className="flex items-center gap-2">
-                                                <DollarSign className="h-4 w-4 text-slate-400" />
-                                                <span className="text-sm font-medium text-slate-600">
-                                                    ₹{(event.revenue / 1000).toFixed(0)}K
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                            if (event.canEdit) {
+                                secondaryActions.push({
+                                    label: "Edit Event",
+                                    icon: <Edit size={16} />,
+                                    href: `/club/create?id=${event.id}`
+                                });
+                            }
 
-                                {/* Actions */}
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                    <Link
-                                        href={`/club/events/${event.id}`}
-                                        className="p-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-                                    >
-                                        <Eye className="h-4 w-4" />
-                                    </Link>
+                            if (effectiveStatus === "live") {
+                                secondaryActions.push({
+                                    label: "Pause Sales",
+                                    icon: <Pause size={16} />,
+                                    onClick: () => handleEventUpdate("pause", null, event.id),
+                                    color: "red"
+                                });
+                            } else if (effectiveStatus === "paused") {
+                                secondaryActions.push({
+                                    label: "Resume Sales",
+                                    icon: <Play size={16} />,
+                                    onClick: () => handleEventUpdate("resume", null, event.id)
+                                });
+                            }
 
-                                    {getEffectiveStatus(event) !== "locked" && getEffectiveStatus(event) !== "completed" && (
-                                        <Link
-                                            href={`/club/create?id=${event.id}`}
-                                            className="p-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-                                        >
-                                            <Edit className="h-4 w-4" />
-                                        </Link>
-                                    )}
-
-                                    {getEffectiveStatus(event) === "live" && (
-                                        <button className="p-2.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors">
-                                            <Pause className="h-4 w-4" />
-                                        </button>
-                                    )}
-
-                                    {getEffectiveStatus(event) === "completed" && (
-                                        <button className="p-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
-                                            <Lock className="h-4 w-4" />
-                                        </button>
-                                    )}
-
-                                    <button className="p-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
-                                        <MoreHorizontal className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    ))
+                            return (
+                                <DashboardEventCard
+                                    key={event.id}
+                                    event={event}
+                                    index={index}
+                                    role="club"
+                                    primaryAction={getPrimaryAction(event)}
+                                    secondaryActions={secondaryActions}
+                                    showStats={true}
+                                />
+                            );
+                        })}
+                    </div>
                 )}
             </div>
         </div>

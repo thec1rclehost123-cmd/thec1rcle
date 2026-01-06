@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
 import { discoverPartners, getConnectionStatus } from "@/lib/server/promoterConnectionStore";
-import { createRequest, approveRequest, rejectRequest, listConnections } from "@/lib/server/connectionService";
+import { createRequest, approveRequest, rejectRequest, blockRequest, listConnections } from "@/lib/server/connectionService";
 import { getAdminDb } from "@/lib/firebase/admin";
 
 /**
@@ -179,6 +179,8 @@ export async function PATCH(req: NextRequest) {
             await approveRequest(connectionId, role, partnerId, partnerName);
         } else if (action === "reject") {
             await rejectRequest(connectionId, role, partnerId, partnerName, reason);
+        } else if (action === "block") {
+            await blockRequest(connectionId, role, partnerId, partnerName, reason);
         } else {
             return NextResponse.json({ error: "Invalid action" }, { status: 400 });
         }

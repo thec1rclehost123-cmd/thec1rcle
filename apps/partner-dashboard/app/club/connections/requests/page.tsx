@@ -7,7 +7,6 @@ import {
     X,
     Search,
     UserCircle,
-    Handshake,
     CheckCircle2,
     XCircle,
     Mail,
@@ -21,7 +20,8 @@ import {
     ChevronRight,
     Loader2,
     Zap,
-    ShieldCheck
+    ShieldCheck,
+    ShieldAlert
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { getFirebaseDb } from "@/lib/firebase/client";
@@ -91,23 +91,31 @@ export default function ClubConnectionsPage() {
         return () => unsubscribe();
     }, [clubId]);
 
-    // Fetch host partnerships
-    const fetchHostPartnerships = useCallback(async () => {
+    // Real-time listener for host connection requests (Partnerships)
+    useEffect(() => {
         if (!clubId) return;
-        try {
-            const res = await fetch(`/api/club/partnerships?clubId=${clubId}`);
-            const data = await res.json();
-            setHostPartnerships(data.partnerships || []);
-        } catch (err) {
-            console.error("Failed to fetch host partnerships:", err);
-        }
+
+        const db = getFirebaseDb();
+        const partnershipsQuery = query(
+            collection(db, "partnerships"),
+            where("clubId", "==", clubId)
+        );
+
+        const unsubscribe = onSnapshot(partnershipsQuery, (snapshot) => {
+            const partnerships = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as HostPartnership[];
+
+            setHostPartnerships(partnerships);
+        }, (error) => {
+            console.error("[Club Connections] Host snapshot error:", error);
+        });
+
+        return () => unsubscribe();
     }, [clubId]);
 
-    useEffect(() => {
-        fetchHostPartnerships();
-    }, [fetchHostPartnerships]);
-
-    const handleAction = async (connectionId: string, action: 'approve' | 'reject', type: 'host' | 'promoter') => {
+    const handleAction = async (connectionId: string, action: 'approve' | 'reject' | 'block', type: 'host' | 'promoter') => {
         setProcessingRequest(connectionId);
         try {
             const token = await user?.getIdToken();
@@ -128,9 +136,6 @@ export default function ClubConnectionsPage() {
 
             if (!res.ok) throw new Error("Failed to process request");
 
-            if (type === 'host') {
-                fetchHostPartnerships();
-            }
         } catch (err: any) {
             console.error(`Failed to ${action} request:`, err);
             alert(err.message || `Failed to ${action} request`);
@@ -161,7 +166,7 @@ export default function ClubConnectionsPage() {
                 <div>
                     <div className="flex items-center gap-3 mb-2 text-indigo-600">
                         <div className="p-2 bg-indigo-50 rounded-xl">
-                            <Handshake className="w-5 h-5" />
+                            <Users className="w-5 h-5" />
                         </div>
                         <span className="text-[13px] font-bold uppercase tracking-[0.2em]">Network</span>
                     </div>
@@ -291,8 +296,20 @@ export default function ClubConnectionsPage() {
                                                     onClick={() => handleAction(request.id, 'reject', activeTab === 'promoters' ? 'promoter' : 'host')}
                                                     disabled={!!processingRequest}
                                                     className="h-10 w-10 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all active:scale-95 disabled:opacity-50"
+                                                    title="Reject"
                                                 >
                                                     <X className="w-5 h-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        const reason = window.prompt("Reason for blocking (optional):");
+                                                        if (reason !== null) handleAction(request.id, 'block', activeTab === 'promoters' ? 'promoter' : 'host');
+                                                    }}
+                                                    disabled={!!processingRequest}
+                                                    className="h-10 w-10 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-slate-900 hover:text-white transition-all active:scale-95 disabled:opacity-50"
+                                                    title="Block"
+                                                >
+                                                    <ShieldAlert className="w-5 h-5" />
                                                 </button>
                                             </div>
                                         </div>

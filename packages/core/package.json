@@ -6,9 +6,13 @@
         "build": "echo 'No build step required for core'"
     },
     "exports": {
+        ".": "./main.js",
         "./client": "./client.js",
         "./admin": "./admin.js",
-        "./events": "./events.js"
+        "./events": "./events.js",
+        "./surge": "./surge.js",
+        "./promo-service": "./promo-service.js",
+        "./time": "./time.js"
     },
     "dependencies": {
         "firebase": "^12.6.0",

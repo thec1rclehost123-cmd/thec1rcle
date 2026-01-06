@@ -148,7 +148,8 @@ export function applyPromoCode(code, items, event, context = {}) {
     const { userId, deviceId, timestamp = new Date(), redemptionHistory = [] } = context;
 
     // Find promo code in event
-    const promoCode = event.ticketCatalog?.promoCodes?.find(
+    const promoCodes = event.ticketCatalog?.promoCodes || event.promoCodes || [];
+    const promoCode = promoCodes.find(
         pc => pc.code.toUpperCase() === code.toUpperCase() && pc.isActive
     );
 
@@ -158,30 +159,32 @@ export function applyPromoCode(code, items, event, context = {}) {
 
     // Check validity period
     const now = timestamp instanceof Date ? timestamp : new Date(timestamp);
-    const startsAt = new Date(promoCode.validity.startsAt);
-    const endsAt = new Date(promoCode.validity.endsAt);
+    const startsAt = promoCode.validity?.startsAt || promoCode.startsAt;
+    const endsAt = promoCode.validity?.endsAt || promoCode.endsAt;
 
-    if (now < startsAt) {
+    if (startsAt && now < new Date(startsAt)) {
         return { valid: false, error: 'Promo code not yet active' };
     }
 
-    if (now > endsAt) {
+    if (endsAt && now > new Date(endsAt)) {
         return { valid: false, error: 'Promo code has expired' };
     }
 
     // Check redemption limits
-    if (promoCode.limits.totalRedemptions &&
-        promoCode.redemptionCount >= promoCode.limits.totalRedemptions) {
+    const totalRedemptionsLimit = promoCode.limits?.totalRedemptions || promoCode.maxRedemptions;
+    if (totalRedemptionsLimit &&
+        (promoCode.redemptionCount || 0) >= totalRedemptionsLimit) {
         return { valid: false, error: 'Promo code has reached maximum redemptions' };
     }
 
     // Check per-user limit
-    if (promoCode.limits.perUserRedemptions && userId) {
+    const perUserLimit = promoCode.limits?.perUserRedemptions || promoCode.maxPerUser;
+    if (perUserLimit && userId) {
         const userRedemptions = redemptionHistory.filter(
-            r => r.userId === userId && r.codeId === promoCode.id
+            r => r.userId === userId && r.codeId === (promoCode.id || promoCode.code)
         ).length;
 
-        if (userRedemptions >= promoCode.limits.perUserRedemptions) {
+        if (userRedemptions >= perUserLimit) {
             return { valid: false, error: 'You have already used this code' };
         }
     }
@@ -230,10 +233,11 @@ export function applyPromoCode(code, items, event, context = {}) {
 
     // Calculate discount
     let discountAmount = 0;
+    const tierIds = promoCode.scope?.tierIds || promoCode.tierIds;
     const applicableItems = items.filter(item => {
         // Check if code applies to this tier
-        if (promoCode.scope.tierIds && promoCode.scope.tierIds.length > 0) {
-            return promoCode.scope.tierIds.includes(item.tierId);
+        if (tierIds && tierIds.length > 0) {
+            return tierIds.includes(item.tierId);
         }
         return true;
     });

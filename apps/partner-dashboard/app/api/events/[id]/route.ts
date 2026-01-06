@@ -52,8 +52,11 @@ export async function PATCH(
 
         // Handle content updates
         if (updates) {
+            // Strip lifecycle from updates to ensure it's only managed by updateEventLifecycle
+            const { lifecycle, ...cleanUpdates } = updates;
+
             latestEvent = await updateEvent(params.id, {
-                ...updates,
+                ...cleanUpdates,
                 creatorId: actor.uid,
                 creatorRole: actor.role
             });
@@ -71,7 +74,8 @@ export async function PATCH(
                     newStatus = "approved";
                     break;
                 case "reject":
-                    newStatus = "rejected";
+                case "deny":
+                    newStatus = "denied";
                     break;
                 case "request_changes":
                     newStatus = "needs_changes";

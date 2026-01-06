@@ -11,7 +11,6 @@ import {
     PlusCircle,
     BarChart3,
     Users,
-    Handshake,
     Settings,
     Layout,
     ShieldCheck
@@ -21,7 +20,19 @@ const menuSections = [
     {
         items: [
             { icon: LayoutDashboard, label: "Overview", href: "/host" },
-            { icon: BarChart3, label: "Analytics", href: "/host/analytics" },
+            {
+                icon: BarChart3,
+                label: "Analytics",
+                href: "/host/analytics",
+                children: [
+                    { label: "Overview", href: "/host/analytics/overview" },
+                    { label: "Performance", href: "/host/analytics/performance" },
+                    { label: "Audience Quality", href: "/host/analytics/audience" },
+                    { label: "Trust & Reliability", href: "/host/analytics/reliability" },
+                    { label: "Venue ROI", href: "/host/analytics/partners" },
+                    { label: "Strategy", href: "/host/analytics/strategy" },
+                ]
+            },
         ]
     },
     {
@@ -34,7 +45,7 @@ const menuSections = [
     {
         items: [
             { icon: Users, label: "Promoters", href: "/host/promoters" },
-            { icon: Handshake, label: "Venues", href: "/host/partnerships" },
+            { icon: Users, label: "Venues", href: "/host/partnerships" },
         ]
     },
     {

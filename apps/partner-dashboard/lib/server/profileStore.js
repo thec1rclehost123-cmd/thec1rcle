@@ -52,6 +52,7 @@ export async function updateProfile(profileId, type = "club", updates, updatedBy
     // Only allow safe fields
     const safeFields = [
         "displayName", "bio", "coverImage", "profileImage", "photos",
+        "photoURL", "coverURL",
         "city", "address", "phone", "email", "website", "socialLinks",
         "tags", "amenities", "openingHours"
     ];

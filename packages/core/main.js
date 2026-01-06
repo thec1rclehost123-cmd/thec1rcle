@@ -1,2 +1,3 @@
-export * from './lib/firebase/client';
-export * from './lib/firebase/admin';
+export * from './client';
+export * from './admin';
+export * from './surge';

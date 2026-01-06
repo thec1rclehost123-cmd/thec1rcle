@@ -19,6 +19,7 @@ import {
 import { collection, query, where, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/client";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { parseAsIST, toISODateIST } from "@c1rcle/core/time";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -47,43 +48,45 @@ const EVENT_TYPE_STYLES: Record<string, string> = {
 
 export default function CalendarPage() {
     const { profile } = useDashboardAuth();
-    const [currentDate, setCurrentDate] = useState(new Date());
-    const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
-    const [events, setEvents] = useState<CalendarEvent[]>([]);
+    const [currentDate, setCurrentDate] = useState(parseAsIST(null));
+    const [selectedDate, setSelectedDate] = useState<Date | null>(parseAsIST(null));
     const [loading, setLoading] = useState(true);
+    const [unifiedData, setUnifiedData] = useState<{ blocks: any[], slots: any[], events: any[] }>({ blocks: [], slots: [], events: [] });
 
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
 
-    useEffect(() => {
+    const fetchCalendar = async () => {
         if (!profile?.activeMembership?.partnerId) return;
+        setLoading(true);
+        try {
+            const clubId = profile.activeMembership.partnerId;
+            const startStr = toISODateIST(new Date(year, month, 1));
+            const endStr = toISODateIST(new Date(year, month + 1, 0));
 
-        const db = getFirebaseDb();
-        const venueId = profile.activeMembership.partnerId;
+            const res = await fetch(`/api/club/calendar?clubId=${clubId}&startDate=${startStr}&endDate=${endStr}`);
+            const data = await res.json();
 
-        const q = query(
-            collection(db, "events"),
-            where("venue_id", "==", venueId)
-        );
+            if (data.error) {
+                console.error("Calendar API error:", data.error);
+                return;
+            }
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetchedEvents = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            } as CalendarEvent));
-            setEvents(fetchedEvents);
+            setUnifiedData({
+                blocks: data.blocks || [],
+                slots: data.slots || [],
+                events: data.events || []
+            });
+        } catch (err) {
+            console.error("Failed to fetch calendar:", err);
+        } finally {
             setLoading(false);
-        });
+        }
+    };
 
-        return () => unsubscribe();
-    }, [profile]);
-
-    const selectedDateEvents = events.filter(e => {
-        const d = e.date?.toDate ? e.date.toDate() : new Date(e.date);
-        return d.getDate() === selectedDate?.getDate() &&
-            d.getMonth() === selectedDate?.getMonth() &&
-            d.getFullYear() === selectedDate?.getFullYear();
-    });
+    useEffect(() => {
+        fetchCalendar();
+    }, [profile, currentDate]);
 
     const firstDayOfMonth = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -91,12 +94,17 @@ export default function CalendarPage() {
     for (let i = 0; i < firstDayOfMonth; i++) calendarDays.push(null);
     for (let day = 1; day <= daysInMonth; day++) calendarDays.push(day);
 
-    const getEventsForDay = (day: number) => {
-        return events.filter(e => {
-            const d = e.date?.toDate ? e.date.toDate() : new Date(e.date);
-            return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
-        });
+    const getDayContent = (day: number) => {
+        const dateStr = toISODateIST(new Date(year, month, day));
+
+        const dayEvents = (unifiedData?.events || []).filter(e => e.dateStr === dateStr);
+        const daySlots = (unifiedData?.slots || []).filter(s => s.requestedDate === dateStr);
+        const block = (unifiedData?.blocks || []).find(b => b.date === dateStr);
+
+        return { events: dayEvents, slots: daySlots, block };
     };
+
+    const selectedDateContent = selectedDate ? getDayContent(selectedDate.getDate()) : { events: [], slots: [], block: null };
 
     return (
         <div className="space-y-10 pb-20 animate-in fade-in duration-500">
@@ -137,7 +145,7 @@ export default function CalendarPage() {
                                         <ChevronLeft className="h-5 w-5 text-slate-600" />
                                     </button>
                                     <button
-                                        onClick={() => setCurrentDate(new Date())}
+                                        onClick={() => setCurrentDate(parseAsIST(null))}
                                         className="px-4 py-2 text-xs font-bold uppercase text-slate-500 hover:text-slate-900"
                                     >
                                         Today
@@ -172,9 +180,12 @@ export default function CalendarPage() {
                                 {calendarDays.map((day, i) => {
                                     if (day === null) return <div key={`empty-${i}`} className="aspect-square bg-slate-50/30 rounded-3xl" />;
 
-                                    const dayEvents = getEventsForDay(day);
-                                    const isToday = day === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
+                                    const { events: dayEvents, slots: daySlots, block } = getDayContent(day);
+                                    const today = parseAsIST(null);
+                                    const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
                                     const isSelected = day === selectedDate?.getDate() && month === selectedDate?.getMonth() && year === selectedDate?.getFullYear();
+
+                                    const isBlocked = block?.status === 'blocked';
 
                                     return (
                                         <button
@@ -182,26 +193,26 @@ export default function CalendarPage() {
                                             onClick={() => setSelectedDate(new Date(year, month, day))}
                                             className={`aspect-square p-4 rounded-[2rem] border transition-all relative flex flex-col group ${isSelected
                                                 ? "border-emerald-500 bg-emerald-50/10 shadow-lg shadow-emerald-100 ring-4 ring-emerald-50"
-                                                : "border-slate-100 hover:border-slate-300 hover:bg-slate-50"
+                                                : isBlocked ? "border-slate-100 bg-slate-50/50 grayscale" : "border-slate-100 hover:border-slate-300 hover:bg-slate-50"
                                                 }`}
                                         >
-                                            <span className={`text-base font-black mb-auto ${isToday ? "text-emerald-600" : "text-slate-400"}`}>
+                                            <span className={`text-base font-black mb-auto ${isToday ? "text-emerald-600" : isBlocked ? "text-slate-300" : "text-slate-400"}`}>
                                                 {day}
                                             </span>
 
                                             <div className="w-full flex flex-col gap-1.5 mt-2">
-                                                {dayEvents.slice(0, 2).map(e => (
-                                                    <div
-                                                        key={e.id}
-                                                        className={`w-full h-2 rounded-full ${e.type === 'blocked' ? 'bg-slate-200' : e.type === 'host-hosted' ? 'bg-indigo-500/40' : 'bg-emerald-500/40'}`}
-                                                    />
+                                                {dayEvents.map(e => (
+                                                    <div key={e.id} className="w-full h-1.5 rounded-full bg-emerald-500/40" />
                                                 ))}
-                                                {dayEvents.length > 2 && (
-                                                    <div className="text-[9px] font-black text-slate-300 uppercase">+{dayEvents.length - 2} More</div>
+                                                {daySlots.map(s => (
+                                                    <div key={s.id} className="w-full h-1.5 rounded-full bg-indigo-500/40" />
+                                                ))}
+                                                {isBlocked && (
+                                                    <div className="w-full h-1.5 rounded-full bg-slate-300" />
                                                 )}
                                             </div>
 
-                                            {dayEvents.some(e => e.status === 'pending_approval') && (
+                                            {daySlots.some(s => s.status === 'pending') && (
                                                 <div className="absolute top-3 right-3 h-2.5 w-2.5 rounded-full bg-amber-500 border-2 border-white shadow-sm" />
                                             )}
                                         </button>
@@ -222,21 +233,72 @@ export default function CalendarPage() {
                             </h3>
                         </div>
 
-                        {selectedDateEvents.length === 0 ? (
+                        {selectedDateContent.events.length === 0 && selectedDateContent.slots.length === 0 && !selectedDateContent.block ? (
                             <div className="py-24 flex flex-col items-center text-center">
                                 <div className="h-20 w-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-8 border border-slate-100">
                                     <Clock className="h-10 w-10 text-slate-200" />
                                 </div>
                                 <h4 className="text-xl font-bold text-slate-900 mb-2">Open Date</h4>
-                                <p className="text-slate-500 text-sm font-medium mb-10 leading-relaxed px-4">No events scheduled for this day. You can block this date or create an internal event.</p>
-                                <button className="w-full py-5 bg-slate-900 text-white rounded-3xl font-bold text-sm shadow-xl active:scale-95 transition-all">
-                                    Create Event Here
-                                </button>
+                                <p className="text-slate-500 text-sm font-medium mb-10 leading-relaxed px-4">No events scheduled. You can block this date or create an internal event.</p>
+                                <div className="flex flex-col gap-3 w-full">
+                                    <button
+                                        onClick={async () => {
+                                            const reason = window.prompt("Reason for blocking (internal only):");
+                                            if (reason === null) return;
+                                            const dateStr = toISODateIST(selectedDate);
+                                            await fetch('/api/club/calendar', {
+                                                method: 'POST',
+                                                body: JSON.stringify({ action: 'block', clubId: profile?.activeMembership?.partnerId, date: dateStr, reason })
+                                            });
+                                            fetchCalendar();
+                                        }}
+                                        className="w-full py-5 bg-slate-900 text-white rounded-3xl font-bold text-sm shadow-xl active:scale-95 transition-all"
+                                    >
+                                        Block Date
+                                    </button>
+                                </div>
                             </div>
                         ) : (
                             <div className="space-y-6">
-                                {selectedDateEvents.map(event => (
-                                    <DetailsCard key={event.id} event={event} />
+                                {selectedDateContent.block && (
+                                    <div className="p-8 rounded-[2rem] border bg-slate-50 border-slate-200 grayscale">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-slate-200 text-slate-600 border-slate-300 border">Blocked</span>
+                                            <button
+                                                onClick={async () => {
+                                                    const dateStr = toISODateIST(selectedDate);
+                                                    await fetch('/api/club/calendar', {
+                                                        method: 'POST',
+                                                        body: JSON.stringify({ action: 'unblock', clubId: profile?.activeMembership?.partnerId, date: dateStr })
+                                                    });
+                                                    fetchCalendar();
+                                                }}
+                                                className="text-slate-400 hover:text-red-500 font-bold text-xs"
+                                            >
+                                                Unblock
+                                            </button>
+                                        </div>
+                                        <h4 className="text-xl font-black text-slate-900 uppercase mb-2">Venue Closed</h4>
+                                        <p className="text-sm text-slate-500 font-medium italic">"{selectedDateContent.block.reason || 'No reason provided'}"</p>
+                                    </div>
+                                )}
+                                {selectedDateContent.slots.map(slot => (
+                                    <DetailsCard key={slot.id} event={{
+                                        id: slot.id,
+                                        name: "Slot Request",
+                                        type: "host-hosted",
+                                        status: slot.status === 'pending' ? 'pending_approval' : 'confirmed',
+                                        host_name: slot.hostName,
+                                        requestedStartTime: slot.requestedStartTime,
+                                        requestedEndTime: slot.requestedEndTime,
+                                        notes: slot.notes
+                                    } as any} onAction={fetchCalendar} />
+                                ))}
+                                {selectedDateContent.events.map(event => (
+                                    <DetailsCard key={event.id} event={{
+                                        ...event,
+                                        type: "club-hosted"
+                                    } as any} />
                                 ))}
                             </div>
                         )}
@@ -256,8 +318,42 @@ function LegendItem({ dot, label }: { dot: string, label: string }) {
     );
 }
 
-function DetailsCard({ event }: { event: CalendarEvent }) {
+function DetailsCard({ event, onAction }: { event: CalendarEvent & { requestedStartTime?: string, requestedEndTime?: string, notes?: string }, onAction?: () => void }) {
+    const { profile } = useDashboardAuth();
     const isPending = event.status === 'pending_approval';
+
+    const handleSlotAction = async (action: 'approve' | 'reject' | 'counter') => {
+        try {
+            let body: any = {
+                action,
+                actor: {
+                    uid: profile?.uid,
+                    role: 'club',
+                    partnerId: profile?.activeMembership?.partnerId,
+                    name: profile?.displayName || profile?.activeMembership?.partnerName
+                }
+            };
+
+            if (action === 'counter') {
+                const date = window.prompt("Suggest new date (YYYY-MM-DD):", event.requestedStartTime?.split(' ')[0]);
+                const startTime = window.prompt("Suggest start time (HH:mm):", event.requestedStartTime);
+                const endTime = window.prompt("Suggest end time (HH:mm):", event.requestedEndTime);
+                if (!date || !startTime || !endTime) return;
+                body = { ...body, alternativeDate: date, alternativeStartTime: startTime, alternativeEndTime: endTime, notes: "Counter-proposed by club" };
+            } else {
+                body.notes = action === 'approve' ? 'Approved by club' : 'Rejected';
+            }
+
+            const res = await fetch(`/api/slots/${event.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            if (res.ok) onAction?.();
+        } catch (err) {
+            console.error("Failed to handle slot action:", err);
+        }
+    };
 
     return (
         <div className={`p-8 rounded-[2rem] border transition-all ${isPending ? "bg-amber-50/50 border-amber-100" : "bg-white border-slate-100 hover:border-slate-300"}`}>
@@ -273,12 +369,17 @@ function DetailsCard({ event }: { event: CalendarEvent }) {
             <div className="space-y-4 mb-8">
                 <div className="flex items-center gap-3 text-sm font-bold text-slate-500">
                     <Clock className="h-4 w-4 text-emerald-600" />
-                    9:00 PM onwards
+                    {event.requestedStartTime ? `${event.requestedStartTime} - ${event.requestedEndTime}` : "9:00 PM onwards"}
                 </div>
                 {event.host_name && (
                     <div className="flex items-center gap-3 text-sm font-bold text-indigo-700">
                         <User className="h-4 w-4" />
                         Partner: {event.host_name}
+                    </div>
+                )}
+                {event.notes && (
+                    <div className="p-4 bg-slate-50 rounded-2xl text-xs text-slate-500 font-medium italic border border-slate-100">
+                        "{event.notes}"
                     </div>
                 )}
             </div>
@@ -289,11 +390,26 @@ function DetailsCard({ event }: { event: CalendarEvent }) {
                         <AlertCircle className="h-4 w-4" /> Review Needed
                     </p>
                     <div className="flex gap-3">
-                        <button className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100 h-14">
+                        <button
+                            onClick={() => handleSlotAction('approve')}
+                            className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100 h-14 active:scale-95 transition-all flex items-center justify-center"
+                        >
                             Approve
                         </button>
-                        <button className="flex-1 py-4 bg-rose-50 text-rose-600 border border-rose-100 rounded-2xl text-[10px] font-black uppercase tracking-widest h-14">
-                            Reject
+                        <button
+                            onClick={() => handleSlotAction('counter')}
+                            className="flex-1 py-4 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-2xl text-[10px] font-black uppercase tracking-widest h-14 active:scale-95 transition-all flex items-center justify-center"
+                        >
+                            Counter
+                        </button>
+                        <button
+                            onClick={() => {
+                                const reason = window.prompt("Reason for rejection:");
+                                if (reason !== null) handleSlotAction('reject');
+                            }}
+                            className="w-14 h-14 bg-rose-50 text-rose-600 border border-rose-100 rounded-2xl flex items-center justify-center active:scale-95 transition-all"
+                        >
+                            <X className="h-5 w-5" />
                         </button>
                     </div>
                 </div>

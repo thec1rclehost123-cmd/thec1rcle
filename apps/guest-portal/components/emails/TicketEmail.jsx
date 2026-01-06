@@ -141,7 +141,7 @@ export const TicketEmail = ({
                             color: '#888888',
                             margin: '0 0 10px 0',
                         }}>
-                            Order {orderId} • {new Date().toLocaleDateString()}
+                            Order {orderId} • {new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                         </p>
 
                         {tickets.map((ticket, index) => (

@@ -12,30 +12,40 @@ import {
     CalendarDays,
     Link2,
     BarChart3,
-    Users,
     CreditCard,
     Settings,
     User,
-    Handshake
+    Users
 } from "lucide-react";
 
 const menuSections = [
     {
         items: [
             { icon: LayoutDashboard, label: "Overview", href: "/promoter" },
-            { icon: BarChart3, label: "Stats", href: "/promoter/stats" },
+            {
+                icon: BarChart3,
+                label: "Analytics",
+                href: "/promoter/analytics",
+                children: [
+                    { label: "Overview", href: "/promoter/analytics/overview" },
+                    { label: "Event Data", href: "/promoter/analytics/performance" },
+                    { label: "Audience Mix", href: "/promoter/analytics/audience" },
+                    { label: "Funnel Velocity", href: "/promoter/analytics/funnel" },
+                    { label: "Trust Score", href: "/promoter/analytics/trust" },
+                    { label: "Strategy", href: "/promoter/analytics/strategy" },
+                ]
+            },
         ]
     },
     {
         items: [
             { icon: CalendarDays, label: "Events", href: "/promoter/events" },
             { icon: Link2, label: "My Links", href: "/promoter/links" },
-            { icon: Users, label: "Guests", href: "/promoter/guests" },
         ]
     },
     {
         items: [
-            { icon: Handshake, label: "Connections", href: "/promoter/connections" },
+            { icon: Users, label: "Connections", href: "/promoter/connections" },
         ]
     },
     {

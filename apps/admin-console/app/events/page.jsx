@@ -2,8 +2,10 @@
 
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useEffect, useState } from "react";
-import { Search, Filter, Calendar, MapPin, Ticket, ExternalLink, Activity, Clock, User, AlertCircle, TrendingUp, Play, Pause, ShieldAlert, ChevronRight } from "lucide-react";
+import { Search, Filter, Calendar, MapPin, Ticket, ExternalLink, Activity, Clock, User, AlertCircle, TrendingUp, Play, Pause, ShieldAlert, ChevronRight, ArrowUpRight } from "lucide-react";
 import AdminConfirmModal from "@/components/admin/AdminConfirmModal";
+import { DashboardEventCard } from "@c1rcle/ui";
+import { mapEventForClient } from "@c1rcle/core/events";
 
 export default function AdminEvents() {
     const { user } = useAuth();
@@ -20,7 +22,8 @@ export default function AdminEvents() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const json = await res.json();
-            setEvents(json.data || []);
+            const mapped = (json.data || []).map((e) => mapEventForClient(e, e.id));
+            setEvents(mapped);
         } catch (err) {
             console.error("Failed to fetch events", err);
         } finally {
@@ -107,82 +110,76 @@ export default function AdminEvents() {
                         </div>
                     </div>
 
-                    <div className="rounded-[3rem] border border-slate-200 bg-white shadow-sm overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="border-b border-slate-100 bg-slate-50/50">
-                                        <th className="px-10 py-6 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Intelligence Asset</th>
-                                        <th className="px-10 py-6 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Yield</th>
-                                        <th className="px-10 py-6 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Temporal State</th>
-                                        <th className="px-10 py-6 text-right text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Asset Health</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {loading ? (
-                                        [...Array(10)].map((_, i) => (
-                                            <tr key={i} className="animate-pulse">
-                                                <td colSpan={4} className="px-10 py-10"><div className="h-4 bg-slate-100 rounded-full w-full"></div></td>
-                                            </tr>
-                                        ))
-                                    ) : events.filter(e =>
-                                        e.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                        e.venueName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                        e.id?.toLowerCase().includes(searchTerm.toLowerCase())
-                                    ).length > 0 ? events.filter(e =>
-                                        e.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                        e.venueName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                        e.id?.toLowerCase().includes(searchTerm.toLowerCase())
-                                    ).map((event) => (
-                                        <tr
-                                            key={event.id}
-                                            onClick={() => setSelectedEvent(event)}
-                                            className={`hover:bg-slate-50 transition-all cursor-pointer group ${selectedEvent?.id === event.id ? 'bg-indigo-50/50' : ''}`}
-                                        >
-                                            <td className="px-10 py-8">
-                                                <div className="flex items-center gap-5">
-                                                    <div className="h-14 w-14 rounded-2xl bg-white border border-slate-100 overflow-hidden flex-shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-                                                        {event.posterUrl ? (
-                                                            <img src={event.posterUrl} className="h-full w-full object-cover" />
-                                                        ) : (
-                                                            <div className="h-full w-full flex items-center justify-center">
-                                                                <Calendar className="h-5 w-5 text-slate-200" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-base font-black tracking-tight text-slate-900 line-clamp-1">{event.title}</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{event.venueName || 'VENUE TBA'}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-10 py-8">
-                                                <div className="flex items-center gap-3">
-                                                    <Ticket className="h-4 w-4 text-indigo-600" />
-                                                    <span className="text-sm font-black text-slate-900">{event.ticketsSold || 0}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-10 py-8">
-                                                <p className="text-[11px] text-slate-500 font-black uppercase tracking-tighter">
-                                                    {event.startTime ? new Date(event.startTime).toLocaleDateString() : 'DRAFT'}
-                                                </p>
-                                            </td>
-                                            <td className="px-10 py-8 text-right">
-                                                <div className="flex items-center justify-end gap-3">
-                                                    <span className={`h-2.5 w-2.5 rounded-full ring-4 ${event.status === 'live' ? 'bg-emerald-500 ring-emerald-50' :
-                                                        event.status === 'paused' ? 'bg-red-500 ring-red-50' :
-                                                            event.status === 'under_review' ? 'bg-amber-500 ring-amber-50' : 'bg-slate-100 ring-slate-50'
-                                                        }`}></span>
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-900">{event.status}</span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )) : (
-                                        <tr><td colSpan={4} className="px-10 py-24 text-center text-sm text-slate-400 font-bold uppercase tracking-widest italic bg-slate-50/30">Universal event registry is clear.</td></tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {loading ? (
+                            [...Array(6)].map((_, i) => (
+                                <div key={i} className="h-[400px] bg-slate-100 animate-pulse rounded-[2rem]"></div>
+                            ))
+                        ) : events.filter(e =>
+                            e.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            e.id?.toLowerCase().includes(searchTerm.toLowerCase())
+                        ).length > 0 ? events.filter(e =>
+                            e.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            e.id?.toLowerCase().includes(searchTerm.toLowerCase())
+                        ).map((event, index) => {
+                            return (
+                                <div
+                                    key={event.id}
+                                    onClick={() => setSelectedEvent(event)}
+                                    className={`cursor-pointer transition-all duration-300 ${selectedEvent?.id === event.id ? 'ring-4 ring-indigo-500 rounded-[32px]' : ''}`}
+                                >
+                                    <DashboardEventCard
+                                        event={event}
+                                        index={index}
+                                        role="admin"
+                                        primaryAction={{
+                                            label: "Select for Intel",
+                                            onClick: () => setSelectedEvent(event),
+                                            icon: <Activity size={16} />
+                                        }}
+                                        secondaryActions={[
+                                            {
+                                                label: "Emergency Halt",
+                                                icon: <Pause size={16} />,
+                                                onClick: () => setModalConfig({
+                                                    action: 'EVENT_PAUSE',
+                                                    title: 'Halt Asset Transactions',
+                                                    message: 'Stops all ticket sales and distribution immediately.',
+                                                    label: 'Execute Pause',
+                                                    type: 'danger',
+                                                    isTier2: true
+                                                }),
+                                                color: 'red'
+                                            },
+                                            {
+                                                label: "Adjust Visibility",
+                                                icon: <TrendingUp size={16} />,
+                                                onClick: () => setModalConfig({
+                                                    action: 'DISCOVERY_WEIGHT_ADJUST',
+                                                    title: 'Adjust Asset Weight',
+                                                    message: 'Modify algorithmic visibility. Impact is immediate.',
+                                                    label: 'Update Bias',
+                                                    inputLabel: 'Numerical Bias',
+                                                    inputPlaceholder: '0.00',
+                                                    inputType: 'number',
+                                                    type: 'info'
+                                                })
+                                            },
+                                            {
+                                                label: "View Public Page",
+                                                icon: <ExternalLink size={16} />,
+                                                href: `/event/${event.slug || event.id}`
+                                            }
+                                        ]}
+                                        showStats={true}
+                                    />
+                                </div>
+                            );
+                        }) : (
+                            <div className="col-span-full py-24 text-center text-sm text-slate-400 font-bold uppercase tracking-widest italic bg-slate-50/30 rounded-[3rem] border border-slate-200 border-dashed">
+                                Universal event registry is clear.
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -193,8 +190,8 @@ export default function AdminEvents() {
 
                             <div className="space-y-6">
                                 <div className="aspect-[4/5] rounded-[2rem] bg-slate-50 border border-slate-100 overflow-hidden shadow-inner">
-                                    {selectedEvent.posterUrl ? (
-                                        <img src={selectedEvent.posterUrl} className="h-full w-full object-cover" />
+                                    {(selectedEvent.poster || selectedEvent.image) ? (
+                                        <img src={selectedEvent.poster || selectedEvent.image} className="h-full w-full object-cover" />
                                     ) : (
                                         <div className="h-full w-full flex items-center justify-center">
                                             <Activity className="h-12 w-12 text-slate-200" />

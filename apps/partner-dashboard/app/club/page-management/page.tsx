@@ -1,263 +1,431 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Plus,
     Image as ImageIcon,
-    Video,
+    FileText,
+    Sparkles,
+    Trash2,
+    Upload,
+    Loader2,
+    Eye,
+    ThumbsUp,
+    Camera,
+    Layout,
     Heart,
     MessageCircle,
-    Eye,
-    MoreHorizontal,
-    Upload,
-    X,
     TrendingUp,
-    Users,
-    Calendar
+    ChevronRight
 } from "lucide-react";
-
-interface Post {
-    id: string;
-    type: "photo" | "video" | "story";
-    url: string;
-    caption: string;
-    likes: number;
-    comments: number;
-    views: number;
-    createdAt: Date;
-}
-
-const MOCK_POSTS: Post[] = [
-    { id: "1", type: "photo", url: "/api/placeholder/400/400", caption: "Vibes from last night 🔥", likes: 1240, comments: 45, views: 5600, createdAt: new Date(2026, 0, 1) },
-    { id: "2", type: "video", url: "/api/placeholder/400/400", caption: "Weekend madness", likes: 2100, comments: 89, views: 12400, createdAt: new Date(2025, 11, 30) },
-    { id: "3", type: "story", url: "/api/placeholder/400/400", caption: "", likes: 890, comments: 12, views: 3200, createdAt: new Date(2025, 11, 29) },
-];
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 export default function ClubPageManagementPage() {
-    const [posts, setPosts] = useState<Post[]>(MOCK_POSTS);
-    const [isUploadOpen, setIsUploadOpen] = useState(false);
+    const { profile } = useDashboardAuth();
+    const [data, setData] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [activeTab, setActiveTab] = useState<"details" | "posts" | "highlights">("details");
 
-    const totalLikes = posts.reduce((sum, p) => sum + p.likes, 0);
-    const totalViews = posts.reduce((sum, p) => sum + p.views, 0);
-    const totalComments = posts.reduce((sum, p) => sum + p.comments, 0);
+    const fetchProfileData = async () => {
+        if (!profile?.activeMembership?.partnerId) return;
+        setIsLoading(true);
+        try {
+            const partnerId = profile.activeMembership.partnerId;
+            const res = await fetch(`/api/profile?profileId=${partnerId}&type=club&stats=true`);
+            if (res.ok) {
+                const json = await res.json();
+                setData(json);
+            }
+        } catch (err) {
+            console.error("Profile fetch error:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchProfileData();
+    }, [profile]);
+
+    const handleUpdateProfile = async (updates: any) => {
+        if (!profile?.activeMembership?.partnerId || !profile?.uid) return;
+        setIsSaving(true);
+        try {
+            const res = await fetch("/api/profile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    profileId: profile.activeMembership.partnerId,
+                    type: "club",
+                    action: "updateProfile",
+                    data: updates,
+                    user: { uid: profile.uid, name: profile.displayName }
+                })
+            });
+            if (res.ok) {
+                fetchProfileData();
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleCreatePost = async () => {
+        const content = window.prompt("Enter post content:");
+        if (!content) return;
+        setIsSaving(true);
+        try {
+            await fetch("/api/profile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    profileId: profile?.activeMembership?.partnerId,
+                    type: "club",
+                    action: "createPost",
+                    data: { content },
+                    user: { uid: profile?.uid, name: profile?.displayName }
+                })
+            });
+            fetchProfileData();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeletePost = async (postId: string) => {
+        if (!window.confirm("Delete this post?")) return;
+        try {
+            await fetch("/api/profile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    profileId: profile?.activeMembership?.partnerId,
+                    type: "club",
+                    action: "deletePost",
+                    data: { postId },
+                    user: { uid: profile?.uid }
+                })
+            });
+            fetchProfileData();
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleCreateHighlight = async () => {
+        const title = window.prompt("Enter highlight title:");
+        if (!title) return;
+        const color = window.prompt("Enter color (e.g., #4F46E5):", "#4F46E5");
+
+        setIsSaving(true);
+        try {
+            await fetch("/api/profile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    profileId: profile?.activeMembership?.partnerId,
+                    type: "club",
+                    action: "createHighlight",
+                    data: { title, color: color || "#4F46E5" },
+                    user: { uid: profile?.uid, name: profile?.displayName }
+                })
+            });
+            fetchProfileData();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteHighlight = async (highlightId: string) => {
+        if (!window.confirm("Delete this highlight?")) return;
+        try {
+            await fetch("/api/profile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    profileId: profile?.activeMembership?.partnerId,
+                    type: "club",
+                    action: "deleteHighlight",
+                    data: { highlightId },
+                    user: { uid: profile?.uid }
+                })
+            });
+            fetchProfileData();
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleUpdatePhoto = async (field: string) => {
+        const url = window.prompt(`Enter ${field} image URL:`);
+        if (!url) return;
+        setIsSaving(true);
+        try {
+            await fetch("/api/profile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    profileId: profile?.activeMembership?.partnerId,
+                    type: "club",
+                    action: "addPhoto",
+                    data: { field, url },
+                    user: { uid: profile?.uid }
+                })
+            });
+            fetchProfileData();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    if (isLoading) {
+        return (
+            <div className="py-24 flex flex-col items-center justify-center">
+                <Loader2 className="h-10 w-10 text-slate-200 animate-spin mb-4" />
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Syncing Venue Presence...</p>
+            </div>
+        );
+    }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-10 pb-20 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-10">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                        Club Page Management
+                    <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-4 uppercase">
+                        Venue Profile
                     </h1>
-                    <p className="text-slate-500 text-sm mt-1">
-                        Manage your public venue page - posts, highlights, and stories
-                    </p>
+                    <p className="text-slate-500 text-lg font-medium mt-3">Manage your venue's identity, public posts, and discovery assets.</p>
                 </div>
-                <button
-                    onClick={() => setIsUploadOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 shadow-sm"
-                >
-                    <Plus className="h-4 w-4" />
-                    Upload Content
-                </button>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-pink-50 rounded-lg">
-                        <Heart className="h-6 w-6 text-pink-600" />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                            Total Likes
-                        </p>
-                        <p className="text-2xl font-bold text-slate-900">
-                            {(totalLikes / 1000).toFixed(1)}K
-                        </p>
-                    </div>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-blue-50 rounded-lg">
-                        <Eye className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                            Total Views
-                        </p>
-                        <p className="text-2xl font-bold text-slate-900">
-                            {(totalViews / 1000).toFixed(1)}K
-                        </p>
-                    </div>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-emerald-50 rounded-lg">
-                        <MessageCircle className="h-6 w-6 text-emerald-600" />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                            Comments
-                        </p>
-                        <p className="text-2xl font-bold text-slate-900">{totalComments}</p>
-                    </div>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-purple-50 rounded-lg">
-                        <Users className="h-6 w-6 text-purple-600" />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                            Followers
-                        </p>
-                        <p className="text-2xl font-bold text-slate-900">12.4K</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Content Grid */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-lg font-bold text-slate-900">All Content</h2>
-                    <div className="flex gap-2">
-                        <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold uppercase hover:bg-indigo-700">
-                            All
-                        </button>
-                        <button className="px-4 py-2 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold uppercase hover:bg-slate-100 border border-slate-200">
-                            Photos
-                        </button>
-                        <button className="px-4 py-2 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold uppercase hover:bg-slate-100 border border-slate-200">
-                            Videos
-                        </button>
-                        <button className="px-4 py-2 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold uppercase hover:bg-slate-100 border border-slate-200">
-                            Stories
-                        </button>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                    {posts.map((post) => (
-                        <div
-                            key={post.id}
-                            className="group relative aspect-square rounded-xl overflow-hidden border border-slate-200 hover:border-indigo-300 transition-all cursor-pointer"
-                        >
-                            {/* Preview Image */}
-                            <img
-                                src={post.url}
-                                alt={post.caption}
-                                className="w-full h-full object-cover"
-                            />
-
-                            {/* Type Badge */}
-                            {post.type === "video" && (
-                                <div className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-full">
-                                    <Video className="h-4 w-4 text-white" />
-                                </div>
-                            )}
-
-                            {/* Hover Overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                                <div className="space-y-2">
-                                    <div className="flex items-center gap-4 text-white text-xs font-semibold">
-                                        <div className="flex items-center gap-1">
-                                            <Heart className="h-4 w-4" />
-                                            {post.likes}
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <MessageCircle className="h-4 w-4" />
-                                            {post.comments}
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <Eye className="h-4 w-4" />
-                                            {(post.views / 1000).toFixed(1)}K
-                                        </div>
-                                    </div>
-
-                                    {post.caption && (
-                                        <p className="text-white text-xs line-clamp-2">{post.caption}</p>
-                                    )}
-                                </div>
-
-                                <button className="absolute top-2 left-2 p-2 bg-white/20 backdrop-blur-sm rounded-lg hover:bg-white/30 transition-colors">
-                                    <MoreHorizontal className="h-4 w-4 text-white" />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-
-                    {/* Upload Button */}
+                <div className="flex items-center gap-4">
                     <button
-                        onClick={() => setIsUploadOpen(true)}
-                        className="aspect-square rounded-xl border-2 border-dashed border-slate-300 hover:border-indigo-400 hover:bg-indigo-50 transition-all flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-indigo-600"
+                        onClick={() => handleUpdateProfile({})}
+                        disabled={isSaving}
+                        className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl text-sm font-bold shadow-xl hover:bg-slate-800 transition-all disabled:opacity-50"
                     >
-                        <Upload className="h-8 w-8" />
-                        <span className="text-xs font-bold uppercase">Upload</span>
+                        {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+                        Publish Changes
                     </button>
                 </div>
             </div>
 
-            {/* Upload Modal */}
-            {isUploadOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsUploadOpen(false)} />
+            {/* Stats Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <StatCard label="Followers" value={data?.stats?.followersCount || 0} icon={Heart} color="rose" />
+                <StatCard label="Posts" value={data?.stats?.postsCount || 0} icon={Layout} color="indigo" />
+                <StatCard label="Engagements" value={data?.stats?.totalLikes || 0} icon={TrendingUp} color="emerald" />
+                <StatCard label="Discoveries" value={data?.stats?.totalViews || 0} icon={Eye} color="amber" />
+            </div>
 
-                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl">
-                        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-                            <h3 className="text-xl font-bold text-slate-900">Upload New Content</h3>
-                            <button onClick={() => setIsUploadOpen(false)} className="p-2 rounded-lg hover:bg-slate-100">
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
-
-                        <div className="p-6 space-y-6">
-                            <div className="border-2 border-dashed border-slate-300 rounded-xl p-12 text-center hover:border-indigo-400 hover:bg-indigo-50 transition-all cursor-pointer">
-                                <Upload className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                                <p className="text-sm font-semibold text-slate-700 mb-1">
-                                    Click to upload or drag and drop
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                    JPG, PNG, MP4 (max 50MB)
-                                </p>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                    Type
-                                </label>
-                                <select className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg">
-                                    <option>Photo/Video Post</option>
-                                    <option>Story (24h highlight)</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                    Caption
-                                </label>
-                                <textarea
-                                    rows={3}
-                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg resize-none"
-                                    placeholder="Add a caption..."
-                                />
-                            </div>
-                        </div>
-
-                        <div className="p-6 border-t border-slate-200 flex gap-3">
-                            <button
-                                onClick={() => setIsUploadOpen(false)}
-                                className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-700 font-semibold rounded-lg hover:bg-slate-50"
-                            >
-                                Cancel
-                            </button>
-                            <button className="flex-1 px-4 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700">
-                                Post Content
-                            </button>
-                        </div>
-                    </div>
+            {/* Main Editor */}
+            <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden min-h-[600px]">
+                <div className="flex border-b border-slate-100 bg-slate-50/30">
+                    <TabButton active={activeTab === "details"} onClick={() => setActiveTab("details")} icon={Layout} label="Core Details" />
+                    <TabButton active={activeTab === "posts"} onClick={() => setActiveTab("posts")} icon={FileText} label="Posts & Updates" />
+                    <TabButton active={activeTab === "highlights"} onClick={() => setActiveTab("highlights")} icon={Camera} label="Highlights" />
                 </div>
-            )}
+
+                <div className="p-10">
+                    {activeTab === "details" && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                            <div className="space-y-8">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 ml-1">Venue Identity</label>
+                                    <input
+                                        type="text"
+                                        defaultValue={data?.profile?.displayName}
+                                        onBlur={(e) => handleUpdateProfile({ displayName: e.target.value })}
+                                        className="w-full p-6 bg-slate-50 border border-slate-200 rounded-3xl text-sm font-bold focus:bg-white focus:ring-4 focus:ring-slate-50 transition-all shadow-sm"
+                                        placeholder="Venue Name"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 ml-1">Atmosphere & Description</label>
+                                    <textarea
+                                        defaultValue={data?.profile?.bio}
+                                        onBlur={(e) => handleUpdateProfile({ bio: e.target.value })}
+                                        className="w-full p-6 bg-slate-50 border border-slate-200 rounded-3xl text-sm font-medium focus:bg-white focus:ring-4 focus:ring-slate-50 transition-all min-h-[220px] shadow-sm"
+                                        placeholder="Describe the experience..."
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-8">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 ml-1">Visual Identity</label>
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div
+                                        onClick={() => handleUpdatePhoto("photoURL")}
+                                        className="aspect-square bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-8 text-center group hover:border-indigo-400 transition-all cursor-pointer overflow-hidden relative"
+                                    >
+                                        {data?.profile?.photoURL ? (
+                                            <img src={data.profile.photoURL} className="absolute inset-0 w-full h-full object-cover grayscale hover:grayscale-0 transition-all" alt="" />
+                                        ) : (
+                                            <>
+                                                <div className="h-14 w-14 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-4 text-slate-400 group-hover:text-indigo-600 transition-colors">
+                                                    <Upload className="h-7 w-7" />
+                                                </div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Profile Icon</p>
+                                            </>
+                                        )}
+                                    </div>
+                                    <div
+                                        onClick={() => handleUpdatePhoto("coverURL")}
+                                        className="aspect-square bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-8 text-center group hover:border-emerald-400 transition-all cursor-pointer overflow-hidden relative"
+                                    >
+                                        {data?.profile?.coverURL ? (
+                                            <img src={data.profile.coverURL} className="absolute inset-0 w-full h-full object-cover grayscale hover:grayscale-0 transition-all" alt="" />
+                                        ) : (
+                                            <>
+                                                <div className="h-14 w-14 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-4 text-slate-400 group-hover:text-emerald-600 transition-colors">
+                                                    <ImageIcon className="h-7 w-7" />
+                                                </div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cover Image</p>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === "posts" && (
+                        <div className="space-y-8">
+                            <div className="flex items-center justify-between bg-slate-900 rounded-3xl p-10 text-white shadow-2xl shadow-slate-200">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight">Timeline Feed</h3>
+                                    <p className="text-white/40 text-xs font-bold mt-1 uppercase tracking-widest">Post updates, announcements, or night highlights.</p>
+                                </div>
+                                <button
+                                    onClick={handleCreatePost}
+                                    className="px-10 py-4 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all"
+                                >
+                                    New Entry
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                {data?.posts?.map((post: any) => (
+                                    <div key={post.id} className="p-10 bg-white border border-slate-100 rounded-[2rem] group relative shadow-sm hover:shadow-md transition-all">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                {new Date(post.createdAt).toLocaleDateString()}
+                                            </span>
+                                            <button
+                                                onClick={() => handleDeletePost(post.id)}
+                                                className="p-2 text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
+                                            >
+                                                <Trash2 className="h-5 w-5" />
+                                            </button>
+                                        </div>
+                                        <p className="text-sm font-medium text-slate-700 leading-relaxed mb-8">{post.content}</p>
+                                        <div className="flex items-center gap-8">
+                                            <div className="flex items-center gap-2 text-slate-400">
+                                                <Heart className="h-4 w-4" />
+                                                <span className="text-xs font-bold">{post.likes || 0}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-slate-400">
+                                                <Eye className="h-4 w-4" />
+                                                <span className="text-xs font-bold">{post.views || 0}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === "highlights" && (
+                        <div className="space-y-8">
+                            <div className="flex items-center justify-between bg-slate-900 rounded-3xl p-8 text-white shadow-xl shadow-slate-200">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight">Venue Stories</h3>
+                                    <p className="text-white/60 text-xs font-bold mt-1 uppercase tracking-widest">Pin vertical stories to the top of your page.</p>
+                                </div>
+                                <button
+                                    onClick={handleCreateHighlight}
+                                    className="px-8 py-3 bg-white text-slate-900 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-all shadow-lg"
+                                >
+                                    New Story
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                                {data?.highlights?.map((h: any) => (
+                                    <div key={h.id} className="group relative">
+                                        <div
+                                            className="aspect-square rounded-[2rem] border-2 border-slate-100 flex items-center justify-center transition-all group-hover:scale-110 shadow-sm overflow-hidden"
+                                            style={{ backgroundColor: `${h.color}10` }}
+                                        >
+                                            <div
+                                                className="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg"
+                                                style={{ backgroundColor: h.color }}
+                                            >
+                                                <Camera className="w-6 h-6" />
+                                            </div>
+                                        </div>
+                                        <p className="text-center mt-3 text-[10px] font-black uppercase tracking-widest text-slate-400">{h.title}</p>
+                                        <button
+                                            onClick={() => handleDeleteHighlight(h.id)}
+                                            className="absolute -top-2 -right-2 p-2 bg-white rounded-full shadow-lg border border-slate-100 text-rose-500 opacity-0 group-hover:opacity-100 transition-all z-10"
+                                        >
+                                            <Trash2 className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {(!data?.highlights || data.highlights.length === 0) && (
+                                <div className="flex flex-col items-center justify-center py-20 bg-slate-50/50 rounded-[3rem] border-2 border-dashed border-slate-100">
+                                    <p className="text-slate-400 text-sm font-medium">No highlights yet.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
+    );
+}
+
+function StatCard({ label, value, icon: Icon, color }: any) {
+    const colors: any = {
+        emerald: "bg-emerald-50 text-emerald-600 border-emerald-100",
+        indigo: "bg-indigo-50 text-indigo-600 border-indigo-100",
+        amber: "bg-amber-50 text-amber-600 border-amber-100",
+        rose: "bg-rose-50 text-rose-600 border-rose-100"
+    };
+
+    return (
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm transition-all hover:scale-[1.02]">
+            <div className={`h-12 w-12 rounded-2xl ${colors[color]} flex items-center justify-center mb-6 border`}>
+                <Icon className="w-6 h-6" />
+            </div>
+            <p className="text-4xl font-black text-slate-900 tracking-tighter mb-1">{value}</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
+        </div>
+    );
+}
+
+function TabButton({ active, icon: Icon, label, onClick }: any) {
+    return (
+        <button
+            onClick={onClick}
+            className={`flex-1 py-10 flex flex-col items-center gap-3 border-b-2 transition-all ${active
+                ? "border-slate-900 bg-white"
+                : "border-transparent text-slate-400 hover:text-slate-900 hover:bg-slate-50/50"
+                }`}
+        >
+            <Icon className={`h-6 w-6 ${active ? "text-slate-900" : "text-slate-300"}`} />
+            <span className="text-[11px] font-black uppercase tracking-widest">{label}</span>
+        </button>
     );
 }

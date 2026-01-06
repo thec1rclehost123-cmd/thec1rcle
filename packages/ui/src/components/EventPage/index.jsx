@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import TicketModal from "./TicketModal";
 import GuestlistModal from "./GuestlistModal";
 import LikeButton from "./LikeButton";
+import { formatEventDate, formatEventTime } from "@c1rcle/core/time";
 
 const avatarPalette = ["#FDE047", "#F43F5E", "#A855F7", "#38BDF8", "#34D399", "#F97316"];
 const fallbackGuests = ["Ari", "Dev", "Ira", "Nia", "Vik", "Reva", "Luna", "Taj", "Mira", "Noah", "Kian", "Sara"];
@@ -81,53 +82,7 @@ const ticketState = (quantity = 0, name = "") => {
     return { label: "Available", tone: "border-emerald-400/30 text-emerald-200 bg-emerald-500/10", isCouple };
 };
 
-// Date formatting helpers
-const formatEventDate = (dateValue, fallback = "Date TBA") => {
-    if (!dateValue) return fallback;
-
-    // If it's already a nicely formatted string (like "Fri, Jan 16"), return as-is
-    if (typeof dateValue === 'string' && !dateValue.includes('T') && !dateValue.includes('-')) {
-        return dateValue;
-    }
-
-    try {
-        const date = new Date(dateValue);
-        if (isNaN(date.getTime())) return fallback;
-
-        return date.toLocaleDateString('en-IN', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric'
-        });
-    } catch {
-        return fallback;
-    }
-};
-
-const formatEventTime = (timeValue, startDate, fallback = "Time TBA") => {
-    // If a specific time string is provided (like "7:00 PM")
-    if (typeof timeValue === 'string' && timeValue.includes(':') && !timeValue.includes('T')) {
-        return timeValue;
-    }
-
-    // Try to get time from ISO startDate
-    if (startDate) {
-        try {
-            const date = new Date(startDate);
-            if (!isNaN(date.getTime())) {
-                return date.toLocaleTimeString('en-IN', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true
-                });
-            }
-        } catch {
-            // Fall through to fallback
-        }
-    }
-
-    return fallback;
-};
+// Redundant local formatting functions removed - using @c1rcle/core/time
 
 export default function EventDetailPage({
     event,
@@ -695,6 +650,8 @@ export default function EventDetailPage({
                 tickets={tickets}
                 eventId={event?.id}
                 isPreview={isPreview}
+                minTicketsPerOrder={event?.minTicketsPerOrder || 1}
+                maxTicketsPerOrder={event?.maxTicketsPerOrder || 10}
                 onPurchase={(data) => handleAction("BOOK", data)}
             />
 

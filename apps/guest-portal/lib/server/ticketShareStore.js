@@ -26,7 +26,7 @@ function signTicketPayload(ticketId) {
 /**
  * Initialize slots for a bundle with gender and couple pairing logic
  */
-function initializeSlots(quantity, userId, tier) {
+function initializeSlots(quantity, userId, tier, buyerGender = "any") {
     const slots = [];
     const { genderRequirement, isCouple } = tier || {};
 
@@ -34,26 +34,43 @@ function initializeSlots(quantity, userId, tier) {
     // If it's a couple ticket, 1 unit = 2 slots
     const effectiveQuantity = isCouple ? quantity * 2 : quantity;
 
-    // Slot 1 is always for the buyer (locked)
-    const ownerSlot = {
-        slotIndex: 1,
-        slotType: "owner_locked",
-        currentOwnerUserId: userId,
-        claimStatus: "claimed",
-        claimedAt: new Date().toISOString(),
-    };
+    // Slot 1: Auto-assign to buyer if eligible
+    // For couples, we assign based on buyer's gender
+    let ownerSlotIndex = 1;
+    let ownerRequiredGender = buyerGender;
 
     if (isCouple) {
-        ownerSlot.requiredGender = "male"; // Pair 1, Slot 1 is Male
-        ownerSlot.couplePairId = `PAIR-${userId.slice(0, 4)}-${randomBytes(3).toString('hex')}`;
+        // Find if buyer's gender fits in a couple pair (M or F)
+        ownerRequiredGender = (buyerGender === "female") ? "female" : "male";
     } else if (genderRequirement && genderRequirement !== 'any') {
-        ownerSlot.requiredGender = genderRequirement;
+        if (genderRequirement !== buyerGender && buyerGender !== 'any') {
+            // Buyer is NOT eligible for this ticket (e.g. Male buying Female Only)
+            // No auto-assignment; all slots remain shareable
+            ownerSlotIndex = 0;
+        } else {
+            ownerRequiredGender = genderRequirement;
+        }
     }
 
-    slots.push(ownerSlot);
+    if (ownerSlotIndex === 1) {
+        const ownerSlot = {
+            slotIndex: 1,
+            slotType: "owner_locked",
+            currentOwnerUserId: userId,
+            claimStatus: "claimed",
+            claimedAt: new Date().toISOString(),
+            requiredGender: ownerRequiredGender
+        };
 
-    // Slots 2..N
-    for (let i = 2; i <= effectiveQuantity; i++) {
+        if (isCouple) {
+            ownerSlot.couplePairId = `PAIR-${userId.slice(0, 4)}-${randomBytes(3).toString('hex')}`;
+        }
+
+        slots.push(ownerSlot);
+    }
+
+    // Remaining slots
+    for (let i = (ownerSlotIndex === 1 ? 2 : 1); i <= effectiveQuantity; i++) {
         const slot = {
             slotIndex: i,
             slotType: "shareable",
@@ -62,10 +79,12 @@ function initializeSlots(quantity, userId, tier) {
         };
 
         if (isCouple) {
-            // Couples alternate: 1:M, 2:F, 3:M, 4:F...
-            slot.requiredGender = i % 2 === 1 ? "male" : "female";
+            // If buyer is male (slot 1), then slot 2 is female, slot 3 is male, etc.
+            // If buyer is female (slot 1), then slot 2 is male, slot 3 is female, etc.
+            const pivot = (ownerSlotIndex === 1 && buyerGender === "female") ? 0 : 1;
+            slot.requiredGender = (i % 2 === pivot) ? "male" : "female";
 
-            // Link even slots back to the previous odd slot's pair ID
+            // Link pairing
             if (i % 2 === 0) {
                 slot.couplePairId = slots[i - 2].couplePairId;
             } else {
@@ -133,12 +152,14 @@ export async function createShareBundle(orderId, userId, eventId, quantity, tier
 
     const actualTierId = tierId || (order.tickets[0]?.ticketId);
     const tier = event?.tickets?.find(t => t.id === actualTierId);
+    const buyerGender = await getUserGender(userId);
 
-    const slots = initializeSlots(quantity, userId, tier);
+    const slots = initializeSlots(quantity, userId, tier, buyerGender);
     const effectiveSlotsCount = slots.length;
+    const hasOwnerClaimed = slots.some(s => s.slotType === "owner_locked" && s.claimStatus === "claimed");
 
-    // Shared QR Mode for PAID orders only (Refinement 237)
-    const isSharedQrMode = !order.isRSVP;
+    // Default to 'individual' mode for Per-Ticket Identity (Refinement 155)
+    const isSharedQrMode = false;
     const groupTicketId = `GROUP-${orderId}-${actualTierId}`;
     const groupQrPayload = isSharedQrMode ? signTicketPayload(groupTicketId) : null;
 
@@ -149,7 +170,7 @@ export async function createShareBundle(orderId, userId, eventId, quantity, tier
         userId,
         mode: isSharedQrMode ? "shared_qr" : "individual",
         totalSlots: effectiveSlotsCount,
-        remainingSlots: effectiveSlotsCount - 1,
+        remainingSlots: hasOwnerClaimed ? effectiveSlotsCount - 1 : effectiveSlotsCount,
         scanCreditsRemaining: isSharedQrMode ? effectiveSlotsCount : null,
         groupQrPayload,
         groupTicketId,
@@ -161,6 +182,29 @@ export async function createShareBundle(orderId, userId, eventId, quantity, tier
         createdAt: now.toISOString(),
         expiresAt: expiresAt.toISOString(),
     };
+
+    // HANDLE DEFERRED INVENTORY FOR OWNER SLOT
+    if (hasOwnerClaimed && tier) {
+        const isClaimBasedFreeTier = (tier.price === 0 || tier.isFree) && (tier.genderRequirement || order.isRSVP);
+        if (isClaimBasedFreeTier) {
+            const eventRef = db.collection("events").doc(eventId);
+            await db.runTransaction(async (transaction) => {
+                const eDoc = await transaction.get(eventRef);
+                if (eDoc.exists) {
+                    const eData = eDoc.data();
+                    const updatedTiers = [...(eData.tickets || [])];
+                    const tIdx = updatedTiers.findIndex(t => t.id === actualTierId);
+                    if (tIdx !== -1) {
+                        const currentRem = Number(updatedTiers[tIdx].remaining ?? updatedTiers[tIdx].quantity) || 0;
+                        if (currentRem > 0) {
+                            updatedTiers[tIdx].remaining = currentRem - 1;
+                            transaction.update(eventRef, { tickets: updatedTiers, updatedAt: now.toISOString() });
+                        }
+                    }
+                }
+            });
+        }
+    }
 
     const docRef = await db.collection(SHARE_BUNDLES_COLLECTION).add(bundle);
     return { id: docRef.id, ...bundle };

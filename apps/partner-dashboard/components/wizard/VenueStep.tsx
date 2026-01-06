@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Building2, Check, MapPin, Calendar, Clock, AlertCircle } from "lucide-react";
+import { toISODateIST, parseAsIST } from "@c1rcle/core/time";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface VenueStepProps {
@@ -28,7 +29,7 @@ export function VenueStep({
 
     // Fetch calendar when venue is selected (host only)
     useEffect(() => {
-        if (role === "host" && formData.venueId && !formData.startDate) {
+        if (role === "host" && formData.venueId) {
             fetchVenueCalendar(formData.venueId);
         }
     }, [formData.venueId, role]);
@@ -36,10 +37,9 @@ export function VenueStep({
     const fetchVenueCalendar = async (venueId: string) => {
         setLoadingCalendar(true);
         try {
-            const today = new Date();
-            const startDate = today.toISOString().split("T")[0];
-            const endDate = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000)
-                .toISOString().split("T")[0];
+            const today = parseAsIST(null);
+            const startDate = toISODateIST(today);
+            const endDate = toISODateIST(new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000));
 
             const hostId = profile?.activeMembership?.partnerId;
             const res = await fetch(
@@ -58,7 +58,8 @@ export function VenueStep({
     const handleVenueSelect = (venue: any) => {
         updateFormData({
             venueId: venue.clubId,
-            venueName: venue.clubName
+            venueName: venue.clubName,
+            clubId: venue.clubId
         });
     };
 
@@ -70,6 +71,11 @@ export function VenueStep({
 
     const getDateStatus = (date: string) => {
         const calendarDay = calendar.find(d => d.date === date);
+        if (calendarDay?.myRequest) {
+            const status = calendarDay.myRequest.status;
+            if (status === 'pending') return 'tentative';
+            if (status === 'approved') return 'approved_hold';
+        }
         return calendarDay?.status || "available";
     };
 
@@ -79,7 +85,8 @@ export function VenueStep({
             case "blocked": return "bg-[#ff3b30]/10 text-[#ff3b30] border-[#ff3b30]/30";
             case "booked": return "bg-[#86868b]/10 text-[#86868b] border-[#86868b]/30";
             case "partial": return "bg-[#ff9500]/10 text-[#ff9500] border-[#ff9500]/30";
-            case "tentative": return "bg-[#007aff]/10 text-[#007aff] border-[#007aff]/30";
+            case "tentative": return "bg-[#ff9500]/20 text-[#ff9500] border-[#ff9500]/40 ring-2 ring-[#ff9500]/20";
+            case "approved_hold": return "bg-[#007aff]/10 text-[#007aff] border-[#007aff]/30 font-bold shadow-sm";
             default: return "bg-[#f5f5f7] text-[#1d1d1f]";
         }
     };
@@ -87,13 +94,18 @@ export function VenueStep({
     // For clubs, automatically set venue info from profile
     useEffect(() => {
         if (role === "club" && profile?.activeMembership?.partnerId) {
-            updateFormData({
-                venueId: profile.activeMembership.partnerId,
-                venueName: profile.activeMembership.partnerName || "Your Venue",
-                clubId: profile.activeMembership.partnerId
-            });
+            const clubId = profile.activeMembership.partnerId;
+            const clubName = profile.activeMembership.partnerName || "Your Venue";
+
+            if (formData.venueId !== clubId || formData.clubId !== clubId) {
+                updateFormData({
+                    venueId: clubId,
+                    venueName: clubName,
+                    clubId: clubId
+                });
+            }
         }
-    }, [role, profile, updateFormData]);
+    }, [role, profile, updateFormData, formData.venueId, formData.clubId]);
 
     if (role === "club") {
         // Club: Simply show their own venue
@@ -205,7 +217,10 @@ export function VenueStep({
                                     <span className="w-3 h-3 rounded-full bg-[#34c759]" /> Available
                                 </span>
                                 <span className="flex items-center gap-1">
-                                    <span className="w-3 h-3 rounded-full bg-[#ff9500]" /> Partial
+                                    <span className="w-3 h-3 rounded-full bg-[#ff9500]" /> Pending
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <span className="w-3 h-3 rounded-full bg-[#007aff]" /> My Hold
                                 </span>
                                 <span className="flex items-center gap-1">
                                     <span className="w-3 h-3 rounded-full bg-[#86868b]" /> Booked

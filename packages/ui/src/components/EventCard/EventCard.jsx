@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import ShimmerImage from "../ShimmerImage";
 import { Heart, ArrowRight } from "lucide-react";
 import { useMemo } from "react";
+import { formatEventDate, formatEventTime } from "@c1rcle/core/time";
+import { resolvePoster } from "@c1rcle/core/events";
 
 /**
  * Shared EventCard component for THE C1RCLE.
@@ -33,14 +35,22 @@ export default function EventCard({
     }, [event.tickets, event.isRSVP, event.price]);
 
     const isFree = priceDisplay === "Free";
-    const isDefaultImage = !event.image || event.image.includes("holi-edit.svg");
+    const poster = useMemo(() => resolvePoster(event), [event]);
+    const isDefaultImage = !poster || poster.includes("placeholder.svg") || poster.includes("holi-edit.svg");
 
     // Placeholders
     const displayTitle = event.title || "Your Event Title";
     const displayVenue = event.venueName || event.venue || "Venue";
     const displayCity = event.city || "City";
-    const displayDate = event.date || "Date TBD";
-    const displayTime = event.time || "";
+
+    // Date/Time Formatting with timezone shift prevention (Using Core IST Utils)
+    const displayDate = useMemo(() => {
+        return formatEventDate(event.date || event.startDate);
+    }, [event.date, event.startDate]);
+
+    const displayTime = useMemo(() => {
+        return formatEventTime(event.time || event.startTime, event.date || event.startDate, "");
+    }, [event.time, event.startTime, event.date, event.startDate]);
 
     // Interaction handlers
     const slug = event.id || event.slug || "preview";
@@ -76,7 +86,7 @@ export default function EventCard({
                             <div className="h-full w-full bg-gradient-to-br from-orange/10 via-white dark:via-black to-surface" />
                         ) : (
                             <ShimmerImage
-                                src={event.image}
+                                src={poster}
                                 alt={displayTitle}
                                 fill
                                 wrapperClassName="h-full w-full"
@@ -85,7 +95,6 @@ export default function EventCard({
                             />
                         )}
                     </div>
-
                     {/* Gradient Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 dark:via-black/60 to-transparent opacity-90 transition-opacity duration-500 group-hover:opacity-95" />
 
@@ -107,8 +116,8 @@ export default function EventCard({
 
                                 {priceDisplay && (
                                     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest backdrop-blur-md ${isFree
-                                        ? "border-emerald-400/30 bg-emerald-400/20 text-emerald-300"
-                                        : "border-orange/40 bg-gradient-to-r from-orange/20 to-orange-dark/20 text-white"
+                                            ? "border-emerald-400/30 bg-emerald-400/20 text-emerald-300"
+                                            : "border-orange/40 bg-gradient-to-r from-orange/20 to-orange-dark/20 text-white"
                                         }`}>
                                         {priceDisplay}
                                     </span>

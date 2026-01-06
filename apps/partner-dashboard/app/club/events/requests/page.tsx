@@ -73,16 +73,22 @@ export default function ClubEventRequestsPage() {
     const fetchRequests = async () => {
         setLoading(true);
         try {
-            // Fetch slot requests for this club
+            // 1. Fetch slot requests for this club
             const slotsRes = await fetch(`/api/slots?clubId=${clubId}&status=${activeTab === "pending" ? "pending" : ""}`);
             const slotsData = await slotsRes.json();
 
-            // For each slot request, get the event details
-            const eventsWithSlots: EventRequest[] = await Promise.all(
+            // 2. Fetch events in 'submitted' state for this club
+            const submittedRes = await fetch(`/api/events?venueId=${clubId}&lifecycle=submitted`);
+            const submittedData = await submittedRes.json();
+
+            // Map slot requests to EventRequest objects
+            const eventRequestsFromSlots: EventRequest[] = await Promise.all(
                 (slotsData.requests || []).map(async (slot: SlotRequest) => {
                     try {
                         const eventRes = await fetch(`/api/events/${slot.eventId}`);
                         const eventData = await eventRes.json();
+                        if (!eventData.event) return null;
+
                         return {
                             ...eventData.event,
                             slotRequest: slot
@@ -93,7 +99,16 @@ export default function ClubEventRequestsPage() {
                 })
             );
 
-            setRequests(eventsWithSlots.filter(Boolean));
+            // Filter out those that are already in the slot requests (to avoid double counting if a slot is pending AND event is submitted)
+            const slotEventIds = new Set(eventRequestsFromSlots.filter(Boolean).map(r => r!.id));
+
+            const eventRequestsFromSubmitted = (submittedData || []).filter((e: any) => !slotEventIds.has(e.id)).map((e: any) => ({
+                ...e,
+                // We might want to fetch the slot request for these too if they exist
+                lifecycle: e.lifecycle
+            }));
+
+            setRequests([...eventRequestsFromSlots.filter(Boolean), ...eventRequestsFromSubmitted]);
         } catch (err) {
             console.error("Failed to fetch requests:", err);
         } finally {
@@ -107,34 +122,15 @@ export default function ClubEventRequestsPage() {
         setProcessing(true);
         try {
             const slotId = actionModal.request.slotRequest?.id;
-            if (!slotId) throw new Error("No slot request found");
+            const eventId = actionModal.request.id;
 
-            const res = await fetch(`/api/slots/${slotId}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    action,
-                    notes: actionNotes,
-                    actor: {
-                        uid: profile?.uid,
-                        role: "club",
-                        name: profile?.displayName
-                    }
-                })
-            });
-
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.error || "Action failed");
-            }
-
-            // If approved, also update event lifecycle
-            if (action === "approve") {
-                await fetch(`/api/events/${actionModal.request.id}`, {
+            // 1. Update Slot if exists
+            if (slotId) {
+                const res = await fetch(`/api/slots/${slotId}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        action: "approve",
+                        action,
                         notes: actionNotes,
                         actor: {
                             uid: profile?.uid,
@@ -143,6 +139,38 @@ export default function ClubEventRequestsPage() {
                         }
                     })
                 });
+
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.error || "Action failed on slot request");
+                }
+            }
+
+            // 2. Update Event Lifecycle if it's an approval/rejection
+            if (action === "approve" || action === "reject") {
+                // Only trigger publish on approval if the event is actually submitted
+                // Rejection (deny) is always allowed to transition lifecycle
+                if (action === "reject" || (action === "approve" && actionModal.request.lifecycle === "submitted")) {
+                    const eventAction = action === "approve" ? "approve" : "deny";
+                    const res = await fetch(`/api/events/${eventId}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            action: eventAction,
+                            notes: actionNotes,
+                            actor: {
+                                uid: profile?.uid,
+                                role: "club",
+                                name: profile?.displayName
+                            }
+                        })
+                    });
+
+                    if (!res.ok) {
+                        const data = await res.json();
+                        throw new Error(data.error || data.message || "Failed to update event status");
+                    }
+                }
             }
 
             // Refresh list
@@ -156,14 +184,24 @@ export default function ClubEventRequestsPage() {
         }
     };
 
-    const getStatusBadge = (status: string) => {
+    const getStatusBadge = (request: EventRequest) => {
+        if (request.lifecycle === 'submitted') {
+            return "bg-blue-100 text-blue-600";
+        }
+        const status = request.slotRequest?.status || "pending";
         const styles: Record<string, string> = {
             pending: "bg-[#ff9500]/10 text-[#ff9500]",
             approved: "bg-[#34c759]/10 text-[#34c759]",
             rejected: "bg-[#ff3b30]/10 text-[#ff3b30]",
-            modified: "bg-[#007aff]/10 text-[#007aff]"
+            modified: "bg-[#007aff]/10 text-[#007aff]",
+            denied: "bg-[#ff3b30]/10 text-[#ff3b30]"
         };
         return styles[status] || "bg-[#f5f5f7] text-[#86868b]";
+    };
+
+    const getStatusLabel = (request: EventRequest) => {
+        if (request.lifecycle === 'submitted') return "Reviewing Content";
+        return request.slotRequest?.status || "pending";
     };
 
     return (
@@ -188,8 +226,8 @@ export default function ClubEventRequestsPage() {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-all ${activeTab === tab.id
-                                ? "bg-white text-[#1d1d1f] shadow-sm"
-                                : "text-[#86868b] hover:text-[#1d1d1f]"
+                            ? "bg-white text-[#1d1d1f] shadow-sm"
+                            : "text-[#86868b] hover:text-[#1d1d1f]"
                             }`}
                     >
                         {tab.label}
@@ -260,8 +298,8 @@ export default function ClubEventRequestsPage() {
                                                 by {request.hostName}
                                             </p>
                                         </div>
-                                        <span className={`badge ${getStatusBadge(request.slotRequest?.status || "pending")}`}>
-                                            {request.slotRequest?.status || "pending"}
+                                        <span className={`badge ${getStatusBadge(request)}`}>
+                                            {getStatusLabel(request)}
                                         </span>
                                     </div>
 
@@ -297,13 +335,13 @@ export default function ClubEventRequestsPage() {
                                 </div>
 
                                 {/* Actions */}
-                                {request.slotRequest?.status === "pending" && (
+                                {(request.slotRequest?.status === "pending" || request.lifecycle === "submitted") && (
                                     <div className="flex flex-col gap-2">
                                         <button
                                             onClick={() => setActionModal({ type: "approve", request })}
                                             className="btn btn-primary px-4 py-2 text-[13px]"
                                         >
-                                            <Check className="w-4 h-4" /> Approve
+                                            <Check className="w-4 h-4" /> {request.lifecycle === 'submitted' ? 'Publish' : 'Approve'}
                                         </button>
                                         <button
                                             onClick={() => setActionModal({ type: "reject", request })}
@@ -317,6 +355,12 @@ export default function ClubEventRequestsPage() {
                                         >
                                             <MessageSquare className="w-4 h-4" /> Suggest
                                         </button>
+                                        <Link
+                                            href={`/club/events/create?id=${request.id}`}
+                                            className="btn btn-ghost px-4 py-2 text-[13px] flex items-center justify-center gap-2"
+                                        >
+                                            <Eye className="w-4 h-4" /> View Details
+                                        </Link>
                                     </div>
                                 )}
                             </div>
@@ -386,10 +430,10 @@ export default function ClubEventRequestsPage() {
                                     )}
                                     disabled={processing || (actionModal.type !== "approve" && !actionNotes.trim())}
                                     className={`flex-1 btn ${actionModal.type === "approve"
-                                            ? "btn-primary"
-                                            : actionModal.type === "reject"
-                                                ? "bg-[#ff3b30] text-white hover:bg-[#ff3b30]/90"
-                                                : "btn-primary"
+                                        ? "btn-primary"
+                                        : actionModal.type === "reject"
+                                            ? "bg-[#ff3b30] text-white hover:bg-[#ff3b30]/90"
+                                            : "btn-primary"
                                         }`}
                                 >
                                     {processing ? "Processing..." : (

@@ -102,6 +102,30 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
           }));
           return;
         }
+
+        // Surge Protection Check
+        try {
+          const surgeRes = await fetch(`/api/events/${event.id}/queue`);
+          const surgeData = await surgeRes.json();
+
+          if (surgeData.surgeActive) {
+            const admissionToken = sessionStorage.getItem(`admission_token_${event.id}`);
+            if (!admissionToken) {
+              const queryParams = new URLSearchParams();
+              if (data.tickets) {
+                data.tickets.forEach(t => queryParams.append(`t_${t.id}`, t.quantity));
+              }
+              if (promoterCode) queryParams.append("ref", promoterCode);
+
+              const returnTo = `/checkout/${event.id}?${queryParams.toString()}`;
+              router.push(`/event/${event.id}/queue?returnTo=${encodeURIComponent(returnTo)}`);
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn("[EventRSVP] Surge check failed, proceeding with caution", err);
+        }
+
         if (data.tickets) {
           const queryParams = new URLSearchParams();
           data.tickets.forEach(t => queryParams.append(`t_${t.id}`, t.quantity));

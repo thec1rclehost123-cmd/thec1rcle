@@ -6,10 +6,6 @@ import {
     Wallet,
     Ticket,
     TrendingUp,
-    Link2,
-    Copy,
-    Share2,
-    Users,
     ChevronRight,
     ArrowUpRight,
     CalendarDays
@@ -17,6 +13,9 @@ import {
 import Link from "next/link";
 import { collection, query, where, onSnapshot, limit } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/client";
+import { DashboardEventCard } from "@c1rcle/ui";
+import { mapEventForClient } from "@c1rcle/core/events";
+import { Link2, ExternalLink } from "lucide-react";
 
 export default function PromoterDashboardHome() {
     const { profile } = useDashboardAuth();
@@ -37,12 +36,13 @@ export default function PromoterDashboardHome() {
 
         const eventsQuery = query(
             collection(db, "events"),
-            where("status", "in", ["live", "active"]),
+            where("lifecycle", "in", ["scheduled", "live"]),
+            where("promoterVisibility", "==", true),
             limit(4)
         );
 
         const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
-            const events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const events = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
             setActiveEvents(events);
         });
 
@@ -138,8 +138,34 @@ export default function PromoterDashboardHome() {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {activeEvents.map((event) => (
-                                    <EventCard key={event.id} event={event} />
+                                {activeEvents.map((event, index) => (
+                                    <DashboardEventCard
+                                        key={event.id}
+                                        event={event}
+                                        index={index}
+                                        role="promoter"
+                                        primaryAction={{
+                                            label: "Promote",
+                                            href: `/promoter/links`
+                                        }}
+                                        secondaryActions={[
+                                            {
+                                                label: "Copy Tracking Link",
+                                                icon: <Link2 size={16} />,
+                                                onClick: () => {
+                                                    const partnerId = profile?.activeMembership?.partnerId;
+                                                    const url = `${window.location.origin}/e/${event.slug || event.id}?p=${partnerId}`;
+                                                    navigator.clipboard.writeText(url);
+                                                    alert("Tracking link copied!");
+                                                }
+                                            },
+                                            {
+                                                label: "View Event",
+                                                icon: <ExternalLink size={16} />,
+                                                href: `/event/${event.slug || event.id}`
+                                            }
+                                        ]}
+                                    />
                                 ))}
                             </div>
                         )}
@@ -215,32 +241,6 @@ function StatCard({ label, value, icon: Icon }: any) {
     );
 }
 
-function EventCard({ event }: { event: any }) {
-    return (
-        <div className="card-flat p-5 rounded-2xl">
-            <div className="flex items-start justify-between mb-4">
-                <div className="icon-container icon-container-md">
-                    <Ticket className="w-5 h-5" />
-                </div>
-                <div className="flex gap-2">
-                    <button className="p-2 rounded-lg bg-white hover:bg-black/[0.02] transition-colors">
-                        <Copy className="h-4 w-4 text-[#86868b]" />
-                    </button>
-                    <button className="p-2 rounded-lg bg-[#007aff] text-white">
-                        <Share2 className="h-4 w-4" />
-                    </button>
-                </div>
-            </div>
-            <h4 className="text-headline-sm mb-1">{event.name}</h4>
-            <p className="text-caption mb-4">{event.date}</p>
-            <div className="divider mb-4" />
-            <div className="flex items-center justify-between">
-                <span className="badge badge-green">{event.commission_rate || '15'}%</span>
-                <span className="text-caption">{event.tickets_sold || 0} sold</span>
-            </div>
-        </div>
-    );
-}
 
 function QuickAction({ label, href }: { label: string; href: string }) {
     return (

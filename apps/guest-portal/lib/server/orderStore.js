@@ -61,10 +61,15 @@ export async function createRSVPOrder(payload) {
         }
     }
 
-    // Hard Limit: 1 ticket per user across event
+    // RSVPs are strictly 1 ticket per owner across the event
+    const totalSelectedQuantity = tickets.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
+    if (totalSelectedQuantity !== 1) {
+        throw new Error("RSVP is limited to 1 person per registration");
+    }
+
     const hasExisting = await checkExistingRSVP(eventId, { userId, email: userEmail });
     if (hasExisting) {
-        throw new Error("User already has an RSVP for this event");
+        throw new Error("You have already RSVP'd for this event");
     }
 
     const orderId = reservationId ? `RSVP-${reservationId}` : generateOrderId("RSVP");
@@ -130,23 +135,14 @@ export async function createRSVPOrder(payload) {
         }
     }
 
-    // Update event inventory (if applicable for RSVP)
+    // Auto-create share bundle for RSVP immediately
     try {
-        const eventRef = db.collection("events").doc(eventId);
-        const eventDoc = await eventRef.get();
-        if (eventDoc.exists) {
-            const currentTickets = eventDoc.data().tickets || [];
-            tickets.forEach(t => {
-                const idx = currentTickets.findIndex(ct => ct.id === t.ticketId);
-                if (idx !== -1) {
-                    const remaining = (currentTickets[idx].remaining ?? currentTickets[idx].quantity) - t.quantity;
-                    currentTickets[idx].remaining = Math.max(0, remaining);
-                }
-            });
-            await eventRef.update({ tickets: currentTickets, updatedAt: now });
-        }
-    } catch (e) {
-        console.warn("Failed to update RSVP inventory:", e);
+        const { createShareBundle } = await import("./ticketShareStore");
+        // RSVP is always 1 ticket, so quantity = 1
+        await createShareBundle(rsvpOrder.id, userId, eventId, 1, tickets[0].ticketId);
+        console.log(`[OrderStore] Auto-created share bundle for RSVP ${rsvpOrder.id}`);
+    } catch (err) {
+        console.error("[OrderStore] Failed to auto-create RSVP share bundle:", err);
     }
 
     return rsvpOrder;
@@ -188,6 +184,25 @@ export async function createOrder(payload) {
         const error = new Error(`Event not found: ${eventId}`);
         error.statusCode = 404;
         throw error;
+    }
+
+    // Global order limits validation
+    const totalSelectedQuantity = tickets.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
+    const minTickets = event.minTicketsPerOrder || 1;
+    const maxTickets = event.maxTicketsPerOrder || 10;
+
+    if (totalSelectedQuantity < minTickets) {
+        throw new Error(`Minimum ${minTickets} tickets required per order`);
+    }
+
+    // Checking global limit across all user orders
+    const existingTicketCount = await getUserTicketCountForEvent(eventId, { userId, email: userEmail });
+    if (existingTicketCount + totalSelectedQuantity > maxTickets) {
+        if (existingTicketCount > 0) {
+            throw new Error(`You have already purchased ${existingTicketCount} tickets. Maximum ${maxTickets} tickets allowed per account.`);
+        } else {
+            throw new Error(`Maximum ${maxTickets} tickets allowed per account.`);
+        }
     }
 
     // Build order tickets with full details
@@ -286,6 +301,7 @@ export async function createOrder(payload) {
         userPhone: payload.userPhone || "",
         promoterCode: promoterCode || null,
         promoterLinkId: promoterLinkId || null,
+        promoCodeId: payload.promoCodeId || null,
         promoterDiscount: promoterDiscount || 0,
         discountAmount: discountAmount || 0,
         tickets: orderTickets,
@@ -377,15 +393,29 @@ export async function createOrder(payload) {
 
         console.log(`Order created successfully: ${orderId}`);
 
-        // If the order is confirmed (e.g., free tickets), record the promoter conversion immediately
-        if (order.status === "confirmed" && promoterLinkId) {
-            try {
-                // For simplicity, we record conversion for the first ticket tier in the order
-                const firstTicket = order.tickets[0];
-                await recordConversion(promoterLinkId, order.id, order.totalAmount, firstTicket.ticketId);
-                console.log(`[OrderStore] Promoter conversion recorded for order ${order.id}`);
-            } catch (err) {
-                console.error("[OrderStore] Failed to record promoter conversion:", err);
+        // If the order is confirmed (e.g., free tickets), record the promoter conversion and promo redemptions immediately
+        if (order.status === "confirmed") {
+            if (promoterLinkId) {
+                try {
+                    // For simplicity, we record conversion for the first ticket tier in the order
+                    const firstTicket = order.tickets[0];
+                    await recordConversion(promoterLinkId, order.id, order.totalAmount, firstTicket.ticketId);
+                    console.log(`[OrderStore] Promoter conversion recorded for order ${order.id}`);
+                } catch (err) {
+                    console.error("[OrderStore] Failed to record promoter conversion:", err);
+                }
+            }
+
+            if (order.promoCodeId) {
+                try {
+                    const { recordRedemption } = await import("@c1rcle/core/promo-service");
+                    await recordRedemption(order.promoCodeId, order.id, order.userId, {
+                        discountAmount: order.discountAmount
+                    });
+                    console.log(`[OrderStore] Promo redemption recorded for order ${order.id}`);
+                } catch (err) {
+                    console.error("[OrderStore] Failed to record promo redemption:", err);
+                }
             }
         }
 
@@ -491,6 +521,51 @@ export async function checkExistingRSVP(eventId, { userId, email }) {
     }
 
     return false;
+}
+
+/**
+ * Get total confirmed tickets a user has already purchased for an event
+ */
+export async function getUserTicketCountForEvent(eventId, { userId, email }) {
+    if (!eventId || (!userId && !email)) return 0;
+
+    let confirmedOrders = [];
+
+    if (!isFirebaseConfigured()) {
+        confirmedOrders = fallbackOrders.filter(o =>
+            o.eventId === eventId &&
+            o.status === "confirmed" &&
+            ((userId && o.userId === userId) || (email && o.userEmail === email))
+        );
+    } else {
+        const db = getAdminDb();
+        let query = db.collection(ORDERS_COLLECTION)
+            .where("eventId", "==", eventId)
+            .where("status", "==", "confirmed");
+
+        // We'll perform two separate queries for userId and email to be safe, or if using a complex query
+        // For simplicity and correctness with Firestore's limited OR queries, we check both
+        const userIdSnapshot = userId ? await query.where("userId", "==", userId).get() : { empty: true, docs: [] };
+        const emailSnapshot = email ? await query.where("userEmail", "==", email).get() : { empty: true, docs: [] };
+
+        // Combine unique order documents
+        const orderIds = new Set();
+        const combinedDocs = [];
+
+        [...userIdSnapshot.docs, ...emailSnapshot.docs].forEach(doc => {
+            if (!orderIds.has(doc.id)) {
+                orderIds.add(doc.id);
+                combinedDocs.push(doc.data());
+            }
+        });
+        confirmedOrders = combinedDocs;
+    }
+
+    // Sum up quantity across all tickets in these orders
+    return confirmedOrders.reduce((sum, order) => {
+        const orderQty = (order.tickets || []).reduce((tSum, t) => tSum + (Number(t.quantity) || 0), 0);
+        return sum + orderQty;
+    }, 0);
 }
 
 /**
@@ -734,6 +809,19 @@ export async function updateOrderStatus(orderId, status, paymentDetails = {}) {
     const db = getAdminDb();
     await db.collection(ORDERS_COLLECTION).doc(orderId).update(updates);
 
+    // If confirming, record promo redemption if applicable
+    if (status === "confirmed" && order.status !== "confirmed" && order.promoCodeId) {
+        try {
+            const { recordRedemption } = await import("@c1rcle/core/promo-service");
+            await recordRedemption(order.promoCodeId, order.id, order.userId, {
+                discountAmount: order.discountAmount
+            });
+            console.log(`[OrderStore] Promo redemption recorded for order ${order.id} after payment.`);
+        } catch (err) {
+            console.error("[OrderStore] Failed to record promo redemption after payment:", err);
+        }
+    }
+
     return { ...order, ...updates };
 }
 
@@ -777,14 +865,13 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
                 try {
                     const firstTicket = order.tickets[0];
                     await recordConversion(order.promoterLinkId, orderId, order.totalAmount, firstTicket.ticketId);
-                    console.log(`[OrderStore] Promoter conversion recorded for confirmed order ${orderId}`);
                 } catch (err) {
-                    console.error("[OrderStore] Failed to record promoter conversion:", err);
+                    console.error("[OrderStore] Failed to record promoter conversion (fallback):", err);
                 }
             }
-
             return fallbackOrders[index];
         }
+        throw new Error("Order not found in fallback");
     }
 
     const db = getAdminDb();
@@ -795,10 +882,20 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
         try {
             const firstTicket = order.tickets[0];
             await recordConversion(order.promoterLinkId, orderId, order.totalAmount, firstTicket.ticketId);
-            console.log(`[OrderStore] Promoter conversion recorded for confirmed order ${orderId}`);
         } catch (err) {
             console.error("[OrderStore] Failed to record promoter conversion:", err);
         }
+    }
+
+    // Per-Ticket Identity: Auto-create share bundles for each tier in the order
+    try {
+        const { createShareBundle } = await import("./ticketShareStore");
+        for (const ticket of order.tickets) {
+            await createShareBundle(orderId, order.userId, order.eventId, ticket.quantity, ticket.ticketId);
+        }
+        console.log(`[OrderStore] Auto-created share bundles for confirmed order ${orderId}`);
+    } catch (err) {
+        console.error("[OrderStore] Failed to auto-create share bundles:", err);
     }
 
     // Send ticket notification (async, don't await)

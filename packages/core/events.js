@@ -83,6 +83,24 @@ export function mapEventForClient(data, id) {
     const settings = data.settings ? { ...data.settings } : {};
     if (settings.passwordCode) delete settings.passwordCode;
 
+    const creatorRole = data.creatorRole || (data.hostId ? "host" : "club");
+    const eventType = creatorRole === "host" ? "host" : "club";
+    let lifecycle = data.lifecycle || data.status || EVENT_LIFECYCLE.DRAFT;
+
+    // Hardening: Club events never need approval. Normalize legacy 'submitted' states.
+    if (eventType === "club" && (lifecycle === EVENT_LIFECYCLE.SUBMITTED || lifecycle === "pending")) {
+        lifecycle = EVENT_LIFECYCLE.SCHEDULED;
+    }
+
+    // Derived Permission Flags (True for Club/Admin viewing in Partner Dashboard)
+    const canApprove = eventType === "host" && (lifecycle === EVENT_LIFECYCLE.SUBMITTED || data.status === "pending");
+    const canRequestEdits = eventType === "host" && (lifecycle === EVENT_LIFECYCLE.SUBMITTED || data.status === "pending");
+
+    // Edit Rules:
+    // Club can edit its own drafts.
+    // Club can NEVER edit host content.
+    const canEdit = eventType === "club" && lifecycle === EVENT_LIFECYCLE.DRAFT;
+
     return {
         ...data,
         id: eventId,
@@ -91,11 +109,15 @@ export function mapEventForClient(data, id) {
         posterUrl: poster, // Admin Console compatibility
         cityKey,
         cityLabel: getCityLabel(cityKey),
-        lifecycle: data.lifecycle || EVENT_LIFECYCLE.DRAFT,
+        lifecycle,
+        eventType,
+        canApprove,
+        canEdit,
+        canRequestEdits,
         settings,
         createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
         updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt,
         // Visibility flag helper for easy template logic
-        isPublic: PUBLIC_LIFECYCLE_STATES.includes(data.lifecycle)
+        isPublic: PUBLIC_LIFECYCLE_STATES.includes(lifecycle)
     };
 }

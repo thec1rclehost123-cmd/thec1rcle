@@ -4,8 +4,7 @@ import {
     listSlotRequests,
     getSlotRequest,
     approveSlotRequest,
-    rejectSlotRequest,
-    suggestAlternatives
+    rejectSlotRequest
 } from "@/lib/server/slotStore";
 import { isSlotAvailable } from "@/lib/server/calendarStore";
 import { checkPartnership } from "@/lib/server/partnershipStore";

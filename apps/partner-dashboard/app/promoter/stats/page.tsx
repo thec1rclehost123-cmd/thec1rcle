@@ -1,5 +1,5 @@
-import PromoterPlaceholderPage from "@/components/promoter-layout/PromoterPlaceholderPage";
+import { redirect } from "next/navigation";
 
-export default function MyStatsPage() {
-    return <PromoterPlaceholderPage title="Sales Analytics" description="Track your performance. See which events are making you the most money." />;
+export default function PromoterStatsRedirect() {
+    redirect("/promoter/analytics/overview");
 }

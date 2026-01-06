@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Calendar,
@@ -28,6 +28,7 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MediaStep } from "./MediaStep";
 import { VenueStep } from "./VenueStep";
+import { formatEventDate } from "@c1rcle/core/time";
 import { TicketTierStep } from "./TicketTierStep";
 import { PromoterStep } from "./PromoterStep";
 import { TableBookingStep } from "./TableBookingStep";
@@ -139,23 +140,7 @@ function AppleTextArea({
     );
 }
 
-// Minimal Date Formatter
-const formatDate = (dateStr: string) => {
-    if (!dateStr) return "Date";
-    try {
-        // Parse YYYY-MM-DD as local date to avoid timezone shift
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const date = new Date(year, month - 1, day);
-        return date.toLocaleDateString('en-IN', {
-            weekday: 'short',
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric'
-        });
-    } catch (e) {
-        return "Date";
-    }
-}
+// formatDate removed, using formatEventDate from core
 
 // Minimal Preview Card - Now using shared EventCard
 function PreviewCard({ formData, device, showDemoHover }: { formData: any, device: string, showDemoHover: boolean }) {
@@ -215,9 +200,6 @@ export function CreateEventWizard({ role }: { role: 'club' | 'host' }) {
     const [isSuccess, setIsSuccess] = useState(false);
     const [createdEventId, setCreatedEventId] = useState<string | null>(null);
 
-
-
-
     // Initialize form data
     const [formData, setFormData] = useState<any>(() => {
         const defaultData = {
@@ -263,7 +245,11 @@ export function CreateEventWizard({ role }: { role: 'club' | 'host' }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoadingDraft, setIsLoadingDraft] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
+
     const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+    const isReviewMode = role === 'club' && formData.creatorRole === 'host';
+    const isLocked = (role === 'host' && (formData.lifecycle === 'submitted' || formData.lifecycle === 'scheduled' || formData.lifecycle === 'live')) || (isReviewMode && searchParams.get('mode') === 'review');
 
     // Fetch remote draft if ID is in URL
     useEffect(() => {
@@ -319,15 +305,16 @@ export function CreateEventWizard({ role }: { role: 'club' | 'host' }) {
             const clubId = profile.activeMembership.partnerId;
             const clubName = profile.activeMembership.partnerName || "Your Venue";
 
-            if (formData.venueId !== clubId) {
+            if (formData.venueId !== clubId || formData.clubId !== clubId) {
                 setFormData((prev: any) => ({
                     ...prev,
                     venueId: clubId,
-                    venueName: clubName
+                    venueName: clubName,
+                    clubId: clubId
                 }));
             }
         }
-    }, [role, profile, searchParams, partnerships.length, formData.venueId]);
+    }, [role, profile, searchParams, partnerships.length, formData.venueId, formData.clubId]);
 
     const fetchPartnerships = async () => {
         try {
@@ -339,9 +326,9 @@ export function CreateEventWizard({ role }: { role: 'club' | 'host' }) {
         }
     };
 
-    const updateFormData = (updates: any) => {
+    const updateFormData = useCallback((updates: any) => {
         setFormData((prev: any) => ({ ...prev, ...updates }));
-    };
+    }, []);
 
     const validateStep = () => {
         const errors: Record<string, string> = {};
@@ -380,12 +367,15 @@ export function CreateEventWizard({ role }: { role: 'club' | 'host' }) {
     // Hydrate creatorId once profile loads
     useEffect(() => {
         if (profile?.activeMembership?.partnerId || profile?.uid) {
-            setFormData((prev: any) => ({
-                ...prev,
-                creatorId: prev.creatorId || profile?.activeMembership?.partnerId || profile?.uid
-            }));
+            const preferredId = profile.activeMembership?.partnerId || profile.uid;
+            if (formData.creatorId !== preferredId) {
+                setFormData((prev: any) => ({
+                    ...prev,
+                    creatorId: preferredId
+                }));
+            }
         }
-    }, [profile]);
+    }, [profile, formData.creatorId]);
 
     // Namespaced auto-save to localStorage (for crash recovery)
     useEffect(() => {
@@ -475,8 +465,8 @@ export function CreateEventWizard({ role }: { role: 'club' | 'host' }) {
                 venueId: role === 'club' ? (profile?.activeMembership?.partnerId) : formData.venueId,
                 clubId: role === 'club' ? (profile?.activeMembership?.partnerId) : formData.venueId,
                 creatorId: profile?.activeMembership?.partnerId || profile?.uid,
-                creatorRole: role,
-                lifecycle: isDraft ? 'draft' : (role === 'club' ? 'scheduled' : 'pending_approval'),
+                creatorRole: formData.creatorRole || role,
+                lifecycle: isDraft ? 'draft' : (role === 'club' ? (formData.creatorRole === 'host' ? 'approved' : 'scheduled') : 'submitted'),
                 status: 'active',
                 settings: {
                     ...(formData.settings || {}),
@@ -503,6 +493,7 @@ export function CreateEventWizard({ role }: { role: 'club' | 'host' }) {
                 if (isDraft) {
                     const data = await res.json();
                     if (data.event?.id) setSavedDraftId(data.event.id);
+                    setFormData((prev: any) => ({ ...prev, lifecycle: 'draft' }));
                     setSaveState('saved');
                     return;
                 }
@@ -642,11 +633,43 @@ export function CreateEventWizard({ role }: { role: 'club' | 'host' }) {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -8 }}
                                 transition={{ duration: 0.2 }}
+                                className={isLocked ? "pointer-events-none opacity-60" : ""}
                             >
                                 {/* Step Header */}
                                 <div className="mb-8">
                                     <p className="apple-caption mb-2">Step {currentStepIndex + 1} of {STEPS.length}</p>
                                     <h2 className="apple-title">{STEPS[currentStepIndex].label}</h2>
+                                    {isLocked && (role === 'host') && (
+                                        <div className="mt-2 p-3 bg-blue-50 text-blue-600 rounded-xl flex items-center gap-2 text-[13px] font-medium">
+                                            <ShieldCheck className="w-4 h-4" />
+                                            This event is currently locked and cannot be edited.
+                                        </div>
+                                    )}
+                                    {isReviewMode && (
+                                        <div className="mt-2 p-3 bg-amber-50 text-amber-600 rounded-xl flex items-center gap-2 text-[13px] font-medium">
+                                            <ShieldCheck className="w-4 h-4" />
+                                            Review Mode: You are viewing a host's submission. You cannot edit their content.
+                                        </div>
+                                    )}
+                                    {role === 'club' && formData.creatorRole === 'host' && formData.lifecycle === 'submitted' && (
+                                        <div className="mt-2 p-3 bg-amber-50 text-amber-600 rounded-xl flex items-center gap-2 text-[13px] font-medium">
+                                            <Zap className="w-4 h-4" />
+                                            Reviewing host submission: You can make adjustments and publish when ready.
+                                        </div>
+                                    )}
+                                    {role === 'host' && formData.lifecycle === 'denied' && (
+                                        <div className="mt-2 p-3 bg-red-50 text-red-600 rounded-xl space-y-1">
+                                            <div className="flex items-center gap-2 text-[13px] font-bold">
+                                                <AlertCircle className="w-4 h-4" />
+                                                This event was not approved
+                                            </div>
+                                            {formData.rejectionReason && (
+                                                <p className="text-[12px] opacity-90 pl-6">
+                                                    Reason: {formData.rejectionReason}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Step: Basics */}
@@ -819,7 +842,7 @@ export function CreateEventWizard({ role }: { role: 'club' | 'host' }) {
                                                     <div className="space-y-2 text-[15px]">
                                                         <div className="flex items-center gap-3 text-[#6e6e73]">
                                                             <Calendar className="w-4 h-4" />
-                                                            <span>{formatDate(formData.startDate)}</span>
+                                                            <span>{formatEventDate(formData.startDate)}</span>
                                                         </div>
                                                         <div className="flex items-center gap-3 text-[#6e6e73]">
                                                             <Clock className="w-4 h-4" />
@@ -868,39 +891,51 @@ export function CreateEventWizard({ role }: { role: 'club' | 'host' }) {
 
                                 {/* Navigation */}
                                 <div className="flex items-center justify-between mt-12 pt-8 border-t border-[rgba(0,0,0,0.06)]">
-                                    <div className="flex items-center gap-4">
-                                        {currentStep !== 'basics' && (
-                                            <button
-                                                onClick={prevStep}
-                                                className="apple-btn-secondary flex items-center gap-2"
-                                            >
-                                                <ChevronLeft className="w-4 h-4" /> Back
-                                            </button>
-                                        )}
+                                    {isLocked ? (
                                         <button
-                                            onClick={() => handleSubmit(true)}
-                                            className="text-[15px] text-[#86868b] hover:text-[#1d1d1f] transition-colors"
-                                        >
-                                            Save Draft
-                                        </button>
-                                    </div>
-
-                                    {currentStep === 'review' ? (
-                                        <button
+                                            onClick={() => handleSubmit(true)} // Moving back to draft
                                             disabled={isSubmitting}
-                                            onClick={() => setShowPublishModal(true)}
-                                            className="apple-btn-blue flex items-center gap-2 disabled:opacity-50"
+                                            className="apple-btn-secondary text-red-500 border-red-100 bg-red-50 flex items-center gap-2"
                                         >
-                                            {role === 'host' ? 'Submit for Approval' : 'Publish Event'}
-                                            <ArrowRight className="w-4 h-4" />
+                                            Withdraw Submission
                                         </button>
                                     ) : (
-                                        <button
-                                            onClick={nextStep}
-                                            className="apple-btn-primary flex items-center gap-2"
-                                        >
-                                            Continue <ChevronRight className="w-4 h-4" />
-                                        </button>
+                                        <div className="flex items-center gap-4">
+                                            {currentStep !== 'basics' && (
+                                                <button
+                                                    onClick={prevStep}
+                                                    className="apple-btn-secondary flex items-center gap-2"
+                                                >
+                                                    <ChevronLeft className="w-4 h-4" /> Back
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => handleSubmit(true)}
+                                                className="text-[15px] text-[#86868b] hover:text-[#1d1d1f] transition-colors"
+                                            >
+                                                Save Draft
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {!isLocked && (
+                                        currentStep === 'review' ? (
+                                            <button
+                                                disabled={isSubmitting}
+                                                onClick={() => setShowPublishModal(true)}
+                                                className="apple-btn-blue flex items-center gap-2 disabled:opacity-50"
+                                            >
+                                                {role === 'host' ? 'Submit for Approval' : 'Publish Event'}
+                                                <ArrowRight className="w-4 h-4" />
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={nextStep}
+                                                className="apple-btn-primary flex items-center gap-2"
+                                            >
+                                                Continue <ChevronRight className="w-4 h-4" />
+                                            </button>
+                                        )
                                     )}
                                 </div>
                             </motion.div>
@@ -1133,6 +1168,6 @@ export function CreateEventWizard({ role }: { role: 'club' | 'host' }) {
                 formData={formData}
                 role={role}
             />
-        </div>
+        </div >
     );
 }

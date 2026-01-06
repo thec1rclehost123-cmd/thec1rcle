@@ -3,7 +3,7 @@ import {
     getSlotRequest,
     approveSlotRequest,
     rejectSlotRequest,
-    suggestAlternatives
+    counterProposeSlot
 } from "@/lib/server/slotStore";
 
 /**
@@ -64,19 +64,20 @@ export async function PATCH(
                 result = await rejectSlotRequest(params.id, actor, notes);
                 break;
 
-            case "suggest":
-                if (!alternativeDates || alternativeDates.length === 0) {
+            case "counter":
+                const { alternativeDate, alternativeStartTime, alternativeEndTime } = body;
+                if (!alternativeDate || !alternativeStartTime || !alternativeEndTime) {
                     return NextResponse.json(
-                        { error: "Alternative dates required for suggestion" },
+                        { error: "Alternative date and times required" },
                         { status: 400 }
                     );
                 }
-                result = await suggestAlternatives(params.id, actor, alternativeDates, notes);
+                result = await counterProposeSlot(params.id, body.clubId || actor.partnerId, actor, alternativeDate, alternativeStartTime, alternativeEndTime, notes);
                 break;
 
             default:
                 return NextResponse.json(
-                    { error: "Invalid action. Use: approve, reject, or suggest" },
+                    { error: "Invalid action. Use: approve, reject, or counter" },
                     { status: 400 }
                 );
         }

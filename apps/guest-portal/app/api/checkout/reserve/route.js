@@ -7,10 +7,33 @@ import { NextResponse } from "next/server";
 import { createCartReservation } from "../../../../lib/server/checkoutService";
 import { verifyAuth } from "../../../../lib/server/auth";
 import { withRateLimit } from "../../../../lib/server/rateLimit";
+import { getSurgeStatus, recordMetric } from "../../../../lib/server/surgeStore";
+import { validateAdmission } from "../../../../lib/server/queueStore";
 
 async function handler(request) {
     try {
         const payload = await request.json();
+
+        // Record metric
+        if (payload.eventId) {
+            await recordMetric(payload.eventId, "checkout_initiate");
+        }
+
+        // Surge Protection Check
+        const surgeStatus = await getSurgeStatus(payload.eventId);
+        if (surgeStatus.status === "surge") {
+            const admissionToken = request.headers.get("x-admission-token") || payload.admissionToken;
+            const decodedToken = await verifyAuth(request);
+            const userId = decodedToken?.uid || 'anonymous';
+
+            const isValid = await validateAdmission(payload.eventId, userId, admissionToken);
+            if (!isValid) {
+                return NextResponse.json(
+                    { error: "Queue admission required during surge. Please join the waiting room.", code: "SURGE_REQUIRED" },
+                    { status: 403 }
+                );
+            }
+        }
 
         // Verify authentication (optional for browsing, required for checkout)
         const decodedToken = await verifyAuth(request);
@@ -54,6 +77,20 @@ async function handler(request) {
                 { error: result.error || result.errors?.join(', ') || 'Failed to reserve tickets' },
                 { status: 409 } // Conflict (availability issue)
             );
+        }
+
+        // If in surge, consume the admission token
+        if (surgeStatus.status === "surge") {
+            const admissionToken = request.headers.get("x-admission-token") || payload.admissionToken;
+            if (admissionToken) {
+                const parts = admissionToken.split(":");
+                if (parts.length === 4) {
+                    const queueId = parts[2];
+                    await consumeAdmission(queueId).catch(err =>
+                        console.error("[ReserveAPI] Failed to consume admission:", err)
+                    );
+                }
+            }
         }
 
         return NextResponse.json({

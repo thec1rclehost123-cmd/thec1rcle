@@ -19,8 +19,10 @@ import {
 } from "lucide-react";
 import { collection, query, where, onSnapshot, limit } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/client";
-import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import Link from "next/link";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { DashboardEventCard } from "@c1rcle/ui";
+import { mapEventForClient } from "@c1rcle/core/events";
 
 export default function PromoLinksPage() {
     const { profile } = useDashboardAuth();
@@ -36,12 +38,13 @@ export default function PromoLinksPage() {
         const db = getFirebaseDb();
         const q = query(
             collection(db, "events"),
-            where("status", "==", "live"),
+            where("lifecycle", "in", ["scheduled", "live"]),
+            where("promoterVisibility", "==", true),
             limit(20)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const fetched = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
             setCampaigns(fetched);
             setLoading(false);
         });
@@ -49,9 +52,11 @@ export default function PromoLinksPage() {
         return () => unsubscribe();
     }, [promoterId]);
 
-    const filteredCampaigns = campaigns.filter(c =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredCampaigns = campaigns.filter(c => {
+        if (!c.isPublic) return false;
+        const name = c.name || c.title || "";
+        return name.toLowerCase().includes(searchQuery.toLowerCase());
+    });
 
     return (
         <div className="space-y-10 pb-20 animate-in fade-in duration-500">
@@ -104,10 +109,48 @@ export default function PromoLinksPage() {
                         <p className="text-slate-500 text-sm font-medium">You haven't been assigned to any live events yet.</p>
                     </div>
                 ) : (
-                    <div className="space-y-6">
-                        {filteredCampaigns.map((campaign) => (
-                            <ArsenalCard key={campaign.id} campaign={campaign} promoterId={promoterId} profile={profile} />
-                        ))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {filteredCampaigns.map((campaign, index) => {
+                            const promoLink = `${window.location.origin}/e/${campaign.slug || campaign.id}?p=${promoterId}`;
+                            const promoCode = profile?.displayName?.split(' ')[0]?.toUpperCase() || 'PROMO';
+
+                            return (
+                                <DashboardEventCard
+                                    key={campaign.id}
+                                    event={campaign}
+                                    index={index}
+                                    role="promoter"
+                                    primaryAction={{
+                                        label: "Promote Now",
+                                        onClick: () => {
+                                            navigator.clipboard.writeText(promoLink);
+                                            alert("Tracking link copied!");
+                                        },
+                                        icon: <Copy size={16} />
+                                    }}
+                                    secondaryActions={[
+                                        {
+                                            label: `Copy Code: ${promoCode}`,
+                                            icon: <Zap size={16} />,
+                                            onClick: () => {
+                                                navigator.clipboard.writeText(promoCode);
+                                                alert("Promo code copied!");
+                                            }
+                                        },
+                                        {
+                                            label: "View Event",
+                                            icon: <ExternalLink size={16} />,
+                                            href: `/event/${campaign.slug || campaign.id}`
+                                        },
+                                        {
+                                            label: "Download Assets",
+                                            icon: <Share2 size={16} />,
+                                            onClick: () => alert("Assets downloading...")
+                                        }
+                                    ]}
+                                />
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -135,75 +178,3 @@ function QuickToolItem({ label, icon: Icon, info, color }: any) {
     );
 }
 
-function ArsenalCard({ campaign, promoterId, profile }: any) {
-    const promoLink = `https://posh.india/e/${campaign.slug || campaign.id}?p=${promoterId}`;
-    const promoCode = profile?.displayName?.split(' ')[0]?.toUpperCase() || 'PROMO';
-    const [copied, setCopied] = useState(false);
-
-    const handleCopy = (text: string) => {
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
-
-    return (
-        <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 group hover:border-slate-400 hover:shadow-xl hover:shadow-slate-100 transition-all shadow-sm">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-                <div className="flex items-center gap-8">
-                    <div className="h-24 w-24 bg-slate-50 rounded- [2rem] overflow-hidden border border-slate-100 shadow-sm flex-shrink-0">
-                        {campaign.poster_url ? (
-                            <img src={campaign.poster_url} className="h-full w-full object-cover" />
-                        ) : (
-                            <div className="h-full w-full flex items-center justify-center">
-                                <Calendar className="h-10 w-10 text-slate-200" />
-                            </div>
-                        )}
-                    </div>
-                    <div>
-                        <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-2">{campaign.name}</h3>
-                        <div className="flex items-center gap-6">
-                            <span className="flex items-center gap-2 text-sm font-bold text-slate-500">
-                                <Calendar className="h-4 w-4 text-emerald-600" /> {campaign.date}
-                            </span>
-                            <span className="flex items-center gap-2 text-sm font-bold text-emerald-700">
-                                <Zap className="h-4 w-4" /> {campaign.commission_rate || '15'}% Earnings
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4">
-                    <div className="space-y-2">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tracking Link</p>
-                        <div className="flex items-center gap-3 p-1.5 bg-slate-50 border border-slate-100 rounded-2xl">
-                            <span className="text-sm font-mono text-slate-500 pl-4 w-44 truncate">{promoLink}</span>
-                            <button
-                                onClick={() => handleCopy(promoLink)}
-                                className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all font-bold text-xs shadow-sm"
-                            >
-                                {copied ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
-                                {copied ? "Copied" : "Copy Link"}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="space-y-2">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Universal Code</p>
-                        <button
-                            onClick={() => handleCopy(promoCode)}
-                            className="h-[60px] px-8 bg-emerald-600 text-white rounded-2xl font-black text-lg uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100"
-                        >
-                            {promoCode}
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-3 pl-6 border-l border-slate-100 h-10">
-                        <button className="p-4 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-slate-900 transition-all shadow-sm">
-                            <QrCode className="h-6 w-6" />
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}

@@ -35,12 +35,15 @@ export async function GET(
             return NextResponse.json({ calendar });
         }
 
-        // If hostId is provided, verify partnership
-        if (hostId) {
-            const hasPartnership = await checkPartnership(hostId, clubId);
+        // Security: If not admin/club staff, must be a host with an active partnership
+        const token = decodedToken as any;
+        if (token.role !== 'admin' && token.role !== 'club') {
+            const effectiveHostId = hostId || token.partnerId || token.uid;
+            const hasPartnership = await checkPartnership(effectiveHostId, clubId);
+
             if (!hasPartnership) {
                 return NextResponse.json(
-                    { error: "No active partnership with this club" },
+                    { error: "No active partnership with this club. Access denied." },
                     { status: 403 }
                 );
             }

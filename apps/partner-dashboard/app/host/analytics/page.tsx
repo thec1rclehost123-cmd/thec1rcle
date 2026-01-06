@@ -1,5 +1,5 @@
-import PlaceholderPage from "../../../components/host-layout/PlaceholderPage";
+import { redirect } from "next/navigation";
 
-export default function AnalyticsPage() {
-    return <PlaceholderPage title="Event Analytics" description="Deep dive into sales, crowd demographics, and promoter performance. Your growth engine." />;
+export default function HostAnalyticsRedirect() {
+    redirect("/host/analytics/overview");
 }

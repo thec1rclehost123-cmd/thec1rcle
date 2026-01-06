@@ -14,6 +14,9 @@ import Link from "next/link";
 import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/client";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { DashboardEventCard } from "@c1rcle/ui";
+import { mapEventForClient } from "@c1rcle/core/events";
+import { Edit3, BarChart3, Share2, Eye } from "lucide-react";
 
 type EventTab = "all" | "live" | "submitted" | "approved" | "drafts";
 
@@ -37,7 +40,7 @@ export default function HostEventsPage() {
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const fetched = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
             setEvents(fetched);
             setLoading(false);
         });
@@ -153,9 +156,37 @@ export default function HostEventsPage() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredEvents.map((event) => (
-                        <EventCard key={event.id} event={event} />
-                    ))}
+                    {filteredEvents.map((event, index) => {
+                        const getPrimaryAction = (e: any) => {
+                            if (e.lifecycle === 'draft') return { label: "Continue Editing", href: `/host/create?id=${e.id}`, icon: <Edit3 size={16} /> };
+                            if (e.lifecycle === 'submitted') return { label: "View Submission", href: `/host/events/${e.id}`, icon: <Eye size={16} /> };
+                            if (e.lifecycle === 'denied' || e.lifecycle === 'needs_changes') return { label: "Fix & Resubmit", href: `/host/create?id=${e.id}`, icon: <Edit3 size={16} /> };
+                            return { label: "Manage Event", href: `/host/events/${e.id}`, icon: <ArrowUpRight size={16} /> };
+                        };
+
+                        return (
+                            <DashboardEventCard
+                                key={event.id}
+                                event={event}
+                                index={index}
+                                role="host"
+                                primaryAction={getPrimaryAction(event)}
+                                secondaryActions={[
+                                    { label: "Edit Event", icon: <Edit3 size={16} />, href: `/host/create?id=${event.id}` },
+                                    { label: "View Analytics", icon: <BarChart3 size={16} />, href: `/host/analytics?event=${event.id}` },
+                                    {
+                                        label: "Copy Link",
+                                        icon: <Share2 size={16} />,
+                                        onClick: () => {
+                                            const url = `${window.location.origin}/event/${event.slug || event.id}`;
+                                            navigator.clipboard.writeText(url);
+                                            alert("Link copied to clipboard");
+                                        }
+                                    },
+                                ]}
+                            />
+                        );
+                    })}
                 </div>
             )}
         </div>
@@ -186,64 +217,3 @@ function TabButton({ active, onClick, label, count }: {
     );
 }
 
-function EventCard({ event }: { event: any }) {
-    const statusConfig: Record<string, { label: string; class: string }> = {
-        scheduled: { label: "Approved", class: "badge-green" },
-        approved: { label: "Approved", class: "badge-green" },
-        submitted: { label: "Submitted", class: "badge-orange" },
-        needs_changes: { label: "Changes Requested", class: "badge-red" },
-        draft: { label: "Draft", class: "badge-gray" },
-        live: { label: "Live", class: "badge-green" },
-        cancelled: { label: "Cancelled", class: "badge-red" }
-    };
-
-    const status = statusConfig[event.lifecycle] || statusConfig[event.status] || statusConfig.draft;
-
-    return (
-        <Link
-            href={`/host/events/${event.id}`}
-            className="card card-interactive p-5 block"
-        >
-            <div className="flex items-start justify-between mb-4">
-                <span className={`badge ${status.class}`}>
-                    {status.label}
-                </span>
-                <button
-                    onClick={(e) => e.preventDefault()}
-                    className="p-1 rounded-lg hover:bg-black/[0.04] text-[#86868b]"
-                >
-                    <MoreHorizontal className="w-4 h-4" />
-                </button>
-            </div>
-
-            <h3 className="text-headline-sm mb-2 line-clamp-2">{event.title || event.name}</h3>
-
-            <div className="space-y-2 mb-6">
-                <div className="flex items-center gap-2 text-caption">
-                    <Calendar className="w-4 h-4" />
-                    {event.date}
-                </div>
-                <div className="flex items-center gap-2 text-caption">
-                    <MapPin className="w-4 h-4" />
-                    <span className="truncate">{event.venueName || event.venue_name || "Venue TBD"}</span>
-                </div>
-            </div>
-
-
-            <div className="divider mb-4" />
-
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="stat-label">Tickets</p>
-                    <p className="text-headline-sm">
-                        {event.tickets_sold || 0}
-                        <span className="text-caption ml-1">/ {event.capacity || '—'}</span>
-                    </p>
-                </div>
-                <div className="flex items-center gap-2 text-accent text-[13px] font-medium">
-                    View <ArrowUpRight className="w-4 h-4" />
-                </div>
-            </div>
-        </Link>
-    );
-}

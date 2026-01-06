@@ -1,54 +1,66 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { generateSyncCode, getSyncCode, deactivateSyncCode } from "@/lib/server/securityStore";
+import { getEventGuestlist } from "@/lib/server/orderStore";
+import { listEvents } from "@/lib/server/eventStore";
 
-export async function POST(req: Request) {
+/**
+ * GET /api/club/security/sync
+ * Returns security events and their sync status
+ */
+export async function GET(req: NextRequest) {
     try {
-        const { syncCode } = await req.json();
+        const { searchParams } = new URL(req.url);
+        const clubId = searchParams.get("clubId");
 
-        // 1. Validate Input
-        if (!syncCode) {
-            return NextResponse.json({ error: "Sync code required" }, { status: 400 });
+        if (!clubId) {
+            return NextResponse.json({ error: "clubId is required" }, { status: 400 });
         }
 
-        console.log("Sync request received for:", syncCode);
+        // List events for the next 2 days
+        const events = await (listEvents as any)({ venueId: clubId, limit: 10 });
 
-        // 2. Mock Logic for "000-000" or any 6 digit code for now
-        // In real app, query `events` collection where `securityCode === syncCode`
+        const securityEvents = await Promise.all(events.map(async (event) => {
+            const sync = await getSyncCode(event.id, clubId);
+            const guestlist = await getEventGuestlist(event.id);
 
-        let event = null;
-
-        if (syncCode === "000-000" || syncCode.replace('-', '') === "123456") {
-            event = {
-                id: "evt_test_123",
-                name: "Test Event: Techno Bunker",
-                venue: "Tryst Mumbai",
-                date: new Date().toISOString(),
-                settings: {
-                    allowExitReEntry: true
-                }
+            return {
+                id: event.id,
+                title: event.name,
+                date: event.start_date,
+                totalTickets: guestlist.length,
+                checkedIn: guestlist.filter(g => g.status === 'checked_in').length,
+                syncCode: sync?.code || null,
+                status: event.status === 'live' ? 'active' : 'standby'
             };
+        }));
+
+        return NextResponse.json({ events: securityEvents });
+
+    } catch (error: any) {
+        console.error("[Security Sync API] Error:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+
+/**
+ * POST /api/club/security/sync
+ * Generates or refreshes a sync code
+ */
+export async function POST(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const { eventId, clubId, action, userId } = body;
+
+        if (action === "deactivate") {
+            await deactivateSyncCode(eventId, clubId);
+            return NextResponse.json({ success: true });
         }
 
-        if (!event) {
-            // Simulate DB lookup failing
-            return NextResponse.json({ error: "Invalid sync code" }, { status: 401 });
-        }
+        const sync = await generateSyncCode(eventId, clubId, userId);
+        return NextResponse.json({ sync });
 
-        // 3. Fetch Tickets (Mock)
-        // In real app, fetch `tickets` where `eventId === event.id`
-        const tickets = [
-            { id: "TKT-001", status: "valid", type: "VIP", holder: "Rahul S.", guestCount: 2 },
-            { id: "TKT-002", status: "used", type: "VVIP", holder: "Anjali M.", guestCount: 4 },
-            { id: "TKT-003", status: "valid", type: "GA", holder: "Karan Johar", guestCount: 1 },
-        ];
-
-        return NextResponse.json({
-            success: true,
-            event,
-            tickets
-        });
-
-    } catch (e: any) {
-        console.error("Sync API Error:", e);
-        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    } catch (error: any) {
+        console.error("[Security Sync POST] Error:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

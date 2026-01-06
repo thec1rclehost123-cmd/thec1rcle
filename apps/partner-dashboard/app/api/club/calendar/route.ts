@@ -1,124 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFirebaseDb } from "@/lib/firebase/client";
-import { collection, addDoc, getDocs, query, where, Timestamp } from "firebase/firestore";
+import { getUnifiedClubCalendar, blockDate, unblockDate } from "@/lib/server/calendarStore";
+import { verifyAuth } from "@/lib/server/auth";
 
 export async function GET(req: NextRequest) {
     try {
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
         const { searchParams } = new URL(req.url);
         const clubId = searchParams.get("clubId");
-        const startDate = searchParams.get("startDate");
-        const endDate = searchParams.get("endDate");
+        const startDate = searchParams.get("startDate") || new Date().toISOString().split('T')[0];
+        const endDate = searchParams.get("endDate") || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
         if (!clubId) {
             return NextResponse.json({ error: "clubId is required" }, { status: 400 });
         }
 
-        const db = getFirebaseDb();
-        const eventsRef = collection(db, "venues", clubId, "calendar_events");
-
-        let q = query(eventsRef);
-
-        // Filter by date range if provided
-        if (startDate && endDate) {
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            q = query(
-                eventsRef,
-                where("date", ">=", Timestamp.fromDate(start)),
-                where("date", "<=", Timestamp.fromDate(end))
-            );
-        }
-
-        const snapshot = await getDocs(q);
-        const events = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-            // Convert Firestore Timestamp to ISO string
-            date: doc.data().date?.toDate?.()?.toISOString() || doc.data().date,
-        }));
-
-        return NextResponse.json({ events });
+        const data = await getUnifiedClubCalendar(clubId, startDate, endDate);
+        return NextResponse.json(data);
 
     } catch (error: any) {
-        console.error("Error fetching calendar events:", error);
-        return NextResponse.json(
-            { error: error.message || "Internal server error" },
-            { status: 500 }
-        );
+        console.error("Error fetching unified calendar:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
 
 export async function POST(req: NextRequest) {
     try {
-        const { clubId, date, type, title, reason, notes, hostName, status } = await req.json();
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-        if (!clubId || !date || !type) {
-            return NextResponse.json(
-                { error: "Missing required fields: clubId, date, type" },
-                { status: 400 }
-            );
-        }
+        const body = await req.json();
+        const { action, clubId, date, reason } = body;
 
-        const db = getFirebaseDb();
-        const eventsRef = collection(db, "venues", clubId, "calendar_events");
-
-        // Check if date is already blocked or has conflicting event
-        const dateObj = new Date(date);
-        const startOfDay = new Date(dateObj);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(dateObj);
-        endOfDay.setHours(23, 59, 59, 999);
-
-        const existingQuery = query(
-            eventsRef,
-            where("date", ">=", Timestamp.fromDate(startOfDay)),
-            where("date", "<=", Timestamp.fromDate(endOfDay)),
-            where("status", "!=", "cancelled")
-        );
-
-        const existing = await getDocs(existingQuery);
-
-        if (!existing.empty && type === "blocked") {
-            // Check if it's already blocked or has confirmed events
-            const hasConflict = existing.docs.some(doc => {
-                const eventType = doc.data().type;
-                return eventType === "blocked" || eventType === "club-hosted" || eventType === "private";
+        if (action === "block") {
+            const result = await blockDate(clubId, date, reason, {
+                uid: decodedToken.uid,
+                role: "club",
             });
-
-            if (hasConflict) {
-                return NextResponse.json(
-                    { error: "This date already has events or is blocked" },
-                    { status: 409 }
-                );
-            }
+            return NextResponse.json({ success: true, entry: result });
         }
 
-        // Create event
-        const eventData = {
-            date: Timestamp.fromDate(dateObj),
-            type,
-            title: title || (type === "blocked" ? `Blocked: ${reason}` : "Untitled Event"),
-            reason: reason || null,
-            notes: notes || null,
-            hostName: hostName || null,
-            status: status || "confirmed",
-            createdAt: Timestamp.now(),
-            clubId,
-        };
+        if (action === "unblock") {
+            const result = await unblockDate(clubId, date, {
+                uid: decodedToken.uid,
+                role: "club",
+            });
+            return NextResponse.json({ success: true, entry: result });
+        }
 
-        const docRef = await addDoc(eventsRef, eventData);
-
-        return NextResponse.json({
-            success: true,
-            eventId: docRef.id,
-            message: type === "blocked" ? "Date blocked successfully" : "Event created successfully",
-        });
+        return NextResponse.json({ error: "Invalid action" }, { status: 400 });
 
     } catch (error: any) {
-        console.error("Error creating calendar event:", error);
-        return NextResponse.json(
-            { error: error.message || "Internal server error" },
-            { status: 500 }
-        );
+        console.error("Error updating calendar:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

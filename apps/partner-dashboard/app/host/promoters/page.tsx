@@ -19,7 +19,6 @@ import {
     CheckCircle2,
     XCircle,
     Loader2,
-    Handshake,
     Instagram,
     PhoneCall
 } from "lucide-react";
@@ -204,7 +203,7 @@ export default function PromotersPage() {
                 </div>
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-6">
                     <div className="h-14 w-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <Handshake className="h-7 w-7" />
+                        <Users className="h-7 w-7" />
                     </div>
                     <div>
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Connected</p>
@@ -340,7 +339,7 @@ export default function PromotersPage() {
 
                         {pendingRequests.length === 0 ? (
                             <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center">
-                                <Handshake className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                                <Users className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                                 <p className="text-slate-500 font-bold">No pending requests</p>
                                 <p className="text-xs text-slate-400 mt-2">When promoters request to connect with you, they'll appear here.</p>
                             </div>

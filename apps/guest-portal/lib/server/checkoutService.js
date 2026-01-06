@@ -10,6 +10,7 @@ import { getEvent } from "./eventStore";
 import { createOrder, confirmOrder } from "./orderStore";
 import { generateOrderQRCodes } from "./qrStore";
 import { getPromoterLinkByCode, recordConversion } from "./promoterStore";
+import promoService from "@c1rcle/core/promo-service";
 
 // Constants
 const RESERVATION_MINUTES = 10;
@@ -214,7 +215,7 @@ async function getReservedCountForTier(eventId, tierId, excludeId = null) {
  * Calculate pricing for a cart (with optional promo/promoter codes)
  */
 export async function calculatePricing(eventId, items, options = {}) {
-    const { promoCode = null, promoterCode = null } = options;
+    const { promoCode = null, promoterCode = null, userId = null } = options;
 
     const event = await getEvent(eventId);
     if (!event) {
@@ -274,12 +275,13 @@ export async function calculatePricing(eventId, items, options = {}) {
 
     // Apply promo code if provided
     if (promoCode) {
-        const promoDiscount = await validateAndCalculatePromoDiscount(eventId, promoCode, result.items);
+        const promoDiscount = await validateAndCalculatePromoDiscount(eventId, promoCode, result.items, userId);
 
         if (promoDiscount.valid) {
             result.discounts.push({
                 type: 'promo',
                 code: promoCode,
+                id: promoDiscount.promoCode.id,
                 amount: promoDiscount.amount,
                 label: promoDiscount.label
             });
@@ -347,59 +349,66 @@ function calculatePromoterDiscount(items, event) {
 /**
  * Validate promo code and calculate discount
  */
-async function validateAndCalculatePromoDiscount(eventId, code, items) {
-    // Get promo codes from event
-    const event = await getEvent(eventId);
-    const promoCodes = event?.ticketCatalog?.promoCodes || [];
+async function validateAndCalculatePromoDiscount(eventId, code, items, userId = null) {
+    // 1. Primary: Use the core promo service for validation and calculation (promo_codes collection)
+    const result = await promoService.validatePromoCode(eventId, code, userId, items);
 
+    if (result.valid) {
+        return {
+            valid: true,
+            amount: result.discountAmount,
+            label: result.message,
+            promoCode: result.promoCode
+        };
+    }
+
+    // 2. Fallback: Check event document for embedded codes
+    const event = await getEvent(eventId);
+    const promoCodes = event?.ticketCatalog?.promoCodes || event?.promoCodes || [];
     const promoCode = promoCodes.find(
         pc => pc.code.toUpperCase() === code.toUpperCase() && pc.isActive !== false
     );
 
-    if (!promoCode) {
-        return { valid: false, error: 'Invalid promo code' };
+    if (promoCode) {
+        const now = new Date();
+        if (promoCode.startsAt && now < new Date(promoCode.startsAt)) {
+            return { valid: false, error: 'Promo code not yet active' };
+        }
+        if (promoCode.endsAt && now > new Date(promoCode.endsAt)) {
+            return { valid: false, error: 'Promo code has expired' };
+        }
+        if (promoCode.maxRedemptions && (promoCode.redemptionCount || 0) >= promoCode.maxRedemptions) {
+            return { valid: false, error: 'Promo code limit reached' };
+        }
+
+        const applicableItems = items.filter(item => {
+            if (!promoCode.tierIds || promoCode.tierIds.length === 0) return true;
+            return promoCode.tierIds.includes(item.tierId);
+        });
+
+        if (applicableItems.length === 0) {
+            return { valid: false, error: 'Promo code does not apply to selected tickets' };
+        }
+
+        const applicableSubtotal = applicableItems.reduce((sum, i) => sum + i.subtotal, 0);
+        let amount;
+        if (promoCode.discountType === 'percent') {
+            amount = Math.round((applicableSubtotal * promoCode.discountValue / 100) * 100) / 100;
+        } else {
+            amount = Math.min(promoCode.discountValue, applicableSubtotal);
+        }
+
+        return {
+            valid: true,
+            amount,
+            label: promoCode.discountType === 'percent'
+                ? `${promoCode.discountValue}% off`
+                : `₹${amount} off`
+        };
     }
 
-    // Check validity
-    const now = new Date();
-    if (promoCode.startsAt && now < new Date(promoCode.startsAt)) {
-        return { valid: false, error: 'Promo code not yet active' };
-    }
-    if (promoCode.endsAt && now > new Date(promoCode.endsAt)) {
-        return { valid: false, error: 'Promo code has expired' };
-    }
-
-    // Check redemption limits
-    if (promoCode.maxRedemptions && (promoCode.redemptionCount || 0) >= promoCode.maxRedemptions) {
-        return { valid: false, error: 'Promo code limit reached' };
-    }
-
-    // Calculate applicable items
-    const applicableItems = items.filter(item => {
-        if (!promoCode.tierIds || promoCode.tierIds.length === 0) return true;
-        return promoCode.tierIds.includes(item.tierId);
-    });
-
-    if (applicableItems.length === 0) {
-        return { valid: false, error: 'Promo code does not apply to selected tickets' };
-    }
-
-    const applicableSubtotal = applicableItems.reduce((sum, i) => sum + i.subtotal, 0);
-
-    let amount;
-    if (promoCode.discountType === 'percent') {
-        amount = Math.round((applicableSubtotal * promoCode.discountValue / 100) * 100) / 100;
-    } else {
-        amount = Math.min(promoCode.discountValue, applicableSubtotal);
-    }
-
-    return {
-        valid: true,
-        amount,
-        label: promoCode.discountType === 'percent'
-            ? `${promoCode.discountValue}% off`
-            : `₹${amount} off`
-    };
+    // Return the original result error if fallback also failed
+    return { valid: false, error: result.error || 'Invalid promo code' };
 }
 
 /**
@@ -473,7 +482,7 @@ export async function initiateCheckout(reservationId, userId, userDetails, optio
     const pricingResult = await calculatePricing(
         reservation.eventId,
         reservation.items,
-        { promoCode, promoterCode }
+        { promoCode, promoterCode, userId }
     );
 
     if (!pricingResult.success) {
@@ -553,7 +562,8 @@ export async function initiateCheckout(reservationId, userId, userDetails, optio
             totalAmount: pricing.grandTotal,
             status: 'payment_pending',
             reservationId: reservation.id,
-            promoterCode: promoterCode || null
+            promoterCode: promoterCode || null,
+            promoCodeId: pricing.discounts.find(d => d.type === 'promo')?.id || null
         };
 
         const order = await createOrder(orderPayload);
@@ -729,5 +739,6 @@ export default {
     initiateCheckout,
     completeCheckout,
     cleanupExpiredReservations,
+    validateAndCalculatePromoDiscount,
     RESERVATION_MINUTES
 };

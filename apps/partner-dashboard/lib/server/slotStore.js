@@ -9,9 +9,19 @@ import { randomUUID } from "node:crypto";
 
 const SLOTS_COLLECTION = "slot_requests";
 const CALENDAR_COLLECTION = "club_calendar";
+const AUDIT_LOGS_COLLECTION = "audit_logs";
 
-// Fallback storage for development
-let fallbackSlots = [];
+async function createAuditLog(db, { type, entityId, action, actorId, actorRole, metadata = {} }) {
+    await db.collection(AUDIT_LOGS_COLLECTION).add({
+        type,
+        entityId,
+        action,
+        actorId,
+        actorRole,
+        metadata,
+        timestamp: new Date().toISOString()
+    });
+}
 
 /**
  * Create a new slot request
@@ -58,6 +68,15 @@ export async function createSlotRequest({
     const db = getAdminDb();
     await db.collection(SLOTS_COLLECTION).doc(id).set(slotRequest);
 
+    await createAuditLog(db, {
+        type: "slot_request",
+        entityId: id,
+        action: "created",
+        actorId: hostId,
+        actorRole: "host",
+        metadata: { clubId, requestedDate, requestedStartTime, requestedEndTime }
+    });
+
     // Also mark the calendar slot as tentative
     await updateCalendarSlot(clubId, requestedDate, {
         status: "tentative",
@@ -103,26 +122,31 @@ export async function listSlotRequests({ clubId, hostId, status, limit = 50 }) {
     if (hostId) query = query.where("hostId", "==", hostId);
     if (status) query = query.where("status", "==", status);
 
-    query = query.orderBy("createdAt", "desc").limit(limit);
-
     const snapshot = await query.get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Sort in-memory to avoid index requirements for mixed where + orderBy
+    return results
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .slice(0, limit);
 }
 
 /**
  * Approve a slot request
  */
-export async function approveSlotRequest(id, approvedBy, notes = "") {
+export async function approveSlotRequest(id, approvedBy, notes = "", options = {}) {
     const slotRequest = await getSlotRequest(id);
     if (!slotRequest) throw new Error("Slot request not found");
     if (slotRequest.status !== "pending") throw new Error("Slot request is not pending");
 
-    const now = new Date().toISOString();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString(); // 48 hour expiry
     const updates = {
         status: "approved",
         clubResponse: notes,
-        respondedAt: now,
-        updatedAt: now,
+        respondedAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+        expiresAt,
         approvedBy: {
             uid: approvedBy.uid,
             role: approvedBy.role,
@@ -142,6 +166,15 @@ export async function approveSlotRequest(id, approvedBy, notes = "") {
     const db = getAdminDb();
     await db.collection(SLOTS_COLLECTION).doc(id).update(updates);
 
+    await createAuditLog(db, {
+        type: "slot_request",
+        entityId: id,
+        action: "approved",
+        actorId: approvedBy.uid,
+        actorRole: approvedBy.role,
+        metadata: { clubResponse: notes }
+    });
+
     // Update calendar to booked
     await updateCalendarSlot(slotRequest.clubId, slotRequest.requestedDate, {
         status: "booked",
@@ -152,14 +185,16 @@ export async function approveSlotRequest(id, approvedBy, notes = "") {
     });
 
     // Also update the event lifecycle to 'approved'
-    try {
-        const { updateEventLifecycle } = await import("./eventStore");
-        await updateEventLifecycle(slotRequest.eventId, "approved", {
-            uid: approvedBy.uid,
-            role: approvedBy.role,
-        }, notes);
-    } catch (eventError) {
-        console.error("Failed to update event lifecycle on slot approval:", eventError);
+    if (!options.skipLifecycleUpdate) {
+        try {
+            const { updateEventLifecycle } = await import("./eventStore");
+            await updateEventLifecycle(slotRequest.eventId, "approved", {
+                uid: approvedBy.uid,
+                role: approvedBy.role,
+            }, notes);
+        } catch (eventError) {
+            console.error("Failed to update event lifecycle on slot approval:", eventError);
+        }
     }
 
     return { ...slotRequest, ...updates };
@@ -198,6 +233,15 @@ export async function rejectSlotRequest(id, rejectedBy, reason = "") {
     const db = getAdminDb();
     await db.collection(SLOTS_COLLECTION).doc(id).update(updates);
 
+    await createAuditLog(db, {
+        type: "slot_request",
+        entityId: id,
+        action: "rejected",
+        actorId: rejectedBy.uid,
+        actorRole: rejectedBy.role,
+        metadata: { reason }
+    });
+
     // Release the tentative calendar slot
     await releaseCalendarSlot(slotRequest.clubId, slotRequest.requestedDate, slotRequest.id);
 
@@ -216,59 +260,57 @@ export async function rejectSlotRequest(id, rejectedBy, reason = "") {
 }
 
 /**
- * Suggest alternative dates for a slot request
+ * Counter-propose an alternative slot (Club action)
  */
-export async function suggestAlternatives(id, suggestedBy, alternativeDates, notes = "") {
+export async function counterProposeSlot(id, clubId, actor, alternativeDate, alternativeStartTime, alternativeEndTime, note = "") {
     const slotRequest = await getSlotRequest(id);
     if (!slotRequest) throw new Error("Slot request not found");
+    if (slotRequest.clubId !== clubId) throw new Error("Unauthorized");
 
+    const db = getAdminDb();
     const now = new Date().toISOString();
+
     const updates = {
-        status: "modified",
-        alternativeDates,
-        clubResponse: notes,
-        respondedAt: now,
+        status: "counter_proposed",
+        clubResponse: note,
+        alternativeDate,
+        alternativeStartTime,
+        alternativeEndTime,
         updatedAt: now,
-        modifiedBy: {
-            uid: suggestedBy.uid,
-            role: suggestedBy.role,
-            name: suggestedBy.name || ""
+        respondedBy: {
+            uid: actor.uid,
+            role: actor.role,
+            name: actor.name || ""
         }
     };
 
-    if (!isFirebaseConfigured()) {
-        const index = fallbackSlots.findIndex(s => s.id === id);
-        if (index >= 0) {
-            fallbackSlots[index] = { ...fallbackSlots[index], ...updates };
-            return fallbackSlots[index];
-        }
-        throw new Error("Slot request not found");
+    if (isFirebaseConfigured()) {
+        await db.collection(SLOTS_COLLECTION).doc(id).update(updates);
     }
 
-    const db = getAdminDb();
-    await db.collection(SLOTS_COLLECTION).doc(id).update(updates);
+    await createAuditLog(db, {
+        type: "slot_request",
+        entityId: id,
+        action: "counter_proposed",
+        actorId: actor.uid,
+        actorRole: "club",
+        metadata: {
+            originalDate: slotRequest.requestedDate,
+            alternativeDate,
+            note
+        }
+    });
 
-    // Release the tentative calendar slot
+    // Release the original tentative calendar slot
     await releaseCalendarSlot(slotRequest.clubId, slotRequest.requestedDate, slotRequest.id);
 
-    // Also update the event lifecycle to 'needs_changes'
-    try {
-        const { updateEventLifecycle } = await import("./eventStore");
-        await updateEventLifecycle(slotRequest.eventId, "needs_changes", {
-            uid: suggestedBy.uid,
-            role: suggestedBy.role,
-        }, notes);
-    } catch (eventError) {
-        console.error("Failed to update event lifecycle on slot modification:", eventError);
-    }
-
-    return { ...slotRequest, ...updates };
+    return { success: true };
 }
 
 /**
  * Helper: Update calendar slot status
  */
-async function updateCalendarSlot(clubId, date, slotData) {
+export async function updateCalendarSlot(clubId, date, slotData) {
     if (!isFirebaseConfigured()) return;
 
     const db = getAdminDb();
@@ -325,3 +367,53 @@ async function releaseCalendarSlot(clubId, date, slotRequestId) {
         updatedAt: new Date().toISOString()
     });
 }
+
+/**
+ * Request a reschedule (Host action)
+ */
+export async function requestSlotReschedule(id, hostId, newDate, newStartTime, newEndTime, reason = "") {
+    const slotRequest = await getSlotRequest(id);
+    if (!slotRequest) throw new Error("Slot request not found");
+    if (slotRequest.hostId !== hostId) throw new Error("Unauthorized");
+
+    const db = getAdminDb();
+    const now = new Date().toISOString();
+
+    // Create audit log for the request
+    await createAuditLog(db, {
+        type: "slot_request",
+        entityId: id,
+        action: "reschedule_requested",
+        actorId: hostId,
+        actorRole: "host",
+        metadata: {
+            previousDate: slotRequest.requestedDate,
+            newDate,
+            reason
+        }
+    });
+
+    // We keep status as approved but add a 'reschedule_pending' flag or similar
+    // Actually, it's better to update it to 'pending' again with the new details
+    // but keep track of the original for audit.
+    const updates = {
+        requestedDate: newDate,
+        requestedStartTime: newStartTime,
+        requestedEndTime: newEndTime,
+        status: "pending",
+        updatedAt: now,
+        rescheduleReason: reason,
+        previousRequest: {
+            date: slotRequest.requestedDate,
+            startTime: slotRequest.requestedStartTime,
+            endTime: slotRequest.requestedEndTime
+        }
+    };
+
+    if (isFirebaseConfigured()) {
+        await db.collection(SLOTS_COLLECTION).doc(id).update(updates);
+    }
+
+    return { success: true };
+}
+

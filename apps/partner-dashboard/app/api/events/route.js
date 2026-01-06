@@ -9,14 +9,17 @@ const getQueryParams = (request) => {
   const sort = searchParams.get("sort") || "heat";
   const search = searchParams.get("search") || undefined;
   const host = searchParams.get("host") || undefined;
+  const venueId = searchParams.get("venueId") || undefined;
+  const lifecycle = searchParams.get("lifecycle") || undefined;
+  const creatorRole = searchParams.get("creatorRole") || undefined;
   const parsedLimit = limit ? Number(limit) : undefined;
-  return { city, limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined, sort, search, host };
+  return { city, limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined, sort, search, host, venueId, lifecycle, creatorRole };
 };
 
 export async function GET(request) {
   try {
-    const { city, limit, sort, search, host } = getQueryParams(request);
-    const events = await listEvents({ city, limit, sort, search, host });
+    const { city, limit, sort, search, host, venueId, lifecycle, creatorRole } = getQueryParams(request);
+    const events = await listEvents({ city, limit, sort, search, host, venueId, lifecycle, creatorRole });
     return NextResponse.json(events);
   } catch (error) {
     console.error("GET /api/events error", error);

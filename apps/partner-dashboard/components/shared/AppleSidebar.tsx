@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, ChevronDown } from "lucide-react";
 import { useDashboardAuth } from "../providers/DashboardAuthProvider";
 
 type MenuItem = {
     icon: React.ComponentType<{ className?: string }>;
     label: string;
     href: string;
+    children?: { label: string; href: string }[];
 };
 
 type MenuSection = {
@@ -52,15 +53,42 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }
                         {section.items.map((item) => {
                             const Icon = item.icon;
                             const active = isActive(item.href);
+                            const hasChildren = item.children && item.children.length > 0;
+                            const isChildActive = hasChildren && item.children.some(child => pathname.startsWith(child.href));
+
                             return (
-                                <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    className={`nav-item ${active ? 'nav-item-active' : ''}`}
-                                >
-                                    <Icon className="nav-icon" />
-                                    <span>{item.label}</span>
-                                </Link>
+                                <div key={item.href} className="mb-1">
+                                    <Link
+                                        href={item.href}
+                                        className={`nav-item ${active || isChildActive ? 'nav-item-active' : ''}`}
+                                    >
+                                        <Icon className="nav-icon" />
+                                        <span className="flex-1">{item.label}</span>
+                                        {hasChildren && (
+                                            <ChevronDown className={`h-3 w-3 transition-transform ${active || isChildActive ? 'rotate-180' : ''}`} />
+                                        )}
+                                    </Link>
+
+                                    {hasChildren && (active || isChildActive) && (
+                                        <div className="mt-1 ml-9 space-y-1 animate-slide-up">
+                                            {item.children.map((child) => {
+                                                const childActive = pathname === child.href;
+                                                return (
+                                                    <Link
+                                                        key={child.href}
+                                                        href={child.href}
+                                                        className={`block px-3 py-2 rounded-lg text-[13px] transition-all ${childActive
+                                                            ? 'bg-black/[0.04] text-[#1d1d1f] font-medium'
+                                                            : 'text-[#86868b] hover:text-[#1d1d1f] hover:bg-black/[0.02]'
+                                                            }`}
+                                                    >
+                                                        {child.label}
+                                                    </Link>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
                             );
                         })}
                     </div>

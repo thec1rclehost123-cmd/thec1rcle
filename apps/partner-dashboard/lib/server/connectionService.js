@@ -80,7 +80,7 @@ export async function approveRequest(connectionId, role, partnerId, partnerName)
     // Check promoter_connections
     const cDoc = await db.collection("promoter_connections").doc(connectionId).get();
     if (cDoc.exists) {
-        return await promoterConnectionStore.approveConnectionRequest(connectionId, { uid: partnerId, name: partnerName });
+        return await promoterConnectionStore.approveConnectionRequest(connectionId, { uid: partnerId, name: partnerName, role });
     }
 
     throw new Error("Connection not found");
@@ -96,11 +96,28 @@ export async function rejectRequest(connectionId, role, partnerId, partnerName, 
 
     const cDoc = await db.collection("promoter_connections").doc(connectionId).get();
     if (cDoc.exists) {
-        return await promoterConnectionStore.rejectConnectionRequest(connectionId, { uid: partnerId, name: partnerName }, reason);
+        return await promoterConnectionStore.rejectConnectionRequest(connectionId, { uid: partnerId, name: partnerName, role }, reason);
     }
 
     throw new Error("Connection not found");
 }
+
+export async function blockRequest(connectionId, role, partnerId, partnerName, reason = "") {
+    const db = getAdminDb();
+
+    const pDoc = await db.collection("partnerships").doc(connectionId).get();
+    if (pDoc.exists) {
+        return await partnershipStore.blockPartnership(connectionId, { uid: partnerId, role }, reason);
+    }
+
+    const cDoc = await db.collection("promoter_connections").doc(connectionId).get();
+    if (cDoc.exists) {
+        return await promoterConnectionStore.blockConnectionRequest(connectionId, { uid: partnerId, role, name: partnerName }, reason);
+    }
+
+    throw new Error("Connection not found");
+}
+
 
 export async function listConnections(partnerId, role, status = null) {
     // Combines both stores

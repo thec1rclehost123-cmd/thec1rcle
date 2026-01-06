@@ -7,9 +7,19 @@ import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { randomUUID } from "node:crypto";
 
 const CALENDAR_COLLECTION = "club_calendar";
+const AUDIT_LOGS_COLLECTION = "audit_logs";
 
-// Fallback storage for development
-let fallbackCalendar = [];
+async function createAuditLog(db, { type, entityId, action, actorId, actorRole, metadata = {} }) {
+    await db.collection(AUDIT_LOGS_COLLECTION).add({
+        type,
+        entityId,
+        action,
+        actorId,
+        actorRole,
+        metadata,
+        timestamp: new Date().toISOString()
+    });
+}
 
 /**
  * Get club calendar for a date range
@@ -22,27 +32,77 @@ export async function getClubCalendar(clubId, startDate, endDate, hostId = null)
     }
 
     const db = getAdminDb();
+
+    // 1. Get explicit calendar overrides (blocks, etc)
     const snapshot = await db.collection(CALENDAR_COLLECTION)
         .where("clubId", "==", clubId)
         .where("date", ">=", startDate)
         .where("date", "<=", endDate)
         .get();
 
-    const calendarData = snapshot.docs.map(doc => {
+    const calendarMap = new Map();
+    snapshot.docs.forEach(doc => {
         const data = doc.data();
-        // Privacy: Don't expose event details to hosts
-        return {
+        calendarMap.set(data.date, {
             date: data.date,
-            status: data.status || determineOverallStatus(data.slots),
-            slots: (data.slots || []).map(slot => ({
-                startTime: slot.startTime,
-                endTime: slot.endTime,
-                status: slot.status,
-                // Only show eventId if it belongs to this host
-                ...(hostId && slot.hostId === hostId ? { eventId: slot.eventId } : {})
-            }))
-        };
+            status: data.status,
+            reason: hostId ? undefined : data.reason // Hide block reasons from hosts unless desired
+        });
     });
+
+    // 2. Get Slot Requests for this host
+    if (hostId) {
+        const slotsSnap = await db.collection("slot_requests")
+            .where("clubId", "==", clubId)
+            .where("hostId", "==", hostId)
+            .where("requestedDate", ">=", startDate)
+            .where("requestedDate", "<=", endDate)
+            .get();
+
+        slotsSnap.docs.forEach(doc => {
+            const data = doc.data();
+            const existing = calendarMap.get(data.requestedDate);
+            // My requests take precedence in visibility for me
+            calendarMap.set(data.requestedDate, {
+                ...existing,
+                date: data.requestedDate,
+                myRequest: {
+                    id: doc.id,
+                    status: data.status,
+                    startTime: data.requestedStartTime,
+                    endTime: data.requestedEndTime
+                },
+                // status: data.status === 'pending' ? 'tentative' : (data.status === 'approved' ? 'approved_hold' : existing?.status || 'available')
+            });
+        });
+    }
+
+    // 3. Get Confirmed Events (Privacy restricted)
+    // Fetch all scheduled/live events for this venue to show as 'Booked'
+    const eventsSnap = await db.collection("events")
+        .where("venueId", "==", clubId)
+        .where("startDate", ">=", startDate)
+        .where("startDate", "<=", endDate)
+        .where("lifecycle", "in", ["scheduled", "live", "published"])
+        .get();
+
+    eventsSnap.docs.forEach(doc => {
+        const data = doc.data();
+        const existing = calendarMap.get(data.startDate);
+
+        // If it's my event, I already have it from the slot request or I see it anyway
+        // If it's NOT my event, show as Generic 'Booked'
+        if (data.creatorId !== hostId) {
+            calendarMap.set(data.startDate, {
+                ...existing,
+                date: data.startDate,
+                status: "booked",
+                reason: "Booked" // Generic label
+            });
+        }
+    });
+
+    const calendarData = Array.from(calendarMap.values());
 
     // Fill in missing dates with 'available'
     return fillCalendarGaps(calendarData, clubId, startDate, endDate);
@@ -112,6 +172,15 @@ export async function blockDate(clubId, date, reason = "", blockedBy) {
     const calendarId = `${clubId}_${date}`;
     await db.collection(CALENDAR_COLLECTION).doc(calendarId).set(entry, { merge: true });
 
+    await createAuditLog(db, {
+        type: "calendar",
+        entityId: calendarId,
+        action: "blocked",
+        actorId: blockedBy.uid,
+        actorRole: blockedBy.role,
+        metadata: { date, reason }
+    });
+
     return entry;
 }
 
@@ -141,7 +210,71 @@ export async function unblockDate(clubId, date, unblockedBy) {
         updatedAt: new Date().toISOString()
     });
 
+    await createAuditLog(db, {
+        type: "calendar",
+        entityId: calendarId,
+        action: "unblocked",
+        actorId: unblockedBy.uid,
+        actorRole: unblockedBy.role,
+        metadata: { date }
+    });
+
     return { date, status: "available" };
+}
+
+/**
+ * Get unified calendar for club (including slots and confirmed events)
+ */
+export async function getUnifiedClubCalendar(clubId, startDate, endDate) {
+    if (!isFirebaseConfigured()) {
+        const mockDays = generateMockCalendar(clubId, startDate, endDate);
+        return {
+            blocks: mockDays.filter(d => d.status === 'blocked').map(d => ({ date: d.date, reason: "Mock Block" })),
+            slots: [],
+            events: mockDays.filter(d => d.status === 'booked').map(d => ({ name: "Mock Event", dateStr: d.date, status: 'confirmed', type: 'event' }))
+        };
+    }
+
+    const db = getAdminDb();
+
+    // 1. Get Blocks
+    const blocksSnap = await db.collection(CALENDAR_COLLECTION)
+        .where("clubId", "==", clubId)
+        .where("date", ">=", startDate)
+        .where("date", "<=", endDate)
+        .get();
+
+    const blocks = blocksSnap.docs.map(doc => ({ id: doc.id, type: 'block', ...doc.data() }));
+
+    // 2. Get Slot Requests
+    const slotsSnap = await db.collection("slot_requests")
+        .where("clubId", "==", clubId)
+        .where("requestedDate", ">=", startDate)
+        .where("requestedDate", "<=", endDate)
+        .get();
+
+    const slots = slotsSnap.docs.map(doc => ({ id: doc.id, type: 'slot_request', ...doc.data() }));
+
+    // 3. Get Confirmed Events
+    const eventsSnap = await db.collection("events")
+        .where("venueId", "==", clubId)
+        .get(); // Note: confirmed events might not have a simple 'date' field we can filter easily if it's formatted differently
+    // But let's assume 'date' exists or we filter by startDate/endDate strings/Timestamps
+
+    const events = eventsSnap.docs
+        .map(doc => {
+            const data = doc.data();
+            const dateStr = data.date?.toDate ? data.date.toDate().toISOString().split('T')[0] : (typeof data.date === 'string' ? data.date : null);
+            return { id: doc.id, type: 'event', ...data, dateStr };
+        })
+        .filter(e => e.dateStr && e.dateStr >= startDate && e.dateStr <= endDate);
+
+    // Merge and return
+    return {
+        blocks,
+        slots,
+        events
+    };
 }
 
 /**

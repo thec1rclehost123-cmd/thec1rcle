@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Download, Share2, Copy, Check, Ticket } from "lucide-react";
+import { formatEventDate } from "@c1rcle/core/time";
 
 /**
  * QR Ticket Component
@@ -81,16 +82,7 @@ export default function QRTicket({
         }
     };
 
-    const formatDate = (dateStr) => {
-        if (!dateStr) return "";
-        const date = new Date(dateStr);
-        return date.toLocaleDateString("en-IN", {
-            weekday: "short",
-            day: "numeric",
-            month: "short",
-            year: "numeric"
-        });
-    };
+    // local formatDate removed, using formatEventDate from core
 
     const entryTypeLabels = {
         general: "General Entry",
@@ -120,7 +112,7 @@ export default function QRTicket({
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
                 <h2 className="text-lg font-bold text-slate-900 mb-2">{eventTitle}</h2>
                 <div className="space-y-1 text-sm text-slate-600">
-                    <p>{formatDate(eventDate)} • {eventTime}</p>
+                    <p>{formatEventDate(eventDate)} • {eventTime}</p>
                     <p className="text-slate-500">{eventLocation}</p>
                 </div>
             </div>

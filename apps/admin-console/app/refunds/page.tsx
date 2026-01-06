@@ -160,7 +160,8 @@ export default function RefundsPage() {
     };
 
     const formatDate = (dateStr: string) => {
-        return new Date(dateStr).toLocaleDateString('en-US', {
+        return new Date(dateStr).toLocaleDateString('en-IN', {
+            timeZone: 'Asia/Kolkata',
             month: 'short',
             day: 'numeric',
             hour: 'numeric',
@@ -199,8 +200,8 @@ export default function RefundsPage() {
                             key={f}
                             onClick={() => setFilter(f)}
                             className={`px-4 py-2 rounded-full text-[13px] font-medium transition-all ${filter === f
-                                    ? 'bg-[#1d1d1f] text-white'
-                                    : 'bg-white text-[#1d1d1f] hover:bg-[#e8e8ed]'
+                                ? 'bg-[#1d1d1f] text-white'
+                                : 'bg-white text-[#1d1d1f] hover:bg-[#e8e8ed]'
                                 }`}
                         >
                             {f === 'pending' ? 'Pending Approval' : 'All Requests'}
@@ -297,8 +298,8 @@ export default function RefundsPage() {
                                                             <div
                                                                 key={i}
                                                                 className={`w-6 h-6 rounded-full flex items-center justify-center ${i < request.approvers.length
-                                                                        ? 'bg-[#34c759] text-white'
-                                                                        : 'bg-[#e5e5ea] text-[#86868b]'
+                                                                    ? 'bg-[#34c759] text-white'
+                                                                    : 'bg-[#e5e5ea] text-[#86868b]'
                                                                     }`}
                                                             >
                                                                 {i < request.approvers.length ? (

@@ -15,6 +15,19 @@ const CONNECTIONS_COLLECTION = "promoter_connections";
 const CLUBS_COLLECTION = "venues";
 const HOSTS_COLLECTION = "hosts";
 const PROMOTERS_COLLECTION = "promoters";
+const AUDIT_LOGS_COLLECTION = "audit_logs";
+
+async function createAuditLog(db, { type, entityId, action, actorId, actorRole, metadata = {} }) {
+    await db.collection(AUDIT_LOGS_COLLECTION).add({
+        type,
+        entityId,
+        action,
+        actorId,
+        actorRole,
+        metadata,
+        timestamp: Timestamp.now()
+    });
+}
 
 /**
  * Robust fetch for venues/hosts/promoters that works even in local dev without Admin keys
@@ -425,11 +438,20 @@ export async function createConnectionRequest({
         try {
             const db = getAdminDb();
             await db.collection(CONNECTIONS_COLLECTION).doc(id).set(connectionData);
+
+            await createAuditLog(db, {
+                type: "promoter_connection",
+                entityId: id,
+                action: "requested",
+                actorId: promoterId,
+                actorRole: "promoter",
+                metadata: { targetId, targetType, targetName, promoterName }
+            });
+
             console.log(`[Connection] Created via Admin SDK: ${id}`);
             return { success: true, connection: connectionData };
         } catch (e) {
             console.error("[Connection] Admin SDK write failed:", e.message);
-            // Don't throw - try Client SDK fallback
         }
     }
 
@@ -463,8 +485,15 @@ export async function listIncomingRequests(targetId, targetType, status = null) 
                 queryRef = queryRef.where("status", "==", status);
             }
 
-            const snapshot = await queryRef.orderBy("createdAt", "desc").get();
-            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const snapshot = await queryRef.get();
+            const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // Sort in memory to avoid index requirements
+            return results.sort((a, b) => {
+                const dateA = new Date(a.createdAt || 0);
+                const dateB = new Date(b.createdAt || 0);
+                return dateB - dateA;
+            });
         } catch (e) {
             console.warn("[listIncomingRequests] Admin SDK error:", e.message);
         }
@@ -491,10 +520,23 @@ export async function listIncomingRequests(targetId, targetType, status = null) 
 }
 
 export async function approveConnectionRequest(connectionId, approvedBy) {
-    const update = { status: "approved", updatedAt: new Date().toISOString(), resolvedAt: new Date().toISOString(), resolvedBy };
+    const update = { status: "approved", updatedAt: new Date().toISOString(), resolvedAt: new Date().toISOString(), resolvedBy: approvedBy };
 
     if (isFirebaseConfigured()) {
-        await getAdminDb().collection(CONNECTIONS_COLLECTION).doc(connectionId).update(update);
+        const db = getAdminDb();
+        const docRef = db.collection(CONNECTIONS_COLLECTION).doc(connectionId);
+        const doc = await docRef.get();
+
+        await docRef.update(update);
+
+        await createAuditLog(db, {
+            type: "promoter_connection",
+            entityId: connectionId,
+            action: "approved",
+            actorId: approvedBy.uid,
+            actorRole: approvedBy.role,
+            metadata: { previousStatus: doc.exists ? doc.data().status : null }
+        });
     } else {
         await updateDoc(doc(getFirebaseDb(), CONNECTIONS_COLLECTION, connectionId), update);
     }
@@ -502,10 +544,47 @@ export async function approveConnectionRequest(connectionId, approvedBy) {
 }
 
 export async function rejectConnectionRequest(connectionId, rejectedBy, reason = "") {
-    const update = { status: "rejected", updatedAt: new Date().toISOString(), resolvedAt: new Date().toISOString(), resolvedBy, rejectionReason: reason };
+    const update = { status: "rejected", updatedAt: new Date().toISOString(), resolvedAt: new Date().toISOString(), resolvedBy: rejectedBy, rejectionReason: reason };
 
     if (isFirebaseConfigured()) {
-        await getAdminDb().collection(CONNECTIONS_COLLECTION).doc(connectionId).update(update);
+        const db = getAdminDb();
+        const docRef = db.collection(CONNECTIONS_COLLECTION).doc(connectionId);
+        const doc = await docRef.get();
+
+        await docRef.update(update);
+
+        await createAuditLog(db, {
+            type: "promoter_connection",
+            entityId: connectionId,
+            action: "rejected",
+            actorId: rejectedBy.uid,
+            actorRole: rejectedBy.role,
+            metadata: { reason, previousStatus: doc.exists ? doc.data().status : null }
+        });
+    } else {
+        await updateDoc(doc(getFirebaseDb(), CONNECTIONS_COLLECTION, connectionId), update);
+    }
+    return { success: true };
+}
+
+export async function blockConnectionRequest(connectionId, blockedBy, reason = "") {
+    const update = { status: "blocked", updatedAt: new Date().toISOString(), resolvedAt: new Date().toISOString(), resolvedBy: blockedBy, blockReason: reason };
+
+    if (isFirebaseConfigured()) {
+        const db = getAdminDb();
+        const docRef = db.collection(CONNECTIONS_COLLECTION).doc(connectionId);
+        const doc = await docRef.get();
+
+        await docRef.update(update);
+
+        await createAuditLog(db, {
+            type: "promoter_connection",
+            entityId: connectionId,
+            action: "blocked",
+            actorId: blockedBy.uid,
+            actorRole: blockedBy.role,
+            metadata: { reason, previousStatus: doc.exists ? doc.data().status : null }
+        });
     } else {
         await updateDoc(doc(getFirebaseDb(), CONNECTIONS_COLLECTION, connectionId), update);
     }
@@ -534,15 +613,32 @@ export async function revokeConnection(id, revokedBy) {
 
 export async function getConnectionStatus(promoterId, targetId, targetType) {
     if (isFirebaseConfigured()) {
-        const snap = await getAdminDb().collection(CONNECTIONS_COLLECTION)
-            .where("promoterId", "==", promoterId)
-            .where("targetId", "==", targetId)
-            .orderBy("updatedAt", "desc").limit(1).get();
-        if (!snap.empty) return { id: snap.docs[0].id, ...snap.docs[0].data() };
+        try {
+            const snap = await getAdminDb().collection(CONNECTIONS_COLLECTION)
+                .where("promoterId", "==", promoterId)
+                .where("targetId", "==", targetId)
+                .get();
+            if (!snap.empty) {
+                const results = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Sort in memory and take the latest
+                return results.sort((a, b) => {
+                    const dateA = new Date(a.updatedAt || 0);
+                    const dateB = new Date(b.updatedAt || 0);
+                    return dateB - dateA;
+                })[0];
+            }
+        } catch (e) {
+            console.warn("[Promoter Store] getConnectionStatus Admin Fallback:", e.message);
+        }
     }
+
     try {
         const db = getFirebaseDb();
-        const q = query(collection(db, CONNECTIONS_COLLECTION), where("promoterId", "==", promoterId), where("targetId", "==", targetId));
+        const q = query(
+            collection(db, CONNECTIONS_COLLECTION),
+            where("promoterId", "==", promoterId),
+            where("targetId", "==", targetId)
+        );
         const snap = await getDocs(q);
         if (snap.empty) return null;
         return { id: snap.docs[0].id, ...snap.docs[0].data() };

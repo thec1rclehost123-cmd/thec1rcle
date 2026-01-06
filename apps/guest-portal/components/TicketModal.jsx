@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Info, Minus, Plus } from "lucide-react";
 
-export default function TicketModal({ open, onClose, tickets = [], eventId, promoterCode }) {
+export default function TicketModal({ open, onClose, tickets = [], eventId, promoterCode, minTicketsPerOrder = 1, maxTicketsPerOrder = 10 }) {
   const router = useRouter();
   const [quantities, setQuantities] = useState({});
   const [showDescription, setShowDescription] = useState({});
@@ -36,6 +36,13 @@ export default function TicketModal({ open, onClose, tickets = [], eventId, prom
       return sum + qty * Number(ticket.price || 0);
     }, 0);
   }, [tickets, quantities]);
+
+  const totalQuantity = useMemo(() => {
+    return Object.values(quantities).reduce((sum, qty) => sum + Number(qty), 0);
+  }, [quantities]);
+
+  const isBelowMin = totalQuantity > 0 && totalQuantity < minTicketsPerOrder;
+  const isAboveMax = totalQuantity > maxTicketsPerOrder;
 
   return (
     <AnimatePresence>
@@ -135,8 +142,8 @@ export default function TicketModal({ open, onClose, tickets = [], eventId, prom
                             setQuantities(prev => ({ ...prev, [ticket.id]: current + 1 }));
                           }
                         }}
-                        className="flex h-8 items-center justify-center px-4 rounded-full text-white/60 hover:bg-white/10 hover:text-white transition-colors"
-                        disabled={(quantities[ticket.id] || 0) >= ticket.quantity}
+                        className="flex h-8 items-center justify-center px-4 rounded-full text-white/60 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-30"
+                        disabled={(quantities[ticket.id] || 0) >= ticket.quantity || totalQuantity >= maxTicketsPerOrder}
                       >
                         <Plus className="w-3 h-3" />
                       </button>
@@ -146,19 +153,34 @@ export default function TicketModal({ open, onClose, tickets = [], eventId, prom
               ))}
             </div>
 
-            <div className="mt-6 border-t border-white/10 pt-4">
-              <div className="flex items-center justify-between px-2 mb-4">
+            <div className="mt-6 border-t border-white/10 pt-4 px-2 space-y-2">
+              <div className="flex items-center justify-between">
                 <p className="text-sm text-white/60">Total</p>
                 <p className="text-2xl font-bold text-white">₹{total}</p>
               </div>
-              <button
-                type="button"
-                onClick={handlePurchase}
-                className="w-full rounded-full bg-white py-4 text-xs font-bold uppercase tracking-[0.3em] text-black transition hover:bg-white/90 active:scale-[0.98]"
-              >
-                {total === 0 ? "Confirm RSVP" : "Purchase Tickets"}
-              </button>
+              {totalQuantity > 0 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] text-white/40 uppercase tracking-widest">Quantity</p>
+                  <p className={`text-[10px] font-bold ${isAboveMax ? "text-red-500" : "text-white/60"}`}>
+                    {totalQuantity} / {maxTicketsPerOrder}
+                  </p>
+                </div>
+              )}
+              {isAboveMax && (
+                <p className="text-[10px] text-red-500 font-bold mt-1">Maximum {maxTicketsPerOrder} tickets allowed per account.</p>
+              )}
+              {isBelowMin && (
+                <p className="text-[10px] text-orange-400 font-bold">Min {minTicketsPerOrder} tickets required.</p>
+              )}
             </div>
+            <button
+              type="button"
+              onClick={handlePurchase}
+              disabled={totalQuantity === 0 || isBelowMin || isAboveMax}
+              className="w-full rounded-full bg-white py-4 text-xs font-bold uppercase tracking-[0.3em] text-black transition hover:bg-white/90 active:scale-[0.98] mt-4"
+            >
+              {total === 0 ? "Confirm RSVP" : "Purchase Tickets"}
+            </button>
           </motion.div>
         </motion.div>
       )}
