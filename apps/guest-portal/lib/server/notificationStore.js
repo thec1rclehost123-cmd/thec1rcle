@@ -86,7 +86,7 @@ export async function createBulkNotifications(userIds, { type, title, body, data
 /**
  * Get followers of a club or host
  */
-export async function getFollowers(targetId, targetType = "club") {
+export async function getFollowers(targetId, targetType = "venue") {
     if (!isFirebaseConfigured()) {
         return fallbackFollows
             .filter(f => f.targetId === targetId && f.targetType === targetType)
@@ -129,22 +129,22 @@ export async function notifyNewEvent(event) {
 
     // Get club followers (if event is at a venue)
     if (event.venueId) {
-        const clubFollowers = await getFollowers(event.venueId, "club");
+        const clubFollowers = await getFollowers(event.venueId, "venue");
 
         // Deduplicate - don't notify users who already got notified via host
         const hostFollowerSet = new Set(
             event.hostId ? await getFollowers(event.hostId, "host") : []
         );
-        const uniqueClubFollowers = clubFollowers.filter(f => !hostFollowerSet.has(f));
+        const uniqueVenueFollowers = clubFollowers.filter(f => !hostFollowerSet.has(f));
 
-        if (uniqueClubFollowers.length > 0) {
-            const clubNotifs = await createBulkNotifications(uniqueClubFollowers, {
+        if (uniqueVenueFollowers.length > 0) {
+            const clubNotifs = await createBulkNotifications(uniqueVenueFollowers, {
                 type: "new_event",
                 title: `New event at ${event.venueName || "your followed venue"}`,
                 body: `${event.host} is hosting: ${event.title}`,
                 data: {
                     eventId: event.id,
-                    clubId: event.venueId,
+                    venueId: event.venueId,
                     action: "view_event"
                 },
                 imageUrl: event.image
@@ -346,7 +346,7 @@ export async function followEntity(followerId, targetId, targetType) {
     await db.collection(FOLLOWS_COLLECTION).doc(id).set(follow, { merge: true });
 
     // Update follower count on the target
-    const targetCollection = targetType === "club" ? "clubs" : "hosts";
+    const targetCollection = targetType === "venue" ? "venues" : "hosts";
     const { FieldValue } = require("firebase-admin/firestore");
 
     try {
@@ -378,7 +378,7 @@ export async function unfollowEntity(followerId, targetId, targetType) {
     await db.collection(FOLLOWS_COLLECTION).doc(id).delete();
 
     // Update follower count on the target
-    const targetCollection = targetType === "club" ? "clubs" : "hosts";
+    const targetCollection = targetType === "venue" ? "venues" : "hosts";
     const { FieldValue } = require("firebase-admin/firestore");
 
     try {

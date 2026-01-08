@@ -17,7 +17,7 @@ The fixed left sidebar is your map. It only shows you what you are authorized to
 1.  **Home**: The command center.
 2.  **Approvals**: The Dual-Sign-Off queue (New).
 3.  **Users**: Managing individual people.
-4.  **Venues**: Managing clubs, bars, and spaces.
+4.  **Venues**: Managing venues, bars, and spaces.
 5.  **Hosts**: Managing event organizers and their applications.
 6.  **Events**: Controlling individual party/event listings.
 7.  **Payments**: The financial ledger and refund hub.

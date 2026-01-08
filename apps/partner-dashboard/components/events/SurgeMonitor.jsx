@@ -9,9 +9,15 @@ import {
     BarChart3,
     AlertCircle,
     Activity,
-    ShieldAlert
+    ShieldAlert,
+    TrendingUp,
+    LogOut
 } from "lucide-react";
 
+/**
+ * THE C1RCLE - Surge Monitor (Phase 2 Hardened)
+ * Includes Live Queue Monitoring + Surge Autopsy Analytics
+ */
 export default function SurgeMonitor({ eventId }) {
     const [surgeData, setSurgeData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -56,14 +62,16 @@ export default function SurgeMonitor({ eventId }) {
     const handleAdmit = async (count) => {
         setIsUpdating(true);
         try {
-            await fetch(`/api/events/${eventId}/surge`, {
+            const res = await fetch(`/api/events/${eventId}/surge`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ action: "admit", count })
             });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
             await fetchSurgeData();
         } catch (err) {
-            console.error(err);
+            alert(err.message);
         } finally {
             setIsUpdating(false);
         }
@@ -72,11 +80,12 @@ export default function SurgeMonitor({ eventId }) {
     if (isLoading) return null;
 
     const isSurging = surgeData?.status === "surge";
+    const analytics = surgeData?.analytics;
 
     return (
         <div className={`rounded-[2.5rem] p-10 border transition-all duration-500 overflow-hidden relative ${isSurging
-                ? "bg-rose-50 border-rose-100 shadow-xl shadow-rose-100/50"
-                : "bg-slate-50 border-slate-100"
+            ? "bg-rose-50 border-rose-100 shadow-xl shadow-rose-100/50"
+            : "bg-slate-50 border-slate-100"
             }`}>
             {/* Background Glow */}
             {isSurging && (
@@ -94,17 +103,17 @@ export default function SurgeMonitor({ eventId }) {
                             <div className="flex items-center gap-3 mb-1">
                                 <h3 className={`text-xl font-black uppercase tracking-tight ${isSurging ? "text-rose-900" : "text-slate-900"
                                     }`}>
-                                    Surge Protection
+                                    Surge Infrastructure
                                 </h3>
                                 <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${isSurging ? "bg-rose-600 text-white" : "bg-slate-300 text-white"
                                     }`}>
-                                    {isSurging ? "Active" : "Stable"}
+                                    {isSurging ? "Active Throttling" : "Normal Load"}
                                 </span>
                             </div>
                             <p className={`text-sm font-medium ${isSurging ? "text-rose-600" : "text-slate-500"}`}>
                                 {isSurging
-                                    ? `Triggered by ${surgeData.reason?.replace('_', ' ')}. Admission throttled.`
-                                    : "Traffic is within normal limits. Inventory is flowing freely."}
+                                    ? `Triggered by ${surgeData.reason?.replace('_', ' ')}. Inventory is protected.`
+                                    : "Traffic is within normal limits. Waiting room is bypassed."}
                             </p>
                         </div>
                     </div>
@@ -114,21 +123,21 @@ export default function SurgeMonitor({ eventId }) {
                             onClick={() => handleToggle(!isSurging)}
                             disabled={isUpdating}
                             className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-lg ${isSurging
-                                    ? "bg-white text-rose-600 hover:bg-slate-50 shadow-rose-200"
-                                    : "bg-slate-900 text-white hover:bg-slate-800"
+                                ? "bg-white text-rose-600 hover:bg-slate-50 shadow-rose-200"
+                                : "bg-slate-900 text-white hover:bg-slate-800"
                                 }`}
                         >
-                            {isSurging ? "Force Kill Surge" : "Manual Surge Trigger"}
+                            {isSurging ? "Kill Surge Mode" : "Manual Surge Trigger"}
                         </button>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Queue Stat */}
-                    <div className="bg-white/50 backdrop-blur-sm rounded-3xl p-6 border border-white/50 group">
+                    <div className="bg-white/50 backdrop-blur-sm rounded-3xl p-6 border border-white/50">
                         <div className="flex items-center gap-3 mb-3">
                             <Users className={`h-4 w-4 ${isSurging ? "text-rose-500" : "text-slate-400"}`} />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Waiting</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Waiting Cohort</span>
                         </div>
                         <div className="text-4xl font-black text-slate-900 tracking-tighter">
                             {surgeData?.stats?.waiting || 0}
@@ -151,17 +160,18 @@ export default function SurgeMonitor({ eventId }) {
                         }`}>
                         <div className="flex items-center gap-3 mb-4">
                             <UserPlus className={`h-4 w-4 ${isSurging ? "text-rose-500" : "text-slate-400"}`} />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Manual Batch Admissions</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Elevated Controls</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            {[10, 50, 100].map(count => (
+                            {[10, 50].map(count => (
                                 <button
                                     key={count}
                                     onClick={() => handleAdmit(count)}
                                     disabled={isUpdating || !isSurging}
+                                    title="Venue/Admin Permission Required"
                                     className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${isSurging
-                                            ? "bg-rose-600 text-white hover:bg-rose-700 shadow-md shadow-rose-200"
-                                            : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                                        ? "bg-rose-600 text-white hover:bg-rose-700 shadow-md shadow-rose-200"
+                                        : "bg-slate-200 text-slate-400 cursor-not-allowed"
                                         }`}
                                 >
                                     +{count}
@@ -171,11 +181,48 @@ export default function SurgeMonitor({ eventId }) {
                     </div>
                 </div>
 
+                {/* GAP 5: Surge Autopsy Analytics */}
+                {analytics && (
+                    <div className="mt-10 border-t border-slate-200 pt-10">
+                        <div className="flex items-center gap-3 mb-8">
+                            <BarChart3 className="h-5 w-5 text-slate-400" />
+                            <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Surge Autopsy & Conversion</h4>
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div className="bg-white p-6 rounded-3xl border border-slate-100">
+                                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Peak Demand</span>
+                                <div className="text-2xl font-black text-slate-900">{analytics.total_demand || 0} sessions</div>
+                            </div>
+                            <div className="bg-white p-6 rounded-3xl border border-slate-100">
+                                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Conversion Efficiency</span>
+                                <div className="text-2xl font-black text-slate-900">
+                                    {analytics.conversion_stats.admitted > 0
+                                        ? Math.round((analytics.conversion_stats.consumed / analytics.conversion_stats.admitted) * 100)
+                                        : 0}%
+                                </div>
+                            </div>
+                            <div className="bg-white p-6 rounded-3xl border border-slate-100">
+                                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Checkout Retention</span>
+                                <div className="text-2xl font-black text-slate-900">
+                                    {analytics.conversion_stats.admitted - analytics.conversion_stats.abandoned_pre_reserve}
+                                    <span className="text-[10px] text-slate-300 ml-1">v. {analytics.conversion_stats.admitted}</span>
+                                </div>
+                            </div>
+                            <div className="bg-white p-6 rounded-3xl border border-slate-100">
+                                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 block mb-1">Failures (Pay/Aband)</span>
+                                <div className="text-2xl font-black text-rose-500">
+                                    {analytics.conversion_stats.payment_failed + analytics.conversion_stats.abandoned_pre_reserve}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {isSurging && (
                     <div className="mt-8 flex items-center gap-4 px-6 py-4 bg-rose-600 text-white rounded-2xl animate-in slide-in-from-bottom-2 duration-500">
-                        <AlertCircle className="h-5 w-5" />
+                        <ShieldAlert className="h-5 w-5" />
                         <p className="text-[10px] font-black uppercase tracking-widest">
-                            New checkouts are being queued. Guaranteed inventory holds are only granted after admission.
+                            Lane Model Admission Active: Prioritizing Loyal & Authenticated cohorts to mitigate bot impact.
                         </p>
                     </div>
                 )}

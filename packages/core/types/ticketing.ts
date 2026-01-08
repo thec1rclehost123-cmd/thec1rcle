@@ -95,7 +95,7 @@ export type DiscountType = 'percent' | 'fixed';
 
 export type CommissionType = 'percent' | 'fixed';
 
-export type CommissionFundingSource = 'platform' | 'host' | 'club' | 'blended';
+export type CommissionFundingSource = 'platform' | 'host' | 'venue' | 'blended';
 
 // =============================================================================
 // PRICING TYPES
@@ -167,7 +167,7 @@ export interface InventoryRelease {
 
 export interface InventoryHoldback {
     id: string;
-    pool: 'club' | 'host' | 'promoter' | 'admin';
+    pool: 'venue' | 'host' | 'promoter' | 'admin';
     quantity: number;
     reason: string;
     heldBy: string;
@@ -268,7 +268,7 @@ export interface PromoCodeValidity {
 }
 
 export interface PromoCodeRoleBinding {
-    roles: ('host' | 'club' | 'admin' | 'promoter')[];
+    roles: ('host' | 'venue' | 'admin' | 'promoter')[];
     creatorId?: string;
 }
 

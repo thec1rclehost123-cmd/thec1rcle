@@ -38,6 +38,25 @@ const nextConfig = {
       }
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: '/club/:path*',
+        destination: '/venue/:path*',
+        permanent: true,
+      },
+      {
+        source: '/clubs/:path*',
+        destination: '/venues/:path*',
+        permanent: true,
+      },
+      {
+        source: '/hosts/:slug',
+        destination: '/host/:slug',
+        permanent: true,
+      }
+    ]
+  }
 };
 
 export default nextConfig;

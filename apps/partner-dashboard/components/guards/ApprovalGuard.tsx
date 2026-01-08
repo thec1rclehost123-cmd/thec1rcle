@@ -14,7 +14,7 @@ export function ApprovalGuard({ children }: { children: React.ReactNode }) {
             const pathname = window.location.pathname;
             let type = "";
             if (pathname.includes('/host')) type = "host";
-            else if (pathname.includes('/club')) type = "club";
+            else if (pathname.includes('/venue')) type = "venue";
             else if (pathname.includes('/promoter')) type = "promoter";
 
             const params = new URLSearchParams();

@@ -1,6 +1,6 @@
 /**
  * Promoter Connection Store
- * Manages partnership requests between promoters and hosts/clubs
+ * Manages partnership requests between promoters and hosts/venues
  */
 
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
@@ -41,7 +41,7 @@ async function fetchPartners(type, searchCity, searchTerm, maxLimit = 20) {
     let collectionName;
     switch (type) {
         case "host": collectionName = HOSTS_COLLECTION; break;
-        case "club": collectionName = CLUBS_COLLECTION; break;
+        case "venue": collectionName = CLUBS_COLLECTION; break;
         case "promoter": collectionName = PROMOTERS_COLLECTION; break;
         default: collectionName = type; // Support custom collections if needed
     }
@@ -171,7 +171,7 @@ function getDemoPartners(type) {
                 id: "demo-host-underground",
                 name: "Underground Studio",
                 displayName: "Underground Studio",
-                bio: "Immersive AV clubs blending art, poetry, and analog synth jams in Pune's creative districts.",
+                bio: "Immersive AV venues blending art, poetry, and analog synth jams in Pune's creative districts.",
                 city: "Viman Nagar, Pune",
                 avatar: "/events/art-collective.jpg",
                 coverImage: "/events/art-bazaar.svg",
@@ -225,7 +225,7 @@ function getDemoPartners(type) {
                 coverImage: "/events/neon-nights.jpg",
                 followersCount: 45000,
                 eventsCount: 156,
-                tags: ["Live Music", "Concerts", "Club"],
+                tags: ["Live Music", "Concerts", "Venue"],
                 capacity: 800,
                 isVerified: true,
                 status: "active",
@@ -328,8 +328,8 @@ export async function discoverHosts({ city, search, limit = 20 } = {}) {
     return await fetchPartners("host", city, search, limit);
 }
 
-export async function discoverClubs({ city, search, limit = 20 } = {}) {
-    return await fetchPartners("club", city, search, limit);
+export async function discoverVenues({ city, search, limit = 20 } = {}) {
+    return await fetchPartners("venue", city, search, limit);
 }
 
 export async function discoverPromoters({ city, search, limit = 20 } = {}) {
@@ -339,22 +339,22 @@ export async function discoverPromoters({ city, search, limit = 20 } = {}) {
 /**
  * Discover partners of various types
  * @param {Object} options
- * @param {'host' | 'club' | 'promoter'} [options.type]
+ * @param {'host' | 'venue' | 'promoter'} [options.type]
  * @param {string} [options.city]
  * @param {string} [options.search]
  * @param {number} [options.limit]
  */
 export async function discoverPartners({ type, city, search, limit = 20 } = {}) {
     if (type === "host") return await discoverHosts({ city, search, limit });
-    if (type === "club") return await discoverClubs({ city, search, limit });
+    if (type === "venue") return await discoverVenues({ city, search, limit });
     if (type === "promoter") return await discoverPromoters({ city, search, limit });
 
-    const [hosts, clubs, promoters] = await Promise.all([
+    const [hosts, venues, promoters] = await Promise.all([
         discoverHosts({ city, search, limit: Math.ceil(limit / 3) }),
-        discoverClubs({ city, search, limit: Math.ceil(limit / 3) }),
+        discoverVenues({ city, search, limit: Math.ceil(limit / 3) }),
         discoverPromoters({ city, search, limit: Math.ceil(limit / 3) })
     ]);
-    return [...hosts, ...clubs, ...promoters].slice(0, limit);
+    return [...hosts, ...venues, ...promoters].slice(0, limit);
 }
 
 /**
@@ -667,6 +667,6 @@ export async function getApprovedPartnerIds(promoterId) {
     const connections = await listPromoterConnections(promoterId, "approved");
     return {
         hostIds: connections.filter(c => c.targetType === "host").map(c => c.targetId),
-        clubIds: connections.filter(c => c.targetType === "club").map(c => c.targetId)
+        venueIds: connections.filter(c => c.targetType === "venue").map(c => c.targetId)
     };
 }

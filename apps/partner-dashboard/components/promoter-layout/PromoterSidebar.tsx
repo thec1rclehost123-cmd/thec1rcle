@@ -13,7 +13,12 @@ import {
     LogOut,
     Bell,
     Settings,
-    Shield
+    Shield,
+    Zap,
+    DollarSign,
+    Handshake,
+    BarChart3,
+    Activity
 } from "lucide-react";
 import { useDashboardAuth } from "../../components/providers/DashboardAuthProvider";
 
@@ -23,7 +28,19 @@ export default function PromoterSidebar() {
 
     const menuItems = [
         {
+            category: "Analytics Studio",
+            items: [
+                { icon: Activity, label: "Overview", href: "/promoter/analytics/overview" },
+                { icon: TrendingUp, label: "Reach", href: "/promoter/analytics/reach" },
+                { icon: Zap, label: "Engagement", href: "/promoter/analytics/engagement" },
+                { icon: DollarSign, label: "Revenue", href: "/promoter/analytics/revenue" },
+                { icon: Users, label: "Audience", href: "/promoter/analytics/audience" },
+                { icon: Handshake, label: "Attribution", href: "/promoter/analytics/attribution" },
+            ]
+        },
+        {
             category: "Earnings",
+
             items: [
                 { icon: LayoutDashboard, label: "Overview", href: "/promoter" },
                 { icon: TrendingUp, label: "My Stats", href: "/promoter/stats" },

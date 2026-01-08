@@ -65,3 +65,86 @@ export async function verifyHostRole(request) {
         return false;
     }
 }
+
+/**
+ * Verify if the user has a club owner or admin role (Elevated Permissions).
+ */
+export async function verifyElevatedRole(request) {
+    const decodedToken = await verifyAuth(request);
+    if (!decodedToken) return false;
+
+    if (process.env.NODE_ENV === "development" && decodedToken.uid === "dev-user-123") {
+        return true;
+    }
+
+    try {
+        const { getAdminDb } = await import("../firebase/admin");
+        const db = getAdminDb();
+
+        // Check if user is a Venue owner or Admin
+        const clubDoc = await db.collection("venues").where("ownerId", "==", decodedToken.uid).limit(1).get();
+        if (!clubDoc.empty) return true;
+
+        const adminDoc = await db.collection("admins").doc(decodedToken.uid).get();
+        if (adminDoc.exists) return true;
+
+        return false;
+    } catch (error) {
+        console.error("Elevated role verification failed:", error);
+        return false;
+    }
+}
+
+/**
+ * PRODUCTION HARDENING: Unified Permission Check
+ * Verifies if user can manage a specific partnerId (Venue or Host)
+ */
+export async function verifyPartnerAccess(request, partnerId) {
+    const decodedToken = await verifyAuth(request);
+    if (!decodedToken) return false;
+
+    if (process.env.NODE_ENV === "development" && decodedToken.uid === "dev-user-123") {
+        return true;
+    }
+
+    const { uid } = decodedToken;
+    const { getAdminDb } = await import("../firebase/admin");
+    const db = getAdminDb();
+
+    try {
+        // 1. Check if user is the direct owner of the venue/host
+        const venueDoc = await db.collection("venues").doc(partnerId).get();
+        if (venueDoc.exists && venueDoc.data().ownerId === uid) return true;
+
+        const hostDoc = await db.collection("hosts").doc(partnerId).get();
+        if (hostDoc.exists && hostDoc.data().ownerId === uid) return true;
+
+        // 2. Check if user is a verified staff member with management permissions
+        const membershipSnapshot = await db.collection("partner_memberships")
+            .where("partnerId", "==", partnerId)
+            .where("uid", "==", uid)
+            .limit(1)
+            .get();
+
+        if (!membershipSnapshot.empty) {
+            const membershipData = membershipSnapshot.docs[0].data();
+            const isActive = membershipData.isActive === true || membershipData.status === 'active';
+
+            if (isActive) {
+                // Managers, Ops and Owners carry management authority
+                const role = (membershipData.role || "").toLowerCase();
+                const managementRoles = ["manager", "ops", "owner"];
+                if (managementRoles.includes(role)) return true;
+            }
+        }
+
+        // 3. Check if user is a system admin
+        const adminDoc = await db.collection("admins").doc(uid).get();
+        if (adminDoc.exists) return true;
+
+        return false;
+    } catch (err) {
+        console.error("verifyPartnerAccess error:", err);
+        return false;
+    }
+}

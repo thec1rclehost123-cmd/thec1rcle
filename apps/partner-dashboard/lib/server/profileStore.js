@@ -6,22 +6,22 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { randomUUID } from "node:crypto";
 
-const CLUBS_COLLECTION = "clubs";
+const CLUBS_COLLECTION = "venues";
 const HOSTS_COLLECTION = "hosts";
 const PROFILE_POSTS_COLLECTION = "profile_posts";
 const PROFILE_HIGHLIGHTS_COLLECTION = "profile_highlights";
 
 // Fallback storage for development
 let fallbackProfiles = {
-    clubs: [],
+    venues: [],
     hosts: []
 };
 
 /**
  * Get a club or host profile
  */
-export async function getProfile(profileId, type = "club") {
-    const collection = type === "club" ? CLUBS_COLLECTION : HOSTS_COLLECTION;
+export async function getProfile(profileId, type = "venue") {
+    const collection = type === "venue" ? CLUBS_COLLECTION : HOSTS_COLLECTION;
 
     if (!isFirebaseConfigured()) {
         return fallbackProfiles[type + "s"]?.find(p => p.id === profileId) || null;
@@ -36,8 +36,8 @@ export async function getProfile(profileId, type = "club") {
 /**
  * Update profile details
  */
-export async function updateProfile(profileId, type = "club", updates, updatedBy) {
-    const collection = type === "club" ? CLUBS_COLLECTION : HOSTS_COLLECTION;
+export async function updateProfile(profileId, type = "venue", updates, updatedBy) {
+    const collection = type === "venue" ? CLUBS_COLLECTION : HOSTS_COLLECTION;
     const now = new Date().toISOString();
 
     const updateData = {
@@ -187,12 +187,14 @@ export async function createHighlight(profileId, type, highlightData, createdBy)
         id,
         profileId,
         profileType: type,
-        imageUrl: highlightData.imageUrl,
+        title: highlightData.title || "",
+        color: highlightData.color || "#4F46E5",
+        imageUrl: highlightData.imageUrl || null,
         caption: highlightData.caption || "",
         likes: 0,
         views: 0,
         expiresAt: highlightData.permanent ? null : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-        permanent: highlightData.permanent || false,
+        permanent: highlightData.permanent ?? true, // Default to true in dashboard context
         createdBy: {
             uid: createdBy.uid,
             name: createdBy.name || ""
@@ -272,13 +274,13 @@ export async function getProfileStats(profileId, type) {
 /**
  * Get featured profiles for discovery
  */
-export async function getFeaturedProfiles(type = "club", limit = 10) {
+export async function getFeaturedProfiles(type = "venue", limit = 10) {
     if (!isFirebaseConfigured()) {
         return [];
     }
 
     const db = getAdminDb();
-    const collection = type === "club" ? CLUBS_COLLECTION : HOSTS_COLLECTION;
+    const collection = type === "venue" ? CLUBS_COLLECTION : HOSTS_COLLECTION;
 
     const snapshot = await db.collection(collection)
         .where("isVerified", "==", true)

@@ -1,63 +1,57 @@
 import clsx from "clsx";
-import { type CSSProperties, type ReactNode } from "react";
-import { getAccentToken, type AccentName } from "../../lib/design-system/tokens";
+import { type ReactNode } from "react";
 
-type BadgeVariant = "solid" | "soft" | "outline";
-type BadgeTone = AccentName | "neutral" | "success" | "danger";
+/**
+ * Badge Component — State-Based Indicators
+ * 
+ * Color is state, not decoration.
+ * Each badge must answer: "Is this okay, or do I need to act?"
+ */
 
-const tonePalette: Record<Exclude<BadgeTone, AccentName>, { bg: string; text: string; border: string }> = {
-  neutral: { bg: "rgba(255,255,255,0.08)", text: "rgba(255,255,255,0.75)", border: "rgba(255,255,255,0.2)" },
-  success: { bg: "rgba(34,197,94,0.15)", text: "#34D399", border: "rgba(34,197,94,0.4)" },
-  danger: { bg: "rgba(248,113,113,0.18)", text: "#F87171", border: "rgba(248,113,113,0.5)" },
+type BadgeTone = "confirmed" | "pending" | "risk" | "draft" | "neutral";
+
+const toneStyles: Record<BadgeTone, string> = {
+  confirmed: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  pending: "bg-amber-50 text-amber-700 border-amber-100",
+  risk: "bg-red-50 text-red-700 border-red-100",
+  draft: "bg-indigo-50 text-indigo-700 border-indigo-100",
+  neutral: "bg-stone-100 text-stone-600 border-stone-200",
 };
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: BadgeVariant;
   tone?: BadgeTone;
   icon?: ReactNode;
-  pill?: boolean;
+  dot?: boolean;
 }
 
-export const Badge = ({ variant = "soft", tone = "neutral", icon, pill = true, className, children, ...rest }: BadgeProps) => {
-  const isAccent = tone === "neutral" || tone === "success" || tone === "danger" ? null : tone;
-  const accent = isAccent ? getAccentToken(isAccent as AccentName) : null;
-  const palette = accent
-    ? {
-        bg: accent.soft,
-        text: accent.text,
-        border: accent.border,
-      }
-    : tonePalette[tone as Exclude<BadgeTone, AccentName>];
-
-  const styles: Record<BadgeVariant, CSSProperties> = {
-    solid: {
-      background: accent ? accent.gradient : palette.bg,
-      color: accent ? accent.text : palette.text,
-      borderColor: palette.border,
-    },
-    soft: {
-      background: palette.bg,
-      color: palette.text,
-      borderColor: palette.border,
-    },
-    outline: {
-      background: "transparent",
-      color: palette.text,
-      borderColor: palette.border,
-    },
-  };
-
+export const Badge = ({
+  tone = "neutral",
+  icon,
+  dot = false,
+  className,
+  children,
+  ...rest
+}: BadgeProps) => {
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-2 border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]",
-        pill ? "rounded-full" : "rounded-2xl",
+        "inline-flex items-center gap-1.5 border px-2 py-0.5 text-[11px] font-medium rounded-full",
+        toneStyles[tone],
         className
       )}
-      style={styles[variant]}
       {...rest}
     >
-      {icon && <span className="text-base leading-none">{icon}</span>}
+      {dot && (
+        <span className={clsx(
+          "w-1.5 h-1.5 rounded-full",
+          tone === "confirmed" && "bg-emerald-500",
+          tone === "pending" && "bg-amber-500",
+          tone === "risk" && "bg-red-500",
+          tone === "draft" && "bg-indigo-500",
+          tone === "neutral" && "bg-stone-400",
+        )} />
+      )}
+      {icon && <span className="flex-shrink-0">{icon}</span>}
       {children}
     </span>
   );

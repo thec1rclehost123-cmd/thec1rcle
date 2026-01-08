@@ -7,14 +7,14 @@ import { Mail, Lock, AlertCircle, ChevronRight } from "lucide-react";
 import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { getFirebaseDb, getFirebaseAuth } from "@/lib/firebase/client";
 
-type UserType = "club" | "host" | "promoter";
+type UserType = "venue" | "host" | "promoter";
 
 function LoginForm() {
     const { signIn, user, loading: authLoading } = useDashboardAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const [userType, setUserType] = useState<UserType>("club");
+    const [userType, setUserType] = useState<UserType>("venue");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
@@ -51,7 +51,7 @@ function LoginForm() {
 
                 if (userData.role === 'host') assignedType = 'host';
                 else if (userData.role === 'promoter') assignedType = 'promoter';
-                else if (userData.role === 'partner' || userData.venueId) assignedType = 'club';
+                else if (userData.role === 'partner' || userData.venueId) assignedType = 'venue';
 
                 if (!assignedType) {
                     const q = query(collection(db, "onboarding_requests"), where("uid", "==", currentUser.uid), limit(1));
@@ -69,7 +69,7 @@ function LoginForm() {
                 }
 
                 if (assignedType !== userType) {
-                    const typeLabel = assignedType === 'club' ? 'Venue' : assignedType === 'host' ? 'Host' : 'Promoter';
+                    const typeLabel = assignedType === 'venue' ? 'Venue' : assignedType === 'host' ? 'Host' : 'Promoter';
                     setError(`This account is registered as ${typeLabel}. Please select the correct workspace.`);
                     await auth.signOut();
                     setLoading(false);
@@ -152,7 +152,7 @@ function LoginForm() {
                         <div className="space-y-2">
                             <label className="input-label">Workspace</label>
                             <div className="flex p-1 bg-[#f5f5f7] rounded-xl">
-                                <RoleTab active={userType === 'club'} onClick={() => setUserType('club')} label="Venue" />
+                                <RoleTab active={userType === 'venue'} onClick={() => setUserType('venue')} label="Venue" />
                                 <RoleTab active={userType === 'host'} onClick={() => setUserType('host')} label="Host" />
                                 <RoleTab active={userType === 'promoter'} onClick={() => setUserType('promoter')} label="Promoter" />
                             </div>

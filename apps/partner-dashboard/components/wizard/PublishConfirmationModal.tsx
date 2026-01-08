@@ -38,7 +38,7 @@ interface PublishConfirmationModalProps {
         description?: string;
         promotersEnabled?: boolean;
     };
-    role: 'club' | 'host';
+    role: 'venue' | 'host';
 }
 
 export function PublishConfirmationModal({

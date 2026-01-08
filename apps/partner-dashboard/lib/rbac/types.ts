@@ -1,10 +1,10 @@
-export type PartnerType = 'club' | 'host' | 'promoter';
+export type PartnerType = 'venue' | 'host' | 'promoter' | 'club'; // Keep 'club' for backward compat during transition
 
-export type ClubRole = 'OWNER' | 'MANAGER' | 'STAFF' | 'SECURITY';
+export type VenueRole = 'OWNER' | 'MANAGER' | 'STAFF' | 'SECURITY';
 export type HostRole = 'OWNER' | 'COHOST' | 'STAFF';
 export type PromoterRole = 'PROMOTER' | 'TEAM_LEAD';
 
-export type StaffRole = ClubRole | HostRole | PromoterRole;
+export type StaffRole = VenueRole | HostRole | PromoterRole;
 
 export type Permission =
     | 'VIEW_FINANCIALS'
@@ -23,7 +23,7 @@ export type Permission =
     | 'MANAGE_PAGE_CONTENT'
     | 'VIEW_REAL_TIME_SCANS';
 
-export const CLUB_PERMISSIONS: Record<ClubRole, Permission[]> = {
+export const VENUE_PERMISSIONS: Record<VenueRole, Permission[]> = {
     OWNER: [
         'VIEW_FINANCIALS', 'MANAGE_STAFF', 'MANAGE_EVENTS', 'EDIT_EVENT_RULES',
         'MANAGE_TABLES', 'VIEW_GUESTLIST', 'SCAN_ENTRY', 'LOG_INCIDENTS',

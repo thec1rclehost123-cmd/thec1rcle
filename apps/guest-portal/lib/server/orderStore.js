@@ -4,6 +4,15 @@ import { getEvent } from "./eventStore";
 import { sendTicketEmail } from "../email"; // Import email sender for delayed sending
 import { getPromoterLinkByCode, recordConversion } from "./promoterStore";
 import { generateOrderQRCodes } from "./qrStore";
+import {
+    recordOrderAuthorized,
+    recordOrderCaptured,
+    holdOrderRevenue,
+    initiateRefund,
+    finalizeRefund,
+    MONEY_STATES
+} from "@c1rcle/core/ledger-engine";
+import { issueEntitlements, revokeEntitlement } from "@c1rcle/core/entitlement-engine";
 
 const ORDERS_COLLECTION = "orders";
 const RSVP_COLLECTION = "rsvp_orders";
@@ -122,7 +131,17 @@ export async function createRSVPOrder(payload) {
     }
 
     const db = getAdminDb();
-    await db.collection(RSVP_COLLECTION).doc(orderId).set(rsvpOrder);
+
+    await db.runTransaction(async (transaction) => {
+        transaction.set(db.collection(RSVP_COLLECTION).doc(orderId), rsvpOrder);
+
+        // MONEY LEDGER INTEGRATION (₹0 RSVP) - ATOMIC
+        await recordOrderCaptured(rsvpOrder, "INTERNAL_RSVP", transaction);
+        await holdOrderRevenue(rsvpOrder, transaction);
+
+        // ENTITLEMENT ENGINE INTEGRATION (TRUTH)
+        await issueEntitlements(rsvpOrder, rsvpOrder.tickets, transaction);
+    });
 
     // Record promoter conversion for RSVP
     if (promoterLinkId) {
@@ -135,14 +154,19 @@ export async function createRSVPOrder(payload) {
         }
     }
 
-    // Auto-create share bundle for RSVP immediately
-    try {
-        const { createShareBundle } = await import("./ticketShareStore");
-        // RSVP is always 1 ticket, so quantity = 1
-        await createShareBundle(rsvpOrder.id, userId, eventId, 1, tickets[0].ticketId);
-        console.log(`[OrderStore] Auto-created share bundle for RSVP ${rsvpOrder.id}`);
-    } catch (err) {
-        console.error("[OrderStore] Failed to auto-create RSVP share bundle:", err);
+    // Auto-consume admission if this was a surge order
+    if (reservationId) {
+        try {
+            const { getReservation } = await import("./checkoutService");
+            const res = await getReservation(reservationId);
+            if (res?.queueId) {
+                const { consumeAdmission } = await import("./queueStore");
+                await consumeAdmission(res.queueId);
+                console.log(`[OrderStore] Admission consumed for RSVP ${orderId}`);
+            }
+        } catch (err) {
+            console.error("[OrderStore] Failed to consume admission for RSVP:", err);
+        }
     }
 
     return rsvpOrder;
@@ -389,9 +413,23 @@ export async function createOrder(payload) {
             // Create order document
             const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
             transaction.set(orderRef, order);
+
+            // MONEY LEDGER INTEGRATION (ATOMIC)
+            if (order.status === "confirmed") {
+                // Free tickets/Auto-confirmed
+                await recordOrderCaptured(order, "INTERNAL_FREE", transaction);
+                await holdOrderRevenue(order, transaction);
+
+                // ENTITLEMENT ENGINE INTEGRATION (TRUTH)
+                await issueEntitlements(order, order.tickets, transaction);
+            } else {
+                // Paid tickets awaiting payment
+                await recordOrderAuthorized(order, null, transaction);
+            }
         });
 
         console.log(`Order created successfully: ${orderId}`);
+
 
         // If the order is confirmed (e.g., free tickets), record the promoter conversion and promo redemptions immediately
         if (order.status === "confirmed") {
@@ -416,6 +454,31 @@ export async function createOrder(payload) {
                 } catch (err) {
                     console.error("[OrderStore] Failed to record promo redemption:", err);
                 }
+            }
+
+            // Consumption of admission for auto-confirmed free tickets
+            if (reservationId) {
+                try {
+                    const { getReservation } = await import("./checkoutService");
+                    const res = await getReservation(reservationId);
+                    if (res?.queueId) {
+                        const { consumeAdmission } = await import("./queueStore");
+                        await consumeAdmission(res.queueId);
+                    }
+                } catch (err) {
+                    console.error("[OrderStore] Failed to consume admission for free order:", err);
+                }
+            }
+
+            // Per-Ticket Identity: Auto-create share bundles for each tier in the order
+            try {
+                const { createShareBundle } = await import("./ticketShareStore");
+                for (const ticket of order.tickets) {
+                    await createShareBundle(order.id, order.userId, order.eventId, ticket.quantity, ticket.ticketId);
+                }
+                console.log(`[OrderStore] Auto-created share bundles for confirmed order ${order.id}`);
+            } catch (err) {
+                console.error("[OrderStore] Failed to auto-create share bundles:", err);
             }
         }
 
@@ -769,7 +832,30 @@ export async function cancelOrder(orderId) {
             status: "cancelled",
             updatedAt: now,
         });
+
+        // ENTITLEMENT ENGINE INTEGRATION
+        const entitlementsSnapshot = await transaction.get(
+            db.collection("entitlements").where("orderId", "==", orderId)
+        );
+        entitlementsSnapshot.forEach(entDoc => {
+            transaction.update(entDoc.ref, {
+                state: "REVOKED",
+                revokedAt: now,
+                revokedReason: "ORDER_CANCELLED",
+                revokedBy: "SYSTEM"
+            });
+        });
     });
+
+    // MONEY LEDGER INTEGRATION (Async/Retry-safe)
+    if (order.totalAmount > 0 && order.status === "confirmed") {
+        try {
+            await initiateRefund(order.id, order.totalAmount, "Order Cancelled", MONEY_STATES.HELD);
+            console.log(`[OrderStore] Refund initiated in ledger for order ${orderId}`);
+        } catch (ledgerErr) {
+            console.error("[OrderStore] Failed to record refund initiation in ledger:", ledgerErr);
+        }
+    }
 
     return { ...order, status: "cancelled", updatedAt: now };
 }
@@ -875,7 +961,21 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
     }
 
     const db = getAdminDb();
-    await db.collection(ORDERS_COLLECTION).doc(orderId).update(updates);
+
+    await db.runTransaction(async (transaction) => {
+        transaction.update(db.collection(ORDERS_COLLECTION).doc(orderId), updates);
+
+        // MONEY LEDGER INTEGRATION (ATOMIC)
+        const paymentId = paymentDetails.razorpayPaymentId || paymentDetails.id || "UNKNOWN";
+        await recordOrderCaptured({ ...order, ...updates }, paymentId, transaction);
+        await holdOrderRevenue({ ...order, ...updates }, transaction);
+
+        // ENTITLEMENT ENGINE INTEGRATION (TRUTH)
+        await issueEntitlements({ ...order, ...updates }, order.tickets, transaction);
+    });
+
+    console.log(`[OrderStore] Money ledger and order status updated for confirmed order ${orderId}`);
+
 
     // Handle promoter conversion
     if (order.promoterLinkId) {
@@ -908,5 +1008,56 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
         console.warn("[OrderStore] Notification module not available:", err.message);
     }
 
+    // Consume admission if this order came from a waiting room
+    if (order.reservationId) {
+        try {
+            const { getReservation } = await import("./checkoutService");
+            const res = await getReservation(order.reservationId);
+            if (res?.queueId) {
+                const { consumeAdmission } = await import("./queueStore");
+                await consumeAdmission(res.queueId);
+                console.log(`[OrderStore] Admission consumed for confirmed order ${orderId}`);
+            }
+        } catch (err) {
+            console.error("[OrderStore] Failed to consume admission after confirmation:", err);
+        }
+    }
+
     return { ...order, ...updates };
+}
+
+/**
+ * Clean up stale pending orders (run periodically or proactively)
+ */
+export async function cleanupStaleOrders(userId = null) {
+    if (!isFirebaseConfigured()) return { cleaned: 0 };
+
+    const db = getAdminDb();
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+
+    let query = db.collection(ORDERS_COLLECTION)
+        .where("status", "==", "pending_payment")
+        .where("createdAt", "<", fifteenMinutesAgo);
+
+    if (userId) {
+        query = query.where("userId", "==", userId);
+    }
+
+    const snapshot = await query.get();
+    let cleaned = 0;
+
+    for (const doc of snapshot.docs) {
+        try {
+            await cancelOrder(doc.id);
+            cleaned++;
+        } catch (err) {
+            console.error(`[OrderStore] Failed to cleanup stale order ${doc.id}:`, err);
+        }
+    }
+
+    if (cleaned > 0) {
+        console.log(`[OrderStore] Cleaned up ${cleaned} stale pending orders`);
+    }
+
+    return { cleaned };
 }

@@ -6,15 +6,15 @@ export const radii = tokens.radii;
 
 export const elevation = {
   none: "none",
-  low: tokens.shadows.soft,
+  low: tokens.shadows.subtle,
   medium: tokens.shadows.card,
-  high: tokens.shadows.floating,
-  glow: tokens.shadows.glow,
+  high: tokens.shadows.elevated,
+  panel: tokens.shadows.panel,
 };
 
 export const spacing = tokens.spacing;
 
-export const gradients = tokens.gradients;
+// Gradients removed in favor of state-based colors
 
 export const transitions = {
   ...motionTransitions,

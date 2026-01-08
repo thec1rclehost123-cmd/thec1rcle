@@ -7,6 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { restoreInventory } from "./inventoryService";
+import { initiateRefund, finalizeRefund, MONEY_STATES } from "@c1rcle/core/ledger-engine";
 
 // Refund thresholds (in INR)
 const REFUND_THRESHOLDS = {
@@ -189,6 +190,14 @@ export async function createRefundRequest(orderId, requestedBy, options = {}) {
         refundAmount
     });
 
+    // MONEY LEDGER INTEGRATION
+    try {
+        await initiateRefund(orderId, refundAmount, reason, order.status === 'checked_in' ? MONEY_STATES.SETTLED : MONEY_STATES.HELD);
+        console.log(`[RefundService] Refund initiated in ledger for order ${orderId}`);
+    } catch (ledgerErr) {
+        console.error("[RefundService] Failed to record refund initiation in ledger:", ledgerErr);
+    }
+
     return {
         success: true,
         refundRequest,
@@ -331,20 +340,31 @@ export async function processRefund(refundRequestId) {
             refundRequest.idempotencyKey
         );
 
-        // Update refund request
-        await updateRefundRequest(refundRequestId, {
-            status: 'completed',
-            'paymentDetails.razorpayRefundId': razorpayRefundId,
-            processedAt: now,
-            updatedAt: now
+        const db = getAdminDb();
+        await db.runTransaction(async (transaction) => {
+            // 1. Update refund request
+            transaction.update(db.collection(REFUND_REQUESTS_COLLECTION).doc(refundRequestId), {
+                status: 'completed',
+                'paymentDetails.razorpayRefundId': razorpayRefundId,
+                processedAt: now,
+                updatedAt: now
+            });
+
+            // 2. Update order status
+            transaction.update(db.collection(ORDERS_COLLECTION).doc(refundRequest.orderId), {
+                status: 'refunded',
+                refundRequestId,
+                refundAmount: refundRequest.amount,
+                razorpayRefundId,
+                updatedAt: now
+            });
+
+            // 3. MONEY LEDGER INTEGRATION (ATOMIC)
+            await finalizeRefund(refundRequest.orderId, refundRequest.amount, razorpayRefundId, transaction);
         });
 
-        // Update order status
-        await updateOrderStatus(refundRequest.orderId, 'refunded', {
-            refundRequestId,
-            refundAmount: refundRequest.amount,
-            razorpayRefundId
-        });
+        console.log(`[RefundService] Refund finalized for order ${refundRequest.orderId}`);
+
 
         // Restore inventory
         const order = await getOrder(refundRequest.orderId);

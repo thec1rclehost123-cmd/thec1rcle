@@ -43,7 +43,7 @@ export default function HostSidebar() {
             category: "Network",
             items: [
                 { icon: Users, label: "Promoters", href: "/host/promoters" },
-                { icon: Handshake, label: "Club Partners", href: "/host/clubs" },
+                { icon: Handshake, label: "Venue Partners", href: "/host/venues" },
             ]
         },
         {

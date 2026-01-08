@@ -1,12 +1,12 @@
 /**
- * Club Staff Store
- * Manages staff members and role-based access control for clubs
+ * Venue Staff Store
+ * Manages staff members and role-based access control for venues
  */
 
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { randomUUID } from "node:crypto";
 
-const STAFF_COLLECTION = "club_staff";
+const STAFF_COLLECTION = "venue_staff";
 
 // Fallback storage for development
 let fallbackStaff = [];
@@ -81,7 +81,7 @@ export const rolePresets = {
  * Add a staff member to a club
  */
 export async function addStaffMember({
-    clubId,
+    venueId,
     email,
     name,
     role,
@@ -95,7 +95,7 @@ export async function addStaffMember({
 
     const staffMember = {
         id,
-        clubId,
+        venueId,
         email: email.toLowerCase().trim(),
         name: name.trim(),
         role,
@@ -116,7 +116,7 @@ export async function addStaffMember({
     if (!isFirebaseConfigured()) {
         // Check for duplicate
         const existing = fallbackStaff.find(s =>
-            s.clubId === clubId && s.email === staffMember.email
+            s.venueId === venueId && s.email === staffMember.email
         );
         if (existing) {
             throw new Error("A staff member with this email already exists");
@@ -129,7 +129,7 @@ export async function addStaffMember({
 
     // Check for duplicate
     const existingSnapshot = await db.collection(STAFF_COLLECTION)
-        .where("clubId", "==", clubId)
+        .where("venueId", "==", venueId)
         .where("email", "==", staffMember.email)
         .limit(1)
         .get();
@@ -159,18 +159,18 @@ export async function getStaffMember(staffId) {
 /**
  * Get staff member by email and club
  */
-export async function getStaffByEmail(clubId, email) {
+export async function getStaffByEmail(venueId, email) {
     const normalizedEmail = email.toLowerCase().trim();
 
     if (!isFirebaseConfigured()) {
         return fallbackStaff.find(s =>
-            s.clubId === clubId && s.email === normalizedEmail
+            s.venueId === venueId && s.email === normalizedEmail
         ) || null;
     }
 
     const db = getAdminDb();
     const snapshot = await db.collection(STAFF_COLLECTION)
-        .where("clubId", "==", clubId)
+        .where("venueId", "==", venueId)
         .where("email", "==", normalizedEmail)
         .limit(1)
         .get();
@@ -182,16 +182,16 @@ export async function getStaffByEmail(clubId, email) {
 /**
  * List all staff members for a club
  */
-export async function listClubStaff(clubId, { isActive = true } = {}) {
+export async function listVenueStaff(venueId, { isActive = true } = {}) {
     if (!isFirebaseConfigured()) {
         return fallbackStaff.filter(s =>
-            s.clubId === clubId &&
+            s.venueId === venueId &&
             (isActive === null || s.isActive === isActive)
         );
     }
 
     const db = getAdminDb();
-    let query = db.collection(STAFF_COLLECTION).where("clubId", "==", clubId);
+    let query = db.collection(STAFF_COLLECTION).where("venueId", "==", venueId);
 
     if (isActive !== null) {
         query = query.where("isActive", "==", isActive);
@@ -293,17 +293,17 @@ export async function linkUserToStaff(staffId, userId) {
 /**
  * Get staff permissions for a user at a specific club
  */
-export async function getStaffPermissions(clubId, userId) {
+export async function getStaffPermissions(venueId, userId) {
     if (!isFirebaseConfigured()) {
         const staff = fallbackStaff.find(s =>
-            s.clubId === clubId && s.userId === userId && s.isActive
+            s.venueId === venueId && s.userId === userId && s.isActive
         );
         return staff?.permissions || null;
     }
 
     const db = getAdminDb();
     const snapshot = await db.collection(STAFF_COLLECTION)
-        .where("clubId", "==", clubId)
+        .where("venueId", "==", venueId)
         .where("userId", "==", userId)
         .where("isActive", "==", true)
         .limit(1)
@@ -316,21 +316,21 @@ export async function getStaffPermissions(clubId, userId) {
 /**
  * Check if a user has a specific permission at a club
  */
-export async function hasPermission(clubId, userId, permission) {
-    const permissions = await getStaffPermissions(clubId, userId);
+export async function hasPermission(venueId, userId, permission) {
+    const permissions = await getStaffPermissions(venueId, userId);
     if (!permissions) return false;
     return permissions[permission] === true;
 }
 
 /**
- * Get all clubs where a user is staff
+ * Get all venues where a user is staff
  */
-export async function getStaffClubs(userId) {
+export async function getStaffVenues(userId) {
     if (!isFirebaseConfigured()) {
         return fallbackStaff
             .filter(s => s.userId === userId && s.isActive)
             .map(s => ({
-                clubId: s.clubId,
+                venueId: s.venueId,
                 role: s.role,
                 permissions: s.permissions
             }));
@@ -345,7 +345,7 @@ export async function getStaffClubs(userId) {
     return snapshot.docs.map(doc => {
         const data = doc.data();
         return {
-            clubId: data.clubId,
+            venueId: data.venueId,
             role: data.role,
             permissions: data.permissions
         };

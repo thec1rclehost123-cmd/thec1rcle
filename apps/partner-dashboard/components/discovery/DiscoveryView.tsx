@@ -22,11 +22,11 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
-type PartnerType = "host" | "club" | "promoter" | "all";
+type PartnerType = "host" | "venue" | "promoter" | "all";
 
 interface Partner {
     id: string;
-    type: "host" | "club" | "promoter";
+    type: "host" | "venue" | "promoter";
     name: string;
     avatar: string | null;
     coverImage: string | null;
@@ -151,7 +151,7 @@ export function DiscoveryView({
                         style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '12px' }}
                     >
                         {allowedTypes.includes("all") && <option value="all">Everywhere</option>}
-                        {allowedTypes.includes("club") && <option value="club">Clubs</option>}
+                        {allowedTypes.includes("venue") && <option value="venue">Venues</option>}
                         {allowedTypes.includes("host") && <option value="host">Hosts</option>}
                         {allowedTypes.includes("promoter") && <option value="promoter">Promoters</option>}
                     </select>
@@ -254,9 +254,9 @@ function PartnerCard({ partner, onAction, isActionLoading }: { partner: Partner,
                         {partner.city}
                     </div>
                     <div className={`px-3.5 py-1.5 backdrop-blur-md rounded-full text-[11px] font-bold tracking-tight text-white flex items-center gap-1.5 border border-white/20 shadow-sm ${partner.type === 'host' ? 'bg-purple-500/80' :
-                        partner.type === 'club' ? 'bg-blue-500/80' : 'bg-emerald-500/80'
+                        partner.type === 'venue' ? 'bg-blue-500/80' : 'bg-emerald-500/80'
                         }`}>
-                        {partner.type === 'host' ? <UserCircle className="w-3.5 h-3.5" /> : partner.type === 'club' ? <Building2 className="w-3.5 h-3.5" /> : <Users className="w-3.5 h-3.5" />}
+                        {partner.type === 'host' ? <UserCircle className="w-3.5 h-3.5" /> : partner.type === 'venue' ? <Building2 className="w-3.5 h-3.5" /> : <Users className="w-3.5 h-3.5" />}
                         {partner.type.charAt(0).toUpperCase() + partner.type.slice(1)}
                     </div>
                 </div>

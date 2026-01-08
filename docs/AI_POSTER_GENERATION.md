@@ -247,7 +247,7 @@ const result = await service.generatePoster({
   eventName: "Neon Horizon Gala",
   designPrompt: "Dark neon nightlife theme, futuristic typography",
   city: "Mumbai",
-  eventType: "Club",
+  eventType: "Venue",
 });
 
 if (result.success) {

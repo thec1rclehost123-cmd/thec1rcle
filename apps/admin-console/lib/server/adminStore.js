@@ -175,9 +175,9 @@ export const adminStore = {
             let partnerType = "";
             let partnerRole = "OWNER";
 
-            if (type === 'club') {
+            if (type === 'venue') {
                 partnerId = `venue_${uid.substring(0, 8)}`;
-                partnerType = 'club';
+                partnerType = 'venue';
                 const venueRef = db.collection('venues').doc(partnerId);
                 transaction.set(venueRef, {
                     id: partnerId,
@@ -235,7 +235,7 @@ export const adminStore = {
             // 4. Update Identity Protocol (Signal Approval to Dashboard)
             transaction.update(db.collection('users').doc(uid), {
                 isApproved: true,
-                role: partnerType === 'club' ? 'partner' : partnerType,
+                role: partnerType === 'venue' ? 'partner' : partnerType,
                 updatedAt: now
             });
 

@@ -103,7 +103,7 @@ function getCategoryTheme(category: string): string {
         "Tech": "tech innovation event with digital aesthetics, modern design, and futuristic elements",
         "Food & Drink": "culinary experience event with gourmet vibes, warm ambiance, and social gathering",
         "Party": "exclusive party event with celebration energy, dance vibes, and nightlife excitement",
-        "Club": "premium nightclub event with VIP atmosphere, bottle service vibes, and exclusive energy",
+        "Venue": "premium nightclub event with VIP atmosphere, bottle service vibes, and exclusive energy",
         "Social": "upscale social gathering with networking elegance and sophisticated mingling"
     };
     return themes[category] || "premium nightlife event with exclusive atmosphere";

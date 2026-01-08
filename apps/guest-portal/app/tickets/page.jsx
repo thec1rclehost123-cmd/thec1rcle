@@ -22,6 +22,7 @@ import ShimmerImage from "../../components/ShimmerImage";
 import { motion, AnimatePresence } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import clsx from "clsx";
+import { Share2, ArrowLeftRight, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 
 // --- Hooks ---
 
@@ -63,6 +64,108 @@ const AuroraBackground = () => (
         <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
     </div>
 );
+
+const IdentityQR = ({ entitlementId, slotTicketId }) => {
+    const qrValue = entitlementId || slotTicketId;
+
+    if (!qrValue) return (
+        <div className="flex flex-col items-center justify-center gap-4">
+            <div className="animate-pulse w-[180px] h-[180px] bg-black/5 rounded-2xl" />
+            <p className="text-[8px] font-black text-black/20 uppercase tracking-widest">Generating Identity Key...</p>
+        </div>
+    );
+
+    return (
+        <div className="flex flex-col items-center gap-4">
+            <div className="relative p-2 bg-white rounded-2xl overflow-hidden shadow-inner">
+                <QRCodeSVG
+                    value={qrValue}
+                    size={200}
+                    level="H"
+                    includeMargin={false}
+                />
+            </div>
+            <div className="flex flex-col items-center gap-1">
+                <p className="text-[8px] font-black text-black/40 dark:text-orange uppercase tracking-[0.2em] flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange" />
+                    Verified Identity Pass
+                </p>
+                <div className="h-0.5 w-12 bg-black/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-orange w-full" />
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const TransferAction = ({ action, onAccept, onDecline }) => {
+    const [processing, setProcessing] = useState(false);
+    const [error, setError] = useState(null);
+
+    const handleAccept = async () => {
+        setProcessing(true);
+        setError(null);
+        try {
+            await onAccept(action.id);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const isGenderMismatch = error?.toLowerCase().includes("gender mismatch");
+
+    return (
+        <div className="relative group overflow-hidden bg-white dark:bg-zinc-900 border border-black/5 dark:border-white/5 rounded-[32px] p-6 mb-8 transition-all hover:shadow-2xl">
+            <div className="flex gap-6 items-center">
+                <div className="relative w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0">
+                    <Image src={action.posterUrl || "/events/placeholder.svg"} fill className="object-cover" alt="" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="px-2 py-0.5 rounded-full bg-iris/10 text-iris text-[8px] font-black uppercase tracking-widest">Incoming Transfer</span>
+                        <div className="h-1 w-1 rounded-full bg-iris animate-pulse" />
+                    </div>
+                    <h4 className="text-sm font-black text-black dark:text-white uppercase truncate">{action.eventTitle}</h4>
+                    <p className="text-[10px] text-black/40 dark:text-white/40 font-bold uppercase tracking-widest mt-1">
+                        Sent by {action.transfer?.senderName || 'C1RCLE User'}
+                    </p>
+                </div>
+                <div className="flex flex-col gap-2">
+                    {error ? (
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-red-500/10 border border-red-500/20 max-w-[200px]">
+                            <svg className="w-3 h-3 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <p className="text-[8px] font-black text-red-500 uppercase leading-tight">{isGenderMismatch ? "Gender Restriction" : error}</p>
+                            <button onClick={() => setError(null)} className="ml-1 text-red-500/40 hover:text-red-500">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleAccept}
+                                disabled={processing}
+                                className="px-5 py-2.5 rounded-full bg-black dark:bg-white text-white dark:text-black text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-transform disabled:opacity-50"
+                            >
+                                {processing ? "Accepting..." : "Accept Pass"}
+                            </button>
+                            <button
+                                onClick={() => onDecline(action.id)}
+                                disabled={processing}
+                                className="px-5 py-2.5 rounded-full bg-black/5 dark:bg-white/5 text-black/40 dark:text-white/40 text-[10px] font-black uppercase tracking-widest hover:bg-black/10 dark:hover:bg-white/10"
+                            >
+                                Decline
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const TicketSkeleton = () => (
     <div className="animate-pulse rounded-[24px] border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] p-4 flex gap-4">
@@ -296,8 +399,18 @@ const TransferModal = ({ ticket, onClose, onSuccess }) => {
                         </div>
 
                         {error && (
-                            <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/10">
-                                <p className="text-[9px] text-red-500 font-bold uppercase tracking-widest text-center">{error}</p>
+                            <div className={clsx(
+                                "p-4 rounded-2xl flex items-center gap-3 border",
+                                error.toLowerCase().includes("restricted") || error.toLowerCase().includes("gender")
+                                    ? "bg-orange/5 border-orange/20"
+                                    : "bg-red-500/5 border-red-500/10"
+                            )}>
+                                <svg className={clsx("w-4 h-4 flex-shrink-0", error.toLowerCase().includes("restricted") || error.toLowerCase().includes("gender") ? "text-orange" : "text-red-500")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                <p className={clsx("text-[9px] font-black uppercase tracking-widest", error.toLowerCase().includes("restricted") || error.toLowerCase().includes("gender") ? "text-orange" : "text-red-500")}>
+                                    {error}
+                                </p>
                             </div>
                         )}
 
@@ -323,67 +436,6 @@ const TransferModal = ({ ticket, onClose, onSuccess }) => {
     );
 };
 
-const ActionCard = ({ action, onAction }) => {
-    const [loading, setLoading] = useState(false);
-    const dateString = action.eventStartAt ? formatEventDate(action.eventStartAt) : '';
-
-    const handleAccept = async () => {
-        setLoading(true);
-        try {
-            await acceptTransfer(action.id);
-            onAction();
-        } catch (err) {
-            alert(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <motion.div
-            whileHover={{ y: -4 }}
-            className="group relative overflow-hidden flex items-center gap-6 p-6 rounded-[32px] border border-orange/10 dark:border-white/10 bg-white/40 dark:bg-white/5 backdrop-blur-xl"
-        >
-            <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-2xl bg-zinc-900 shadow-lg">
-                <ShimmerImage src={action.posterUrl} alt={action.eventTitle} fill className="object-cover" />
-            </div>
-
-            <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                    <span className="px-2 py-0.5 rounded-full bg-orange/20 text-[8px] font-black uppercase tracking-widest text-orange border border-orange/20">
-                        {action.reason}
-                    </span>
-                    {dateString && <span className="text-[10px] font-bold text-black/40 dark:text-white/40 uppercase">{dateString}</span>}
-                </div>
-                <h4 className="text-lg font-black uppercase tracking-tight text-black dark:text-white truncate">
-                    {action.eventTitle}
-                </h4>
-                <p className="text-[10px] font-bold text-black/40 dark:text-white/40 uppercase tracking-widest mt-1">
-                    {action.type === 'order' ? `Amount: ₹${action.amount}` : `From: ${action.transfer?.senderId.slice(0, 8)}...`}
-                </p>
-            </div>
-
-            <div className="flex flex-col gap-2">
-                {action.type === 'transfer' ? (
-                    <button
-                        disabled={loading}
-                        onClick={handleAccept}
-                        className="px-6 py-3 rounded-xl bg-orange text-white text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-orange/20 disabled:opacity-50"
-                    >
-                        {loading ? '...' : 'Accept'}
-                    </button>
-                ) : (
-                    <Link
-                        href={`/checkout?orderId=${action.id}`}
-                        className="px-6 py-3 rounded-xl bg-black dark:bg-white text-white dark:text-black text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg"
-                    >
-                        Pay Now
-                    </Link>
-                )}
-            </div>
-        </motion.div>
-    );
-};
 
 const PartnerModal = ({ ticket, onClose, onSuccess }) => {
     const [loading, setLoading] = useState(false);
@@ -552,8 +604,18 @@ const PartnerModal = ({ ticket, onClose, onSuccess }) => {
                             </div>
 
                             {error && (
-                                <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/10">
-                                    <p className="text-[9px] text-red-500 font-bold uppercase tracking-widest text-center">{error}</p>
+                                <div className={clsx(
+                                    "p-4 rounded-2xl flex items-center gap-3 border",
+                                    error.toLowerCase().includes("restricted") || error.toLowerCase().includes("gender")
+                                        ? "bg-orange/5 border-orange/20"
+                                        : "bg-red-500/5 border-red-500/10"
+                                )}>
+                                    <svg className={clsx("w-4 h-4 flex-shrink-0", error.toLowerCase().includes("restricted") || error.toLowerCase().includes("gender") ? "text-orange" : "text-red-500")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    <p className={clsx("text-[9px] font-black uppercase tracking-widest", error.toLowerCase().includes("restricted") || error.toLowerCase().includes("gender") ? "text-orange" : "text-red-500")}>
+                                        {error}
+                                    </p>
                                 </div>
                             )}
 
@@ -588,24 +650,23 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
 
     return (
         <div className="relative group">
-            {!isPast && (
-                <div
-                    className="absolute inset-0 z-0 scale-90 opacity-0 blur-[80px] transition-all duration-700 group-hover:scale-110 group-hover:opacity-50 dark:group-hover:opacity-30 mix-blend-multiply dark:mix-blend-normal"
-                    style={{ backgroundColor: color }}
-                />
-            )}
+            <div
+                className="absolute inset-0 z-0 scale-95 opacity-20 blur-[120px] transition-all duration-1000 group-hover:scale-110 group-hover:opacity-50 dark:group-hover:opacity-40 pointer-events-none"
+                style={{ backgroundColor: color || '#FFA500' }}
+            />
 
             <motion.div
                 whileHover={{ y: -8, scale: 1.01 }}
                 transition={{ type: "spring", stiffness: 300, damping: 25 }}
                 onClick={() => onClick(ticket)}
-                className={`relative z-10 flex flex-col cursor-pointer overflow-hidden rounded-[28px] border transition-all duration-500 ${isPast
-                    ? "border-black/5 dark:border-white/5 bg-black/[0.01] dark:bg-white/[0.01] opacity-60"
+                className={`relative z-10 flex flex-col cursor-pointer overflow-hidden rounded-[28px] border transition-all duration-500 h-full min-h-[240px] ${isPast
+                    ? "border-black/5 dark:border-white/5 bg-white/40 dark:bg-black/40 opacity-60 backdrop-blur-sm"
                     : "border-black/[0.12] dark:border-white/[0.08] bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_4px_20px_rgb(0,0,0,0.02)] dark:shadow-none hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] dark:hover:shadow-none"
                     }`}
             >
-                <div className="flex w-full p-5 gap-6 relative">
-                    <div className="relative aspect-[3/4] h-36 flex-shrink-0 overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 shadow-lg bg-zinc-900">
+                <div className="flex w-full p-5 gap-6 relative flex-1">
+                    {/* Poster section */}
+                    <div className="relative aspect-[3/4] h-40 flex-shrink-0 overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 shadow-lg bg-zinc-900 self-center">
                         <ShimmerImage
                             src={ticket.posterUrl}
                             alt={ticket.eventTitle}
@@ -616,26 +677,27 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
                         {isPast && <div className="absolute inset-0 bg-black/20 dark:bg-black/40 backdrop-grayscale" />}
                     </div>
 
-                    <div className="flex flex-1 flex-col justify-center py-1">
-                        <div className="flex items-start justify-between gap-4 mb-2">
-                            <div className="flex-1 min-w-0">
-                                <h3 className="font-heading text-xl font-black uppercase tracking-tight text-black dark:text-white line-clamp-1 leading-tight mb-2">
-                                    {ticket.eventTitle}
-                                </h3>
-                                <div className="flex flex-wrap gap-1.5 items-center">
-                                    <span className="rounded-full bg-black/5 dark:bg-white/5 text-black/60 dark:text-white/40 border border-black/5 dark:border-white/5 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest">
-                                        {groupCount} Ticket{groupCount > 1 ? 's' : ''}
-                                    </span>
-                                    {maleCount > 0 && <span className="rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest">{maleCount} Male</span>}
-                                    {femaleCount > 0 && <span className="rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest">{femaleCount} Female</span>}
-                                    {coupleCount > 0 && <span className="rounded-full bg-orange/10 text-orange border border-orange/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest">{coupleCount} Couple</span>}
+                    {/* Metadata section */}
+                    <div className="flex flex-1 flex-col justify-between py-1 min-w-0">
+                        <div>
+                            <div className="flex items-start justify-between gap-4 mb-3">
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-heading text-xl font-black uppercase tracking-tight text-black dark:text-white leading-tight mb-2 break-words whitespace-normal">
+                                        {ticket.eventTitle}
+                                    </h3>
+                                    <div className="flex flex-wrap gap-1.5 items-center">
+                                        <span className="rounded-full bg-black/10 dark:bg-white/10 text-black/70 dark:text-white/60 border border-black/[0.08] dark:border-white/[0.08] px-2 py-0.5 text-[8px] font-black uppercase tracking-widest whitespace-nowrap">
+                                            {groupCount} Ticket{groupCount > 1 ? 's' : ''}
+                                        </span>
+                                        {maleCount > 0 && <span className="rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest">{maleCount} Male</span>}
+                                        {femaleCount > 0 && <span className="rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest">{femaleCount} Female</span>}
+                                        {coupleCount > 0 && <span className="rounded-full bg-orange/10 text-orange border border-orange/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest">{coupleCount} Couple</span>}
+                                    </div>
                                 </div>
-                            </div>
 
-                            {ticket.status === "active" && !ticket.isTransferPending && (
-                                <div className="flex gap-2 flex-shrink-0">
-                                    {remainingToClaim > 0 && (
-                                        <div className="flex gap-2">
+                                {ticket.status === "active" && !ticket.isTransferPending && (
+                                    <div className="flex gap-2 flex-shrink-0">
+                                        {ticket.isPrimaryBuyer && remainingToClaim > 0 && (
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -643,57 +705,80 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
                                                 }}
                                                 className="group/btn h-9 w-9 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
                                             >
-                                                <svg className="h-4 w-4 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 0 00-5.368-2.684z" />
-                                                </svg>
+                                                <Share2 className="h-4 w-4 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />
                                             </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onTransfer(ticket);
-                                                }}
-                                                className="group/btn h-9 w-9 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-iris/20 shadow-sm"
-                                            >
-                                                <svg className="h-4 w-4 text-black/40 dark:text-white/40 group-hover/btn:text-iris transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                                                </svg>
-                                            </button>
-                                        </div>
+                                        )}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onTransfer(ticket);
+                                            }}
+                                            className="group/btn h-9 w-9 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-iris/20 shadow-sm"
+                                        >
+                                            <ArrowLeftRight className="h-4 w-4 text-black/40 dark:text-white/40 group-hover/btn:text-iris transition-colors" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex flex-col gap-3 mb-3">
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className={`w-1 h-1 rounded-full ${claimedCount === groupCount ? 'bg-emerald-500' : 'bg-orange animate-pulse'}`} />
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-black/60 dark:text-white/60">
+                                            {ticket.isPrimaryBuyer
+                                                ? `Claimed: ${claimedCount} / ${groupCount}`
+                                                : (ticket.isClaimed ? 'Your Ticket' : 'Claimed')}
+                                        </p>
+                                    </div>
+                                    {ticket.isPrimaryBuyer && remainingToClaim > 0 && (
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-iris">
+                                            {remainingToClaim} Available to share
+                                        </p>
                                     )}
                                 </div>
-                            )}
-                        </div>
 
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className="flex items-center gap-1.5">
-                                <div className={`w-1 h-1 rounded-full ${claimedCount === groupCount ? 'bg-emerald-500' : 'bg-orange animate-pulse'}`} />
-                                <p className="text-[9px] font-black uppercase tracking-widest text-black/40 dark:text-white/40">
-                                    Claimed: {claimedCount} / {groupCount}
-                                </p>
+                                {groupCount > 1 && (
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {ticket.tickets.map((slot, idx) => (
+                                            <div
+                                                key={idx}
+                                                className={clsx(
+                                                    "w-6 h-6 rounded-lg flex items-center justify-center text-[8px] font-black border transition-all",
+                                                    slot.isClaimedByOther
+                                                        ? "bg-iris/10 border-iris/20 text-iris"
+                                                        : slot.isClaimed
+                                                            ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"
+                                                            : "bg-black/5 dark:bg-white/10 border-black/[0.08] dark:border-white/[0.08] text-black/40 dark:text-white/40"
+                                                )}
+                                            >
+                                                {idx + 1}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                            {remainingToClaim > 0 && (
-                                <p className="text-[9px] font-black uppercase tracking-widest text-iris">
-                                    {remainingToClaim} Available to share
-                                </p>
-                            )}
                         </div>
 
-                        <div className="mt-3 space-y-1.5">
+                        {/* Footer details anchored to bottom */}
+                        <div className="mt-auto space-y-1.5 border-t border-black/[0.03] dark:border-white/[0.03] pt-3">
                             <p className="text-xs font-bold uppercase tracking-widest text-black/50 dark:text-white/50 flex items-center gap-2">
                                 <span className="w-1.5 h-1.5 rounded-full bg-orange" />
                                 {dateString} • {timeString}
                             </p>
-                            <p className="text-[10px] font-medium uppercase tracking-[0.15em] text-black/40 dark:text-white/40 truncate">
+                            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-black/60 dark:text-white/60 leading-relaxed break-words whitespace-normal">
                                 {ticket.venueName}, {ticket.city}
                             </p>
                         </div>
                     </div>
 
-                    <div className="absolute left-[142px] top-6 bottom-6 w-[1px] border-l border-dashed border-black/10 dark:border-white/10 hidden sm:block" />
+                    {/* Perforation line */}
+                    <div className="absolute left-[158px] top-6 bottom-6 w-[1px] border-l border-dashed border-black/10 dark:border-white/10 hidden sm:block pointer-events-none" />
                 </div>
 
-                <div className="absolute left-[124px] top-[-12px] h-6 w-6 rounded-full bg-[var(--bg-color)] border border-black/5 dark:border-white/5 z-20" />
-                <div className="absolute left-[124px] bottom-[-12px] h-6 w-6 rounded-full bg-[var(--bg-color)] border border-black/5 dark:border-white/5 z-20" />
+                {/* Stub punch holes - aligned with perforation line */}
+                <div className="absolute left-[144px] top-[-14px] h-7 w-7 rounded-full bg-[#fcfcfc] dark:bg-[#050505] border border-black/5 dark:border-white/5 z-20" />
+                <div className="absolute left-[144px] bottom-[-14px] h-7 w-7 rounded-full bg-[#fcfcfc] dark:bg-[#050505] border border-black/5 dark:border-white/5 z-20" />
             </motion.div>
         </div>
     );
@@ -821,21 +906,27 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
                                             <p className="text-[10px] text-black/40 uppercase tracking-widest font-bold leading-relaxed px-4">QR disabled during transfer</p>
                                         </div>
                                     ) : currentTicket.isClaimedByOther ? (
-                                        <div className="text-center space-y-4">
-                                            <div className="w-16 h-16 rounded-3xl bg-iris/10 flex items-center justify-center mx-auto">
-                                                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-md">
+                                        <div className="text-center space-y-4 flex flex-col items-center">
+                                            <div className="relative">
+                                                <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-iris/30 bg-iris/5 flex items-center justify-center shadow-inner">
                                                     {currentTicket.assignment?.avatar ? (
                                                         <img src={currentTicket.assignment.avatar} className="w-full h-full object-cover" />
                                                     ) : (
-                                                        <div className="w-full h-full bg-iris text-white flex items-center justify-center text-sm font-bold">
-                                                            {currentTicket.assignment?.name?.[0] || 'G'}
-                                                        </div>
+                                                        <span className="text-xl font-black text-iris">
+                                                            {currentTicket.assignment?.userName?.charAt(0) || currentTicket.assignment?.redeemerId?.slice(0, 1).toUpperCase() || "G"}
+                                                        </span>
                                                     )}
                                                 </div>
+                                                <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+                                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </div>
                                             </div>
-                                            <div className="px-4">
-                                                <p className="text-sm font-black text-black uppercase tracking-tight">Claimed by {currentTicket.assignment?.name || 'Guest'}</p>
-                                                <p className="text-[10px] text-black/40 uppercase tracking-widest mt-2 font-bold leading-relaxed">This ticket is now in their wallet</p>
+                                            <div className="px-4 mt-2">
+                                                <p className="text-sm font-black text-black uppercase tracking-tight text-center">
+                                                    {currentTicket.assignment?.userName || 'Guest'}
+                                                </p>
                                             </div>
                                         </div>
                                     ) : currentTicket.genderMismatch ? (
@@ -849,12 +940,8 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
                                         </div>
                                     ) : (
                                         <>
-                                            <div className={`relative ${isUsed || isCancelled || !currentTicket.qrPayload ? "opacity-10 grayscale" : ""}`}>
-                                                {currentTicket.qrPayload ? (
-                                                    <QRCodeSVG value={currentTicket.qrPayload} size={240} level="H" className="w-full h-full md:w-[200px] md:h-[200px]" />
-                                                ) : (
-                                                    <div className="w-[200px] h-[200px] bg-black/5 rounded-xl animate-pulse" />
-                                                )}
+                                            <div className={`relative ${isUsed || isCancelled ? "opacity-10 grayscale" : ""}`}>
+                                                <IdentityQR entitlementId={currentTicket.entitlementId} slotTicketId={currentTicket.ticketId} />
                                             </div>
                                             {isUsed && (
                                                 <div className="absolute inset-0 flex items-center justify-center">
@@ -894,22 +981,31 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
                                         </div>
                                     )}
 
-                                    <div className="flex flex-wrap justify-center gap-3 mt-4">
-                                        {currentTicket.isCouple && !currentTicket.isClaimedByOther && (
+                                    <div className="flex flex-wrap justify-center gap-4 mt-8">
+                                        {currentTicket.isPrimaryBuyer && (
                                             <button
-                                                onClick={() => onPartner(currentTicket)}
-                                                className="px-6 py-2.5 rounded-xl border border-orange/30 text-orange font-black text-[10px] uppercase tracking-[0.2em] hover:bg-orange/5 transition-colors"
+                                                onClick={() => onShare(currentTicket)}
+                                                className="group/btn h-12 w-12 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
                                             >
-                                                {currentTicket.assignment ? 'Change Partner' : 'Invite Partner'}
+                                                <Share2 className="h-5 w-5 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />
                                             </button>
                                         )}
 
                                         {!currentTicket.isClaimedByOther && !currentTicket.isTransferPending && (
                                             <button
                                                 onClick={() => onTransfer(currentTicket)}
-                                                className="px-6 py-2.5 rounded-xl border border-iris/20 text-iris dark:text-iris-light font-black text-[10px] uppercase tracking-[0.2em] hover:bg-iris/5 transition-colors"
+                                                className="group/btn h-12 w-12 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-iris/20 shadow-sm"
                                             >
-                                                Transfer Ticket
+                                                <ArrowLeftRight className="h-5 w-5 text-black/40 dark:text-white/40 group-hover/btn:text-iris transition-colors" />
+                                            </button>
+                                        )}
+
+                                        {currentTicket.isCouple && !currentTicket.isClaimedByOther && (
+                                            <button
+                                                onClick={() => onPartner(currentTicket)}
+                                                className="px-6 py-2.5 rounded-xl border border-orange/30 text-orange font-black text-[10px] uppercase tracking-[0.2em] hover:bg-orange/5 transition-colors"
+                                            >
+                                                {currentTicket.assignment ? 'Change Partner' : 'Invite Partner'}
                                             </button>
                                         )}
                                     </div>
@@ -921,10 +1017,10 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
                         {tickets.length > 1 && (
                             <>
                                 <button onClick={handlePrev} className="absolute left-[-20px] p-2 text-black/20 dark:text-white/20 hover:text-black dark:hover:text-white transition-colors">
-                                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+                                    <ChevronLeft className="w-8 h-8" />
                                 </button>
                                 <button onClick={handleNext} className="absolute right-[-20px] p-2 text-black/20 dark:text-white/20 hover:text-black dark:hover:text-white transition-colors">
-                                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                                    <ChevronRight className="w-8 h-8" />
                                 </button>
                             </>
                         )}
@@ -932,8 +1028,17 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
 
                     <div className="flex-1" />
 
-                    <div className="mt-8 text-center text-[9px] font-bold text-black/20 dark:text-white/20 uppercase tracking-[0.3em]">
-                        {currentTicket.orderType} Pass • Paid by you
+                    <div className="mt-8 flex flex-col items-center gap-4">
+                        <Link
+                            href={`/event/${currentTicket.eventSlug}`}
+                            className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40 dark:text-white/40 hover:text-orange transition-colors flex items-center gap-2"
+                        >
+                            View Event Page <ExternalLink className="w-3 h-3" />
+                        </Link>
+
+                        <div className="text-center text-[9px] font-bold text-black/20 dark:text-white/20 uppercase tracking-[0.3em]">
+                            {currentTicket.orderType} Pass • Paid by you
+                        </div>
                     </div>
 
                     <button onClick={onClose} className="absolute top-6 right-6 p-2 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors">
@@ -1227,27 +1332,10 @@ function TicketsContent() {
                                     Upcoming
                                 </button>
                                 <button
-                                    onClick={() => setActiveTab("action")}
-                                    className={`relative whitespace-nowrap px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === "action" ? "bg-white dark:bg-zinc-800 text-black dark:text-white shadow-lg" : "text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60"}`}
-                                >
-                                    Action Needed
-                                    {tickets.actionNeeded.length > 0 && (
-                                        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-orange text-white text-[8px] flex items-center justify-center border-2 border-[var(--bg-color)]">
-                                            {tickets.actionNeeded.length}
-                                        </span>
-                                    )}
-                                </button>
-                                <button
                                     onClick={() => setActiveTab("past")}
                                     className={`whitespace-nowrap px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === "past" ? "bg-white dark:bg-zinc-800 text-black dark:text-white shadow-lg" : "text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60"}`}
                                 >
                                     Past
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab("cancelled")}
-                                    className={`whitespace-nowrap px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === "cancelled" ? "bg-white dark:bg-zinc-800 text-black dark:text-white shadow-lg" : "text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60"}`}
-                                >
-                                    Cancelled
                                 </button>
                             </div>
                         </div>
@@ -1267,46 +1355,45 @@ function TicketsContent() {
                                         <TicketSkeleton />
                                         <TicketSkeleton />
                                     </div>
-                                ) : activeTab === "action" ? (
-                                    tickets.actionNeeded.length > 0 ? (
-                                        <div className="grid gap-6">
-                                            {tickets.actionNeeded.map((action) => (
-                                                <ActionCard key={action.id} action={action} onAction={loadTickets} />
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="py-32 text-center rounded-[40px] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5">
-                                            <p className="text-black/30 dark:text-white/40 text-sm font-bold uppercase tracking-widest">Everything looks good</p>
-                                        </div>
-                                    )
-                                ) : activeTab === "cancelled" ? (
-                                    tickets.cancelledTickets.length > 0 ? (
+                                ) : (activeTab === "upcoming" ? tickets.upcomingTickets : tickets.pastTickets).length > 0 || (activeTab === "upcoming" && tickets.actionNeeded.length > 0) ? (
+                                    <div className="flex flex-col gap-1 w-full">
+                                        {activeTab === "upcoming" && tickets.actionNeeded.length > 0 && (
+                                            <div className="mb-8">
+                                                <div className="flex items-center gap-3 mb-6">
+                                                    <div className="h-[1px] flex-1 bg-black/5 dark:bg-white/5" />
+                                                    <span className="text-[9px] font-black uppercase tracking-[0.3em] text-black/20 dark:text-white/20">Pending Actions</span>
+                                                    <div className="h-[1px] flex-1 bg-black/5 dark:bg-white/5" />
+                                                </div>
+                                                {tickets.actionNeeded.map(action => (
+                                                    <TransferAction
+                                                        key={action.id}
+                                                        action={action}
+                                                        onAccept={async (id) => {
+                                                            await acceptTransfer(id);
+                                                            loadTickets();
+                                                        }}
+                                                        onDecline={async (id) => {
+                                                            // For decline, we currently just cancel transfer if possible or ignore
+                                                            // In a real flow, you'd call an ignore action.
+                                                            loadTickets();
+                                                        }}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+
                                         <div className="grid gap-10 sm:grid-cols-2">
-                                            {tickets.cancelledTickets.map((ticket) => (
+                                            {(activeTab === "upcoming" ? tickets.upcomingTickets : tickets.pastTickets).map((ticket) => (
                                                 <TicketCard
-                                                    key={ticket.id}
-                                                    ticket={{ ...ticket, status: ticket.status === 'refunded' ? 'refunded' : 'cancelled' }}
-                                                    onClick={() => { }}
+                                                    key={ticket.ticketId}
+                                                    ticket={ticket}
+                                                    onClick={setSelectedTicket}
+                                                    onShare={() => setSharingTicket(ticket)}
+                                                    onPartner={setPartnerTicket}
+                                                    onTransfer={setTransferTicket}
                                                 />
                                             ))}
                                         </div>
-                                    ) : (
-                                        <div className="py-32 text-center rounded-[40px] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5">
-                                            <p className="text-black/30 dark:text-white/40 text-sm font-bold uppercase tracking-widest">No cancelled passes</p>
-                                        </div>
-                                    )
-                                ) : (activeTab === "upcoming" ? tickets.upcomingTickets : tickets.pastTickets).length > 0 ? (
-                                    <div className="grid gap-10 sm:grid-cols-2">
-                                        {(activeTab === "upcoming" ? tickets.upcomingTickets : tickets.pastTickets).map((ticket) => (
-                                            <TicketCard
-                                                key={ticket.ticketId}
-                                                ticket={ticket}
-                                                onClick={setSelectedTicket}
-                                                onShare={() => setSharingTicket(ticket)}
-                                                onPartner={setPartnerTicket}
-                                                onTransfer={setTransferTicket}
-                                            />
-                                        ))}
                                     </div>
                                 ) : (
                                     <div className="py-32 text-center rounded-[40px] border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02]">
@@ -1338,6 +1425,10 @@ function TicketsContent() {
                         onTransfer={(ticket) => {
                             setSelectedTicket(null);
                             setTransferTicket(ticket);
+                        }}
+                        onShare={(ticket) => {
+                            setSelectedTicket(null);
+                            setSharingTicket(ticket);
                         }}
                     />
                 )}

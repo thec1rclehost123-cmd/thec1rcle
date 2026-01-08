@@ -13,7 +13,7 @@ The repository is organized into `apps` (deployable services) and `packages` (sh
   - **Tech**: Next.js (App Router), Framer Motion (Cinematic UI), Firebase Client.
 
 - **`partner-dashboard`** ([Port 3001](http://localhost:3001))
-  - **Purpose**: The operations hub for Hosts, Clubs, and Promoters. Used for event creation, guestlist management, and analytics.
+  - **Purpose**: The operations hub for Hosts, Venues, and Promoters. Used for event creation, guestlist management, and analytics.
   - **Tech**: Next.js, Firebase Admin (Elevated ops), Lucide.
 
 - **`admin-console`** ([Port 3002](http://localhost:3002))
@@ -53,7 +53,7 @@ Always run `npm install` at the **root** of the repository. Do not run it inside
 ## 🛠️ Key Terminology
 
 - **Guest**: A platform member (user).
-- **Partner**: A business entity (Host, Club, or Promoter).
+- **Partner**: A business entity (Host, Venue, or Promoter).
 - **Console**: Administrative interface (for internal staff).
 - **Portal**: Public-facing interface (for guests).
 - **Core**: The shared source of truth (Firebase, models, shared libs).

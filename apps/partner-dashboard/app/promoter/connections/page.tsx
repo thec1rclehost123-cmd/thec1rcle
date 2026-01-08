@@ -129,7 +129,7 @@ export default function PromoterConnectionsPage() {
                             exit={{ opacity: 0, y: -10 }}
                         >
                             <DiscoveryView
-                                allowedTypes={["host", "club"]}
+                                allowedTypes={["host", "venue"]}
                                 partnerId={promoterId}
                                 role="promoter"
                             />

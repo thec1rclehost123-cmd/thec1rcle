@@ -28,7 +28,7 @@ export default function PartnershipsPage() {
 
     const fetchPartnerships = async () => {
         try {
-            const res = await fetch(`/api/club/partnerships?hostId=${profile?.activeMembership?.partnerId}`);
+            const res = await fetch(`/api/venue/partnerships?hostId=${profile?.activeMembership?.partnerId}`);
             const data = await res.json();
             setPartnerships(data.partnerships || []);
         } catch (err) {
@@ -46,7 +46,7 @@ export default function PartnershipsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-10">
                 <div>
-                    <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight uppercase">Club Network</h1>
+                    <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight uppercase">Venue Network</h1>
                     <p className="text-slate-500 text-lg font-medium mt-2">Manage your verified venue partnerships and slot permissions.</p>
                 </div>
                 <Link
@@ -74,13 +74,13 @@ export default function PartnershipsPage() {
                                     </div>
                                     <button className="text-slate-300 hover:text-slate-900"><MoreHorizontal className="w-5 h-5" /></button>
                                 </div>
-                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">{p.clubName}</h3>
+                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">{p.venueName}</h3>
                                 <div className="flex items-center gap-2 text-xs font-bold text-slate-400 mb-6">
                                     <MapPin className="w-3.5 h-3.5" /> Pune, IN
                                 </div>
                                 <div className="flex gap-2">
                                     <Link
-                                        href={`/host/create?venue=${p.clubId}`}
+                                        href={`/host/create?venue=${p.venueId}`}
                                         className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest text-center"
                                     >
                                         Request Slot
@@ -94,7 +94,7 @@ export default function PartnershipsPage() {
                         {activePartnerships.length === 0 && (
                             <div className="md:col-span-2 py-20 bg-slate-50 rounded-[3rem] border border-dashed border-slate-200 flex flex-col items-center text-center px-10">
                                 <Building2 className="w-12 h-12 text-slate-300 mb-4" />
-                                <h4 className="text-lg font-bold text-slate-900">No active clubs</h4>
+                                <h4 className="text-lg font-bold text-slate-900">No active venues</h4>
                                 <p className="text-slate-500 text-sm font-medium mt-1 max-w-xs">You need a verified partnership to see club calendars and book slots.</p>
                             </div>
                         )}
@@ -111,7 +111,7 @@ export default function PartnershipsPage() {
                         {pendingPartnerships.map(p => (
                             <div key={p.id} className="bg-white border border-slate-200 rounded-[2rem] p-6 flex items-center justify-between border-l-4 border-l-amber-400">
                                 <div>
-                                    <h4 className="font-bold text-slate-900 uppercase text-sm">{p.clubName}</h4>
+                                    <h4 className="font-bold text-slate-900 uppercase text-sm">{p.venueName}</h4>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Requested {new Date(p.createdAt?.toDate?.() || p.createdAt).toLocaleDateString()}</p>
                                 </div>
                                 <AlertCircle className="w-5 h-5 text-amber-200" />
@@ -122,7 +122,7 @@ export default function PartnershipsPage() {
                     <div className="p-8 bg-indigo-900 rounded-[2.5rem] text-white shadow-2xl shadow-indigo-200">
                         <h4 className="font-black uppercase tracking-widest text-[10px] text-indigo-300 mb-4">Pro Tip</h4>
                         <p className="text-sm font-medium leading-relaxed italic">
-                            "Clubs are more likely to approve hosts with a high profile completion and previous successful events."
+                            "Venues are more likely to approve hosts with a high profile completion and previous successful events."
                         </p>
                         <Link href="/host/profile" className="mt-6 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white group">
                             Polish Profile <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

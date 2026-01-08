@@ -25,7 +25,7 @@
 | `partner-dashboard/lib/server/ticketingService.js` | Pricing, promo codes, promoter discounts | ✅ |
 | `partner-dashboard/lib/server/inventoryService.js` | Cart reservations, availability checking | ✅ |
 | `partner-dashboard/lib/server/refundService.js` | Refund workflow with admin approvals | ✅ |
-| `partner-dashboard/lib/server/staffService.js` | Club staff RBAC and device binding | ✅ |
+| `partner-dashboard/lib/server/staffService.js` | Venue staff RBAC and device binding | ✅ |
 | `partner-dashboard/lib/server/promoCodeService.js` | Promo code CRUD and validation | ✅ |
 
 ### 3. Guest Portal Checkout System
@@ -48,7 +48,7 @@
 | `partner-dashboard/components/wizard/components/PromoCodeManager.tsx` | Promo code CRUD UI | ✅ |
 | `partner-dashboard/components/wizard/TicketTierStep.tsx` | **UPDATED** with ScheduledPricing + PromoCodeManager | ✅ |
 | `partner-dashboard/app/api/scan/route.ts` | Enhanced QR scanning with device validation | ✅ |
-| `partner-dashboard/app/api/club/devices/route.ts` | Device binding API | ✅ |
+| `partner-dashboard/app/api/venue/devices/route.ts` | Device binding API | ✅ |
 
 ### 5. Admin Console
 
@@ -61,7 +61,7 @@
 
 ### 6. Database Rules
 - **File:** `firestore.rules`
-- Added rules for: `cart_reservations`, `refund_requests`, `ticket_scans`, `club_staff`, `bound_devices`, `promo_redemptions`
+- Added rules for: `cart_reservations`, `refund_requests`, `ticket_scans`, `venue_staff`, `bound_devices`, `promo_redemptions`
 - Proper RBAC enforcement for each collection
 
 ---
@@ -71,7 +71,7 @@
 ### Week 1: UI Integration ✅ (COMPLETE)
 - [x] Integrate `ScheduledPricing` component into `TicketTierStep.tsx`
 - [x] Add promo code management section to event wizard
-- [x] Connect Club Events page to Firestore (real-time listener)
+- [x] Connect Venue Events page to Firestore (real-time listener)
 - [x] Add PublishConfirmationModal to CreateEventWizard
 - [ ] Test promoter cascading toggles end-to-end
 - [ ] Add tier visibility controls (hidden, requiresCode)
@@ -119,7 +119,7 @@
 
 ### 5. Staff RBAC
 **Decision:** Role presets (Scanner → Owner) with optional custom permissions.
-**Implementation:** `staffService.js` with `club_staff` and `bound_devices` collections.
+**Implementation:** `staffService.js` with `venue_staff` and `bound_devices` collections.
 
 ### 6. QR Scanning
 **Decision:** Log all scan attempts (valid and invalid) with staff actor.
@@ -149,7 +149,7 @@ apps/partner-dashboard/
 │   └── qrStore.js              📝 Existing
 ├── app/api/
 │   ├── scan/route.ts           ✅ Enhanced
-│   └── club/devices/route.ts   ✅ Complete
+│   └── venue/devices/route.ts   ✅ Complete
 └── components/wizard/
     ├── TicketTierStep.tsx      ✅ **UPDATED** (ScheduledPricing + PromoCodeManager integrated)
     └── components/
@@ -202,9 +202,9 @@ firestore.rules                  ✅ Updated
 |--------|----------|-------------|
 | POST | `/api/scan` | Verify and record ticket scan |
 | GET | `/api/scan?eventId=xxx` | Get scan history for event |
-| GET | `/api/club/devices?clubId=xxx` | List bound devices |
-| POST | `/api/club/devices` | Bind new device |
-| DELETE | `/api/club/devices?deviceId=xxx` | Revoke device |
+| GET | `/api/venue/devices?venueId=xxx` | List bound devices |
+| POST | `/api/venue/devices` | Bind new device |
+| DELETE | `/api/venue/devices?deviceId=xxx` | Revoke device |
 
 ### Admin Console
 | Method | Endpoint | Description |

@@ -10,7 +10,8 @@ import { getEvent } from "./eventStore";
 import { createOrder, confirmOrder } from "./orderStore";
 import { generateOrderQRCodes } from "./qrStore";
 import { getPromoterLinkByCode, recordConversion } from "./promoterStore";
-import promoService from "@c1rcle/core/promo-service";
+import { validatePromoCode } from "@c1rcle/core/promo-service";
+
 
 // Constants
 const RESERVATION_MINUTES = 10;
@@ -52,10 +53,50 @@ function getEffectivePrice(tier, timestamp = new Date()) {
 /**
  * Check availability and create a cart reservation
  */
-export async function createCartReservation(eventId, customerId, deviceId, items) {
+export async function createCartReservation(eventId, customerId, deviceId, items, options = {}) {
+    const { queueId = null } = options;
     const event = await getEvent(eventId);
     if (!event) {
         return { success: false, error: 'Event not found' };
+    }
+
+    const db = isFirebaseConfigured() ? getAdminDb() : null;
+
+    // 1. Idempotency Check: Return existing active reservation for this queueId
+    if (queueId) {
+        let existingRes = null;
+        if (!isFirebaseConfigured()) {
+            for (const res of fallbackReservations.values()) {
+                if (res.queueId === queueId && res.status === 'active' && new Date(res.expiresAt) > new Date()) {
+                    existingRes = res;
+                    break;
+                }
+            }
+        } else {
+            const snapshot = await db.collection(RESERVATIONS_COLLECTION)
+                .where('queueId', '==', queueId)
+                .where('status', '==', 'active')
+                .limit(1)
+                .get();
+            if (!snapshot.empty) {
+                const doc = snapshot.docs[0];
+                const data = doc.data();
+                if (new Date(data.expiresAt) > new Date()) {
+                    existingRes = { id: doc.id, ...data };
+                }
+            }
+        }
+
+        if (existingRes) {
+            console.log(`[CheckoutService] Reusing existing reservation ${existingRes.id} for queueId ${queueId}`);
+            return {
+                success: true,
+                reservationId: existingRes.id,
+                items: existingRes.items,
+                expiresAt: existingRes.expiresAt,
+                expiresInSeconds: Math.floor((new Date(existingRes.expiresAt) - new Date()) / 1000)
+            };
+        }
     }
 
     const tiers = event.ticketCatalog?.tiers || event.tickets || [];
@@ -150,6 +191,7 @@ export async function createCartReservation(eventId, customerId, deviceId, items
         eventId,
         customerId,
         deviceId: deviceId || null,
+        queueId: queueId || null,
         items: reservedItems,
         status: 'active',
         createdAt: now.toISOString(),
@@ -349,9 +391,9 @@ function calculatePromoterDiscount(items, event) {
 /**
  * Validate promo code and calculate discount
  */
-async function validateAndCalculatePromoDiscount(eventId, code, items, userId = null) {
+export async function validateAndCalculatePromoDiscount(eventId, code, items, userId = null) {
     // 1. Primary: Use the core promo service for validation and calculation (promo_codes collection)
-    const result = await promoService.validatePromoCode(eventId, code, userId, items);
+    const result = await validatePromoCode(eventId, code, userId, items);
 
     if (result.valid) {
         return {
@@ -622,6 +664,9 @@ async function processRSVPOrder(reservation, userId, userDetails, pricing, promo
 async function processFreePaidOrder(reservation, userId, userDetails, pricing, promoterCode) {
     const event = await getEvent(reservation.eventId);
 
+    // Extract promo code ID if any
+    const promoDiscount = pricing.discounts?.find(d => d.type === 'promo');
+
     // Create standard order payload but with confirmed status
     const orderPayload = {
         reservationId: reservation.id,
@@ -642,6 +687,7 @@ async function processFreePaidOrder(reservation, userId, userDetails, pricing, p
         totalAmount: 0,
         status: 'confirmed', // Zero-total checkouts are auto-confirmed
         promoterCode,
+        promoCodeId: promoDiscount?.id || null,
         paymentMethod: 'free'
     };
 

@@ -19,10 +19,11 @@ async function handler(request) {
             await recordMetric(payload.eventId, "checkout_initiate");
         }
 
+        const admissionToken = request.headers.get("x-admission-token") || payload.admissionToken;
+
         // Surge Protection Check
         const surgeStatus = await getSurgeStatus(payload.eventId);
         if (surgeStatus.status === "surge") {
-            const admissionToken = request.headers.get("x-admission-token") || payload.admissionToken;
             const decodedToken = await verifyAuth(request);
             const userId = decodedToken?.uid || 'anonymous';
 
@@ -65,11 +66,20 @@ async function handler(request) {
         }
 
         // Create reservation
+        let queueId = null;
+        if (admissionToken) {
+            const parts = admissionToken.split(":");
+            if (parts.length === 4) {
+                queueId = parts[2];
+            }
+        }
+
         const result = await createCartReservation(
             payload.eventId,
             customerId,
             payload.deviceId || null,
-            payload.items
+            payload.items,
+            { queueId }
         );
 
         if (!result.success) {
@@ -77,20 +87,6 @@ async function handler(request) {
                 { error: result.error || result.errors?.join(', ') || 'Failed to reserve tickets' },
                 { status: 409 } // Conflict (availability issue)
             );
-        }
-
-        // If in surge, consume the admission token
-        if (surgeStatus.status === "surge") {
-            const admissionToken = request.headers.get("x-admission-token") || payload.admissionToken;
-            if (admissionToken) {
-                const parts = admissionToken.split(":");
-                if (parts.length === 4) {
-                    const queueId = parts[2];
-                    await consumeAdmission(queueId).catch(err =>
-                        console.error("[ReserveAPI] Failed to consume admission:", err)
-                    );
-                }
-            }
         }
 
         return NextResponse.json({

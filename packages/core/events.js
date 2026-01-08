@@ -56,15 +56,30 @@ export function getCityLabel(key) {
 export function resolvePoster(event) {
     if (!event) return "/events/placeholder.svg";
 
+    const isInternalPlaceholder = (url) => {
+        if (!url || typeof url !== "string") return false;
+        return url.includes("placeholder.svg") || url.includes("holi-edit.svg");
+    };
+
     // Priority order for fields
     const poster = event.poster || event.image || event.flyer;
-    if (poster && typeof poster === "string") return poster;
+    if (poster && typeof poster === "string" && !isInternalPlaceholder(poster)) {
+        return poster;
+    }
 
     // Check gallery/images arrays
-    if (Array.isArray(event.images) && event.images.length > 0) return event.images[0];
-    if (Array.isArray(event.gallery) && event.gallery.length > 0) return event.gallery[0];
+    if (Array.isArray(event.images) && event.images.length > 0) {
+        const first = event.images[0];
+        if (first && !isInternalPlaceholder(first)) return first;
+    }
+    if (Array.isArray(event.gallery) && event.gallery.length > 0) {
+        const first = event.gallery[0];
+        if (first && !isInternalPlaceholder(first)) return first;
+    }
 
-    return "/events/placeholder.svg"; // Fallback
+    // If we have something but it was a placeholder, and we found nothing better, 
+    // we still return the original poster if it exists, otherwise the default.
+    return (poster && typeof poster === "string") ? poster : "/events/placeholder.svg";
 }
 
 // --- 4. Canonical Event Mapper ---
@@ -83,12 +98,12 @@ export function mapEventForClient(data, id) {
     const settings = data.settings ? { ...data.settings } : {};
     if (settings.passwordCode) delete settings.passwordCode;
 
-    const creatorRole = data.creatorRole || (data.hostId ? "host" : "club");
-    const eventType = creatorRole === "host" ? "host" : "club";
+    const creatorRole = data.creatorRole || (data.hostId ? "host" : "venue");
+    const eventType = creatorRole === "host" ? "host" : "venue";
     let lifecycle = data.lifecycle || data.status || EVENT_LIFECYCLE.DRAFT;
 
     // Hardening: Club events never need approval. Normalize legacy 'submitted' states.
-    if (eventType === "club" && (lifecycle === EVENT_LIFECYCLE.SUBMITTED || lifecycle === "pending")) {
+    if (eventType === "venue" && (lifecycle === EVENT_LIFECYCLE.SUBMITTED || lifecycle === "pending")) {
         lifecycle = EVENT_LIFECYCLE.SCHEDULED;
     }
 
@@ -99,7 +114,7 @@ export function mapEventForClient(data, id) {
     // Edit Rules:
     // Club can edit its own drafts.
     // Club can NEVER edit host content.
-    const canEdit = eventType === "club" && lifecycle === EVENT_LIFECYCLE.DRAFT;
+    const canEdit = eventType === "venue" && lifecycle === EVENT_LIFECYCLE.DRAFT;
 
     return {
         ...data,

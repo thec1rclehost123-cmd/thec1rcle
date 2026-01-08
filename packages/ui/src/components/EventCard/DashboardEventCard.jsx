@@ -27,7 +27,7 @@ export default function DashboardEventCard({
     event,
     index = 0,
     height = "h-[280px] sm:h-[340px] md:h-[420px]",
-    role = "club", // club, host, promoter, admin
+    role = "venue", // club, host, promoter, admin
     primaryAction, // { label, onClick, icon, href }
     secondaryActions = [], // Array of { label, onClick, icon, color, href }
     status: statusOverride = null,

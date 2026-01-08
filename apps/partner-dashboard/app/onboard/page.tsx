@@ -25,14 +25,14 @@ import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 type OnboardingStep = "role" | "details" | "success";
-type PartnerType = "club" | "host" | "promoter";
+type PartnerType = "venue" | "host" | "promoter";
 
 function OnboardingContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user: authUser } = useDashboardAuth();
     const [step, setStep] = useState<OnboardingStep>("role");
-    const [partnerType, setPartnerType] = useState<PartnerType>("club");
+    const [partnerType, setPartnerType] = useState<PartnerType>("venue");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     // Standard procedure: strictly use form data
@@ -47,7 +47,7 @@ function OnboardingContent() {
         city: "",
         area: "",
         capacity: "",
-        plan: "silver", // Default for clubs
+        plan: "silver", // Default for venues
         role: "organizer", // Default for hosts
         association: "", // For promoters
         associatedHostId: "", // For invited promoters
@@ -178,8 +178,8 @@ function OnboardingContent() {
                                 icon={Building2}
                                 title="Venue"
                                 description="Direct management for nightlife venues and lounge spaces."
-                                active={partnerType === 'club'}
-                                onClick={() => setPartnerType('club')}
+                                active={partnerType === 'venue'}
+                                onClick={() => setPartnerType('venue')}
                             />
                             <RoleCard
                                 icon={Users}
@@ -214,7 +214,7 @@ function OnboardingContent() {
                                 <span className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-600">Step 02 — Data Collection</span>
                             </div>
                             <h1 className="text-4xl font-black tracking-tight mb-4">
-                                {partnerType === 'club' ? 'Venue Registry' :
+                                {partnerType === 'venue' ? 'Venue Registry' :
                                     partnerType === 'host' ? 'Host Identity' : 'Promoter Enrollment'}
                             </h1>
                             <p className="text-slate-500 font-medium italic text-sm">Submit your information for verification and approval.</p>
@@ -267,7 +267,7 @@ function OnboardingContent() {
                             <div className="space-y-6">
                                 <SectionTitle title="Entity Information" />
                                 <div className="grid grid-cols-1 gap-6">
-                                    <FormInput label={partnerType === 'club' ? 'Venue Name' : 'Profile Name / Brand'} icon={User} name="name" value={formData.name} onChange={handleInputChange} required />
+                                    <FormInput label={partnerType === 'venue' ? 'Venue Name' : 'Profile Name / Brand'} icon={User} name="name" value={formData.name} onChange={handleInputChange} required />
 
                                     <div className="grid grid-cols-2 gap-4">
                                         <FormInput label="Point of Contact" icon={Briefcase} name="contactPerson" value={formData.contactPerson} onChange={handleInputChange} required />
@@ -279,7 +279,7 @@ function OnboardingContent() {
                                         <FormInput label="Operating Area" icon={MapPin} name="area" value={formData.area} onChange={handleInputChange} required />
                                     </div>
 
-                                    {partnerType === 'club' && (
+                                    {partnerType === 'venue' && (
                                         <>
                                             <FormInput label="Approximate Capacity" icon={Users} name="capacity" value={formData.capacity} onChange={handleInputChange} required />
                                             <div className="space-y-3">

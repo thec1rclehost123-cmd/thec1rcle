@@ -17,7 +17,7 @@ async function createAuditLog(db, { type, entityId, action, actorId, actorRole, 
 }
 
 
-export async function requestPartnership(hostId, clubId, hostName, clubName) {
+export async function requestPartnership(hostId, venueId, hostName, venueName) {
     if (!isFirebaseConfigured()) return { success: true, id: "mock-id" };
 
     const db = getAdminDb();
@@ -26,7 +26,7 @@ export async function requestPartnership(hostId, clubId, hostName, clubName) {
     // Check if exists
     const existing = await partnershipRef
         .where("hostId", "==", hostId)
-        .where("clubId", "==", clubId)
+        .where("venueId", "==", venueId)
         .limit(1)
         .get();
 
@@ -36,9 +36,9 @@ export async function requestPartnership(hostId, clubId, hostName, clubName) {
 
     const doc = {
         hostId,
-        clubId,
+        venueId,
         hostName,
-        clubName,
+        venueName,
         status: "pending",
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
@@ -52,7 +52,7 @@ export async function requestPartnership(hostId, clubId, hostName, clubName) {
         action: "requested",
         actorId: hostId,
         actorRole: "host",
-        metadata: { clubId, hostName, clubName }
+        metadata: { venueId, hostName, venueName }
     });
 
     return { success: true, id: result.id };
@@ -76,8 +76,8 @@ export async function approvePartnership(partnershipId, approvedBy) {
         type: "partnership",
         entityId: partnershipId,
         action: "approved",
-        actorId: approvedBy?.uid || doc.data().clubId,
-        actorRole: approvedBy?.role || "club",
+        actorId: approvedBy?.uid || doc.data().venueId,
+        actorRole: approvedBy?.role || "venue",
         metadata: { previousStatus: doc.data().status }
     });
 
@@ -103,8 +103,8 @@ export async function rejectPartnership(partnershipId, rejectedBy, reason = "") 
         type: "partnership",
         entityId: partnershipId,
         action: "rejected",
-        actorId: rejectedBy?.uid || doc.data().clubId,
-        actorRole: rejectedBy?.role || "club",
+        actorId: rejectedBy?.uid || doc.data().venueId,
+        actorRole: rejectedBy?.role || "venue",
         metadata: { reason, previousStatus: doc.data().status }
     });
 
@@ -147,8 +147,8 @@ export async function listPartnerships(filters = {}) {
     if (filters.hostId) {
         query = query.where("hostId", "==", filters.hostId);
     }
-    if (filters.clubId) {
-        query = query.where("clubId", "==", filters.clubId);
+    if (filters.venueId) {
+        query = query.where("venueId", "==", filters.venueId);
     }
     if (filters.status) {
         query = query.where("status", "==", filters.status);
@@ -165,13 +165,13 @@ export async function listPartnerships(filters = {}) {
     });
 }
 
-export async function checkPartnership(hostId, clubId) {
+export async function checkPartnership(hostId, venueId) {
     if (!isFirebaseConfigured()) return true; // DEV MODE
 
     const db = getAdminDb();
     const snapshot = await db.collection(PARTNERSHIPS_COLLECTION)
         .where("hostId", "==", hostId)
-        .where("clubId", "==", clubId)
+        .where("venueId", "==", venueId)
         .where("status", "==", "active")
         .limit(1)
         .get();

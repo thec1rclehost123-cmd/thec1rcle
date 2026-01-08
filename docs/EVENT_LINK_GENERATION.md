@@ -124,7 +124,7 @@ This document summarizes the implementation of the event promoter link generatio
 
 ## Event Lifecycle Integration
 
-When a club approves an event:
+When a venue approves an event:
 - `lifecycle` is set to `approved`
 - `status` is set to `active`
 - Events become visible to promoters in their dashboard
@@ -141,6 +141,6 @@ promoterCode: z.string().optional()
 
 1. **Payment Integration**: Connect commission payouts to payment gateway
 2. **Promoter Onboarding**: Auto-assign promoters to events based on preferences
-3. **Analytics Dashboard**: Enhanced reporting for hosts and clubs
+3. **Analytics Dashboard**: Enhanced reporting for hosts and venues
 4. **Commission Adjustments**: Allow hosts to adjust commission rates per promoter
 5. **Expiring Links**: Implement link expiration based on event date

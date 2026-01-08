@@ -1,6 +1,7 @@
 {
   "name": "@c1rcle/monorepo",
   "private": true,
+  "type": "module",
   "workspaces": [
     "apps/*",
     "packages/*"

@@ -127,32 +127,39 @@ export default function OrderConfirmationDetails({ order, event }) {
                     </div>
                 </motion.div>
 
-                {/* Final Actions */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 1.2 }}
-                    className="flex flex-col sm:flex-row gap-4 w-full max-w-[500px]"
+                    className="flex flex-col gap-6 w-full max-w-[500px]"
                 >
-                    <Link
-                        href="/tickets"
-                        className="flex-1 h-16 rounded-full bg-white text-black font-black uppercase tracking-[0.4em] text-[10px] transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center shadow-2xl"
-                    >
-                        View Tickets
-                    </Link>
-                    <button
-                        onClick={shareOrder}
-                        className="h-16 px-10 rounded-full border border-white/10 bg-white/5 text-white/40 font-black uppercase tracking-[0.4em] text-[10px] transition-all hover:bg-white hover:text-black flex items-center justify-center gap-3"
-                    >
-                        <Share2 className="h-4 w-4" />
-                        Share
-                    </button>
-                    <Link
-                        href="/explore"
-                        className="h-16 w-16 rounded-full border border-white/10 bg-white/5 text-white/40 flex items-center justify-center transition-all hover:border-orange hover:text-orange"
-                    >
-                        <ArrowRight className="h-5 w-5" />
-                    </Link>
+                    <div className="flex flex-col gap-2 mb-2">
+                        <Link
+                            href="/tickets"
+                            className="w-full h-20 rounded-full bg-orange text-white font-black uppercase tracking-[0.4em] text-[11px] transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center shadow-[0_20px_40px_rgba(255,165,0,0.3)] relative group overflow-hidden"
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-r from-orange via-iris to-orange opacity-0 group-hover:opacity-100 transition-opacity duration-1000 -z-10" />
+                            Access My Digital Tickets
+                            <ArrowRight className="ml-4 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                        </Link>
+                        <p className="text-[8px] font-black uppercase tracking-[0.5em] text-white/20 text-center mt-2">No need to print. show digital QR at the door.</p>
+                    </div>
+
+                    <div className="flex gap-4">
+                        <button
+                            onClick={shareOrder}
+                            className="flex-1 h-16 rounded-full border border-white/10 bg-white/5 text-white/40 font-black uppercase tracking-[0.4em] text-[10px] transition-all hover:bg-white hover:text-black flex items-center justify-center gap-3"
+                        >
+                            <Share2 className="h-4 w-4" />
+                            Share
+                        </button>
+                        <Link
+                            href="/explore"
+                            className="h-16 w-16 rounded-full border border-white/10 bg-white/5 text-white/40 flex items-center justify-center transition-all hover:border-orange hover:text-orange"
+                        >
+                            <ArrowRight className="h-5 w-5" />
+                        </Link>
+                    </div>
                 </motion.div>
 
             </div>

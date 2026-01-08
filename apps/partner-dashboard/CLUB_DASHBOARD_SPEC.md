@@ -1,13 +1,13 @@
-# 🏛️ Club Manager Dashboard - Technical Specification
+# 🏛️ Venue Manager Dashboard - Technical Specification
 
 ## 1. Architecture Overview
-**Root Path:** `/club`
-**Role:** Club Operating System (POS, CRM, Ops)
-**Target Users:** Club Owners, Managers, Security, Staff
+**Root Path:** `/venue`
+**Role:** Venue Operating System (POS, CRM, Ops)
+**Target Users:** Venue Owners, Managers, Security, Staff
 
-## 2. Directory Structure (`apps/dashboards/app/club`)
+## 2. Directory Structure (`apps/dashboards/app/venue`)
 ```text
-/club
+/venue
   /layout.tsx       -> Main Shell (Sidebar, Auth Guard, Role Check)
   /page.tsx         -> Dashboard Home (Stats, Widgets)
   /calendar         -> The "Single Source of Truth"
@@ -15,13 +15,13 @@
   /tables           -> Inventory & Reservations
   /staff            -> Role Management & Access
   /registers        -> Digital Ops Logs
-  /settings         -> Club Configuration
+  /settings         -> Venue Configuration
   /security         -> Entry Logs & Gate Control
 ```
 
 ## 3. Database Schema (Firestore)
 
-### Core Club Data
+### Core Venue Data
 `venues/{venueId}` (Existing)
 - Added Fields:
   - `metrics`: { `rating`, `crowdScore`, `capacityUtilization` }

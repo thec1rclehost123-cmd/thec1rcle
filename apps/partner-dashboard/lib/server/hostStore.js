@@ -34,7 +34,7 @@ const fallbackHosts = [
         name: "Underground Studio",
         avatar: "/events/art-bazaar.svg",
         followers: 12100,
-        bio: "Immersive AV clubs blending art, poetry, and analog synth jams.",
+        bio: "Immersive AV venues blending art, poetry, and analog synth jams.",
         location: "Viman Nagar, Pune",
         verified: true
     }

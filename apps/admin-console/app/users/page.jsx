@@ -84,7 +84,7 @@ export default function AdminUsers() {
                     </div>
                     <h1 className="text-5xl font-black tracking-tighter text-slate-900">Platform Users</h1>
                     <p className="text-base text-slate-500 mt-3 font-medium max-w-2xl leading-relaxed">
-                        Isolated consumer identities for the public website. <span className="text-slate-900">Entities (Clubs, Hosts, Promoters) are managed separately to prevent context leakage.</span>
+                        Isolated consumer identities for the public website. <span className="text-slate-900">Entities (Venues, Hosts, Promoters) are managed separately to prevent context leakage.</span>
                     </p>
                 </div>
             </div>

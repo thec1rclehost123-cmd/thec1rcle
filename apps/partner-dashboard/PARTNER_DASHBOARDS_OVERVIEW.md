@@ -1,4 +1,4 @@
-# Partner Ecosystem Overview: Host, Club & Promoter Dashboards
+# Partner Ecosystem Overview: Host, Venue & Promoter Dashboards
 
 This document outlines the architecture, purpose, and structure of the three distinct dashboards housed within the `partner-dashboard` application. Together, these form the supply-side ecosystem of **THE C1RCLE**.
 
@@ -16,8 +16,8 @@ The application uses a **Multi-Tenant / Multi-Role** approach where a single cod
 
 ## 2. The Three Pillars
 
-### A. Club Dashboard (Club OS)
-**Route:** `/club`  
+### A. Venue Dashboard (Venue OS)
+**Route:** `/venue`  
 **Target User:** Venue Owners, GMs, Security Heads, Operations Staff.  
 **Purpose:** A "Venue Operating System" to manage the physical space, staff, and nightly operations. It is the "Hard" operational layer.
 
@@ -78,7 +78,7 @@ The structure separates these contexts at the top level of the `app` directory t
 
 ```text
 apps/partner-dashboard/app/
-├── club/                   # CLUB OS
+├── venue/                   # CLUB OS
 │   ├── layout.tsx          # Light mode shell
 │   ├── calendar/
 │   ├── tables/

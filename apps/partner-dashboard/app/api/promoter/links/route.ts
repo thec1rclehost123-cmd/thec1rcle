@@ -79,14 +79,14 @@ export async function POST(req: NextRequest) {
         // 🟢 Connection Verification
         // Only allow if promoter is connected to the event's host or venue
         const hostId = event.hostId || event.creatorId;
-        const clubId = event.venueId || event.clubId;
+        const venueId = event.venueId || event.venueId;
 
-        const [isHostPartner, isClubPartner] = await Promise.all([
+        const [isHostPartner, isVenuePartner] = await Promise.all([
             hostId ? isConnected(promoterId, hostId) : Promise.resolve(false),
-            clubId ? isConnected(promoterId, clubId) : Promise.resolve(false)
+            venueId ? isConnected(promoterId, venueId) : Promise.resolve(false)
         ]);
 
-        if (!isHostPartner && !isClubPartner) {
+        if (!isHostPartner && !isVenuePartner) {
             return NextResponse.json(
                 { error: "You must be connected with the host or venue to promote this event" },
                 { status: 403 }

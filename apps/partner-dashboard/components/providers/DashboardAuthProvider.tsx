@@ -93,7 +93,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                     activeMembership = {
                         uid: user.uid,
                         partnerId: claims.partnerId as string,
-                        partnerType: claims.partnerType as PartnerType,
+                        partnerType: (claims.partnerType === 'club' ? 'venue' : claims.partnerType) as PartnerType,
                         role: claims.partnerRole as StaffRole,
                         joinedAt: 0,
                         isActive: true
@@ -112,7 +112,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                         activeMembership = {
                             uid: user.uid,
                             partnerId: mDoc.partnerId,
-                            partnerType: mDoc.partnerType,
+                            partnerType: mDoc.partnerType === 'club' ? 'venue' : mDoc.partnerType,
                             role: mDoc.role,
                             joinedAt: mDoc.joinedAt,
                             isActive: mDoc.isActive
@@ -121,15 +121,21 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 }
 
                 if (approvedState && activeMembership) {
-                    const entityCollection = activeMembership.partnerType === 'club' ? 'venues' : (activeMembership.partnerType === 'host' ? 'hosts' : 'promoters');
+                    // Standardize terminology: club -> venue
+                    const partnerType = activeMembership.partnerType;
+                    const entityCollection = partnerType === 'venue' ? 'venues' : (partnerType === 'host' ? 'hosts' : 'promoters');
+
                     const entityDoc = await getDoc(doc(db, entityCollection, activeMembership.partnerId));
                     if (entityDoc.exists()) {
                         const entityData = entityDoc.data();
                         plan = entityData.subscriptionPlan || entityData.tier || 'basic';
                         setSubscriptionPlan(plan);
 
+                        // Update local membership type if it was club
+                        activeMembership.partnerType = partnerType as PartnerType;
+
                         // Add partner name to membership
-                        activeMembership.partnerName = entityData.name || entityData.displayName || (activeMembership.partnerType === 'club' ? "Venue" : "Host");
+                        activeMembership.partnerName = entityData.name || entityData.displayName || (partnerType === 'venue' ? "Venue" : "Host");
                     }
                 }
 

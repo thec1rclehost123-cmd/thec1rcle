@@ -1,6 +1,6 @@
 # THE C1RCLE — Event Publishing UX Flow Specification
 
-> Complete end-to-end user journey for publishing an event and making it visible across the User Website (Guest Portal), Club/Host Dashboard (Partner Dashboard), and Promoter Dashboard.
+> Complete end-to-end user journey for publishing an event and making it visible across the User Website (Guest Portal), Venue/Host Dashboard (Partner Dashboard), and Promoter Dashboard.
 
 ---
 
@@ -8,8 +8,8 @@
 
 - [Global Rules and Visibility Logic](#global-rules-and-visibility-logic)
 - [Part A: Publish Event and Distribute Across Portals](#part-a-publish-event-and-distribute-across-portals)
-  - [A1. Club or Host Publishes the Event](#a1-club-or-host-publishes-the-event)
-  - [A2. Event Appears in Club/Host Dashboard Events Section](#a2-event-appears-in-clubhost-dashboard-events-section)
+  - [A1. Venue or Host Publishes the Event](#a1-venue-or-host-publishes-the-event)
+  - [A2. Event Appears in Venue/Host Dashboard Events Section](#a2-event-appears-in-venuehost-dashboard-events-section)
   - [A3. Promoter Access Toggle and Partner Management](#a3-promoter-access-toggle-and-partner-management)
   - [A4. Event Appears in Promoter Dashboard Events Section](#a4-event-appears-in-promoter-dashboard-events-section)
   - [A5. Promoter Creates Unique Trackable Links](#a5-promoter-creates-unique-trackable-links)
@@ -33,19 +33,19 @@
 
 ### Event Visibility to Guests
 - Events **only appear** to guests on the User Website after:
-  1. The event is **published** by the Club or Host
+  1. The event is **published** by the Venue or Host
   2. The event passes all required **visibility checks** (valid date, venue, at least one ticket tier)
   3. The event status is **not** Draft, Unpublished, or Canceled
 
-### Event Visibility to Creators (Club/Host)
-- The creator of the event (Club or Host) **always** sees the event in their Partner Dashboard → Events section after creation
+### Event Visibility to Creators (Venue/Host)
+- The creator of the event (Venue or Host) **always** sees the event in their Partner Dashboard → Events section after creation
 - Events display with clear **status labels**: Draft, Published, Unpublished, Canceled, Completed
 - All lifecycle states are visible to the creator regardless of public visibility
 
 ### Event Visibility to Promoters
 Promoters **only** see the event in their Promoter Dashboard → Events section if **all** of the following are true:
-1. **Promoter Access toggle** is turned **ON** for the event by the Club or Host
-2. The promoter is **partnered** with the Club or Host (either for this specific event or at the entity level)
+1. **Promoter Access toggle** is turned **ON** for the event by the Venue or Host
+2. The promoter is **partnered** with the Venue or Host (either for this specific event or at the entity level)
 3. The promoter is **selected** for access (either "All partnered promoters" or specifically chosen)
 4. The promoter account is **approved** to access promoter tools
 
@@ -73,9 +73,9 @@ Promoters **only** see the event in their Promoter Dashboard → Events section 
 
 ---
 
-### A1. Club or Host Publishes the Event
+### A1. Venue or Host Publishes the Event
 
-**Actor:** Club or Host
+**Actor:** Venue or Host
 
 **Entry Point:** Partner Dashboard → Events → Drafts **OR** Partner Dashboard → Create Event
 
@@ -83,7 +83,7 @@ Promoters **only** see the event in their Promoter Dashboard → Events section 
 
 #### Step 1: Open the Event Draft
 
-1. Club or Host navigates to **Partner Dashboard**
+1. Venue or Host navigates to **Partner Dashboard**
 2. Clicks **Events** in the sidebar navigation
 3. Selects the **Drafts** tab (if event already exists as draft), or clicks **Create Event** button
 4. Clicks on the event card to open the event editor
@@ -127,7 +127,7 @@ Promoters **only** see the event in their Promoter Dashboard → Events section 
 #### Step 3: Click Publish Button
 
 1. Once all validations pass, the **Publish** button becomes enabled
-2. Club or Host clicks **Publish**
+2. Venue or Host clicks **Publish**
 
 **UI Display:**
 - Publish button changes to loading state
@@ -173,7 +173,7 @@ Display warning banners if any of the following are detected:
 
 #### Step 5: Confirm and Publish
 
-1. Club or Host clicks **Publish Now**
+1. Venue or Host clicks **Publish Now**
 2. Modal closes
 3. System processes the publish action
 
@@ -219,9 +219,9 @@ Display warning banners if any of the following are detected:
 
 ---
 
-### A2. Event Appears in Club/Host Dashboard Events Section
+### A2. Event Appears in Venue/Host Dashboard Events Section
 
-**Actor:** Club or Host
+**Actor:** Venue or Host
 
 **Location:** Partner Dashboard → Events → Published
 
@@ -229,7 +229,7 @@ Display warning banners if any of the following are detected:
 
 #### Step 1: Navigate to Published Events
 
-1. Club or Host clicks **Events** in sidebar
+1. Venue or Host clicks **Events** in sidebar
 2. Clicks **Published** tab
 3. Published events list loads
 
@@ -259,7 +259,7 @@ Display warning banners if any of the following are detected:
 
 #### Step 3: Open Event Detail Inside Dashboard
 
-1. Club or Host clicks **Manage** on an event card
+1. Venue or Host clicks **Manage** on an event card
 2. Full event management view opens
 
 **UI Tabs Inside Event Detail View:**
@@ -319,7 +319,7 @@ Display warning banners if any of the following are detected:
 
 ### A3. Promoter Access Toggle and Partner Management
 
-**Actor:** Club or Host
+**Actor:** Venue or Host
 
 **Location:** Event Detail View → Promoter Access Tab
 
@@ -346,7 +346,7 @@ Display warning banners if any of the following are detected:
 
 #### Step 2: Turn Promoters ON
 
-1. Club or Host clicks the toggle to turn it **ON**
+1. Venue or Host clicks the toggle to turn it **ON**
 2. Toggle animates to ON state
 3. Partner gating section expands below
 
@@ -364,7 +364,7 @@ Display warning banners if any of the following are detected:
 
 | Option | Description |
 |--------|-------------|
-| **All Partnered Promoters** | Radio/toggle option. All promoters who have an active partnership with this Club/Host |
+| **All Partnered Promoters** | Radio/toggle option. All promoters who have an active partnership with this Venue/Host |
 | **Specific Promoters** | Radio/toggle option. Opens multi-select list |
 
 **If "Specific Promoters" Selected:**
@@ -396,7 +396,7 @@ Display warning banners if any of the following are detected:
 
 #### Step 5: Save Promoter Settings
 
-1. Club or Host clicks **Save** or **Confirm**
+1. Venue or Host clicks **Save** or **Confirm**
 2. System processes and saves settings
 
 **Success State:**
@@ -448,7 +448,7 @@ Display warning banners if any of the following are detected:
 **List Display Rules:**
 Only show events where **ALL** of these are true:
 - Promoter Access toggle is **ON** for the event
-- Promoter is **partnered** with the Club/Host
+- Promoter is **partnered** with the Venue/Host
 - Promoter is **selected** for this event (or "All Partnered Promoters" is selected)
 - Event is **Published** (not Draft, Unpublished, or Canceled)
 - Event date has not passed
@@ -465,7 +465,7 @@ Only show events where **ALL** of these are true:
 | Event Name | Full event title |
 | Date & Time | Formatted event date |
 | Venue | Venue name and city |
-| Host/Club Name | Name of the event creator |
+| Host/Venue Name | Name of the event creator |
 | **Create Link** Button | Primary action to generate tracking link |
 | **View Event Page** Button | Opens live event page on User Website |
 | Stats Section | Performance metrics for this promoter |
@@ -488,10 +488,10 @@ Only show events where **ALL** of these are true:
 - Illustration or icon (e.g., calendar with magnifying glass)
 - Heading: "No Events Available"
 - Message: "Events will appear here when:"
-  - "You are partnered with a Club or Host"
-  - "The Club or Host enables promoter access for their event"
+  - "You are partnered with a Venue or Host"
+  - "The Venue or Host enables promoter access for their event"
   - "You are selected for that event"
-- **CTA Button:** "Browse Clubs & Hosts" — links to discovery/connection page
+- **CTA Button:** "Browse Venues & Hosts" — links to discovery/connection page
 
 ---
 
@@ -601,7 +601,7 @@ Only show events where **ALL** of these are true:
 
 #### Special State: Promoter Access Disabled After Links Created
 
-**If Club/Host turns OFF promoter access after links were created:**
+**If Venue/Host turns OFF promoter access after links were created:**
 
 | Element | Behavior |
 |---------|----------|
@@ -616,7 +616,7 @@ Only show events where **ALL** of these are true:
 | Behavior |
 |----------|
 | Event completely hidden from promoter's events list |
-| OR: Event shows "Access Removed" with message: "Your partnership with [Club/Host name] has ended" |
+| OR: Event shows "Access Removed" with message: "Your partnership with [Venue/Host name] has ended" |
 | Existing links remain functional but promoter can no longer manage them |
 
 ---
@@ -633,7 +633,7 @@ Only show events where **ALL** of these are true:
 1. Homepage (`thec1rcle.com`)
 2. City page (`thec1rcle.com/pune`)
 3. Event listing page (`thec1rcle.com/events`)
-4. Direct event link (from Host, Club, or Promoter)
+4. Direct event link (from Host, Venue, or Promoter)
 
 ---
 
@@ -1251,7 +1251,7 @@ Each tier row displays:
 | Element | Description |
 |---------|-------------|
 | Help Link | "Need help? Contact Support" |
-| Event Organizer | "Questions about this event? Contact [Host/Club]" |
+| Event Organizer | "Questions about this event? Contact [Host/Venue]" |
 | Report Issue | Link to report problems |
 
 **Actions:**
@@ -1350,7 +1350,7 @@ When a user who has purchased tickets returns to the event page:
 
 ### C1. Promoter Toggle Turned OFF After Links Created
 
-**Scenario:** Club/Host turns OFF the Promoter Access toggle after promoters have already created tracking links.
+**Scenario:** Venue/Host turns OFF the Promoter Access toggle after promoters have already created tracking links.
 
 ---
 
@@ -1411,7 +1411,7 @@ When a user who has purchased tickets returns to the event page:
 
 ### C2. Event Edited After Publishing
 
-**Scenario:** Club/Host edits event details after the event has already been published.
+**Scenario:** Venue/Host edits event details after the event has already been published.
 
 ---
 
@@ -1439,7 +1439,7 @@ When a user who has purchased tickets returns to the event page:
 
 ---
 
-#### What Updates in Club/Host Dashboard
+#### What Updates in Venue/Host Dashboard
 
 | Location | Update |
 |----------|--------|
@@ -1480,7 +1480,7 @@ When a user who has purchased tickets returns to the event page:
 
 ### C3. Event Unpublished or Canceled
 
-**Scenario:** Club/Host unpublishes or cancels an event after it was published.
+**Scenario:** Venue/Host unpublishes or cancels an event after it was published.
 
 ---
 
@@ -1583,8 +1583,8 @@ When a user who has purchased tickets returns to the event page:
 
 | Role | Portal | Can Do |
 |------|--------|--------|
-| **Club/Host** | Partner Dashboard | Create events, edit events, publish/unpublish, cancel, manage tickets, view orders, control promoter access, toggle guest list visibility, view interested list |
-| **Promoter** | Partner Dashboard (Promoter View) | View enabled events from partnered clubs/hosts, create tracking links, view link performance, copy/share links |
+| **Venue/Host** | Partner Dashboard | Create events, edit events, publish/unpublish, cancel, manage tickets, view orders, control promoter access, toggle guest list visibility, view interested list |
+| **Promoter** | Partner Dashboard (Promoter View) | View enabled events from partnered venues/hosts, create tracking links, view link performance, copy/share links |
 | **Guest** | User Website | Browse events, search, filter, view event details, sign up/log in, purchase tickets, RSVP, like/save (requires login), view tickets |
 | **Ticket Holder** | User Website | View purchased tickets, access QR codes, get directions, request refunds (if allowed), transfer tickets (if allowed) |
 

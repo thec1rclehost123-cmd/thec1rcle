@@ -58,7 +58,8 @@ export async function PATCH(
             latestEvent = await updateEvent(params.id, {
                 ...cleanUpdates,
                 creatorId: actor.uid,
-                creatorRole: actor.role
+                creatorRole: actor.role,
+                partnerId: actor.partnerId
             });
         }
 
@@ -118,6 +119,38 @@ export async function PATCH(
         console.error("[Events API] PATCH Error:", error);
         return NextResponse.json(
             { error: error.message || "Failed to update event" },
+            { status: 500 }
+        );
+    }
+}
+
+/**
+ * DELETE /api/events/[id]
+ * Soft delete an event
+ */
+export async function DELETE(
+    req: NextRequest,
+    { params }: { params: { id: string } }
+) {
+    try {
+        const body = await req.json();
+        const { actor } = body;
+
+        if (!actor || !actor.uid || !actor.role) {
+            return NextResponse.json(
+                { error: "Actor information required" },
+                { status: 400 }
+            );
+        }
+
+        const { deleteEvent } = await import("@/lib/server/eventStore");
+        const result = await deleteEvent(params.id, actor);
+
+        return NextResponse.json({ success: true, result });
+    } catch (error: any) {
+        console.error("[Events API] DELETE Error:", error);
+        return NextResponse.json(
+            { error: error.message || "Failed to delete event" },
             { status: 500 }
         );
     }

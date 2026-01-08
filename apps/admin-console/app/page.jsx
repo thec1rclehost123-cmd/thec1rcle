@@ -184,7 +184,7 @@ export default function AdminDashboard() {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             {[
-                                { title: "Onboard Clubs & Hosts", desc: "Verify identity, approve applications, and assign initial discovery weights.", icon: Building2, href: "/hosts" },
+                                { title: "Onboard Venues & Hosts", desc: "Verify identity, approve applications, and assign initial discovery weights.", icon: Building2, href: "/hosts" },
                                 { title: "Manage Live Support", desc: "Resolve ticket disputes, owner transfers, and urgent check-in issues.", icon: Users, href: "/support" },
                                 { title: "Execute Payout Batches", desc: "Run daily settlements and reconcile provider totals to ledger.", icon: Activity, href: "/payments" },
                                 { title: "Moderate Platform Content", desc: "Review media assets and event listing quality for policy compliance.", icon: ShieldAlert, href: "/content" },

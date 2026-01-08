@@ -1,85 +1,68 @@
-import clsx from "clsx";
-import { forwardRef, type HTMLInputTypeAttribute, type InputHTMLAttributes, type ReactNode } from "react";
+"use client";
 
-type InputTone = "default" | "light";
+import clsx from "clsx";
+import { forwardRef, type InputHTMLAttributes, type ReactNode } from "react";
+
+/**
+ * Input Component — Forgiving and Elegant
+ * Soft focus glow, clear error states
+ */
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
-  helperText?: string;
-  errorText?: string;
-  leadingIcon?: ReactNode;
-  trailingIcon?: ReactNode;
-  tone?: InputTone;
-  type?: HTMLInputTypeAttribute;
+  error?: string;
+  hint?: string;
+  icon?: ReactNode;
+  iconPosition?: "left" | "right";
 }
 
-const baseFieldStyles =
-  "peer w-full rounded-[28px] border px-5 py-3 text-base transition focus-visible:ring-2 focus-visible:outline-none";
-
-const toneClasses: Record<InputTone, string> = {
-  default: "bg-white/[0.04] text-white placeholder:text-white/30 border-white/10 focus-visible:border-white/40 focus-visible:ring-white/50",
-  light: "bg-slate-50 text-slate-900 placeholder:text-slate-400 border-slate-200 focus-visible:bg-white focus-visible:border-indigo-300 focus-visible:ring-indigo-100",
-};
-
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  (
-    { label, helperText, errorText, leadingIcon, trailingIcon, tone = "default", className, required, type = "text", ...rest },
-    ref
-  ) => {
-    const fieldClasses = clsx(
-      baseFieldStyles,
-      toneClasses[tone],
-      (leadingIcon || trailingIcon) && "pl-12",
-      trailingIcon && "pr-12",
-      errorText && (tone === 'light' ? "border-rose-300 ring-rose-100 focus-visible:ring-rose-100" : "border-red-400/50 focus-visible:ring-red-300/60"),
-      className
-    );
+  ({ label, error, hint, icon, iconPosition = "left", className, ...rest }, ref) => {
+    const hasError = !!error;
 
     return (
-      <label className={clsx(
-        "flex w-full flex-col gap-2 text-sm",
-        tone === 'light' ? 'text-slate-600' : 'text-white/70'
-      )}>
+      <div className="w-full">
         {label && (
-          <span className={clsx(
-            "text-xs font-medium uppercase tracking-[0.35em]",
-            tone === 'light' ? 'text-slate-400' : 'text-white/50'
-          )}>
-            {label} {required && <span className="text-peach">*</span>}
-          </span>
+          <label className="block text-[12px] font-medium text-stone-500 mb-1.5">
+            {label}
+          </label>
         )}
-        <div className="relative flex items-center">
-          {leadingIcon && (
-            <span className={clsx(
-              "pointer-events-none absolute left-4",
-              tone === 'light' ? 'text-slate-400' : 'text-white/40'
-            )}>
-              {leadingIcon}
-            </span>
+        <div className="relative">
+          {icon && iconPosition === "left" && (
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">
+              {icon}
+            </div>
           )}
-          <input ref={ref} type={type} className={fieldClasses} {...rest} />
-          {trailingIcon && (
-            <span className={clsx(
-              "pointer-events-none absolute right-4",
-              tone === 'light' ? 'text-slate-400' : 'text-white/40'
-            )}>
-              {trailingIcon}
-            </span>
+          <input
+            ref={ref}
+            className={clsx(
+              "w-full bg-stone-50 border rounded-lg px-4 py-3 text-[14px] text-stone-900 placeholder:text-stone-400 transition-all duration-150 outline-none",
+              "hover:bg-stone-100",
+              "focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10",
+              hasError
+                ? "border-red-300 focus:border-red-500 focus:ring-red-500/10"
+                : "border-transparent",
+              icon && iconPosition === "left" && "pl-10",
+              icon && iconPosition === "right" && "pr-10",
+              className
+            )}
+            {...rest}
+          />
+          {icon && iconPosition === "right" && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400">
+              {icon}
+            </div>
           )}
         </div>
-        {errorText ? (
-          <span className="text-xs text-red-500 font-medium">{errorText}</span>
-        ) : (
-          helperText && (
-            <span className={clsx(
-              "text-xs",
-              tone === 'light' ? 'text-slate-400' : 'text-white/40'
-            )}>
-              {helperText}
-            </span>
-          )
+        {(error || hint) && (
+          <p className={clsx(
+            "mt-1.5 text-[12px]",
+            hasError ? "text-red-600" : "text-stone-500"
+          )}>
+            {error || hint}
+          </p>
         )}
-      </label>
+      </div>
     );
   }
 );

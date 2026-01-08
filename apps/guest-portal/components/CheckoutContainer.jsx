@@ -97,6 +97,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                     items: selectedTickets.map(t => ({
                         tierId: t.id,
                         quantity: t.quantity,
+                        price: t.price,
                         subtotal: t.price * t.quantity
                     }))
                 })
@@ -308,10 +309,26 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 }
             },
             modal: {
-                ondismiss: function () {
+                ondismiss: async function () {
                     setIsProcessing(false);
                     setProcessingState("");
                     setError("Payment cancelled by user");
+
+                    // Automatically release inventory if user actively cancels
+                    try {
+                        await fetch("/api/checkout/cancel", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${authToken}`
+                            },
+                            body: JSON.stringify({ orderId: initiateData.order.id })
+                        });
+                        console.log("[Checkout] Order released successfully after cancellation");
+                    } catch (err) {
+                        console.error("[Checkout] Failed to release order:", err);
+                    }
+
                     reject(new Error("Payment cancelled"));
                 }
             },
@@ -574,13 +591,26 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                             {isSuccess ? "Order Successful" : "Processing"}
                         </motion.h2>
                         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="text-[10px] uppercase font-black tracking-[0.4em] text-white/40 mt-6 max-w-[280px]">
-                            {isSuccess ? "Your booking is confirmed. Your tickets are ready." :
+                            {isSuccess ? "Your booking is confirmed. Your identity pass is being generated." :
                                 processingState === "reserving" ? "Reserving your tickets..." :
                                     processingState === "initiating" ? "Processing order..." :
                                         processingState === "verifying" ? "Verifying payment..." :
                                             processingState === "issuing" ? "Issuing tickets..." :
                                                 "Processing..."}
                         </motion.p>
+
+                        {isSuccess && (
+                            <motion.button
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.5 }}
+                                onClick={() => router.push('/tickets')}
+                                className="mt-12 h-16 px-12 rounded-full bg-white text-black font-black uppercase tracking-[0.3em] text-[10px] hover:scale-105 transition-all shadow-[0_20px_40px_rgba(255,255,255,0.1)] flex items-center gap-4 group"
+                            >
+                                View My Tickets
+                                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                            </motion.button>
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>

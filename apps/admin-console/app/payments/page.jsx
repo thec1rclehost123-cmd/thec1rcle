@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useEffect, useState } from "react";
-import { Search, IndianRupee, CreditCard, ArrowDownLeft, Clock, CheckCircle2, ShieldCheck, TrendingUp, RotateCcw, ShieldAlert, User, Calendar, ExternalLink, ChevronRight } from "lucide-react";
+import { Search, IndianRupee, CreditCard, ArrowDownLeft, Clock, CheckCircle2, ShieldCheck, TrendingUp, RotateCcw, ShieldAlert, User, Calendar, ExternalLink, ChevronRight, Loader2 } from "lucide-react";
 import AdminConfirmModal from "@/components/admin/AdminConfirmModal";
 
 export default function AdminPayments() {
@@ -10,6 +10,8 @@ export default function AdminPayments() {
     const [txns, setTxns] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedTxn, setSelectedTxn] = useState(null);
+    const [ledgerEntries, setLedgerEntries] = useState([]);
+    const [loadingLedger, setLoadingLedger] = useState(false);
     const [modalConfig, setModalConfig] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
 
@@ -28,9 +30,30 @@ export default function AdminPayments() {
         }
     };
 
+    const fetchLedger = async (orderId) => {
+        setLoadingLedger(true);
+        setLedgerEntries([]);
+        try {
+            const token = await user.getIdToken();
+            const res = await fetch(`/api/ledger?entityId=${orderId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const json = await res.json();
+            setLedgerEntries(json.data || []);
+        } catch (err) {
+            console.error("Failed to fetch ledger", err);
+        } finally {
+            setLoadingLedger(false);
+        }
+    };
+
     useEffect(() => {
         if (user) fetchTxns();
     }, [user]);
+
+    useEffect(() => {
+        if (selectedTxn) fetchLedger(selectedTxn.id);
+    }, [selectedTxn]);
 
     const handleAction = async (reason, targetId, inputValue, evidence) => {
         if (!modalConfig) return;
@@ -220,6 +243,32 @@ export default function AdminPayments() {
                                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Authorization Date</p>
                                         <p className="text-sm text-slate-900 font-bold leading-tight mt-1">{new Date(selectedTxn.createdAt?._seconds * 1000 || selectedTxn.createdAt).toLocaleString()}</p>
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* Money Ledger Explorer */}
+                            <div className="pt-10 border-t border-slate-100 space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Money Ledger Audit</p>
+                                    {loadingLedger && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+                                </div>
+                                <div className="space-y-3">
+                                    {ledgerEntries.length > 0 ? ledgerEntries.map((entry, i) => (
+                                        <div key={i} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between group hover:bg-white transition-all shadow-sm">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{entry.state}</p>
+                                                <p className="text-[9px] font-bold text-slate-600 mt-1">{entry.description}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className={`text-xs font-black ${entry.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {entry.amount >= 0 ? '+' : ''}{entry.amount}
+                                                </p>
+                                                <p className="text-[8px] text-slate-300 font-bold mt-1">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                            </div>
+                                        </div>
+                                    )) : !loadingLedger && (
+                                        <p className="text-[10px] text-slate-300 font-bold italic text-center py-4 bg-slate-50 rounded-2xl">No ledger entries detected.</p>
+                                    )}
                                 </div>
                             </div>
 

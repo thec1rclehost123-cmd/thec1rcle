@@ -18,7 +18,7 @@ type ScanResult = 'valid' | 'already_scanned' | 'invalid' | 'wrong_event' | 'not
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { qrData, scannedBy, eventId, deviceId, clubId } = body;
+        const { qrData, scannedBy, eventId, deviceId, venueId } = body;
 
         if (!qrData) {
             return NextResponse.json(
@@ -117,8 +117,8 @@ export async function POST(req: NextRequest) {
         const db = getAdminDb();
 
         // Validate device if deviceId provided
-        if (deviceId && clubId) {
-            const deviceValidation = await validateDevice(db, deviceId, clubId);
+        if (deviceId && venueId) {
+            const deviceValidation = await validateDevice(db, deviceId, venueId);
             if (!deviceValidation.valid) {
                 return NextResponse.json({
                     success: false,
@@ -279,10 +279,10 @@ export async function POST(req: NextRequest) {
 /**
  * Validate device is authorized for this venue
  */
-async function validateDevice(db: any, deviceId: string, clubId: string) {
+async function validateDevice(db: any, deviceId: string, venueId: string) {
     const snapshot = await db.collection(BOUND_DEVICES_COLLECTION)
         .where("deviceId", "==", deviceId)
-        .where("clubId", "==", clubId)
+        .where("venueId", "==", venueId)
         .where("status", "==", "active")
         .limit(1)
         .get();

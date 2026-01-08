@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { verifyAuth } from "../../../../lib/server/auth";
 import { validateAndScanTicket } from "../../../../lib/server/ticketShareStore";
+import { processEntryScan } from "@c1rcle/core/entitlement-engine";
+import { getAdminDb } from "../../../../lib/firebase/admin";
 
 export async function POST(request) {
     try {
@@ -17,6 +19,47 @@ export async function POST(request) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
+        let parsedPayload = null;
+        try {
+            parsedPayload = JSON.parse(ticketPayload);
+        } catch (e) {
+            // Not JSON, continue to legacy split
+        }
+
+        // NEW ENTITLEMENT SCAN FLOW
+        if (parsedPayload && parsedPayload.eid) {
+            const scanResult = await processEntryScan(parsedPayload, scannerId || user.uid, eventId, {
+                scannerEmail: user.email,
+                platform: 'web-scanner-api',
+                // NOTE: In a production scanner app, this would be determined by 
+                // checking for both partners' profiles or a manual "Partner Present" toggle.
+                partnerPresent: true
+            });
+
+            if (scanResult.success) {
+                return NextResponse.json({
+                    status: "approved",
+                    ticket: scanResult.entitlement,
+                    message: "Entry Granted"
+                });
+            } else {
+                const messageMap = {
+                    STALE_QR: "QR Code Expired. Please refresh.",
+                    INVALID_QR: "Invalid QR code signature.",
+                    ALREADY_CONSUMED: "This ticket has already been used.",
+                    EVENT_MISMATCH: "This ticket is for a different event.",
+                    GENDER_MISMATCH: "Gender restriction violation.",
+                    REVOKED: "This ticket has been cancelled or refunded."
+                };
+                return NextResponse.json({
+                    status: "denied",
+                    reason: scanResult.reason,
+                    message: messageMap[scanResult.reason] || "Access Denied"
+                });
+            }
+        }
+
+        // LEGACY FALLBACK
         const [ticketId, signature] = ticketPayload.split(":");
         if (!ticketId || !signature) {
             return NextResponse.json({

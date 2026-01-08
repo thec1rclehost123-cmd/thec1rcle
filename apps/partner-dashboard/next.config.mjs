@@ -44,6 +44,25 @@ const nextConfig = {
         ]
       }
     ]
+  },
+  async redirects() {
+    return [
+      {
+        source: '/club/:path*',
+        destination: '/venue/:path*',
+        permanent: true,
+      },
+      {
+        source: '/api/club/:path*',
+        destination: '/api/venue/:path*',
+        permanent: true,
+      },
+      {
+        source: '/api/clubs/:path*',
+        destination: '/api/venues/:path*',
+        permanent: true,
+      }
+    ]
   }
 };
 

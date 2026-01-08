@@ -155,6 +155,14 @@ export async function getUserEvents(profileUserId, viewerUserId) {
 export async function getUserTickets(userId) {
     if (!userId) return { upcoming: [], past: [], actionNeeded: [], cancelled: [] };
 
+    // Proactively clean up any stale pending orders for this user before fetching
+    try {
+        const { cleanupStaleOrders } = await import("./orderStore");
+        await cleanupStaleOrders(userId);
+    } catch (err) {
+        console.error("[ProfileStore] Failed to cleanup stale orders in getUserTickets:", err);
+    }
+
     const userProfile = await getUserProfile(userId);
     const userGender = userProfile?.gender || "any";
     const userEmail = userProfile?.email;
@@ -226,6 +234,12 @@ export async function getUserTickets(userId) {
         ownerAssignmentsMap[doc.id] = doc.data();
     });
 
+    // 5.5 Fetch Entitlements
+    const entitlementsSnapshot = await db.collection("entitlements")
+        .where("ownerUserId", "==", userId)
+        .get();
+    const entitlements = entitlementsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
     // 6. Collect all event IDs
     const allEventIds = Array.from(new Set([
         ...allOrders.map(o => o.eventId),
@@ -263,7 +277,7 @@ export async function getUserTickets(userId) {
     const allTicketIdsToCheck = [];
     allOrders.forEach(order => {
         order.tickets?.forEach(tg => {
-            for (let i = 0; i < tg.quantity; i++) allTicketIdsToCheck.push(`${order.id}-${tg.ticketId}-${i}`);
+            for (let i = 1; i <= tg.quantity; i++) allTicketIdsToCheck.push(`${order.id}-${tg.ticketId}-${i}`);
         });
     });
 
@@ -286,17 +300,9 @@ export async function getUserTickets(userId) {
         const isEventPast = eventStart < now;
 
         if (order.status === "pending_payment") {
-            actionNeeded.push({
-                type: "order",
-                id: order.id,
-                eventId: event.id,
-                eventTitle: event.title,
-                eventStartAt: event.startDate || event.startAt,
-                posterUrl: event.image,
-                reason: "Payment Pending",
-                amount: order.totalAmount,
-                status: "pending_payment"
-            });
+            // We NO LONGER show pending orders in the Tickets dashboard to prevent "ticket hoarding".
+            // If the user leaves the checkout process, the ticket is abandoned.
+            // A background cleanup job or the inventory logic will return it to the pool.
             return;
         }
 
@@ -316,6 +322,8 @@ export async function getUserTickets(userId) {
 
         if (order.status === "confirmed" || order.status === "used") {
             const { bundles = [], assignments = [] } = shareBundlesMap[order.id] || {};
+
+            let buyerAlreadyAssigned = false;
 
             order.tickets?.forEach(ticketGroup => {
                 const tierId = ticketGroup.ticketId;
@@ -342,13 +350,19 @@ export async function getUserTickets(userId) {
                     const isTransferPending = pendingSentTicketIds.includes(slotTicketId);
                     const tier = event.tickets?.find(t => t.id === tierId);
 
+                    const isPrimaryBuyer = order.userId === userId;
+
                     // Priority: Bundle Slot Gender > Tier Gender > Couple Parity
                     let requiredGender = bundleSlot?.requiredGender || tier?.requiredGender;
                     if (!requiredGender || requiredGender === "any") {
                         if (isCouple) {
-                            // If buyer is male (usual case for owner slot 1), slot 2 is female
-                            // We assume slot 1 is buyer's gender parity
-                            requiredGender = (i % 2 === 1) ? (bundleSlot?.requiredGender || "any") : "female";
+                            // Slot 1 is the buyer (Primary Buyer). Slot 2 is the partner.
+                            if (i === 1) {
+                                requiredGender = bundleSlot?.requiredGender || (isPrimaryBuyer ? userGender : "male");
+                            } else {
+                                // Partner slot is female by default in this ecosystem
+                                requiredGender = bundleSlot?.requiredGender || "female";
+                            }
                         } else {
                             requiredGender = "any";
                         }
@@ -356,15 +370,28 @@ export async function getUserTickets(userId) {
 
                     const genderMismatch = (requiredGender !== "any" && requiredGender !== userGender);
 
+                    // LOGIC: The buyer is assigned to the FIRST eligible Slot 1 in the order.
+                    // If they transfer that slot, their identity "floats" to the next available Slot 1.
+                    const isExplicitlyAssignedToMe = (assignment && assignment.redeemerId === userId);
+                    const isOwnerLockedToMe = (bundleSlot?.slotType === "owner_locked" && bundleSlot?.claimStatus === "claimed");
+                    const shouldAutoClaim = i === 1 && isPrimaryBuyer && !buyerAlreadyAssigned && !genderMismatch;
+
+                    const isClaimedByMe = isExplicitlyAssignedToMe || isOwnerLockedToMe || shouldAutoClaim;
+
+                    if (isClaimedByMe) {
+                        buyerAlreadyAssigned = true;
+                    }
+
                     const ticket = {
                         ticketId: slotTicketId,
                         orderId: order.id,
                         eventId: event.id,
                         tierId,
                         eventTitle: event.title,
+                        eventSlug: event.slug || event.id,
                         eventStartAt: event.startDate || event.startAt,
-                        venueName: event.venue || event.location,
-                        city: event.city,
+                        venueName: event.venue || event.venueName || event.location || "TBD",
+                        city: event.city || "Pune",
                         posterUrl: event.image,
                         ticketType: ticketGroup.name,
                         status: "active",
@@ -372,13 +399,14 @@ export async function getUserTickets(userId) {
                         requiredGender,
                         genderMismatch,
                         isTransferPending,
+                        isPrimaryBuyer,
                         isBundle: effectiveQuantity > 1,
                         slotIndex: i,
                         bundleId: bundle?.id,
                         shareToken: bundle?.token,
                         assignment: assignment || null,
                         isClaimedByOther: assignment && assignment.redeemerId !== userId,
-                        isClaimed: (assignment && assignment.redeemerId === userId) || (bundleSlot?.slotType === "owner_locked" && bundleSlot?.claimStatus === "claimed"),
+                        isClaimed: isClaimedByMe,
                         orderType: order.isRSVP ? "RSVP" : (order.totalAmount === 0 ? "₹0 Checkout" : "Paid")
                     };
 
@@ -388,11 +416,28 @@ export async function getUserTickets(userId) {
                         ticket.scannedAt = scan?.scannedAt || order.updatedAt;
                         past.push(ticket);
                     } else {
-                        const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
-                        const signature = createHmac("sha256", secret).update(slotTicketId).digest("hex").slice(0, 16);
-
                         const canViewQR = !isTransferPending && !genderMismatch;
-                        ticket.qrPayload = canViewQR ? `${slotTicketId}:${signature}` : null;
+
+                        // Entitlement matching
+                        const bundleEntId = bundleSlot?.entitlementId;
+                        const entMatch = entitlements.find(e =>
+                            e.orderId === order.id &&
+                            e.metadata.tierId === tierId &&
+                            e.metadata.index === i
+                        );
+                        ticket.entitlementId = bundleEntId || entMatch?.id;
+
+                        if (canViewQR) {
+                            if (ticket.entitlementId) {
+                                ticket.qrPayload = ticket.entitlementId;
+                            } else {
+                                const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
+                                const signature = createHmac("sha256", secret).update(slotTicketId).digest("hex").slice(0, 16);
+                                ticket.qrPayload = `${slotTicketId}:${signature}`;
+                            }
+                        } else {
+                            ticket.qrPayload = null;
+                        }
 
                         upcoming.push(ticket);
                     }

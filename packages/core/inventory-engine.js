@@ -430,7 +430,7 @@ export function createHoldback(event, tierId, holdback) {
 
     const newHoldback = {
         id: randomUUID(),
-        pool: holdback.pool,          // 'club', 'host', 'promoter', 'admin'
+        pool: holdback.pool,          // 'venue', 'host', 'promoter', 'admin'
         quantity: holdback.quantity,
         reason: holdback.reason,
         heldBy: holdback.heldBy,

@@ -4,7 +4,7 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-export function ClubGuard({ children }: { children: React.ReactNode }) {
+export function VenueGuard({ children }: { children: React.ReactNode }) {
     const { user, profile, loading } = useDashboardAuth();
     const router = useRouter();
 
@@ -17,7 +17,7 @@ export function ClubGuard({ children }: { children: React.ReactNode }) {
 
             // Check if user has club membership
             const membership = profile?.activeMembership;
-            if (!membership || membership.partnerType !== "club") {
+            if (!membership || membership.partnerType !== "venue") {
                 router.replace("/unauthorized");
                 return;
             }
@@ -44,7 +44,7 @@ export function ClubGuard({ children }: { children: React.ReactNode }) {
     }
 
     const membership = profile?.activeMembership;
-    if (!user || !profile || !membership || membership.partnerType !== "club") {
+    if (!user || !profile || !membership || membership.partnerType !== "venue") {
         return null;
     }
 

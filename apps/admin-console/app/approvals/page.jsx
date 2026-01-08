@@ -109,7 +109,7 @@ export default function AdminApprovals() {
                     </div>
                     <h1 className="text-5xl font-black tracking-tighter text-slate-900">Entity Approvals</h1>
                     <p className="text-base text-slate-500 mt-3 font-medium max-w-2xl leading-relaxed">
-                        Centrally manage onboarding requests for Clubs, Hosts, and Promoters. <span className="text-slate-900">Verify credentials and provision platform access.</span>
+                        Centrally manage onboarding requests for Venues, Hosts, and Promoters. <span className="text-slate-900">Verify credentials and provision platform access.</span>
                     </p>
                 </div>
             </div>
@@ -128,7 +128,7 @@ export default function AdminApprovals() {
                 </div>
                 <div className="flex gap-2 bg-slate-100 p-1.5 rounded-[1.8rem]">
                     <FilterButton active={filter === 'all'} onClick={() => setFilter('all')} label="All" />
-                    <FilterButton active={filter === 'club'} onClick={() => setFilter('club')} label="Clubs" icon={Building2} />
+                    <FilterButton active={filter === 'venue'} onClick={() => setFilter('venue')} label="Venues" icon={Building2} />
                     <FilterButton active={filter === 'host'} onClick={() => setFilter('host')} label="Hosts" icon={Users} />
                     <FilterButton active={filter === 'promoter'} onClick={() => setFilter('promoter')} label="Promoters" icon={Zap} />
                 </div>
@@ -166,7 +166,7 @@ export default function AdminApprovals() {
                                     >
                                         <td className="px-10 py-8">
                                             <div className="flex items-center gap-4">
-                                                <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-white font-black text-xs ${r.type === 'club' ? 'bg-slate-900' : r.type === 'host' ? 'bg-indigo-600' : 'bg-emerald-600'
+                                                <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-white font-black text-xs ${r.type === 'venue' ? 'bg-slate-900' : r.type === 'host' ? 'bg-indigo-600' : 'bg-emerald-600'
                                                     }`}>
                                                     {r.data?.name?.[0] || 'E'}
                                                 </div>
@@ -201,9 +201,9 @@ export default function AdminApprovals() {
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Request Details</span>
-                                    <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${selectedReq.type === 'club' ? 'bg-slate-100 text-slate-900' : 'bg-indigo-50 text-indigo-600'
+                                    <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${selectedReq.type === 'venue' ? 'bg-slate-100 text-slate-900' : 'bg-indigo-50 text-indigo-600'
                                         }`}>
-                                        {selectedReq.type === 'club' ? `${selectedReq.data?.plan} Tier` : selectedReq.type}
+                                        {selectedReq.type === 'venue' ? `${selectedReq.data?.plan} Tier` : selectedReq.type}
                                     </span>
                                 </div>
                                 <h3 className="text-3xl font-black tracking-tighter text-slate-900">{selectedReq.data?.name}</h3>
@@ -228,7 +228,7 @@ export default function AdminApprovals() {
                                             <div className="col-span-2 space-y-4 mb-6 p-4 rounded-2xl bg-slate-50 border border-slate-100">
                                                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Configure Provisioning</h4>
 
-                                                {selectedReq.type === 'club' && (
+                                                {selectedReq.type === 'venue' && (
                                                     <div>
                                                         <label className="text-[10px] font-bold text-slate-500 mb-1 block">Assigned Subscription Plan</label>
                                                         <select

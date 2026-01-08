@@ -25,7 +25,7 @@ const priceFilters = [
 const curatedCategoryOptions = [
   { label: "All vibes", value: "all", description: "Show everything" },
   { label: "Campus", value: "campus", description: "College quads & fresher nights" },
-  { label: "Party", value: "party", description: "Clubs, edits, blowouts" },
+  { label: "Party", value: "party", description: "Venues, edits, blowouts" },
   { label: "Afters", value: "afters", description: "Late nights & underground" },
   { label: "Brunch", value: "brunch", description: "Day parties, sun-kissed" },
   { label: "Art", value: "art", description: "Galleries & pop-up shows" },
@@ -34,11 +34,11 @@ const curatedCategoryOptions = [
 
 const curatedCategoryMatchers = {
   campus: ["campus", "college", "university", "freshers"],
-  party: ["party", "club", "night", "dj", "dance"],
+  party: ["party", "venue", "night", "dj", "dance"],
   afters: ["after", "afterhours", "late", "underground"],
   brunch: ["brunch", "day party", "sunrise", "cookout"],
   art: ["art", "gallery", "exhibit", "creative", "design"],
-  community: ["community", "market", "meetup", "collective", "club"]
+  community: ["community", "market", "meetup", "collective", "venue"]
 };
 
 const pageSize = 12;
@@ -192,7 +192,7 @@ export default function ExplorePage() {
     const map = new Map();
     events.forEach((event) => {
       const primaryTag = Array.isArray(event.tags) ? event.tags[0] : "";
-      const key = slugify(primaryTag || event.eventType || event.category || "club");
+      const key = slugify(primaryTag || event.eventType || event.category || "venue");
       const label = primaryTag || formatTypeLabel(key);
       if (!map.has(key)) {
         map.set(key, { value: key, label, count: 0 });

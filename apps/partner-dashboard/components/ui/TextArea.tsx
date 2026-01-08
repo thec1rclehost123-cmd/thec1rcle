@@ -1,68 +1,54 @@
-import clsx from "clsx";
-import { forwardRef, type ReactNode, type TextareaHTMLAttributes } from "react";
+"use client";
 
-type TextAreaTone = "default" | "surface" | "light";
+import clsx from "clsx";
+import { forwardRef, type TextareaHTMLAttributes } from "react";
+
+/**
+ * TextArea Component — Multi-line Input
+ */
 
 export interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
-  helperText?: string;
-  errorText?: string;
-  tone?: TextAreaTone;
-  leadingIcon?: ReactNode;
+  error?: string;
+  hint?: string;
 }
 
-const baseStyles =
-  "peer min-h-[140px] w-full rounded-[32px] border px-5 py-4 text-base transition focus-visible:ring-2 focus-visible:outline-none";
-
-const tones: Record<TextAreaTone, string> = {
-  default: "bg-white/[0.04] text-white placeholder:text-white/30 border-white/10 focus-visible:border-white/40 focus-visible:ring-white/40",
-  surface: "border-white/15 bg-white/[0.08] text-white placeholder:text-white/40 focus-visible:ring-white/20",
-  light: "bg-slate-50 text-slate-900 placeholder:text-slate-400 border-slate-200 focus-visible:bg-white focus-visible:border-indigo-300 focus-visible:ring-indigo-100",
-};
-
 export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
-  ({ label, helperText, errorText, tone = "default", leadingIcon, className, required, ...rest }, ref) => (
-    <label className={clsx(
-      "flex w-full flex-col gap-2 text-sm",
-      tone === 'light' ? 'text-slate-600' : 'text-white/70'
-    )}>
-      {label && (
-        <span className={clsx(
-          "text-xs font-medium uppercase tracking-[0.35em]",
-          tone === 'light' ? 'text-slate-400' : 'text-white/50'
-        )}>
-          {label} {required && <span className="text-peach">*</span>}
-        </span>
-      )}
-      <div className="relative flex items-start">
-        {leadingIcon && (
-          <span className={clsx(
-            "pointer-events-none absolute left-4 top-4",
-            tone === 'light' ? 'text-slate-400' : 'text-white/40'
-          )}>
-            {leadingIcon}
-          </span>
+  ({ label, error, hint, className, rows = 4, ...rest }, ref) => {
+    const hasError = !!error;
+
+    return (
+      <div className="w-full">
+        {label && (
+          <label className="block text-[12px] font-medium text-stone-500 mb-1.5">
+            {label}
+          </label>
         )}
         <textarea
           ref={ref}
-          className={clsx(baseStyles, tones[tone], leadingIcon && "pl-12", errorText && "border-red-400/50", className)}
+          rows={rows}
+          className={clsx(
+            "w-full bg-stone-50 border rounded-lg px-4 py-3 text-[14px] text-stone-900 placeholder:text-stone-400 transition-all duration-150 outline-none resize-y",
+            "hover:bg-stone-100",
+            "focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10",
+            hasError
+              ? "border-red-300 focus:border-red-500 focus:ring-red-500/10"
+              : "border-transparent",
+            className
+          )}
           {...rest}
         />
-      </div>
-      {errorText ? (
-        <span className="text-xs text-red-500 font-medium">{errorText}</span>
-      ) : (
-        helperText && (
-          <span className={clsx(
-            "text-xs",
-            tone === 'light' ? 'text-slate-400' : 'text-white/40'
+        {(error || hint) && (
+          <p className={clsx(
+            "mt-1.5 text-[12px]",
+            hasError ? "text-red-600" : "text-stone-500"
           )}>
-            {helperText}
-          </span>
-        )
-      )}
-    </label>
-  )
+            {error || hint}
+          </p>
+        )}
+      </div>
+    );
+  }
 );
 
 TextArea.displayName = "TextArea";

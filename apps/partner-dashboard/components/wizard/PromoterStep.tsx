@@ -16,7 +16,9 @@ import {
     PieChart,
     Receipt,
     Wallet,
-    Building2
+    Building2,
+    Info,
+    Sparkles
 } from "lucide-react";
 
 interface PromoterStepProps {
@@ -224,224 +226,250 @@ export function PromoterStep({ formData, updateFormData }: PromoterStepProps) {
     const formatter = new Intl.NumberFormat('en-IN');
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-10">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-[20px] font-bold text-[#1d1d1f]">Revenue & Commission Summary</h2>
-                    <p className="text-[13px] text-[#86868b] mt-1">
-                        Complete financial breakdown based on your ticket and table configuration
-                    </p>
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-xl shadow-indigo-100 ring-4 ring-indigo-50">
+                        <TrendingUp className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h2 className="text-headline">Sales & Insights</h2>
+                        <p className="text-label mt-1">
+                            Complete financial projection & commission modeling
+                        </p>
+                    </div>
                 </div>
-                <div className={`px-3 py-1.5 rounded-full text-[12px] font-semibold ${formData.promotersEnabled
-                    ? "bg-[#34c759]/10 text-[#34c759]"
-                    : "bg-[#86868b]/10 text-[#86868b]"
+                <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${formData.promotersEnabled
+                    ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                    : "surface-secondary text-muted border-default"
                     }`}>
-                    {formData.promotersEnabled ? "✓ Promoters Enabled" : "Promoters Disabled"}
+                    {formData.promotersEnabled ? "✓ Active Pipeline" : "Pipeline Idle"}
                 </div>
             </div>
 
             {/* Grand Total Summary Cards */}
-            <div className="grid grid-cols-4 gap-4">
-                <div className="p-4 rounded-2xl bg-[#007aff]/5 border border-[#007aff]/10">
-                    <div className="flex items-center gap-2 mb-2">
-                        <DollarSign className="w-4 h-4 text-[#007aff]" />
-                        <p className="text-[11px] font-medium text-[#007aff] uppercase tracking-wide">Inventory Value</p>
-                    </div>
-                    <p className="text-[24px] font-bold text-[#1d1d1f]">₹{formatter.format(summary.faceValueRevenue)}</p>
-                    <p className="text-[11px] text-[#007aff]/70">{summary.totalInventory} units @ list price</p>
-                </div>
-                <div className="p-4 rounded-2xl bg-[#34c759]/5 border border-[#34c759]/10">
-                    <div className="flex items-center gap-2 mb-2">
-                        <Percent className="w-4 h-4 text-[#34c759]" />
-                        <p className="text-[11px] font-medium text-[#34c759] uppercase tracking-wide">Buyer Discounts</p>
-                    </div>
-                    <p className="text-[24px] font-bold text-[#34c759]">₹{formatter.format(summary.totalDiscount)}</p>
-                    <p className="text-[11px] text-[#34c759]/70">{summary.discountPercent}% of inventory value</p>
-                </div>
-                <div className="p-4 rounded-2xl bg-[#F44A22]/5 border border-[#F44A22]/10">
-                    <div className="flex items-center gap-2 mb-2">
-                        <TrendingUp className="w-4 h-4 text-[#F44A22]" />
-                        <p className="text-[11px] font-medium text-[#F44A22] uppercase tracking-wide">Promoter Pool</p>
-                    </div>
-                    <p className="text-[24px] font-bold text-[#F44A22]">₹{formatter.format(summary.totalCommission)}</p>
-                    <p className="text-[11px] text-[#F44A22]/70">{summary.commissionPercent}% of inventory value</p>
-                </div>
-                <div className="p-4 rounded-2xl bg-[#1d1d1f] border border-[#1d1d1f]/10 shadow-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                        <Wallet className="w-4 h-4 text-[#34c759]" />
-                        <p className="text-[11px] font-medium text-[#34c759] uppercase tracking-wide">Net Revenue</p>
-                    </div>
-                    <p className="text-[24px] font-bold text-white">₹{formatter.format(summary.netRevenue)}</p>
-                    <p className="text-[11px] text-[#34c759] font-medium">₹{formatter.format(summary.faceValueRevenue - summary.totalDiscount - summary.totalCommission)} expected</p>
-                </div>
-            </div>
-
-            {/* Revenue Split Visualization */}
-            <div className="p-5 rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white">
-                <div className="flex items-center gap-2 mb-4">
-                    <PieChart className="w-4 h-4 text-[#86868b]" />
-                    <p className="text-[13px] font-semibold text-[#1d1d1f]">Revenue Distribution</p>
-                </div>
-
-                <div className="h-10 rounded-xl overflow-hidden flex">
-                    <div
-                        className="bg-[#34c759] flex items-center justify-center transition-all"
-                        style={{ width: `${100 - summary.commissionPercent}%` }}
-                    >
-                        <span className="text-[11px] font-bold text-white">Your Revenue</span>
-                    </div>
-                    <div
-                        className="bg-[#F44A22] flex items-center justify-center transition-all"
-                        style={{ width: `${summary.commissionPercent}%` }}
-                    >
-                        <span className="text-[11px] font-bold text-white">Promoters</span>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="card-elevated p-6 space-y-4 border-l-4 border-l-blue-500">
                     <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full bg-[#34c759]" />
-                        <span className="text-[13px] text-[#1d1d1f]">₹{formatter.format(summary.netRevenue)} ({100 - summary.commissionPercent}%)</span>
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                            <Building2 className="w-4 h-4" />
+                        </div>
+                        <p className="text-label uppercase tracking-widest text-blue-600">Scale</p>
+                    </div>
+                    <div>
+                        <p className="text-stat font-black tracking-tight">₹{formatter.format(summary.faceValueRevenue)}</p>
+                        <p className="text-body-sm text-muted mt-1">{summary.totalInventory} total units</p>
+                    </div>
+                </div>
+
+                <div className="card-elevated p-6 space-y-4 border-l-4 border-l-teal-500">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
+                            <Percent className="w-4 h-4" />
+                        </div>
+                        <p className="text-label uppercase tracking-widest text-teal-600">Incentives</p>
+                    </div>
+                    <div>
+                        <p className="text-stat font-black tracking-tight">₹{formatter.format(summary.totalDiscount)}</p>
+                        <p className="text-body-sm text-muted mt-1">{summary.discountPercent}% market discount</p>
+                    </div>
+                </div>
+
+                <div className="card-elevated p-6 space-y-4 border-l-4 border-l-rose-500">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                            <Users className="w-4 h-4" />
+                        </div>
+                        <p className="text-label uppercase tracking-widest text-rose-600">Network</p>
+                    </div>
+                    <div>
+                        <p className="text-stat font-black tracking-tight">₹{formatter.format(summary.totalCommission)}</p>
+                        <p className="text-body-sm text-muted mt-1">{summary.commissionPercent}% network fee</p>
+                    </div>
+                </div>
+
+                <div className="rounded-[2rem] p-6 space-y-4 bg-stone-900 text-white shadow-2xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform duration-700">
+                        <Wallet className="w-20 h-20" />
                     </div>
                     <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full bg-[#F44A22]" />
-                        <span className="text-[13px] text-[#1d1d1f]">₹{formatter.format(summary.totalCommission)} ({summary.commissionPercent}%)</span>
+                        <div className="w-8 h-8 rounded-lg bg-white/10 text-emerald-400 flex items-center justify-center">
+                            <TrendingUp className="w-4 h-4" />
+                        </div>
+                        <p className="text-label uppercase tracking-widest text-stone-400">Net Yield</p>
+                    </div>
+                    <div>
+                        <p className="text-stat font-black tracking-tight text-white">₹{formatter.format(summary.netRevenue)}</p>
+                        <p className="text-body-sm text-stone-400 mt-1">Est. realization</p>
                     </div>
                 </div>
             </div>
 
-            {/* Detailed Balance Sheet */}
-            <div className="rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white overflow-hidden">
-                <div className="p-4 border-b border-[rgba(0,0,0,0.06)] bg-[#f5f5f7]">
-                    <div className="flex items-center gap-2">
-                        <Receipt className="w-4 h-4 text-[#86868b]" />
-                        <p className="text-[13px] font-semibold text-[#1d1d1f]">Detailed Breakdown</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Revenue Split Visualization */}
+                <div className="card-elevated p-8 space-y-6">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-stone-100 text-stone-600 flex items-center justify-center">
+                                <PieChart className="w-4 h-4" />
+                            </div>
+                            <h3 className="text-headline-sm">Yield Analysis</h3>
+                        </div>
+                    </div>
+
+                    <div className="h-14 rounded-2xl overflow-hidden flex shadow-inner bg-stone-100 p-1">
+                        <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${100 - summary.commissionPercent - summary.discountPercent}%` }}
+                            className="h-full bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg"
+                        >
+                            <span className="text-[10px] font-black text-white uppercase tracking-tighter">Yield</span>
+                        </motion.div>
+                        <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${summary.discountPercent}%` }}
+                            className="h-full bg-teal-400 flex items-center justify-center"
+                        >
+                            <span className="text-[10px] font-black text-white uppercase tracking-tighter">Disc.</span>
+                        </motion.div>
+                        <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${summary.commissionPercent}%` }}
+                            className="h-full bg-rose-500 rounded-r-xl flex items-center justify-center"
+                        >
+                            <span className="text-[10px] font-black text-white uppercase tracking-tighter">Comm.</span>
+                        </motion.div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between p-3 rounded-2xl surface-secondary border border-default">
+                            <div className="flex items-center gap-3">
+                                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                <span className="text-body-sm font-bold">Venue Retention</span>
+                            </div>
+                            <span className="text-body-sm font-black">₹{formatter.format(summary.netRevenue)}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 rounded-2xl surface-secondary border border-default">
+                            <div className="flex items-center gap-3">
+                                <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" />
+                                <span className="text-body-sm font-bold">Network Fees</span>
+                            </div>
+                            <span className="text-body-sm font-black">₹{formatter.format(summary.totalCommission)}</span>
+                        </div>
                     </div>
                 </div>
 
-                {/* Table Header */}
-                <div className="grid grid-cols-8 gap-2 px-4 py-3 bg-[#f5f5f7]/50 text-[10px] font-bold text-[#86868b] uppercase tracking-wide border-b border-[rgba(0,0,0,0.04)]">
-                    <div className="col-span-2">Item</div>
-                    <div className="text-right">Price</div>
-                    <div className="text-right">Qty</div>
-                    <div className="text-right">Value</div>
-                    <div className="text-right">Discount</div>
-                    <div className="text-right">Comm.</div>
-                    <div className="text-right">Net</div>
-                </div>
-
-                {/* Ticket Section */}
-                {lineItems.filter(i => i.type === "ticket").length > 0 && (
-                    <>
-                        <div className="px-4 py-2 bg-[#007aff]/5 flex items-center gap-2">
-                            <Ticket className="w-3.5 h-3.5 text-[#007aff]" />
-                            <span className="text-[11px] font-bold text-[#007aff] uppercase tracking-wide">Tickets</span>
-                        </div>
-                        {lineItems.filter(i => i.type === "ticket").map((item, i) => (
-                            <div key={i} className="grid grid-cols-8 gap-2 px-4 py-3 border-b border-[rgba(0,0,0,0.04)] hover:bg-[#f5f5f7]/30 transition-colors">
-                                <div className="col-span-2">
-                                    <p className="text-[13px] font-medium text-[#1d1d1f]">{item.name}</p>
-                                    <p className="text-[10px] text-[#86868b]">
-                                        {item.commissionValue}{item.commissionType === "percent" ? "%" : "₹"} comm.
-                                        {item.discountValue && item.discountValue > 0 && (
-                                            <span className="text-[#34c759]"> • {item.discountValue}{item.discountType === "percent" ? "%" : "₹"} disc.</span>
-                                        )}
-                                    </p>
-                                </div>
-                                <div className="text-right text-[13px] text-[#1d1d1f]">₹{formatter.format(item.price)}</div>
-                                <div className="text-right text-[13px] text-[#1d1d1f]">{item.quantity}</div>
-                                <div className="text-right text-[13px] text-[#1d1d1f]">₹{formatter.format(item.faceValueRevenue)}</div>
-                                <div className="text-right text-[13px] text-[#34c759]">-{item.totalDiscount > 0 ? `₹${formatter.format(item.totalDiscount)}` : "₹0"}</div>
-                                <div className="text-right text-[13px] text-[#F44A22]">-₹{formatter.format(item.totalCommission)}</div>
-                                <div className="text-right text-[13px] font-bold text-[#1d1d1f]">₹{formatter.format(item.netRevenue)}</div>
+                {/* Detailed Balance Sheet */}
+                <div className="lg:col-span-2 card-elevated overflow-hidden flex flex-col">
+                    <div className="p-6 border-b border-default bg-stone-50/50 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-stone-100 text-stone-600 flex items-center justify-center">
+                                <Receipt className="w-4 h-4" />
                             </div>
-                        ))}
-                        {/* Ticket Subtotal */}
-                        <div className="grid grid-cols-8 gap-2 px-4 py-2 bg-[#007aff]/5 text-[12px] font-semibold">
-                            <div className="col-span-2 text-[#007aff]">Ticket Subtotal</div>
-                            <div></div>
-                            <div className="text-right text-[#1d1d1f]">{summary.ticketInventory}</div>
-                            <div className="text-right text-[#1d1d1f]">₹{formatter.format(summary.ticketFaceValue)}</div>
-                            <div className="text-right text-[#34c759]">-₹{formatter.format(summary.ticketDiscount)}</div>
-                            <div className="text-right text-[#F44A22]">-₹{formatter.format(summary.ticketCommission)}</div>
-                            <div className="text-right text-[#1d1d1f]">₹{formatter.format(summary.ticketNetRevenue)}</div>
+                            <h3 className="text-headline-sm">Inventory Ledger</h3>
                         </div>
-                    </>
-                )}
+                    </div>
 
-                {/* Table Section */}
-                {lineItems.filter(i => i.type === "table").length > 0 && (
-                    <>
-                        <div className="px-4 py-2 bg-[#af52de]/5 flex items-center gap-2 mt-1">
-                            <Wine className="w-3.5 h-3.5 text-[#af52de]" />
-                            <span className="text-[11px] font-bold text-[#af52de] uppercase tracking-wide">Tables</span>
-                        </div>
-                        {lineItems.filter(i => i.type === "table").map((item, i) => (
-                            <div key={i} className="grid grid-cols-8 gap-2 px-4 py-3 border-b border-[rgba(0,0,0,0.04)] hover:bg-[#f5f5f7]/30 transition-colors">
-                                <div className="col-span-2">
-                                    <p className="text-[13px] font-medium text-[#1d1d1f]">{item.name}</p>
-                                    <p className="text-[10px] text-[#86868b]">
-                                        {item.commissionValue}{item.commissionType === "percent" ? "%" : "₹"} comm.
-                                        {item.totalDiscount > 0 && (
-                                            <span className="text-[#34c759]"> • {item.discountValue}{item.discountType === "percent" ? "%" : "₹"} disc.</span>
-                                        )}
-                                    </p>
-                                </div>
-                                <div className="text-right text-[13px] text-[#1d1d1f]">₹{formatter.format(item.price)}</div>
-                                <div className="text-right text-[13px] text-[#1d1d1f]">{item.quantity}</div>
-                                <div className="text-right text-[13px] text-[#1d1d1f]">₹{formatter.format(item.faceValueRevenue)}</div>
-                                <div className="text-right text-[13px] text-[#34c759]">-{item.totalDiscount > 0 ? `₹${formatter.format(item.totalDiscount)}` : "₹0"}</div>
-                                <div className="text-right text-[13px] text-[#F44A22]">-₹{formatter.format(item.totalCommission)}</div>
-                                <div className="text-right text-[13px] font-bold text-[#1d1d1f]">₹{formatter.format(item.netRevenue)}</div>
-                            </div>
-                        ))}
-                        {/* Table Subtotal */}
-                        <div className="grid grid-cols-8 gap-2 px-4 py-2 bg-[#af52de]/5 text-[12px] font-semibold">
-                            <div className="col-span-2 text-[#af52de]">Table Subtotal</div>
-                            <div></div>
-                            <div className="text-right text-[#1d1d1f]">{summary.tableInventory}</div>
-                            <div className="text-right text-[#1d1d1f]">₹{formatter.format(summary.tableFaceValue)}</div>
-                            <div className="text-right text-[#34c759]">-₹{formatter.format(summary.tableDiscount)}</div>
-                            <div className="text-right text-[#F44A22]">-₹{formatter.format(summary.tableCommission)}</div>
-                            <div className="text-right text-[#1d1d1f]">₹{formatter.format(summary.tableNetRevenue)}</div>
-                        </div>
-                    </>
-                )}
-
-                {/* Grand Total */}
-                <div className="grid grid-cols-8 gap-2 px-4 py-4 bg-[#1d1d1f] text-white text-[14px] font-bold">
-                    <div className="col-span-2 uppercase tracking-wider">Grand Total</div>
-                    <div></div>
-                    <div className="text-right">{summary.totalInventory}</div>
-                    <div className="text-right">₹{formatter.format(summary.faceValueRevenue)}</div>
-                    <div className="text-right text-[#34c759]">-₹{formatter.format(summary.totalDiscount)}</div>
-                    <div className="text-right text-[#F44A22]">-₹{formatter.format(summary.totalCommission)}</div>
-                    <div className="text-right text-[#34c759] font-black underline decoration-2 underline-offset-4">₹{formatter.format(summary.netRevenue)}</div>
+                    <div className="flex-1 overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-default bg-stone-50/30">
+                                    <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-muted">Item Description</th>
+                                    <th className="px-4 py-4 text-right text-[10px] font-black uppercase tracking-widest text-muted">Metrics</th>
+                                    <th className="px-4 py-4 text-right text-[10px] font-black uppercase tracking-widest text-muted">Facial</th>
+                                    <th className="px-4 py-4 text-right text-[10px] font-black uppercase tracking-widest text-muted">Retention</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-subtle">
+                                {lineItems.map((item, i) => (
+                                    <tr key={i} className="hover:bg-stone-50/50 transition-colors group">
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.type === 'ticket' ? 'bg-blue-50 text-blue-600' : 'bg-rose-50 text-rose-600'}`}>
+                                                    {item.type === 'ticket' ? <Ticket className="w-4 h-4" /> : <Wine className="w-4 h-4" />}
+                                                </div>
+                                                <div>
+                                                    <p className="text-body font-bold">{item.name}</p>
+                                                    <p className="text-[11px] text-muted">
+                                                        {item.commissionValue}{item.commissionType === "percent" ? "%" : "₹"} comm.
+                                                        {item.discountValue > 0 && <span className="text-emerald-600"> • {item.discountValue}{item.discountType === "percent" ? "%" : "₹"} disc.</span>}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-5 text-right">
+                                            <p className="text-body-sm font-medium">₹{formatter.format(item.price)}</p>
+                                            <p className="text-[11px] text-muted">× {item.quantity} units</p>
+                                        </td>
+                                        <td className="px-4 py-5 text-right">
+                                            <p className="text-body-sm font-bold">₹{formatter.format(item.faceValueRevenue)}</p>
+                                        </td>
+                                        <td className="px-4 py-5 text-right">
+                                            <p className="text-body-sm font-black text-emerald-600">₹{formatter.format(item.netRevenue)}</p>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot>
+                                <tr className="bg-stone-900 text-white">
+                                    <td className="px-6 py-5 rounded-bl-[2.5rem]">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-stone-400">Projected Aggregate</p>
+                                    </td>
+                                    <td className="px-4 py-5 text-right">
+                                        <p className="text-body-sm font-bold">{summary.totalInventory} Units</p>
+                                    </td>
+                                    <td className="px-4 py-5 text-right">
+                                        <p className="text-body-sm font-bold text-stone-300">₹{formatter.format(summary.faceValueRevenue)}</p>
+                                    </td>
+                                    <td className="px-4 py-5 text-right rounded-br-[2.5rem]">
+                                        <p className="text-stat-sm font-black text-emerald-400">₹{formatter.format(summary.netRevenue)}</p>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                 </div>
-            </div>
-
-            {/* Summary Notes */}
-            <div className="p-4 rounded-2xl bg-[#f5f5f7] space-y-2">
-                <p className="text-[12px] font-medium text-[#86868b]">Notes:</p>
-                <ul className="text-[11px] text-[#86868b] space-y-1 list-disc list-inside">
-                    <li>Inventory Value = Total potential revenue if all inventory sells at full list price</li>
-                    <li>Buyer Discounts = Savings provided to customers via promoter links (directly reduces revenue)</li>
-                    <li>Promoter Pool = Commission earned by promoters for their sales efforts</li>
-                    <li>Net Revenue = Your final earnings after all incentives and commissions are deducted</li>
-                </ul>
             </div>
 
             {/* Empty State */}
             {lineItems.length === 0 && (
-                <div className="p-8 rounded-2xl bg-[#f5f5f7] text-center">
-                    <AlertCircle className="w-12 h-12 text-[#ff9500] mx-auto mb-4" />
-                    <h3 className="text-[17px] font-semibold text-[#1d1d1f] mb-2">No Items Configured</h3>
-                    <p className="text-[13px] text-[#86868b] max-w-md mx-auto">
-                        Go back to the Tickets and Tables steps to add items before viewing the financial summary.
+                <div className="p-16 rounded-[3rem] surface-secondary border border-default text-center">
+                    <div className="w-20 h-20 rounded-[2rem] bg-amber-50 text-amber-500 flex items-center justify-center mx-auto mb-6 shadow-inner">
+                        <AlertCircle className="w-10 h-10" />
+                    </div>
+                    <h3 className="text-display-sm mb-2">Ledger Inactive</h3>
+                    <p className="text-body text-secondary max-w-md mx-auto">
+                        Please configure your tickets and table inventory in the previous steps to visualize your revenue matrix.
                     </p>
                 </div>
             )}
+
+            {/* Strategic Notes */}
+            <div className="card p-8 border-l-4 border-l-stone-600 bg-stone-50/30 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-stone-400 shrink-0">
+                        <Info className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h4 className="text-body font-bold mb-1">Valuation Logic</h4>
+                        <p className="text-body-sm text-muted leading-relaxed">
+                            Inventory value represents your maximum upside. Net revenue factors in all market incentives and platform distribution fees.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-emerald-400 shrink-0">
+                        <Sparkles className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h4 className="text-body font-bold mb-1">Strategic Realization</h4>
+                        <p className="text-body-sm text-muted leading-relaxed">
+                            These figures are projections based on 100% sell-out. In-app analytics will track actual realization in real-time post-publish.
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

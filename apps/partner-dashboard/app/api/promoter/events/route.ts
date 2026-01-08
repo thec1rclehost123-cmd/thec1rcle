@@ -5,7 +5,7 @@ import { getApprovedPartnerIds } from "@/lib/server/promoterConnectionStore";
 /**
  * GET /api/promoter/events
  * List events available for promoters to sell
- * Only shows events from connected hosts/clubs with promoter commissions enabled
+ * Only shows events from connected hosts/venues with promoter commissions enabled
  */
 export async function GET(req: NextRequest) {
     try {
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
             commissionRate: event.promoterSettings?.defaultCommission || 15,
             commissionType: event.promoterSettings?.defaultCommissionType || "percent",
             hostId: event.hostId || event.creatorId,
-            clubId: event.venueId || event.clubId,
+            venueId: event.venueId || event.venueId,
             tickets: (event.tickets || []).map((t: any) => ({
                 id: t.id,
                 name: t.name,

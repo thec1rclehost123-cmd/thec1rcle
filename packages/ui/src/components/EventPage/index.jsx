@@ -199,7 +199,9 @@ export default function EventDetailPage({
             >
                 <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">
                     <div>
-                        <p className="font-bold">{event?.host || host?.name || "Host Name"}</p>
+                        <Link href={host?.type === 'venue' ? `/venue/${host.slug || host.id}` : `/host/${host.slug || host.handle?.replace('@', '') || host.id}`} className="hover:text-white transition-colors cursor-pointer">
+                            <p className="font-bold">{event?.host || host?.name || "Host Name"}</p>
+                        </Link>
                         <p className="text-[11px] opacity-70">
                             {formatEventDate(event?.startDate || event?.date)} · {formatEventTime(event?.time || event?.startTime, event?.startDate)}
                         </p>
@@ -253,7 +255,7 @@ export default function EventDetailPage({
 
                             <div className="flex flex-wrap items-center gap-5">
                                 <p className="text-[13px] font-medium text-white/70">
-                                    Hosted by <span className="text-white font-black underline underline-offset-4 decoration-orange/30 cursor-pointer">{host?.name || event?.host || "Host Name"}</span>
+                                    Hosted by <Link href={host?.type === 'venue' ? `/venue/${host.slug || host.id}` : `/host/${host.slug || host.handle?.replace('@', '') || host.id}`} className="text-white font-black underline underline-offset-4 decoration-orange/30 cursor-pointer">{host?.name || event?.host || "Host Name"}</Link>
                                 </p>
 
                                 <div className="h-4 w-[1px] bg-white/[0.1] hidden sm:block" />
@@ -523,17 +525,17 @@ export default function EventDetailPage({
                             transition={{ duration: 0.55, delay: 0.15 }}
                             className="rounded-[36px] border border-white/10 bg-black/70 p-6 shadow-sm backdrop-blur-md space-y-6"
                         >
-                            <div className="flex flex-wrap items-center gap-4 group">
-                                <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-white/15 transition-all">
+                            <Link href={host?.type === 'venue' ? `/venue/${host.slug || host.id}` : `/host/${host.slug || host.handle?.replace('@', '') || host.id}`} className="flex flex-wrap items-center gap-4 group cursor-pointer">
+                                <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-white/15 transition-all group-hover:border-white group-hover:scale-105">
                                     <Image src={host?.avatar || "/events/holi-edit.svg"} alt={host?.name || "Host"} fill className="object-cover" />
                                 </div>
                                 <div>
-                                    <p className="text-lg font-bold uppercase tracking-tight text-white">{host?.name || event?.host || "Host Name"}</p>
+                                    <p className="text-lg font-bold uppercase tracking-tight text-white group-hover:text-orange transition-colors">{host?.name || event?.host || "Host Name"}</p>
                                     <p className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-widest">
-                                        {host?.followers || 0} followers · {host?.location || "Global"}
+                                        {(host?.followersCount || host?.followers || 0).toLocaleString()} followers · {host?.location || "Global"}
                                     </p>
                                 </div>
-                            </div>
+                            </Link>
                             <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{host?.bio || "No bio available for this host."}</p>
                             <div className="flex flex-wrap gap-3">
                                 <button

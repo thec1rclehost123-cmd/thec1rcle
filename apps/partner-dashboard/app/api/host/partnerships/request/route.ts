@@ -3,13 +3,13 @@ import { requestPartnership } from "@/lib/server/partnershipStore";
 
 export async function POST(req: NextRequest) {
     try {
-        const { hostId, clubId, hostName, clubName } = await req.json();
+        const { hostId, venueId, hostName, venueName } = await req.json();
 
-        if (!hostId || !clubId) {
-            return NextResponse.json({ error: "hostId and clubId are required" }, { status: 400 });
+        if (!hostId || !venueId) {
+            return NextResponse.json({ error: "hostId and venueId are required" }, { status: 400 });
         }
 
-        const result = await requestPartnership(hostId, clubId, hostName, clubName);
+        const result = await requestPartnership(hostId, venueId, hostName, venueName);
         return NextResponse.json(result);
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });

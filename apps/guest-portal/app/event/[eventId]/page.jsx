@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import EventRSVP from "../../../components/EventRSVP";
 import { getEvent, getEventInterested, getEventGuestlist } from "../../../lib/server/eventStore";
-import { getHostProfile } from "../../../data/hosts";
+import { getHostByHandle } from "../../../lib/server/hostStore";
+import { getVenueBySlug } from "../../../lib/server/venueStore";
+import { getHostProfile as getMockHostProfile } from "../../../data/hosts";
 
 
 export async function generateMetadata({ params }) {
@@ -85,7 +87,45 @@ export default async function EventDetailPage({ params }) {
     );
   }
 
-  const hostProfile = getHostProfile(event.host);
+  // Determine the primary host profile
+  let hostProfile = null;
+
+  // 1. Try to fetch real host profile
+  if (event.host) {
+    hostProfile = await getHostByHandle(event.host);
+    if (hostProfile) hostProfile.type = "host";
+  }
+
+  // 2. If no host profile, try to fetch venue profile if venue exists
+  if (!hostProfile && event.venue) {
+    // Assuming venue slug is a kebab-case version of name if not provided
+    const venueSlug = event.venueSlug || event.venue.toLowerCase().replace(/\s+/g, '-');
+    const venueProfile = await getVenueBySlug(venueSlug);
+    if (venueProfile) {
+      hostProfile = {
+        ...venueProfile,
+        type: "venue",
+        avatar: venueProfile.photoURL || venueProfile.image
+      };
+    }
+  }
+
+  // 3. Fallback to mock data if still nothing
+  if (!hostProfile) {
+    const mock = getMockHostProfile(event.host);
+    hostProfile = {
+      ...mock,
+      type: "host",
+      handle: event.host || "@guest",
+      slug: (event.host || "@guest").replace("@", "").replace(/\./g, "-")
+    };
+  }
+
+  // Ensure hostProfile always has a type and fallback slug
+  if (hostProfile && !hostProfile.type) hostProfile.type = "host";
+  if (hostProfile && !hostProfile.slug) {
+    hostProfile.slug = hostProfile.handle ? hostProfile.handle.replace("@", "").replace(/\./g, "-") : hostProfile.id;
+  }
 
   // Fetch live social proof
   const interestedData = await getEventInterested(event.id);

@@ -12,7 +12,10 @@
         "./events": "./events.js",
         "./surge": "./surge.js",
         "./promo-service": "./promo-service.js",
-        "./time": "./time.js"
+        "./time": "./time.js",
+        "./ledger-engine": "./ledger-engine.js",
+        "./payout-engine": "./payout-engine.js",
+        "./entitlement-engine": "./entitlement-engine.js"
     },
     "dependencies": {
         "firebase": "^12.6.0",

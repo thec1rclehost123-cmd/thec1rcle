@@ -1,6 +1,6 @@
 /**
  * Slot Request Store
- * Manages slot requests between hosts and clubs for event scheduling
+ * Manages slot requests between hosts and venues for event scheduling
  */
 
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
@@ -8,7 +8,7 @@ import { Timestamp, FieldValue } from "firebase-admin/firestore";
 import { randomUUID } from "node:crypto";
 
 const SLOTS_COLLECTION = "slot_requests";
-const CALENDAR_COLLECTION = "club_calendar";
+const CALENDAR_COLLECTION = "venue_calendar";
 const AUDIT_LOGS_COLLECTION = "audit_logs";
 
 async function createAuditLog(db, { type, entityId, action, actorId, actorRole, metadata = {} }) {
@@ -30,8 +30,8 @@ export async function createSlotRequest({
     eventId,
     hostId,
     hostName,
-    clubId,
-    clubName,
+    venueId,
+    venueName,
     requestedDate,
     requestedStartTime,
     requestedEndTime,
@@ -47,8 +47,8 @@ export async function createSlotRequest({
         eventId,
         hostId,
         hostName,
-        clubId,
-        clubName,
+        venueId,
+        venueName,
         requestedDate,
         requestedStartTime,
         requestedEndTime,
@@ -74,11 +74,11 @@ export async function createSlotRequest({
         action: "created",
         actorId: hostId,
         actorRole: "host",
-        metadata: { clubId, requestedDate, requestedStartTime, requestedEndTime }
+        metadata: { venueId, requestedDate, requestedStartTime, requestedEndTime }
     });
 
     // Also mark the calendar slot as tentative
-    await updateCalendarSlot(clubId, requestedDate, {
+    await updateCalendarSlot(venueId, requestedDate, {
         status: "tentative",
         slotRequestId: id,
         hostId,
@@ -106,10 +106,10 @@ export async function getSlotRequest(id) {
 /**
  * List slot requests for a club
  */
-export async function listSlotRequests({ clubId, hostId, status, limit = 50 }) {
+export async function listSlotRequests({ venueId, hostId, status, limit = 50 }) {
     if (!isFirebaseConfigured()) {
         let results = [...fallbackSlots];
-        if (clubId) results = results.filter(s => s.clubId === clubId);
+        if (venueId) results = results.filter(s => s.venueId === venueId);
         if (hostId) results = results.filter(s => s.hostId === hostId);
         if (status) results = results.filter(s => s.status === status);
         return results.slice(0, limit);
@@ -118,7 +118,7 @@ export async function listSlotRequests({ clubId, hostId, status, limit = 50 }) {
     const db = getAdminDb();
     let query = db.collection(SLOTS_COLLECTION);
 
-    if (clubId) query = query.where("clubId", "==", clubId);
+    if (venueId) query = query.where("venueId", "==", venueId);
     if (hostId) query = query.where("hostId", "==", hostId);
     if (status) query = query.where("status", "==", status);
 
@@ -176,7 +176,7 @@ export async function approveSlotRequest(id, approvedBy, notes = "", options = {
     });
 
     // Update calendar to booked
-    await updateCalendarSlot(slotRequest.clubId, slotRequest.requestedDate, {
+    await updateCalendarSlot(slotRequest.venueId, slotRequest.requestedDate, {
         status: "booked",
         eventId: slotRequest.eventId,
         hostId: slotRequest.hostId,
@@ -243,7 +243,7 @@ export async function rejectSlotRequest(id, rejectedBy, reason = "") {
     });
 
     // Release the tentative calendar slot
-    await releaseCalendarSlot(slotRequest.clubId, slotRequest.requestedDate, slotRequest.id);
+    await releaseCalendarSlot(slotRequest.venueId, slotRequest.requestedDate, slotRequest.id);
 
     // Also update the event lifecycle to 'needs_changes'
     try {
@@ -260,12 +260,12 @@ export async function rejectSlotRequest(id, rejectedBy, reason = "") {
 }
 
 /**
- * Counter-propose an alternative slot (Club action)
+ * Counter-propose an alternative slot (Venue action)
  */
-export async function counterProposeSlot(id, clubId, actor, alternativeDate, alternativeStartTime, alternativeEndTime, note = "") {
+export async function counterProposeSlot(id, venueId, actor, alternativeDate, alternativeStartTime, alternativeEndTime, note = "") {
     const slotRequest = await getSlotRequest(id);
     if (!slotRequest) throw new Error("Slot request not found");
-    if (slotRequest.clubId !== clubId) throw new Error("Unauthorized");
+    if (slotRequest.venueId !== venueId) throw new Error("Unauthorized");
 
     const db = getAdminDb();
     const now = new Date().toISOString();
@@ -293,7 +293,7 @@ export async function counterProposeSlot(id, clubId, actor, alternativeDate, alt
         entityId: id,
         action: "counter_proposed",
         actorId: actor.uid,
-        actorRole: "club",
+        actorRole: "venue",
         metadata: {
             originalDate: slotRequest.requestedDate,
             alternativeDate,
@@ -302,7 +302,7 @@ export async function counterProposeSlot(id, clubId, actor, alternativeDate, alt
     });
 
     // Release the original tentative calendar slot
-    await releaseCalendarSlot(slotRequest.clubId, slotRequest.requestedDate, slotRequest.id);
+    await releaseCalendarSlot(slotRequest.venueId, slotRequest.requestedDate, slotRequest.id);
 
     return { success: true };
 }
@@ -310,15 +310,15 @@ export async function counterProposeSlot(id, clubId, actor, alternativeDate, alt
 /**
  * Helper: Update calendar slot status
  */
-export async function updateCalendarSlot(clubId, date, slotData) {
+export async function updateCalendarSlot(venueId, date, slotData) {
     if (!isFirebaseConfigured()) return;
 
     const db = getAdminDb();
-    const calendarId = `${clubId}_${date}`;
+    const calendarId = `${venueId}_${date}`;
     const calendarRef = db.collection(CALENDAR_COLLECTION).doc(calendarId);
 
     const doc = await calendarRef.get();
-    const existing = doc.exists ? doc.data() : { clubId, date, slots: [] };
+    const existing = doc.exists ? doc.data() : { venueId, date, slots: [] };
 
     const newSlot = {
         startTime: slotData.startTime,
@@ -349,11 +349,11 @@ export async function updateCalendarSlot(clubId, date, slotData) {
 /**
  * Helper: Release a tentative calendar slot
  */
-async function releaseCalendarSlot(clubId, date, slotRequestId) {
+async function releaseCalendarSlot(venueId, date, slotRequestId) {
     if (!isFirebaseConfigured()) return;
 
     const db = getAdminDb();
-    const calendarId = `${clubId}_${date}`;
+    const calendarId = `${venueId}_${date}`;
     const calendarRef = db.collection(CALENDAR_COLLECTION).doc(calendarId);
 
     const doc = await calendarRef.get();

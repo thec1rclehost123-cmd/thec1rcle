@@ -1,5 +1,5 @@
 /**
- * THE C1RCLE - Club Staff RBAC Service (Phase 1)
+ * THE C1RCLE - Venue Staff RBAC Service (Phase 1)
  * Service module for staff management, roles, and device binding
  * Location: apps/partner-dashboard/lib/server/staffService.js
  */
@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 
 // Collection names
-const CLUB_STAFF_COLLECTION = "club_staff";
+const CLUB_STAFF_COLLECTION = "venue_staff";
 const BOUND_DEVICES_COLLECTION = "bound_devices";
 
 // In-memory fallback
@@ -155,7 +155,7 @@ export function getPermissions(staffMember) {
 /**
  * Invite a new staff member
  */
-export async function inviteStaff(clubId, inviteData, invitedBy) {
+export async function inviteStaff(venueId, inviteData, invitedBy) {
     const { email, name, role, phone = null } = inviteData;
 
     // Validate role
@@ -164,7 +164,7 @@ export async function inviteStaff(clubId, inviteData, invitedBy) {
     }
 
     // Check if already invited
-    const existing = await getStaffByEmail(clubId, email);
+    const existing = await getStaffByEmail(venueId, email);
     if (existing) {
         return { success: false, error: 'Staff member already exists with this email' };
     }
@@ -174,7 +174,7 @@ export async function inviteStaff(clubId, inviteData, invitedBy) {
 
     const staffMember = {
         id: randomUUID(),
-        clubId,
+        venueId,
         email: email.toLowerCase(),
         name,
         phone,
@@ -379,7 +379,7 @@ export async function removeStaff(staffId, removedBy) {
 /**
  * Bind a device to a staff member for scanning
  */
-export async function bindDevice(clubId, deviceInfo, staffId = null, boundBy) {
+export async function bindDevice(venueId, deviceInfo, staffId = null, boundBy) {
     const { deviceId, name } = deviceInfo;
 
     // Check if device already bound
@@ -394,7 +394,7 @@ export async function bindDevice(clubId, deviceInfo, staffId = null, boundBy) {
         id: randomUUID(),
         deviceId, // Hardware ID or generated fingerprint
         name: name || `Device ${deviceId.slice(-6)}`,
-        clubId,
+        venueId,
         staffId: staffId || null,
         status: 'active',
         boundBy: { uid: boundBy.uid, name: boundBy.name },
@@ -470,7 +470,7 @@ async function revokeAllDevicesForStaff(staffId) {
 /**
  * Validate that a device is authorized for scanning
  */
-export async function validateDeviceForScanning(deviceId, clubId) {
+export async function validateDeviceForScanning(deviceId, venueId) {
     const device = await getBoundDevice(deviceId);
 
     if (!device) {
@@ -481,7 +481,7 @@ export async function validateDeviceForScanning(deviceId, clubId) {
         return { valid: false, error: 'Device has been revoked' };
     }
 
-    if (device.clubId !== clubId) {
+    if (device.venueId !== venueId) {
         return { valid: false, error: 'Device not authorized for this venue' };
     }
 
@@ -542,10 +542,10 @@ async function getStaffById(staffId) {
     return doc.exists ? { id: doc.id, ...doc.data() } : null;
 }
 
-async function getStaffByEmail(clubId, email) {
+async function getStaffByEmail(venueId, email) {
     if (!isFirebaseConfigured()) {
         for (const staff of fallbackStaff.values()) {
-            if (staff.clubId === clubId && staff.email === email.toLowerCase()) {
+            if (staff.venueId === venueId && staff.email === email.toLowerCase()) {
                 return staff;
             }
         }
@@ -554,7 +554,7 @@ async function getStaffByEmail(clubId, email) {
 
     const db = getAdminDb();
     const snapshot = await db.collection(CLUB_STAFF_COLLECTION)
-        .where('clubId', '==', clubId)
+        .where('venueId', '==', venueId)
         .where('email', '==', email.toLowerCase())
         .limit(1)
         .get();
@@ -616,12 +616,12 @@ async function getBoundDevice(deviceId) {
 /**
  * Get all staff for a club
  */
-export async function getClubStaff(clubId, options = {}) {
+export async function getVenueStaff(venueId, options = {}) {
     const { status = null, limit = 50 } = options;
 
     if (!isFirebaseConfigured()) {
         let staff = Array.from(fallbackStaff.values())
-            .filter(s => s.clubId === clubId);
+            .filter(s => s.venueId === venueId);
 
         if (status) {
             staff = staff.filter(s => s.status === status);
@@ -632,7 +632,7 @@ export async function getClubStaff(clubId, options = {}) {
 
     const db = getAdminDb();
     let query = db.collection(CLUB_STAFF_COLLECTION)
-        .where('clubId', '==', clubId);
+        .where('venueId', '==', venueId);
 
     if (status) {
         query = query.where('status', '==', status);
@@ -645,12 +645,12 @@ export async function getClubStaff(clubId, options = {}) {
 /**
  * Get all bound devices for a club
  */
-export async function getClubDevices(clubId, options = {}) {
+export async function getVenueDevices(venueId, options = {}) {
     const { status = 'active', limit = 50 } = options;
 
     if (!isFirebaseConfigured()) {
         let devices = Array.from(fallbackDevices.values())
-            .filter(d => d.clubId === clubId);
+            .filter(d => d.venueId === venueId);
 
         if (status) {
             devices = devices.filter(d => d.status === status);
@@ -661,7 +661,7 @@ export async function getClubDevices(clubId, options = {}) {
 
     const db = getAdminDb();
     let query = db.collection(BOUND_DEVICES_COLLECTION)
-        .where('clubId', '==', clubId);
+        .where('venueId', '==', venueId);
 
     if (status) {
         query = query.where('status', '==', status);
@@ -685,8 +685,8 @@ export default {
     bindDevice,
     revokeDevice,
     validateDeviceForScanning,
-    getClubStaff,
-    getClubDevices,
+    getVenueStaff,
+    getVenueDevices,
     ROLE_PRESETS,
     ALL_PERMISSIONS
 };

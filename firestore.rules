@@ -74,8 +74,17 @@ service cloud.firestore {
 
     // --- 📦 OPERATIONAL DATA ---
     match /events/{eventId} {
-      allow read: if true; 
-      allow write: if isAdmin(); 
+      // Drafts and sensitive states are restricted
+      allow read: if isAdmin() || 
+                    (resource.data.lifecycle in ['scheduled', 'live', 'completed', 'cancelled'] && !resource.data.isDeleted) ||
+                    (isSignedIn() && (
+                        resource.data.creatorId == request.auth.uid || 
+                        resource.data.venueId == request.auth.uid ||
+                        resource.data.hostId == request.auth.uid ||
+                        request.auth.token.partnerId == resource.data.creatorId ||
+                        request.auth.token.partnerId == resource.data.venueId
+                    ));
+      allow write: if isAdmin(); // Partners write via server routes
     }
 
     // --- 🎪 EVENT MANAGEMENT ---

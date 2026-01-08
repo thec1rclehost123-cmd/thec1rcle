@@ -31,6 +31,7 @@ export default function HostEventDetailPage() {
     const { profile } = useDashboardAuth();
     const [event, setEvent] = useState<any>(null);
     const [stats, setStats] = useState<any>(null);
+    const [finance, setFinance] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -38,9 +39,10 @@ export default function HostEventDetailPage() {
             if (!id) return;
             setIsLoading(true);
             try {
-                const [eventRes, statsRes] = await Promise.all([
+                const [eventRes, statsRes, financeRes] = await Promise.all([
                     fetch(`/api/events/${id}`),
-                    fetch(`/api/events/${id}/guestlist`) // Guestlist endpoint returns stats too
+                    fetch(`/api/events/${id}/guestlist`),
+                    fetch(`/api/finance/breakdown?eventId=${id}`)
                 ]);
 
                 if (eventRes.ok) {
@@ -50,6 +52,10 @@ export default function HostEventDetailPage() {
                 if (statsRes.ok) {
                     const statsData = await statsRes.json();
                     setStats(statsData.stats);
+                }
+                if (financeRes.ok) {
+                    const financeData = await financeRes.json();
+                    setFinance(financeData.data);
                 }
             } catch (err) {
                 console.error(err);
@@ -166,7 +172,7 @@ export default function HostEventDetailPage() {
                         <div className="flex flex-col md:flex-row gap-8">
                             <Metric value={stats?.total || 0} label="Tickets Authorized" icon={Ticket} color="indigo" />
                             <Metric value={stats?.checkedIn || 0} label="Turnout Verified" icon={Users} color="emerald" />
-                            <Metric value={`₹0`} label="Gross Settlement" icon={TrendingUp} color="amber" />
+                            <Metric value={`₹${finance?.gross || 0}`} label="Gross Settlement" icon={TrendingUp} color="amber" />
                         </div>
                     </div>
 

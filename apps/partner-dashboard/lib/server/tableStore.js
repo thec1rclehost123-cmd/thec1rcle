@@ -6,18 +6,18 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { randomUUID } from "node:crypto";
 
-const TABLES_COLLECTION = "club_tables";
+const TABLES_COLLECTION = "venue_tables";
 const TABLE_BOOKINGS_COLLECTION = "table_bookings";
 
 /**
  * Get all defined tables (floor plan) for a club
  */
-export async function getClubMasterTables(clubId) {
+export async function getVenueMasterTables(venueId) {
     if (!isFirebaseConfigured()) return [];
 
     const db = getAdminDb();
     const snapshot = await db.collection(TABLES_COLLECTION)
-        .where("clubId", "==", clubId)
+        .where("venueId", "==", venueId)
         .orderBy("name", "asc")
         .get();
 
@@ -27,7 +27,7 @@ export async function getClubMasterTables(clubId) {
 /**
  * Create or update a master table in the club's floor plan
  */
-export async function saveMasterTable(clubId, tableData) {
+export async function saveMasterTable(venueId, tableData) {
     const db = getAdminDb();
     const id = tableData.id || randomUUID();
     const now = new Date().toISOString();
@@ -35,7 +35,7 @@ export async function saveMasterTable(clubId, tableData) {
     const table = {
         ...tableData,
         id,
-        clubId,
+        venueId,
         updatedAt: now,
         createdAt: tableData.createdAt || now
     };

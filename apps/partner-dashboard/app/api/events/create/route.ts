@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
         if (body.lifecycle !== 'draft') {
             if (body.creatorRole === 'host') {
                 body.lifecycle = 'submitted';
-            } else if (body.creatorRole === 'club') {
+            } else if (body.creatorRole === 'venue' || body.creatorRole === 'club') {
                 body.lifecycle = 'approved';
             }
         }
@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
                     eventId: event.id,
                     hostId: body.creatorId || "",
                     hostName: body.host || "",
-                    clubId: body.venueId,
-                    clubName: body.venueName || body.venue || "",
+                    venueId: body.venueId,
+                    venueName: body.venueName || body.venue || "",
                     requestedDate: body.startDate,
                     requestedStartTime: body.startTime,
                     requestedEndTime: body.endTime,

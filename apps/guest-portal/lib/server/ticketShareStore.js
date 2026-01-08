@@ -1,6 +1,8 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { createHmac, randomBytes } from "node:crypto";
 import { getOrderById } from "./orderStore";
+import { MONEY_STATES } from "@c1rcle/core/ledger-engine";
+import { transferEntitlement } from "@c1rcle/core/entitlement-engine";
 import { getEvent } from "./eventStore";
 
 const SHARE_BUNDLES_COLLECTION = "share_bundles";
@@ -24,9 +26,49 @@ function signTicketPayload(ticketId) {
 }
 
 /**
- * Initialize slots for a bundle with gender and couple pairing logic
+ * @typedef {Object} TicketSlot
+ * @property {number} slotIndex
+ * @property {string} slotType - 'owner_locked' | 'shareable'
+ * @property {string|null} currentOwnerUserId
+ * @property {string} claimStatus - 'claimed' | 'unclaimed'
+ * @property {string} [claimedAt]
+ * @property {string} [requiredGender] - 'male' | 'female' | 'any'
+ * @property {string} [couplePairId]
+ * @property {string} [entitlementId]
+ * @property {string} [issuedTicketId]
  */
-function initializeSlots(quantity, userId, tier, buyerGender = "any") {
+
+/**
+ * @typedef {Object} ShareBundle
+ * @property {string} orderId
+ * @property {string} eventId
+ * @property {string} tierId
+ * @property {string} userId
+ * @property {string} mode - 'individual' | 'shared_qr'
+ * @property {number} totalSlots
+ * @property {number} remainingSlots
+ * @property {number|null} scanCreditsRemaining
+ * @property {string|null} groupQrPayload
+ * @property {string} groupTicketId
+ * @property {TicketSlot[]} slots
+ * @property {string} genderRequirement
+ * @property {boolean} isCouple
+ * @property {string} token
+ * @property {string} status - 'active' | 'exhausted' | 'cancelled'
+ * @property {string} createdAt
+ * @property {string} expiresAt
+ */
+
+/**
+ * Initialize slots for a bundle with gender and couple pairing logic
+ * 
+ * @param {number} quantity 
+ * @param {string} userId 
+ * @param {any} tier 
+ * @param {string} buyerGender 
+ * @returns {TicketSlot[]}
+ */
+function initializeSlots(quantity, userId, tier, buyerGender = "any", skipOwnerSlot = false) {
     const slots = [];
     const { genderRequirement, isCouple } = tier || {};
 
@@ -34,18 +76,16 @@ function initializeSlots(quantity, userId, tier, buyerGender = "any") {
     // If it's a couple ticket, 1 unit = 2 slots
     const effectiveQuantity = isCouple ? quantity * 2 : quantity;
 
-    // Slot 1: Auto-assign to buyer if eligible
-    // For couples, we assign based on buyer's gender
+    // Slot 1: Auto-assign to buyer if eligible and not already assigned in order
     let ownerSlotIndex = 1;
     let ownerRequiredGender = buyerGender;
 
-    if (isCouple) {
-        // Find if buyer's gender fits in a couple pair (M or F)
+    if (skipOwnerSlot) {
+        ownerSlotIndex = 0;
+    } else if (isCouple) {
         ownerRequiredGender = (buyerGender === "female") ? "female" : "male";
     } else if (genderRequirement && genderRequirement !== 'any') {
         if (genderRequirement !== buyerGender && buyerGender !== 'any') {
-            // Buyer is NOT eligible for this ticket (e.g. Male buying Female Only)
-            // No auto-assignment; all slots remain shareable
             ownerSlotIndex = 0;
         } else {
             ownerRequiredGender = genderRequirement;
@@ -53,50 +93,69 @@ function initializeSlots(quantity, userId, tier, buyerGender = "any") {
     }
 
     if (ownerSlotIndex === 1) {
-        const ownerSlot = {
-            slotIndex: 1,
-            slotType: "owner_locked",
-            currentOwnerUserId: userId,
-            claimStatus: "claimed",
-            claimedAt: new Date().toISOString(),
-            requiredGender: ownerRequiredGender
-        };
-
-        if (isCouple) {
-            ownerSlot.couplePairId = `PAIR-${userId.slice(0, 4)}-${randomBytes(3).toString('hex')}`;
-        }
-
-        slots.push(ownerSlot);
+        slots.push(_createOwnerSlot(userId, ownerRequiredGender, isCouple));
     }
 
     // Remaining slots
     for (let i = (ownerSlotIndex === 1 ? 2 : 1); i <= effectiveQuantity; i++) {
-        const slot = {
-            slotIndex: i,
-            slotType: "shareable",
-            currentOwnerUserId: null,
-            claimStatus: "unclaimed",
-        };
-
-        if (isCouple) {
-            // If buyer is male (slot 1), then slot 2 is female, slot 3 is male, etc.
-            // If buyer is female (slot 1), then slot 2 is male, slot 3 is female, etc.
-            const pivot = (ownerSlotIndex === 1 && buyerGender === "female") ? 0 : 1;
-            slot.requiredGender = (i % 2 === pivot) ? "male" : "female";
-
-            // Link pairing
-            if (i % 2 === 0) {
-                slot.couplePairId = slots[i - 2].couplePairId;
-            } else {
-                slot.couplePairId = `PAIR-${userId.slice(0, 4)}-${randomBytes(3).toString('hex')}`;
-            }
-        } else if (genderRequirement && genderRequirement !== 'any') {
-            slot.requiredGender = genderRequirement;
-        }
-
-        slots.push(slot);
+        slots.push(_createShareableSlot(i, userId, slots, buyerGender, isCouple, genderRequirement));
     }
     return slots;
+}
+
+/**
+ * Internal helper to create the owner's locked slot
+ * @private
+ */
+function _createOwnerSlot(userId, requiredGender, isCouple) {
+    const slot = {
+        slotIndex: 1,
+        slotType: "owner_locked",
+        currentOwnerUserId: userId,
+        claimStatus: "claimed",
+        claimedAt: new Date().toISOString(),
+        requiredGender: requiredGender
+    };
+
+    if (isCouple) {
+        slot.couplePairId = `PAIR-${userId.slice(0, 4)}-${randomBytes(3).toString('hex')}`;
+    }
+
+    return slot;
+}
+
+/**
+ * Internal helper to create shareable slots
+ * @private
+ */
+function _createShareableSlot(index, userId, existingSlots, buyerGender, isCouple, genderRequirement) {
+    const slot = {
+        slotIndex: index,
+        slotType: "shareable",
+        currentOwnerUserId: null,
+        claimStatus: "unclaimed",
+    };
+
+    if (isCouple) {
+        // In this ecosystem, the partner slot (index 2, 4, etc.) is strictly for Females.
+        // The primary slots (1, 3, etc.) follow the buyer's gender or are 'any'.
+        if (index % 2 === 0) {
+            slot.requiredGender = "female";
+        } else {
+            slot.requiredGender = (index === 1 && buyerGender !== "any") ? buyerGender : "male";
+        }
+
+        // Link pairing
+        if (index % 2 === 0) {
+            slot.couplePairId = existingSlots[index - 2].couplePairId;
+        } else {
+            slot.couplePairId = `PAIR-${userId.slice(0, 4)}-${randomBytes(3).toString('hex')}`;
+        }
+    } else if (genderRequirement && genderRequirement !== 'any') {
+        slot.requiredGender = genderRequirement;
+    }
+
+    return slot;
 }
 
 /**
@@ -154,7 +213,39 @@ export async function createShareBundle(orderId, userId, eventId, quantity, tier
     const tier = event?.tickets?.find(t => t.id === actualTierId);
     const buyerGender = await getUserGender(userId);
 
-    const slots = initializeSlots(quantity, userId, tier, buyerGender);
+    // Check if ANY bundle in this order already has an owner_locked slot
+    const allBundlesSnapshot = await db.collection(SHARE_BUNDLES_COLLECTION)
+        .where("orderId", "==", orderId)
+        .get();
+
+    const hasExistingOwnerSlot = allBundlesSnapshot.docs.some(doc => {
+        const d = doc.data();
+        return d.slots?.some(s => s.slotType === "owner_locked");
+    });
+
+    // Fetch entitlements for this order and tier to link them to slots
+    const entsSnapshot = await db.collection("entitlements")
+        .where("orderId", "==", orderId)
+        .where("metadata.tierId", "==", actualTierId)
+        .get();
+    const orderEnts = entsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    orderEnts.sort((a, b) => (a.metadata.index || 0) - (b.metadata.index || 0));
+
+    const slots = initializeSlots(quantity, userId, tier, buyerGender, hasExistingOwnerSlot);
+
+    // Link Entitlement IDs to slots
+    slots.forEach(slot => {
+        if (tier?.isCouple) {
+            // For couple tickets, both slots in a pair share the same entitlement
+            const pairIndex = Math.ceil(slot.slotIndex / 2);
+            const ent = orderEnts[pairIndex - 1];
+            if (ent) slot.entitlementId = ent.id;
+        } else {
+            const ent = orderEnts[slot.slotIndex - 1];
+            if (ent) slot.entitlementId = ent.id;
+        }
+    });
+
     const effectiveSlotsCount = slots.length;
     const hasOwnerClaimed = slots.some(s => s.slotType === "owner_locked" && s.claimStatus === "claimed");
 
@@ -279,16 +370,28 @@ export async function claimTicketSlot(token, redeemerId) {
         }
 
         const slots = bundle.slots || [];
-        const slotToAssign = slots.find(s =>
+
+        // Filter to find slots that the user's gender IS ALLOWED to claim
+        const eligibleSlots = slots.filter(s =>
             s.slotType === "shareable" &&
             s.claimStatus === "unclaimed" &&
             (!s.requiredGender || s.requiredGender === "any" || s.requiredGender === userGender)
         );
 
-        if (!slotToAssign) {
-            const genderLabel = bundle.isCouple ? `${userGender} ` : '';
-            throw new Error(`No available ${genderLabel}slots left`);
+        if (eligibleSlots.length === 0) {
+            // Check if there are ANY unclaimed shareable slots
+            const unclaimedSlots = slots.filter(s => s.slotType === "shareable" && s.claimStatus === "unclaimed");
+
+            if (unclaimedSlots.length > 0) {
+                // There are slots, but none match this user's gender
+                const required = unclaimedSlots[0].requiredGender;
+                throw new Error(`Restricted: This slot is for ${required === 'female' ? 'Females' : 'Males'} only.`);
+            } else {
+                throw new Error("All tickets from this share link have already been claimed.");
+            }
         }
+
+        const slotToAssign = eligibleSlots[0];
 
         const assignmentId = bundle.mode === "shared_qr"
             ? `CLAIM-GRP-${bundleId}-${redeemerId}-${Date.now().toString(36)}`
@@ -357,6 +460,18 @@ export async function claimTicketSlot(token, redeemerId) {
         const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(assignmentId);
         transaction.set(assignmentRef, assignment);
 
+        // ENTITLEMENT ENGINE INTEGRATION
+        if (slotToAssign.entitlementId && !bundle.isCouple) {
+            await transferEntitlement(slotToAssign.entitlementId, redeemerId, bundle.userId, transaction);
+        } else if (slotToAssign.entitlementId && bundle.isCouple) {
+            // For couple tickets, we don't transfer ownership yet, just pair them
+            // Metadata update handled elsewhere or here
+            transaction.update(db.collection("entitlements").doc(slotToAssign.entitlementId), {
+                "metadata.couplePartnerId": redeemerId,
+                "metadata.partnerClaimedAt": assignment.claimedAt
+            });
+        }
+
         return { alreadyClaimed: false, assignment };
     });
 }
@@ -421,134 +536,160 @@ export async function validateAndScanTicket(ticketId, signature, eventId, scanne
     const now = new Date().toISOString();
 
     return await db.runTransaction(async (transaction) => {
+        // 1. Try Assignment (Claimed/Transferred)
         const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(ticketId);
         const assignmentDoc = await transaction.get(assignmentRef);
-
         if (assignmentDoc.exists) {
-            const data = assignmentDoc.data();
-            if (data.eventId !== eventId) return { valid: false, reason: "event_mismatch" };
-            if (data.status === "used") return { valid: false, reason: "already_used", scannedAt: data.scannedAt };
-            if (data.status === "cancelled" || data.status === "voided") return { valid: false, reason: "cancelled" };
+            return await _handleAssignmentScan(transaction, assignmentDoc, eventId, scannerId, now);
+        }
 
-            const orderRef = db.collection("orders").doc(data.orderId);
-            const orderDoc = await transaction.get(orderRef);
-            if (orderDoc.exists && (orderDoc.data().status === "cancelled" || orderDoc.data().status === "refunded")) {
-                return { valid: false, reason: "cancelled" };
-            }
+        // 2. Try Group QR
+        if (ticketId.startsWith("GROUP-")) {
+            return await _handleGroupScan(transaction, ticketId, eventId, scannerId, now);
+        }
 
-            const userGender = await getUserGender(data.redeemerId);
-            if (data.requiredGender && data.requiredGender !== "any" && data.requiredGender !== userGender) {
-                return { valid: false, reason: "gender_mismatch", required: data.requiredGender, actual: userGender };
-            }
+        // 3. Try Direct Order Ticket
+        return await _handleOrderScan(transaction, ticketId, eventId, scannerId, now);
+    });
+}
 
-            if (data.couplePairId) {
-                const siblingsSnapshot = await transaction.get(
-                    db.collection(TICKET_ASSIGNMENTS_COLLECTION)
-                        .where("couplePairId", "==", data.couplePairId)
-                );
-                const siblings = siblingsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                const partnerSlot = siblings.find(s => s.assignmentId !== data.assignmentId);
+/**
+ * @private
+ */
+async function _handleAssignmentScan(transaction, doc, eventId, scannerId, now) {
+    const data = doc.data();
+    if (data.eventId !== eventId) return { valid: false, reason: "event_mismatch" };
+    if (data.status === "used") return { valid: false, reason: "already_used", scannedAt: data.scannedAt };
+    if (data.status === "cancelled" || data.status === "voided") return { valid: false, reason: "cancelled" };
 
-                if (partnerSlot && partnerSlot.status !== "used") {
-                    transaction.update(assignmentRef, {
-                        status: "used",
-                        scannedAt: now,
-                        scannedBy: scannerId
-                    });
-                    return { valid: true, ticket: data, note: "partial_couple_waiting_for_partner" };
-                }
-            }
+    const db = getAdminDb();
+    const orderRef = db.collection("orders").doc(data.orderId);
+    const orderDoc = await transaction.get(orderRef);
+    if (orderDoc.exists && (orderDoc.data().status === "cancelled" || orderDoc.data().status === "refunded")) {
+        return { valid: false, reason: "cancelled" };
+    }
 
-            transaction.update(assignmentRef, {
+    const userGender = await getUserGender(data.redeemerId);
+    if (data.requiredGender && data.requiredGender !== "any" && data.requiredGender !== userGender) {
+        return { valid: false, reason: "gender_mismatch", required: data.requiredGender, actual: userGender };
+    }
+
+    if (data.couplePairId) {
+        const siblingsSnapshot = await transaction.get(
+            db.collection(TICKET_ASSIGNMENTS_COLLECTION)
+                .where("couplePairId", "==", data.couplePairId)
+        );
+        const siblings = siblingsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const partnerSlot = siblings.find(s => s.assignmentId !== data.assignmentId);
+
+        if (partnerSlot && partnerSlot.status !== "used") {
+            transaction.update(doc.ref, {
                 status: "used",
                 scannedAt: now,
                 scannedBy: scannerId
             });
-
-            return { valid: true, ticket: data };
+            return { valid: true, ticket: data, note: "partial_couple_waiting_for_partner" };
         }
+    }
 
-        if (ticketId.startsWith("GROUP-")) {
-            const bundleSnapshot = await transaction.get(
-                db.collection(SHARE_BUNDLES_COLLECTION).where("groupTicketId", "==", ticketId).limit(1)
-            );
-            if (!bundleSnapshot.empty) {
-                const bundleDoc = bundleSnapshot.docs[0];
-                const bundle = bundleDoc.data();
-
-                if (bundle.status === "cancelled") return { valid: false, reason: "cancelled" };
-                if (bundle.scanCreditsRemaining <= 0) return { valid: false, reason: "scan_limit_reached" };
-
-                transaction.update(bundleDoc.ref, {
-                    scanCreditsRemaining: bundle.scanCreditsRemaining - 1
-                });
-
-                const scanRef = db.collection("ticket_scans").doc(`${ticketId}-scan-${Date.now()}`);
-                transaction.set(scanRef, {
-                    ticketId,
-                    bundleId: bundleDoc.id,
-                    eventId,
-                    scannedAt: now,
-                    scannedBy: scannerId,
-                    isGroupScan: true
-                });
-
-                const roster = bundle.slots
-                    .filter(s => s.claimStatus === "claimed")
-                    .map(s => ({
-                        userId: s.currentOwnerUserId,
-                        slotIndex: s.slotIndex,
-                        claimedAt: s.claimedAt
-                    }));
-
-                return {
-                    valid: true,
-                    ticket: { ...bundle, ticketId },
-                    scansRemaining: bundle.scanCreditsRemaining - 1,
-                    roster
-                };
-            }
-        }
-
-        const parts = ticketId.split("-");
-        if (parts.length < 3) return { valid: false, reason: "invalid_format" };
-
-        const orderId = parts.slice(0, parts.length - 2).join("-");
-        const scanRef = db.collection("ticket_scans").doc(ticketId);
-        const scanDoc = await transaction.get(scanRef);
-
-        if (scanDoc.exists) {
-            return { valid: false, reason: "already_used", scannedAt: scanDoc.data().scannedAt };
-        }
-
-        const orderRef = db.collection("orders").doc(orderId);
-        const orderDoc = await transaction.get(orderRef);
-
-        if (!orderDoc.exists) return { valid: false, reason: "order_not_found" };
-        const order = orderDoc.data();
-
-        if (order.status !== "confirmed") return { valid: false, reason: "order_not_confirmed" };
-        if (order.eventId !== eventId) return { valid: false, reason: "event_mismatch" };
-
-        const userGender = await getUserGender(order.userId);
-        const event = await getEvent(order.eventId);
-        const tier = event?.tickets?.find(t => t.id === parts[parts.length - 2]);
-        const requiredGender = tier?.requiredGender || (tier?.genderRequirement === "couple" ? "male" : (tier?.genderRequirement || "any"));
-
-        if (requiredGender !== "any" && requiredGender !== userGender) {
-            return { valid: false, reason: "gender_mismatch", required: requiredGender, actual: userGender };
-        }
-
-        transaction.set(scanRef, {
-            ticketId,
-            orderId,
-            eventId,
-            scannedAt: now,
-            scannedBy: scannerId
-        });
-
-        return { valid: true, ticket: { ...order, ticketId } };
+    transaction.update(doc.ref, {
+        status: "used",
+        scannedAt: now,
+        scannedBy: scannerId
     });
+
+    return { valid: true, ticket: data };
+}
+
+/**
+ * @private
+ */
+async function _handleGroupScan(transaction, ticketId, eventId, scannerId, now) {
+    const db = getAdminDb();
+    const bundleSnapshot = await transaction.get(
+        db.collection(SHARE_BUNDLES_COLLECTION).where("groupTicketId", "==", ticketId).limit(1)
+    );
+    if (bundleSnapshot.empty) return { valid: false, reason: "invalid_group_ticket" };
+
+    const bundleDoc = bundleSnapshot.docs[0];
+    const bundle = bundleDoc.data();
+
+    if (bundle.status === "cancelled") return { valid: false, reason: "cancelled" };
+    if (bundle.scanCreditsRemaining <= 0) return { valid: false, reason: "scan_limit_reached" };
+
+    transaction.update(bundleDoc.ref, {
+        scanCreditsRemaining: bundle.scanCreditsRemaining - 1
+    });
+
+    const scanRef = db.collection("ticket_scans").doc(`${ticketId}-scan-${Date.now()}`);
+    transaction.set(scanRef, {
+        ticketId,
+        bundleId: bundleDoc.id,
+        eventId,
+        scannedAt: now,
+        scannedBy: scannerId,
+        isGroupScan: true
+    });
+
+    const roster = bundle.slots
+        .filter(s => s.claimStatus === "claimed")
+        .map(s => ({
+            userId: s.currentOwnerUserId,
+            slotIndex: s.slotIndex,
+            claimedAt: s.claimedAt
+        }));
+
+    return {
+        valid: true,
+        ticket: { ...bundle, ticketId },
+        scansRemaining: bundle.scanCreditsRemaining - 1,
+        roster
+    };
+}
+
+/**
+ * @private
+ */
+async function _handleOrderScan(transaction, ticketId, eventId, scannerId, now) {
+    const parts = ticketId.split("-");
+    if (parts.length < 3) return { valid: false, reason: "invalid_format" };
+
+    const orderId = parts.slice(0, parts.length - 2).join("-");
+    const db = getAdminDb();
+    const scanRef = db.collection("ticket_scans").doc(ticketId);
+    const scanDoc = await transaction.get(scanRef);
+
+    if (scanDoc.exists) {
+        return { valid: false, reason: "already_used", scannedAt: scanDoc.data().scannedAt };
+    }
+
+    const orderRef = db.collection("orders").doc(orderId);
+    const orderDoc = await transaction.get(orderRef);
+
+    if (!orderDoc.exists) return { valid: false, reason: "order_not_found" };
+    const order = orderDoc.data();
+
+    if (order.status !== "confirmed") return { valid: false, reason: "order_not_confirmed" };
+    if (order.eventId !== eventId) return { valid: false, reason: "event_mismatch" };
+
+    const userGender = await getUserGender(order.userId);
+    const event = await getEvent(order.eventId);
+    const tier = event?.tickets?.find(t => t.id === parts[parts.length - 2]);
+    const requiredGender = tier?.requiredGender || (tier?.genderRequirement === "couple" ? "male" : (tier?.genderRequirement || "any"));
+
+    if (requiredGender !== "any" && requiredGender !== userGender) {
+        return { valid: false, reason: "gender_mismatch", required: requiredGender, actual: userGender };
+    }
+
+    transaction.set(scanRef, {
+        ticketId,
+        orderId,
+        eventId,
+        scannedAt: now,
+        scannedBy: scannerId
+    });
+
+    return { valid: true, ticket: { ...order, ticketId } };
 }
 
 /**
@@ -568,6 +709,14 @@ export async function assignPartner(ticketId, ownerId, partnerId, metadata = {})
     const doc = await assignmentRef.get();
 
     if (doc.exists && doc.data().ownerId !== ownerId) throw new Error("Unauthorized");
+
+    const ownerGender = await getUserGender(ownerId);
+    const partnerGender = await getUserGender(partnerId);
+
+    // Couple logic: Partner slot is specifically for the opposite/female attendee
+    if (partnerGender !== "female") {
+        throw new Error("Restricted: The partner slot in a couple ticket is for Females only.");
+    }
 
     const update = {
         ownerId,
@@ -616,6 +765,11 @@ export async function claimPartnerSlot(token, userId) {
 
         if (new Date(claim.expiresAt) < new Date()) throw new Error("Claim link expired");
         if (claim.ownerId === userId) throw new Error("You cannot claim your own couple ticket slot");
+
+        const userGender = await getUserGender(userId);
+        if (userGender !== "female") {
+            throw new Error("Restricted: This couple partner slot is for Females only.");
+        }
 
         const assignmentRef = db.collection("couple_assignments").doc(claim.ticketId);
 
@@ -673,8 +827,24 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail) {
     const token = generateToken(20);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
+    // Find entitlement if available
+    const entsSnapshot = await db.collection("entitlements")
+        .where("orderId", "==", orderId)
+        .where("metadata.tierId", "==", parts[parts.length - 2])
+        .where("metadata.index", "==", parseInt(parts[parts.length - 1]) + 1) // index is 1-based, parts[last] is 0-based in some cases
+        .limit(1).get();
+
+    // Actually, sometimes ticketId format is different. 
+    // Let's just find ANY active entitlement owned by sender for this event/order
+    // But better to be precise. 
+    // In our issueEntitlements, index is i+1.
+    // In orderStore, ticketId is `${orderId}-${ticketId}-${i}` (0-based)
+
+    const entId = entsSnapshot.docs[0]?.id;
+
     const transfer = {
         ticketId,
+        entitlementId: entId || null,
         senderId,
         recipientEmail: recipientEmail.toLowerCase(),
         eventId,
@@ -706,6 +876,37 @@ export async function acceptTransfer(transferId, recipientId) {
         const ticketId = transfer.ticketId;
         const parts = ticketId.split("-");
 
+        let requiredGender = "any";
+
+        if (ticketId.startsWith("CLAIM-")) {
+            const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(ticketId);
+            const assignmentDoc = await transaction.get(assignmentRef);
+            if (assignmentDoc.exists) {
+                requiredGender = assignmentDoc.data().requiredGender || "any";
+            }
+        } else {
+            // Find in share bundle slots if it's an order-based ticket
+            const orderId = parts.slice(0, parts.length - 2).join("-");
+            const slotIndex = parseInt(parts[parts.length - 1]) + 1;
+
+            const bundleSnapshot = await transaction.get(
+                db.collection(SHARE_BUNDLES_COLLECTION).where("orderId", "==", orderId).limit(1)
+            );
+
+            if (!bundleSnapshot.empty) {
+                const bundle = bundleSnapshot.docs[0].data();
+                const slot = bundle.slots?.find(s => s.slotIndex === slotIndex);
+                if (slot) {
+                    requiredGender = slot.requiredGender || "any";
+                }
+            }
+        }
+
+        const userGender = await getUserGender(recipientId);
+        if (requiredGender !== "any" && userGender !== requiredGender && userGender !== "any") {
+            throw new Error(`Gender Mismatch: You cannot accept this ticket (${requiredGender} only).`);
+        }
+
         if (ticketId.startsWith("CLAIM-")) {
             const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(ticketId);
             transaction.update(assignmentRef, { redeemerId: recipientId, updatedAt: new Date().toISOString() });
@@ -720,9 +921,15 @@ export async function acceptTransfer(transferId, recipientId) {
                 status: "active",
                 assignmentId,
                 qrPayload,
+                requiredGender,
                 transferredAt: new Date().toISOString(),
             };
             transaction.set(db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(assignmentId), assignment);
+        }
+
+        // ENTITLEMENT ENGINE INTEGRATION
+        if (transfer.entitlementId) {
+            await transferEntitlement(transfer.entitlementId, recipientId, transfer.senderId, transaction);
         }
 
         transaction.update(transferRef, { status: "accepted", acceptedAt: new Date().toISOString() });
@@ -730,14 +937,37 @@ export async function acceptTransfer(transferId, recipientId) {
     });
 }
 
-export async function getPendingTransfers(userId) {
+export async function getPendingTransfers(userId, email = null) {
     if (!isFirebaseConfigured()) return [];
     const db = getAdminDb();
-    const snapshot = await db.collection(TRANSFERS_COLLECTION)
+
+    // Fetch transfers where user is sender
+    const sentSnapshot = await db.collection(TRANSFERS_COLLECTION)
         .where("senderId", "==", userId)
         .where("status", "==", "pending")
         .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    const sent = sentSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        isSender: true
+    }));
+
+    // Fetch transfers where user is recipient
+    let received = [];
+    if (email) {
+        const receivedSnapshot = await db.collection(TRANSFERS_COLLECTION)
+            .where("recipientEmail", "==", email.toLowerCase())
+            .where("status", "==", "pending")
+            .get();
+        received = receivedSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            isSender: false
+        }));
+    }
+
+    return [...sent, ...received];
 }
 
 export async function transferCoupleTicket(ticketId, currentOwnerId, newOwnerId) {

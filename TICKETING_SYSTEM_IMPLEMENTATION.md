@@ -10,7 +10,7 @@
 
 This document defines the **Phase 1** implementation specification for THE C1RCLE's ticketing system. The plan is scoped to ship a complete, production-ready ticketing flow that integrates with the existing platform architecture—respecting dashboard boundaries, partnership rules, and admin governance.
 
-**Core Principle:** A ticket is a governed digital entitlement issued through a controlled workflow where **clubs control venues**, **hosts control events**, and **promoters drive sales**.
+**Core Principle:** A ticket is a governed digital entitlement issued through a controlled workflow where **venues control venues**, **hosts control events**, and **promoters drive sales**.
 
 ---
 
@@ -29,7 +29,7 @@ This document defines the **Phase 1** implementation specification for THE C1RCL
 | Paid Checkout | Gateway redirect, tickets only after verified payment |
 | QR Scanning | Duplicate prevention, staff actor logging |
 | Refunds | Request flow with admin dual approval above threshold |
-| Club Staff RBAC | Invite, verify, assign roles, device binding |
+| Venue Staff RBAC | Invite, verify, assign roles, device binding |
 | Event Lifecycle | Draft → Submitted → Approved → Published → Completed |
 
 ### Phase 2 — Next Release
@@ -65,9 +65,9 @@ This document defines the **Phase 1** implementation specification for THE C1RCL
 │  ├── Controls: Event configuration, ticket tiers, pricing                   │
 │  ├── Controls: Promoter settings, promo codes                               │
 │  ├── Controls: Event media, description, settings                           │
-│  ├── Can View: Availability windows (NOT full club calendar)               │
+│  ├── Can View: Availability windows (NOT full venue calendar)               │
 │  ├── Can View: Guest list summary (NOT entry operations)                    │
-│  └── Cannot: Publish without club approval, control entry system           │
+│  └── Cannot: Publish without venue approval, control entry system           │
 │                                                                              │
 │  PROMOTER DASHBOARD                                                          │
 │  ├── Controls: Generate links/codes for assigned events                     │
@@ -88,7 +88,7 @@ This document defines the **Phase 1** implementation specification for THE C1RCL
 
 Hosts must NEVER see:
 - Event titles or metadata for blocked windows (only "Unavailable")
-- Club internal notes
+- Venue internal notes
 - Other hosts' events at the venue
 - Staff schedules or assignments
 - Entry operation details
@@ -130,17 +130,17 @@ Promoters CAN see:
 │   ┌─────────┐                                                                │
 │   │  DRAFT  │ ────── Save & Resume ────▶ Still DRAFT                        │
 │   └────┬────┘                                                                │
-│        │ HOST submits to club                                                │
+│        │ HOST submits to venue                                                │
 │        ▼                                                                      │
 │   ┌───────────┐                                                              │
-│   │ SUBMITTED │ ────── Host can edit until club reviews                     │
+│   │ SUBMITTED │ ────── Host can edit until venue reviews                     │
 │   └─────┬─────┘                                                              │
 │         │                                                                     │
 │    ┌────┴────┐                                                               │
 │    ▼         ▼                                                               │
 │ APPROVED  NEEDS_CHANGES ──── Host revises ──▶ SUBMITTED                     │
 │    │                                                                         │
-│    │ Club or Host publishes                                                  │
+│    │ Venue or Host publishes                                                  │
 │    ▼                                                                         │
 │ ┌───────────┐                                                                │
 │ │ SCHEDULED │ ────── Public, tickets on sale                                │
@@ -161,23 +161,23 @@ Promoters CAN see:
 | Transition | Who Can Execute | Requires |
 |------------|-----------------|----------|
 | draft → submitted | Host | Valid slot request |
-| submitted → approved | Club | Slot approved |
-| submitted → needs_changes | Club | Reason required |
+| submitted → approved | Venue | Slot approved |
+| submitted → needs_changes | Venue | Reason required |
 | needs_changes → submitted | Host | Changes made |
-| approved → scheduled | Host or Club | - |
+| approved → scheduled | Host or Venue | - |
 | scheduled → live | System | Event start time reached |
-| scheduled → paused | Club or Admin | Reason required |
-| scheduled → cancelled | Club with Host consent, or Admin | Dual approval if tickets sold |
-| paused → scheduled | Club or Admin | - |
+| scheduled → paused | Venue or Admin | Reason required |
+| scheduled → cancelled | Venue with Host consent, or Admin | Dual approval if tickets sold |
+| paused → scheduled | Venue or Admin | - |
 | live → completed | System | Event end time reached |
 | Any → cancelled | Admin | Dual approval, refund plan |
 
-### 3.3 Club-Created Events
+### 3.3 Venue-Created Events
 
-For events created by a club at their own venue:
+For events created by a venue at their own venue:
 - Skip submitted/approved states
 - Draft → Scheduled directly
-- Club retains all authority
+- Venue retains all authority
 
 ---
 
@@ -185,18 +185,18 @@ For events created by a club at their own venue:
 
 ### 4.1 Calendar as the Gate
 
-The club calendar is the **spine** of event creation:
+The venue calendar is the **spine** of event creation:
 
-1. Host selects a club partner they have an active partnership with
+1. Host selects a venue partner they have an active partnership with
 2. Host requests a slot (date + time window)
-3. Club receives slot request notification
-4. Club approves, rejects, or offers alternative
+3. Venue receives slot request notification
+4. Venue approves, rejects, or offers alternative
 5. Only AFTER slot approval can host complete event creation
 6. Slot approval reserves the venue for that event
 
-### 4.2 What Hosts See vs What Clubs See
+### 4.2 What Hosts See vs What Venues See
 
-**Club Calendar View:**
+**Venue Calendar View:**
 - Full calendar with all events
 - Blocked windows with reasons
 - Pending slot requests
@@ -220,8 +220,8 @@ interface SlotRequest {
     // Parties
     hostId: string;
     hostName: string;
-    clubId: string;
-    clubName: string;
+    venueId: string;
+    venueName: string;
     
     // Requested window
     requestedDate: string;     // YYYY-MM-DD
@@ -232,7 +232,7 @@ interface SlotRequest {
     status: 'pending' | 'approved' | 'rejected' | 'modified' | 'expired';
     
     // Response
-    clubResponse?: string;
+    venueResponse?: string;
     alternativeDates?: string[];
     
     // Timing
@@ -463,7 +463,7 @@ interface RSVPTierSettings {
 
 ---
 
-## 9. Club Staff RBAC (Phase 1)
+## 9. Venue Staff RBAC (Phase 1)
 
 ### 9.1 Staff Lifecycle
 
@@ -851,7 +851,7 @@ apps/partner-dashboard/
 │   │   ├── route.ts            # Create order
 │   │   └── [id]/
 │   │       └── refund/route.ts
-│   └── club/
+│   └── venue/
 │       └── staff/
 │           ├── route.ts        # Staff CRUD
 │           └── devices/route.ts # Device binding
@@ -922,7 +922,7 @@ firestore.rules                     # Add new collections
 | Test | Description | Pass Criteria |
 |------|-------------|---------------|
 | Host creates event | Host with active partnership creates draft | Draft saved, slot request created |
-| Club approves slot | Club approves pending request | Event status → approved |
+| Venue approves slot | Venue approves pending request | Event status → approved |
 | Event publishes | Host publishes approved event | Visible on user website |
 | Free RSVP | User RSVPs to free event | QR ticket generated immediately |
 | Paid purchase | User completes paid checkout | QR ticket after webhook confirms |
@@ -948,7 +948,7 @@ firestore.rules                     # Add new collections
 
 | Test | Description | Pass Criteria |
 |------|-------------|---------------|
-| Host calendar view | Host views club calendar | Only sees availability, no details |
+| Host calendar view | Host views venue calendar | Only sees availability, no details |
 | Promoter buyer view | Promoter views buyers | Sees count only, no PII |
 | Staff role limit | Scanner tries to edit guest | Action blocked |
 | Admin refund | Admin approves large refund | Requires dual approval |

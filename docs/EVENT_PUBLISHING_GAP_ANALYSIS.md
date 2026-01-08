@@ -9,9 +9,9 @@ This document analyzes what's already implemented in the codebase versus what's 
 
 | Area | Status | Details |
 |------|--------|---------|
-| **Event Creation (Host/Club)** | ✅ 95% Complete | Wizard, validation, API, publish modal |
+| **Event Creation (Host/Venue)** | ✅ 95% Complete | Wizard, validation, API, publish modal |
 | **Event Publish Flow** | ✅ 95% Complete | Publish confirmation modal added |
-| **Club Events Dashboard** | ✅ 90% Complete | Connected to Firestore, real-time listener |
+| **Venue Events Dashboard** | ✅ 90% Complete | Connected to Firestore, real-time listener |
 | **Host Events Dashboard** | ✅ 95% Complete | Real-time Firestore listener working |
 | **Promoter Events API** | ✅ 100% Complete | Connection filtering, link generation |
 | **Promoter Events UI** | ✅ 85% Complete | Events page and link generation working |
@@ -27,7 +27,7 @@ This document analyzes what's already implemented in the codebase versus what's 
 
 ## Part A: Event Publishing System
 
-### A1. Club/Host Publishes Event ✅ COMPLETE
+### A1. Venue/Host Publishes Event ✅ COMPLETE
 
 **What EXISTS:**
 - `apps/partner-dashboard/components/wizard/CreateEventWizard.tsx` — Full 8-step wizard
@@ -36,12 +36,12 @@ This document analyzes what's already implemented in the codebase versus what's 
 - Validation for required fields (title, date)
 - Draft saving to localStorage and Firestore
 - Lifecycle states: `draft`, `pending_approval`, `scheduled`, etc.
-- Host → Club approval workflow built into lifecycle
+- Host → Venue approval workflow built into lifecycle
 - Publish confirmation modal with:
   - Summary of key info (name, date, venue, price, capacity)
   - Warnings for missing poster, short description
   - Cancel / Publish Now buttons
-  - Contextual messaging for host vs club
+  - Contextual messaging for host vs venue
 
 **Still TODO:**
 1. **Success Toast & Status Chip Animation** — After publish:
@@ -50,10 +50,10 @@ This document analyzes what's already implemented in the codebase versus what's 
 
 ---
 
-### A2. Event in Club/Host Dashboard Events Section ✅ COMPLETE
+### A2. Event in Venue/Host Dashboard Events Section ✅ COMPLETE
 
 **What EXISTS:**
-- `apps/partner-dashboard/app/club/events/page.tsx` — ✅ Connected to Firestore with real-time listener
+- `apps/partner-dashboard/app/venue/events/page.tsx` — ✅ Connected to Firestore with real-time listener
 - `apps/partner-dashboard/app/host/events/page.tsx` — Real-time Firestore listener ✅
 - Status badges, filters, search all implemented
 - Event cards with stats (views, tickets sold, revenue)
@@ -298,7 +298,7 @@ This document analyzes what's already implemented in the codebase versus what's 
 
 | Task | Priority | Effort | Status |
 |------|----------|--------|--------|
-| Connect Club Events page to Firestore | P0 | 2h | ✅ Done |
+| Connect Venue Events page to Firestore | P0 | 2h | ✅ Done |
 | Add Publish Confirmation Modal | P1 | 3h | ✅ Done |
 | Integrate CartTimer in Checkout | P1 | 1h | ✅ Ready |
 | Integrate PromoCodeInput in Checkout | P1 | 1h | ✅ Done |

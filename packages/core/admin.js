@@ -47,6 +47,11 @@ export function getAdminApp() {
   }
 
   const credentials = assertAdminConfig();
+  if (!credentials) {
+    // Return a dummy object for Toy Mode
+    return { name: "[DEFAULT]", options: {} };
+  }
+
   adminApp = initializeApp({
     credential: cert(credentials)
   });
@@ -55,6 +60,11 @@ export function getAdminApp() {
 
 export function getAdminDb() {
   if (!adminDb) {
+    if (isToyMode()) {
+      console.warn("⚠️ [CORE] Firebase Admin operating in TOY MODE (No Database connectivity)");
+      return null;
+    }
+
     adminDb = getFirestore(getAdminApp());
     try {
       adminDb.settings({ ignoreUndefinedProperties: true });

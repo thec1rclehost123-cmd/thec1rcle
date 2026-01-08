@@ -46,7 +46,7 @@ const features = [
 const useCases = [
   { title: "College", subtitle: "Greek Life, House Parties", image: "/events/campus.svg" },
   { title: "Arts", subtitle: "Galleries, Performances", image: "/events/select-art.svg" },
-  { title: "Nightlife", subtitle: "Clubs, Underground", image: "/events/genz-night.svg" },
+  { title: "Nightlife", subtitle: "Venues, Underground", image: "/events/genz-night.svg" },
   { title: "Community", subtitle: "Meetups, Interests", image: "/events/interview-crew.svg" },
   { title: "Sports", subtitle: "Watch Parties, Rec Leagues", image: "/events/yoga.svg" }
 ];

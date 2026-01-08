@@ -1,6 +1,6 @@
 /**
  * THE C1RCLE - Analytics Store
- * Centralized logic for computing multi-event analytics for Clubs, Hosts, and Promoters.
+ * Centralized logic for computing multi-event analytics for Venues, Hosts, and Promoters.
  */
 
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
@@ -9,12 +9,12 @@ import { getEventSalesStats, getEventGuestlist } from "./orderStore";
 import { getPromoterStats, getEventPromoterSummary } from "./promoterLinkStore";
 
 /**
- * Get comprehensive analytics for a club
+ * Get comprehensive analytics for a venue
  * Includes revenue, tickets, turnout, and top events
  */
-export async function getClubAnalytics(clubId, range = "30d") {
+export async function getVenueAnalytics(venueId, range = "30d") {
     // 1. List all events for this venue
-    const events = await listEvents({ venueId: clubId, limit: 100 });
+    const events = await listEvents({ venueId, limit: 100 });
 
     if (events.length === 0) {
         return {
@@ -77,6 +77,57 @@ export async function getClubAnalytics(clubId, range = "30d") {
 }
 
 /**
+ * Get "Numbers-First" overview stats for a venue
+ */
+export async function getVenueOverviewStats(venueId) {
+    const db = getAdminDb();
+    const events = await listEvents({ venueId, limit: 100 });
+
+    // 1. Filter for events happening "This Weekend" (Friday-Sunday logic)
+    const now = new Date();
+    const day = now.getDay();
+    const diffToFriday = (day <= 5 ? 5 - day : 12 - day); // Distance to next Friday
+    const friday = new Date(now);
+    friday.setDate(now.getDate() + diffToFriday);
+    friday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(friday);
+    sunday.setDate(friday.getDate() + 2);
+    sunday.setHours(23, 59, 59, 999);
+
+    const weekendEvents = events.filter(e => {
+        const startDate = new Date(e.startDate);
+        return startDate >= friday && startDate <= sunday;
+    });
+
+    let weekendRevenue = 0;
+    for (const event of weekendEvents) {
+        const sales = await getEventSalesStats(event.id);
+        weekendRevenue += sales.totalRevenue || 0;
+    }
+
+    // 2. Active Events Count
+    const activeEventsCount = events.filter(e => ['live', 'scheduled', 'confirmed'].includes(e.status) || ['live', 'scheduled', 'approved'].includes(e.lifecycle)).length;
+
+    // 3. Last Event Entry Velocity (Mock for now as scan_ledger is separate, but deriving from check-ins)
+    const lastEvent = events.filter(e => e.status === 'completed' || new Date(e.startDate) < now).sort((a, b) => new Date(b.startDate) - new Date(a.startDate))[0];
+    let avgEntryVelocity = "0/hr";
+    if (lastEvent) {
+        const guestlist = await getEventGuestlist(lastEvent.id);
+        const checkIns = guestlist.filter(g => g.status === 'checked_in').length;
+        // Simple duration check or placeholder
+        avgEntryVelocity = `${Math.round(checkIns / 4)}/hr`;
+    }
+
+    return {
+        weekendRevenue,
+        activeEventsCount,
+        avgEntryVelocity,
+        dataReady: true
+    };
+}
+
+/**
  * Get foundational overview for a host (Category 1)
  */
 export async function getHostAnalytics(hostId, range = "30d") {
@@ -117,12 +168,55 @@ export async function getHostAnalytics(hostId, range = "30d") {
         rejectedCount,
         avgTurnout: Math.round(avgTurnout),
         upcomingCount: events.filter(e => e.status === 'upcoming').length,
-        clubsCount: new Set(events.map(e => e.venueId).filter(Boolean)).size,
+        venuesCount: new Set(events.map(e => e.venueId).filter(Boolean)).size,
         topEvents: allStats.sort((a, b) => b.revenue - a.revenue).slice(0, 5),
         revenueTimeline: allStats
             .filter(s => s.startDate)
             .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
             .map(s => ({ date: s.startDate, revenue: s.revenue })),
+        dataReady: true
+    };
+}
+
+/**
+ * Get "Numbers-First" overview stats for a host
+ */
+export async function getHostOverviewStats(hostId) {
+    const events = await listEvents({ creatorId: hostId, limit: 100 });
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const thisMonthEvents = events.filter(e => new Date(e.startDate) >= firstDayOfMonth);
+
+    let monthRevenue = 0;
+    let monthTicketsSold = 0;
+    let totalCapacity = 0;
+    let totalShowUps = 0;
+    let totalEntitlements = 0;
+
+    for (const event of events) {
+        const sales = await getEventSalesStats(event.id);
+        const guestlist = await getEventGuestlist(event.id);
+
+        if (new Date(event.startDate) >= firstDayOfMonth) {
+            monthRevenue += sales.totalRevenue || 0;
+            monthTicketsSold += sales.totalTicketsSold || 0;
+        }
+
+        totalCapacity += event.capacity || 0;
+        totalShowUps += guestlist.filter(g => g.status === 'checked_in').length;
+        totalEntitlements += guestlist.length;
+    }
+
+    const sellThroughRate = totalCapacity > 0 ? (monthTicketsSold / totalCapacity) * 100 : 0;
+    const avgShowUpRate = totalEntitlements > 0 ? (totalShowUps / totalEntitlements) * 100 : 0;
+
+    return {
+        monthRevenue,
+        monthTicketsSold,
+        sellThroughRate: Math.round(sellThroughRate),
+        avgShowUpRate: Math.round(avgShowUpRate),
+        upcomingEventsCount: events.filter(e => e.status === 'upcoming' || new Date(e.startDate) > now).length,
         dataReady: true
     };
 }
@@ -245,29 +339,29 @@ export async function getHostReliabilityAnalytics(hostId, range = "30d") {
 }
 
 /**
- * Get club & partnership performance for host (Category 5)
+ * Get venue & partnership performance for host (Category 5)
  */
 export async function getHostPartnerAnalytics(hostId, range = "30d") {
     const events = await listEvents({ creatorId: hostId, limit: 100 });
     if (events.length === 0) return { dataReady: false };
 
-    const clubPerf = {};
+    const venuePerf = {};
     for (const event of events) {
         if (!event.venue) continue;
-        if (!clubPerf[event.venue]) {
-            clubPerf[event.venue] = { name: event.venue, events: 0, entries: 0, rsvps: 0, approvals: 0 };
+        if (!venuePerf[event.venue]) {
+            venuePerf[event.venue] = { name: event.venue, events: 0, entries: 0, rsvps: 0, approvals: 0 };
         }
-        clubPerf[event.venue].events++;
+        venuePerf[event.venue].events++;
         if (['approved', 'live', 'scheduled', 'completed'].includes(event.lifecycle)) {
-            clubPerf[event.venue].approvals++;
+            venuePerf[event.venue].approvals++;
         }
 
         // We could fetch entries here but better to do it via guestlists once
     }
 
     return {
-        clubPerformance: Object.values(clubPerf).sort((a, b) => b.events - a.events),
-        dataReady: Object.keys(clubPerf).length > 0
+        venuePerformance: Object.values(venuePerf).sort((a, b) => b.events - a.events),
+        dataReady: Object.keys(venuePerf).length > 0
     };
 }
 
@@ -531,10 +625,10 @@ export async function getPromoterStrategyAnalytics(promoterId, range = "30d") {
 }
 
 /**
- * Get audience and demographics analytics for a club
+ * Get audience and demographics analytics for a venue
  */
-export async function getClubAudienceAnalytics(clubId, range = "30d") {
-    const events = await listEvents({ venueId: clubId, limit: 100 });
+export async function getVenueAudienceAnalytics(venueId, range = "30d") {
+    const events = await listEvents({ venueId, limit: 100 });
     if (events.length === 0) return { dataReady: false };
 
     // Group by age and gender
@@ -594,8 +688,8 @@ function calculateAge(dob) {
 /**
  * Get discovery and conversion funnel analytics
  */
-export async function getClubFunnelAnalytics(clubId, range = "30d") {
-    const events = await listEvents({ venueId: clubId, limit: 100 });
+export async function getVenueFunnelAnalytics(venueId, range = "30d") {
+    const events = await listEvents({ venueId, limit: 100 });
     if (events.length === 0) return { dataReady: false };
 
     let totalViews = 0;
@@ -651,8 +745,8 @@ export async function getClubFunnelAnalytics(clubId, range = "30d") {
 /**
  * Get entry operations and safety analytics
  */
-export async function getClubOpsAnalytics(clubId, range = "30d") {
-    const events = await listEvents({ venueId: clubId, limit: 100 });
+export async function getVenueOpsAnalytics(venueId, range = "30d") {
+    const events = await listEvents({ venueId, limit: 100 });
     if (events.length === 0) return { dataReady: false };
 
     const db = getAdminDb();
@@ -688,8 +782,8 @@ export async function getClubOpsAnalytics(clubId, range = "30d") {
 /**
  * Get host and promoter performance
  */
-export async function getClubPartnerAnalytics(clubId, range = "30d") {
-    const events = await listEvents({ venueId: clubId, limit: 100 });
+export async function getVenuePartnerAnalytics(venueId, range = "30d") {
+    const events = await listEvents({ venueId, limit: 100 });
     if (events.length === 0) return { dataReady: false };
 
     const hostStats = {};
@@ -725,9 +819,9 @@ export async function getClubPartnerAnalytics(clubId, range = "30d") {
 /**
  * Get strategy and recommendations (Rule-based)
  */
-export async function getClubStrategyAnalytics(clubId, range = "30d") {
-    const overview = await getClubAnalytics(clubId, range);
-    const audience = await getClubAudienceAnalytics(clubId, range);
+export async function getVenueStrategyAnalytics(venueId, range = "30d") {
+    const overview = await getVenueAnalytics(venueId, range);
+    const audience = await getVenueAudienceAnalytics(venueId, range);
 
     const recommendations = [];
 

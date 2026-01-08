@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the complete Create Event system for THE C1RCLE platform—a multi-dashboard, production-ready implementation that connects Host Dashboard, Club Dashboard, Promoter Dashboard, User Website, Backend Services, Database, and Admin Panel.
+This document outlines the complete Create Event system for THE C1RCLE platform—a multi-dashboard, production-ready implementation that connects Host Dashboard, Venue Dashboard, Promoter Dashboard, User Website, Backend Services, Database, and Admin Panel.
 
 **Core Principle:** Create Event is not a page. It is a system handshake across the entire platform.
 
@@ -34,15 +34,15 @@ This document outlines the complete Create Event system for THE C1RCLE platform�
 │  ┌─────────────────────────────────────┐                                    │
 │  │     PARTNERSHIP VERIFICATION        │ (For Hosts Only)                   │
 │  │  - Check active partnership         │                                    │
-│  │  - Fetch club calendar              │                                    │
+│  │  - Fetch venue calendar              │                                    │
 │  │  - Request slot (not confirm)       │                                    │
 │  └───────────────┬─────────────────────┘                                    │
 │                  │                                                           │
 │                  ▼                                                           │
 │  ┌─────────────────────────────────────┐                                    │
 │  │        APPROVAL WORKFLOW            │                                    │
-│  │  Host → Club Approval Required      │                                    │
-│  │  Club → Direct Publish              │                                    │
+│  │  Host → Venue Approval Required      │                                    │
+│  │  Venue → Direct Publish              │                                    │
 │  └───────────────┬─────────────────────┘                                    │
 │                  │                                                           │
 │                  ▼                                                           │
@@ -67,15 +67,15 @@ This document outlines the complete Create Event system for THE C1RCLE platform�
 | State              | Description                                     | Visible To            |
 |--------------------|-------------------------------------------------|-----------------------|
 | `draft`            | Created but not submitted                       | Owner only            |
-| `submitted`        | Sent for approval (host→club)                   | Owner, Club           |
-| `pending_slot`     | Waiting for club to approve date/time slot      | Owner, Club           |
-| `needs_changes`    | Club requested modifications                    | Owner, Club           |
-| `approved`         | Club approved, ready to publish                 | Owner, Club, Admin    |
+| `submitted`        | Sent for approval (host→venue)                   | Owner, Venue           |
+| `pending_slot`     | Waiting for venue to approve date/time slot      | Owner, Venue           |
+| `needs_changes`    | Venue requested modifications                    | Owner, Venue           |
+| `approved`         | Venue approved, ready to publish                 | Owner, Venue, Admin    |
 | `scheduled`        | Published, upcoming                             | Everyone              |
 | `live`             | Currently happening                             | Everyone              |
 | `completed`        | Event has ended                                 | Everyone              |
 | `cancelled`        | Event was cancelled                             | Everyone (as cancelled)|
-| `paused`           | Temporarily hidden from users                   | Owner, Club, Admin    |
+| `paused`           | Temporarily hidden from users                   | Owner, Venue, Admin    |
 
 ---
 
@@ -90,7 +90,7 @@ interface Event {
   slug: string;
   
   // Ownership & Authority
-  creatorRole: 'club' | 'host';
+  creatorRole: 'venue' | 'host';
   creatorId: string;
   hostId?: string;
   hostName?: string;
@@ -216,7 +216,7 @@ interface SlotRequest {
   requestedStartTime: string;
   requestedEndTime: string;
   status: 'pending' | 'approved' | 'rejected' | 'modified';
-  clubNotes?: string;
+  venueNotes?: string;
   alternativeDates?: string[];
   requestedAt: string;
   respondedAt?: string;
@@ -242,8 +242,8 @@ interface SlotRequestDocument {
   eventId: string;
   hostId: string;
   hostName: string;
-  clubId: string;
-  clubName: string;
+  venueId: string;
+  venueName: string;
   
   requestedDate: string;
   requestedStartTime: string;
@@ -253,7 +253,7 @@ interface SlotRequestDocument {
   priority: 'normal' | 'high';
   
   notes: string;
-  clubResponse?: string;
+  venueResponse?: string;
   alternativeDates?: string[];
   
   createdAt: string;
@@ -262,11 +262,11 @@ interface SlotRequestDocument {
 }
 ```
 
-### 3.3 Club Calendar Collection (New)
+### 3.3 Venue Calendar Collection (New)
 
 ```typescript
-interface ClubCalendarDocument {
-  clubId: string;
+interface VenueCalendarDocument {
+  venueId: string;
   date: string; // YYYY-MM-DD
   
   // Availability
@@ -334,13 +334,13 @@ interface PromoterLinkDocument {
 
 | Method | Endpoint                          | Description                        | Auth Required |
 |--------|-----------------------------------|------------------------------------|---------------|
-| POST   | `/api/events/draft`               | Create new draft                   | Host/Club     |
+| POST   | `/api/events/draft`               | Create new draft                   | Host/Venue     |
 | GET    | `/api/events/:id`                 | Get event details                  | Public/Auth   |
 | PATCH  | `/api/events/:id`                 | Update draft                       | Owner         |
 | POST   | `/api/events/:id/submit`          | Submit for approval                | Host          |
-| POST   | `/api/events/:id/approve`         | Approve event                      | Club          |
-| POST   | `/api/events/:id/reject`          | Reject with reason                 | Club          |
-| POST   | `/api/events/:id/request-changes` | Request modifications              | Club          |
+| POST   | `/api/events/:id/approve`         | Approve event                      | Venue          |
+| POST   | `/api/events/:id/reject`          | Reject with reason                 | Venue          |
+| POST   | `/api/events/:id/request-changes` | Request modifications              | Venue          |
 | POST   | `/api/events/:id/publish`         | Publish approved event             | Owner         |
 | POST   | `/api/events/:id/pause`           | Pause event                        | Owner/Admin   |
 | POST   | `/api/events/:id/cancel`          | Cancel event                       | Owner/Admin   |
@@ -349,12 +349,12 @@ interface PromoterLinkDocument {
 
 | Method | Endpoint                               | Description                    | Auth Required |
 |--------|----------------------------------------|--------------------------------|---------------|
-| GET    | `/api/clubs/:id/calendar`              | Get club availability          | Host (partner)|
+| GET    | `/api/venues/:id/calendar`              | Get venue availability          | Host (partner)|
 | POST   | `/api/slots/request`                   | Request a slot                 | Host          |
-| GET    | `/api/slots/requests`                  | List slot requests             | Club          |
-| POST   | `/api/slots/:id/approve`               | Approve slot                   | Club          |
-| POST   | `/api/slots/:id/reject`                | Reject slot                    | Club          |
-| POST   | `/api/slots/:id/modify`                | Suggest alternative            | Club          |
+| GET    | `/api/slots/requests`                  | List slot requests             | Venue          |
+| POST   | `/api/slots/:id/approve`               | Approve slot                   | Venue          |
+| POST   | `/api/slots/:id/reject`                | Reject slot                    | Venue          |
+| POST   | `/api/slots/:id/modify`                | Suggest alternative            | Venue          |
 
 ### 4.3 Promoter Integration
 
@@ -372,7 +372,7 @@ interface PromoterLinkDocument {
 ### Phase 1: Core Infrastructure
 1. Update event schema in eventStore.js
 2. Create slot request store
-3. Create club calendar store
+3. Create venue calendar store
 4. Update Firestore security rules
 
 ### Phase 2: Host Dashboard
@@ -381,7 +381,7 @@ interface PromoterLinkDocument {
 3. Calendar view for date selection
 4. Slot request UI
 
-### Phase 3: Club Dashboard
+### Phase 3: Venue Dashboard
 1. Event approval queue
 2. Slot request management
 3. Calendar management
@@ -414,9 +414,9 @@ interface PromoterLinkDocument {
 - `apps/partner-dashboard/lib/server/calendarStore.js`
 - `apps/partner-dashboard/lib/server/promoterLinkStore.js`
 - `apps/partner-dashboard/app/api/slots/route.ts`
-- `apps/partner-dashboard/app/api/clubs/[id]/calendar/route.ts`
-- `apps/partner-dashboard/app/club/events/requests/page.tsx`
-- `apps/partner-dashboard/app/club/calendar/page.tsx`
+- `apps/partner-dashboard/app/api/venues/[id]/calendar/route.ts`
+- `apps/partner-dashboard/app/venue/events/requests/page.tsx`
+- `apps/partner-dashboard/app/venue/calendar/page.tsx`
 - `apps/partner-dashboard/components/wizard/VenueStep.tsx`
 - `apps/partner-dashboard/components/wizard/TicketTierStep.tsx`
 - `apps/partner-dashboard/components/wizard/PromoterStep.tsx`
@@ -425,7 +425,7 @@ interface PromoterLinkDocument {
 ### Modified Files
 - `apps/partner-dashboard/lib/server/eventStore.js`
 - `apps/partner-dashboard/components/wizard/CreateEventWizard.tsx`
-- `apps/partner-dashboard/app/club/page.tsx`
+- `apps/partner-dashboard/app/venue/page.tsx`
 - `apps/partner-dashboard/app/host/page.tsx`
 - `apps/partner-dashboard/app/promoter/page.tsx`
 - `firestore.rules`
@@ -438,10 +438,10 @@ The Create Event system is complete when:
 1. ✅ A host can create an event draft
 2. ✅ The draft is persisted immediately
 3. ✅ Hosts can only select venues they have partnerships with
-4. ✅ Hosts can view club calendar (availability only)
+4. ✅ Hosts can view venue calendar (availability only)
 5. ✅ Slot requests are created, not direct bookings
-6. ✅ Clubs can approve/reject/modify slot requests
-7. ✅ Clubs can approve/reject events
+6. ✅ Venues can approve/reject/modify slot requests
+7. ✅ Venues can approve/reject events
 8. ✅ Ticket tiers work with entry types (stag/couple/group)
 9. ✅ Inventory decrements atomically
 10. ✅ Published events appear on user website

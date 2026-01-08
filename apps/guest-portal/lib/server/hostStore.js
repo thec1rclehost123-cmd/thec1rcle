@@ -68,7 +68,7 @@ const fallbackHosts = [
         followers: 12100,
         upcomingEventsCount: 3,
         nextEventDate: "2024-01-06",
-        bio: "Immersive AV clubs blending art, poetry, and analog synth jams.",
+        bio: "Immersive AV venues blending art, poetry, and analog synth jams.",
         location: "Viman Nagar, Pune, IN",
         verified: true,
         trending: false,

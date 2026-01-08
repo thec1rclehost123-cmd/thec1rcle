@@ -5,7 +5,6 @@ import { AppleTopBar } from "@/components/shared/AppleTopBar";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { RoleGuard } from "@/components/auth/RoleGuard";
-import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
 import {
     LayoutDashboard,
@@ -67,7 +66,7 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
     return (
         <ApprovalGuard>
             <RoleGuard allowedType="promoter">
-                <div className="min-h-screen bg-[#fbfbfd]">
+                <div className="min-h-screen bg-stone-50">
                     {/* Desktop Sidebar */}
                     <div className="hidden lg:block">
                         <AppleSidebar
@@ -82,11 +81,11 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
                     <header className="lg:hidden h-14 glass-nav fixed top-0 left-0 right-0 z-50 px-4 flex items-center justify-between">
                         <button
                             onClick={() => setSidebarOpen(true)}
-                            className="p-2 rounded-lg hover:bg-black/[0.04]"
+                            className="p-2 rounded-lg hover:bg-stone-100"
                         >
-                            <Menu className="h-5 w-5 text-[#1d1d1f]" />
+                            <Menu className="h-5 w-5 text-stone-700" />
                         </button>
-                        <span className="text-[15px] font-semibold text-[#1d1d1f]">C1RCLE</span>
+                        <span className="text-[15px] font-semibold text-stone-800">C1RCLE</span>
                         <div className="w-9" />
                     </header>
 
@@ -94,16 +93,16 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
                     {sidebarOpen && (
                         <div className="fixed inset-0 z-[100] lg:hidden">
                             <div
-                                className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+                                className="absolute inset-0 bg-stone-900/20"
                                 onClick={() => setSidebarOpen(false)}
                             />
-                            <div className="absolute inset-y-0 left-0 w-[280px] bg-white shadow-xl animate-slide-up">
+                            <div className="absolute inset-y-0 left-0 w-[280px] bg-white shadow-2xl animate-slide-in-right">
                                 <div className="absolute top-4 right-4">
                                     <button
                                         onClick={() => setSidebarOpen(false)}
-                                        className="p-2 rounded-lg hover:bg-black/[0.04]"
+                                        className="p-2 rounded-lg hover:bg-stone-100"
                                     >
-                                        <X className="h-5 w-5 text-[#86868b]" />
+                                        <X className="h-5 w-5 text-stone-500" />
                                     </button>
                                 </div>
                                 <AppleSidebar
@@ -117,13 +116,13 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
                     )}
 
                     {/* Main Content */}
-                    <div className="lg:pl-[260px] flex flex-col min-h-screen pt-14 lg:pt-0">
+                    <div className="lg:pl-[248px] flex flex-col min-h-screen pt-14 lg:pt-0">
                         <div className="hidden lg:block">
                             <AppleTopBar />
                         </div>
 
                         <main className="flex-1 p-6 lg:p-8">
-                            <div className="max-w-[900px] mx-auto animate-slide-up">
+                            <div className="max-w-[960px] mx-auto animate-slide-up">
                                 {children}
                             </div>
                         </main>

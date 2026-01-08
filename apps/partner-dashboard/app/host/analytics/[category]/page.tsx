@@ -44,7 +44,7 @@ export default function HostAnalyticsPage() {
     };
 
     const categoryDescriptions: Record<string, string> = {
-        overview: "Total impact across all productions and clubs.",
+        overview: "Total impact across all productions and venues.",
         performance: "Entry vs RSVP tracking and success forecasting.",
         audience: "Crowd demographics and gender consistency mapping.",
         reliability: "Your professional reputation score and approval history.",
@@ -136,7 +136,7 @@ function HostOverviewView({ stats }: { stats: any }) {
                 <StatMetric label="Total Events" value={stats.totalEvents} trend="+2" color="indigo" />
                 <StatMetric label="Approval Rate" value={`${Math.round(stats.approvalRate)}%`} trend="Consistent" color="emerald" />
                 <StatMetric label="Avg. Turnout" value={`${stats.avgTurnout}%`} trend="+5.4%" color="amber" />
-                <StatMetric label="Partner Clubs" value={stats.clubsCount} trend="+1" color="rose" />
+                <StatMetric label="Partner Venues" value={stats.venuesCount} trend="+1" color="rose" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

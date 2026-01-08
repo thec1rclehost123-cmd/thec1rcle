@@ -16,7 +16,7 @@ const auth = admin.auth();
 async function setup() {
     const email = 'manager@thec1rcle.com';
     const password = 'Manager123!';
-    const clubId = 'THE_CIRCLE_CLUB';
+    const venueId = 'THE_CIRCLE_CLUB';
 
     let uid;
 
@@ -42,13 +42,13 @@ async function setup() {
         email,
         displayName: 'Demo Manager',
         role: 'club_manager',
-        clubId: clubId,
+        venueId: venueId,
         createdAt: new Date().toISOString()
     }, { merge: true });
 
-    // Create Club
-    await db.collection('venues').doc(clubId).set({
-        name: 'The C1rcle Club (Demo)',
+    // Create Venue
+    await db.collection('venues').doc(venueId).set({
+        name: 'The C1rcle Venue (Demo)',
         city: 'Pune',
         address: 'Kalyani Nagar',
         isActive: true,

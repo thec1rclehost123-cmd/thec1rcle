@@ -9,8 +9,8 @@
 ### 1. Partnership System ✅ COMPLETE
 | Feature | Status | Files |
 |---------|--------|-------|
-| Club ↔ Host partnerships | ✅ | `partnershipStore.js` |
-| Partnership requests | ✅ | `/club/connections/requests/` |
+| Venue ↔ Host partnerships | ✅ | `partnershipStore.js` |
+| Partnership requests | ✅ | `/venue/connections/requests/` |
 | Calendar privacy (hosts see availability only) | ✅ | `calendarStore.js` |
 | Host ↔ Promoter relationships | ✅ | Event-based linking |
 
@@ -21,12 +21,12 @@
 | Multi-step form | ✅ | 6 steps with validation |
 | Slot request system | ✅ | `slotStore.js` |
 | Event lifecycle | ✅ | draft → approved → live → completed |
-| Club approval gate | ✅ | Slot approval flow |
+| Venue approval gate | ✅ | Slot approval flow |
 
 ### 3. Calendar Integration ✅ COMPLETE
 | Feature | Status | Files |
 |---------|--------|-------|
-| Club master calendar | ✅ | `/club/calendar/page.tsx` |
+| Venue master calendar | ✅ | `/venue/calendar/page.tsx` |
 | Date blocking | ✅ | `calendarStore.js` |
 | Slot availability | ✅ | Time conflict detection |
 | **Operational registers** | ✅ NEW | `registerStore.js` |
@@ -69,20 +69,20 @@
 | **Payout requests** | ✅ NEW | UPI & Bank transfer |
 | **Payouts page** | ✅ NEW | `/promoter/payouts/page.tsx` |
 
-### 7. Club Staff Management & RBAC ✅ COMPLETE
+### 7. Venue Staff Management & RBAC ✅ COMPLETE
 | Feature | Status | Files |
 |---------|--------|-------|
 | Staff store | ✅ | `staffStore.js` |
 | Role presets | ✅ | 6 roles with permissions |
 | Permission system | ✅ | Granular access control |
-| Staff API | ✅ | `/api/club/staff` |
-| Staff management UI | ✅ | `/club/staff/page.tsx` |
+| Staff API | ✅ | `/api/venue/staff` |
+| Staff management UI | ✅ | `/venue/staff/page.tsx` |
 | Staff verification | ✅ | Manager-controlled |
 
 ### 8. Discovery & Profile Management ✅ COMPLETE
 | Feature | Status | Files |
 |---------|--------|-------|
-| Page management UI | ✅ | `/club/page-management/` |
+| Page management UI | ✅ | `/venue/page-management/` |
 | **Profile store** | ✅ NEW | `profileStore.js` |
 | **Profile API** | ✅ NEW | `/api/profile` |
 | Cover image management | ✅ | Discovery card |
@@ -121,13 +121,13 @@ apps/partner-dashboard/
 │   └── payoutStore.js             # Promoter payouts
 ├── app/
 │   ├── api/
-│   │   ├── club/staff/route.ts    # Staff API
-│   │   ├── club/registers/route.ts # Registers API
+│   │   ├── venue/staff/route.ts    # Staff API
+│   │   ├── venue/registers/route.ts # Registers API
 │   │   ├── profile/route.ts       # Profile API
 │   │   ├── promoter/commissions/route.ts
 │   │   ├── promoter/payouts/route.ts  # Payouts API
 │   │   └── scan/route.ts          # QR scanning API
-│   ├── club/staff/page.tsx        # Staff UI
+│   ├── venue/staff/page.tsx        # Staff UI
 │   └── promoter/payouts/page.tsx  # Payouts UI (rewritten)
 
 apps/guest-portal/
@@ -162,13 +162,13 @@ docs/
 | `promoter_links` | Affiliate links | - |
 | `promoter_commissions` | Commission records | - |
 | `promoter_payouts` | Payout requests | ✅ NEW |
-| `club_calendar` | Calendar availability | - |
-| `club_registers` | Operational registers | ✅ NEW |
+| `venue_calendar` | Calendar availability | - |
+| `venue_registers` | Operational registers | ✅ NEW |
 | `slot_requests` | Host slot requests | - |
-| `partnerships` | Club-Host partnerships | - |
-| `club_staff` | Staff members with roles | ✅ NEW |
+| `partnerships` | Venue-Host partnerships | - |
+| `venue_staff` | Staff members with roles | ✅ NEW |
 | `notifications` | User notifications | ✅ NEW |
-| `follows` | User follows (clubs/hosts) | ✅ NEW |
+| `follows` | User follows (venues/hosts) | ✅ NEW |
 | `ticket_scans` | Entry scan records | ✅ NEW |
 | `payments` | Payment transactions | ✅ NEW |
 | `profile_posts` | Profile posts | ✅ NEW |
@@ -205,8 +205,8 @@ docs/
 ### Partner Dashboard
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
-| GET/POST/PATCH | `/api/club/staff` | Staff management |
-| GET/POST/PATCH | `/api/club/registers` | Operational registers |
+| GET/POST/PATCH | `/api/venue/staff` | Staff management |
+| GET/POST/PATCH | `/api/venue/registers` | Operational registers |
 | GET/PATCH/POST/DELETE | `/api/profile` | Profile management |
 | GET/POST/DELETE | `/api/promoter/payouts` | Payout management |
 | POST | `/api/scan` | Verify ticket |
@@ -237,7 +237,7 @@ docs/
 > This is not an event app.
 > This is an **operating system for nightlife partnerships**.
 
-- **Clubs** control venues ✅
+- **Venues** control venues ✅
 - **Hosts** build experiences ✅
 - **Promoters** drive sales ✅
 - **Users** attend events ✅

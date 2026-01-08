@@ -1,87 +1,80 @@
-import clsx from "clsx";
-import { forwardRef, type ReactNode, type SelectHTMLAttributes } from "react";
+"use client";
 
-interface SelectOption {
-  label: string;
+import clsx from "clsx";
+import { forwardRef, type SelectHTMLAttributes } from "react";
+import { ChevronDown } from "lucide-react";
+
+/**
+ * Select Component — Clean Dropdown
+ */
+
+export interface SelectOption {
   value: string;
+  label: string;
+  disabled?: boolean;
 }
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
-  helperText?: string;
-  errorText?: string;
-  options?: SelectOption[];
-  leadingIcon?: ReactNode;
-  tone?: "default" | "light";
+  error?: string;
+  hint?: string;
+  options: SelectOption[];
+  placeholder?: string;
 }
 
-const baseSelect =
-  "peer w-full appearance-none rounded-[28px] border px-5 py-3 pr-12 text-base transition focus-visible:ring-2 focus-visible:ring-slate-900/10 focus-visible:outline-none";
-
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, helperText, errorText, options, className, leadingIcon, children, required, tone = "default", ...rest }, ref) => (
-    <label className={clsx(
-      "flex w-full flex-col gap-2 text-sm",
-      tone === 'light' ? 'text-slate-600' : 'text-white/70'
-    )}>
-      {label && (
-        <span className={clsx(
-          "text-xs font-medium uppercase tracking-[0.35em]",
-          tone === 'light' ? 'text-slate-400' : 'text-white/50'
-        )}>
-          {label} {required && <span className="text-peach">*</span>}
-        </span>
-      )}
-      <div className="relative">
-        {leadingIcon && (
-          <span className={clsx(
-            "pointer-events-none absolute left-4 top-1/2 -translate-y-1/2",
-            tone === 'light' ? 'text-slate-400' : 'text-white/40'
-          )}>
-            {leadingIcon}
-          </span>
+  ({ label, error, hint, options, placeholder, className, ...rest }, ref) => {
+    const hasError = !!error;
+
+    return (
+      <div className="w-full">
+        {label && (
+          <label className="block text-[12px] font-medium text-stone-500 mb-1.5">
+            {label}
+          </label>
         )}
-        <select
-          ref={ref}
-          className={clsx(
-            baseSelect,
-            leadingIcon && "pl-12",
-            tone === 'light' ?
-              "border-slate-200 bg-slate-50 text-slate-900 focus-visible:bg-white focus-visible:border-indigo-300 focus-visible:ring-indigo-100" :
-              "border-white/10 bg-white/[0.04] text-white focus-visible:border-white/40 focus-visible:ring-white/50",
-            errorText && (tone === 'light' ? "border-rose-300 ring-rose-100" : "border-red-400/50 text-red-100"),
-            className
-          )}
-          {...rest}
-        >
-          {options
-            ? options.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+        <div className="relative">
+          <select
+            ref={ref}
+            className={clsx(
+              "w-full appearance-none bg-stone-50 border rounded-lg px-4 py-3 pr-10 text-[14px] text-stone-900 transition-all duration-150 outline-none cursor-pointer",
+              "hover:bg-stone-100",
+              "focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10",
+              hasError
+                ? "border-red-300 focus:border-red-500 focus:ring-red-500/10"
+                : "border-transparent",
+              className
+            )}
+            {...rest}
+          >
+            {placeholder && (
+              <option value="" disabled>
+                {placeholder}
               </option>
-            ))
-            : children}
-        </select>
-        <span className={clsx(
-          "pointer-events-none absolute right-4 top-1/2 -translate-y-1/2",
-          tone === 'light' ? 'text-slate-400' : 'text-white/40'
-        )}>⌄</span>
-      </div>
-      {
-        errorText ? (
-          <span className="text-xs text-red-500 font-medium" > {errorText}</span>
-        ) : (
-          helperText && (
-            <span className={clsx(
-              "text-xs",
-              tone === 'light' ? 'text-slate-400' : 'text-white/40'
-            )}>
-              {helperText}
-            </span>
-          )
+            )}
+            {options.map((opt) => (
+              <option
+                key={opt.value}
+                value={opt.value}
+                disabled={opt.disabled}
+              >
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+        </div>
+        {(error || hint) && (
+          <p className={clsx(
+            "mt-1.5 text-[12px]",
+            hasError ? "text-red-600" : "text-stone-500"
+          )}>
+            {error || hint}
+          </p>
         )}
-    </label >
-  )
+      </div>
+    );
+  }
 );
 
 Select.displayName = "Select";

@@ -174,7 +174,7 @@ export default function ProfilePage() {
                                     />
                                 ) : (
                                     <p className="text-sm font-medium text-[#1d1d1f] leading-relaxed italic">
-                                        "{formData.bio || "No biography provided. Tell clubs and hosts about your impact!"}"
+                                        "{formData.bio || "No biography provided. Tell venues and hosts about your impact!"}"
                                     </p>
                                 )}
                             </div>

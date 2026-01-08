@@ -21,7 +21,7 @@ export default function HostDiscoverPage() {
                     </div>
                     <h1 className="text-4xl font-semibold text-slate-900 tracking-tight">Discovery Network</h1>
                     <p className="text-slate-500 text-lg font-medium mt-2 max-w-xl">
-                        Find and partner with verified clubs and promoters to expand your reach.
+                        Find and partner with verified venues and promoters to expand your reach.
                     </p>
                 </div>
             </div>
@@ -37,7 +37,7 @@ export default function HostDiscoverPage() {
                             <h4 className="text-sm font-bold text-slate-900 uppercase tracking-[0.1em]">Partnership Economics</h4>
                         </div>
                         <p className="text-slate-600 text-[15px] font-medium leading-relaxed">
-                            Connect with <span className="text-slate-900 font-bold">Clubs</span> to unlock their Availability Calendar and request event slots.
+                            Connect with <span className="text-slate-900 font-bold">Venues</span> to unlock their Availability Calendar and request event slots.
                             Partner with <span className="text-slate-900 font-bold">Promoters</span> to give them access to your events and boost your conversion rates.
                         </p>
                     </div>
@@ -57,7 +57,7 @@ export default function HostDiscoverPage() {
             </div>
 
             <DiscoveryView
-                allowedTypes={["club", "promoter"]}
+                allowedTypes={["venue", "promoter"]}
                 partnerId={hostId}
                 role="host"
             />

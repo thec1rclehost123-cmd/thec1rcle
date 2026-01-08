@@ -558,23 +558,20 @@ export function TableBookingStep({ formData, updateFormData, validationErrors }:
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8">
             {/* Header with Toggle */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-[20px] font-bold text-[#1d1d1f]">Table Reservations</h2>
-                    <p className="text-[13px] text-[#86868b] mt-1">
+                    <h2 className="text-headline">Table Reservations</h2>
+                    <p className="text-label mt-1">
                         Offer premium table packages for group bookings
                     </p>
                 </div>
                 <button
                     onClick={tablesEnabled ? disableTables : enableTables}
-                    className={`px-4 py-2 rounded-xl text-[13px] font-semibold transition-all ${tablesEnabled
-                        ? "bg-[#ff3b30]/10 text-[#ff3b30] hover:bg-[#ff3b30]/20"
-                        : "bg-[#F44A22] text-white hover:bg-[#d63d1a]"
-                        }`}
+                    className={`btn ${tablesEnabled ? "btn-secondary text-rose-600 border-rose-100 bg-rose-50" : "btn-primary"}`}
                 >
-                    {tablesEnabled ? "Disable Tables" : "Enable Tables"}
+                    {tablesEnabled ? "Deactivate Reservations" : "Enable Tables"}
                 </button>
             </div>
 
@@ -583,43 +580,54 @@ export function TableBookingStep({ formData, updateFormData, validationErrors }:
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-8 rounded-3xl bg-[#f5f5f7] text-center"
+                    className="p-12 rounded-[2.5rem] surface-secondary border border-default text-center"
                 >
-                    <div className="w-16 h-16 rounded-full bg-[#F44A22]/10 flex items-center justify-center mx-auto mb-4">
-                        <Wine className="w-8 h-8 text-[#F44A22]" />
+                    <div className="w-20 h-20 rounded-[2rem] bg-indigo-600 text-white shadow-xl shadow-indigo-100 ring-8 ring-indigo-50 flex items-center justify-center mx-auto mb-6">
+                        <Wine className="w-10 h-10" />
                     </div>
-                    <h3 className="text-[17px] font-bold text-[#1d1d1f] mb-2">
-                        No Table Reservations
+                    <h3 className="text-display-sm mb-2">
+                        Reservations Offline
                     </h3>
-                    <p className="text-[14px] text-[#86868b] mb-6 max-w-md mx-auto">
+                    <p className="text-body text-secondary mb-8 max-w-md mx-auto">
                         Enable table reservations to offer premium group packages with bottle service,
-                        reserved seating, and exclusive perks.
+                        reserved seating, and exclusive VIP perks.
                     </p>
                     <button
                         onClick={enableTables}
-                        className="px-6 py-3 rounded-xl bg-[#F44A22] text-white font-semibold hover:bg-[#d63d1a] transition-colors inline-flex items-center gap-2"
+                        className="btn btn-primary px-10 py-4 flex items-center gap-3 mx-auto"
                     >
                         <Plus className="w-5 h-5" />
-                        Add Table Packages
+                        Initialize Table Matrix
                     </button>
                 </motion.div>
             ) : (
                 <>
                     {/* Stats Summary */}
-                    <div className="grid grid-cols-3 gap-4">
-                        <div className="p-4 rounded-2xl bg-[#f5f5f7]">
-                            <p className="text-[11px] font-medium text-[#86868b] uppercase tracking-wide">Tables</p>
-                            <p className="text-[24px] font-bold text-[#1d1d1f]">{totalTables}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="apple-glass-card rounded-[2rem] p-6 space-y-1">
+                            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-[#86868b]">Tables</p>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-[28px] font-black text-[#1d1d1f] tracking-tight">{totalTables}</span>
+                                <span className="text-[13px] font-medium text-[#86868b]">Available</span>
+                            </div>
                         </div>
-                        <div className="p-4 rounded-2xl bg-[#f5f5f7]">
-                            <p className="text-[11px] font-medium text-[#86868b] uppercase tracking-wide">Capacity</p>
-                            <p className="text-[24px] font-bold text-[#1d1d1f]">{totalCapacity} <span className="text-[14px] font-normal text-[#86868b]">guests</span></p>
+
+                        <div className="apple-glass-card rounded-[2rem] p-6 space-y-1">
+                            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-[#86868b]">Capacity</p>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-[28px] font-black text-[#1d1d1f] tracking-tight">{totalCapacity}</span>
+                                <span className="text-[13px] font-medium text-[#86868b]">VVIP Guests</span>
+                            </div>
                         </div>
-                        <div className="p-4 rounded-2xl bg-[#f5f5f7]">
-                            <p className="text-[11px] font-medium text-[#86868b] uppercase tracking-wide">Total Value</p>
-                            <p className="text-[24px] font-bold text-[#F44A22]">₹{totalValue.toLocaleString()}</p>
+
+                        <div className="apple-glass-card rounded-[2rem] p-6 space-y-1">
+                            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-[#86868b]">Total Value</p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-[28px] font-black text-[#F44A22] tracking-tight">₹{totalValue.toLocaleString()}</span>
+                            </div>
                         </div>
                     </div>
+
 
                     {/* Table Packages List */}
                     <div className="space-y-4">
@@ -664,7 +672,8 @@ export function TableBookingStep({ formData, updateFormData, validationErrors }:
                         </div>
                     </div>
                 </>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 }

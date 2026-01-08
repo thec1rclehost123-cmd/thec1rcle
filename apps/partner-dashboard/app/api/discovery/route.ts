@@ -49,13 +49,13 @@ export async function GET(req: NextRequest) {
                         let status = null;
                         let connectionId = null;
 
-                        // 1. Check partnerships (Host <-> Club)
-                        if ((role === "host" && partner.type === "club") || (role === "club" && partner.type === "host")) {
+                        // 1. Check partnerships (Host <-> Venue)
+                        if ((role === "host" && partner.type === "venue") || (role === "venue" && partner.type === "host")) {
                             const hostId = role === "host" ? partnerId : partner.id;
-                            const clubId = role === "club" ? partnerId : partner.id;
+                            const venueId = role === "venue" ? partnerId : partner.id;
                             const pSnap = await db.collection("partnerships")
                                 .where("hostId", "==", hostId)
-                                .where("clubId", "==", clubId)
+                                .where("venueId", "==", venueId)
                                 .limit(1).get();
                             if (!pSnap.empty) {
                                 const data = pSnap.docs[0].data();

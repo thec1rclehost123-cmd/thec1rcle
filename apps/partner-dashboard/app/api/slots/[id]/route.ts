@@ -72,7 +72,7 @@ export async function PATCH(
                         { status: 400 }
                     );
                 }
-                result = await counterProposeSlot(params.id, body.clubId || actor.partnerId, actor, alternativeDate, alternativeStartTime, alternativeEndTime, notes);
+                result = await counterProposeSlot(params.id, body.venueId || actor.partnerId, actor, alternativeDate, alternativeStartTime, alternativeEndTime, notes);
                 break;
 
             default:

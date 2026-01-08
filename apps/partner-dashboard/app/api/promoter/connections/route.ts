@@ -29,8 +29,8 @@ export async function GET(req: NextRequest) {
 
         switch (action) {
             case "discover": {
-                // Discover hosts and clubs
-                const type = searchParams.get("type") as "host" | "club" | "promoter" | null;
+                // Discover hosts and venues
+                const type = searchParams.get("type") as "host" | "venue" | "promoter" | null;
                 const city = searchParams.get("city");
                 const search = searchParams.get("search");
                 const limit = parseInt(searchParams.get("limit") || "20");
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
 
             case "status": {
                 const targetId = searchParams.get("targetId");
-                const targetType = searchParams.get("targetType") as "host" | "club";
+                const targetType = searchParams.get("targetType") as "host" | "venue";
 
                 if (!targetId || !targetType) {
                     return NextResponse.json(

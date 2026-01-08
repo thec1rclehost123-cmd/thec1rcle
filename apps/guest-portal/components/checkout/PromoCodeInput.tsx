@@ -112,7 +112,7 @@ export function PromoCodeInput({
         <div className={`space-y-2 ${className}`}>
             <div className="flex gap-2">
                 <div className="relative flex-1">
-                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#86868b]" />
+                    <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-inherit opacity-30" />
                     <input
                         type="text"
                         value={code}
@@ -121,11 +121,11 @@ export function PromoCodeInput({
                             setError(null);
                         }}
                         onKeyDown={handleKeyDown}
-                        placeholder="Promo code"
+                        placeholder="PROMO CODE"
                         disabled={disabled || isLoading}
-                        className={`w-full pl-10 pr-4 py-3 rounded-xl bg-[#f5f5f7] border text-[15px] font-medium text-[#1d1d1f] placeholder:text-[#86868b]/50 focus:outline-none focus:bg-white transition-all ${error
-                                ? "border-[#ff3b30] focus:border-[#ff3b30]"
-                                : "border-transparent focus:border-[#007aff]"
+                        className={`w-full pl-11 pr-4 py-3.5 rounded-2xl bg-zinc-800 border border-white/10 text-[13px] font-black tracking-[0.1em] text-white placeholder:text-white/20 focus:outline-none focus:bg-zinc-700 transition-all ${error
+                            ? "border-red-500/50 focus:border-red-500"
+                            : "focus:border-white/30"
                             }`}
                     />
                 </div>
@@ -133,13 +133,13 @@ export function PromoCodeInput({
                 <button
                     onClick={handleApply}
                     disabled={!code.trim() || isLoading || disabled}
-                    className={`px-5 py-3 rounded-xl font-semibold text-[14px] transition-all ${!code.trim() || isLoading || disabled
-                            ? "bg-[#e5e5ea] text-[#86868b] cursor-not-allowed"
-                            : "bg-[#007aff] text-white hover:bg-[#0056b3]"
+                    className={`px-6 py-3.5 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all ${!code.trim() || isLoading || disabled
+                        ? "bg-white/5 text-white/10 cursor-not-allowed"
+                        : "bg-white text-black hover:scale-[1.02] active:scale-95 shadow-xl shadow-white/5"
                         }`}
                 >
                     {isLoading ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : (
                         "Apply"
                     )}

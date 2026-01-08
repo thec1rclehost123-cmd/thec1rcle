@@ -245,7 +245,7 @@ const buildEvent = (payload = {}) => {
   const isDraft = payload.lifecycle === EVENT_LIFECYCLE.DRAFT;
   const required = isDraft
     ? ["title"]
-    : (isHost
+    : ((isHost || payload.creatorRole === 'club')
       ? ["title", "city", "host"]
       : ["title", "startDate", "location", "host"]);
 
@@ -298,8 +298,8 @@ const buildEvent = (payload = {}) => {
     tags,
     host: (payload.host || "C1RCLE Partner").trim(),
     hostId: payload.hostId || "",
-    location: payload.location?.trim() || "",
-    venue: payload.venue?.trim() || "",
+    location: (payload.location || payload.venueName || payload.venue || "").trim(),
+    venue: (payload.venue || payload.venueName || payload.location || "").trim(),
     venueId: payload.venueId || "",
     promoterVisibility: payload.promotersEnabled ?? payload.promoterSettings?.enabled ?? true, // Top-level for indexing
     city: cityLabel, // Canonical label
@@ -341,12 +341,15 @@ const buildEvent = (payload = {}) => {
       visibility: settings.password ? "password" : settings.showExplore ? "public" : "link"
     },
     stats,
+    isDeleted: payload.isDeleted ?? false,
+    deletedAt: payload.deletedAt || null,
+    deletedBy: payload.deletedBy || null,
     createdAt: payload.createdAt || nowIso,
     updatedAt: payload.updatedAt || nowIso,
 
     // Lifecycle and Authority
     lifecycle: payload.lifecycle || EVENT_LIFECYCLE.DRAFT,
-    creatorRole: payload.creatorRole || "club",
+    creatorRole: (payload.creatorRole === 'club' ? 'venue' : payload.creatorRole) || "venue",
     creatorId: payload.creatorId || payload.hostId || "",
     slotRequest: payload.slotRequest || null,
     approvalNotes: payload.approvalNotes || "",
@@ -453,7 +456,7 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
   }
 
   const db = getAdminDb();
-  let query = db.collection(EVENT_COLLECTION);
+  let query = db.collection(EVENT_COLLECTION).where("isDeleted", "==", false);
 
   if (host) {
     query = query.where("host", "==", host);
@@ -527,7 +530,7 @@ export async function createEvent(payload) {
     const { checkPartnership } = await import("./partnershipStore");
     const isPartnered = await checkPartnership(event.hostId, event.venueId);
     if (!isPartnered) {
-      throw new Error("No approved partnership with this club.");
+      throw new Error("No approved partnership with this venue.");
     }
   }
 
@@ -554,12 +557,37 @@ export async function updateEvent(eventId, payload) {
 
   const existingData = doc.data();
 
+  // RBAC Enforcement
+  const actorRole = (payload.creatorRole === 'club' ? 'venue' : payload.creatorRole);
+  const isCreatorDirect = existingData.creatorId === payload.creatorId;
+  // Fallback: If creatorId was saved as partnerId, and we receive uid, or vice-versa
+  const isCreatorIdMatch = isCreatorDirect || (payload.partnerId && existingData.creatorId === payload.partnerId);
+  const isAdmin = actorRole === 'admin';
+  const isVenue = actorRole === 'venue';
+  const isSubmitted = existingData.lifecycle === 'submitted';
+
+  // Ownership Check: Venue can edit anything belonging to them
+  const isVenueOwner = isVenue && existingData.venueId === payload.partnerId;
+
+  if (!isCreatorIdMatch && !isAdmin && !isVenueOwner) {
+    // If not creator, admin, or venue owner, must be a venue member reviewing a submitted event
+    // (This path is for a venue reviewing a SUBMITTED host event)
+    if (!isVenue || !isSubmitted) {
+      throw new Error(`Unauthorized: You do not have permission to edit this event. (Role: ${actorRole}, Status: ${existingData.lifecycle})`);
+    }
+  }
+
   // Enforce locking: Host cannot edit if submitted
-  if (existingData.creatorRole === "host" && existingData.lifecycle === "submitted" && payload.creatorRole !== "club" && payload.creatorRole !== "admin") {
+  if (existingData.creatorRole === "host" && isSubmitted && !isVenue && !isAdmin) {
     throw new Error("Event is locked for club review. Cannot edit while submitted.");
   }
 
-  const event = buildEvent({ ...existingData, ...payload, id: eventId });
+  const sanitizedPayload = {
+    ...payload,
+    creatorRole: actorRole // Ensure normalized role is saved
+  };
+
+  const event = buildEvent({ ...existingData, ...sanitizedPayload, id: eventId });
 
   await eventRef.set(event);
 
@@ -569,6 +597,41 @@ export async function updateEvent(eventId, payload) {
   await logEventLifecycleAction(eventId, "updated", { role: payload.creatorRole || "system", uid: payload.creatorId || "system" });
 
   return event;
+}
+
+/**
+ * Soft delete an event
+ */
+export async function deleteEvent(eventId, actor) {
+  if (!isFirebaseConfigured()) {
+    const idx = localEvents.findIndex(e => e.id === eventId);
+    if (idx !== -1) localEvents.splice(idx, 1);
+    return { success: true };
+  }
+  const db = getAdminDb();
+  const eventRef = db.collection(EVENT_COLLECTION).doc(eventId);
+  const doc = await eventRef.get();
+
+  if (!doc.exists) throw new Error("Event not found");
+  const data = doc.data();
+
+  // Authorization: Only creator or admin can delete
+  if (data.creatorId !== actor.uid && actor.role !== 'admin') {
+    throw new Error("Unauthorized to delete this event");
+  }
+
+  const now = new Date().toISOString();
+  await eventRef.update({
+    isDeleted: true,
+    lifecycle: 'deleted',
+    deletedAt: now,
+    deletedBy: actor.uid,
+    updatedAt: now
+  });
+
+  await logEventLifecycleAction(eventId, "deleted", actor);
+
+  return { success: true };
 }
 
 /**
@@ -620,8 +683,10 @@ export async function updateEventLifecycle(eventId, newStatus, context, notes = 
   if (!doc.exists) throw new Error("Event not found");
   const event = doc.data();
 
+  const actorRole = (context.role === 'club' ? 'venue' : context.role);
+
   // Role-based validation
-  if (context.role === "host") {
+  if (actorRole === "host") {
     // Hosts can only submit or move back to draft
     const allowedTransitions = ["submitted", "draft"];
     if (!allowedTransitions.includes(newStatus)) {
@@ -636,22 +701,22 @@ export async function updateEventLifecycle(eventId, newStatus, context, notes = 
     }
   }
 
-  // Club-specific rules: Club events never need approval
-  if (event.creatorRole === "club") {
+  // Venue-specific rules: Venue events never need approval
+  if (event.creatorRole === "venue" || event.creatorRole === "club") {
     if (newStatus === "submitted" || newStatus === "approved" || newStatus === "denied") {
       // If a club event is "approved" or "submitted", it just goes to scheduled/live
-      console.log(`[Lifecycle] Club event ${eventId} bypassing approval state. Moving to publish pipeline.`);
+      console.log(`[Lifecycle] Venue event ${eventId} bypassing approval state. Moving to publish pipeline.`);
       return await publishEvent(eventId, context);
     }
   }
 
-  // Handle Publish/Approval Action (Club/Admin only)
+  // Handle Publish/Approval Action (Venue/Admin only)
   if (newStatus === "scheduled" || newStatus === "approved") {
-    if (context.role !== "club" && context.role !== "admin") {
-      throw new Error("Only clubs or admins can approve/publish events.");
+    if (actorRole !== "venue" && actorRole !== "admin") {
+      throw new Error("Only venues or admins can approve/publish events.");
     }
     // Hard fail if trying to approve a club event using host-style approval
-    if (event.creatorRole === "club" && newStatus === "approved") {
+    if ((event.creatorRole === "venue" || event.creatorRole === "club") && newStatus === "approved") {
       return await publishEvent(eventId, context);
     }
     return await publishEvent(eventId, context);
@@ -664,7 +729,7 @@ export async function updateEventLifecycle(eventId, newStatus, context, notes = 
 
   if (newStatus === "needs_changes" || newStatus === "denied") {
     updateData.rejectionReason = notes;
-    if (newStatus === "needs_changes") updateData.lifecycle = "denied"; // Standardize lifecycle
+    // updateData.lifecycle already has newStatus from line 712
   }
 
   if (newStatus === "submitted") {
@@ -678,8 +743,8 @@ export async function updateEventLifecycle(eventId, newStatus, context, notes = 
           eventId: eventId,
           hostId: event.creatorId,
           hostName: event.host,
-          clubId: event.venueId,
-          clubName: event.venue,
+          venueId: event.venueId,
+          venueName: event.venue,
           requestedDate: event.startDate,
           requestedStartTime: event.startTime,
           requestedEndTime: event.endTime,
@@ -742,9 +807,11 @@ export async function publishEvent(eventId, context) {
   if (!doc.exists) throw new Error("Event not found");
   const eventData = doc.data();
 
+  const actorRole = (context.role === 'club' ? 'venue' : context.role);
+
   // 1. Authorization & Ownership Gate
-  if (context.role !== "club" && context.role !== "admin") {
-    if (context.role === "host") {
+  if (actorRole !== "venue" && actorRole !== "admin") {
+    if (actorRole === "host") {
       if (eventData.creatorId !== context.uid) {
         throw new Error("Unauthorized: You do not own this event.");
       }
@@ -767,8 +834,8 @@ export async function publishEvent(eventId, context) {
     } else {
       throw new Error("Unauthorized: Only Partners or Admins can publish events.");
     }
-  } else if (context.role === "club") {
-    // Club publishing a host event is actually an approval
+  } else if (actorRole === "venue") {
+    // Venue publishing a host event is actually an approval
     if (eventData.creatorRole === "host" && eventData.lifecycle !== EVENT_LIFECYCLE.SUBMITTED) {
       // if club tries to publish a host draft that wasn't submitted, maybe block it?
       // For now, allow it if they really want to, but normally it should be submitted.
@@ -812,7 +879,7 @@ export async function publishEvent(eventId, context) {
     if (!slotRequest) {
       const slotSnap = await db.collection("slot_requests")
         .where("hostId", "==", eventData.creatorId)
-        .where("clubId", "==", eventData.venueId)
+        .where("venueId", "==", eventData.venueId)
         .where("requestedDate", "==", eventData.startDate)
         .where("status", "==", "approved")
         .limit(1)
@@ -827,13 +894,13 @@ export async function publishEvent(eventId, context) {
 
     if (!slotRequest || slotRequest.status !== 'approved') {
       // Hardening: If club is approving, we can auto-block the calendar to satisfy the system integrity
-      if (context.role === 'club' || context.role === 'admin') {
-        console.log(`[PublishPipeline][${requestId}] Club overrides missing hold. Checking for pending requests to resolve...`);
+      if (context.role === 'venue' || context.role === 'admin') {
+        console.log(`[PublishPipeline][${requestId}] Venue overrides missing hold. Checking for pending requests to resolve...`);
         const { updateCalendarSlot, listSlotRequests, approveSlotRequest } = await import("./slotStore");
 
         // Try to find a pending one to close the loop
         const pendings = await listSlotRequests({
-          clubId: eventData.venueId,
+          venueId: eventData.venueId,
           hostId: eventData.creatorId,
           status: 'pending'
         });
@@ -951,8 +1018,8 @@ export async function listEventsForPromoter({ promoterId, city, limit = 20 }) {
   }
 
   const { getApprovedPartnerIds } = await import("./promoterConnectionStore");
-  const { hostIds, clubIds } = await getApprovedPartnerIds(promoterId);
-  const partnerIds = [...hostIds, ...clubIds];
+  const { hostIds, venueIds } = await getApprovedPartnerIds(promoterId);
+  const partnerIds = [...hostIds, ...venueIds];
 
   if (partnerIds.length === 0) {
     console.log(`[PromoterEvents] Promoter ${promoterId} has no approved partnerships.`);
@@ -962,7 +1029,8 @@ export async function listEventsForPromoter({ promoterId, city, limit = 20 }) {
   const db = getAdminDb();
   let query = db.collection(EVENT_COLLECTION)
     .where("lifecycle", "in", PUBLIC_LIFECYCLE_STATES)
-    .where("promoterVisibility", "==", true);
+    .where("promoterVisibility", "==", true)
+    .where("isDeleted", "==", false);
 
   if (city) {
     const cityKey = normalizeCity(city);
@@ -1002,14 +1070,18 @@ export async function getEvent(identifier) {
   }
   const db = getAdminDb();
   // Fix: Removed ensureSeedEvents() call from read path
+  const eventRef = db.collection(EVENT_COLLECTION).doc(identifier);
 
-  const directDoc = await db.collection(EVENT_COLLECTION).doc(identifier).get();
+  const directDoc = await eventRef.get();
   if (directDoc.exists) {
+    const data = directDoc.data();
+    if (data.isDeleted) return null;
     return mapEventDocument(directDoc);
   }
   const slugSnapshot = await db
     .collection(EVENT_COLLECTION)
     .where("slug", "==", identifier)
+    .where("isDeleted", "==", false)
     .limit(1)
     .get();
   if (!slugSnapshot.empty) {

@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document outlines the complete implementation plan for THE C1RCLE partner ecosystem, covering Clubs, Hosts, Promoters, User Website, Calendar, Staff, Ticketing, and Discovery systems.
+This document outlines the complete implementation plan for THE C1RCLE partner ecosystem, covering Venues, Hosts, Promoters, User Website, Calendar, Staff, Ticketing, and Discovery systems.
 
 **Core Principle**: This is an operating system for nightlife partnerships, not just an event app.
 
@@ -11,16 +11,16 @@ This document outlines the complete implementation plan for THE C1RCLE partner e
 ## Current State Assessment
 
 ### ✅ Already Implemented
-- Basic partnership system (Club ↔ Host requests)
+- Basic partnership system (Venue ↔ Host requests)
 - Event creation wizard (CreateEventWizard.tsx)
 - Slot request system (slotStore.js)
 - Calendar store (calendarStore.js)
 - Promoter link generation and tracking
 - Order creation with promoter attribution
-- Basic dashboards for Club, Host, Promoter
+- Basic dashboards for Venue, Host, Promoter
 
 ### 🔧 Needs Enhancement
-- Calendar depth (Club operational register)
+- Calendar depth (Venue operational register)
 - Ticketing flexibility (entry types, promoter discounts)
 - Staff management and RBAC
 - Profile/Discover page management
@@ -40,12 +40,12 @@ This document outlines the complete implementation plan for THE C1RCLE partner e
 
 ### Phase 1: Foundation Layer (Partnership System) ✅ MOSTLY COMPLETE
 
-#### 1.1 Club ↔ Host Partnerships
+#### 1.1 Venue ↔ Host Partnerships
 ```
 Location: apps/partner-dashboard/lib/server/partnershipStore.js
 Status: ✅ Implemented
 - Request, approve, reject partnerships
-- List partnerships by club/host
+- List partnerships by venue/host
 ```
 
 #### 1.2 Calendar Visibility Rules
@@ -76,19 +76,19 @@ States: draft → submitted → approved → scheduled → live → completed �
         ↘ cancelled (can happen at most stages)
 
 Ownership:
-- Club-owned: No approval needed, goes directly to scheduled
-- Host-owned: Requires slot request → club approval
+- Venue-owned: No approval needed, goes directly to scheduled
+- Host-owned: Requires slot request → venue approval
 ```
 
 #### 2.2 Required Validations
 - [ ] Valid partnership check before host can request slot
-- [ ] Club approval gate before publishing
+- [ ] Venue approval gate before publishing
 - [ ] Capacity limits enforced
 - [ ] Date/time conflict detection
 
 ---
 
-### Phase 3: Club Calendar (Operational Depth)
+### Phase 3: Venue Calendar (Operational Depth)
 
 #### 3.1 Features per Date
 - [ ] All events (approved + pending)
@@ -102,9 +102,9 @@ Ownership:
 
 #### 3.2 Database Schema
 ```javascript
-// club_calendar collection
+// venue_calendar collection
 {
-  clubId: string,
+  venueId: string,
   date: string (YYYY-MM-DD),
   status: "available" | "blocked" | "partial",
   events: [{ eventId, title, status, timeSlot }],
@@ -200,10 +200,10 @@ Update inventory → Store in account
 
 #### 6.1 Staff Collection Schema
 ```javascript
-// club_staff collection
+// venue_staff collection
 {
   id: string,
-  clubId: string,
+  venueId: string,
   userId: string,
   email: string,
   name: string,
@@ -255,11 +255,11 @@ const rolePresets = {
 
 ### Phase 7: Discover & Profile Management
 
-#### 7.1 Profile Schema (Clubs & Hosts)
+#### 7.1 Profile Schema (Venues & Hosts)
 ```javascript
 {
   id: string,
-  type: "club" | "host",
+  type: "venue" | "host",
   displayName: string,
   bio: string,
   coverImage: string, // Primary discovery card image
@@ -302,15 +302,15 @@ const rolePresets = {
 
 #### 8.1 Notification Triggers
 ```javascript
-// Club posts event
-→ Notify all club followers
+// Venue posts event
+→ Notify all venue followers
 
 // Host posts event
 → Notify all host followers
 
-// Host posts event at Club
+// Host posts event at Venue
 → Notify host followers
-→ Notify club followers (deduplicated)
+→ Notify venue followers (deduplicated)
 
 // Event status changes
 → Notify ticket holders
@@ -329,7 +329,7 @@ const rolePresets = {
     eventId?: string,
     orderId?: string,
     hostId?: string,
-    clubId?: string
+    venueId?: string
   },
   isRead: boolean,
   createdAt: timestamp
@@ -343,8 +343,8 @@ const rolePresets = {
 #### 9.1 Real-time Listeners Required
 - Event status changes → All dashboards
 - Ticket inventory → Website + Dashboards
-- Calendar updates → Club + Host dashboards
-- Partnership status → Club + Host dashboards
+- Calendar updates → Venue + Host dashboards
+- Partnership status → Venue + Host dashboards
 
 #### 9.2 Consistency Guarantees
 - Use Firestore transactions for inventory
@@ -361,7 +361,7 @@ const rolePresets = {
 3. [ ] Implement QR code generation
 4. [ ] Complete event lifecycle states
 
-### Sprint 2: Club Operations (Days 4-6)
+### Sprint 2: Venue Operations (Days 4-6)
 1. [ ] Enhanced calendar with notes/registers
 2. [ ] Staff management system
 3. [ ] RBAC implementation
@@ -396,7 +396,7 @@ apps/partner-dashboard/
 │   ├── notificationStore.js   # Notification dispatching
 │   ├── profileStore.js        # Profile management
 │   └── qrStore.js             # QR generation/validation
-├── app/club/
+├── app/venue/
 │   ├── staff/page.tsx         # Staff management
 │   ├── profile/page.tsx       # Profile editing
 │   └── calendar/              # Enhanced calendar

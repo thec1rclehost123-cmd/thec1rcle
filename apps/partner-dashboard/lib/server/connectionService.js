@@ -5,7 +5,7 @@ import * as promoterConnectionStore from "./promoterConnectionStore";
 
 /**
  * Connection Service
- * Bridges partnershipStore (Host <-> Club) and promoterConnectionStore (Promoter <-> Host/Club)
+ * Bridges partnershipStore (Host <-> Venue) and promoterConnectionStore (Promoter <-> Host/Venue)
  */
 
 export async function createRequest({
@@ -18,17 +18,17 @@ export async function createRequest({
     targetName,
     message = ""
 }) {
-    // 1. Host <-> Club
+    // 1. Host <-> Venue
     if (
-        (requesterType === "host" && targetType === "club") ||
-        (requesterType === "club" && targetType === "host")
+        (requesterType === "host" && targetType === "venue") ||
+        (requesterType === "venue" && targetType === "host")
     ) {
         const hostId = requesterType === "host" ? requesterId : targetId;
-        const clubId = requesterType === "club" ? requesterId : targetId;
+        const venueId = requesterType === "venue" ? requesterId : targetId;
         const hostName = requesterType === "host" ? requesterName : targetName;
-        const clubName = requesterType === "club" ? requesterName : targetName;
+        const venueName = requesterType === "venue" ? requesterName : targetName;
 
-        return await partnershipStore.requestPartnership(hostId, clubId, hostName, clubName);
+        return await partnershipStore.requestPartnership(hostId, venueId, hostName, venueName);
     }
 
     // 2. Anything involving a Promoter
@@ -46,7 +46,7 @@ export async function createRequest({
 
     if (targetType === "promoter") {
         // Currently, promoterConnectionStore explicitly handles promoter as requester.
-        // If a Host/Club requests a Promoter, we might need a new method or adapt existing.
+        // If a Host/Venue requests a Promoter, we might need a new method or adapt existing.
         // For now, the requirements say roles can request each other.
         // Let's adapt createConnectionRequest or use it as is if it supports targetType=promoter.
 
@@ -123,7 +123,7 @@ export async function listConnections(partnerId, role, status = null) {
     // Combines both stores
     const filters = {};
     if (role === "host") filters.hostId = partnerId;
-    if (role === "club") filters.clubId = partnerId;
+    if (role === "venue") filters.venueId = partnerId;
     if (status) filters.status = status;
 
     const [partnerships, promoterConnections] = await Promise.all([
@@ -137,9 +137,9 @@ export async function listConnections(partnerId, role, status = null) {
     const normalizedPartnerships = partnerships.map(p => ({
         id: p.id,
         type: "partnership",
-        otherId: role === "host" ? p.clubId : p.hostId,
-        otherName: role === "host" ? p.clubName : p.hostName,
-        otherType: role === "host" ? "club" : "host",
+        otherId: role === "host" ? p.venueId : p.hostId,
+        otherName: role === "host" ? p.venueName : p.hostName,
+        otherType: role === "host" ? "venue" : "host",
         status: p.status,
         createdAt: p.createdAt,
         updatedAt: p.updatedAt

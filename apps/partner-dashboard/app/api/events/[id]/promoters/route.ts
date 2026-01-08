@@ -16,7 +16,7 @@ export async function GET(
 
         // Get approved promoters for this club/host
         const targetId = event.venueId || event.hostId;
-        const targetType = event.venueId ? "club" : "host";
+        const targetType = event.venueId ? "venue" : "host";
 
         const connections = await listIncomingRequests(targetId, targetType, "approved");
 

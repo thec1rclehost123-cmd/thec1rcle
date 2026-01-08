@@ -16,13 +16,13 @@ import { checkPartnership } from "@/lib/server/partnershipStore";
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
-        const clubId = searchParams.get("clubId");
+        const venueId = searchParams.get("venueId");
         const hostId = searchParams.get("hostId");
         const status = searchParams.get("status");
         const limit = parseInt(searchParams.get("limit") || "50");
 
         const requests = await listSlotRequests({
-            clubId: clubId || undefined,
+            venueId: venueId || undefined,
             hostId: hostId || undefined,
             status: status || undefined,
             limit
@@ -49,8 +49,8 @@ export async function POST(req: NextRequest) {
             eventId,
             hostId,
             hostName,
-            clubId,
-            clubName,
+            venueId,
+            venueName,
             requestedDate,
             requestedStartTime,
             requestedEndTime,
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
         } = body;
 
         // Validation
-        if (!eventId || !hostId || !clubId || !requestedDate || !requestedStartTime || !requestedEndTime) {
+        if (!eventId || !hostId || !venueId || !requestedDate || !requestedStartTime || !requestedEndTime) {
             return NextResponse.json(
                 { error: "Missing required fields" },
                 { status: 400 }
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Verify partnership exists
-        const hasPartnership = await checkPartnership(hostId, clubId);
+        const hasPartnership = await checkPartnership(hostId, venueId);
         if (!hasPartnership) {
             return NextResponse.json(
                 { error: "No active partnership with this club" },
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
 
         // Check if slot is available
         const availability = await isSlotAvailable(
-            clubId,
+            venueId,
             requestedDate,
             requestedStartTime,
             requestedEndTime
@@ -95,8 +95,8 @@ export async function POST(req: NextRequest) {
             eventId,
             hostId,
             hostName,
-            clubId,
-            clubName,
+            venueId,
+            venueName,
             requestedDate,
             requestedStartTime,
             requestedEndTime,

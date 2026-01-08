@@ -4,29 +4,53 @@ import { useEffect, useState } from "react";
 import { useDashboardAuth } from "../../components/providers/DashboardAuthProvider";
 import {
     Wallet,
-    Ticket,
     TrendingUp,
-    ChevronRight,
     ArrowUpRight,
-    CalendarDays
+    ArrowDownRight,
+    Link2,
+    Users,
+    CheckCircle2,
+    Clock,
+    ChevronRight,
+    ExternalLink,
+    Copy,
+    Check
 } from "lucide-react";
 import Link from "next/link";
-import { collection, query, where, onSnapshot, limit } from "firebase/firestore";
+import { collection, query, where, onSnapshot, limit, orderBy } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/client";
 import { DashboardEventCard } from "@c1rcle/ui";
 import { mapEventForClient } from "@c1rcle/core/events";
-import { Link2, ExternalLink } from "lucide-react";
 
+/**
+ * Promoter Dashboard Home — Attribution & Proof Lens
+ * 
+ * A Sales Command Center for distributed marketing.
+ * 
+ * Core question this screen answers:
+ * "How am I performing and what's my payout pipeline?"
+ * 
+ * Key metrics:
+ * - Verified entries (check-ins, not just clicks)
+ * - Conversion funnels
+ * - Commission clarity
+ * - No vanity metrics
+ */
 export default function PromoterDashboardHome() {
     const { profile } = useDashboardAuth();
-    const [earnings, setEarnings] = useState({
-        today: 0,
-        week: 0,
-        month: 0,
-        pending: 0
+    const [copiedLink, setCopiedLink] = useState<string | null>(null);
+    const [stats, setStats] = useState({
+        totalCommission: 0,
+        pendingCommission: 0,
+        totalClicks: 0,
+        totalConversions: 0,
+        totalCheckIns: 0,
+        conversionRate: 0,
+        checkInRate: 0
     });
     const [recentCommissions, setRecentCommissions] = useState<any[]>([]);
     const [activeEvents, setActiveEvents] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (!profile?.activeMembership?.partnerId) return;
@@ -34,6 +58,7 @@ export default function PromoterDashboardHome() {
         const partnerId = profile.activeMembership.partnerId;
         const db = getFirebaseDb();
 
+        // Fetch active events for promotion
         const eventsQuery = query(
             collection(db, "events"),
             where("lifecycle", "in", ["scheduled", "live"]),
@@ -51,14 +76,22 @@ export default function PromoterDashboardHome() {
             .then(res => res.json())
             .then(data => {
                 if (data.stats) {
-                    setEarnings(prev => ({
-                        ...prev,
-                        pending: data.stats.pendingCommission || 0,
-                        month: data.stats.totalCommission || 0,
-                        week: data.stats.totalCommission || 0 // Mocking weekly/today for now from total if missing
-                    }));
+                    const s = data.stats;
+                    const convRate = s.totalClicks > 0 ? (s.totalConversions / s.totalClicks * 100) : 0;
+                    const checkRate = s.totalConversions > 0 ? (s.totalCheckIns / s.totalConversions * 100) : 0;
+                    setStats({
+                        totalCommission: s.totalCommission || 0,
+                        pendingCommission: s.pendingCommission || 0,
+                        totalClicks: s.totalClicks || 0,
+                        totalConversions: s.totalConversions || 0,
+                        totalCheckIns: s.totalCheckIns || 0,
+                        conversionRate: convRate,
+                        checkInRate: checkRate
+                    });
                 }
-            });
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
 
         // Fetch Recent Commissions
         fetch(`/api/promoter/commissions?promoterId=${partnerId}&limit=5`)
@@ -72,55 +105,76 @@ export default function PromoterDashboardHome() {
         return () => unsubscribeEvents();
     }, [profile]);
 
+    const copyLink = (eventId: string, slug?: string) => {
+        const partnerId = profile?.activeMembership?.partnerId;
+        const url = `${window.location.origin}/e/${slug || eventId}?p=${partnerId}`;
+        navigator.clipboard.writeText(url);
+        setCopiedLink(eventId);
+        setTimeout(() => setCopiedLink(null), 2000);
+    };
+
     const firstName = profile?.displayName?.split(' ')[0] || 'there';
 
     return (
-        <div className="space-y-10 stagger-children">
+        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Header */}
-            <div className="flex items-end justify-between">
+            <div className="flex items-start justify-between">
                 <div>
-                    <p className="text-caption mb-1">Promoter Dashboard</p>
-                    <h1 className="text-headline">Hi, {firstName}</h1>
+                    <h1 className="text-display-sm text-[var(--text-primary)] tracking-tight">Console</h1>
+                    <p className="text-body text-[var(--text-tertiary)] mt-1">Proof of impact and performance overview.</p>
                 </div>
-                <div className="card p-4 flex items-center gap-4">
+
+                <div className="flex items-center gap-6 px-6 py-4 rounded-2xl bg-[var(--surface-elevated)] border border-[var(--border-subtle)] shadow-sm">
                     <div className="text-right">
-                        <p className="text-caption">Available</p>
-                        <p className="text-title">₹{earnings.pending.toLocaleString()}</p>
+                        <p className="text-label text-[var(--text-tertiary)] uppercase tracking-[0.05em] mb-1">Available Payout</p>
+                        <p className="text-display-xs text-[var(--text-primary)]">₹{stats.pendingCommission.toLocaleString()}</p>
                     </div>
-                    <Link href="/promoter/payouts" className="btn btn-primary btn-sm">
-                        <Wallet className="w-4 h-4" />
+                    <div className="w-[1px] h-10 bg-[var(--border-default)]" />
+                    <Link href="/promoter/payouts" className="btn btn-primary btn-sm rounded-xl px-5">
                         Withdraw
                     </Link>
                 </div>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-3 gap-4">
-                <StatCard
-                    label="Today"
-                    value={`₹${earnings.today}`}
+            {/* Core Attribution Metrics */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                <MetricCard
+                    label="Lifetime Earnings"
+                    value={`₹${stats.totalCommission.toLocaleString()}`}
                     icon={TrendingUp}
+                    accentColor="indigo"
                 />
-                <StatCard
-                    label="This Week"
-                    value={`₹${earnings.week}`}
-                    icon={CalendarDays}
+                <MetricCard
+                    label="Verified Entries"
+                    value={stats.totalCheckIns.toString()}
+                    icon={CheckCircle2}
+                    subtext="Actual venue footfall"
+                    accentColor="emerald"
                 />
-                <StatCard
-                    label="This Month"
-                    value={`₹${earnings.month}`}
-                    icon={Wallet}
+                <MetricCard
+                    label="Conversions"
+                    value={stats.totalConversions.toString()}
+                    icon={Users}
+                    subtext={`${stats.conversionRate.toFixed(1)}% click-to-buy`}
+                    accentColor="amber"
+                />
+                <MetricCard
+                    label="Loyalty Index"
+                    value={`${stats.checkInRate.toFixed(0)}%`}
+                    icon={Clock}
+                    subtext="Buyers who attended"
+                    accentColor={stats.checkInRate >= 70 ? "emerald" : stats.checkInRate >= 50 ? "amber" : "red"}
                 />
             </div>
 
-            {/* Main Content */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Active Events */}
+            {/* Work Surface */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Active Distribution Links */}
                 <div className="lg:col-span-2">
-                    <div className="card p-6">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-title">Active Events</h2>
-                            <Link href="/promoter/links" className="btn btn-ghost text-[13px]">
+                    <div className="p-8 rounded-[2rem] bg-[var(--surface-elevated)] border border-[var(--border-subtle)] shadow-sm">
+                        <div className="flex items-center justify-between mb-8">
+                            <h2 className="text-title text-[var(--text-primary)]">Distribution Links</h2>
+                            <Link href="/promoter/links" className="text-button text-indigo-600 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-all">
                                 All Links
                                 <ChevronRight className="w-4 h-4" />
                             </Link>
@@ -128,43 +182,20 @@ export default function PromoterDashboardHome() {
 
                         {activeEvents.length === 0 ? (
                             <div className="empty-state py-12">
-                                <div className="empty-state-icon">
-                                    <Ticket />
-                                </div>
-                                <h3 className="text-headline-sm mb-2">No active events</h3>
-                                <p className="text-body-sm mb-6 max-w-xs">
-                                    You haven't been assigned to any live events yet. Contact a host to start selling.
+                                <Link2 className="w-8 h-8 text-[var(--text-placeholder)] mb-4" />
+                                <h3 className="text-headline-sm text-[var(--text-primary)] mb-2">No active events</h3>
+                                <p className="text-body-sm text-[var(--text-tertiary)] max-w-xs mx-auto">
+                                    Connect with a host to start promoting live events and earning commission.
                                 </p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {activeEvents.map((event, index) => (
-                                    <DashboardEventCard
+                            <div className="space-y-4">
+                                {activeEvents.map((event) => (
+                                    <EventRow
                                         key={event.id}
                                         event={event}
-                                        index={index}
-                                        role="promoter"
-                                        primaryAction={{
-                                            label: "Promote",
-                                            href: `/promoter/links`
-                                        }}
-                                        secondaryActions={[
-                                            {
-                                                label: "Copy Tracking Link",
-                                                icon: <Link2 size={16} />,
-                                                onClick: () => {
-                                                    const partnerId = profile?.activeMembership?.partnerId;
-                                                    const url = `${window.location.origin}/e/${event.slug || event.id}?p=${partnerId}`;
-                                                    navigator.clipboard.writeText(url);
-                                                    alert("Tracking link copied!");
-                                                }
-                                            },
-                                            {
-                                                label: "View Event",
-                                                icon: <ExternalLink size={16} />,
-                                                href: `/event/${event.slug || event.id}`
-                                            }
-                                        ]}
+                                        onCopyLink={() => copyLink(event.id, event.slug)}
+                                        isCopied={copiedLink === event.id}
                                     />
                                 ))}
                             </div>
@@ -172,56 +203,45 @@ export default function PromoterDashboardHome() {
                     </div>
                 </div>
 
-                {/* Side Panel */}
+                {/* Performance Context */}
                 <div className="space-y-6">
-                    {/* Quick Actions */}
-                    <div className="card p-6">
-                        <h3 className="text-headline-sm mb-4">Quick Actions</h3>
-                        <div className="space-y-2">
-                            <QuickAction
-                                label="My Links"
-                                href="/promoter/links"
-                            />
-                            <QuickAction
-                                label="View Buyers"
-                                href="/promoter/guests"
-                            />
-                            <QuickAction
-                                label="Stats"
-                                href="/promoter/stats"
-                            />
-                        </div>
+                    {/* Insights Card */}
+                    <div className="p-8 rounded-[2rem] bg-stone-900 text-white shadow-xl shadow-stone-200">
+                        <h3 className="text-label text-stone-400 uppercase tracking-widest mb-6">Recent Earnings</h3>
+                        {recentCommissions.length === 0 ? (
+                            <p className="text-caption text-stone-500 py-6 text-center">No earnings data available.</p>
+                        ) : (
+                            <div className="space-y-5">
+                                {recentCommissions.map((comm, i) => (
+                                    <div key={comm.id || i} className="flex items-center justify-between">
+                                        <div className="min-w-0 flex-1 pr-4">
+                                            <p className="text-[14px] font-bold text-white truncate leading-tight">
+                                                {comm.eventTitle || "Event Contribution"}
+                                            </p>
+                                            <p className="text-[11px] text-stone-500 font-medium uppercase tracking-wider mt-1">
+                                                {new Date(comm.createdAt).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                        <span className="text-[15px] font-bold text-emerald-400">
+                                            +₹{comm.commissionAmount}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        <Link href="/promoter/payouts" className="btn btn-secondary w-full mt-8 bg-white/10 border-white/10 hover:bg-white/20 text-white font-bold">
+                            Financial Ledger
+                        </Link>
                     </div>
 
-                    <div className="card p-6">
-                        <h3 className="text-headline-sm mb-4">Recent Earnings</h3>
-                        <div className="space-y-3">
-                            {recentCommissions.length === 0 ? (
-                                <p className="text-caption py-4 text-center">No recent earnings yet.</p>
-                            ) : (
-                                recentCommissions.map((comm, i) => (
-                                    <div key={comm.id || i} className="list-item py-3 first:pt-0">
-                                        <div className="flex items-center gap-3 flex-1">
-                                            <div className="h-8 w-8 rounded-full bg-black/5 flex items-center justify-center text-[10px] font-bold">
-                                                {comm.eventTitle?.charAt(0) || "E"}
-                                            </div>
-                                            <div>
-                                                <p className="text-body-sm font-medium text-[#1d1d1f] truncate max-w-[120px]">
-                                                    {comm.eventTitle || "Event Sale"}
-                                                </p>
-                                                <p className="text-caption">
-                                                    {new Date(comm.createdAt).toLocaleDateString()}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <span className="text-body-sm font-medium text-[#34c759]">+₹{comm.commissionAmount}</span>
-                                    </div>
-                                ))
-                            )}
+                    {/* Quick Tools */}
+                    <div className="p-8 rounded-[2rem] bg-[var(--surface-elevated)] border border-[var(--border-subtle)] shadow-sm">
+                        <h3 className="text-label text-[var(--text-tertiary)] uppercase tracking-widest mb-6">Tools</h3>
+                        <div className="space-y-2">
+                            <QuickAction label="Promoter Assets" href="/promoter/assets" icon={ExternalLink} />
+                            <QuickAction label="Verified Buyers" href="/promoter/guests" icon={Users} />
+                            <QuickAction label="Network Status" href="/promoter/connections" icon={Link2} />
                         </div>
-                        <Link href="/promoter/links" className="btn btn-secondary w-full mt-4 text-[13px]">
-                            View All Links
-                        </Link>
                     </div>
                 </div>
             </div>
@@ -229,27 +249,118 @@ export default function PromoterDashboardHome() {
     );
 }
 
-function StatCard({ label, value, icon: Icon }: any) {
+// Sub-components
+function MetricCard({
+    label,
+    value,
+    icon: Icon,
+    subtext,
+    accentColor = "indigo"
+}: {
+    label: string;
+    value: string;
+    icon: any;
+    subtext?: string;
+    accentColor?: 'emerald' | 'amber' | 'red' | 'indigo' | 'stone';
+}) {
+    const accents: any = {
+        emerald: 'var(--state-confirmed)',
+        amber: 'var(--state-pending)',
+        red: 'var(--state-risk)',
+        indigo: 'var(--state-draft)',
+        stone: 'var(--text-tertiary)'
+    };
+
     return (
-        <div className="card p-5">
-            <div className="icon-container icon-container-sm mb-4">
-                <Icon className="w-4 h-4" />
+        <div className="p-8 rounded-[2rem] bg-[var(--surface-elevated)] border border-[var(--border-subtle)] shadow-sm hover:border-[var(--border-strong)] transition-all group">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110" style={{ backgroundColor: `${accents[accentColor]}10`, color: accents[accentColor] }}>
+                <Icon className="w-5 h-5" />
             </div>
-            <p className="stat-value">{value}</p>
-            <p className="stat-label">{label}</p>
+            <p className="text-display-sm text-[var(--text-primary)] leading-none mb-2 tracking-tight">{value}</p>
+            <p className="text-label text-[var(--text-tertiary)] uppercase tracking-[0.05em] mb-1">{label}</p>
+            {subtext && (
+                <p className="text-caption text-stone-400 font-medium">{subtext}</p>
+            )}
         </div>
     );
 }
 
+function EventRow({
+    event,
+    onCopyLink,
+    isCopied
+}: {
+    event: any;
+    onCopyLink: () => void;
+    isCopied: boolean;
+}) {
+    return (
+        <div className="group flex items-center gap-6 p-5 rounded-[1.5rem] bg-[var(--surface-secondary)]/50 border border-[var(--border-subtle)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)] transition-all">
+            {/* Poster Thumbnail */}
+            <div className="w-16 h-16 rounded-xl bg-stone-200 overflow-hidden flex-shrink-0 shadow-inner">
+                {event.posterUrl && (
+                    <img src={event.posterUrl} alt="" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                )}
+            </div>
 
-function QuickAction({ label, href }: { label: string; href: string }) {
+            {/* Event Info */}
+            <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">
+                    {new Date(event.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                </p>
+                <h4 className="text-[16px] font-bold text-[var(--text-primary)] truncate leading-tight">{event.title}</h4>
+                <p className="text-[13px] text-stone-500 font-medium truncate mt-0.5">
+                    {event.venueName || 'Premium Venue'}
+                </p>
+            </div>
+
+            {/* Interactive Section */}
+            <div className="flex items-center gap-3">
+                <button
+                    onClick={onCopyLink}
+                    className={`h-11 px-6 rounded-xl font-bold text-[13px] transition-all flex items-center gap-2 ${isCopied
+                        ? 'bg-[var(--state-confirmed)] text-white shadow-lg'
+                        : 'bg-white border border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-95'
+                        }`}
+                >
+                    {isCopied ? (
+                        <Check className="w-4 h-4" />
+                    ) : (
+                        <Copy className="w-4 h-4 opacity-50" />
+                    )}
+                    {isCopied ? 'Copied' : 'Get Link'}
+                </button>
+                <Link
+                    href={`/e/${event.slug || event.id}`}
+                    target="_blank"
+                    className="h-11 w-11 flex items-center justify-center rounded-xl bg-white border border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:text-indigo-600 hover:border-indigo-200 transition-all active:scale-95"
+                >
+                    <ExternalLink className="w-4 h-4" />
+                </Link>
+            </div>
+        </div>
+    );
+}
+
+function QuickAction({
+    label,
+    href,
+    icon: Icon
+}: {
+    label: string;
+    href: string;
+    icon: any;
+}) {
     return (
         <Link
             href={href}
-            className="list-item-interactive flex items-center justify-between py-3"
+            className="flex items-center gap-3 p-4 rounded-xl hover:bg-white/50 border border-transparent hover:border-[var(--border-subtle)] transition-all group"
         >
-            <span className="text-body-sm font-medium text-[#1d1d1f]">{label}</span>
-            <ArrowUpRight className="w-4 h-4 text-[#86868b]" />
+            <div className="w-9 h-9 rounded-lg bg-white border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-tertiary)] group-hover:text-indigo-600 group-hover:border-indigo-100 transition-all">
+                <Icon className="w-4 h-4" />
+            </div>
+            <span className="text-[14px] font-bold text-[var(--text-secondary)] flex-1">{label}</span>
+            <ArrowUpRight className="w-4 h-4 text-stone-300 group-hover:text-indigo-600 transition-all" />
         </Link>
     );
 }

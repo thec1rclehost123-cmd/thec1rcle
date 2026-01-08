@@ -58,9 +58,9 @@ export async function POST(request) {
             );
         }
 
-        if (!["club", "host"].includes(targetType)) {
+        if (!["venue", "host"].includes(targetType)) {
             return NextResponse.json(
-                { error: "targetType must be 'club' or 'host'" },
+                { error: "targetType must be 'venue' or 'host'" },
                 { status: 400 }
             );
         }
@@ -92,7 +92,7 @@ export async function DELETE(request) {
 
         const { searchParams } = new URL(request.url);
         const targetId = searchParams.get("targetId");
-        const targetType = searchParams.get("targetType") || "club";
+        const targetType = searchParams.get("targetType") || "venue";
 
         if (!targetId) {
             return NextResponse.json(
