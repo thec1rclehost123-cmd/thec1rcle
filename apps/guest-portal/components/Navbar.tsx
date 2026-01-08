@@ -67,11 +67,7 @@ export default function Navbar() {
                   key={link.href}
                   href={link.href}
                   onClick={(e) => {
-                    if (link.href === "/tickets" && !user) {
-                      e.preventDefault();
-                      saveIntent("VIEW_TICKETS", null, {}, "/tickets");
-                      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL', { detail: { intent: 'VIEW_TICKETS' } }));
-                    }
+                    // Navigate freely
                   }}
                   className={`relative px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-300 ${isActive ? "text-white dark:text-white" : "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-gold-light"
                     }`}
@@ -153,13 +149,6 @@ export default function Navbar() {
                   <Link
                     href={link.href}
                     onClick={(e) => {
-                      if (link.href === "/tickets" && !user) {
-                        e.preventDefault();
-                        saveIntent("VIEW_TICKETS", null, {}, "/tickets");
-                        window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL', { detail: { intent: 'VIEW_TICKETS' } }));
-                        closeMenu();
-                        return;
-                      }
                       closeMenu();
                     }}
                     className="block w-full text-center py-4 text-2xl font-heading font-bold text-white hover:text-iris transition-colors"

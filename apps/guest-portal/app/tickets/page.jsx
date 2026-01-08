@@ -22,7 +22,7 @@ import ShimmerImage from "../../components/ShimmerImage";
 import { motion, AnimatePresence } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import clsx from "clsx";
-import { Share2, ArrowLeftRight, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { Share2, ArrowLeftRight, ChevronLeft, ChevronRight, ExternalLink, Crown, Heart, User, Users, Ticket, Sparkles } from "lucide-react";
 
 // --- Hooks ---
 
@@ -1124,11 +1124,11 @@ function TicketsContent() {
     const currentTickets = activeTab === "upcoming" ? tickets.upcomingTickets : tickets.pastTickets;
 
     const TICKETS_DATA = [
-        { id: 1, type: "STANDARD", title: "ENTRY", price: "₹ 2,000", color: "from-zinc-800 to-zinc-900" },
-        { id: 2, type: "PRESALE", title: "EARLY BIRD", price: "₹ 1,500", color: "from-zinc-700 to-zinc-800" },
-        { id: 3, type: "VIP", title: "ALL ACCESS", price: "₹ 5,000", color: "from-orange-900/40 to-black border-orange-500/50" },
-        { id: 4, type: "GROUP", title: "SQUAD PACK", price: "₹ 8,000", color: "from-zinc-800 to-zinc-900" },
-        { id: 5, type: "BACKSTAGE", title: "ARTIST PASS", price: "₹ 12,000", color: "from-zinc-800 to-black" },
+        { id: 1, type: "STANDARD", title: "GENERAL", price: "₹ 1,500", color: "from-zinc-800 to-zinc-900", icon: Ticket },
+        { id: 2, type: "STAG", title: "STAG", price: "₹ 2,500", color: "from-zinc-700 to-zinc-800", icon: User },
+        { id: 3, type: "VIP", title: "VIP", price: "₹ 5,000", color: "from-orange-900/40 to-black border-orange-500/50", icon: Crown },
+        { id: 4, type: "COUPLE", title: "COUPLE", price: "₹ 4,000", color: "from-zinc-800 to-zinc-900", icon: Heart },
+        { id: 5, type: "GROUP", title: "GROUP", price: "₹ 10,000", color: "from-zinc-800 to-black", icon: Users },
     ];
 
     const TicketCarousel = () => {
@@ -1148,6 +1148,20 @@ function TicketsContent() {
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-orange/10 rounded-full blur-[120px] pointer-events-none" />
 
                 <div className="relative h-[450px] w-full flex justify-center items-center">
+                    {/* Dynamic Background Glow */}
+                    <motion.div
+                        className="absolute w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none"
+                        animate={{
+                            backgroundColor: TICKETS_DATA[activeIndex].type === "VIP" ? "rgba(255, 165, 0, 0.5)" : "rgba(255, 255, 255, 0.2)",
+                            scale: [1, 1.3],
+                            opacity: [0.15, 0.45]
+                        }}
+                        transition={{
+                            scale: { duration: 8, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" },
+                            opacity: { duration: 8, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" },
+                            backgroundColor: { duration: 1 }
+                        }}
+                    />
                     <AnimatePresence>
                         {TICKETS_DATA.map((ticket, index) => {
                             const offset = index - activeIndex;
@@ -1174,28 +1188,84 @@ function TicketsContent() {
                                         x: offset * 140, // Horizontal spread
                                         y: Math.abs(offset) * 40 + (isActive ? 0 : 20), // Arc curve (dropping sides)
                                         scale: 1 - Math.abs(offset) * 0.1, // Scale down sides
-                                        rotateZ: offset * 8, // Fan rotation
+                                        rotateZ: offset * 12, // More aggressive fan
+                                        rotateY: offset * -15, // 3D Tilt perspective
                                         zIndex: 100 - Math.abs(offset),
                                         opacity: Math.abs(offset) > 2.5 ? 0 : 1,
                                     }}
-                                    transition={{
-                                        type: "spring",
-                                        stiffness: 200,
-                                        damping: 25,
-                                    }}
                                     whileHover={{
-                                        scale: isActive ? 1.05 : 1 - Math.abs(offset) * 0.1 + 0.02,
-                                        y: isActive ? -10 : Math.abs(offset) * 40
+                                        scale: isActive ? 1.05 : 1 - Math.abs(offset) * 0.1 + 0.05,
+                                        rotateY: offset * -5,
+                                        y: isActive ? -15 : Math.abs(offset) * 40
                                     }}
                                 >
+                                    {/* Animated Glint Effect */}
+                                    <motion.div
+                                        className="absolute inset-x-0 top-0 h-[200%] w-[100%] bg-gradient-to-b from-transparent via-white/5 to-transparent -skew-y-12 pointer-events-none"
+                                        animate={{
+                                            y: ["-100%", "100%"]
+                                        }}
+                                        transition={{
+                                            duration: 3,
+                                            repeat: Infinity,
+                                            ease: "linear",
+                                            delay: index * 0.4
+                                        }}
+                                    />
+
+                                    {/* Active Border Glow */}
+                                    {isActive && (
+                                        <motion.div
+                                            className="absolute inset-0 rounded-[32px] border-2 border-orange/40 pointer-events-none"
+                                            animate={{
+                                                opacity: [0.2, 0.5, 0.2],
+                                                scale: [1, 1.015, 1],
+                                            }}
+                                            transition={{
+                                                duration: 4,
+                                                repeat: Infinity,
+                                                ease: [0.4, 0, 0.2, 1]
+                                            }}
+                                        />
+                                    )}
                                     {/* Ticket Texture/Pattern */}
                                     <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
 
+                                    {/* Floating Sparkles */}
+                                    {[...Array(3)].map((_, i) => (
+                                        <motion.div
+                                            key={i}
+                                            className="absolute w-1 h-1 bg-white/20 rounded-full"
+                                            animate={{
+                                                y: [0, -40, 0],
+                                                x: [0, (i - 1) * 20, 0],
+                                                opacity: [0, 0.5, 0],
+                                                scale: [0, 1.5, 0]
+                                            }}
+                                            transition={{
+                                                duration: 3 + i,
+                                                repeat: Infinity,
+                                                delay: i * 1,
+                                                ease: "easeInOut"
+                                            }}
+                                            style={{
+                                                left: `${20 + i * 30}%`,
+                                                top: `${40 + i * 20}%`
+                                            }}
+                                        />
+                                    ))}
+
                                     {/* Header */}
-                                    <div className="relative flex justify-between items-start opacity-70">
-                                        <div className="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center">
-                                            <div className="w-6 h-6 rounded-full border border-white/20 border-dashed animate-[spin_10s_linear_infinite]" />
+                                    <div className="relative flex justify-between items-start">
+                                        <div className={clsx(
+                                            "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500",
+                                            isActive ? "bg-white/10 border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "bg-white/5 border border-white/5"
+                                        )}>
+                                            <ticket.icon className={clsx(
+                                                "w-6 h-6 transition-all duration-500",
+                                                isActive ? (ticket.type === "VIP" ? "text-orange animate-pulse" : "text-white") : "text-white/20"
+                                            )} />
                                         </div>
                                         <div className="flex flex-col items-end">
                                             <span className="text-[9px] font-bold tracking-[0.2em] text-white/40">THE C1RCLE</span>
@@ -1205,9 +1275,24 @@ function TicketsContent() {
 
                                     {/* Main Content */}
                                     <div className="relative text-center my-auto transform rotate-[-90deg] translate-y-4">
-                                        <h2 className="text-5xl font-heading font-black text-white uppercase tracking-tighter whitespace-nowrap">
+                                        <h2 className={clsx(
+                                            ticket.title.length > 6 ? "text-4xl md:text-6xl" : "text-5xl md:text-7xl",
+                                            "font-heading font-black uppercase tracking-tighter whitespace-nowrap transition-all duration-500",
+                                            isActive ? "text-white" : "text-white/20"
+                                        )}>
                                             {ticket.title}
                                         </h2>
+                                        {isActive && ticket.type === "VIP" && (
+                                            <motion.div
+                                                className="absolute -inset-2 bg-orange/20 blur-xl rounded-full -z-10"
+                                                animate={{ opacity: [0.4, 0.7, 0.4] }}
+                                                transition={{
+                                                    duration: 4,
+                                                    repeat: Infinity,
+                                                    ease: "easeInOut"
+                                                }}
+                                            />
+                                        )}
                                     </div>
 
                                     {/* Footer */}

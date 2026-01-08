@@ -28,7 +28,7 @@ const initialForm = {
 export default function LoginPage() {
     return (
         <Suspense fallback={<div className="min-h-screen bg-black" />}>
-            <div className="relative h-screen min-h-[600px] bg-black overflow-hidden flex flex-col md:flex-row selection:bg-orange/30 selection:text-white">
+            <div className="relative h-screen w-full bg-black overflow-hidden flex flex-col md:flex-row selection:bg-orange/30 selection:text-white">
                 <RitualBackground />
                 <LoginForm />
             </div>
@@ -51,6 +51,21 @@ function LoginForm() {
     const [phoneVerified, setPhoneVerified] = useState(false);
 
     const redirectUrl = useMemo(() => searchParams.get("next") || "/profile", [searchParams]);
+
+    const handleGoogleLogin = async () => {
+        setSubmitting(true);
+        setStatus({ type: "", message: "" });
+        try {
+            await loginWithGoogle();
+            toast.success("Welcome to the Circle");
+            router.push(redirectUrl);
+        } catch (err) {
+            console.error("Google Auth error:", err);
+            setStatus({ type: "error", message: "Failed to sign in with Google. Check if popups are blocked." });
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     // Cleanup phone and email
     const cleanForm = useMemo(() => ({
@@ -150,9 +165,9 @@ function LoginForm() {
         try {
             const recipient = type === "email" ? cleanForm.email : cleanForm.phone;
             await authService.sendOtp(type, recipient);
-            toast?.({ title: "Secret Dispatched", description: "Check your devices." });
+            toast?.({ title: "Code sent", description: "Check your devices." });
         } catch (err) {
-            toast?.({ title: "Resend Failed", description: err.message, variant: "destructive" });
+            toast?.({ title: "Send failed", description: err.message, variant: "destructive" });
         }
     };
 
@@ -178,43 +193,25 @@ function LoginForm() {
     const totalSteps = mode === "login" ? 2 : 4; // Step 5 and 6 are verify and success
 
     return (
-        <div className="flex flex-col md:flex-row w-full h-full min-h-screen">
+        <div className="flex flex-col md:flex-row w-full h-full">
             {/* Cinematic Left Panel (Desktop only) */}
-            <div className="hidden md:flex md:w-1/2 lg:w-3/5 h-full relative overflow-hidden bg-[#050505] items-center justify-center p-20 flex-col">
-                <div className="absolute inset-0 bg-gradient-to-tr from-orange/20 via-transparent to-gold/10 opacity-30" />
-                <div
-                    className="absolute inset-0 opacity-[0.03] pointer-events-none"
-                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E")` }}
-                />
-
+            <div className="hidden md:flex md:w-1/2 lg:w-3/5 h-full relative overflow-hidden bg-[#FF4D22] items-center justify-center p-12 flex-col">
                 <motion.div
-                    initial={{ opacity: 0, x: -50 }}
-                    animate={{ opacity: 1, x: 0 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-                    className="relative z-10 max-w-xl space-y-8"
+                    className="relative z-10 w-full text-center"
                 >
-                    <div className="h-20 w-20 overflow-hidden rounded-3xl border border-orange/40 mb-12 shadow-[0_0_40px_rgba(255,165,0,0.2)]">
-                        <img src="/logo-circle.jpg" alt="Logo" className="h-full w-full object-cover" />
-                    </div>
-                    <h2 className="text-7xl font-black uppercase tracking-tighter leading-[0.8] text-white">
-                        Enter the <br /> <span className="text-orange">Sanctuary.</span>
+                    <h2 className="text-[10vw] font-black uppercase tracking-tight leading-[0.9] text-black text-center">
+                        GET IN <br /> THE C1RCLE
                     </h2>
-                    <p className="text-sm font-medium text-white/40 uppercase tracking-[0.4em] leading-relaxed max-w-md">
-                        A curated collective for those who seek depth, ritual, and the extraordinary.
-                    </p>
                 </motion.div>
 
-                {/* Decorative Elements */}
-                <div className="absolute bottom-20 left-20 flex gap-4">
-                    {[1, 2, 3].map(i => (
-                        <div key={i} className="h-0.5 w-12 bg-white/10 overflow-hidden">
-                            <motion.div
-                                className="h-full bg-orange/40"
-                                animate={{ x: ["-100%", "100%"] }}
-                                transition={{ duration: 3, repeat: Infinity, delay: i * 0.5, ease: "easeInOut" }}
-                            />
-                        </div>
-                    ))}
+                {/* Decorative Bottom Tag or Logo */}
+                <div className="absolute bottom-12 flex items-center gap-4">
+                    <div className="h-0.5 w-12 bg-black/20" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.5em] text-black/40">Discover Life Offline</span>
+                    <div className="h-0.5 w-12 bg-black/20" />
                 </div>
             </div>
 
@@ -246,16 +243,16 @@ function LoginForm() {
                                 className="space-y-4"
                             >
                                 <p className="text-[10px] font-black uppercase tracking-[0.5em] text-orange">
-                                    {mode === "login" ? "Identity Authorization" : "Initiate Onboarding"}
+                                    {mode === "login" ? "Sign in" : "Sign up"}
                                 </p>
                                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tighter leading-[0.8] text-white">
                                     {mode === "login" ? (
-                                        step === 1 ? <>Enter your <br /><span className="text-orange">Access Key</span></> : <>Verify your <br /><span className="text-orange">Secret.</span></>
+                                        step === 1 ? <>What's your <br /><span className="text-orange">Email?</span></> : <>And your <br /><span className="text-orange">Password?</span></>
                                     ) : (
-                                        step === 1 ? <>Identity <br /><span className="text-orange">Vault.</span></> :
-                                            step === 2 ? <>Secure your <br /><span className="text-orange">Passcode.</span></> :
-                                                step === 3 ? <>Declare your <br /><span className="text-orange">Alias.</span></> :
-                                                    <>Select your <br /><span className="text-orange">Essence.</span></>
+                                        step === 1 ? <>Let's get <br /><span className="text-orange">Started.</span></> :
+                                            step === 2 ? <>Secure your <br /><span className="text-orange">Account.</span></> :
+                                                step === 3 ? <>What's your <br /><span className="text-orange">Name?</span></> :
+                                                    <>Almost <br /><span className="text-orange">Done.</span></>
                                     )}
                                 </h1>
                             </motion.div>
@@ -287,14 +284,14 @@ function LoginForm() {
                                                     <div className="space-y-6">
                                                         <div className="group relative">
                                                             <div className="absolute left-0 bottom-0 h-0.5 w-0 bg-orange group-focus-within:w-full transition-all duration-700" />
-                                                            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2 block">Electronic Mail</label>
+                                                            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2 block">Email address</label>
                                                             <input
                                                                 type="email"
                                                                 autoFocus
                                                                 required
                                                                 value={form.email}
                                                                 onChange={handleChange("email")}
-                                                                placeholder="NAME@THEC1RCLE.COM"
+                                                                placeholder="NAME@EMAIL.COM"
                                                                 className="w-full bg-transparent border-b border-white/10 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/10 focus:outline-none"
                                                             />
                                                         </div>
@@ -317,12 +314,12 @@ function LoginForm() {
 
                                                         <button
                                                             type="button"
-                                                            onClick={loginWithGoogle}
+                                                            onClick={handleGoogleLogin}
                                                             disabled={submitting}
                                                             className="w-full group flex items-center justify-center gap-3 py-4 bg-white/[0.03] rounded-2xl border border-white/10 text-[10px] font-black uppercase tracking-[0.3em] text-white/30 hover:bg-white hover:text-black transition-all"
                                                         >
                                                             <Chrome className="w-4 h-4" />
-                                                            Google Fast-Access
+                                                            Continue with Google
                                                         </button>
                                                     </div>
                                                 )}
@@ -330,7 +327,7 @@ function LoginForm() {
                                                 {step === 2 && (
                                                     <div className="group relative">
                                                         <div className="absolute left-0 bottom-0 h-0.5 w-0 bg-orange group-focus-within:w-full transition-all duration-700" />
-                                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2 block">Security Passphrase</label>
+                                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2 block">Password</label>
                                                         <input
                                                             type="password"
                                                             autoFocus
@@ -346,14 +343,14 @@ function LoginForm() {
                                                 {step === 3 && (
                                                     <div className="group relative">
                                                         <div className="absolute left-0 bottom-0 h-0.5 w-0 bg-orange group-focus-within:w-full transition-all duration-700" />
-                                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2 block">Legal Identity (Alias)</label>
+                                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2 block">What's your full name?</label>
                                                         <input
                                                             type="text"
                                                             autoFocus
                                                             required
                                                             value={form.name}
                                                             onChange={handleChange("name")}
-                                                            placeholder="YOUR FULL NAME"
+                                                            placeholder="YOUR NAME"
                                                             className="w-full bg-transparent border-b border-white/10 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/10 focus:outline-none"
                                                         />
                                                     </div>
@@ -361,7 +358,7 @@ function LoginForm() {
 
                                                 {step === 4 && (
                                                     <div className="space-y-4">
-                                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 block">Select Essence</label>
+                                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 block">How do you identify?</label>
                                                         <GenderSelector
                                                             value={form.gender}
                                                             onChange={(val) => setForm(prev => ({ ...prev, gender: val }))}
@@ -393,7 +390,7 @@ function LoginForm() {
                                                     <Loader2 className="h-5 w-5 animate-spin" />
                                                 ) : (
                                                     <>
-                                                        {step === totalSteps ? (mode === "login" ? "Finalize Access" : "Enter the Circle") : "Continue"}
+                                                        {step === totalSteps ? (mode === "login" ? "Sign in" : "Create Account") : "Continue"}
                                                         <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                                                     </>
                                                 )}
@@ -447,7 +444,7 @@ function LoginForm() {
                                 onClick={toggleMode}
                                 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/20 hover:text-orange transition-colors"
                             >
-                                {mode === "login" ? "No Identity? Signup" : "Already Identified? Access"}
+                                {mode === "login" ? "New here? Sign up" : "Already have an account? Sign in"}
                             </button>
                         </div>
                     )}

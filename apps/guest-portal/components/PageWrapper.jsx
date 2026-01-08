@@ -7,6 +7,7 @@ export default function PageWrapper({ children }) {
     const pathname = usePathname();
     const isLandingOrHero = pathname === "/" ||
         pathname === "/app" ||
+        pathname === "/login" ||
         pathname === "/explore" ||
         pathname?.startsWith("/hosts") ||
         pathname?.startsWith("/venues") ||

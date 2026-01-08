@@ -86,12 +86,12 @@ function AuthContent() {
                         </h1>
                     </Link>
                     <h2 className="text-xl font-medium text-white/90">
-                        {mode === "login" ? "Welcome Back" : "Start Your Journey"}
+                        {mode === "login" ? "Welcome back." : "Create account."}
                     </h2>
                     <p className="mt-2 text-sm text-white/40">
                         {mode === "login"
-                            ? "Sign in to access exclusive events and your circle."
-                            : "Join a community of the most influential people."}
+                            ? "Sign in to manage your events and dashboard."
+                            : "Join the platform for event organizers."}
                     </p>
                 </div>
 
@@ -152,7 +152,7 @@ function AuthContent() {
                                 <input
                                     type="email"
                                     required
-                                    placeholder="name@exclusive.com"
+                                    placeholder="name@email.com"
                                     value={form.email}
                                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                                     className="w-full rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-white placeholder:text-white/20 focus:border-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all outline-none"
@@ -179,7 +179,7 @@ function AuthContent() {
                                 <span className="relative z-10 flex items-center justify-center gap-2">
                                     {submitting ? <Loader2 className="animate-spin" size={20} /> : (
                                         <>
-                                            {mode === "login" ? "Enter The Circle" : "Create Account"}
+                                            {mode === "login" ? "Sign In" : "Create Account"}
                                             <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
                                         </>
                                     )}

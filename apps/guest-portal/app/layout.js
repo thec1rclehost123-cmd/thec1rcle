@@ -8,7 +8,6 @@ import AppProviders from "../components/providers/AppProviders";
 import ScrollProgressBar from "../components/ScrollProgressBar";
 import PageLoadingAnimation from "../components/PageLoadingAnimation";
 import SmoothScroll from "../components/SmoothScroll";
-import FirstTimeBanner from "../components/FirstTimeBanner";
 import ProfileCompletionPrompt from "../components/ProfileCompletionPrompt";
 
 const inter = Inter({
@@ -67,7 +66,6 @@ export default function RootLayout({ children }) {
           <PageLoadingAnimation />
           <ScrollProgressBar />
           <div className="page-shell relative flex min-h-screen flex-col bg-white dark:bg-black text-black dark:text-white transition-colors duration-300 overflow-x-hidden">
-            <FirstTimeBanner />
             <ProfileCompletionPrompt />
             <div className="pointer-events-none fixed inset-0 -z-10 opacity-0 dark:opacity-90 transition-opacity duration-300">
               <div className="absolute inset-x-0 top-0 h-[60vh] bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),transparent_55%)] blur-[120px]" />

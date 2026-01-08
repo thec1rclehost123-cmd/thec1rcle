@@ -224,10 +224,12 @@ export default function AdminDashboard() {
                                         <p className="text-xl font-black tracking-tight text-slate-900 leading-tight mb-2 truncate">{alert.message}</p>
                                         <p className="text-[11px] text-slate-400 uppercase tracking-[0.15em] font-black">Escalation Protocol Required • Urgent Review</p>
                                     </div>
-                                    <button className="flex items-center gap-3 px-8 py-4 rounded-[1.8rem] bg-slate-900 text-white text-[11px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 group-hover:scale-105 transition-transform shrink-0">
-                                        Resolve
-                                        <ChevronRight className="h-4 w-4" />
-                                    </button>
+                                    <Link href={alert.type === 'approval' ? '/approvals' : alert.type === 'incident' ? '/safety' : '/approvals'}>
+                                        <button className="flex items-center gap-3 px-8 py-4 rounded-[1.8rem] bg-slate-900 text-white text-[11px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 group-hover:scale-105 transition-transform shrink-0">
+                                            Resolve
+                                            <ChevronRight className="h-4 w-4" />
+                                        </button>
+                                    </Link>
                                 </div>
                             )) : (
                                 <div className="p-32 text-center rounded-[3rem] border-2 border-slate-200 border-dashed bg-slate-50/50">
@@ -281,10 +283,12 @@ export default function AdminDashboard() {
                                     </div>
                                 )}
                             </div>
-                            <button className="w-full mt-12 py-5 rounded-[1.8rem] bg-white border border-slate-200 text-slate-900 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-3">
-                                View Registry
-                                <ChevronRight className="h-3 w-3" />
-                            </button>
+                            <Link href="/logs">
+                                <button className="w-full mt-12 py-5 rounded-[1.8rem] bg-white border border-slate-200 text-slate-900 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-3">
+                                    View Registry
+                                    <ChevronRight className="h-3 w-3" />
+                                </button>
+                            </Link>
                         </section>
                     </div>
                 </aside>
