@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@c1rcle/core'],
+  transpilePackages: ['@c1rcle/core', '@c1rcle/ui'],
   // Disabled optimizePackageImports for framer-motion due to Next.js 14.2.x bug
   typescript: {
     // Enforce type checking during build for production safety (Fix: Build Safety is Disabled)
