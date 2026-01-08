@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { withAdminAuth } from "@/lib/server/adminMiddleware";
 
+export const dynamic = 'force-dynamic';
+
 async function handler(req) {
     try {
         const db = getAdminDb();

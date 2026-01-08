@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { adminStore, TIER2_ACTIONS, TIER3_ACTIONS } from "@/lib/server/adminStore";
 import { withAdminAuth } from "@/lib/server/adminMiddleware";
 
+export const dynamic = 'force-dynamic';
+
 const GOVERNANCE_CONFIG = {
     DUAL_APPROVAL: {
         'EVENT_PAUSE': true,

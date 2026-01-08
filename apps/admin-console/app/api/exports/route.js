@@ -3,6 +3,8 @@ import { withAdminAuth } from "@/lib/server/adminMiddleware";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { adminStore } from "@/lib/server/adminStore";
 
+export const dynamic = 'force-dynamic';
+
 const ALLOWED_EXPORTS = ['users', 'venues', 'hosts', 'events', 'orders', 'admin_logs'];
 
 async function handler(req) {
