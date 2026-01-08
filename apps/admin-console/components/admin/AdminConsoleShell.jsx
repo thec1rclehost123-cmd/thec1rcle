@@ -7,7 +7,7 @@ import {
     BarChart3,
     Building2,
     Users,
-    UserRound,
+    User,
     Calendar,
     Settings,
     ShieldAlert,
@@ -37,7 +37,9 @@ const Zap = ({ className }) => (
 const sidebarItems = [
     { label: "Overview", href: "/", icon: BarChart3, minRole: 'support' },
     { label: "Approvals", href: "/approvals", icon: CheckSquare, minRole: 'support' },
-    { label: "Users", href: "/users", icon: UserRound, minRole: 'support' },
+    { label: "Users", href: "/users", icon: User, minRole: 'support' },
+
+
     { label: "Venues", href: "/venues", icon: Building2, minRole: 'ops' },
     { label: "Hosts", href: "/hosts", icon: Users, minRole: 'ops' },
     { label: "Promoters", href: "/promoters", icon: Zap, minRole: 'ops' },

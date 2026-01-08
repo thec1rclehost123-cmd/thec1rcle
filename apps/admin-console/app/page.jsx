@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
     Users,
     Building2,
-    UserRound,
+    User,
     Calendar,
     Ticket,
     TrendingUp,
@@ -65,7 +65,7 @@ export default function AdminDashboard() {
     const stats = [
         { label: "Platform Users", value: snapshot.users_total || 0, icon: Users, color: "blue", href: "/users" },
         { label: "Active Venues", value: snapshot.venues_total?.active || 0, icon: Building2, color: "indigo", href: "/venues" },
-        { label: "Verified Hosts", value: snapshot.hosts_total || 0, icon: UserRound, color: "orange", href: "/hosts" },
+        { label: "Verified Hosts", value: snapshot.hosts_total || 0, icon: User, color: "orange", href: "/hosts" },
         { label: "Live Events", value: snapshot.events?.live || 0, icon: Calendar, color: "emerald", href: "/events" },
         { label: "Platform Revenue", value: `₹${(snapshot.revenue?.total || 0).toLocaleString()}`, icon: TrendingUp, color: "indigo", href: "/payments" },
         { label: "Total Tickets", value: snapshot.tickets_sold_total || 0, icon: Ticket, color: "rose", href: "/events" },

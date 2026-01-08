@@ -2,7 +2,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle, ArrowRight, Tickets } from "lucide-react";
+import { CheckCircle, ArrowRight, Ticket } from "lucide-react";
 import Link from "next/link";
 
 export default function AccessGranted() {
@@ -53,7 +53,7 @@ export default function AccessGranted() {
                 >
                     <span className="flex items-center gap-3">
                         Go to Tickets
-                        <Tickets className="w-4 h-4 opacity-40 group-hover:opacity-100" />
+                        <Ticket className="w-4 h-4 opacity-40 group-hover:opacity-100" />
                     </span>
                 </Link>
             </motion.div>

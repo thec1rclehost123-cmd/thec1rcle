@@ -11,7 +11,6 @@ import {
     DollarSign,
     Users,
     ShieldAlert,
-    Handshake,
     ChevronRight,
     Play,
     Info,
@@ -62,7 +61,7 @@ export default function StudioShell({
         { label: "Money", href: `/${role}/analytics/revenue`, icon: DollarSign },
         { label: "Crowd", href: `/${role}/analytics/audience`, icon: Users },
         { label: "Gate & Ops", href: `/${role}/analytics/ops`, icon: ShieldAlert },
-        { label: "Partners", href: `/${role}/analytics/attribution`, icon: Handshake },
+        { label: "Partners", href: `/${role}/analytics/attribution`, icon: Users },
     ];
 
 
