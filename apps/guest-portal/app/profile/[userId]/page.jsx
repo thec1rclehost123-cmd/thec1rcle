@@ -92,7 +92,7 @@ const MemberCard = ({ user, profile, displayName, initials, isOwner, onEdit, onL
             <div className="flex items-center gap-8 border-t border-black/5 dark:border-white/10 pt-6 md:border-l md:border-t-0 md:pl-8 md:pt-0">
                 <div className="text-center md:text-right">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-black/40 dark:text-white/40">Joined</p>
-                    <p className="mt-1 font-mono text-xl text-black dark:text-white">
+                    <p className="mt-1 font-mono text-xl text-black dark:text-white" suppressHydrationWarning>
                         {new Date(profile?.createdAt || Date.now()).getFullYear()}
                     </p>
                 </div>
@@ -107,15 +107,17 @@ const MemberCard = ({ user, profile, displayName, initials, isOwner, onEdit, onL
 
 const EventCard = ({ event, isOwner }) => {
     const date = new Date(event.startAt);
-    const dateString = date.toLocaleDateString('en-US', {
+    const dateString = date.toLocaleDateString('en-IN', {
         weekday: 'short',
         month: 'short',
-        day: 'numeric'
+        day: 'numeric',
+        timeZone: 'Asia/Kolkata'
     });
-    const timeString = date.toLocaleTimeString('en-US', {
+    const timeString = date.toLocaleTimeString('en-IN', {
         hour: 'numeric',
         minute: 'numeric',
-        hour12: true
+        hour12: true,
+        timeZone: 'Asia/Kolkata'
     });
 
     const isUpcoming = new Date(event.startAt) > new Date();
@@ -175,10 +177,14 @@ const EventCard = ({ event, isOwner }) => {
                         </span>
                     </div>
                     <Link
-                        href={isOwner ? ticketsLink : eventLink}
+                        href={isOwner ? (event.participationType === "TICKET" ? ticketsLink : eventLink) : eventLink}
                         className="text-[9px] font-bold uppercase tracking-widest text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white transition-colors"
                     >
-                        {isOwner ? (event.participationType === "TICKET" ? "View Ticket" : "View RSVP") : "View Event"}
+                        {isOwner ? (
+                            event.participationType === "TICKET" ? "View Ticket" :
+                                event.participationType === "HOST" ? "Manage Event" :
+                                    event.participationType === "RSVP" ? "View RSVP" : "View Event"
+                        ) : "View Event"}
                     </Link>
                 </div>
             </div>
@@ -291,23 +297,23 @@ export default function PublicProfilePage() {
                             <div className="flex gap-8">
                                 <button
                                     onClick={() => setActiveTab("upcoming")}
-                                    className={`text-[10px] font-bold uppercase tracking-[0.3em] transition-colors ${activeTab === "upcoming" ? "text-orange dark:text-white" : "text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60"}`}
+                                    className={`text-[10px] font-bold uppercase tracking-[0.3em] transition-colors ${activeTab === "upcoming" ? "text-orange dark:text-gold" : "text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white"}`}
                                 >
-                                    Upcoming Events
-                                    {activeTab === "upcoming" && <motion.div layoutId="tabUnderline" className="h-0.5 bg-orange dark:bg-white mt-2" />}
+                                    Upcoming Engagement
                                 </button>
-                                <button
-                                    onClick={() => setActiveTab("attended")}
-                                    className={`text-[10px] font-bold uppercase tracking-[0.3em] transition-colors ${activeTab === "attended" ? "text-orange dark:text-white" : "text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60"}`}
-                                >
-                                    Attended Events
-                                    {activeTab === "attended" && <motion.div layoutId="tabUnderline" className="h-0.5 bg-orange dark:bg-white mt-2" />}
-                                </button>
+                                {events.attended.length > 0 && (
+                                    <button
+                                        onClick={() => setActiveTab("attended")}
+                                        className={`text-[10px] font-bold uppercase tracking-[0.3em] transition-colors ${activeTab === "attended" ? "text-orange dark:text-gold" : "text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white"}`}
+                                    >
+                                        Attended Events
+                                    </button>
+                                )}
                             </div>
                         </div>
 
                         <p className="text-black/20 dark:text-white/40 text-xs font-mono">
-                            {activeTab === "upcoming" ? events.upcoming.length : events.attended.length} total
+                            {events[activeTab]?.length || 0} total
                         </p>
                     </div>
 
@@ -319,7 +325,7 @@ export default function PublicProfilePage() {
                             exit={{ opacity: 0, y: -10 }}
                             transition={{ duration: 0.3 }}
                         >
-                            {events[activeTab].length > 0 ? (
+                            {events[activeTab]?.length > 0 ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
                                     {events[activeTab].map((event) => (
                                         <EventCard key={event.eventId} event={event} isOwner={isOwner} />
@@ -328,7 +334,7 @@ export default function PublicProfilePage() {
                             ) : (
                                 <div className="py-24 text-center rounded-[40px] border border-black/5 dark:border-white/5 bg-black/[0.01] dark:bg-white/[0.02]">
                                     <p className="text-black/30 dark:text-white/40 text-sm font-bold uppercase tracking-widest">
-                                        {activeTab === "upcoming" ? "No upcoming events yet." : "No attended events yet."}
+                                        No upcoming events yet.
                                     </p>
                                     <Link href="/explore" className="mt-8 inline-block text-[10px] font-bold uppercase tracking-widest transition-opacity text-orange dark:text-white/60 hover:opacity-100">
                                         Explore the C1rcle

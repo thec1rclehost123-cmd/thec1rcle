@@ -4,8 +4,8 @@
  */
 
 import { NextResponse } from "next/server";
-import { validateAndCalculatePromoDiscount } from "../../../../lib/server/checkoutService";
-import { verifyAuth } from "../../../../lib/server/auth";
+import { validateAndCalculatePromoDiscount } from "@/lib/server/checkoutService";
+import { verifyAuth } from "@/lib/server/auth";
 
 export async function POST(request) {
     try {

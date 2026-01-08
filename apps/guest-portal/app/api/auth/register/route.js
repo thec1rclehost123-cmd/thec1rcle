@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-import { getAdminApp, getAdminDb } from "../../../../lib/firebase/admin";
+import { getAdminApp, getAdminDb } from "@/lib/firebase/admin";
 import { getAuth } from "firebase-admin/auth";
 
 export async function POST(req) {

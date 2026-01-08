@@ -63,7 +63,7 @@ export default function PageShell({ children, title, backHref, showLogo = true }
             <footer className="mt-auto py-12 border-t border-black/[0.03] dark:border-white/[0.05]">
                 <div className="mx-auto max-w-7xl px-6 text-center">
                     <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-black/20 dark:text-white/20">
-                        © {new Date().getFullYear()} THE C1RCLE. ALL RIGHTS RESERVED.
+                        © <span suppressHydrationWarning>{new Date().getFullYear()}</span> THE C1RCLE. ALL RIGHTS RESERVED.
                     </p>
                 </div>
             </footer>

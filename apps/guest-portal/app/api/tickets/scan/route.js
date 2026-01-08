@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { verifyAuth } from "../../../../lib/server/auth";
-import { validateAndScanTicket } from "../../../../lib/server/ticketShareStore";
+import { verifyAuth } from "@/lib/server/auth";
+import { validateAndScanTicket } from "@/lib/server/ticketShareStore";
 import { processEntryScan } from "@c1rcle/core/entitlement-engine";
-import { getAdminDb } from "../../../../lib/firebase/admin";
+import { getAdminDb } from "@/lib/firebase/admin";
 
 export async function POST(request) {
     try {

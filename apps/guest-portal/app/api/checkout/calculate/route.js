@@ -4,8 +4,8 @@
  */
 
 import { NextResponse } from "next/server";
-import { calculatePricing, getReservation } from "../../../../lib/server/checkoutService";
-import { withRateLimit } from "../../../../lib/server/rateLimit";
+import { calculatePricing, getReservation } from "@/lib/server/checkoutService";
+import { withRateLimit } from "@/lib/server/rateLimit";
 
 async function handler(request) {
     try {

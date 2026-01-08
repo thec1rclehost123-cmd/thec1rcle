@@ -1,5 +1,5 @@
-import { verifyAuth } from "../../../../lib/server/auth";
-import { getAdminDb } from "../../../../lib/firebase/admin";
+import { verifyAuth } from "@/lib/server/auth";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { generateEntitlementQR } from "@c1rcle/core/entitlement-engine";
 
 export async function GET(request, { params }) {

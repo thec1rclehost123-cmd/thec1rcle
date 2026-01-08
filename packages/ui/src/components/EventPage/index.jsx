@@ -126,11 +126,13 @@ export default function EventDetailPage({
     const eventImage = useMemo(() => {
         if (event?.image && typeof event.image === 'string') return event.image;
         if (event?.poster && typeof event.poster === 'string') return event.poster;
+        if (event?.posterUrl && typeof event.posterUrl === 'string') return event.posterUrl;
         if (event?.flyer && typeof event.flyer === 'string') return event.flyer;
+        if (event?.flyerUrl && typeof event.flyerUrl === 'string') return event.flyerUrl;
         if (Array.isArray(event?.images) && event.images.length > 0) return event.images[0];
         if (Array.isArray(event?.gallery) && event.gallery.length > 0) return event.gallery[0];
         return null;
-    }, [event?.image, event?.poster, event?.flyer, event?.images, event?.gallery]);
+    }, [event?.image, event?.poster, event?.posterUrl, event?.flyer, event?.flyerUrl, event?.images, event?.gallery]);
 
     const startingPrice = useMemo(() => {
         const paidTiers = tickets.filter(t => Number(t.price) > 0);
@@ -302,7 +304,7 @@ export default function EventDetailPage({
                             </div>
                             <div className="space-y-1">
                                 <p className="text-2xl font-display uppercase tracking-tight text-white leading-none">
-                                    {interestedCount.toLocaleString()} <span className="text-[var(--text-muted)] text-sm font-medium tracking-normal lowercase">interested</span>
+                                    {interestedCount.toLocaleString('en-IN')} <span className="text-[var(--text-muted)] text-sm font-medium tracking-normal lowercase">interested</span>
                                 </p>
                                 <p className="text-[10px] uppercase tracking-widest text-[var(--text-muted)] font-bold">
                                     Join them
@@ -532,7 +534,7 @@ export default function EventDetailPage({
                                 <div>
                                     <p className="text-lg font-bold uppercase tracking-tight text-white group-hover:text-orange transition-colors">{host?.name || event?.host || "Host Name"}</p>
                                     <p className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-widest">
-                                        {(host?.followersCount || host?.followers || 0).toLocaleString()} followers · {host?.location || "Global"}
+                                        {(host?.followersCount || host?.followers || 0).toLocaleString('en-IN')} followers · {host?.location || "Global"}
                                     </p>
                                 </div>
                             </Link>
@@ -603,7 +605,7 @@ export default function EventDetailPage({
                                                             <p className="text-[9px] font-bold uppercase text-white/40 tracking-[0.2em]">Limited Access</p>
                                                         </div>
                                                         <div className="text-right">
-                                                            <p className="text-2xl font-display text-white tracking-tighter">₹{ticket.price || 0}</p>
+                                                            <p className="text-2xl font-display text-white tracking-tighter">₹{(ticket.price || 0).toLocaleString('en-IN')}</p>
                                                         </div>
                                                     </div>
                                                     <div className="mt-5 flex items-center justify-between">
@@ -682,7 +684,7 @@ export default function EventDetailPage({
                                     {isFree ? "Secure Spot" : "Tickets Available"}
                                 </p>
                                 <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 mt-1">
-                                    {isFree ? "Free Entry" : `From ₹${startingPrice}`}
+                                    {isFree ? "Free Entry" : `From ₹${(startingPrice || 0).toLocaleString('en-IN')}`}
                                 </p>
                             </div>
                             <button

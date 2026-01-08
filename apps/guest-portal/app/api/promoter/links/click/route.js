@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getPromoterLinkByCode, recordConversion } from "../../../../../lib/server/promoterStore";
-import { getAdminDb, isFirebaseConfigured } from "../../../../../lib/firebase/admin";
+import { getPromoterLinkByCode, recordConversion } from "@/lib/server/promoterStore";
+import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
 
 const LINKS_COLLECTION = "promoter_links";
 

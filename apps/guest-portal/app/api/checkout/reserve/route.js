@@ -4,11 +4,11 @@
  */
 
 import { NextResponse } from "next/server";
-import { createCartReservation } from "../../../../lib/server/checkoutService";
-import { verifyAuth } from "../../../../lib/server/auth";
-import { withRateLimit } from "../../../../lib/server/rateLimit";
-import { getSurgeStatus, recordMetric } from "../../../../lib/server/surgeStore";
-import { validateAdmission } from "../../../../lib/server/queueStore";
+import { createCartReservation } from "@/lib/server/checkoutService";
+import { verifyAuth } from "@/lib/server/auth";
+import { withRateLimit } from "@/lib/server/rateLimit";
+import { getSurgeStatus, recordMetric } from "@/lib/server/surgeStore";
+import { validateAdmission } from "@/lib/server/queueStore";
 
 async function handler(request) {
     try {

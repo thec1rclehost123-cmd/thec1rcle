@@ -192,7 +192,7 @@ export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
                     ) : (
                         <>
                             <Lock className="w-4 h-4" />
-                            Pay ₹{totalAmount.toLocaleString()}
+                            Pay ₹{(totalAmount || 0).toLocaleString('en-IN')}
                         </>
                     )}
                 </button>
@@ -238,7 +238,7 @@ export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
                                         <p className="text-white font-medium">{ticket.name}</p>
                                         <p className="text-xs text-white/50">Qty: {ticket.quantity}</p>
                                     </div>
-                                    <p className="text-white">₹{(ticket.price * ticket.quantity).toLocaleString()}</p>
+                                    <p className="text-white">₹{((ticket.price || 0) * (ticket.quantity || 0)).toLocaleString('en-IN')}</p>
                                 </div>
                             ))}
                         </div>
@@ -247,7 +247,7 @@ export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
 
                         <div className="flex justify-between items-center">
                             <p className="text-white/60">Subtotal</p>
-                            <p className="text-white">₹{totalAmount.toLocaleString()}</p>
+                            <p className="text-white">₹{(totalAmount || 0).toLocaleString('en-IN')}</p>
                         </div>
                         <div className="flex justify-between items-center">
                             <p className="text-white/60">Fees</p>
@@ -258,7 +258,7 @@ export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
 
                         <div className="flex justify-between items-center text-xl font-bold">
                             <p className="text-white">Total</p>
-                            <p className="text-white">₹{totalAmount.toLocaleString()}</p>
+                            <p className="text-white">₹{(totalAmount || 0).toLocaleString('en-IN')}</p>
                         </div>
                     </div>
                 </div>

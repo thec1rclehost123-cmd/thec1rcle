@@ -1325,18 +1325,11 @@ function TicketsContent() {
                                 Tickets
                             </h1>
                             <div className="mt-12 flex gap-4 p-1 rounded-3xl bg-black/5 dark:bg-white/5 w-fit border border-black/5 dark:border-white/5 backdrop-blur-md overflow-x-auto no-scrollbar max-w-full">
-                                <button
-                                    onClick={() => setActiveTab("upcoming")}
-                                    className={`whitespace-nowrap px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === "upcoming" ? "bg-white dark:bg-zinc-800 text-black dark:text-white shadow-lg" : "text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60"}`}
+                                <div
+                                    className="whitespace-nowrap px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 bg-white dark:bg-zinc-800 text-black dark:text-white shadow-lg"
                                 >
-                                    Upcoming
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab("past")}
-                                    className={`whitespace-nowrap px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === "past" ? "bg-white dark:bg-zinc-800 text-black dark:text-white shadow-lg" : "text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60"}`}
-                                >
-                                    Past
-                                </button>
+                                    Current passes
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1344,7 +1337,6 @@ function TicketsContent() {
                     <div className="min-h-[400px]">
                         <AnimatePresence mode="wait">
                             <motion.div
-                                key={activeTab}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
@@ -1355,9 +1347,9 @@ function TicketsContent() {
                                         <TicketSkeleton />
                                         <TicketSkeleton />
                                     </div>
-                                ) : (activeTab === "upcoming" ? tickets.upcomingTickets : tickets.pastTickets).length > 0 || (activeTab === "upcoming" && tickets.actionNeeded.length > 0) ? (
+                                ) : tickets.upcomingTickets.length > 0 || tickets.actionNeeded.length > 0 ? (
                                     <div className="flex flex-col gap-1 w-full">
-                                        {activeTab === "upcoming" && tickets.actionNeeded.length > 0 && (
+                                        {tickets.actionNeeded.length > 0 && (
                                             <div className="mb-8">
                                                 <div className="flex items-center gap-3 mb-6">
                                                     <div className="h-[1px] flex-1 bg-black/5 dark:bg-white/5" />
@@ -1373,8 +1365,6 @@ function TicketsContent() {
                                                             loadTickets();
                                                         }}
                                                         onDecline={async (id) => {
-                                                            // For decline, we currently just cancel transfer if possible or ignore
-                                                            // In a real flow, you'd call an ignore action.
                                                             loadTickets();
                                                         }}
                                                     />
@@ -1383,7 +1373,7 @@ function TicketsContent() {
                                         )}
 
                                         <div className="grid gap-10 sm:grid-cols-2">
-                                            {(activeTab === "upcoming" ? tickets.upcomingTickets : tickets.pastTickets).map((ticket) => (
+                                            {tickets.upcomingTickets.map((ticket) => (
                                                 <TicketCard
                                                     key={ticket.ticketId}
                                                     ticket={ticket}
@@ -1398,13 +1388,11 @@ function TicketsContent() {
                                 ) : (
                                     <div className="py-32 text-center rounded-[40px] border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02]">
                                         <p className="text-black/30 dark:text-white/40 text-sm font-bold uppercase tracking-widest">
-                                            {activeTab === "upcoming" ? "No upcoming tickets" : "No past tickets yet"}
+                                            No upcoming tickets
                                         </p>
-                                        {activeTab === "upcoming" && (
-                                            <Link href="/explore" className="mt-8 inline-block rounded-full bg-black dark:bg-white px-8 py-4 text-xs font-bold uppercase tracking-widest text-white dark:text-black hover:scale-105 transition-transform shadow-md">
-                                                Explore events
-                                            </Link>
-                                        )}
+                                        <Link href="/explore" className="mt-8 inline-block rounded-full bg-black dark:bg-white px-8 py-4 text-xs font-bold uppercase tracking-widest text-white dark:text-black hover:scale-105 transition-transform shadow-md">
+                                            Explore events
+                                        </Link>
                                     </div>
                                 )}
                             </motion.div>

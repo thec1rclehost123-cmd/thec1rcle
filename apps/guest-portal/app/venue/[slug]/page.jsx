@@ -39,8 +39,6 @@ export default async function VenuePublicPage({ params }) {
     const now = new Date();
     const upcomingEvents = venueEvents.filter(e => new Date(e.startDate || e.startAt) > now)
         .sort((a, b) => new Date(a.startDate || a.startAt) - new Date(b.startDate || b.startAt));
-    const pastEvents = venueEvents.filter(e => new Date(e.startDate || e.startAt) <= now)
-        .sort((a, b) => new Date(b.startDate || b.startAt) - new Date(a.startDate || a.startAt));
 
     return (
         <main className="min-h-screen bg-[var(--bg-color)] text-[var(--text-primary)]">
@@ -93,15 +91,15 @@ export default async function VenuePublicPage({ params }) {
 
                             <div className="flex gap-10 pt-4 border-t border-[var(--border-secondary)] w-fit">
                                 <div className="flex flex-col">
-                                    <span className="text-2xl font-bold tabular-nums tracking-tight">{stats.followersCount.toLocaleString()}</span>
+                                    <span className="text-2xl font-bold tabular-nums tracking-tight">{(stats.followersCount || 0).toLocaleString('en-IN')}</span>
                                     <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--text-muted)]">Followers</span>
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-2xl font-bold tabular-nums tracking-tight">{venueEvents.length}</span>
-                                    <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--text-muted)]">Total Events</span>
+                                    <span className="text-2xl font-bold tabular-nums tracking-tight">{upcomingEvents.length}</span>
+                                    <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--text-muted)]">Live Events</span>
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-2xl font-bold tabular-nums tracking-tight">{stats.totalLikes.toLocaleString()}</span>
+                                    <span className="text-2xl font-bold tabular-nums tracking-tight">{(stats.totalLikes || 0).toLocaleString('en-IN')}</span>
                                     <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--text-muted)]">Endorsements</span>
                                 </div>
                             </div>
@@ -120,7 +118,6 @@ export default async function VenuePublicPage({ params }) {
             {/* Content Tabs */}
             <ProfileClient
                 upcomingEvents={upcomingEvents}
-                pastEvents={pastEvents}
                 posts={posts}
                 highlights={highlights}
                 venue={venue}

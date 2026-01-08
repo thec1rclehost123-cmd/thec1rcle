@@ -1,7 +1,7 @@
 
 import { NextResponse } from "next/server";
-import { verifyEmailOtp, verifySmsOtp } from "../../../../../lib/server/verification";
-import { rateLimit } from "../../../../../lib/server/rateLimit";
+import { verifyEmailOtp, verifySmsOtp } from "@/lib/server/verification";
+import { rateLimit } from "@/lib/server/rateLimit";
 
 export async function POST(req) {
     if (!rateLimit(req, 10, 60000)) {

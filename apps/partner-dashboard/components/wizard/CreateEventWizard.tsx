@@ -38,10 +38,20 @@ import { TicketTierStep } from "./TicketTierStep";
 import { PromoterStep } from "./PromoterStep";
 import { TableBookingStep } from "./TableBookingStep";
 import { PublishConfirmationModal } from "./PublishConfirmationModal";
+import { DetailedBreakdown } from "./components/DetailedBreakdown";
 import { EventCard, EventPage } from "@c1rcle/ui";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 
 
+
+
+const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0
+    }).format(value);
+};
 
 type WizardStep = 'basics' | 'venue' | 'ticketing' | 'tables' | 'promoters' | 'media' | 'review';
 
@@ -171,6 +181,7 @@ function AppleTextArea({
 // formatDate removed, using formatEventDate from core
 
 // Device Frame for Preview
+// Device Frame for Preview
 function DeviceFrame({ children, device }: { children: React.ReactNode; device: 'mobile' | 'desktop' }) {
     if (device === 'mobile') {
         return (
@@ -184,78 +195,97 @@ function DeviceFrame({ children, device }: { children: React.ReactNode; device: 
         );
     }
 
+    // Desktop frame is now minimal/invisible wrapper for exact card sizing
     return (
-        <div className="relative w-full aspect-video bg-[#1d1d1f] rounded-2xl border-[1px] border-white/10 shadow-2xl overflow-hidden">
-            {/* Browser Header */}
-            <div className="h-8 bg-[#2c2c2e] flex items-center px-4 gap-1.5 border-b border-black/20">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
-                <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
-                <div className="ml-4 h-5 px-3 bg-black/20 rounded flex items-center">
-                    <span className="text-[10px] text-white/40 tracking-tight font-medium">thec1rcle.host/event/preview</span>
-                </div>
-            </div>
-            <div className="h-[calc(100%-32px)] w-full bg-white dark:bg-black overflow-y-auto no-scrollbar scale-[0.9] origin-top">
-                {children}
-            </div>
+        <div className="relative mx-auto w-[320px] h-[420px]">
+            {children}
         </div>
     );
 }
+// Enhanced Preview Card - Live updates ensured by passing formData
+function PreviewCard({ formData, device, showDemoHover, previewAs, onExpand }: {
+    formData: any,
+    device: 'mobile' | 'desktop',
+    showDemoHover: boolean,
+    previewAs: 'guest' | 'promoter',
+    onExpand?: () => void
+}) {
+    if (device === 'desktop') {
+        return (
+            <div
+                onClick={onExpand}
+                className="cursor-pointer group relative transition-all active:scale-[0.98]"
+            >
+                <DeviceFrame device="desktop">
+                    <div className="h-full w-full">
+                        <EventCard
+                            event={formData}
+                            isPreview={true}
+                            showDemoHover={showDemoHover}
+                            device="desktop"
+                            height="h-full"
+                        />
+                    </div>
+                </DeviceFrame>
+                {/* Visual affordance for clickability */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none rounded-[32px] overflow-hidden" />
+            </div>
+        );
+    }
 
-// Minimal Preview Card - Now using shared EventCard with Frame
-function PreviewCard({ formData, device, showDemoHover, previewAs }: { formData: any, device: 'mobile' | 'desktop', showDemoHover: boolean, previewAs: 'guest' | 'promoter' }) {
     return (
-        <DeviceFrame device={device}>
-            <div className="p-4 pt-10">
-                <EventCard
-                    event={formData}
-                    isPreview={true}
-                    showDemoHover={showDemoHover}
-                    device={device}
-                    height={device === 'mobile' ? "h-[420px]" : "h-[420px]"}
-                />
+        <DeviceFrame device="mobile">
+            <div className="p-0 bg-[#0f0f0f] text-white h-full relative">
+                {/* Phone Preview Content - Matches Apple Design */}
+                <div className="h-[280px] w-full relative">
+                    {formData.poster || formData.images?.[0] ? (
+                        <img src={formData.poster || formData.images[0]} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full bg-stone-900 flex items-center justify-center">
+                            <ImageIcon className="w-10 h-10 text-stone-700" />
+                        </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f0f] via-transparent to-transparent" />
+                </div>
 
-                {previewAs === 'promoter' && (
-                    <div className="mt-4 p-4 rounded-2xl bg-indigo-50 border border-indigo-100 animate-in fade-in slide-in-from-top-2">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-1">Promoter Insights</p>
-                        <div className="flex justify-between items-center">
-                            <span className="text-body-sm font-medium text-indigo-900">Est. Commission</span>
-                            <span className="text-body font-bold text-indigo-900">
-                                ₹{Math.round((formData.tickets?.[0]?.price || 0) * (formData.commission / 100) || 0)}
+                <div className="px-6 -mt-12 relative z-10 space-y-6">
+                    <div className="space-y-2">
+                        <div className="flex gap-2">
+                            <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-widest text-[#f44a22]">
+                                {formData.category || "Music"}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-orange/40 text-white text-[9px] font-black uppercase tracking-widest">
+                                Trending
                             </span>
                         </div>
-                    </div>
-                )}
-
-                <div className="mt-8 space-y-6 px-2 text-left">
-                    <div className="space-y-2">
-                        <h1 className="text-headline dark:text-white leading-tight">{formData.title || "Project Narrative"}</h1>
-                        <p className="text-label text-[#4f46e5]">
+                        <h1 className="text-3xl font-black uppercase tracking-tighter leading-none italic">{formData.title || "Untitled Preview"}</h1>
+                        <p className="text-[11px] font-black uppercase tracking-widest text-orange/90">
                             {formatEventDate(formData.startDate)} • {formData.startTime}
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-3 py-4 border-y border-subtle">
-                        <div className="w-10 h-10 rounded-full surface-secondary border border-default" />
+                    <div className="flex items-center gap-3 py-4 border-t border-white/5">
+                        <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                            <Building2 className="w-5 h-5 text-stone-600" />
+                        </div>
                         <div>
-                            <p className="text-label text-muted">Hosted at</p>
-                            <p className="text-body-sm font-bold text-primary dark:text-white">{formData.venueName || "Venue Unspecified"}</p>
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-white/40">Hosted at</p>
+                            <p className="text-[13px] font-black uppercase text-white leading-tight">{formData.venueName || "Venue Unspecified"}</p>
                         </div>
                     </div>
 
-                    <p className="text-body-sm text-secondary dark:text-stone-400">
-                        {formData.description || "Synthesizing event description..."}
+                    <p className="text-[12px] font-medium text-stone-400 leading-relaxed line-clamp-3">
+                        {formData.description || "The event narrative is being synthesized..."}
                     </p>
 
-                    <button className="btn btn-primary w-full py-6 text-[12px] uppercase tracking-widest">
-                        {formData.isRSVP ? 'Register for Access' : 'Purchase Admissions'}
-                    </button>
-                </div>
-
-                <div className="text-center pb-12 mt-10">
-                    <p className="text-[10px] font-bold text-stone-300 uppercase tracking-widest leading-relaxed">
-                        End-to-End Encryption Enabled<br />Verified Original Production
-                    </p>
+                    <div className="pt-4 space-y-3">
+                        <button className="w-full py-4 rounded-full bg-white text-black text-[12px] font-black uppercase tracking-widest shadow-xl shadow-white/10">
+                            Book Tickets →
+                        </button>
+                        <p className="text-[9px] font-bold text-center text-stone-500 uppercase tracking-widest">
+                            Secure Verification • Web3 Integrated
+                        </p>
+                    </div>
                 </div>
             </div>
         </DeviceFrame>
@@ -363,6 +393,9 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
     const [currentStep, setCurrentStep] = useState<WizardStep>('basics');
     const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
     const [showDemoHover, setShowDemoHover] = useState(false);
+
+
+
     const [saveState, setSaveState] = useState<'saved' | 'saving' | 'failed'>('saved');
     const [previewAs, setPreviewAs] = useState<'guest' | 'promoter'>('guest');
     const [isMobilePreviewOpen, setIsMobilePreviewOpen] = useState(false);
@@ -405,6 +438,11 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
             promotersEnabled: true,
             commission: 15,
             commissionType: "percent",
+            useDefaultCommission: true,
+            buyerDiscountsEnabled: false,
+            discount: 10,
+            discountType: "percent",
+            useDefaultDiscount: true,
             images: [],
             lifecycle: 'draft',
             creatorRole: role,
@@ -420,6 +458,19 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
 
         return defaultData;
     });
+
+    // Calculate Grand Total for Preview Sidebar
+    const grandTotal = useMemo(() => {
+        const ticketRevenue = (formData.tickets || []).reduce((acc: number, tier: any) => acc + (Number(tier.price) * Number(tier.quantity)), 0);
+        const tableRevenue = (formData.tables || []).reduce((acc: number, table: any) => acc + (Number(table.price) * Number(table.quantity)), 0);
+        const ticketCapacity = (formData.tickets || []).reduce((acc: number, tier: any) => acc + Number(tier.quantity), 0);
+        const tableCapacity = (formData.tables || []).reduce((acc: number, table: any) => acc + (Number(table.guestsPerTable) * Number(table.quantity)), 0);
+
+        return {
+            value: ticketRevenue + tableRevenue,
+            quantity: ticketCapacity + tableCapacity
+        };
+    }, [formData.tickets, formData.tables]);
 
     const [partnerships, setPartnerships] = useState<any[]>([]);
     const [drafts, setDrafts] = useState<any[]>([]);
@@ -964,7 +1015,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                             ? 'bg-emerald-50 text-emerald-600'
                                             : 'bg-white text-stone-400 border border-default'
                                         }`}>
-                                        <Icon className="w-4 h-4" />
+                                        <Icon className="w-5 h-5" />
                                     </div>
                                     <span className={`text-label transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                                         {step.label}
@@ -1294,113 +1345,8 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
 
                                     {/* Step: Review */}
                                     {currentStep === 'review' && (
-                                        <div className="space-y-8">
-                                            <div className="card-elevated p-8 space-y-8">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-100">
-                                                            <Sparkles className="w-5 h-5" />
-                                                        </div>
-                                                        <div>
-                                                            <h3 className="text-headline-sm">Final Overview</h3>
-                                                            <p className="text-label">Review your event before publishing</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${role === 'venue' ? 'state-confirmed-bg text-emerald-600' : 'state-pending-bg text-amber-600'
-                                                        }`}>
-                                                        {role === 'venue' ? 'Instant Activation' : 'Review Required'}
-                                                    </div>
-                                                </div>
-
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                    {/* Left: Summary Cards */}
-                                                    <div className="space-y-4">
-                                                        <div className="p-6 rounded-2xl surface-secondary border border-default space-y-4">
-                                                            <div>
-                                                                <h4 className="text-headline mb-2">
-                                                                    {formData.title || "Untitled Event"}
-                                                                </h4>
-                                                                <div className="flex flex-wrap gap-2">
-                                                                    <span className="badge badge-neutral">
-                                                                        {formData.category || "General"}
-                                                                    </span>
-                                                                    <span className="badge badge-neutral">
-                                                                        {formData.city}
-                                                                    </span>
-                                                                    <span className="badge badge-indigo">
-                                                                        {formData.capacity} Capacity
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="space-y-3 pt-4 border-t border-subtle">
-                                                                <div className="flex items-center gap-3 text-body-sm font-medium">
-                                                                    <Calendar className="w-4 h-4 text-muted" />
-                                                                    <span>{formData.startDate ? formatEventDate(formData.startDate) : "Schedule Pending"}</span>
-                                                                </div>
-                                                                <div className="flex items-center gap-3 text-body-sm font-medium">
-                                                                    <Clock className="w-4 h-4 text-muted" />
-                                                                    <span>{formData.startTime} – {formData.endTime}</span>
-                                                                </div>
-                                                                <div className="flex items-center gap-3 text-body-sm font-medium">
-                                                                    <MapPin className="w-4 h-4 text-muted" />
-                                                                    <span>{formData.venueName || "Location not set"}</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="p-6 rounded-2xl border border-default bg-white space-y-4">
-                                                            <div className="flex items-center justify-between">
-                                                                <p className="text-label font-bold text-primary">Financial Summary</p>
-                                                                <Ticket className="w-4 h-4 text-muted" />
-                                                            </div>
-                                                            <div className="grid grid-cols-2 gap-4">
-                                                                <div className="space-y-1">
-                                                                    <p className="text-[10px] font-black uppercase text-muted tracking-widest">Access Model</p>
-                                                                    <p className="text-body-sm font-bold text-emerald-600">
-                                                                        {formData.isRSVP ? "Complimentary (RSVP)" : "Paid Admission"}
-                                                                    </p>
-                                                                </div>
-                                                                <div className="space-y-1">
-                                                                    <p className="text-[10px] font-black uppercase text-muted tracking-widest">Inventory</p>
-                                                                    <p className="text-body-sm font-bold text-primary">
-                                                                        {(formData.tickets || []).length} Tiers Configured
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Right: Media Preview */}
-                                                    <div className="space-y-4">
-                                                        <div className="aspect-[4/3] rounded-2xl surface-secondary border border-default overflow-hidden group relative shadow-sm">
-                                                            {formData.image ? (
-                                                                <img src={formData.image} alt="Review" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                                                            ) : (
-                                                                <div className="w-full h-full flex flex-col items-center justify-center gap-3">
-                                                                    <ImageIcon className="w-10 h-10 text-stone-300" />
-                                                                    <p className="text-label">Visual asset missing</p>
-                                                                </div>
-                                                            )}
-                                                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
-                                                        </div>
-
-                                                        <div className="p-5 rounded-2xl bg-indigo-50/50 border border-indigo-100 flex items-start gap-4">
-                                                            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm text-indigo-600">
-                                                                <Zap className="w-5 h-5" />
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-body-sm font-bold text-indigo-900 leading-tight">Submission Logic</p>
-                                                                <p className="text-[12px] text-indigo-700/80 mt-1">
-                                                                    {role === 'venue'
-                                                                        ? "Instant listing upon confirmation. Your event goes live immediately."
-                                                                        : "Awaiting approval from venue operator before publication."}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                            <DetailedBreakdown formData={formData} />
                                         </div>
                                     )}
 
@@ -1440,8 +1386,8 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                                     onClick={() => setShowPublishModal(true)}
                                                     className="apple-btn-blue flex items-center gap-2 disabled:opacity-50"
                                                 >
-                                                    {role === 'host' ? 'Submit for Approval' : 'Publish Event'}
-                                                    <ArrowRight className="w-4 h-4" />
+                                                    Continue
+                                                    <ChevronRight className="w-4 h-4" />
                                                 </button>
                                             ) : (
                                                 <button
@@ -1458,95 +1404,99 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                         </div>
 
                         {/* Preview Sidebar */}
-                        <div className="w-full lg:w-[360px] lg:sticky lg:top-8 self-start space-y-8">
-                            {/* Perspective Header & Perspective Controls */}
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between px-1">
-                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Perspective</span>
-                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100/50">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Live Sync</span>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-5 gap-2">
-                                    <div className="col-span-3 flex bg-stone-100 rounded-xl p-1">
-                                        <button
-                                            onClick={() => setPreviewAs('guest')}
-                                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${previewAs === 'guest' ? 'bg-white text-primary shadow-sm' : 'text-stone-400 hover:text-primary'}`}
-                                        >
-                                            Guest
-                                        </button>
-                                        <button
-                                            onClick={() => setPreviewAs('promoter')}
-                                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${previewAs === 'promoter' ? 'bg-white text-primary shadow-sm' : 'text-stone-400 hover:text-primary'}`}
-                                        >
-                                            Promoter
-                                        </button>
-                                    </div>
-
-                                    <div className="col-span-2 flex bg-stone-100 rounded-xl p-1">
-                                        <button
-                                            onClick={() => setDevice('desktop')}
-                                            className={`flex-1 flex items-center justify-center py-1.5 rounded-lg transition-all ${device === 'desktop' ? 'bg-white text-primary shadow-sm' : 'text-stone-400 hover:text-primary'}`}
-                                        >
-                                            <Monitor className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                            onClick={() => setDevice('mobile')}
-                                            className={`flex-1 flex items-center justify-center py-1.5 rounded-lg transition-all ${device === 'mobile' ? 'bg-white text-primary shadow-sm' : 'text-stone-400 hover:text-primary'}`}
-                                        >
-                                            <Smartphone className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Live Card Preview */}
-                            <div className="relative group">
-                                <div className="absolute -inset-4 bg-gradient-to-b from-stone-50 to-transparent rounded-[2rem] -z-10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <PreviewCard formData={formData} device={device} showDemoHover={showDemoHover} previewAs={previewAs} />
-                            </div>
-
-                            {/* Full Page Preview - Premium Trigger */}
-                            <button
-                                onClick={() => setIsFullPagePreviewOpen(true)}
-                                className="group relative w-full p-6 rounded-[2rem] bg-stone-900 overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-stone-200"
-                            >
-                                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 via-transparent to-rose-500/20 opacity-50" />
-                                <div className="relative flex items-center justify-between">
-                                    <div className="text-left">
-                                        <p className="text-[14px] font-black text-white tracking-tight">Full Event Experience</p>
-                                        <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest mt-0.5">Exact detail page replica</p>
-                                    </div>
-                                    <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center backdrop-blur-md group-hover:bg-white/20 transition-colors">
-                                        <Maximize2 className="w-5 h-5 text-white" />
-                                    </div>
-                                </div>
-                            </button>
-
-                            {/* Advanced Settings */}
-                            <div className="p-6 rounded-[2rem] border border-stone-200 bg-white/50 backdrop-blur-sm space-y-6">
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-0.5">
-                                        <p className="text-[13px] font-bold text-primary">Public Guestlist</p>
-                                        <p className="text-[11px] text-stone-400 font-medium leading-tight">Display attendee counts to public</p>
-                                    </div>
+                        <div className="w-full lg:w-[360px] lg:sticky lg:top-8 self-start space-y-6">
+                            {/* Live Preview Header */}
+                            <div className="flex items-center justify-between px-1">
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#86868b]">Live Preview</span>
+                                <div className="flex items-center gap-2">
+                                    {saveState === 'failed' && (
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-red-50">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                            <span className="text-[9px] font-bold uppercase tracking-wider text-red-500">Save Failed</span>
+                                        </div>
+                                    )}
+                                    {saveState === 'saving' && (
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-gray-50/50">
+                                            <Loader2 className="w-3 h-3 text-[#86868b] animate-spin" />
+                                            <span className="text-[9px] font-bold uppercase tracking-wider text-[#86868b]">Saving...</span>
+                                        </div>
+                                    )}
+                                    {saveState === 'saved' && (
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-50/50">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                            <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600">Live</span>
+                                        </div>
+                                    )}
                                     <button
-                                        onClick={() => setShowGuestlist(!showGuestlist)}
-                                        className={`w-12 h-7 rounded-full transition-all duration-300 relative ${showGuestlist ? 'bg-indigo-600 shadow-lg shadow-indigo-100' : 'bg-stone-200'}`}
+                                        onClick={() => setShowDemoHover(!showDemoHover)}
+                                        className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-colors ${showDemoHover ? 'bg-[#ffbd2e]/20 text-[#ffbd2e]' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                                     >
-                                        <motion.div
-                                            className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-sm"
-                                            animate={{ x: showGuestlist ? 20 : 0 }}
-                                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                                        />
+                                        QA Hover
                                     </button>
                                 </div>
+                            </div>
+
+                            {/* Live Card Preview - Exact Match */}
+                            <div className="flex justify-center">
+                                <div className="w-[320px] h-[420px] rounded-[32px] overflow-hidden shadow-2xl relative group cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]" onClick={() => setIsFullPagePreviewOpen(true)}>
+                                    <EventCard
+                                        event={formData}
+                                        isPreview={true}
+                                        showDemoHover={showDemoHover}
+                                        device="desktop"
+                                        height="h-full"
+                                    />
+                                    {/* Hover overlay for affordance */}
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
+                                </div>
+                            </div>
+
+                            {/* Full Page Preview Button */}
+                            <button
+                                onClick={() => setIsFullPagePreviewOpen(true)}
+                                className="w-full py-4 rounded-xl bg-[#1d1d1f] text-white font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
+                            >
+                                <Maximize2 className="w-4 h-4" />
+                                Full Page Preview
+                            </button>
+
+                            {/* Quick Stats */}
+                            <div className="px-2 space-y-4 pt-2">
+                                <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                                    <span className="text-xs font-bold text-[#86868b]">Inventory Value</span>
+                                    <span className="text-sm font-black text-[#1d1d1f]">{formatCurrency(grandTotal.value)}</span>
+                                </div>
+                                <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                                    <span className="text-xs font-bold text-[#86868b]">Total Capacity</span>
+                                    <span className="text-sm font-black text-[#1d1d1f]">{grandTotal.quantity}</span>
+                                </div>
+                                <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                                    <span className="text-xs font-bold text-[#86868b]">Ticket Tiers</span>
+                                    <span className="text-sm font-black text-[#1d1d1f]">{formData.tickets?.length || 0}</span>
+                                </div>
+                            </div>
+
+                            {/* Guestlist Visibility Toggle */}
+                            <div className="bg-[#f5f5f7] p-5 rounded-[24px] flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-black text-[#1d1d1f]">Guestlist Visibility</p>
+                                    <p className="text-[11px] font-medium text-[#86868b]">Only interested list shown</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowGuestlist(!showGuestlist)}
+                                    className={`w-11 h-6 rounded-full transition-colors relative ${showGuestlist ? 'bg-white shadow-inner border border-gray-200' : 'bg-[#e5e5e7]'}`}
+                                >
+                                    <motion.div
+                                        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full shadow-sm ${showGuestlist ? 'bg-black' : 'bg-white'}`}
+                                        animate={{ x: showGuestlist ? 20 : 0 }}
+                                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                    />
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
+
 
                 {/* Mobile Preview Trigger */}
                 <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
@@ -1627,22 +1577,26 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                             <div className="flex flex-col h-full">
                                 {/* Header */}
                                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-zinc-900 shadow-xl">
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex gap-1.5">
-                                            <div className="w-2.5 h-2.5 rounded-full bg-red-500/30" />
-                                            <div className="w-2.5 h-2.5 rounded-full bg-amber-500/30" />
-                                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/30" />
-                                        </div>
-                                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white">Published Event Preview</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Draft Mode</span>
+                                    <div className="flex items-center gap-6">
                                         <button
                                             onClick={() => setIsFullPagePreviewOpen(false)}
-                                            className="rounded-full bg-white/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest text-white hover:bg-white/20 transition-colors"
+                                            className="flex items-center gap-2 text-white hover:text-stone-300 transition-colors group"
                                         >
-                                            Close
+                                            <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                                            <span className="text-[11px] font-black uppercase tracking-tighter">Back to Wizard</span>
                                         </button>
+                                        <div className="h-4 w-px bg-white/10" />
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex gap-1.5">
+                                                <div className="w-2.5 h-2.5 rounded-full bg-red-500/30" />
+                                                <div className="w-2.5 h-2.5 rounded-full bg-amber-500/30" />
+                                                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/30" />
+                                            </div>
+                                            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white">Live Production Preview</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">State: Draft Sync</span>
                                     </div>
                                 </div>
 
@@ -1688,7 +1642,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                     formData={formData}
                     role={role}
                 />
-            </div>
+            </div >
         </>
     );
 }

@@ -856,3 +856,26 @@ export async function getVenueStrategyAnalytics(venueId, range = "30d") {
         dataReady: true
     };
 }
+/**
+ * Get the heartbeat timeline for a specific event
+ */
+export async function getEventTimeline(eventId) {
+    // Placeholder logic for heartbeat rendering
+    return {
+        timeline: [],
+        peakDemand: 0,
+        avgReality: 0,
+        dataReady: false
+    };
+}
+
+/**
+ * Get AI-driven studio insights for an event
+ */
+export async function getEventStudioInsights(eventId) {
+    // Placeholder for studio dashboard insights
+    return {
+        insights: [],
+        dataReady: false
+    };
+}

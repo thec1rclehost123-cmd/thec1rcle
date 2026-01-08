@@ -1,8 +1,8 @@
 
 import { NextResponse } from "next/server";
-import { sendEmailOtp, sendSmsOtp } from "../../../../../lib/server/verification";
-import { rateLimit } from "../../../../../lib/server/rateLimit";
-import { getAdminApp } from "../../../../../lib/firebase/admin";
+import { sendEmailOtp, sendSmsOtp } from "@/lib/server/verification";
+import { rateLimit } from "@/lib/server/rateLimit";
+import { getAdminApp } from "@/lib/firebase/admin";
 import { getAuth } from "firebase-admin/auth";
 
 export async function POST(req) {

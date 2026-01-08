@@ -143,7 +143,7 @@ export const roleAccents: Record<
     light: string;
   }
 > = {
-  club: {
+  venue: {
     base: "#292524",        // Stone 800 (Authority)
     light: "#f5f5f4",
   },

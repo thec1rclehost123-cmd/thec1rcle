@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { verifyAuth } from "../../../../lib/server/auth";
-import { cancelOrder, getOrderById } from "../../../../lib/server/orderStore";
+import { verifyAuth } from "@/lib/server/auth";
+import { cancelOrder, getOrderById } from "@/lib/server/orderStore";
 
 export async function POST(request) {
     try {

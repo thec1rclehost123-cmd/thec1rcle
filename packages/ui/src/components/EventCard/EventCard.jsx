@@ -24,14 +24,14 @@ export default function EventCard({
     const priceDisplay = useMemo(() => {
         if (!event.tickets || event.tickets.length === 0) {
             if (event.isRSVP) return "Free";
-            return event.price ? `₹${event.price}` : "";
+            return event.price ? `₹${Number(event.price).toLocaleString('en-IN')}` : "";
         }
 
         const paidTiers = event.tickets.filter(t => Number(t.price) > 0);
         if (paidTiers.length === 0) return "Free";
 
         const lowestPaid = Math.min(...paidTiers.map(t => Number(t.price)));
-        return `From ₹${lowestPaid}`;
+        return `From ₹${lowestPaid.toLocaleString('en-IN')}`;
     }, [event.tickets, event.isRSVP, event.price]);
 
     const isFree = priceDisplay === "Free";
@@ -136,10 +136,10 @@ export default function EventCard({
                             <div className={`absolute inset-0 -z-10 bg-black/60 dark:bg-black/40 backdrop-blur-xl transition-all duration-500 rounded-t-[16px] sm:rounded-t-[24px] translate-y-full ${(!isPreview || showDemoHover) ? 'group-hover:translate-y-0 opacity-100' : 'opacity-0'}`} />
 
                             <div className="relative z-10">
-                                <p className="mb-1 sm:mb-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-white/80 dark:text-iris-glow drop-shadow-md">
+                                <p className="mb-1 sm:mb-2 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-[#f44a22] drop-shadow-md">
                                     {displayDate} {displayTime ? `• ${displayTime}` : ''}
                                 </p>
-                                <h3 className="mb-1 sm:mb-2 font-heading text-sm sm:text-xl md:text-2xl font-black leading-tight text-white drop-shadow-lg line-clamp-2 uppercase tracking-tight">
+                                <h3 className="mb-1 sm:mb-2 font-heading text-lg sm:text-2xl md:text-3xl font-black leading-[0.9] text-white drop-shadow-lg line-clamp-2 uppercase tracking-tighter">
                                     {displayTitle}
                                 </h3>
                                 <p className="text-[10px] sm:text-sm font-medium text-white/70 drop-shadow-md line-clamp-1">
@@ -176,13 +176,13 @@ export default function EventCard({
                                 )}
 
                                 {/* CTA Button */}
-                                <div className={`mt-4 sm:mt-6 hidden sm:flex items-center gap-3 transition-all duration-500 delay-75 ${(!isPreview || showDemoHover) ? 'group-hover:opacity-100 group-hover:translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                                <div className={`mt-4 sm:mt-6 flex items-center gap-3 transition-all duration-500 delay-75 ${(!isPreview || showDemoHover) ? 'opacity-100 translate-y-0' : 'opacity-100 translate-y-0'}`}>
                                     <span
                                         onClick={handleCtaClick}
-                                        className={`flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-black font-bold text-[10px] uppercase tracking-widest hover:bg-white/90 transition-colors shadow-lg ${isPreview ? 'cursor-pointer pointer-events-auto' : ''}`}
+                                        className={`flex items-center gap-2 px-6 py-3 rounded-full bg-white text-black font-black text-[10px] uppercase tracking-widest hover:bg-white/90 transition-all shadow-xl shadow-black/20 ${isPreview ? 'cursor-pointer pointer-events-auto' : ''} active:scale-95`}
                                     >
-                                        {isPreview ? 'View Details' : 'Book Tickets'}
-                                        <ArrowRight className="h-3 w-3" />
+                                        {isPreview ? 'View Experience' : 'Book Tickets'}
+                                        <ArrowRight className="h-3.5 w-3.5" />
                                     </span>
                                 </div>
                             </div>

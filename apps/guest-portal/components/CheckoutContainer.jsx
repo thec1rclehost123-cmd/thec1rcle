@@ -372,7 +372,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                                 <div className="flex items-center justify-between gap-4">
                                                     <div className="flex-1 min-w-0">
                                                         <h3 className="text-lg font-black uppercase text-white truncate">{ticket.name}</h3>
-                                                        <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-0.5">₹{ticket.price} • {ticket.description || "Limited Access"}</p>
+                                                        <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-0.5">₹{(ticket.price || 0).toLocaleString('en-IN')} • {ticket.description || "Limited Access"}</p>
                                                     </div>
                                                     <div className="flex items-center gap-4 bg-white/5 p-1 rounded-full border border-white/5">
                                                         <button onClick={() => handleTicketChange(ticket.id, -1)} disabled={qty === 0} className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-20">-</button>

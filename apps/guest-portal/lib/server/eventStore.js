@@ -77,7 +77,7 @@ const parseList = (value) => {
 
 const formatDateRange = (start, end) => {
   if (!start) return "";
-  const formatter = new Intl.DateTimeFormat("en-IN", { weekday: "short", month: "short", day: "numeric" });
+  const formatter = new Intl.DateTimeFormat("en-IN", { weekday: "short", month: "short", day: "numeric", timeZone: "Asia/Kolkata" });
   const startDate = new Date(start);
   const endDate = end ? new Date(end) : null;
   const safeFormat = (date, fallback) => {
@@ -93,7 +93,7 @@ const formatDateRange = (start, end) => {
 
 const formatTimeRange = (start, end) => {
   if (!start && !end) return "";
-  const formatter = new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit" });
+  const formatter = new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
   const safeFormat = (value) => {
     if (!value) return "";
     const date = new Date(`1970-01-01T${value}`);
@@ -218,6 +218,11 @@ const calculateHeatScore = (event) => {
 
 const listFallbackEvents = ({ city, limit = 12, sort = "heat", host } = {}) => {
   let events = getFallbackEvents();
+
+  // Filter out past events
+  const now = new Date().toISOString();
+  events = events.filter(event => (event.endDate || event.startDate) >= now);
+
   if (city) {
     const standardizedCity = inferCity(city);
     const cityMatches = events.filter((event) => event.city === standardizedCity);
@@ -390,6 +395,10 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
   // Filter by lifecycle for guest visibility (Canonical States)
   query = query.where("lifecycle", "in", PUBLIC_LIFECYCLE_STATES);
 
+  // Exclude past events
+  const now = new Date().toISOString();
+  query = query.where("endDate", ">=", now);
+
   if (host) {
     query = query.where("host", "==", host);
   }
@@ -422,12 +431,21 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
   try {
     snapshot = await query.limit(baseLimit).get();
   } catch (e) {
-    console.error("[EventStore] Firestore query failed, falling back to basic query:", e.message);
-    // Silent fallback to avoid crash if index is missing
-    snapshot = await db.collection(EVENT_COLLECTION)
-      .where("lifecycle", "in", PUBLIC_LIFECYCLE_STATES)
-      .limit(100)
-      .get();
+    try {
+      // Silent fallback to avoid crash if index is missing
+      const fallbackNow = new Date().toISOString();
+      snapshot = await db.collection(EVENT_COLLECTION)
+        .where("lifecycle", "in", PUBLIC_LIFECYCLE_STATES)
+        .where("endDate", ">=", fallbackNow)
+        .limit(100)
+        .get();
+    } catch (secondError) {
+      // Ultimate fallback if even the above fails (e.g. index also missing for simplified date filter)
+      snapshot = await db.collection(EVENT_COLLECTION)
+        .where("lifecycle", "in", PUBLIC_LIFECYCLE_STATES)
+        .limit(100)
+        .get();
+    }
   }
 
   return snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));

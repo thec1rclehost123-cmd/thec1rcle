@@ -279,7 +279,14 @@ export async function getUnifiedVenueCalendar(venueId, startDate, endDate) {
     const events = eventsSnap.docs
         .map(doc => {
             const data = doc.data();
-            const dateStr = data.date?.toDate ? data.date.toDate().toISOString().split('T')[0] : (typeof data.date === 'string' ? data.date : null);
+            // Prioritize startDate if it looks like ISO (YYYY-MM-DD), then fallback to machine date
+            const getIsoDate = (d) => {
+                if (!d) return null;
+                if (d.toDate) return d.toDate().toISOString().split('T')[0];
+                if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.split('T')[0];
+                return null;
+            };
+            const dateStr = getIsoDate(data.startDate) || getIsoDate(data.date) || null;
             return { id: doc.id, type: 'event', ...data, dateStr };
         })
         .filter(e => e.dateStr && e.dateStr >= startDate && e.dateStr <= endDate);
@@ -417,11 +424,17 @@ export async function getOperatingCalendar(partnerId, role, startDate, endDate) 
             .map(doc => ({ id: doc.id, ...doc.data() }))
             .filter(s => s.requestedDate >= startDate && s.requestedDate <= endDate);
 
-        // 3. Fetch Events for this venue
+        // 3. Fetch Events for this venue - filter in memory for published states
         const eventsSnap = await db.collection("events")
             .where("venueId", "==", venueId)
             .get();
-        events = eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        events = eventsSnap.docs
+            .map(doc => ({ id: doc.id, ...doc.data(), isOwner: true }))
+            .filter(e => ["scheduled", "live", "published"].includes(e.lifecycle));
+
+        // 4. Filter blocks and slots if they only want published events
+        blocks = blocks.filter(b => b.status === 'confirmed'); // Manual blocks usually don't have 'confirmed' unless they are events
+        slots = slots.filter(s => s.status === 'approved'); // Approved slots become events anyway, so this effectively hides tentative ones.
 
     } else {
         // Host Role: Sees own events + anonymized blocks for venues they have events at
@@ -431,16 +444,18 @@ export async function getOperatingCalendar(partnerId, role, startDate, endDate) 
         const myEventsSnap = await db.collection("events")
             .where("creatorId", "==", hostId)
             .get();
-        const myEvents = myEventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), isOwner: true }));
+        const myEvents = myEventsSnap.docs
+            .map(doc => ({ id: doc.id, ...doc.data(), isOwner: true }))
+            .filter(e => ["scheduled", "live", "published"].includes(e.lifecycle));
 
-        // 2. Get Host's own slots
+        // 2. Get Host's own slots - filter for approved (which will be events soon)
         const mySlotsSnap = await db.collection("slot_requests")
             .where("hostId", "==", hostId)
             .get();
 
         const mySlots = mySlotsSnap.docs
             .map(doc => ({ id: doc.id, ...doc.data(), isOwner: true }))
-            .filter(s => s.requestedDate >= startDate && s.requestedDate <= endDate);
+            .filter(s => s.requestedDate >= startDate && s.requestedDate <= endDate && s.status === 'approved');
 
         slots = mySlots;
 
@@ -493,7 +508,16 @@ export async function getOperatingCalendar(partnerId, role, startDate, endDate) 
     // Map confirmed events by date
     const eventsByDate = {};
     events.forEach(e => {
-        const dateStr = e.date || (e.startDate?.toDate ? e.startDate.toDate().toISOString().split('T')[0] : (typeof e.startDate === 'string' ? e.startDate.split('T')[0] : null));
+        // Robust date extraction: prioritize fields that look like YYYY-MM-DD
+        const getIsoDate = (val) => {
+            if (!val) return null;
+            if (val.toDate) return val.toDate().toISOString().split('T')[0];
+            if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) return val.split('T')[0];
+            return null;
+        };
+
+        const dateStr = getIsoDate(e.startDate) || getIsoDate(e.date) || null;
+
         if (dateStr && dateStr >= startDate && dateStr <= endDate) {
             if (!eventsByDate[dateStr]) eventsByDate[dateStr] = [];
             eventsByDate[dateStr].push(e);
@@ -542,7 +566,10 @@ export async function getOperatingCalendar(partnerId, role, startDate, endDate) 
                 endTime: e.endTime || (e.isAnonymized ? "04:00" : "04:00"),
                 lifecycle: e.lifecycle || e.status,
                 host: e.isAnonymized ? "Venue Blocked" : (e.hostName || e.host || "Direct Production"),
-                isAnonymized: !!e.isAnonymized
+                isAnonymized: !!e.isAnonymized,
+                posterUrl: e.isAnonymized ? null : (e.posterUrl || e.image || e.banner),
+                venueName: e.venueName || e.venue,
+                isOwner: !!e.isOwner
             })),
             slots: daySlots.map(s => ({
                 id: s.id,

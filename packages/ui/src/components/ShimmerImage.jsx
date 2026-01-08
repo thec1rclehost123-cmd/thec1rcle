@@ -22,7 +22,8 @@ export default function ShimmerImage({
     const isPlaceholder = !src || src === "placeholder";
     const isDataUrl = typeof src === "string" && src.startsWith("data:");
     const isLocal = typeof src === "string" && src.startsWith("/");
-    const useNativeImage = isDataUrl || isLocal;
+    // We prefer Next.js Image for local paths too for optimization and better handling
+    const useNativeImage = isDataUrl;
 
     useEffect(() => {
         if (!src || isPlaceholder) {
@@ -30,15 +31,28 @@ export default function ShimmerImage({
             return;
         }
         setError(false);
-        // data urls are ready immediately
+
+        // If it's a data URL, it's ready immediately
         if (isDataUrl) {
             setLoaded(true);
-        } else {
-            setLoaded(false);
+            return;
+        }
+
+        // Reset loaded state for new src
+        setLoaded(false);
+
+        // Check if image is already cached/loaded
+        if (imgRef.current && imgRef.current.complete) {
+            setLoaded(true);
         }
     }, [src, isPlaceholder, isDataUrl]);
 
-    const handleLoad = () => setLoaded(true);
+    const handleLoad = (e) => {
+        setLoaded(true);
+        if (onLoad) onLoad(e);
+        if (onLoadingComplete) onLoadingComplete(e);
+    };
+
     const handleError = () => {
         console.error(`[ShimmerImage] Failed to load: ${src?.substring(0, 50)}...`);
         setError(true);
@@ -61,6 +75,7 @@ export default function ShimmerImage({
             {!isPlaceholder && !error ? (
                 useNativeImage ? (
                     <img
+                        ref={imgRef}
                         src={src}
                         alt={alt || "Image"}
                         className={`relative z-10 transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"
@@ -74,15 +89,23 @@ export default function ShimmerImage({
                         src={src}
                         alt={alt || "Image"}
                         fill={fill}
-                        ref={imgRef}
+                        ref={(node) => {
+                            // Support both functional ref (for Next.js Image) and local ref
+                            if (node) {
+                                imgRef.current = node.querySelector ? node.querySelector('img') : node;
+                                if (imgRef.current?.complete && !loaded) {
+                                    setLoaded(true);
+                                }
+                            }
+                        }}
                         className={`relative z-10 transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"
                             } ${className}`}
-                        onLoad={handleLoad}
+                        onLoadingComplete={handleLoad}
                         onError={handleError}
                     />
                 )
             ) : (
-                <div className={`relative z-10 flex flex-col items-center justify-center bg-zinc-800 border border-white/5 ${fill ? 'absolute inset-0' : 'h-full w-full'
+                <div className={`relative z-10 flex flex-col items-center justify-center bg-zinc-900 border border-white/5 ${fill ? 'absolute inset-0' : 'h-full w-full'
                     } ${className}`}>
                     <div className="text-[10px] font-black uppercase text-white/10 tracking-[0.2em] text-center px-4">
                         {alt || "No Image"}

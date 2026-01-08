@@ -93,38 +93,24 @@ export default function ProfileClient({ upcomingEvents, pastEvents, posts, highl
                         <div className="space-y-12">
                             {/* Inner Filters - Minimal Pills */}
                             <div className="flex gap-2">
-                                <button
-                                    onClick={() => setEventFilter("upcoming")}
-                                    className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all border ${eventFilter === "upcoming"
-                                        ? "bg-[var(--text-primary)] text-[var(--bg-color)] border-[var(--text-primary)]"
-                                        : "bg-transparent text-[var(--text-secondary)] border-[var(--border-primary)] hover:border-[var(--text-muted)]"
-                                        }`}
+                                <div
+                                    className="px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all border bg-[var(--text-primary)] text-[var(--bg-color)] border-[var(--text-primary)]"
                                 >
-                                    Upcoming ({upcomingEvents.length})
-                                </button>
-                                <button
-                                    onClick={() => setEventFilter("past")}
-                                    className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all border ${eventFilter === "past"
-                                        ? "bg-[var(--text-primary)] text-[var(--bg-color)] border-[var(--text-primary)]"
-                                        : "bg-transparent text-[var(--text-secondary)] border-[var(--border-primary)] hover:border-[var(--text-muted)]"
-                                        }`}
-                                >
-                                    Archive ({pastEvents.length})
-                                </button>
+                                    Upcoming Events ({upcomingEvents.length})
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10">
-                                {(eventFilter === "upcoming" ? upcomingEvents : pastEvents).map(event => (
+                                {upcomingEvents.map(event => (
                                     <EventCard
                                         key={event.id}
                                         event={event}
-                                        isPast={eventFilter === "past"}
                                     />
                                 ))}
-                                {(eventFilter === "upcoming" ? upcomingEvents : pastEvents).length === 0 && (
+                                {upcomingEvents.length === 0 && (
                                     <div className="col-span-full py-32 text-center border-2 border-dashed border-[var(--border-secondary)] rounded-[3rem]">
                                         <p className="text-[var(--text-muted)] text-[11px] font-bold uppercase tracking-[0.3em]">
-                                            No {eventFilter === "upcoming" ? "upcoming" : "past"} events scheduled
+                                            No upcoming events scheduled
                                         </p>
                                     </div>
                                 )}
@@ -149,7 +135,7 @@ export default function ProfileClient({ upcomingEvents, pastEvents, posts, highl
                                                     {venue.name.charAt(0)}
                                                 </div>
                                                 <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest">
-                                                    {new Date(post.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                    {new Date(post.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                                                 </span>
                                             </div>
                                         </div>

@@ -47,7 +47,12 @@ const nextConfig = {
       },
       {
         source: '/clubs/:path*',
-        destination: '/venues/:path*',
+        destination: '/venue/:path*',
+        permanent: true,
+      },
+      {
+        source: '/venues/:slug',
+        destination: '/venue/:slug',
         permanent: true,
       },
       {

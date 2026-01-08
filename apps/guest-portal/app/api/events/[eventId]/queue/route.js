@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { joinQueue, getQueueStatus } from "../../../../../lib/server/queueStore";
-import { getSurgeStatus, recordMetric } from "../../../../../lib/server/surgeStore";
-import { withRateLimit } from "../../../../../lib/server/rateLimit";
+import { joinQueue, getQueueStatus } from "@/lib/server/queueStore";
+import { getSurgeStatus, recordMetric } from "@/lib/server/surgeStore";
+import { withRateLimit } from "@/lib/server/rateLimit";
 
 async function postHandler(request, { params }) {
     const { eventId } = params;

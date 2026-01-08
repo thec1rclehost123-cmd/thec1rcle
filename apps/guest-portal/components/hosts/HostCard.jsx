@@ -6,7 +6,7 @@ import { BadgeCheck, TrendingUp, Share2, User, Calendar, Users, Heart } from "lu
 import ShimmerImage from "../ShimmerImage";
 
 export default function HostCard({ host, onFollow, index }) {
-    const nextEventDateLabel = host.nextEventDate ? new Date(host.nextEventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : null;
+    const nextEventDateLabel = host.nextEventDate ? new Date(host.nextEventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' }) : null;
 
     // Deterministic gradient if no cover is present
     const getGradient = (id) => {
@@ -36,7 +36,7 @@ export default function HostCard({ host, onFollow, index }) {
             <div className="absolute -inset-4 z-0 bg-gradient-to-br from-orange/10 via-transparent to-purple-500/5 opacity-40 blur-3xl transition-all duration-700 group-hover:opacity-80 group-hover:scale-110" />
 
             {/* Media Section */}
-            <Link href={`/hosts/${host.slug}`} className="relative aspect-[4/3] w-full overflow-hidden">
+            <Link href={`/host/${host.slug}`} className="relative aspect-[4/3] w-full overflow-hidden">
                 {host.cover ? (
                     <ShimmerImage
                         src={host.cover}
@@ -69,8 +69,8 @@ export default function HostCard({ host, onFollow, index }) {
                 {/* Host Info Overlay (Bottom Left) */}
                 <div className="absolute bottom-4 left-4 right-4">
                     <div className="flex items-center gap-3 mb-2">
-                        <div className="h-12 w-12 rounded-full border-2 border-white/20 overflow-hidden shadow-2xl">
-                            <img src={host.avatar} className="h-full w-full object-cover" alt={host.name} />
+                        <div className="h-12 w-12 rounded-full border-2 border-white/20 overflow-hidden shadow-2xl relative">
+                            <ShimmerImage src={host.avatar} fill className="object-cover" alt={host.name} />
                         </div>
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange mb-0.5">{host.role}</p>
@@ -90,7 +90,7 @@ export default function HostCard({ host, onFollow, index }) {
             {/* Stats Row */}
             <div className="flex items-center justify-between p-6 border-b border-white/5 bg-black/20">
                 <div className="flex flex-col">
-                    <span className="text-sm font-black text-white">{host.followers.toLocaleString()}</span>
+                    <span className="text-sm font-black text-white">{(host.followers || 0).toLocaleString('en-IN')}</span>
                     <span className="text-[9px] uppercase font-bold tracking-widest text-white/40">Followers</span>
                 </div>
                 <div className="flex flex-col items-center">
@@ -125,7 +125,7 @@ export default function HostCard({ host, onFollow, index }) {
                         <Share2 size={18} />
                     </button>
                     <Link
-                        href={`/hosts/${host.slug}`}
+                        href={`/host/${host.slug}`}
                         className="flex h-11 w-11 items-center justify-center rounded-full bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all active:scale-90"
                         title="View Profile"
                     >

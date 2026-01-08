@@ -10,7 +10,7 @@ export function VenueCard({ venue, onFollow }) {
             whileTap={{ scale: 0.98 }}
             className="group relative overflow-hidden rounded-[32px] border border-black/10 dark:border-white/10 bg-white/5 backdrop-blur-xl transition-all duration-300 hover:border-orange/30 dark:hover:border-white/20 hover:shadow-2xl hover:shadow-orange/10 dark:hover:shadow-white/5"
         >
-            <Link href={`/venues/${venue.slug}`} className="block">
+            <Link href={`/venue/${venue.slug}`} className="block">
                 <div className="relative aspect-[4/5] overflow-hidden">
                     <ShimmerImage
                         src={venue.image}
@@ -43,7 +43,7 @@ export function VenueCard({ venue, onFollow }) {
 
                     <div className="flex items-center justify-between pt-2 border-t border-white/10">
                         <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
-                            {venue.followers.toLocaleString()} Followers
+                            {(venue.followers || 0).toLocaleString('en-IN')} Followers
                         </p>
                         <button
                             onClick={(e) => {
@@ -68,7 +68,7 @@ export function HostCard({ host, onFollow }) {
             whileTap={{ scale: 0.98 }}
             className="group relative overflow-hidden rounded-[32px] border border-black/10 dark:border-white/10 bg-white/5 backdrop-blur-xl transition-all duration-300 hover:border-orange/30 dark:hover:border-white/20 hover:shadow-2xl hover:shadow-orange/10 dark:hover:shadow-white/5"
         >
-            <Link href={`/hosts/${host.slug}`} className="block">
+            <Link href={`/host/${host.slug}`} className="block">
                 <div className="relative aspect-[4/5] overflow-hidden p-8 flex flex-col items-center justify-center bg-black/40">
                     <div className="relative h-32 w-32 rounded-full overflow-hidden border-2 border-white/10 group-hover:border-orange/50 transition-colors shadow-2xl">
                         <ShimmerImage
@@ -99,7 +99,7 @@ export function HostCard({ host, onFollow }) {
 
                 <div className="p-6 bg-black/60 backdrop-blur-md flex items-center justify-between border-t border-white/5">
                     <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
-                        {host.followers.toLocaleString()} Followers
+                        {(host.followers || 0).toLocaleString('en-IN')} Followers
                     </p>
                     <button
                         onClick={(e) => {

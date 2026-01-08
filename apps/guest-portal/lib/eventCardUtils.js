@@ -30,7 +30,7 @@ export const formatEventTime = (event = {}) => {
   const parsed = new Date(start);
   if (Number.isNaN(parsed.getTime())) return "";
   try {
-    return new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit" }).format(parsed);
+    return new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }).format(parsed);
   } catch (error) {
     return "";
   }

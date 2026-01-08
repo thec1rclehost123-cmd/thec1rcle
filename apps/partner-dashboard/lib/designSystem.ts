@@ -14,7 +14,11 @@ export const elevation = {
 
 export const spacing = tokens.spacing;
 
-// Gradients removed in favor of state-based colors
+// Gradients for decorative elements
+export const gradients = {
+  aurora: "linear-gradient(135deg, rgba(168, 85, 247, 0.4) 0%, rgba(236, 72, 153, 0.4) 100%)",
+  shimmer: "linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent)",
+};
 
 export const transitions = {
   ...motionTransitions,

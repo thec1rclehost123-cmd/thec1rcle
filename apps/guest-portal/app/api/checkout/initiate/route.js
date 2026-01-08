@@ -4,12 +4,12 @@
  */
 
 import { NextResponse } from "next/server";
-import { initiateCheckout } from "../../../../lib/server/checkoutService";
-import { createRazorpayOrder } from "../../../../lib/server/payments/razorpay";
-import { createOrder } from "../../../../lib/server/orderStore";
-import { getEvent } from "../../../../lib/server/eventStore";
-import { verifyAuth } from "../../../../lib/server/auth";
-import { withRateLimit } from "../../../../lib/server/rateLimit";
+import { initiateCheckout } from "@/lib/server/checkoutService";
+import { createRazorpayOrder } from "@/lib/server/payments/razorpay";
+import { createOrder } from "@/lib/server/orderStore";
+import { getEvent } from "@/lib/server/eventStore";
+import { verifyAuth } from "@/lib/server/auth";
+import { withRateLimit } from "@/lib/server/rateLimit";
 
 async function handler(request) {
     try {

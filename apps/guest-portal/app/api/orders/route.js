@@ -48,12 +48,13 @@ async function handler(request) {
                     to: payload.userEmail,
                     userName: payload.userName || "Guest",
                     eventName: event.title,
-                    eventDate: new Date(event.startDate).toLocaleDateString('en-US', {
+                    eventDate: new Date(event.startDate).toLocaleDateString('en-IN', {
                         weekday: 'short',
                         month: 'short',
                         day: 'numeric',
                         hour: 'numeric',
-                        minute: 'numeric'
+                        minute: 'numeric',
+                        timeZone: 'Asia/Kolkata'
                     }),
                     eventLocation: event.location,
                     eventPosterUrl: posterUrl,

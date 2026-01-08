@@ -315,30 +315,48 @@ export function OperatingCalendar() {
                                 style={{ backgroundColor: config.cellBg }}
                                 className={`calendar-cell ${isSelected ? 'calendar-cell-selected' : ''} ${isToday ? 'calendar-cell-today' : ''} border-[var(--border-subtle)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200`}
                             >
-                                <span className={`text-[15px] font-semibold mb-2 ${isToday ? 'text-[var(--state-draft)]' : 'text-[var(--text-primary)]'}`}>
+                                <span className={`text-[13px] font-bold ${isToday ? 'text-white bg-[var(--state-draft)] w-6 h-6 flex items-center justify-center rounded-full' : 'text-[var(--text-primary)]'}`}>
                                     {cell.day}
                                 </span>
 
-                                {/* Event indicators */}
+                                {/* Event blocks in grid */}
                                 {eventCount > 0 && (
-                                    <div className="flex items-center gap-1.5 mt-1">
-                                        {Array.from({ length: Math.min(eventCount, 3) }).map((_, i) => (
-                                            <div key={i} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: config.dot }} />
-                                        ))}
-                                        {eventCount > 3 && (
-                                            <span className="text-[10px] font-bold" style={{ color: config.textColor }}>+{eventCount - 3}</span>
+                                    <div className="mt-3 w-full space-y-1 overflow-hidden">
+                                        {cell.events.slice(0, 2).map((e: any) => {
+                                            const isConfirmed = ['published', 'scheduled', 'live', 'confirmed', 'approved'].includes(e.lifecycle || e.status);
+                                            return (
+                                                <div
+                                                    key={e.id}
+                                                    className={`px-2 py-1 rounded-lg truncate text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 border ${e.isAnonymized
+                                                            ? 'bg-[var(--surface-secondary)] text-[var(--text-tertiary)] border-[var(--border-strong)]'
+                                                            : isConfirmed
+                                                                ? 'bg-[var(--state-confirmed)] text-white border-white/20'
+                                                                : 'bg-[var(--surface-elevated)] text-[var(--text-primary)] border-[var(--border-strong)]'
+                                                        }`}
+                                                >
+                                                    {!e.isAnonymized && <div className="w-1 h-1 rounded-full bg-white/60 flex-shrink-0" />}
+                                                    {e.isAnonymized ? 'Booked' : e.title}
+                                                </div>
+                                            );
+                                        })}
+                                        {eventCount > 2 && (
+                                            <div className="text-[8px] font-black uppercase tracking-[0.15em] text-[var(--text-tertiary)] pl-2">
+                                                + {eventCount - 2} MORE
+                                            </div>
                                         )}
                                     </div>
                                 )}
 
                                 {/* Blocked indicator */}
-                                {cell.state === 'BLOCKED' && (
-                                    <Lock className="w-3.5 h-3.5 text-[var(--text-tertiary)] mt-1.5" />
+                                {cell.state === 'BLOCKED' && eventCount === 0 && (
+                                    <div className="mt-2 text-[8px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] flex items-center gap-1">
+                                        <Lock className="w-2.5 h-2.5" /> Blocked
+                                    </div>
                                 )}
 
                                 {/* Pending attention indicator */}
                                 {(cell.stats?.pendingSlots > 0) && (
-                                    <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-[var(--state-pending)] animate-pulse" />
+                                    <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[var(--state-pending)] shadow-[0_0_8px_var(--state-pending)] animate-pulse" />
                                 )}
                             </button>
                         );
@@ -565,31 +583,40 @@ function SidePanel({
                                             style={{
                                                 top: `${getTop(e.startTime)}%`,
                                                 height: `${getHeight(e.startTime, e.endTime)}%`,
-                                                minHeight: '48px'
+                                                minHeight: '64px'
                                             }}
-                                            className={`absolute inset-x-0 mr-4 rounded-xl p-4 flex flex-col shadow-sm border transition-all hover:scale-[1.01] ${isAnonymized
+                                            className={`absolute inset-x-0 mr-4 rounded-xl p-4 flex flex-col shadow-sm border transition-all hover:scale-[1.01] hover:shadow-md ${isAnonymized
                                                 ? 'bg-[var(--surface-secondary)] border-[var(--border-strong)] text-[var(--text-tertiary)] cursor-default'
                                                 : isConfirmed
                                                     ? 'bg-[var(--state-confirmed)] text-white border-[var(--state-confirmed)]'
                                                     : 'bg-[var(--surface-elevated)] border-[var(--border-strong)] text-[var(--text-primary)]'
                                                 }`}
                                         >
-                                            <div className="flex items-center justify-between mb-1">
-                                                <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">{e.startTime} – {e.endTime}</span>
-                                                {isConfirmed && !isAnonymized && <CheckCircle2 className="h-3.5 w-3.5 opacity-90" />}
-                                                {isAnonymized && <Lock className="h-3.5 w-3.5 opacity-60" />}
-                                            </div>
-                                            <h3 className="text-[14px] font-bold truncate leading-tight">
-                                                {isAnonymized ? 'Unavailable' : e.title}
-                                            </h3>
-                                            {!isAnonymized && (
-                                                <div className="flex items-center gap-1.5 mt-auto opacity-80">
-                                                    <div className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
-                                                        <User className="h-2.5 w-2.5" />
+                                            <div className="flex gap-4 h-full">
+                                                {e.posterUrl && !isAnonymized && (
+                                                    <div className="w-16 h-16 rounded-lg overflow-hidden border border-white/20 shadow-sm flex-shrink-0">
+                                                        <img src={e.posterUrl} alt="" className="w-full h-full object-cover" />
                                                     </div>
-                                                    <span className="text-[11px] font-medium truncate">{e.host || 'Direct Production'}</span>
+                                                )}
+                                                <div className="flex-1 min-w-0 flex flex-col">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">{e.startTime} – {e.endTime}</span>
+                                                        {isConfirmed && !isAnonymized && <CheckCircle2 className="h-3.5 w-3.5 opacity-90" />}
+                                                        {isAnonymized && <Lock className="h-3.5 w-3.5 opacity-60" />}
+                                                    </div>
+                                                    <h3 className="text-[15px] font-bold truncate leading-tight mb-1">
+                                                        {isAnonymized ? 'Unavailable' : e.title}
+                                                    </h3>
+                                                    {!isAnonymized && (
+                                                        <div className="flex items-center gap-1.5 mt-auto opacity-80">
+                                                            <div className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
+                                                                <User className="h-2.5 w-2.5" />
+                                                            </div>
+                                                            <span className="text-[11px] font-medium truncate">{e.host || 'Direct Production'}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
+                                            </div>
                                         </Link>
                                     );
                                 })}

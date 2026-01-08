@@ -16,20 +16,15 @@ import { StudioCard } from './StudioComponents';
  * YouTube Studio-style Event Timeline
  * Visualizes the heartbeat of the night.
  */
-export function EventTimeline({ data, events = [] }) {
-    if (!data || data.length === 0) {
-        return (
-            <div className="h-64 flex flex-col items-center justify-center bg-slate-50 rounded-[2.5rem] border border-dashed border-slate-200">
-                <Clock className="h-8 w-8 text-slate-300 mb-3" />
-                <p className="text-slate-400 font-bold text-sm">No timeline data available for this window.</p>
-            </div>
-        );
-    }
-
+export function EventTimeline({ data = [], events = [] }) {
     // Normalized series for SVG (0-100)
-    const maxVal = Math.max(...data.map(d => Math.max(d.demand, d.reality, d.conversions || 0))) || 10;
+    const maxVal = useMemo(() => {
+        if (!data || data.length === 0) return 10;
+        return Math.max(...data.map(d => Math.max(d.demand, d.reality, d.conversions || 0))) || 10;
+    }, [data]);
 
     const points = useMemo(() => {
+        if (!data || data.length === 0) return [];
         return data.map((d, i) => {
             const x = (i / (data.length - 1)) * 100;
             return {
@@ -40,6 +35,15 @@ export function EventTimeline({ data, events = [] }) {
             };
         });
     }, [data, maxVal]);
+
+    if (!data || data.length === 0) {
+        return (
+            <div className="h-64 flex flex-col items-center justify-center bg-slate-50 rounded-[2.5rem] border border-dashed border-slate-200">
+                <Clock className="h-8 w-8 text-slate-300 mb-3" />
+                <p className="text-slate-400 font-bold text-sm">No timeline data available for this window.</p>
+            </div>
+        );
+    }
 
     const demandPath = `M ${points.map(p => `${p.x},${p.demand}`).join(' L ')}`;
     const realityPath = `M ${points.map(p => `${p.x},${p.reality}`).join(' L ')}`;

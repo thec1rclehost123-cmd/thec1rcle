@@ -6,10 +6,10 @@
 
 import { NextResponse } from "next/server";
 import { createHmac } from "node:crypto";
-import { confirmOrder, getOrderById, updateOrderStatus } from "../../../../lib/server/orderStore";
-import { getEvent } from "../../../../lib/server/eventStore";
-import { sendTicketEmail } from "../../../../lib/email";
-import { getAdminDb, isFirebaseConfigured } from "../../../../lib/firebase/admin";
+import { confirmOrder, getOrderById, updateOrderStatus } from "@/lib/server/orderStore";
+import { getEvent } from "@/lib/server/eventStore";
+import { sendTicketEmail } from "@/lib/email";
+import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
 
 // Collection to track processed webhooks (idempotency)
 const WEBHOOK_LOGS_COLLECTION = "payment_webhook_logs";
@@ -167,12 +167,13 @@ export async function POST(request) {
                         to: order.userEmail,
                         userName: order.userName || "Guest",
                         eventName: eventDetails.title,
-                        eventDate: new Date(eventDetails.startDate).toLocaleDateString('en-US', {
+                        eventDate: new Date(eventDetails.startDate).toLocaleDateString('en-IN', {
                             weekday: 'short',
                             month: 'short',
                             day: 'numeric',
                             hour: 'numeric',
-                            minute: 'numeric'
+                            minute: 'numeric',
+                            timeZone: 'Asia/Kolkata'
                         }),
                         eventLocation: eventDetails.location,
                         eventPosterUrl: posterUrl,

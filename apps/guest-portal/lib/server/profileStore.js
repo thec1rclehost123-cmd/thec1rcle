@@ -65,46 +65,93 @@ export async function getUserEvents(profileUserId, viewerUserId) {
         };
     }
 
+    const db = getAdminDb();
+
     // 1. Fetch orders (tickets)
     const orders = await getUserOrders(profileUserId);
 
-    // 2. Fetch profile for RSVPs
+    // 2. Fetch profile for RSVPs and status
     const profile = await getUserProfile(profileUserId);
     const rsvpIds = profile?.attendedEvents || [];
 
-    // 3. Collect all event IDs
+    // 3. Collect all event IDs from participation
     const orderEventIds = orders.map(o => o.eventId);
-    const allEventIds = Array.from(new Set([...orderEventIds, ...rsvpIds]));
+    const participationEventIds = Array.from(new Set([...orderEventIds, ...rsvpIds]));
 
-    // 4. Batch fetch events
-    // Assuming getEvent is efficient enough for small sets, otherwise we'd use a where in query
-    const db = getAdminDb();
+    // 4. Also fetch events where user is HOST, VENUE, or CREATOR
+    // We check for both their UID and any partner IDs they might have
+    const membershipsSnapshot = await db.collection("partner_memberships")
+        .where("uid", "==", profileUserId)
+        .where("isActive", "==", true)
+        .get();
+    const partnerIds = membershipsSnapshot.docs.map(doc => doc.data().partnerId).filter(Boolean);
+    const allIdentities = Array.from(new Set([profileUserId, ...partnerIds]));
+
+    // Batch fetch events using all identities
+    // Firestore 'in' limit is 10, which is enough for almost all users
+    const queryIdentities = allIdentities.slice(0, 10);
+
+    const [hostedSnapshot, venueSnapshot, creatorSnapshot] = await Promise.all([
+        db.collection("events").where("hostId", "in", queryIdentities).where("isDeleted", "==", false).get(),
+        db.collection("events").where("venueId", "in", queryIdentities).where("isDeleted", "==", false).get(),
+        db.collection("events").where("creatorId", "in", queryIdentities).where("isDeleted", "==", false).get()
+    ]);
+
+    // Unify and deduplicate owned events
+    const uniqueOwned = new Map();
+    [...hostedSnapshot.docs, ...venueSnapshot.docs, ...creatorSnapshot.docs].forEach(doc => {
+        if (!uniqueOwned.has(doc.id)) {
+            uniqueOwned.set(doc.id, { id: doc.id, ...doc.data() });
+        }
+    });
+    const ownedEvents = Array.from(uniqueOwned.values());
+    const ownedEventIds = ownedEvents.map(e => e.id);
+
+    // 5. Unify all event IDs
+    const allEventIds = Array.from(new Set([...participationEventIds, ...ownedEventIds]));
+
+    // 6. Batch fetch/prepare event data
     let eventsData = [];
-
     if (allEventIds.length > 0) {
-        // Firestore where in is limited to 10-30 IDs usually. 
-        // For simplicity, let's just fetch them. In a real app we'd batch this.
-        const snapshots = await Promise.all(allEventIds.map(id => db.collection("events").doc(id).get()));
-        eventsData = snapshots.map(s => s.exists ? { id: s.id, ...s.data() } : null).filter(Boolean);
+        // Use ownedEvents we already have, and fetch the rest
+        const alreadyFetched = new Map(uniqueOwned);
+        const missingIds = allEventIds.filter(id => !alreadyFetched.has(id));
+
+        if (missingIds.length > 0) {
+            const snapshots = await Promise.all(missingIds.map(id => db.collection("events").doc(id).get()));
+            snapshots.forEach(s => {
+                if (s.exists) {
+                    alreadyFetched.set(s.id, { id: s.id, ...s.data() });
+                }
+            });
+        }
+        eventsData = Array.from(alreadyFetched.values());
     }
 
-    // 5. Unify participation
+    // 7. Unify participation
     const participationMap = new Map();
 
-    // Process RSVPs first
+    // Process RSVPs
     rsvpIds.forEach(id => {
         participationMap.set(id, {
             type: "RSVP",
-            id: null // RSVPs don't have a separate ID in the dummy data usually, just existence in attendedEvents
+            id: null
         });
     });
 
     // Process orders (tickets override RSVPs)
-    // Only count confirmed/paid orders as TICKETS
     orders.filter(o => o.status === "confirmed").forEach(order => {
         participationMap.set(order.eventId, {
             type: "TICKET",
             id: order.id
+        });
+    });
+
+    // Process OWNED events (HOST/VENUE/CREATOR override others)
+    ownedEvents.forEach(event => {
+        participationMap.set(event.id, {
+            type: "HOST",
+            id: event.id
         });
     });
 
@@ -121,26 +168,30 @@ export async function getUserEvents(profileUserId, viewerUserId) {
         const isUpcoming = eventStart > now && isEventLive;
         const isPast = eventStart <= now || !isEventLive;
 
+        // Privacy/Lifecycle: Only show published events to others
+        const isPublic = ["live", "scheduled", "approved", "published"].includes(event.lifecycle);
+        const isSelf = profileUserId === viewerUserId;
+
+        if (!isPublic && !isSelf) return;
+
         const summary = {
             eventId: event.id,
             title: event.title,
             startAt: event.startDate || event.startAt,
-            venueName: event.venue || event.location,
+            venueName: event.venue || event.location || event.venueName,
             city: event.city,
-            posterUrl: event.image,
-            participationType: participation.type,
+            posterUrl: event.image || event.poster,
+            participationType: participation?.type || "INTERESTED", // Default if just fetched via ID
         };
 
-        // Privacy: only owner sees participationId
-        if (profileUserId === viewerUserId) {
-            summary.ownerOnlyParticipationId = participation.id;
+        if (isSelf) {
+            summary.lifecycle = event.lifecycle;
+            summary.ownerOnlyParticipationId = participation?.id;
         }
 
         if (isUpcoming) {
             upcoming.push(summary);
         } else if (isPast) {
-            // Only show in attended if they have a confirmed ticket or RSVP
-            // Since participationMap contains confirmed things, we are safe here
             attended.push(summary);
         }
     });

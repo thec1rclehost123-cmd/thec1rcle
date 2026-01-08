@@ -63,7 +63,7 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
   const [promoterCode, setPromoterCode] = useState(null);
   const [notLiveModalOpen, setNotLiveModalOpen] = useState(() => {
     const isPastFromStatus = event?.status === "past";
-    const isPastFromDate = event?.startDate && new Date(event.startDate) < new Date();
+    const isPastFromDate = event?.endDate && new Date(event.endDate) < new Date();
     const isDisabled = event?.settings?.activity === false;
     return isPastFromStatus || isPastFromDate || isDisabled;
   });

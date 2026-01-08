@@ -31,8 +31,6 @@ export default async function HostPublicPage({ params }) {
     );
 
     const upcomingEvents = hostEvents.filter(e => new Date(e.startDate || e.startAt) > new Date());
-    const pastEvents = hostEvents.filter(e => new Date(e.startDate || e.startAt) <= new Date())
-        .sort((a, b) => new Date(b.startDate || b.startAt) - new Date(a.startDate || a.startAt));
 
     // Normalize host object to match ProfileClient expectations
     const hostProfile = {
@@ -91,15 +89,15 @@ export default async function HostPublicPage({ params }) {
 
                             <div className="flex gap-8 pt-2">
                                 <div className="flex flex-col">
-                                    <span className="text-xl font-black">{stats.followersCount.toLocaleString()}</span>
+                                    <span className="text-xl font-black">{(stats.followersCount || 0).toLocaleString('en-IN')}</span>
                                     <span className="text-[10px] uppercase font-bold tracking-widest text-white/40">Followers</span>
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-xl font-black">{hostEvents.length}</span>
-                                    <span className="text-[10px] uppercase font-bold tracking-widest text-white/40">Total Events</span>
+                                    <span className="text-xl font-black">{upcomingEvents.length}</span>
+                                    <span className="text-[10px] uppercase font-bold tracking-widest text-white/40">Live Events</span>
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-xl font-black">{stats.totalLikes.toLocaleString()}</span>
+                                    <span className="text-xl font-black">{(stats.totalLikes || 0).toLocaleString('en-IN')}</span>
                                     <span className="text-[10px] uppercase font-bold tracking-widest text-white/40">Highs</span>
                                 </div>
                             </div>
@@ -116,7 +114,6 @@ export default async function HostPublicPage({ params }) {
 
             <ProfileClient
                 upcomingEvents={upcomingEvents}
-                pastEvents={pastEvents}
                 posts={posts}
                 highlights={highlights}
                 venue={hostProfile}

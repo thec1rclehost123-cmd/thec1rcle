@@ -112,7 +112,7 @@ export default function TicketModal({
                                             </div>
                                             <p className="mt-0.5 text-xs text-white/40">{ticket.quantity} available</p>
                                         </div>
-                                        <p className="text-lg font-bold text-white">₹{ticket.price}</p>
+                                        <p className="text-lg font-bold text-white">₹{(ticket.price || 0).toLocaleString('en-IN')}</p>
                                     </div>
 
                                     <AnimatePresence>
@@ -174,7 +174,7 @@ export default function TicketModal({
                             <div className="flex flex-col gap-1 px-2 mb-4">
                                 <div className="flex items-center justify-between">
                                     <p className="text-sm text-white/60">Total</p>
-                                    <p className="text-2xl font-bold text-white">₹{total}</p>
+                                    <p className="text-2xl font-bold text-white">₹{(total || 0).toLocaleString('en-IN')}</p>
                                 </div>
                                 {totalQuantity > 0 && (
                                     <div className="flex items-center justify-between">

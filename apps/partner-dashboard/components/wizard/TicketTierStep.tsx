@@ -11,7 +11,8 @@ import {
     Heart,
     Crown,
     Percent,
-    Calendar,
+    Sparkles,
+    Trash2,
     AlertCircle,
     ChevronDown,
     ChevronUp,
@@ -676,10 +677,10 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                             }
                             updateFormData(updates);
                         }}
-                        className={`w-14 h-8 rounded-full relative transition-all duration-300 ${formData.isRSVP ? "bg-indigo-600 shadow-lg shadow-indigo-100" : "bg-stone-200"}`}
+                        className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.isRSVP ? "bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100" : "bg-stone-200 border-stone-300"}`}
                     >
                         <motion.div
-                            className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-md"
+                            className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-sm"
                             animate={{ x: formData.isRSVP ? 24 : 0 }}
                             transition={{ type: "spring", stiffness: 500, damping: 30 }}
                         />
@@ -699,16 +700,16 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                             <Percent className="w-6 h-6" />
                         </div>
                         <div>
-                            <p className="text-[15px] font-bold text-primary">Network Distribution</p>
-                            <p className="text-[12px] text-stone-500">Enable ambassadors and promoters to scale your reach</p>
+                            <p className="text-[15px] font-bold text-primary">Promoter Sales</p>
+                            <p className="text-[12px] text-stone-500">Allow ambassadors and promoters to sell your tickets</p>
                         </div>
                     </div>
                     <button
                         onClick={() => updateFormData({ promotersEnabled: !formData.promotersEnabled })}
-                        className={`w-14 h-8 rounded-full relative transition-all duration-300 ${formData.promotersEnabled ? "bg-emerald-500 shadow-lg shadow-emerald-100" : "bg-stone-200"}`}
+                        className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.promotersEnabled ? "bg-emerald-500 border-emerald-500 shadow-lg shadow-emerald-100" : "bg-stone-200 border-stone-300"}`}
                     >
                         <motion.div
-                            className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-md"
+                            className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-sm"
                             animate={{ x: formData.promotersEnabled ? 24 : 0 }}
                             transition={{ type: "spring", stiffness: 500, damping: 30 }}
                         />
@@ -725,30 +726,30 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                         {/* ─── Commission Section ─── */}
                         <div className="space-y-6">
                             <div className="flex items-center justify-between px-1">
-                                <p className="text-label font-black uppercase tracking-widest text-[#F44A22]">Network Incentives</p>
+                                <p className="text-label font-black uppercase tracking-widest text-[#F44A22]">Promoter Commission</p>
                                 <div className="px-3 py-1 rounded-full bg-orange-50 text-[#F44A22] text-[9px] font-black tracking-widest uppercase border border-orange-100">
-                                    Ambassador Payouts
+                                    Promoter Payouts
                                 </div>
                             </div>
 
                             {/* Sub-Toggle: Use Default Commission */}
                             <div className="flex items-center justify-between p-5 rounded-[1.5rem] bg-stone-50 border border-stone-100">
                                 <div className="space-y-0.5">
-                                    <p className="text-body-sm font-bold text-primary">Standardize Commissions</p>
+                                    <p className="text-body-sm font-bold text-primary">Standardize Promoter Commission</p>
                                     <p className="text-[10px] text-stone-400 font-black uppercase tracking-widest">
                                         {formData.useDefaultCommission !== false
-                                            ? "Universal rate applied across all tiers"
-                                            : "Manual overrides enabled per tier"
+                                            ? "Same rate for all tickets"
+                                            : "Custom rates per ticket tier"
                                         }
                                     </p>
                                 </div>
                                 <button
                                     onClick={() => updateFormData({ useDefaultCommission: formData.useDefaultCommission === false })}
-                                    className={`w-12 h-7 rounded-full relative transition-all duration-300 ${formData.useDefaultCommission !== false ? "bg-[#F44A22]" : "bg-stone-200"}`}
+                                    className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.useDefaultCommission !== false ? "bg-[#F44A22] border-[#F44A22] shadow-lg shadow-orange-100" : "bg-stone-200 border-stone-300"}`}
                                 >
                                     <motion.div
-                                        className="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-sm"
-                                        animate={{ x: formData.useDefaultCommission !== false ? 20 : 0 }}
+                                        className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-sm"
+                                        animate={{ x: formData.useDefaultCommission !== false ? 24 : 0 }}
                                         transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                     />
                                 </button>
@@ -758,7 +759,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                             {formData.useDefaultCommission !== false && (
                                 <div className="p-6 rounded-[2rem] bg-stone-50 border border-stone-100 flex items-center justify-between gap-6">
                                     <div className="space-y-1">
-                                        <p className="text-body-sm font-bold">Global Commission Rate</p>
+                                        <p className="text-body-sm font-bold">Default Promoter Commission</p>
                                         <p className="text-[10px] text-stone-400 font-black uppercase tracking-widest">Applied to all new entries</p>
                                     </div>
                                     <div className="flex items-center gap-3">
@@ -806,25 +807,25 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                         {!formData.isRSVP && (
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between px-1">
-                                    <p className="text-label font-black uppercase tracking-widest text-[#34c759]">Growth Incentives</p>
+                                    <p className="text-label font-black uppercase tracking-widest text-[#34c759]">Buyer Discounts</p>
                                     <div className="px-3 py-1 rounded-full bg-emerald-50 text-[#34c759] text-[9px] font-black tracking-widest uppercase border border-emerald-100">
-                                        Buyer Discounts
+                                        Promoter Benefits
                                     </div>
                                 </div>
 
                                 {/* Master Toggle: Buyer Discounts */}
                                 <div className="flex items-center justify-between p-5 rounded-[1.5rem] bg-stone-50 border border-stone-100">
                                     <div className="space-y-0.5">
-                                        <p className="text-body-sm font-bold">Incentivize Indirect Sales</p>
+                                        <p className="text-body-sm font-bold">Incentivize Buyer Sales</p>
                                         <p className="text-[10px] text-stone-400 font-black uppercase tracking-widest">Offer discounts on promoter links</p>
                                     </div>
                                     <button
                                         onClick={() => updateFormData({ buyerDiscountsEnabled: !formData.buyerDiscountsEnabled })}
-                                        className={`w-12 h-7 rounded-full relative transition-all duration-300 ${formData.buyerDiscountsEnabled ? "bg-[#34c759]" : "bg-stone-200"}`}
+                                        className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.buyerDiscountsEnabled ? "bg-[#34c759] border-[#34c759] shadow-lg shadow-emerald-100" : "bg-stone-200 border-stone-300"}`}
                                     >
                                         <motion.div
-                                            className="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-sm"
-                                            animate={{ x: formData.buyerDiscountsEnabled ? 20 : 0 }}
+                                            className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-sm"
+                                            animate={{ x: formData.buyerDiscountsEnabled ? 24 : 0 }}
                                             transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                         />
                                     </button>
@@ -839,7 +840,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                         {/* Sub-Toggle: Use Default Discount */}
                                         <div className="flex items-center justify-between p-5 rounded-[1.5rem] bg-stone-50 border border-stone-100">
                                             <div className="space-y-0.5">
-                                                <p className="text-body-sm font-bold">Standardize Discounts</p>
+                                                <p className="text-body-sm font-bold">Standardize Buyer Discounts</p>
                                                 <p className="text-[10px] text-stone-400 font-black uppercase tracking-widest">
                                                     {formData.useDefaultDiscount !== false
                                                         ? "Universal discount rate"
@@ -849,11 +850,11 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                             </div>
                                             <button
                                                 onClick={() => updateFormData({ useDefaultDiscount: formData.useDefaultDiscount === false })}
-                                                className={`w-12 h-7 rounded-full relative transition-all duration-300 ${formData.useDefaultDiscount !== false ? "bg-[#34c759]" : "bg-stone-200"}`}
+                                                className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.useDefaultDiscount !== false ? "bg-[#34c759] border-[#34c759] shadow-lg shadow-emerald-100" : "bg-stone-200 border-stone-300"}`}
                                             >
                                                 <motion.div
-                                                    className="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-sm"
-                                                    animate={{ x: formData.useDefaultDiscount !== false ? 20 : 0 }}
+                                                    className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-sm"
+                                                    animate={{ x: formData.useDefaultDiscount !== false ? 24 : 0 }}
                                                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                                 />
                                             </button>
@@ -863,7 +864,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                         {formData.useDefaultDiscount !== false && (
                                             <div className="p-6 rounded-[2rem] bg-stone-50 border border-stone-100 flex items-center justify-between gap-6">
                                                 <div className="space-y-1">
-                                                    <p className="text-body-sm font-bold">Global Discount Rate</p>
+                                                    <p className="text-body-sm font-bold">Default Buyer Discount</p>
                                                     <p className="text-[10px] text-stone-400 font-black uppercase tracking-widest">Applied to all tiers</p>
                                                 </div>
                                                 <div className="flex items-center gap-3">
@@ -926,10 +927,10 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                             </div>
                             <button
                                 onClick={() => updateFormData({ scheduledPricingEnabled: !formData.scheduledPricingEnabled })}
-                                className={`w-14 h-8 rounded-full relative transition-all duration-300 ${formData.scheduledPricingEnabled ? "bg-emerald-500 shadow-lg shadow-emerald-100" : "bg-stone-200"}`}
+                                className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.scheduledPricingEnabled ? "bg-emerald-500 border-emerald-500 shadow-lg shadow-emerald-100" : "bg-stone-200 border-stone-300"}`}
                             >
                                 <motion.div
-                                    className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-md"
+                                    className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-sm"
                                     animate={{ x: formData.scheduledPricingEnabled ? 24 : 0 }}
                                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                 />

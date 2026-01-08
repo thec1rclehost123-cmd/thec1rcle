@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getHostBySlug } from "../../../../lib/server/hostStore";
+import { getHostBySlug } from "@/lib/server/hostStore";
 
 export async function GET(request, { params }) {
     try {
