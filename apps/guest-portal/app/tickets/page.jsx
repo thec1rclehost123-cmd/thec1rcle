@@ -5,15 +5,16 @@ import { useAuth } from "../../components/providers/AuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
     getUserTickets,
-    createShareBundle,
     claimTicket,
     createPartnerClaimLink,
     assignPartnerByEmail,
     transferCoupleTicket,
     findUserByEmail,
-    initiateTransfer,
     acceptTransfer,
-    cancelTransfer
+    cancelTransfer,
+    sendTransferOTP,
+    verifyAndInitiateTransfer,
+    verifyAndCreateShareBundle
 } from "./actions";
 import { formatEventDate, formatTimeIST } from "@c1rcle/core/time";
 import Link from "next/link";
@@ -27,8 +28,8 @@ import { Share2, ArrowLeftRight, ChevronLeft, ChevronRight, ExternalLink, Crown,
 // --- Hooks ---
 
 const useDominantColor = (imageUrl) => {
-    const [color, setColor] = useState('rgba(255, 255, 255, 0.1)');
-    const [rgb, setRgb] = useState('128, 128, 128');
+    const [color, setColor] = useState('rgba(255, 255, 255, 0.05)');
+    const [rgb, setRgb] = useState('255, 255, 255');
 
     useEffect(() => {
         if (!imageUrl) return;
@@ -39,12 +40,40 @@ const useDominantColor = (imageUrl) => {
             try {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                canvas.width = 1;
-                canvas.height = 1;
-                ctx.drawImage(img, 0, 0, 1, 1);
-                const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-                setColor(`rgb(${r}, ${g}, ${b})`);
-                setRgb(`${r}, ${g}, ${b} `);
+                // Sample a 10x10 grid for a better palette represention
+                canvas.width = 10;
+                canvas.height = 10;
+                ctx.drawImage(img, 0, 0, 10, 10);
+                const data = ctx.getImageData(0, 0, 10, 10).data;
+
+                let bestColor = { r: 244, g: 74, b: 34, score: -1 }; // Default orange
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+
+                    // Simple HSL conversion for scoring
+                    const rNorm = r / 255, gNorm = g / 255, bNorm = b / 255;
+                    const max = Math.max(rNorm, gNorm, bNorm), min = Math.min(rNorm, gNorm, bNorm);
+                    const l = (max + min) / 2;
+                    const d = max - min;
+                    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+                    // Skip colors that are too dark (black/near-black) or too gray
+                    if (l < 0.15 || (l < 0.3 && s < 0.2) || s < 0.1) continue;
+
+                    // Score based on vibrancy (saturation * lightness)
+                    // We want something that pops but isn't pure white
+                    const score = s * (1 - Math.abs(l - 0.5));
+
+                    if (score > bestColor.score) {
+                        bestColor = { r, g, b, score };
+                    }
+                }
+
+                setColor(`rgb(${bestColor.r}, ${bestColor.g}, ${bestColor.b})`);
+                setRgb(`${bestColor.r}, ${bestColor.g}, ${bestColor.b}`);
             } catch (e) {
                 console.error("Color extraction failed", e);
             }
@@ -184,6 +213,28 @@ const ShareModal = ({ ticket, onClose, onSuccess }) => {
     const [error, setError] = useState(null);
     const [shareUrl, setShareUrl] = useState(null);
     const [copied, setCopied] = useState(false);
+    const [showVerification, setShowVerification] = useState(false);
+    const [otpCode, setOtpCode] = useState("");
+    const [verifying, setVerifying] = useState(false);
+    const [resendTimer, setResendTimer] = useState(0);
+
+    useEffect(() => {
+        if (resendTimer > 0) {
+            const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [resendTimer]);
+
+    const handleResend = async () => {
+        if (resendTimer > 0) return;
+        try {
+            await sendTransferOTP();
+            setResendTimer(60);
+            setError(null);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
 
     const { eventTitle, orderId, eventId } = ticket;
 
@@ -221,14 +272,29 @@ const ShareModal = ({ ticket, onClose, onSuccess }) => {
         setLoading(true);
         setError(null);
         try {
-            const tier = availableTiers.find(t => t.id === selectedTierId);
-            const bundle = await createShareBundle(orderId, eventId, tier.count, selectedTierId);
-            const url = `${window.location.origin}/tickets/claim/${bundle.token}`;
-            setShareUrl(url);
+            await sendTransferOTP();
+            setShowVerification(true);
         } catch (err) {
             setError(err.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleVerifyAndCreate = async () => {
+        if (otpCode.length !== 6) return;
+        setVerifying(true);
+        setError(null);
+        try {
+            const tier = availableTiers.find(t => t.id === selectedTierId);
+            const bundle = await verifyAndCreateShareBundle(orderId, eventId, tier.count, selectedTierId, otpCode);
+            const url = `${window.location.origin}/tickets/claim/${bundle.token}`;
+            setShareUrl(url);
+            setShowVerification(false);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setVerifying(false);
         }
     };
 
@@ -266,24 +332,44 @@ const ShareModal = ({ ticket, onClose, onSuccess }) => {
                                 <div className="relative p-6 rounded-2xl bg-white dark:bg-black/40 border border-black/5 dark:border-white/10 backdrop-blur-xl">
                                     <p className="text-[10px] font-black text-orange uppercase tracking-[0.2em] mb-4">Live Share Link</p>
                                     <p className="text-sm font-bold text-black dark:text-white break-all mb-6 selection:bg-orange/30 font-mono leading-relaxed opacity-90">{shareUrl}</p>
-                                    <button
-                                        onClick={handleCopy}
-                                        className={clsx(
-                                            "w-full py-4 rounded-xl font-black uppercase text-[11px] tracking-[0.2em] transition-all active:scale-[0.98]",
-                                            copied
-                                                ? "bg-green-500 text-white"
-                                                : "bg-black dark:bg-white text-white dark:text-black shadow-lg"
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={handleCopy}
+                                            className={clsx(
+                                                "flex-1 py-4 rounded-xl font-black uppercase text-[11px] tracking-[0.2em] transition-all active:scale-[0.98]",
+                                                copied
+                                                    ? "bg-green-500 text-white"
+                                                    : "bg-black dark:bg-white text-white dark:text-black shadow-lg"
+                                            )}
+                                        >
+                                            {copied ? "Link Copied!" : "Copy Link"}
+                                        </button>
+                                        {typeof navigator !== 'undefined' && navigator.share && (
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await navigator.share({
+                                                            title: `Claim your tickets for ${eventTitle}`,
+                                                            text: `I've shared some tickets for ${eventTitle} with you. Claim them here:`,
+                                                            url: shareUrl
+                                                        });
+                                                    } catch (err) {
+                                                        console.log("Share cancelled or failed", err);
+                                                    }
+                                                }}
+                                                className="h-[52px] w-[52px] flex items-center justify-center rounded-xl bg-orange text-white shadow-lg shadow-orange/20 active:scale-95 transition-all"
+                                            >
+                                                <Share2 className="h-5 w-5" />
+                                            </button>
                                         )}
-                                    >
-                                        {copied ? "Link Copied!" : "Copy Link"}
-                                    </button>
+                                    </div>
                                 </div>
                             </div>
 
                             <div className="flex flex-col items-center gap-4 px-4">
                                 <p className="text-center text-[10px] text-black/50 dark:text-white/40 uppercase tracking-[0.2em] font-medium leading-loose">
                                     Send this link to your friends.<br />
-                                    <span className="text-orange font-bold">Anyone who claims must have a C1RCLE account.</span>
+                                    <span className="text-orange font-bold font-heading uppercase text-[8px] tracking-[0.1em]">Identity requested: Anyone who claims must have a C1RCLE account.</span>
                                 </p>
                             </div>
 
@@ -294,8 +380,59 @@ const ShareModal = ({ ticket, onClose, onSuccess }) => {
                                 Done
                             </button>
                         </div>
+                    ) : showVerification ? (
+                        <div className="space-y-6">
+                            <div className="text-center">
+                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange/10 mb-4">
+                                    <Sparkles className="h-6 w-6 text-orange" />
+                                </div>
+                                <h3 className="text-xl font-heading font-black uppercase text-black dark:text-white mb-2">Verify Share</h3>
+                                <p className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-[0.2em] font-bold leading-relaxed px-4">
+                                    A security code has been dispatched to your email. Enter it to authorize this share.
+                                </p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <input
+                                    type="text"
+                                    maxLength={6}
+                                    placeholder="0 0 0 0 0 0"
+                                    className="w-full px-5 py-5 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03] border border-black/5 dark:border-white/5 focus:border-orange/30 outline-none text-center text-2xl font-black tracking-[0.5em] text-black dark:text-white placeholder:text-black/5 dark:placeholder:text-white/5"
+                                    value={otpCode}
+                                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                                />
+
+                                {error && <p className="text-[9px] text-red-500 font-bold uppercase tracking-widest text-center">{error}</p>}
+
+                                <button
+                                    disabled={verifying || otpCode.length !== 6}
+                                    onClick={handleVerifyAndCreate}
+                                    className="w-full py-5 rounded-2xl bg-black dark:bg-white text-white dark:text-black font-black uppercase text-xs tracking-[0.3em] shadow-xl disabled:opacity-30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                >
+                                    {verifying ? "Authorizing..." : "Verify & Generate"}
+                                </button>
+
+                                <div className="flex flex-col items-center gap-2">
+                                    <button
+                                        onClick={() => setShowVerification(false)}
+                                        className="w-full py-3 text-black/40 dark:text-white/40 uppercase text-[10px] font-bold tracking-[0.2em]"
+                                    >
+                                        ← Back to Selection
+                                    </button>
+
+                                    <button
+                                        onClick={handleResend}
+                                        disabled={resendTimer > 0}
+                                        className="text-[9px] font-black uppercase tracking-widest text-orange disabled:opacity-40"
+                                    >
+                                        {resendTimer > 0 ? `Resend code in ${resendTimer}s` : "Resend Security Code"}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     ) : (
                         <div className="space-y-6">
+                            {/* ... existing ticket selection code ... */}
                             <div className="space-y-3">
                                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40 dark:text-white/40 ml-1">Select Ticket Type</p>
                                 <div className="space-y-2">
@@ -329,7 +466,7 @@ const ShareModal = ({ ticket, onClose, onSuccess }) => {
                                 onClick={handleCreate}
                                 className="w-full py-5 rounded-2xl bg-black dark:bg-white text-white dark:text-black font-black uppercase text-xs tracking-[0.3em] shadow-xl disabled:opacity-30 transition-all hover:scale-[1.02] active:scale-[0.98]"
                             >
-                                {loading ? "Generating..." : "Generate Share Link"}
+                                {loading ? "Initiating..." : "Generate Share Link"}
                             </button>
 
                             <button
@@ -350,18 +487,54 @@ const TransferModal = ({ ticket, onClose, onSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [email, setEmail] = useState("");
+    const [showVerification, setShowVerification] = useState(false);
+    const [otpCode, setOtpCode] = useState("");
+    const [verifying, setVerifying] = useState(false);
+    const [resendTimer, setResendTimer] = useState(0);
+
+    useEffect(() => {
+        if (resendTimer > 0) {
+            const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [resendTimer]);
+
+    const handleResend = async () => {
+        if (resendTimer > 0) return;
+        try {
+            await sendTransferOTP();
+            setResendTimer(60);
+            setError(null);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
 
     const handleTransfer = async () => {
         if (!confirm("Are you sure? This ticket will be locked until the recipient accepts or you cancel the transfer. You will not be able to use the QR while it's pending.")) return;
         setLoading(true);
         setError(null);
         try {
-            await initiateTransfer(ticket.ticketId, email);
-            onSuccess();
+            await sendTransferOTP();
+            setShowVerification(true);
         } catch (err) {
             setError(err.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleVerifyAndTransfer = async () => {
+        if (otpCode.length !== 6) return;
+        setVerifying(true);
+        setError(null);
+        try {
+            await verifyAndInitiateTransfer(ticket.ticketId, email, otpCode);
+            onSuccess();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setVerifying(false);
         }
     };
 
@@ -382,54 +555,109 @@ const TransferModal = ({ ticket, onClose, onSuccess }) => {
             >
                 <div className="relative z-10">
                     <h2 className="text-3xl font-heading font-black uppercase text-black dark:text-white mb-2 tracking-tighter">Transfer Pass</h2>
-                    <p className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-[0.2em] leading-relaxed mb-8 font-bold">
-                        Send this pass safely to a friend.
-                    </p>
 
-                    <div className="space-y-6">
-                        <div className="space-y-2">
-                            <p className="text-[10px] font-black text-black/40 dark:text-white/40 uppercase tracking-[0.2em] ml-1">Recipient Email</p>
-                            <input
-                                type="email"
-                                placeholder="Enter friend's email"
-                                className="w-full px-5 py-4 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03] border border-black/5 dark:border-white/5 focus:border-orange/30 dark:focus:border-white/20 outline-none transition-all text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/10"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                            />
-                        </div>
-
-                        {error && (
-                            <div className={clsx(
-                                "p-4 rounded-2xl flex items-center gap-3 border",
-                                error.toLowerCase().includes("restricted") || error.toLowerCase().includes("gender")
-                                    ? "bg-orange/5 border-orange/20"
-                                    : "bg-red-500/5 border-red-500/10"
-                            )}>
-                                <svg className={clsx("w-4 h-4 flex-shrink-0", error.toLowerCase().includes("restricted") || error.toLowerCase().includes("gender") ? "text-orange" : "text-red-500")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                <p className={clsx("text-[9px] font-black uppercase tracking-widest", error.toLowerCase().includes("restricted") || error.toLowerCase().includes("gender") ? "text-orange" : "text-red-500")}>
-                                    {error}
+                    {showVerification ? (
+                        <div className="space-y-6">
+                            <div className="text-center mt-4">
+                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-iris/10 mb-4">
+                                    <Sparkles className="h-6 w-6 text-iris" />
+                                </div>
+                                <h3 className="text-xl font-heading font-black uppercase text-black dark:text-white mb-2">Verify Identity</h3>
+                                <p className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-[0.2em] font-bold leading-relaxed px-4">
+                                    We've dispatched a security code to your email. Enter it to authorize the transfer to <span className="text-iris">{email}</span>.
                                 </p>
                             </div>
-                        )}
 
-                        <div className="flex flex-col gap-3">
-                            <button
-                                onClick={handleTransfer}
-                                disabled={!email || loading}
-                                className="w-full py-5 rounded-2xl bg-black dark:bg-white text-white dark:text-black font-black uppercase text-xs tracking-[0.3em] shadow-xl disabled:opacity-30 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                            >
-                                {loading ? "Processing..." : "Confirm Transfer"}
-                            </button>
-                            <button
-                                onClick={onClose}
-                                className="w-full py-3 text-black/40 dark:text-white/40 uppercase text-[10px] font-bold tracking-[0.4em] hover:text-black dark:hover:text-white transition-colors"
-                            >
-                                Cancel
-                            </button>
+                            <div className="space-y-4">
+                                <input
+                                    type="text"
+                                    maxLength={6}
+                                    placeholder="0 0 0 0 0 0"
+                                    className="w-full px-5 py-5 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03] border border-black/5 dark:border-white/5 focus:border-iris/30 outline-none text-center text-2xl font-black tracking-[0.5em] text-black dark:text-white placeholder:text-black/5 dark:placeholder:text-white/5"
+                                    value={otpCode}
+                                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                                />
+
+                                {error && <p className="text-[9px] text-red-500 font-bold uppercase tracking-widest text-center">{error}</p>}
+
+                                <button
+                                    disabled={verifying || otpCode.length !== 6}
+                                    onClick={handleVerifyAndTransfer}
+                                    className="w-full py-5 rounded-2xl bg-black dark:bg-white text-white dark:text-black font-black uppercase text-xs tracking-[0.3em] shadow-xl disabled:opacity-30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                >
+                                    {verifying ? "Authorizing..." : "Verify & Transfer"}
+                                </button>
+
+                                <div className="flex flex-col items-center gap-2">
+                                    <button
+                                        onClick={() => setShowVerification(false)}
+                                        className="w-full py-3 text-black/40 dark:text-white/40 uppercase text-[10px] font-bold tracking-[0.2em]"
+                                    >
+                                        ← Back to Recipient
+                                    </button>
+
+                                    <button
+                                        onClick={handleResend}
+                                        disabled={resendTimer > 0}
+                                        className="text-[9px] font-black uppercase tracking-widest text-iris disabled:opacity-40"
+                                    >
+                                        {resendTimer > 0 ? `Resend code in ${resendTimer}s` : "Resend Security Code"}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    ) : (
+                        <>
+                            <p className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-[0.2em] leading-relaxed mb-8 font-bold">
+                                Send this pass safely to a friend.
+                            </p>
+
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <p className="text-[10px] font-black text-black/40 dark:text-white/40 uppercase tracking-[0.2em] ml-1">Recipient Email</p>
+                                    <input
+                                        type="email"
+                                        placeholder="Enter friend's email"
+                                        className="w-full px-5 py-4 rounded-2xl bg-black/[0.03] dark:bg-white/[0.03] border border-black/5 dark:border-white/5 focus:border-orange/30 dark:focus:border-white/20 outline-none transition-all text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/10"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                    />
+                                </div>
+
+                                {error && (
+                                    <div className={clsx(
+                                        "p-4 rounded-2xl flex items-center gap-3 border",
+                                        error.toLowerCase().includes("restricted") || error.toLowerCase().includes("gender")
+                                            ? "bg-orange/5 border-orange/20"
+                                            : "bg-red-500/5 border-red-500/10"
+                                    )}>
+                                        <svg className={clsx("w-4 h-4 flex-shrink-0", error.toLowerCase().includes("restricted") || error.toLowerCase().includes("gender") ? "text-orange" : "text-red-500")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                        <p className={clsx("text-[9px] font-black uppercase tracking-widest", error.toLowerCase().includes("restricted") || error.toLowerCase().includes("gender") ? "text-orange" : "text-red-500")}>
+                                            {error}
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="flex flex-col gap-3">
+                                    <button
+                                        onClick={handleTransfer}
+                                        disabled={!email || loading}
+                                        className="w-full py-5 rounded-2xl bg-black dark:bg-white text-white dark:text-black font-black uppercase text-xs tracking-[0.3em] shadow-xl disabled:opacity-30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                    >
+                                        {loading ? "Processing..." : "Confirm Transfer"}
+                                    </button>
+                                    <button
+                                        onClick={onClose}
+                                        className="w-full py-3 text-black/40 dark:text-white/40 uppercase text-[10px] font-bold tracking-[0.4em] hover:text-black dark:hover:text-white transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             </motion.div>
         </motion.div>
@@ -650,10 +878,19 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
 
     return (
         <div className="relative group">
-            <div
-                className="absolute inset-0 z-0 scale-95 opacity-20 blur-[120px] transition-all duration-1000 group-hover:scale-110 group-hover:opacity-50 dark:group-hover:opacity-40 pointer-events-none"
-                style={{ backgroundColor: color || '#FFA500' }}
-            />
+            {/* Multi-layered Atmospheric Glow */}
+            <div className="absolute inset-0 z-0 pointer-events-none">
+                <div
+                    className="absolute inset-0 scale-75 opacity-20 blur-[100px] transition-all duration-1000 group-hover:scale-110 group-hover:opacity-40"
+                    style={{ backgroundColor: color }}
+                />
+                <div
+                    className="absolute inset-0 scale-95 opacity-10 blur-[60px] transition-all duration-700 group-hover:opacity-20"
+                    style={{
+                        background: `radial-gradient(circle at center, ${color} 0%, transparent 70%)`
+                    }}
+                />
+            </div>
 
             <motion.div
                 whileHover={{ y: -8, scale: 1.01 }}
@@ -982,9 +1219,24 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
                                     )}
 
                                     <div className="flex flex-wrap justify-center gap-4 mt-8">
-                                        {currentTicket.isPrimaryBuyer && (
+                                        {currentTicket.isPrimaryBuyer && !currentTicket.isClaimedByOther && (
                                             <button
-                                                onClick={() => onShare(currentTicket)}
+                                                onClick={async () => {
+                                                    // Try native share if it's an individual ticket and already has a token
+                                                    if (currentTicket.shareToken && typeof navigator !== 'undefined' && navigator.share) {
+                                                        try {
+                                                            await navigator.share({
+                                                                title: `Ticket for ${currentTicket.eventTitle}`,
+                                                                text: `Claim your ticket for ${currentTicket.eventTitle}:`,
+                                                                url: `${window.location.origin}/tickets/claim/${currentTicket.shareToken}`
+                                                            });
+                                                            return;
+                                                        } catch (err) {
+                                                            // Fallback to modal if cancelled or fails
+                                                        }
+                                                    }
+                                                    onShare(currentTicket);
+                                                }}
                                                 className="group/btn h-12 w-12 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
                                             >
                                                 <Share2 className="h-5 w-5 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />

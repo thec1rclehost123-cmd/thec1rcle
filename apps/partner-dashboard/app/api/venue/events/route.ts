@@ -69,8 +69,7 @@ export async function PATCH(req: NextRequest) {
             approve: "approved",
             reject: "denied",
             pause: "paused",
-            resume: "live",
-            lock: "locked"
+            resume: "live"
         };
 
         const newStatus = statusMap[action];

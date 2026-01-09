@@ -308,15 +308,20 @@ export default function ExplorePage() {
     const comparator = sortComparators[activeSort] || sortComparators.Trending;
 
     return events
-      .filter(
-        (event) =>
+      .filter((event) => {
+        // Absolute safety: remove past events regardless of filters
+        const eventEnd = event.endDate || event.startDate;
+        if (eventEnd && eventEnd < now.toISOString()) return false;
+
+        return (
           matchesCity(event) &&
           matchesType(event) &&
           matchesCuratedCategory(event) &&
           matchesPrice(event) &&
           matchesSearch(event) &&
           matchesDatePreset(event)
-      )
+        );
+      })
       .sort(comparator);
   }, [events, filters, searchTerm, activeSort, selectedCity, cityOptions]);
 

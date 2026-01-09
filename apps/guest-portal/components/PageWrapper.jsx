@@ -8,6 +8,7 @@ export default function PageWrapper({ children }) {
     const isLandingOrHero = pathname === "/" ||
         pathname === "/app" ||
         pathname === "/login" ||
+        pathname === "/auth/callback" ||
         pathname === "/explore" ||
         pathname?.startsWith("/hosts") ||
         pathname?.startsWith("/venues") ||

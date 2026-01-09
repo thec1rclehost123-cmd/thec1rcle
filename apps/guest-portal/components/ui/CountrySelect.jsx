@@ -31,7 +31,7 @@ export default function CountrySelect({ value, onChange, disabled }) {
 
     return (
         <div className="relative" ref={dropdownRef}>
-            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2 block">Region of Origin</label>
+            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 mb-2 block">Region of Origin</label>
             <button
                 type="button"
                 disabled={disabled}

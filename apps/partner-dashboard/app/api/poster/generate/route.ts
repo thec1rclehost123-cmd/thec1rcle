@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
 // Gemini API Configuration
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyCuYYpdH1ZH2FM8UxCYVDrUNmmsbx06amQ";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Generate UUID using native crypto module
 function generateUUID(): string {

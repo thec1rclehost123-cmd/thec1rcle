@@ -19,10 +19,12 @@ import {
     Loader2,
     Ticket,
     ChevronRight,
-    Lock
+    Lock,
+    History as HistoryIcon
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import Link from "next/link";
+import AuditTrail from "@/components/shared/AuditTrail";
 import SurgeMonitor from "@/components/events/SurgeMonitor";
 
 export default function HostEventDetailPage() {
@@ -214,6 +216,20 @@ export default function HostEventDetailPage() {
                         Download Manifest <Download className="w-5 h-5 group-hover:translate-y-1 transition-transform" />
                     </button>
                 </div>
+            </div>
+
+            {/* Audit Trail Section */}
+            <div className="bg-white rounded-[2.5rem] border border-slate-200 p-10 shadow-sm">
+                <div className="flex items-center gap-3 mb-8">
+                    <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-600">
+                        <HistoryIcon className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Event Activity Log</h3>
+                        <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Chronological Immutable Audit Trail</p>
+                    </div>
+                </div>
+                <AuditTrail entries={event.auditTrail} />
             </div>
         </div>
     );

@@ -151,7 +151,7 @@ function OnboardingContent() {
             {/* Header */}
             <div className="max-w-6xl mx-auto px-6 py-8 flex items-center justify-between">
                 <button
-                    onClick={() => step === "role" ? router.push('/login') : setStep("role")}
+                    onClick={() => step === "role" ? router.back() : setStep("role")}
                     className="flex items-center gap-2 text-slate-400 hover:text-slate-900 transition-colors font-bold uppercase tracking-widest text-[10px]"
                 >
                     <ArrowLeft className="h-4 w-4" />

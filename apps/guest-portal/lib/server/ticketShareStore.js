@@ -4,6 +4,7 @@ import { getOrderById } from "./orderStore";
 import { MONEY_STATES } from "@c1rcle/core/ledger-engine";
 import { transferEntitlement } from "@c1rcle/core/entitlement-engine";
 import { getEvent } from "./eventStore";
+import { SECURITY_CONFIG } from "./security";
 
 const SHARE_BUNDLES_COLLECTION = "share_bundles";
 const TICKET_ASSIGNMENTS_COLLECTION = "ticket_assignments";
@@ -817,11 +818,14 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail) {
         if (!assignmentDoc.exists || assignmentDoc.data().redeemerId !== senderId) throw new Error("Unauthorized");
     }
 
-    const eventId = order.eventId || parts[0].split("_")[0];
     const eventDoc = await db.collection("events").doc(eventId).get();
     if (eventDoc.exists) {
         const event = eventDoc.data();
-        if ((new Date(event.startAt) - new Date()) / 36e5 < 4) throw new Error("Transfers disabled 4h before event.");
+        const start = new Date(event.startDate || event.startAt);
+        const hoursUntilEvent = (start - new Date()) / 36e5;
+        if (hoursUntilEvent < SECURITY_CONFIG.TRANSFER_BLOCK_HOURS_BEFORE_EVENT) {
+            throw new Error(`Transfers disabled ${SECURITY_CONFIG.TRANSFER_BLOCK_HOURS_BEFORE_EVENT}h before event.`);
+        }
     }
 
     const token = generateToken(20);

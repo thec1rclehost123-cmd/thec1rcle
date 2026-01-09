@@ -24,6 +24,7 @@ import {
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import AuditTrail from "@/components/shared/AuditTrail";
 
 export default function EventManagementPage() {
     const { id } = useParams();
@@ -217,7 +218,7 @@ export default function EventManagementPage() {
 
             {/* Tabs */}
             <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-2xl w-fit">
-                {["overview", "guestlist", "promoters", "settings"].map((tab) => (
+                {["overview", "guestlist", "promoters", "settings", "audit"].map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -562,6 +563,12 @@ export default function EventManagementPage() {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    )}
+                    {activeTab === "audit" && (
+                        <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
+                            <h3 className="text-xl font-bold mb-8">Event Audit Trail</h3>
+                            <AuditTrail entries={event.auditTrail} />
                         </div>
                     )}
                 </motion.div>

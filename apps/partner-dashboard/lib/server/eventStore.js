@@ -662,9 +662,14 @@ async function logEventLifecycleAction(eventId, action, context) {
   const db = getAdminDb();
   const FieldValue = require("firebase-admin/firestore").FieldValue;
 
+  const { uid, role, email, name, notes, ...details } = context;
+  const actor = { uid, role, email, name };
+
   const entry = {
     action,
-    actor: context,
+    actor,
+    notes: notes || "",
+    details: details || {},
     timestamp: new Date().toISOString()
   };
 

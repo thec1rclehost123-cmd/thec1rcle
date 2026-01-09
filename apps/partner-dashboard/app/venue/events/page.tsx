@@ -40,7 +40,7 @@ interface Event {
     hostName: string;
     venueId: string;
     lifecycle?: string;
-    status: "draft" | "pending" | "approved" | "live" | "completed" | "cancelled" | "locked" | "scheduled";
+    status: "draft" | "pending" | "approved" | "live" | "completed" | "cancelled" | "scheduled";
     ticketsSold: number;
     ticketsTotal: number;
     capacity?: number;
@@ -67,7 +67,6 @@ const STATUS_BADGES: Record<string, string> = {
     live: "bg-emerald-100 text-emerald-700 border-emerald-200",
     completed: "bg-purple-100 text-purple-700 border-purple-200",
     cancelled: "bg-red-100 text-red-700 border-red-200",
-    locked: "bg-slate-200 text-slate-600 border-slate-300",
     paused: "bg-orange-100 text-orange-700 border-orange-200",
 };
 
@@ -80,7 +79,6 @@ const STATUS_LABELS: Record<string, string> = {
     live: "Live",
     completed: "Completed",
     cancelled: "Cancelled",
-    locked: "Locked",
     paused: "Paused",
 };
 
@@ -203,7 +201,6 @@ export default function EventsManagementPage() {
             case "reject": return "cancelled";
             case "pause": return "paused";
             case "resume": return "live";
-            case "lock": return "locked";
             default: return currentStatus;
         }
     };
@@ -234,8 +231,6 @@ export default function EventsManagementPage() {
             matchesFilter = effectiveStatus === "approved" || effectiveStatus === "scheduled";
         } else if (filter === "completed") {
             matchesFilter = effectiveStatus === "completed";
-        } else if (filter === "locked") {
-            matchesFilter = effectiveStatus === "locked";
         }
 
         const matchesSearch =
@@ -309,7 +304,7 @@ export default function EventsManagementPage() {
                     </div>
 
                     <div className="flex gap-2 flex-wrap">
-                        {["all", "live", "pending", "approved", "completed", "draft", "locked"].map((status) => (
+                        {["all", "live", "pending", "approved", "completed", "draft"].map((status) => (
                             <button
                                 key={status}
                                 onClick={() => setFilter(status)}

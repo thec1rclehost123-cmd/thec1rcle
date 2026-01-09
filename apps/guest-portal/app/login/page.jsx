@@ -37,16 +37,17 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-    const { user, loading, login, loginWithGoogle, error: authError } = useAuth();
+    const { user, profile, loading, login, loginWithGoogle, updateUserProfile, error: authError } = useAuth();
     const { toast } = useToast();
     const router = useRouter();
     const searchParams = useSearchParams();
 
     const [form, setForm] = useState(initialForm);
-    const [mode, setMode] = useState(searchParams.get("mode") === "register" ? "register" : "login");
     const [step, setStep] = useState(1);
     const [status, setStatus] = useState({ type: "", message: "" });
     const [submitting, setSubmitting] = useState(false);
+    const [isNewUser, setIsNewUser] = useState(false); // Email/Pass registration flow
+    const [isOnboarding, setIsOnboarding] = useState(false); // Google login missing info
     const [emailVerified, setEmailVerified] = useState(false);
     const [phoneVerified, setPhoneVerified] = useState(false);
 
@@ -56,12 +57,22 @@ function LoginForm() {
         setSubmitting(true);
         setStatus({ type: "", message: "" });
         try {
-            await loginWithGoogle();
-            toast.success("Welcome to the Circle");
-            router.push(redirectUrl);
+            const { user, profile: userProfile } = await loginWithGoogle();
+
+            // Check if profile is complete (needs phone and gender)
+            if (!userProfile?.phone || !userProfile?.gender) {
+                setIsOnboarding(true);
+                setStep(3); // Jump to Phone onboarding
+                if (user?.displayName && !form.name) {
+                    setForm(prev => ({ ...prev, name: user.displayName }));
+                }
+            } else {
+                toast.success("Welcome back");
+                router.push(redirectUrl);
+            }
         } catch (err) {
             console.error("Google Auth error:", err);
-            setStatus({ type: "error", message: "Failed to sign in with Google. Check if popups are blocked." });
+            setStatus({ type: "error", message: "Failed to sign in with Google." });
         } finally {
             setSubmitting(false);
         }
@@ -75,41 +86,72 @@ function LoginForm() {
     }), [form]);
 
     useEffect(() => {
-        if (user && !loading && step !== 6) {
+        // Only redirect if NOT in the middle of onboarding
+        if (user && !loading && !isNewUser && !isOnboarding && step < 5) {
             router.replace(`/auth/callback?returnUrl=${encodeURIComponent(redirectUrl)}`);
         }
-    }, [user, loading, router, redirectUrl, step]);
+    }, [user, loading, router, redirectUrl, step, isNewUser, isOnboarding]);
 
     useEffect(() => {
-        if (authError) {
+        if (authError && step < 3) {
             setStatus({ type: "error", message: authError });
         }
-    }, [authError]);
+    }, [authError, step]);
 
     const handleChange = (field) => (event) => {
         setForm((prev) => ({ ...prev, [field]: event.target.value }));
     };
 
-    const toggleMode = () => {
-        setMode((prev) => (prev === "login" ? "register" : "login"));
-        setStep(1);
-        setForm(initialForm);
-        setStatus({ type: "", message: "" });
-    };
-
     const nextStep = async () => {
         setStatus({ type: "", message: "" });
-        if (mode === "login") {
-            if (step === 1 && form.email) setStep(2);
-            else if (step === 2 && form.password) handleLogin();
-        } else {
-            if (step === 1) {
-                if (form.email && form.phone) setStep(2);
-                else setStatus({ type: "error", message: "Identification required." });
+
+        if (step === 1 && form.email) {
+            setStep(2);
+        } else if (step === 2 && form.password) {
+            handleInitialAuth();
+        } else if (step === 3 && form.phone) {
+            setStep(4);
+        } else if (step === 4 && form.name) {
+            setStep(5);
+        } else if (step === 5 && form.gender) {
+            if (isNewUser) handleStartRegistration();
+            else handleCompleteOnboarding();
+        }
+    };
+
+    const handleInitialAuth = async () => {
+        setSubmitting(true);
+        try {
+            await login(cleanForm.email, form.password, true);
+            // If we reach here, user exists and logged in. Profile check will happen in useEffect or handled below.
+        } catch (err) {
+            // Firebase error code for user not found
+            if (err.code === 'auth/user-not-found' || err.message.includes('not-found')) {
+                setIsNewUser(true);
+                setStep(3);
+                setStatus({ type: "info", message: "Creating your new account..." });
+            } else {
+                setStatus({ type: "error", message: err.message });
             }
-            else if (step === 2 && form.password) setStep(3);
-            else if (step === 3 && form.name) setStep(4);
-            else if (step === 4 && form.gender) handleStartRegistration();
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleCompleteOnboarding = async () => {
+        setSubmitting(true);
+        try {
+            await updateUserProfile({
+                phone: cleanForm.phone,
+                gender: form.gender,
+                displayName: form.name || user?.displayName || "Member"
+            });
+            setIsOnboarding(false);
+            router.push(redirectUrl);
+        } catch (err) {
+            setStatus({ type: "error", message: err.message });
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -118,23 +160,13 @@ function LoginForm() {
         else router.back();
     };
 
-    const handleLogin = async () => {
-        setSubmitting(true);
-        try {
-            await login(cleanForm.email, form.password, true);
-        } catch (err) {
-            setStatus({ type: "error", message: err.message });
-            setSubmitting(false);
-        }
-    };
-
     const handleStartRegistration = async () => {
         setSubmitting(true);
         setStatus({ type: "", message: "" });
         try {
             await authService.sendOtp("email", cleanForm.email);
             await authService.sendOtp("phone", cleanForm.phone);
-            setStep(5);
+            setStep(6);
         } catch (err) {
             setStatus({ type: "error", message: err.message });
         } finally {
@@ -182,7 +214,7 @@ function LoginForm() {
             });
             // Login manually after creation to establish session
             await login(cleanForm.email, form.password, true);
-            setStep(6);
+            setStep(7);
         } catch (err) {
             setStatus({ type: "error", message: err.message });
         } finally {
@@ -190,7 +222,7 @@ function LoginForm() {
         }
     };
 
-    const totalSteps = mode === "login" ? 2 : 4; // Step 5 and 6 are verify and success
+    const totalSteps = (isNewUser || isOnboarding) ? 5 : 2;
 
     return (
         <div className="flex flex-col md:flex-row w-full h-full">
@@ -208,10 +240,10 @@ function LoginForm() {
                 </motion.div>
 
                 {/* Decorative Bottom Tag or Logo */}
-                <div className="absolute bottom-12 flex items-center gap-4">
-                    <div className="h-0.5 w-12 bg-black/20" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.5em] text-black/40">Discover Life Offline</span>
-                    <div className="h-0.5 w-12 bg-black/20" />
+                <div className="absolute bottom-12 flex items-center gap-4 opacity-50">
+                    <div className="h-px w-10 bg-black" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-black">Discover Life Offline</span>
+                    <div className="h-px w-10 bg-black" />
                 </div>
             </div>
 
@@ -233,27 +265,24 @@ function LoginForm() {
                     </Link>
                 </header>
 
-                <div className="w-full max-w-[420px] py-12">
-                    {step < 5 && (
-                        <div className="mb-10 text-center md:text-left">
+                <div className="w-full max-w-[380px] py-12 flex flex-col gap-8">
+                    {step < 6 && (
+                        <div className="text-center md:text-left">
                             <motion.div
-                                key={mode + step}
+                                key={step + isNewUser}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 className="space-y-4"
                             >
-                                <p className="text-[10px] font-black uppercase tracking-[0.5em] text-orange">
-                                    {mode === "login" ? "Sign in" : "Sign up"}
+                                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange mb-3">
+                                    {(isNewUser || isOnboarding) ? "Identity" : "Member Access"}
                                 </p>
-                                <h1 className="text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tighter leading-[0.8] text-white">
-                                    {mode === "login" ? (
-                                        step === 1 ? <>What's your <br /><span className="text-orange">Email?</span></> : <>And your <br /><span className="text-orange">Password?</span></>
-                                    ) : (
-                                        step === 1 ? <>Let's get <br /><span className="text-orange">Started.</span></> :
-                                            step === 2 ? <>Secure your <br /><span className="text-orange">Account.</span></> :
-                                                step === 3 ? <>What's your <br /><span className="text-orange">Name?</span></> :
-                                                    <>Almost <br /><span className="text-orange">Done.</span></>
-                                    )}
+                                <h1 className="text-4xl md:text-5xl lg:text-5xl font-black uppercase tracking-tighter leading-[0.9] text-white">
+                                    {step === 1 ? <>What's your <br /><span className="text-orange">Email?</span></> :
+                                        step === 2 ? <>And your <br /><span className="text-orange">Password?</span></> :
+                                            step === 3 ? <>Verify your <br /><span className="text-orange">Phone.</span></> :
+                                                step === 4 ? <>What's your <br /><span className="text-orange">Name?</span></> :
+                                                    <>Almost <br /><span className="text-orange">Done.</span></>}
                                 </h1>
                             </motion.div>
                         </div>
@@ -267,7 +296,7 @@ function LoginForm() {
                                     initial={{ opacity: 0, scale: 0.98 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     exit={{ opacity: 0, scale: 0.95 }}
-                                    className="relative glass-panel bg-white/[0.02] border border-white/10 backdrop-blur-2xl rounded-[40px] p-8 md:p-10 shadow-2xl overflow-hidden"
+                                    className="relative glass-panel bg-white/[0.03] border border-white/10 backdrop-blur-2xl rounded-[32px] p-8 md:p-8 shadow-2xl overflow-hidden"
                                 >
                                     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
@@ -282,9 +311,8 @@ function LoginForm() {
                                             >
                                                 {step === 1 && (
                                                     <div className="space-y-6">
-                                                        <div className="group relative">
-                                                            <div className="absolute left-0 bottom-0 h-0.5 w-0 bg-orange group-focus-within:w-full transition-all duration-700" />
-                                                            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2 block">Email address</label>
+                                                        <div className="space-y-2">
+                                                            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 block">Email address</label>
                                                             <input
                                                                 type="email"
                                                                 autoFocus
@@ -292,42 +320,49 @@ function LoginForm() {
                                                                 value={form.email}
                                                                 onChange={handleChange("email")}
                                                                 placeholder="NAME@EMAIL.COM"
-                                                                className="w-full bg-transparent border-b border-white/10 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/10 focus:outline-none"
+                                                                className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/40 focus:outline-none focus:border-orange/50 transition-all"
                                                             />
                                                         </div>
-
-                                                        {mode === "register" && (
-                                                            <div className="space-y-6 pt-4 border-t border-white/5">
-                                                                <CountrySelect
-                                                                    value={form.country}
-                                                                    onChange={(val) => setForm(prev => ({ ...prev, country: val }))}
-                                                                />
-                                                                <PhoneInput
-                                                                    value={form.phone}
-                                                                    onChange={(val) => setForm(prev => ({ ...prev, phone: val }))}
-                                                                    countryCode={form.country}
-                                                                    onCountryChange={(val) => setForm(prev => ({ ...prev, country: val }))}
-                                                                    errorText={status.type === "error" && status.message.includes("phone") ? status.message : ""}
-                                                                />
-                                                            </div>
-                                                        )}
 
                                                         <button
                                                             type="button"
                                                             onClick={handleGoogleLogin}
                                                             disabled={submitting}
-                                                            className="w-full group flex items-center justify-center gap-3 py-4 bg-white/[0.03] rounded-2xl border border-white/10 text-[10px] font-black uppercase tracking-[0.3em] text-white/30 hover:bg-white hover:text-black transition-all"
+                                                            className="w-full relative group h-12 rounded-xl bg-white text-black font-black uppercase tracking-[0.3em] text-[10px] transition-all flex items-center justify-center shadow-lg overflow-hidden hover:shadow-[0_0_20px_rgba(255,107,0,0.15)] hover:scale-[1.01] active:scale-[0.99] border border-white/10"
                                                         >
-                                                            <Chrome className="w-4 h-4" />
-                                                            Continue with Google
+                                                            <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-orange/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                                                            <div className="flex items-center gap-3 px-6 relative z-10">
+                                                                {submitting ? (
+                                                                    <Loader2 className="animate-spin" size={16} />
+                                                                ) : (
+                                                                    <svg className="w-4 h-4" viewBox="0 0 24 24">
+                                                                        <path
+                                                                            fill="#4285F4"
+                                                                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                                                                        />
+                                                                        <path
+                                                                            fill="#34A853"
+                                                                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                                                                        />
+                                                                        <path
+                                                                            fill="#FBBC05"
+                                                                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.27.81-.57z"
+                                                                        />
+                                                                        <path
+                                                                            fill="#EA4335"
+                                                                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                                                                        />
+                                                                    </svg>
+                                                                )}
+                                                                Continue with Google
+                                                            </div>
                                                         </button>
                                                     </div>
                                                 )}
 
                                                 {step === 2 && (
-                                                    <div className="group relative">
-                                                        <div className="absolute left-0 bottom-0 h-0.5 w-0 bg-orange group-focus-within:w-full transition-all duration-700" />
-                                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2 block">Password</label>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 block">Password</label>
                                                         <input
                                                             type="password"
                                                             autoFocus
@@ -335,15 +370,30 @@ function LoginForm() {
                                                             value={form.password}
                                                             onChange={handleChange("password")}
                                                             placeholder="••••••••"
-                                                            className="w-full bg-transparent border-b border-white/10 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/10 focus:outline-none"
+                                                            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/40 focus:outline-none focus:border-orange/50 transition-all"
                                                         />
                                                     </div>
                                                 )}
 
-                                                {step === 3 && (
-                                                    <div className="group relative">
-                                                        <div className="absolute left-0 bottom-0 h-0.5 w-0 bg-orange group-focus-within:w-full transition-all duration-700" />
-                                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2 block">What's your full name?</label>
+                                                {(isNewUser || isOnboarding) && step === 3 && (
+                                                    <div className="space-y-6 pt-4">
+                                                        <CountrySelect
+                                                            value={form.country}
+                                                            onChange={(val) => setForm(prev => ({ ...prev, country: val }))}
+                                                        />
+                                                        <PhoneInput
+                                                            value={form.phone}
+                                                            onChange={(val) => setForm(prev => ({ ...prev, phone: val }))}
+                                                            countryCode={form.country}
+                                                            onCountryChange={(val) => setForm(prev => ({ ...prev, country: val }))}
+                                                            errorText={status.type === "error" && status.message.includes("phone") ? status.message : ""}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {(isNewUser || isOnboarding) && step === 4 && (
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 block">What's your full name?</label>
                                                         <input
                                                             type="text"
                                                             autoFocus
@@ -351,14 +401,14 @@ function LoginForm() {
                                                             value={form.name}
                                                             onChange={handleChange("name")}
                                                             placeholder="YOUR NAME"
-                                                            className="w-full bg-transparent border-b border-white/10 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/10 focus:outline-none"
+                                                            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/40 focus:outline-none focus:border-orange/50 transition-all"
                                                         />
                                                     </div>
                                                 )}
 
-                                                {step === 4 && (
+                                                {(isNewUser || isOnboarding) && step === 5 && (
                                                     <div className="space-y-4">
-                                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 block">How do you identify?</label>
+                                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 block">How do you identify?</label>
                                                         <GenderSelector
                                                             value={form.gender}
                                                             onChange={(val) => setForm(prev => ({ ...prev, gender: val }))}
@@ -373,7 +423,7 @@ function LoginForm() {
                                             <motion.p
                                                 initial={{ opacity: 0 }}
                                                 animate={{ opacity: 1 }}
-                                                className="text-[10px] font-bold text-orange text-center md:text-left uppercase tracking-widest"
+                                                className="text-[10px] font-black text-orange text-center md:text-left uppercase tracking-[0.2em] bg-orange/5 py-4 px-6 rounded-2xl border border-orange/20"
                                             >
                                                 {status.message}
                                             </motion.p>
@@ -382,7 +432,7 @@ function LoginForm() {
                                         <button
                                             type="submit"
                                             disabled={submitting}
-                                            className="group relative w-full h-16 flex items-center justify-center rounded-full bg-white text-black font-black uppercase tracking-[0.5em] text-xs transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 overflow-hidden shadow-[0_20px_40px_rgba(255,165,0,0.15)]"
+                                            className="group relative w-full h-12 flex items-center justify-center rounded-xl bg-white text-black font-black uppercase tracking-[0.4em] text-[10px] transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 overflow-hidden shadow-lg"
                                         >
                                             <div className="absolute inset-0 bg-gradient-to-r from-orange to-gold opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                             <span className="relative z-10 flex items-center gap-3 group-hover:text-white transition-colors">
@@ -390,7 +440,7 @@ function LoginForm() {
                                                     <Loader2 className="h-5 w-5 animate-spin" />
                                                 ) : (
                                                     <>
-                                                        {step === totalSteps ? (mode === "login" ? "Sign in" : "Create Account") : "Continue"}
+                                                        {step === totalSteps ? "Finish" : "Continue"}
                                                         <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                                                     </>
                                                 )}
@@ -403,12 +453,12 @@ function LoginForm() {
                                         {Array.from({ length: totalSteps }).map((_, i) => (
                                             <div
                                                 key={i}
-                                                className={`h-0.5 transition-all duration-500 rounded-full ${i + 1 === step ? "w-8 bg-orange shadow-[0_0_10px_rgba(255,165,0,0.5)]" : "w-2 bg-white/10"}`}
+                                                className={`h-1 transition-all duration-500 rounded-full ${i + 1 === step ? "w-8 bg-orange" : "w-1.5 bg-white/10"}`}
                                             />
                                         ))}
                                     </div>
                                 </motion.div>
-                            ) : step === 5 ? (
+                            ) : step === 6 ? (
                                 <motion.div
                                     key="verify"
                                     initial={{ opacity: 0, y: 20 }}
@@ -438,18 +488,9 @@ function LoginForm() {
                         </AnimatePresence>
                     </div>
 
-                    {step < 5 && (
-                        <div className="mt-12 text-center md:text-left">
-                            <button
-                                onClick={toggleMode}
-                                className="text-[11px] font-black uppercase tracking-[0.4em] text-white/20 hover:text-orange transition-colors"
-                            >
-                                {mode === "login" ? "New here? Sign up" : "Already have an account? Sign in"}
-                            </button>
-                        </div>
-                    )}
+                    {/* Footer Toggle Link Removed */}
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

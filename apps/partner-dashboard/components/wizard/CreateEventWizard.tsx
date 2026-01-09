@@ -664,6 +664,8 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
     const prevStep = () => {
         if (currentStepIndex > 0) {
             setCurrentStep(STEPS[currentStepIndex - 1].id);
+        } else {
+            router.back();
         }
     };
 
@@ -995,7 +997,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                     </div>
 
                     {/* Step Indicator — Design System Integration */}
-                    <div className="flex items-center justify-between gap-1 mb-16 px-6 py-4 surface-secondary rounded-2xl border border-default overflow-x-auto scrollbar-hide">
+                    <div className="flex items-center justify-between gap-4 mb-20 px-8 py-6 bg-white/50 backdrop-blur-md rounded-[32px] border border-[rgba(0,0,0,0.04)] overflow-x-auto scrollbar-hide shadow-sm active:shadow-md transition-shadow">
                         {STEPS.map((step, index) => {
                             const Icon = step.icon;
                             const isActive = index === currentStepIndex;
@@ -1006,20 +1008,33 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                     key={step.id}
                                     onClick={() => index <= currentStepIndex && setCurrentStep(step.id)}
                                     disabled={index > currentStepIndex}
-                                    className={`flex flex-col items-center gap-2 min-w-[70px] transition-all group ${isActive ? 'opacity-100' : 'opacity-40'
-                                        }`}
+                                    className={`flex flex-col items-center gap-3 min-w-[80px] transition-all duration-500 group relative ${isActive ? 'scale-110' : 'hover:scale-105 active:scale-95'}`}
                                 >
-                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${isActive
-                                        ? 'bg-[#4f46e5] text-white shadow-xl shadow-indigo-100 scale-105'
+                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 relative z-10 ${isActive
+                                        ? 'bg-gradient-to-br from-[#6366f1] to-[#4f46e5] text-white shadow-[0_8px_20px_-6px_rgba(79,70,229,0.5)] ring-4 ring-indigo-50'
                                         : isComplete
-                                            ? 'bg-emerald-50 text-emerald-600'
-                                            : 'bg-white text-stone-400 border border-default'
+                                            ? 'bg-emerald-50 text-emerald-600 shadow-sm'
+                                            : 'bg-[#fafafa] text-stone-300 border border-[rgba(0,0,0,0.04)] group-hover:bg-white group-hover:text-stone-400'
                                         }`}>
-                                        <Icon className="w-5 h-5" />
+                                        <Icon className={`transition-transform duration-500 ${isActive ? 'w-7 h-7' : 'w-6 h-6'} ${isActive ? 'animate-in zoom-in-75 duration-500' : ''}`} />
                                     </div>
-                                    <span className={`text-label transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                                        {step.label}
-                                    </span>
+
+                                    <div className="flex flex-col items-center gap-1">
+                                        <span className={`text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${isActive ? 'text-[#1d1d1f] opacity-100' : 'text-[#86868b] opacity-40 group-hover:opacity-80'}`}>
+                                            {step.label}
+                                        </span>
+                                        {isActive && (
+                                            <motion.div
+                                                layoutId="activeTabUnderline"
+                                                className="w-1.5 h-1.5 rounded-full bg-[#4f46e5] shadow-[0_0_10px_rgba(79,70,229,0.5)]"
+                                            />
+                                        )}
+                                    </div>
+
+                                    {/* Connecting Line (Optional - could look good if we had space) */}
+                                    {index < STEPS.length - 1 && (
+                                        <div className="absolute left-[70%] top-[28px] w-[50%] h-[2px] bg-[rgba(0,0,0,0.03)] -z-0 hidden md:block" />
+                                    )}
                                 </button>
                             );
                         })}
@@ -1146,6 +1161,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                                     onChange={(e) => updateFormData({ title: e.target.value })}
                                                     error={validationErrors.title}
                                                     className="text-stat-sm h-14"
+                                                    autoCapitalize="words"
                                                 />
 
                                                 <AppleTextArea
@@ -1154,6 +1170,8 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                                     rows={4}
                                                     value={formData.description}
                                                     onChange={(e) => updateFormData({ description: e.target.value })}
+                                                    className="text-body-sm min-h-[160px]"
+                                                    autoCapitalize="sentences"
                                                 />
 
                                                 <div className="grid grid-cols-2 gap-6">
@@ -1267,6 +1285,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                                     value={formData.venueName}
                                                     onChange={(e) => updateFormData({ venueName: e.target.value })}
                                                     disabled={role === 'host' && formData.venueId} // Host uses partnered venue name
+                                                    autoCapitalize="words"
                                                 />
 
                                                 <AppleInput
@@ -1275,6 +1294,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                                     placeholder="Exact address for navigation"
                                                     value={formData.address}
                                                     onChange={(e) => updateFormData({ address: e.target.value })}
+                                                    autoCapitalize="words"
                                                 />
 
                                                 <div className="grid grid-cols-2 gap-6">
@@ -1362,14 +1382,12 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                             </button>
                                         ) : (
                                             <div className="flex items-center gap-4">
-                                                {currentStep !== 'basics' && (
-                                                    <button
-                                                        onClick={prevStep}
-                                                        className="apple-btn-secondary flex items-center gap-2"
-                                                    >
-                                                        <ChevronLeft className="w-4 h-4" /> Back
-                                                    </button>
-                                                )}
+                                                <button
+                                                    onClick={prevStep}
+                                                    className="apple-btn-secondary flex items-center gap-2"
+                                                >
+                                                    <ChevronLeft className="w-4 h-4" /> Back
+                                                </button>
                                                 <button
                                                     onClick={() => handleSubmit(true)}
                                                     className="text-[15px] text-[#86868b] hover:text-[#1d1d1f] transition-colors"

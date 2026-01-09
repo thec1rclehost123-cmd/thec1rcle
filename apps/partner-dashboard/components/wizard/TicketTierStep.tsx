@@ -207,6 +207,7 @@ function TicketTierCard({
                         onChange={(e) => onUpdate({ name: e.target.value })}
                         placeholder="Ticket Tier Name"
                         className="w-full text-headline-sm bg-transparent focus:outline-none mb-0.5"
+                        autoCapitalize="words"
                     />
                     <div className="flex items-center gap-3">
                         <span className="text-label uppercase tracking-widest text-[#4f46e5]">
@@ -405,6 +406,7 @@ function TicketTierCard({
                                     onChange={(e) => onUpdate({ description: e.target.value })}
                                     placeholder="e.g. Includes one free drink"
                                     className="w-full px-3 py-2.5 rounded-xl bg-[#f5f5f7] border border-transparent text-[14px] text-[#1d1d1f] placeholder:text-[#86868b]/50 focus:outline-none focus:border-[#007aff] focus:bg-white transition-all min-h-[60px] resize-none"
+                                    autoCapitalize="sentences"
                                 />
                                 <p className="text-[10px] text-[#86868b]">
                                     This will appear as a subtle information icon next to the ticket on the website.

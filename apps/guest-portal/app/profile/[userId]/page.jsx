@@ -40,15 +40,26 @@ const MemberCard = ({ user, profile, displayName, initials, isOwner, onEdit, onL
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange/20 dark:via-white/20 to-transparent" />
 
         {isOwner && (
-            <button
-                onClick={onLogout}
-                className="absolute top-6 right-6 p-3 rounded-full text-black/40 dark:text-white/40 hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 transition-all duration-300 group ring-1 ring-transparent hover:ring-red-500/20 z-20"
-                title="Sign Out"
-            >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-            </button>
+            <div className="absolute top-6 right-6 flex items-center gap-2 z-20">
+                <button
+                    onClick={onEdit}
+                    className="p-3 rounded-full text-black/40 dark:text-white/40 hover:bg-white/10 hover:text-orange dark:hover:text-gold-light transition-all duration-300 group ring-1 ring-black/5 dark:ring-white/10"
+                    title="Edit Profile"
+                >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                </button>
+                <button
+                    onClick={onLogout}
+                    className="p-3 rounded-full text-black/40 dark:text-white/40 hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 transition-all duration-300 group ring-1 ring-black/5 dark:ring-white/10"
+                    title="Sign Out"
+                >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                </button>
+            </div>
         )}
 
         <div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-center md:justify-between">

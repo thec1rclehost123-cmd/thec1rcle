@@ -342,6 +342,44 @@ export async function getUserTickets(userId) {
         }));
     }
 
+    // 8.5 Fetch Profiles for all involved users (Redeemers, Partners, etc.)
+    const involvedUids = new Set([userId]);
+    Object.values(shareBundlesMap).forEach(({ assignments }) => {
+        assignments.forEach(a => {
+            if (a.redeemerId) involvedUids.add(a.redeemerId);
+        });
+    });
+    claimedTickets.forEach(t => {
+        if (t.redeemerId) involvedUids.add(t.redeemerId);
+        if (t.originalPurchaserId) involvedUids.add(t.originalPurchaserId);
+    });
+    partnerAssignments.forEach(a => {
+        if (a.partnerId) involvedUids.add(a.partnerId);
+        if (a.ownerId) involvedUids.add(a.ownerId);
+    });
+    transfers.forEach(t => {
+        if (t.senderId) involvedUids.add(t.senderId);
+        // recipient is email, we might not have UID yet
+    });
+
+    const profilesMap = {};
+    const uidList = Array.from(involvedUids).filter(Boolean);
+    if (uidList.length > 0) {
+        const chunks = [];
+        for (let i = 0; i < uidList.length; i += 30) chunks.push(uidList.slice(i, i + 30));
+        await Promise.all(chunks.map(async chunk => {
+            const snap = await db.collection(USERS_COLLECTION).where("__name__", "in", chunk).get();
+            snap.forEach(doc => {
+                const data = doc.data();
+                profilesMap[doc.id] = {
+                    uid: doc.id,
+                    displayName: data.displayName || "C1RCLE User",
+                    photoURL: data.photoURL || data.avatar || null
+                };
+            });
+        }));
+    }
+
     // 9. Process All Orders (Unroll identities)
     allOrders.forEach(order => {
         const event = eventsData[order.eventId];
@@ -390,13 +428,20 @@ export async function getUserTickets(userId) {
                     const slotTicketId = `${order.id}-${tierId}-${i}`;
 
                     // Match assignment by slot index or identity ID
-                    const assignment = assignments.find(a => a.slotIndex === i || a.originalTicketId === slotTicketId);
+                    const assignmentDoc = assignments.find(a => a.slotIndex === i || a.originalTicketId === slotTicketId);
                     const bundleSlot = bundle?.slots?.find(s => s.slotIndex === i);
 
                     // If claimed by someone else, we only show it to the order owner
-                    if (assignment && assignment.redeemerId !== userId && order.userId !== userId) {
+                    if (assignmentDoc && assignmentDoc.redeemerId !== userId && order.userId !== userId) {
                         continue;
                     }
+
+                    // Enrich assignment with profile info
+                    const assignment = assignmentDoc ? {
+                        ...assignmentDoc,
+                        userName: profilesMap[assignmentDoc.redeemerId]?.displayName || "Guest",
+                        avatar: profilesMap[assignmentDoc.redeemerId]?.photoURL || null
+                    } : null;
 
                     const isTransferPending = pendingSentTicketIds.includes(slotTicketId);
                     const tier = event.tickets?.find(t => t.id === tierId);
@@ -498,15 +543,21 @@ export async function getUserTickets(userId) {
     });
 
     // 10. Process Claimed/Transferred Tickets
-    claimedTickets.forEach(claim => {
-        const event = eventsData[claim.eventId];
+    claimedTickets.forEach(claimDoc => {
+        const event = eventsData[claimDoc.eventId];
         if (!event) return;
 
         const eventStart = new Date(event.startDate || event.startAt);
         const isEventPast = eventStart < now;
 
-        const requiredGender = claim.requiredGender || "any";
+        const requiredGender = claimDoc.requiredGender || "any";
         const genderMismatch = (requiredGender !== "any" && requiredGender !== userGender);
+
+        const claim = {
+            ...claimDoc,
+            userName: profilesMap[claimDoc.redeemerId]?.displayName || "Guest",
+            avatar: profilesMap[claimDoc.redeemerId]?.photoURL || null
+        };
 
         const ticket = {
             ticketId: claim.assignmentId,
@@ -525,7 +576,8 @@ export async function getUserTickets(userId) {
             genderMismatch,
             couplePairId: claim.couplePairId || null,
             qrPayload: (genderMismatch || claim.status === "used" || isEventPast) ? null : claim.qrPayload,
-            orderType: claim.isRSVP ? "RSVP" : "Paid"
+            orderType: claim.isRSVP ? "RSVP" : "Paid",
+            assignment: claim
         };
 
         if (ticket.status === "active") {
@@ -536,19 +588,25 @@ export async function getUserTickets(userId) {
     });
 
     // 11. Process Partner Assignments
-    partnerAssignments.forEach(assignment => {
-        const event = eventsData[assignment.eventId];
+    partnerAssignments.forEach(assignmentDoc => {
+        const event = eventsData[assignmentDoc.eventId];
         if (!event) return;
 
         const eventStart = new Date(event.startDate || event.startAt);
         const isEventPast = eventStart < now;
 
-        const ticketId = assignment.ticketId;
+        const ticketId = assignmentDoc.ticketId;
         const isScanned = !!scansMap[ticketId];
         const status = isScanned || isEventPast ? "used" : "active";
 
         const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
         const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
+
+        const assignment = {
+            ...assignmentDoc,
+            userName: profilesMap[assignmentDoc.partnerId]?.displayName || "Partner",
+            avatar: profilesMap[assignmentDoc.partnerId]?.photoURL || null
+        };
 
         const ticket = {
             ticketId,
@@ -565,7 +623,8 @@ export async function getUserTickets(userId) {
             genderMismatch: userGender !== "female",
             qrPayload: (status === "active" && userGender === "female") ? `${ticketId}:${signature}` : null,
             orderType: "Paid",
-            coupleAssignment: assignment
+            coupleAssignment: assignment,
+            assignment
         };
 
         if (status === "active") upcoming.push(ticket);

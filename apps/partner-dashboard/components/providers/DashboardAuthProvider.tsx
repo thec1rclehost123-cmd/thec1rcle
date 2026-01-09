@@ -5,9 +5,13 @@ import {
     User,
     onAuthStateChanged,
     signInWithEmailAndPassword,
-    signOut as firebaseSignOut
+    signOut as firebaseSignOut,
+    GoogleAuthProvider,
+    signInWithPopup,
+    createUserWithEmailAndPassword,
+    updateProfile as updateFirebaseProfile
 } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs, limit, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, query, where, getDocs, limit, onSnapshot } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/client";
 import { DashboardProfile, PartnerMembership, PartnerType, StaffRole } from "@/lib/rbac/types";
 
@@ -19,6 +23,8 @@ interface AuthContextValue {
     onboardingStatus: string | null;
     subscriptionPlan: string | null;
     signIn: (email: string, password: string) => Promise<void>;
+    signUp: (email: string, password: string, displayName: string) => Promise<void>;
+    signInWithGoogle: () => Promise<void>;
     signOut: () => Promise<void>;
     switchPartner: (partnerId: string) => Promise<void>;
 }
@@ -171,6 +177,51 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         await signInWithEmailAndPassword(auth, email, password);
     };
 
+    const signUp = async (email: string, password: string, displayName: string) => {
+        const auth = getFirebaseAuth();
+        const credential = await createUserWithEmailAndPassword(auth, email, password);
+
+        await updateFirebaseProfile(credential.user, { displayName });
+
+        const db = getFirebaseDb();
+        const profileRef = doc(db, "users", credential.user.uid);
+        const now = new Date().toISOString();
+
+        await setDoc(profileRef, {
+            uid: credential.user.uid,
+            email: credential.user.email || "",
+            displayName: displayName,
+            photoURL: credential.user.photoURL || "",
+            createdAt: now,
+            updatedAt: now,
+            isApproved: false
+        });
+    };
+
+    const signInWithGoogle = async () => {
+        const auth = getFirebaseAuth();
+        const provider = new GoogleAuthProvider();
+        const credential = await signInWithPopup(auth, provider);
+
+        // Ensure profile document exists
+        const db = getFirebaseDb();
+        const profileRef = doc(db, "users", credential.user.uid);
+        const profileDoc = await getDoc(profileRef);
+
+        if (!profileDoc.exists()) {
+            const now = new Date().toISOString();
+            await setDoc(profileRef, {
+                uid: credential.user.uid,
+                email: credential.user.email || "",
+                displayName: credential.user.displayName || "Member",
+                photoURL: credential.user.photoURL || "",
+                createdAt: now,
+                updatedAt: now,
+                isApproved: false
+            });
+        }
+    };
+
     const signOut = async () => {
         const auth = getFirebaseAuth();
         await firebaseSignOut(auth);
@@ -181,7 +232,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, profile, loading, isApproved, onboardingStatus, subscriptionPlan, signIn, signOut, switchPartner }}>
+        <AuthContext.Provider value={{ user, profile, loading, isApproved, onboardingStatus, subscriptionPlan, signIn, signUp, signInWithGoogle, signOut, switchPartner }}>
             {children}
         </AuthContext.Provider>
     );

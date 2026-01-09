@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import clsx from "clsx";
 import { usePathname } from "next/navigation";
 import { useState, useRef } from "react";
 import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
@@ -28,6 +29,10 @@ export default function Navbar() {
   const navBorder = useTransform(scrollY, [0, 100], ["rgba(255, 255, 255, 0)", "var(--nav-border)"]);
 
 
+
+  const isLoginPage = pathname === "/login";
+  const isMenuOpenRef = useRef(isMenuOpen);
+  isMenuOpenRef.current = isMenuOpen;
 
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
   const closeMenu = () => setIsMenuOpen(false);
@@ -57,25 +62,43 @@ export default function Navbar() {
             </span>
           </Link>
 
-          <div className="hidden items-center gap-1 lg:flex bg-black/[0.03] dark:bg-white/5 rounded-full p-1 border border-black/5 dark:border-white/5 backdrop-blur-md">
+          <div className={clsx(
+            "hidden items-center gap-1 lg:flex rounded-full p-1 border backdrop-blur-md transition-all duration-500",
+            isLoginPage
+              ? "bg-black/[0.05] dark:bg-white/10 border-black/10 dark:border-white/20 backdrop-blur-xl shadow-sm"
+              : "bg-black/[0.03] dark:bg-white/5 border-black/5 dark:border-white/5"
+          )}>
             {navLinks.map((link) => {
               const isActive = link.href === "/"
                 ? pathname === "/"
                 : pathname?.startsWith(link.href) || (link.label === "Hosts" && pathname?.startsWith("/venues"));
+
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  onClick={(e) => {
-                    // Navigate freely
-                  }}
-                  className={`relative px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-300 ${isActive ? "text-white dark:text-white" : "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-gold-light"
-                    }`}
+                  className={clsx(
+                    "relative px-6 py-2.5 rounded-full text-xs uppercase tracking-widest transition-all duration-300",
+                    isLoginPage ? (
+                      isActive
+                        ? "text-white dark:text-black font-black"
+                        : "text-black/70 dark:text-white/80 font-black hover:text-black dark:hover:text-white"
+                    ) : (
+                      isActive
+                        ? "text-white font-bold"
+                        : "text-black/60 dark:text-white/60 font-bold hover:text-black dark:hover:text-gold-light"
+                    )
+                  )}
                 >
                   {isActive && (
                     <motion.div
                       layoutId="nav-pill"
-                      className="absolute inset-0 bg-orange dark:bg-gradient-to-r dark:from-gold dark:via-gold-metallic dark:to-gold-light rounded-full shadow-md dark:shadow-[0_0_20px_rgba(255,215,0,0.4)]"
+                      className={clsx(
+                        "absolute inset-0 rounded-full shadow-md",
+                        isLoginPage
+                          ? "bg-black dark:bg-white shadow-lg"
+                          : "bg-orange dark:bg-gradient-to-r dark:from-gold dark:via-gold-metallic dark:to-gold-light dark:shadow-[0_0_20px_rgba(255,215,0,0.4)]"
+                      )}
                       transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                     />
                   )}

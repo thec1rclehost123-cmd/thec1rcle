@@ -426,6 +426,7 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
     query = query.orderBy(order.field, order.direction);
   }
 
+  const nowIso = new Date().toISOString();
   const baseLimit = Math.max(limit || 12, 12);
   let snapshot;
   try {
@@ -433,14 +434,13 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
   } catch (e) {
     try {
       // Silent fallback to avoid crash if index is missing
-      const fallbackNow = new Date().toISOString();
       snapshot = await db.collection(EVENT_COLLECTION)
         .where("lifecycle", "in", PUBLIC_LIFECYCLE_STATES)
-        .where("endDate", ">=", fallbackNow)
+        .where("endDate", ">=", nowIso)
         .limit(100)
         .get();
     } catch (secondError) {
-      // Ultimate fallback if even the above fails (e.g. index also missing for simplified date filter)
+      // Ultimate fallback if even the date index is missing
       snapshot = await db.collection(EVENT_COLLECTION)
         .where("lifecycle", "in", PUBLIC_LIFECYCLE_STATES)
         .limit(100)
@@ -448,7 +448,15 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
     }
   }
 
-  return snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
+  const results = snapshot.docs
+    .map(doc => mapEventForClient(doc.data(), doc.id))
+    .filter(event => {
+      // Final safety filter: Exclude past events from all public listings
+      const end = event.endDate || event.startDate;
+      return end >= nowIso;
+    });
+
+  return limit ? results.slice(0, limit) : results;
 }
 
 export async function createEvent(payload) {

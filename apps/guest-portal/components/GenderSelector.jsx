@@ -12,11 +12,8 @@ const GENDER_OPTIONS = [
 export default function GenderSelector({ value, onChange, error, disabled }) {
     return (
         <div className="space-y-3 w-full">
-            <div className="flex justify-between items-center ml-1">
-                <label className="text-[11px] uppercase tracking-[0.3em] text-orange font-black">
-                    Your Identity
-                </label>
-                {error && (
+            {error && (
+                <div className="flex justify-end mb-2 mr-1">
                     <motion.span
                         initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -24,8 +21,8 @@ export default function GenderSelector({ value, onChange, error, disabled }) {
                     >
                         Required
                     </motion.span>
-                )}
-            </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {GENDER_OPTIONS.map((option) => {

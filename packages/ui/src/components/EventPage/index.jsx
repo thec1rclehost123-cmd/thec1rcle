@@ -167,7 +167,13 @@ export default function EventDetailPage({
             />
 
             {/* Dynamic Background */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[800px] overflow-hidden">
+            <div
+                className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[150vh] overflow-hidden"
+                style={{
+                    maskImage: 'linear-gradient(to bottom, black 0%, black 20%, transparent 100%)',
+                    WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 20%, transparent 100%)'
+                }}
+            >
                 {eventImage && eventImage !== "/events/holi-edit.svg" ? (
                     <motion.div className="relative h-full w-full">
                         <ShimmerImage
@@ -175,18 +181,19 @@ export default function EventDetailPage({
                             alt={event.title || "Event Image"}
                             fill
                             sizes="100vw"
-                            className="object-cover opacity-40 dark:opacity-80 blur-[80px] saturate-[1.8]"
+                            className="object-cover opacity-50 dark:opacity-90 blur-[120px] saturate-[2] scale-125"
                             priority
                         />
-                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--bg-color)]/40 to-[var(--bg-color)]" />
+                        {/* Multi-layer Gradient Merge */}
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--bg-color)]/20 to-[var(--bg-color)]" />
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_var(--bg-color)_80%)] opacity-80" />
                     </motion.div>
                 ) : (
-
                     <div
                         className="absolute inset-0"
                         style={{
                             backgroundImage: `linear-gradient(180deg, ${gradientStart}, rgba(244,74,34,0.1) 60%, var(--bg-color))`,
-                            filter: "blur(50px)",
+                            filter: "blur(60px)",
                             opacity: 0.3
                         }}
                     />

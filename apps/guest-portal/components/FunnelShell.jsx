@@ -20,7 +20,7 @@ export default function FunnelShell({ children, title, backHref, showLogo = true
                 <div className="mx-auto flex h-20 max-w-[1400px] items-center justify-between px-8 md:px-12">
                     <div className="flex items-center gap-6">
                         <button
-                            onClick={() => backHref ? router.push(backHref) : router.back()}
+                            onClick={() => router.back()}
                             className="group flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 backdrop-blur-xl transition-all hover:border-orange hover:bg-orange/5"
                         >
                             <ArrowLeft className="h-4 w-4 text-white/40 transition-colors group-hover:text-orange" />

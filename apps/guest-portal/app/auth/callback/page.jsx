@@ -57,7 +57,7 @@ function AuthCallbackContent() {
     }, [user, authLoading, router, returnUrl, searchParams]);
 
     return (
-        <div className="relative min-h-screen bg-black flex items-center justify-center p-6 overflow-hidden">
+        <div className="relative h-[100dvh] bg-black flex items-center justify-center overflow-hidden">
             {/* Background Aesthetic */}
             <div className="absolute inset-0 z-0">
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[80vw] bg-orange/5 blur-[120px] rounded-full animate-pulse" />

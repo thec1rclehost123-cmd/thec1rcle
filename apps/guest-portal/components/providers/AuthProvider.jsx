@@ -15,6 +15,9 @@ import {
   signInWithEmailAndPassword,
   signOut,
   updateProfile as updateFirebaseProfile,
+  updatePassword as updateFirebasePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
@@ -30,7 +33,9 @@ const AuthContext = createContext({
   login: async () => { },
   register: async () => { },
   logout: async () => { },
-  updateEventList: async () => { }
+  updateEventList: async () => { },
+  updateUserProfile: async () => { },
+  changePassword: async () => { }
 });
 
 const buildProfilePayload = (firebaseUser, overrides = {}) => {
@@ -40,7 +45,8 @@ const buildProfilePayload = (firebaseUser, overrides = {}) => {
     email: firebaseUser.email || "",
     displayName: firebaseUser.displayName || "Member",
     photoURL: firebaseUser.photoURL || "",
-    gender: overrides.gender || "", // Added gender field
+    gender: overrides.gender || "",
+    phoneNumber: overrides.phoneNumber || "",
 
     attendedEvents: [],
     city: "",
@@ -116,8 +122,8 @@ export function AuthProvider({ children }) {
     const auth = getFirebaseAuth();
     await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
     const credential = await signInWithEmailAndPassword(auth, email, password);
-    await ensureProfile(credential.user);
-    return credential.user;
+    const profile = await ensureProfile(credential.user);
+    return { user: credential.user, profile };
   }, [ensureProfile]);
 
   const register = useCallback(
@@ -127,12 +133,12 @@ export function AuthProvider({ children }) {
       if (displayName) {
         await updateFirebaseProfile(credential.user, { displayName });
       }
-      await ensureProfile({
+      const profile = await ensureProfile({
         ...credential.user,
         displayName: displayName || credential.user.displayName,
         gender: gender // Pass gender to ensureProfile
       });
-      return credential.user;
+      return { user: credential.user, profile };
     },
     [ensureProfile]
   );
@@ -148,8 +154,8 @@ export function AuthProvider({ children }) {
     const auth = getFirebaseAuth();
     const provider = new GoogleAuthProvider();
     const credential = await signInWithPopup(auth, provider);
-    await ensureProfile(credential.user);
-    return credential.user;
+    const profile = await ensureProfile(credential.user);
+    return { user: credential.user, profile };
   }, [ensureProfile]);
 
   const updateEventList = useCallback(
@@ -181,14 +187,50 @@ export function AuthProvider({ children }) {
     async (updates) => {
       if (!user?.uid) throw new Error("Not logged in");
       const db = getFirebaseDb();
+      const auth = getFirebaseAuth();
       const profileRef = doc(db, "users", user.uid);
+
+      // Update Firestore
       await updateDoc(profileRef, {
         ...updates,
         updatedAt: new Date().toISOString()
       });
+
+      // Sync Firebase Auth profile if displayName or photoURL changed
+      if (auth.currentUser && (updates.displayName !== undefined || updates.photoURL !== undefined)) {
+        await updateFirebaseProfile(auth.currentUser, {
+          displayName: updates.displayName !== undefined ? updates.displayName : auth.currentUser.displayName,
+          photoURL: updates.photoURL !== undefined ? updates.photoURL : auth.currentUser.photoURL
+        });
+      }
+
       setProfile((prev) => ({ ...prev, ...updates }));
     },
     [user?.uid]
+  );
+
+  const changePassword = useCallback(
+    async (currentPassword, newPassword) => {
+      if (!user) throw new Error("Not logged in");
+
+      const auth = getFirebaseAuth();
+      const currentUser = auth.currentUser;
+
+      try {
+        // Re-authenticate user
+        const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
+        await reauthenticateWithCredential(currentUser, credential);
+
+        // Update password
+        await updateFirebasePassword(currentUser, newPassword);
+      } catch (err) {
+        if (err.code === 'auth/wrong-password') {
+          throw new Error("Current password is incorrect");
+        }
+        throw err;
+      }
+    },
+    [user]
   );
 
   const value = useMemo(
@@ -202,9 +244,10 @@ export function AuthProvider({ children }) {
       loginWithGoogle,
       logout,
       updateEventList,
-      updateUserProfile
+      updateUserProfile,
+      changePassword
     }),
-    [user, profile, loading, error, login, register, loginWithGoogle, logout, updateEventList, updateUserProfile]
+    [user, profile, loading, error, login, register, loginWithGoogle, logout, updateEventList, updateUserProfile, changePassword]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

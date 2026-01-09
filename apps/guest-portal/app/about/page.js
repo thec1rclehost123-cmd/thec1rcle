@@ -82,6 +82,7 @@ export default function AboutPage() {
         <NetworkSection />
         <UseCasesSection />
         <FAQSection />
+        <UniversitySection />
         <CareersSection />
         <HostAccessSection onAccess={handleHostAccess} />
         <CTASection />
@@ -98,6 +99,57 @@ export default function AboutPage() {
 
 function HostModal({ onClose }) {
   return null; // Host modal removed, moved to dedicated site
+}
+
+function UniversitySection() {
+  const courses = [
+    { title: "The Art of Curation", duration: "12 mins", level: "Beginner" },
+    { title: "Building Global Communities", duration: "45 mins", level: "Advanced" },
+    { title: "The Economics of Experience", duration: "30 mins", level: "Intermediate" },
+  ];
+
+  return (
+    <section id="university" className="py-32 px-6 border-t border-white/5">
+      <div className="max-w-7xl mx-auto">
+        <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div className="space-y-8">
+            <div className="space-y-4">
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-orange">The Playbook</span>
+              <h2 className="font-heading text-5xl sm:text-7xl font-bold leading-tight">
+                C1RCLE<br />University.
+              </h2>
+              <p className="max-w-md text-white/50 text-lg leading-relaxed">
+                We're open-sourcing our tribal knowledge. Learn the systems and strategies used by the world's most successful experience creators.
+              </p>
+            </div>
+            <div className="grid gap-4">
+              {courses.map((course) => (
+                <div key={course.title} className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 group hover:border-orange/50 transition-colors">
+                  <div>
+                    <h4 className="font-bold">{course.title}</h4>
+                    <span className="text-[10px] text-white/30 uppercase tracking-widest">{course.duration} • {course.level}</span>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-orange group-hover:text-black transition-all">
+                    →
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="relative aspect-square rounded-[40px] overflow-hidden border border-white/10">
+            <div className="absolute inset-0 bg-gradient-to-br from-orange/20 to-transparent z-10" />
+            <img src="/events/interview-crew.svg" alt="University" className="w-full h-full object-cover opacity-50" />
+            <div className="absolute inset-0 flex items-center justify-center z-20">
+              <div className="bg-black/50 backdrop-blur-xl p-8 rounded-[32px] border border-white/10 text-center">
+                <span className="block text-4xl mb-4">📚</span>
+                <p className="text-sm font-bold uppercase tracking-widest">Enrollment Starts<br />Feb 2025</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function CareersSection() {

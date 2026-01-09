@@ -21,21 +21,12 @@ export default function PageShell({ children, title, backHref, showLogo = true }
             <header className="sticky top-[72px] sm:top-[88px] z-40 w-full border-b border-black/[0.03] dark:border-white/[0.05] bg-white/40 dark:bg-black/40 backdrop-blur-xl">
                 <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
                     <div className="flex items-center gap-4">
-                        {backHref ? (
-                            <Link
-                                href={backHref}
-                                className="group flex h-9 w-9 items-center justify-center rounded-full border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/5 transition-all hover:bg-black/[0.05] dark:hover:bg-white/10"
-                            >
-                                <ArrowLeft className="h-4 w-4 text-black/60 dark:text-white/60 transition-colors group-hover:text-black dark:group-hover:text-white" />
-                            </Link>
-                        ) : (
-                            <button
-                                onClick={() => router.back()}
-                                className="group flex h-9 w-9 items-center justify-center rounded-full border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/5 transition-all hover:bg-black/[0.05] dark:hover:bg-white/10"
-                            >
-                                <ArrowLeft className="h-4 w-4 text-black/60 dark:text-white/60 transition-colors group-hover:text-black dark:group-hover:text-white" />
-                            </button>
-                        )}
+                        <button
+                            onClick={() => router.back()}
+                            className="group flex h-9 w-9 items-center justify-center rounded-full border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/5 transition-all hover:bg-black/[0.05] dark:hover:bg-white/10"
+                        >
+                            <ArrowLeft className="h-4 w-4 text-black/60 dark:text-white/60 transition-colors group-hover:text-black dark:group-hover:text-white" />
+                        </button>
 
                         {title && (
                             <h1 className="text-[10px] font-black uppercase tracking-[0.2em] text-black/80 dark:text-white/80">
@@ -61,7 +52,14 @@ export default function PageShell({ children, title, backHref, showLogo = true }
 
             {/* Footer */}
             <footer className="mt-auto py-12 border-t border-black/[0.03] dark:border-white/[0.05]">
-                <div className="mx-auto max-w-7xl px-6 text-center">
+                <div className="mx-auto max-w-7xl px-6 flex flex-col items-center gap-6">
+                    <div className="flex flex-wrap justify-center gap-x-8 gap-y-3">
+                        <Link href="/about" className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors">About</Link>
+                        <Link href="/about#university" className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors">University</Link>
+                        <Link href="/about#careers" className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors">Careers</Link>
+                        <Link href="/privacy" className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors">Privacy</Link>
+                        <Link href="/terms" className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors">Terms</Link>
+                    </div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-black/20 dark:text-white/20">
                         © <span suppressHydrationWarning>{new Date().getFullYear()}</span> THE C1RCLE. ALL RIGHTS RESERVED.
                     </p>

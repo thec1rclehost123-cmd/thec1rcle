@@ -17,6 +17,7 @@ import {
 } from "../../lib/server/ticketShareStore";
 import { getEvent } from "../../lib/server/eventStore";
 import { findUserByEmail as findUserByEmailStore } from "../../lib/server/profileStore";
+import { sendEmailOtp, verifyEmailOtp } from "../../lib/server/verification";
 
 export async function getUserTickets(userId) {
     // In a real app we'd verify the session user matches the requested userId
@@ -116,5 +117,33 @@ export async function cancelTransfer(transferId) {
     const user = await verifyAuth();
     if (!user) throw new Error("Unauthorized");
     return await cancelTransferStore(transferId, user.uid);
+}
+
+export async function sendTransferOTP() {
+    const user = await verifyAuth();
+    if (!user) throw new Error("Unauthorized");
+    return await sendEmailOtp(user.email, 'transaction');
+}
+
+export async function verifyAndInitiateTransfer(ticketId, recipientEmail, code) {
+    const user = await verifyAuth();
+    if (!user) throw new Error("Unauthorized");
+
+    // 1. Verify OTP
+    await verifyEmailOtp(user.email, code, 'transaction');
+
+    // 2. Proceed with transfer
+    return await initiateTransferStore(ticketId, user.uid, recipientEmail);
+}
+
+export async function verifyAndCreateShareBundle(orderId, eventId, quantity, tierId, code) {
+    const user = await verifyAuth();
+    if (!user) throw new Error("Unauthorized");
+
+    // 1. Verify OTP
+    await verifyEmailOtp(user.email, code, 'transaction');
+
+    // 2. Proceed with share
+    return await createShareBundleStore(orderId, user.uid, eventId, quantity, tierId);
 }
 
