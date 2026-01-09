@@ -981,7 +981,7 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
                                             <div
                                                 key={idx}
                                                 className={clsx(
-                                                    "w-6 h-6 rounded-lg flex items-center justify-center text-[8px] font-black border transition-all",
+                                                    "w-6 h-6 rounded-lg flex items-center justify-center text-[8px] font-black border transition-all overflow-hidden relative",
                                                     slot.isClaimedByOther
                                                         ? "bg-iris/10 border-iris/20 text-iris"
                                                         : slot.isClaimed
@@ -989,7 +989,11 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
                                                             : "bg-black/5 dark:bg-white/10 border-black/[0.08] dark:border-white/[0.08] text-black/40 dark:text-white/40"
                                                 )}
                                             >
-                                                {idx + 1}
+                                                {slot.assignment?.avatar ? (
+                                                    <img src={slot.assignment.avatar} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    idx + 1
+                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -1219,7 +1223,7 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
                                     )}
 
                                     <div className="flex flex-wrap justify-center gap-4 mt-8">
-                                        {currentTicket.isPrimaryBuyer && !currentTicket.isClaimedByOther && (
+                                        {currentTicket.isPrimaryBuyer && !currentTicket.isClaimedByOther && !currentTicket.isClaimed && (
                                             <button
                                                 onClick={async () => {
                                                     // Try native share if it's an individual ticket and already has a token
@@ -1235,7 +1239,7 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
                                                             // Fallback to modal if cancelled or fails
                                                         }
                                                     }
-                                                    onShare(currentTicket);
+                                                    onShare(ticket);
                                                 }}
                                                 className="group/btn h-12 w-12 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
                                             >
