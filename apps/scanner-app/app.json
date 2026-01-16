@@ -1,0 +1,59 @@
+{
+    "expo": {
+        "name": "C1RCLE Scanner",
+        "slug": "c1rcle-scanner",
+        "version": "1.0.0",
+        "orientation": "portrait",
+        "icon": "./assets/images/icon.png",
+        "scheme": "c1rcle-scanner",
+        "userInterfaceStyle": "dark",
+        "newArchEnabled": true,
+        "splash": {
+            "image": "./assets/images/splash-icon.png",
+            "resizeMode": "contain",
+            "backgroundColor": "#0A0A0B"
+        },
+        "ios": {
+            "supportsTablet": true,
+            "bundleIdentifier": "com.c1rcle.scanner",
+            "infoPlist": {
+                "NSCameraUsageDescription": "C1RCLE Scanner needs camera access to scan ticket QR codes"
+            }
+        },
+        "android": {
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/images/adaptive-icon.png",
+                "backgroundColor": "#0A0A0B"
+            },
+            "package": "com.c1rcle.scanner",
+            "permissions": [
+                "CAMERA",
+                "VIBRATE"
+            ]
+        },
+        "web": {
+            "bundler": "metro",
+            "output": "static",
+            "favicon": "./assets/images/favicon.png"
+        },
+        "plugins": [
+            "expo-router",
+            "expo-secure-store",
+            [
+                "expo-camera",
+                {
+                    "cameraPermission": "Allow C1RCLE Scanner to access your camera to scan ticket QR codes."
+                }
+            ],
+            [
+                "expo-av",
+                {
+                    "microphonePermission": false
+                }
+            ]
+        ],
+        "experiments": {
+            "typedRoutes": true
+        }
+    }
+}

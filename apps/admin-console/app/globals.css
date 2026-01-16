@@ -1,0 +1,192 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-heading: "Inter", "SF Pro Display", sans-serif;
+  --font-body: "Inter", "SF Pro Text", sans-serif;
+  --bg-color: #0C0C0B;
+  --text-primary: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --surface-1: #121211;
+  --surface-2: #18181B;
+  --surface-3: #1A1A19;
+  --border-primary: rgba(255, 255, 255, 0.06);
+  --border-secondary: rgba(255, 255, 255, 0.03);
+  --nav-bg-opaque: rgba(12, 12, 11, 0.95);
+  --nav-border: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(12, 12, 11, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.7);
+  --bg-gradient: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.02), transparent 70%);
+
+  /* Mobile Spacing System */
+  --page-px-mobile: 1rem;
+  --page-px-tablet: 1.5rem;
+  --page-px-desktop: 2rem;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    font-size: 18px;
+    /* Further increased to 18px for a more pronounced zoom effect */
+  }
+
+  body {
+    @apply font-body antialiased transition-colors duration-300 text-[16px];
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    background-attachment: fixed;
+    overflow-x: hidden;
+    width: 100%;
+    letter-spacing: -0.01em;
+  }
+
+  /* Tabular Figures for Numbers */
+  .font-mono-numbers {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* Custom Scrollbar - Minimal Obsidian Style */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+::selection {
+  @apply bg-iris/30 text-white;
+}
+
+/* Support for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply relative min-h-screen w-full overflow-x-hidden;
+    padding-left: var(--page-px-mobile);
+    padding-right: var(--page-px-mobile);
+  }
+
+  @media (min-width: 640px) {
+    .page-shell {
+      padding-left: var(--page-px-tablet);
+      padding-right: var(--page-px-tablet);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .page-shell {
+      padding-left: 0;
+      padding-right: 0;
+    }
+  }
+
+  .glass-panel {
+    @apply bg-obsidian-surface backdrop-blur-xl border border-[#ffffff08] shadow-card;
+  }
+
+  .glass-button {
+    @apply relative overflow-hidden bg-white/5 backdrop-blur-md border border-[#ffffff08] text-white font-medium transition-all duration-300 hover:bg-white/10 hover:border-white/15 hover:-translate-y-0.5 active:scale-95;
+  }
+
+  .modal-backdrop {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-obsidian-base/60 backdrop-blur-xl p-4;
+  }
+}
+
+@layer utilities {
+  .mask-fade-bottom {
+    mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+  }
+
+  .mask-fade-x {
+    mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2.5s linear infinite;
+  background-size: 1000px 100%;
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 2px rgba(244, 74, 34, 0.4));
+  }
+
+  50% {
+    opacity: 0.7;
+    filter: drop-shadow(0 0 8px rgba(244, 74, 34, 0.6));
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

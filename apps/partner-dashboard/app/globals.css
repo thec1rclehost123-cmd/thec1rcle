@@ -1,0 +1,1268 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE C1RCLE — OPERATOR DESIGN SYSTEM
+   Apple Pro. Operator-First. Calendar-Centric.
+   
+   "Visual silence exceeds decoration. Clarity exceeds cleverness."
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TYPOGRAPHY — Premium Grotesk Stack (Apple Pro)
+   No Inter. No Outfit. No AI-look.
+   Prioritizing SF Pro and Helvetica Now (System).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Light Palette - Apple Style */
+  --obsidian-base: #FFFFFF;
+  --obsidian-surface: #FAFAFB;
+  --obsidian-sidebar: #F2F2F7;
+  --obsidian-elevated: #FFFFFF;
+
+  /* Brand Accents */
+  --iris: #F44A22;
+  /* Signature Orange */
+  --iris-glow: rgba(244, 74, 34, 0.15);
+  --emerald-neon: #10B981;
+  --emerald-glow: rgba(16, 185, 129, 0.15);
+  --amber-neon: #E58E00;
+  /* Darker amber for better contrast on white */
+  --amber-glow: rgba(229, 142, 0, 0.1);
+
+  /* Typography Stack - Universal Premium Grotesk */
+  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Helvetica", "Arial", sans-serif;
+
+  /* Text Hierarchy - Dark Industrial - HIGH VISIBILITY */
+  --text-primary: #1D1D1F;
+  --text-secondary: #424245;
+  --text-tertiary: #86868B;
+  --text-placeholder: #A1A1A6;
+
+  /* Borders - Minimal Industrial */
+  --border-subtle: rgba(0, 0, 0, 0.04);
+  --border-default: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.15);
+
+  /* Canonical State Colors (Neon Dark Style) */
+  --state-confirmed: var(--emerald-neon);
+  --state-pending: var(--amber-neon);
+  --state-risk: var(--iris);
+  --state-draft: #6366F1;
+  /* Indigo */
+
+  /* Spacing Scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Border Radius - Technical/Precise */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-full: 9999px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BASE RESET & GLOBAL SCALING
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-size: 20px;
+  /* Increased base for premium readability and overall page scale */
+  background: var(--obsidian-base);
+}
+
+body {
+  font-family: var(--font-system);
+  background: var(--obsidian-base);
+  color: var(--text-primary);
+  line-height: 1.5;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  font-size: 18px;
+  /* increased body font size */
+  min-height: 100vh;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TYPOGRAPHY SCALE
+   Large line height. Generous spacing. Numbers must be strong.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.text-display {
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.text-headline {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.text-headline-sm {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  color: var(--text-primary);
+}
+
+.text-title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+
+.text-body {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
+.text-body-sm {
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.text-caption {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+
+/* Labels - Subtle, uppercase sparingly */
+.text-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* Numbers - Strong and readable */
+.text-stat {
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.text-stat-sm {
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Color utilities */
+.text-muted {
+  color: var(--text-tertiary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-primary {
+  color: var(--text-primary);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STATE COLORS — Color Is State, Not Decoration
+   Must always answer: "Is this okay, or do I need to act?"
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.state-confirmed {
+  color: var(--state-confirmed);
+}
+
+.state-confirmed-bg {
+  background-color: var(--state-confirmed-bg);
+}
+
+.state-pending {
+  color: var(--state-pending);
+}
+
+.state-pending-bg {
+  background-color: var(--state-pending-bg);
+}
+
+.state-risk {
+  color: var(--state-risk);
+}
+
+.state-risk-bg {
+  background-color: var(--state-risk-bg);
+}
+
+.state-draft {
+  color: var(--state-draft);
+}
+
+.state-draft-bg {
+  background-color: var(--state-draft-bg);
+}
+
+.state-neutral {
+  color: var(--state-neutral);
+}
+
+.state-neutral-bg {
+  background-color: var(--state-neutral-bg);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SURFACES & CARDS
+   Cards float gently — subtle depth, no harsh borders
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.surface-primary {
+  background: var(--obsidian-base);
+}
+
+.surface-secondary {
+  background: var(--obsidian-surface);
+}
+
+.surface-elevated {
+  background: var(--obsidian-elevated);
+}
+
+.card {
+  background: var(--obsidian-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  transition: box-shadow 0.2s ease;
+}
+
+.card-elevated {
+  background: var(--surface-elevated);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.card-interactive {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.card-interactive:hover {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.02),
+    0 8px 20px rgba(0, 0, 0, 0.04);
+}
+
+.card-interactive:active {
+  transform: scale(0.995);
+}
+
+.card-flat {
+  background: var(--surface-secondary);
+  border-radius: var(--radius-md);
+  border: none;
+}
+
+/* Panel - For side panels and modals */
+.panel {
+  background: var(--obsidian-surface);
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.05);
+  border-left: 1px solid var(--border-subtle);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.glass-card {
+  background: rgba(0, 0, 0, 0.02);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-lg);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUTTON SYSTEM
+   Tactile but restrained — no pulsing, no urgency
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  border-radius: var(--radius-md);
+  padding: 10px 18px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+  white-space: nowrap;
+}
+
+.btn:focus-visible {
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+.btn-primary {
+  background: var(--text-primary);
+  color: var(--surface-elevated);
+}
+
+.btn-primary:hover {
+  background: #000;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+}
+
+.btn-secondary:hover {
+  background: var(--surface-secondary);
+  border-color: var(--border-strong);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+}
+
+.btn-ghost:hover {
+  background: var(--surface-secondary);
+  color: var(--text-primary);
+}
+
+.btn-confirm {
+  background: var(--state-confirmed);
+  color: white;
+}
+
+.btn-confirm:hover {
+  background: #047857;
+}
+
+.btn-sm {
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+}
+
+.btn-lg {
+  font-size: 15px;
+  padding: 14px 24px;
+  border-radius: var(--radius-md);
+}
+
+.btn-icon {
+  padding: 10px;
+  border-radius: var(--radius-md);
+}
+
+.btn-icon-sm {
+  padding: 8px;
+  border-radius: var(--radius-sm);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INPUT SYSTEM
+   Forgiving and elegant — soft focus glow
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.input {
+  width: 100%;
+  background: var(--surface-secondary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-primary);
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--text-placeholder);
+}
+
+.input:hover {
+  background: var(--surface-tertiary);
+}
+
+.input:focus {
+  background: var(--surface-elevated);
+  border-color: var(--state-draft);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.input-error {
+  border-color: var(--state-risk);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.08);
+}
+
+.input-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NAVIGATION — Flat, Predictable, Calm
+   Boring navigation is good. Surprising navigation is bad.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  transition: all 0.12s ease;
+  text-decoration: none;
+}
+
+.nav-item:hover {
+  background: var(--surface-secondary);
+  color: var(--text-primary);
+}
+
+.nav-item-active {
+  background: var(--surface-secondary);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.nav-icon {
+  width: 18px;
+  height: 18px;
+  opacity: 0.65;
+}
+
+.nav-item-active .nav-icon {
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BADGE / STATUS INDICATORS
+   Small status indicators — state colors only
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.badge-neutral {
+  background: var(--surface-tertiary);
+  color: var(--text-secondary);
+}
+
+.badge-confirmed {
+  background: var(--state-confirmed-bg);
+  color: var(--state-confirmed);
+}
+
+.badge-pending {
+  background: var(--state-pending-bg);
+  color: var(--state-pending);
+}
+
+.badge-risk {
+  background: var(--state-risk-bg);
+  color: var(--state-risk);
+}
+
+.badge-draft {
+  background: var(--state-draft-bg);
+  color: var(--state-draft);
+}
+
+/* Status Dot */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-dot-confirmed {
+  background: var(--state-confirmed);
+}
+
+.status-dot-pending {
+  background: var(--state-pending);
+}
+
+.status-dot-risk {
+  background: var(--state-risk);
+}
+
+.status-dot-draft {
+  background: var(--state-draft);
+}
+
+.status-dot-neutral {
+  background: var(--text-placeholder);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIVIDERS & SEPARATORS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.divider {
+  height: 1px;
+  background: var(--border-subtle);
+  border: none;
+  margin: 0;
+}
+
+.divider-strong {
+  background: var(--border-default);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STAT DISPLAY
+   Numbers must be strong and readable
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+.stat-change {
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-change-up {
+  color: var(--state-confirmed);
+}
+
+.stat-change-down {
+  color: var(--state-risk);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANIMATIONS — Motion exists only to clarify spatial relationships
+   No playful easing. No delayed animations.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(244, 74, 34, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(244, 74, 34, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(244, 74, 34, 0);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.25s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s ease-out;
+}
+
+/* Stagger children - subtle */
+.stagger-children>* {
+  animation: slide-up 0.25s ease-out backwards;
+}
+
+.stagger-children>*:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.stagger-children>*:nth-child(2) {
+  animation-delay: 30ms;
+}
+
+.stagger-children>*:nth-child(3) {
+  animation-delay: 60ms;
+}
+
+.stagger-children>*:nth-child(4) {
+  animation-delay: 90ms;
+}
+
+.stagger-children>*:nth-child(5) {
+  animation-delay: 120ms;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GLASS SURFACES — Selectively applied
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.glass-nav {
+  background: rgba(250, 250, 249, 0.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYOUT UTILITIES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.container-narrow {
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.container-default {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.container-wide {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCROLLBAR — Minimal
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom scrollbar for dark areas */
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SELECTION
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+::selection {
+  background: rgba(79, 70, 229, 0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOGGLE / SWITCH
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--surface-tertiary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.toggle-active {
+  background: var(--state-confirmed);
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.15s ease;
+}
+
+.toggle-active .toggle-knob {
+  transform: translateX(20px);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EMPTY STATE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12) var(--space-8);
+  text-align: center;
+}
+
+.empty-state-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-5);
+}
+
+.empty-state-icon svg {
+  width: 24px;
+  height: 24px;
+  color: var(--text-tertiary);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AVATAR
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--surface-secondary);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.avatar-sm {
+  width: 32px;
+  height: 32px;
+  font-size: 12px;
+}
+
+.avatar-md {
+  width: 40px;
+  height: 40px;
+  font-size: 14px;
+}
+
+.avatar-lg {
+  width: 56px;
+  height: 56px;
+  font-size: 18px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIST ITEMS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.list-item {
+  display: flex;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.list-item:last-child {
+  border-bottom: none;
+}
+
+.list-item-interactive {
+  cursor: pointer;
+  transition: background 0.12s ease;
+  margin: 0 -14px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+}
+
+.list-item-interactive:hover {
+  background: var(--surface-secondary);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ICON CONTAINER
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+}
+
+.icon-container-sm {
+  width: 32px;
+  height: 32px;
+}
+
+.icon-container-md {
+  width: 40px;
+  height: 40px;
+}
+
+.icon-container-lg {
+  width: 48px;
+  height: 48px;
+}
+
+.icon-container svg {
+  color: var(--text-tertiary);
+}
+
+.icon-container-accent {
+  background: var(--state-draft-bg);
+}
+
+.icon-container-accent svg {
+  color: var(--state-draft);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FOCUS STATES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+.focus-ring:focus:not(:focus-visible) {
+  box-shadow: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CALENDAR SPECIFIC STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--border-subtle);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+
+.calendar-cell {
+  aspect-ratio: 1.15 / 1;
+  background: var(--surface-elevated);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.calendar-cell:hover {
+  background: var(--surface-secondary);
+}
+
+.calendar-cell-selected {
+  box-shadow: inset 0 0 0 2px var(--text-primary);
+}
+
+.calendar-cell-today {
+  position: relative;
+}
+
+.calendar-cell-today::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--state-draft);
+}
+
+.calendar-day-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 12px 0;
+  text-align: center;
+  background: var(--surface-secondary);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE UTILITIES  
+   Mobile-first responsive design with touch-friendly targets
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Small Mobile (< 480px) */
+@media (max-width: 480px) {
+  .text-display {
+    font-size: 28px;
+  }
+
+  .text-headline {
+    font-size: 20px;
+  }
+
+  .text-headline-sm {
+    font-size: 16px;
+  }
+
+  .stat-value {
+    font-size: 22px;
+  }
+
+  /* Calendar Mobile Adaptations */
+  .calendar-grid {
+    border-radius: var(--radius-lg);
+    gap: 0;
+  }
+
+  .calendar-cell {
+    padding: 6px 4px;
+    aspect-ratio: 1;
+    min-height: 48px;
+  }
+
+  .calendar-day-label {
+    font-size: 9px;
+    padding: 8px 0;
+    letter-spacing: 0;
+  }
+
+  .calendar-cell-today::before {
+    width: 4px;
+    height: 4px;
+    top: 4px;
+    right: 4px;
+  }
+
+  /* Touch-friendly button targets */
+  .btn {
+    min-height: 44px;
+    padding: 12px 16px;
+  }
+
+  .btn-sm {
+    min-height: 40px;
+    padding: 10px 14px;
+  }
+
+  /* Better input sizing */
+  .input {
+    font-size: 16px;
+    /* Prevents zoom on iOS */
+    padding: 14px 16px;
+    min-height: 48px;
+  }
+
+  /* Card padding adjustments */
+  .card,
+  .card-elevated {
+    padding: 16px;
+  }
+
+  /* Mobile-friendly spacing */
+  .page-container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* Tablet & Small Laptops (< 768px) */
+@media (max-width: 768px) {
+  .text-display {
+    font-size: 32px;
+  }
+
+  .text-headline {
+    font-size: 24px;
+  }
+
+  .stat-value {
+    font-size: 26px;
+  }
+
+  /* Calendar Tablet Adaptations */
+  .calendar-cell {
+    padding: 8px;
+  }
+
+  .calendar-day-label {
+    font-size: 10px;
+  }
+
+  /* Modals should be full-width on mobile */
+  .modal-content {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    border-radius: 24px 24px 0 0;
+    max-height: 90vh;
+  }
+
+  /* Horizontal scrollable containers */
+  .scroll-container-mobile {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .scroll-container-mobile::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scroll-container-mobile>* {
+    scroll-snap-align: start;
+    flex-shrink: 0;
+  }
+
+  /* Stack horizontal layouts */
+  .mobile-stack {
+    flex-direction: column !important;
+  }
+
+  .mobile-stack>* {
+    width: 100% !important;
+  }
+
+  /* Hide elements on mobile */
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+/* Show only on mobile */
+@media (min-width: 769px) {
+  .show-mobile-only {
+    display: none !important;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+
+  /* Larger touch targets */
+  .nav-item,
+  .list-item-interactive {
+    min-height: 48px;
+  }
+
+  /* Remove hover effects that don't work on touch */
+  .card-interactive:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Add active states instead */
+  .card-interactive:active {
+    transform: scale(0.98);
+    opacity: 0.9;
+  }
+
+  .btn:active {
+    transform: scale(0.97);
+  }
+
+  /* Better scroll behavior */
+  .custom-scrollbar {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Fixed bottom elements should respect safe area */
+  .fixed-bottom-nav {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+}
+
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHIMMER / LOADING STATES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+}
+
+.skeleton {
+  background: var(--surface-secondary);
+  border-radius: var(--radius-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, 0.4),
+      transparent);
+  animation: shimmer 2s infinite;
+}

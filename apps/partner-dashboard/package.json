@@ -1,0 +1,41 @@
+{
+  "name": "@c1rcle/partner-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@c1rcle/core": "*",
+    "@c1rcle/ui": "*",
+    "@opentelemetry/api": "^1.9.0",
+    "clsx": "^2.1.1",
+    "firebase": "^12.6.0",
+    "firebase-admin": "^13.6.0",
+    "framer-motion": "^11.2.6",
+    "lenis": "^1.3.15",
+    "lucide-react": "^0.554.0",
+    "next": "^14.2.3",
+    "next-themes": "^0.3.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-easy-crop": "^5.5.5",
+    "resend": "^6.5.2",
+    "tailwind-merge": "^3.4.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@types/react": "^18.3.27",
+    "@types/react-dom": "^18.3.7",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2.3",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.18",
+    "typescript": "^5.9.3"
+  }
+}

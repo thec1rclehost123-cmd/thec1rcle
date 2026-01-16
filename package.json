@@ -1,0 +1,22 @@
+{
+  "name": "@c1rcle/monorepo",
+  "private": true,
+  "packageManager": "npm@11.6.2",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "dev:guest": "npm run dev -w apps/guest-portal",
+    "dev:partner": "npm run dev -w apps/partner-dashboard",
+    "dev:admin": "npm run dev -w apps/admin-console",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "install:all": "npm install"
+  },
+  "devDependencies": {
+    "turbo": "^2.7.3"
+  }
+}

@@ -1,0 +1,232 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- 🛡️ AUTHORITY HELPERS ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+    
+    function isSuper() {
+      return isAdmin() && request.auth.token.admin_role == 'super';
+    }
+
+    // --- 🧾 AUDIT & GOVERNANCE ---
+    match /admin_audit_logs/{logId} {
+      allow read, create: if isAdmin();
+      allow update, delete: if false; 
+    }
+
+    match /proposed_actions/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // --- 👥 SILOED IDENTITY DOMAINS ---
+
+    // 1. Consumer Domain
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId 
+                      && !request.resource.data.diff(resource.data).affectedKeys()
+                          .hasAny(['role', 'admin_role', 'admin', 'isBanned']));
+    }
+
+    // 2. Business Domains (Entity Records)
+    match /venues/{venueId} {
+      allow read: if true; 
+      allow write: if isAdmin(); 
+    }
+
+    match /hosts/{hostId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    match /promoters/{promoterId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    // 3. Admin Domain
+    match /admins/{adminId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == adminId);
+      allow write: if isSuper();
+    }
+
+    // 4. Onboarding & Memberships
+    match /onboarding_requests/{requestId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+    }
+
+    match /partner_memberships/{id} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    // --- 📦 OPERATIONAL DATA ---
+    match /events/{eventId} {
+      // Drafts and sensitive states are restricted
+      allow read: if isAdmin() || 
+                    (resource.data.lifecycle in ['scheduled', 'live', 'completed', 'cancelled'] && !resource.data.isDeleted) ||
+                    (isSignedIn() && (
+                        resource.data.creatorId == request.auth.uid || 
+                        resource.data.venueId == request.auth.uid ||
+                        resource.data.hostId == request.auth.uid ||
+                        request.auth.token.partnerId == resource.data.creatorId ||
+                        request.auth.token.partnerId == resource.data.venueId
+                    ));
+      allow write: if isAdmin(); // Partners write via server routes
+    }
+
+    // --- 🎪 EVENT MANAGEMENT ---
+    
+    // Slot Requests: Host requests venue slots from clubs
+    match /slot_requests/{requestId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.hostId == request.auth.uid ||
+        resource.data.clubId == request.auth.uid
+      ));
+      allow create: if isSignedIn(); // Hosts can create requests
+      allow update: if isAdmin() || (isSignedIn() && 
+        resource.data.clubId == request.auth.uid); // Clubs can approve/reject
+    }
+
+    // Club Calendar: Venue availability
+    match /club_calendar/{calendarId} {
+      allow read: if isSignedIn(); // Partners can view availability
+      allow write: if isAdmin(); // Only clubs via backend can modify
+    }
+
+    // --- 💼 PROMOTER SYSTEM ---
+    
+    // Promoter Links: Affiliate tracking
+    match /promoter_links/{linkId} {
+      allow read: if isAdmin() || (isSignedIn() && 
+        resource.data.promoterId == request.auth.uid);
+      allow create: if isSignedIn(); // Promoters can create links
+      allow update: if isAdmin(); // Stats updates go through backend
+    }
+
+    // Promoter Commissions: Earnings tracking
+    match /promoter_commissions/{commissionId} {
+      allow read: if isAdmin() || (isSignedIn() && 
+        resource.data.promoterId == request.auth.uid);
+      allow write: if isAdmin(); // Only backend can create/update
+    }
+
+    // Promoter Connections: Partnership requests between promoters and hosts/clubs
+    match /promoter_connections/{connectionId} {
+      // Promoters can read their own requests, hosts/clubs can read requests targeting them
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.promoterId == request.auth.uid ||
+        resource.data.targetId == request.auth.uid ||
+        resource.data.targetId == request.auth.token.partnerId
+      ));
+      // Promoters can create new connection requests
+      allow create: if isSignedIn();
+      // Hosts/clubs can approve/reject requests targeting them, promoters can cancel their own
+      allow update: if isAdmin() || (isSignedIn() && (
+        resource.data.targetId == request.auth.uid ||
+        resource.data.targetId == request.auth.token.partnerId ||
+        resource.data.promoterId == request.auth.uid
+      ));
+      // Only admins can delete connection records
+      allow delete: if isAdmin();
+    }
+
+    // Partnerships: Host-Club relationships
+    match /partnerships/{partnershipId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.hostId == request.auth.uid ||
+        resource.data.clubId == request.auth.uid
+      ));
+      allow create: if isSignedIn(); // Hosts can request partnerships
+      allow update: if isAdmin() || (isSignedIn() && 
+        resource.data.clubId == request.auth.uid); // Clubs can approve
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.uid == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.customerId == request.auth.uid
+      ));
+      allow write: if isAdmin();
+    }
+
+    // --- 🎟️ TICKETING SYSTEM (Phase 1) ---
+    
+    // Cart Reservations: Temporary ticket holds
+    match /cart_reservations/{reservationId} {
+      allow read: if isAdmin() || (isSignedIn() && 
+        resource.data.customerId == request.auth.uid);
+      allow create: if isSignedIn(); // Users can create reservations
+      allow update: if isAdmin(); // Only backend updates status
+      allow delete: if isAdmin();
+    }
+
+    // Refund Requests: User refund requests with admin approval
+    match /refund_requests/{requestId} {
+      allow read: if isAdmin() || (isSignedIn() && 
+        resource.data.customerId == request.auth.uid);
+      allow create: if isSignedIn(); // Users can request refunds
+      allow update: if isAdmin(); // Only admins can approve/reject
+      allow delete: if false; // Refund requests are immutable
+    }
+
+    // Ticket Scans: Entry validation logs
+    match /ticket_scans/{scanId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        // Club staff can read scans for their events
+        resource.data.scannedBy.uid == request.auth.uid
+      ));
+      allow create: if isSignedIn(); // Staff can create scans
+      allow update, delete: if false; // Scans are immutable
+    }
+
+    // Club Staff: Staff management for venues
+    match /club_staff/{staffId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.clubId == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      ));
+      allow create: if isSignedIn(); // Clubs can invite staff
+      allow update: if isAdmin() || (isSignedIn() && 
+        resource.data.clubId == request.auth.uid); // Clubs can update their staff
+      allow delete: if isAdmin() || (isSignedIn() && 
+        resource.data.clubId == request.auth.uid);
+    }
+
+    // Bound Devices: Scanner device binding
+    match /bound_devices/{deviceId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.clubId == request.auth.uid ||
+        resource.data.staffId == request.auth.uid
+      ));
+      allow write: if isAdmin() || (isSignedIn() && 
+        resource.data.clubId == request.auth.uid);
+    }
+
+    // Promo Code Redemptions: Track code usage
+    match /promo_redemptions/{redemptionId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn(); // Backend creates on checkout
+      allow update, delete: if false; // Redemptions are immutable
+    }
+
+    // --- 🏁 DEFAULT CATCH-ALL ---
+    match /{document=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

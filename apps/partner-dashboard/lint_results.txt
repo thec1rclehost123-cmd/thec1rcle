@@ -1,0 +1,181 @@
+
+> @c1rcle/partner-dashboard@0.1.0 lint
+> next lint
+
+
+./app/club/connections/requests/page.tsx
+318:126  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+318:144  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./app/club/events/[id]/page.tsx
+46:8  Warning: React Hook useEffect has a missing dependency: 'fetchEventData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+290:161  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+299:37  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+481:73  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+481:73  Warning: img elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+
+./app/club/events/requests/page.tsx
+71:8  Warning: React Hook useEffect has a missing dependency: 'fetchRequests'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+279:41  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/club/page-management/page.tsx
+49:8  Warning: React Hook useEffect has a missing dependency: 'profile?.activeMembership?.partnerId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+61:8  Warning: React Hook useEffect has missing dependencies: 'composerContent', 'composerImage', and 'profile?.activeMembership?.partnerId'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+82:8  Warning: React Hook useEffect has a missing dependency: 'fetchProfileData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+243:93  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+316:45  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+331:45  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+366:49  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+523:49  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/club/registers/page.tsx
+65:8  Warning: React Hook useEffect has a missing dependency: 'fetchRegister'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/club/security/page.tsx
+83:8  Warning: React Hook useEffect has a missing dependency: 'fetchSecurityData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/club/staff/page.tsx
+66:8  Warning: React Hook useEffect has a missing dependency: 'fetchStaff'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+142:81  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+409:91  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./app/club/tables/page.tsx
+92:8  Warning: React Hook useEffect has missing dependencies: 'fetchTables' and 'fetchTonightEvent'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+189:32  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+255:118  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./app/forgot-password/page.jsx
+68:52  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+82:39  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+85:41  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./app/host/events/[id]/page.tsx
+198:29  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+198:137  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./app/host/partnerships/page.tsx
+27:8  Warning: React Hook useEffect has a missing dependency: 'fetchPartnerships'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+125:29  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+125:131  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./app/host/profile/page.tsx
+47:8  Warning: React Hook useEffect has a missing dependency: 'profile?.activeMembership?.partnerId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+59:8  Warning: React Hook useEffect has missing dependencies: 'composerContent', 'composerImage', and 'profile?.activeMembership?.partnerId'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+80:8  Warning: React Hook useEffect has a missing dependency: 'fetchProfileData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+326:45  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+341:45  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+376:49  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+533:49  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/host/promoters/page.tsx
+344:124  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+388:61  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+388:127  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+395:65  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+395:83  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./app/not-found.js
+49:37  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+50:28  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./app/onboard/page.tsx
+364:91  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./app/promoter/events/page.tsx
+70:8  Warning: React Hook useEffect has missing dependencies: 'fetchEvents' and 'fetchMyLinks'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+224:41  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/promoter/links/page.tsx
+109:84  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./app/promoter/page.tsx
+190:46  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+322:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/promoter/payouts/page.tsx
+66:8  Warning: React Hook useEffect has a missing dependency: 'fetchPayoutData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./app/promoter/profile/page.tsx
+177:41  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+177:124  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./components/BuyTicketsModal.jsx
+13:73  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./components/ExploreCarouselHeader.jsx
+31:6  Warning: React Hook useEffect has a missing dependency: 'nextSlide'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/HostVerificationForm.jsx
+170:98  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./components/ShimmerImage.jsx
+40:7  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+
+./components/calendar/OperatingCalendar.tsx
+109:8  Warning: React Hook useEffect has a missing dependency: 'fetchCalendar'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/discovery/DiscoveryView.tsx
+190:86  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+246:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/emails/TicketEmail.jsx
+17:13  Warning: Do not use `<head>` element. Use `<Head />` from `next/head` instead. See: https://nextjs.org/docs/messages/no-head-element  @next/next/no-head-element
+41:44  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+67:25  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+191:25  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/events/SurgeMonitor.jsx
+44:8  Warning: React Hook useEffect has a missing dependency: 'fetchSurgeData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/studio/EventStudio.tsx
+32:20  Error: React Hook "useMemo" is called conditionally. React Hooks must be called in the exact same order in every component render. Did you accidentally call a React Hook after an early return?  react-hooks/rules-of-hooks
+
+./components/ui/Avatar.tsx
+50:9  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/ui/Card.tsx
+96:7  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/wizard/CreateEventWizard.tsx
+943:66  Error: 'User' is not defined.  react/jsx-no-undef
+1053:62  Error: 'Globe' is not defined.  react/jsx-no-undef
+
+./components/wizard/MediaStep.tsx
+475:61  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+501:33  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/wizard/PublishConfirmationModal.tsx
+221:90  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./components/wizard/TableBookingStep.tsx
+297:41  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./components/wizard/VenueStep.tsx
+35:8  Warning: React Hook useEffect has a missing dependency: 'fetchVenueCalendar'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./components/wizard/steps/CapacityStep.tsx
+84:62  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./lib/server/inventoryService.js
+628:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+./lib/server/promoCodeService.js
+396:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+./lib/server/refundService.js
+550:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+./lib/server/staffService.js
+676:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+./lib/server/ticketingService.js
+494:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules
+npm error Lifecycle script `lint` failed with error:
+npm error code 1
+npm error path /Users/aayushdivase/posh-india/apps/partner-dashboard
+npm error workspace @c1rcle/partner-dashboard@0.1.0
+npm error location /Users/aayushdivase/posh-india/apps/partner-dashboard
+npm error command failed
+npm error command sh -c next lint
