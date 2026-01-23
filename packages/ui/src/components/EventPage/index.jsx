@@ -159,6 +159,17 @@ export default function EventDetailPage({
         visible: { opacity: 1, y: 0 }
     };
 
+    const isTonight = useMemo(() => {
+        if (!event?.startDate) return false;
+        return new Date(event.startDate).toDateString() === new Date().toDateString();
+    }, [event?.startDate]);
+
+    const isLive = event?.lifecycle === "live" || event?.status === "live";
+
+    useEffect(() => {
+        handleAction("TRACK", { event: "event_view", eventId: event?.id });
+    }, [event?.id]);
+
     return (
         <div className={`relative isolate overflow-hidden pb-32 pt-2 text-white bg-black transition-colors duration-500 ${isPreview ? "preview-mode pointer-events-auto" : ""}`} style={{ "--bg-color": "#000", "--text-primary": "#fff", "--text-secondary": "rgba(255,255,255,0.7)", "--text-muted": "rgba(255,255,255,0.4)" }}>
             {/* Cinematic Noise & Glow Overlay */}
@@ -224,8 +235,13 @@ export default function EventDetailPage({
                                 <div className="flex flex-wrap items-center gap-5">
                                     <div className="flex items-center gap-2 rounded-full border border-orange/20 bg-orange/5 px-4 py-2">
                                         <span className="h-1.5 w-1.5 rounded-full bg-orange animate-pulse" />
-                                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-orange">{event?.category || "Upcoming"}</span>
+                                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-orange">{isLive ? "LIVE NOW" : (isTonight ? "TONIGHT" : (event?.category || "Upcoming"))}</span>
                                     </div>
+                                    {event?.isHighDemand && (
+                                        <div className="flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/5 px-4 py-2">
+                                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">SELLING FAST</span>
+                                        </div>
+                                    )}
                                     <div className="text-xs font-bold uppercase tracking-[0.15em] text-white/40">
                                         {formatEventDate(event?.startDate)} • {event?.venue || "The Secret Circle"}
                                     </div>
@@ -276,9 +292,15 @@ export default function EventDetailPage({
                                 </motion.section>
 
                                 <motion.section className="rounded-[40px] border border-white/10 bg-white/[0.02] p-8">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 mb-4">Location</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 mb-4">Location & Entry</p>
                                     <p className="text-3xl font-display uppercase tracking-tighter text-white leading-tight mb-2">{event?.location || "TBA"}</p>
-                                    <p className="text-[10px] font-bold text-orange uppercase tracking-[0.2em]">{event?.venue}</p>
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-[10px] font-bold text-orange uppercase tracking-[0.2em]">{event?.venue}</p>
+                                        <div className="flex gap-3">
+                                            {event?.ageLimit && <span className="text-[9px] font-black border border-white/10 px-2 py-1 rounded bg-white/5">{event.ageLimit}</span>}
+                                            {event?.dressCode && <span className="text-[9px] font-black border border-white/10 px-2 py-1 rounded bg-white/5">DRESS: {event.dressCode.toUpperCase()}</span>}
+                                        </div>
+                                    </div>
                                 </motion.section>
                             </div>
                         </div>

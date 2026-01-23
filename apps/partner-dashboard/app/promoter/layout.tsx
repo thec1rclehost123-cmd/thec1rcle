@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
+import { motion, AnimatePresence } from "framer-motion";
 import {
     LayoutDashboard,
     CalendarDays,
@@ -66,7 +67,7 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
     return (
         <ApprovalGuard>
             <RoleGuard allowedType="promoter">
-                <div className="min-h-screen bg-obsidian-base">
+                <div className="min-h-screen bg-[var(--surface-base)]">
                     {/* Desktop Sidebar */}
                     <div className="hidden lg:block">
                         <AppleSidebar
@@ -78,53 +79,72 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
                     </div>
 
                     {/* Mobile Header */}
-                    <header className="lg:hidden h-14 bg-obsidian-base/80 backdrop-blur-xl border-b border-black/[0.05] fixed top-0 left-0 right-0 z-50 px-4 flex items-center justify-between">
+                    <header className="lg:hidden h-14 bg-[var(--surface-base)]/90 backdrop-blur-xl border-b border-[var(--border-subtle)] fixed top-0 left-0 right-0 z-50 px-4 flex items-center justify-between">
                         <button
                             onClick={() => setSidebarOpen(true)}
-                            className="p-2 rounded-lg hover:bg-black/5"
+                            className="p-2 rounded-lg hover:bg-[var(--surface-secondary)] transition-colors"
                         >
                             <Menu className="h-5 w-5 text-[var(--text-primary)]" />
                         </button>
-                        <span className="text-[15px] font-bold text-[var(--text-primary)] tracking-widest uppercase">C1RCLE</span>
+                        <div className="flex items-center gap-2">
+                            <span className="w-7 h-7 rounded-lg bg-[var(--text-primary)] flex items-center justify-center text-[var(--text-inverse)] text-[11px] font-bold">P</span>
+                            <span className="text-[13px] font-bold text-[var(--text-primary)] tracking-wide">C1RCLE</span>
+                        </div>
                         <div className="w-9" />
                     </header>
 
                     {/* Mobile Sidebar Overlay */}
-                    {sidebarOpen && (
-                        <div className="fixed inset-0 z-[100] lg:hidden">
-                            <div
-                                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                                onClick={() => setSidebarOpen(false)}
-                            />
-                            <div className="absolute inset-y-0 left-0 w-[300px] bg-obsidian-sidebar border-r border-black/[0.05] shadow-2xl animate-slide-up">
-                                <div className="absolute top-4 right-4">
-                                    <button
-                                        onClick={() => setSidebarOpen(false)}
-                                        className="p-2 rounded-lg hover:bg-black/5"
-                                    >
-                                        <X className="h-5 w-5 text-[var(--text-tertiary)]" />
-                                    </button>
-                                </div>
-                                <AppleSidebar
-                                    brandLetter="P"
-                                    brandLabel="Promoter"
-                                    menuSections={menuSections}
-                                    basePath="/promoter"
+                    <AnimatePresence>
+                        {sidebarOpen && (
+                            <div className="fixed inset-0 z-[100] lg:hidden">
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                                    onClick={() => setSidebarOpen(false)}
                                 />
+                                <motion.div
+                                    initial={{ x: -280 }}
+                                    animate={{ x: 0 }}
+                                    exit={{ x: -280 }}
+                                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                                    className="absolute inset-y-0 left-0 w-[280px] bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] shadow-2xl"
+                                >
+                                    <div className="absolute top-4 right-4 z-10">
+                                        <button
+                                            onClick={() => setSidebarOpen(false)}
+                                            className="p-2 rounded-lg hover:bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
+                                        >
+                                            <X className="h-5 w-5" />
+                                        </button>
+                                    </div>
+                                    <AppleSidebar
+                                        brandLetter="P"
+                                        brandLabel="Promoter"
+                                        menuSections={menuSections}
+                                        basePath="/promoter"
+                                    />
+                                </motion.div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </AnimatePresence>
 
                     {/* Main Content */}
-                    <div className="lg:pl-[300px] flex flex-col min-h-screen pt-14 lg:pt-0">
-                        <div className="hidden lg:block sticky top-0 z-50">
+                    <div className="lg:pl-[280px] flex flex-col min-h-screen pt-14 lg:pt-0">
+                        <div className="hidden lg:block sticky top-0 z-40">
                             <AppleTopBar />
                         </div>
 
-                        <main className="flex-1 p-6 lg:p-10">
-                            <div className="max-w-[1400px] mx-auto animate-slide-up">
+                        <main className="flex-1 p-4 sm:p-6 lg:p-8 xl:p-10">
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.3 }}
+                                className="max-w-[1600px] mx-auto"
+                            >
                                 {children}
-                            </div>
+                            </motion.div>
                         </main>
                     </div>
                 </div>

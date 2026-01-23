@@ -17,6 +17,7 @@ import {
     verifyAndCreateShareBundle
 } from "./actions";
 import { formatEventDate, formatTimeIST } from "@c1rcle/core/time";
+import { pickDominantColor, formatColor } from "@c1rcle/core/theme";
 import Link from "next/link";
 import Image from "next/image";
 import ShimmerImage from "../../components/ShimmerImage";
@@ -33,50 +34,22 @@ const useDominantColor = (imageUrl) => {
 
     useEffect(() => {
         if (!imageUrl) return;
+
         const img = new window.Image();
         img.crossOrigin = "Anonymous";
         img.src = imageUrl;
+
         img.onload = () => {
-            try {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                // Sample a 10x10 grid for a better palette represention
-                canvas.width = 10;
-                canvas.height = 10;
-                ctx.drawImage(img, 0, 0, 10, 10);
-                const data = ctx.getImageData(0, 0, 10, 10).data;
+            const canvas = document.createElement('canvas');
+            canvas.width = 10;
+            canvas.height = 10;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, 10, 10);
+            const data = ctx.getImageData(0, 0, 10, 10).data;
 
-                let bestColor = { r: 244, g: 74, b: 34, score: -1 }; // Default orange
-
-                for (let i = 0; i < data.length; i += 4) {
-                    const r = data[i];
-                    const g = data[i + 1];
-                    const b = data[i + 2];
-
-                    // Simple HSL conversion for scoring
-                    const rNorm = r / 255, gNorm = g / 255, bNorm = b / 255;
-                    const max = Math.max(rNorm, gNorm, bNorm), min = Math.min(rNorm, gNorm, bNorm);
-                    const l = (max + min) / 2;
-                    const d = max - min;
-                    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-
-                    // Skip colors that are too dark (black/near-black) or too gray
-                    if (l < 0.15 || (l < 0.3 && s < 0.2) || s < 0.1) continue;
-
-                    // Score based on vibrancy (saturation * lightness)
-                    // We want something that pops but isn't pure white
-                    const score = s * (1 - Math.abs(l - 0.5));
-
-                    if (score > bestColor.score) {
-                        bestColor = { r, g, b, score };
-                    }
-                }
-
-                setColor(`rgb(${bestColor.r}, ${bestColor.g}, ${bestColor.b})`);
-                setRgb(`${bestColor.r}, ${bestColor.g}, ${bestColor.b}`);
-            } catch (e) {
-                console.error("Color extraction failed", e);
-            }
+            const bestColor = pickDominantColor(data);
+            setColor(formatColor.rgba(bestColor, 0.4));
+            setRgb(formatColor.values(bestColor));
         };
     }, [imageUrl]);
 

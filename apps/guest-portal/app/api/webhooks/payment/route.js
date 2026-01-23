@@ -226,12 +226,24 @@ export async function POST(request) {
 
             console.log(`[Webhook] Refund processed for payment ${paymentId}`);
 
-            // Refund handling is managed by refundService
-            // This hook is for logging only
+            if (isFirebaseConfigured()) {
+                const db = getAdminDb();
+                const orderSnapshot = await db.collection("orders")
+                    .where("paymentDetails.razorpayPaymentId", "==", paymentId)
+                    .limit(1)
+                    .get();
+
+                if (!orderSnapshot.empty) {
+                    const orderId = orderSnapshot.docs[0].id;
+                    const { invalidateOrderTickets } = await import("@/lib/server/ticketShareStore");
+                    await invalidateOrderTickets(orderId, "refunded");
+                    console.log(`[Webhook] Invalidated tickets for refunded order ${orderId}`);
+                }
+            }
 
             return NextResponse.json({
                 status: "handled",
-                message: "Refund event logged"
+                message: "Refund processed and tickets invalidated"
             });
         }
 

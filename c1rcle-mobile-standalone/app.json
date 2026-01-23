@@ -1,0 +1,66 @@
+{
+  "expo": {
+    "name": "THE C1RCLE",
+    "slug": "c1rcle",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "c1rcle",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#161616"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.c1rcle.app",
+      "backgroundColor": "#161616",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "THE C1RCLE needs your location for safety features like SOS alerts and sharing your location with friends.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "THE C1RCLE needs background location access to share your location with friends during events.",
+        "NSCameraUsageDescription": "THE C1RCLE needs camera access to scan QR codes and take profile photos.",
+        "NSPhotoLibraryUsageDescription": "THE C1RCLE needs photo library access to set your profile picture."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#161616"
+      },
+      "package": "com.c1rcle.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow THE C1RCLE to access your location for safety features."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#F44A22"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

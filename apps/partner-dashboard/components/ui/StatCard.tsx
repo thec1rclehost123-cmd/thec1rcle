@@ -6,11 +6,11 @@ import { type ReactNode } from "react";
 /**
  * StatCard Component — Key Metric Display
  * 
- * Numbers must be strong and readable.
- * State colors indicate health/attention needs.
+ * Uses CSS variables for dark mode support
+ * Numbers are strong and readable with trend indicators
  */
 
-export type StatState = "default" | "confirmed" | "pending" | "risk";
+export type StatState = "default" | "success" | "warning" | "error" | "info" | "accent";
 
 export interface StatCardProps {
     label: string;
@@ -18,30 +18,39 @@ export interface StatCardProps {
     icon?: ReactNode;
     change?: {
         value: string;
-        direction: "up" | "down";
-        isPositive?: boolean; // Sometimes down is good (e.g., refund rate)
+        direction: "up" | "down" | "neutral";
+        isPositive?: boolean; // Override: Sometimes down is good (e.g., refund rate)
     };
     subtext?: string;
     state?: StatState;
+    compact?: boolean;
     className?: string;
 }
 
 const stateStyles: Record<StatState, { icon: string; card: string }> = {
     default: {
-        icon: "bg-stone-100 text-stone-500",
+        icon: "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]",
         card: ""
     },
-    confirmed: {
-        icon: "bg-emerald-50 text-emerald-600",
-        card: ""
+    success: {
+        icon: "bg-[var(--state-success-bg)] text-[var(--state-success)]",
+        card: "border-[var(--state-success)]/10"
     },
-    pending: {
-        icon: "bg-amber-50 text-amber-600",
-        card: ""
+    warning: {
+        icon: "bg-[var(--state-warning-bg)] text-[var(--state-warning)]",
+        card: "border-[var(--state-warning)]/10"
     },
-    risk: {
-        icon: "bg-red-50 text-red-600",
-        card: ""
+    error: {
+        icon: "bg-[var(--state-error-bg)] text-[var(--state-error)]",
+        card: "border-[var(--state-error)]/10"
+    },
+    info: {
+        icon: "bg-[var(--state-info-bg)] text-[var(--state-info)]",
+        card: "border-[var(--state-info)]/10"
+    },
+    accent: {
+        icon: "bg-[var(--c1rcle-orange-glow)] text-[var(--c1rcle-orange)]",
+        card: "border-[var(--c1rcle-orange)]/10"
     },
 };
 
@@ -52,6 +61,7 @@ export function StatCard({
     change,
     subtext,
     state = "default",
+    compact = false,
     className,
 }: StatCardProps) {
     const styles = stateStyles[state];
@@ -61,37 +71,48 @@ export function StatCard({
 
     return (
         <div className={clsx(
-            "bg-white rounded-xl border border-stone-100 p-5",
+            "bg-[var(--surface-elevated)] rounded-2xl border border-[var(--border-subtle)] transition-all hover:border-[var(--border-default)] hover:shadow-md",
+            compact ? "p-4" : "p-6",
             styles.card,
             className
         )}>
             {icon && (
                 <div className={clsx(
-                    "w-9 h-9 rounded-lg flex items-center justify-center mb-3",
+                    "rounded-xl flex items-center justify-center mb-4",
+                    compact ? "w-10 h-10" : "w-12 h-12",
                     styles.icon
                 )}>
                     {icon}
                 </div>
             )}
 
-            <div className="flex items-baseline gap-2">
-                <p className="text-[28px] font-medium text-stone-900 leading-none tracking-tight">
+            <p className="text-label text-[var(--text-tertiary)] mb-2">{label}</p>
+
+            <div className="flex items-baseline gap-3 flex-wrap">
+                <p className={clsx(
+                    "font-semibold text-[var(--text-primary)] leading-none tracking-tight",
+                    compact ? "text-[24px]" : "text-[32px]"
+                )}>
                     {value}
                 </p>
                 {change && (
                     <span className={clsx(
-                        "text-[12px] font-medium flex items-center",
-                        changeIsPositive ? "text-emerald-600" : "text-red-600"
+                        "text-[11px] font-semibold flex items-center gap-1 px-2 py-1 rounded-full",
+                        change.direction === "neutral"
+                            ? "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]"
+                            : changeIsPositive
+                                ? "bg-[var(--trend-up-bg)] text-[var(--trend-up)]"
+                                : "bg-[var(--trend-down-bg)] text-[var(--trend-down)]"
                     )}>
-                        {change.direction === "up" ? "↑" : "↓"} {change.value}
+                        {change.direction === "up" && "↑"}
+                        {change.direction === "down" && "↓"}
+                        {change.value}
                     </span>
                 )}
             </div>
 
-            <p className="text-[12px] text-stone-500 mt-1">{label}</p>
-
             {subtext && (
-                <p className="text-[11px] text-stone-400 mt-1">{subtext}</p>
+                <p className="text-[12px] text-[var(--text-placeholder)] mt-2">{subtext}</p>
             )}
         </div>
     );

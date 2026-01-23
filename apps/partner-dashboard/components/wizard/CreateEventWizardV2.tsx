@@ -400,23 +400,22 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         );
     }
 
-    // Success State
     if (isSuccess) {
         return (
-            <div className="min-h-screen bg-white flex items-center justify-center p-6">
+            <div className="min-h-screen bg-[var(--surface-base)] flex items-center justify-center p-6">
                 <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className="max-w-md w-full text-center"
                 >
                     <div className="mb-8 relative inline-block">
-                        <div className="absolute inset-0 bg-indigo-100 rounded-full scale-150 blur-2xl opacity-50" />
-                        <div className="relative bg-indigo-600 rounded-full p-6 shadow-xl shadow-indigo-200">
+                        <div className="absolute inset-0 bg-[var(--state-success-bg)] rounded-full scale-150 blur-2xl opacity-50" />
+                        <div className="relative bg-[var(--state-success)] rounded-full p-6 shadow-xl">
                             <CheckCircle2 className="h-12 w-12 text-white" />
                         </div>
                     </div>
-                    <h1 className="text-display mb-4">Event {role === 'venue' ? 'Published' : 'Submitted'}!</h1>
-                    <p className="text-body text-muted mb-12">
+                    <h1 className="text-headline text-[var(--text-primary)] mb-4">Event {role === 'venue' ? 'Published' : 'Submitted'}!</h1>
+                    <p className="text-body text-[var(--text-tertiary)] mb-12">
                         {role === 'venue'
                             ? "Your event is now live and ready for guests to discover."
                             : "Your event has been submitted to the venue for review."}
@@ -434,13 +433,12 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
     return (
         <>
-            <div className="min-h-screen bg-white">
+            <div className="min-h-screen bg-[var(--surface-base)]">
                 <div className="max-w-6xl mx-auto px-6 py-8">
-                    {/* Header */}
                     <div className="flex items-center justify-between mb-8">
                         <div>
-                            <h1 className="text-display">Create Event</h1>
-                            <p className="text-body text-muted">Build something extraordinary</p>
+                            <h1 className="text-headline text-[var(--text-primary)]">Create Event</h1>
+                            <p className="text-body-sm text-[var(--text-tertiary)]">Build something extraordinary</p>
                         </div>
                         <SaveStatus status={saveState} />
                     </div>

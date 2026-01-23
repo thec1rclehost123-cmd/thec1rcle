@@ -97,8 +97,20 @@ export default function TicketModal({
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <p className="text-base font-semibold text-white">{ticket.name}</p>
+                                                {ticket.gender === "female" && (
+                                                    <span className="rounded-full bg-pink-500/20 border border-pink-500/40 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-pink-400">Women Only</span>
+                                                )}
+                                                {ticket.gender === "male" && (
+                                                    <span className="rounded-full bg-blue-500/20 border border-blue-500/40 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-blue-400">Men Only</span>
+                                                )}
                                                 {(ticket.name?.toLowerCase().includes("couple") || ticket.name?.toLowerCase().includes("pair")) && (
                                                     <span className="rounded-full bg-orange/20 border border-orange/40 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-orange">Couple</span>
+                                                )}
+                                                {ticket.remaining > 0 && ticket.remaining < 10 && (
+                                                    <span className="rounded-full bg-red-500/20 border border-red-500/40 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-red-400">Low Stock</span>
+                                                )}
+                                                {ticket.remaining === 0 && (
+                                                    <span className="rounded-full bg-white/10 border border-white/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-white/40">Sold Out</span>
                                                 )}
                                                 {ticket.description && (
                                                     <button
@@ -110,7 +122,9 @@ export default function TicketModal({
                                                     </button>
                                                 )}
                                             </div>
-                                            <p className="mt-0.5 text-xs text-white/40">{ticket.quantity} available</p>
+                                            <p className="mt-0.5 text-xs text-white/40">
+                                                {ticket.remaining === 0 ? "Entry closed" : `${ticket.remaining || ticket.quantity} available`}
+                                            </p>
                                         </div>
                                         <p className="text-lg font-bold text-white">₹{(ticket.price || 0).toLocaleString('en-IN')}</p>
                                     </div>
@@ -150,12 +164,12 @@ export default function TicketModal({
                                                 onClick={() => {
                                                     if (isPreview) return;
                                                     const current = quantities[ticket.id] || 0;
-                                                    if (current < (ticket.quantity || 999)) {
+                                                    if (current < (ticket.remaining ?? ticket.quantity || 999)) {
                                                         setQuantities(prev => ({ ...prev, [ticket.id]: current + 1 }));
                                                     }
                                                 }}
                                                 className="flex h-8 items-center justify-center px-4 rounded-full text-white/60 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-30"
-                                                disabled={isPreview || (quantities[ticket.id] || 0) >= (ticket.quantity || 999) || totalQuantity >= maxTicketsPerOrder}
+                                                disabled={isPreview || (quantities[ticket.id] || 0) >= (ticket.remaining ?? ticket.quantity || 999) || totalQuantity >= maxTicketsPerOrder}
                                             >
                                                 <Plus className="w-3 h-3" />
                                             </button>

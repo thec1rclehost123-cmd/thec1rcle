@@ -144,11 +144,63 @@ export async function getVenueBySlug(slug) {
     return fallbackVenues.find(v => v.slug === slug) || null;
 }
 
-export async function followVenue(venueId) {
-    if (!isFirebaseConfigured()) return;
+/**
+ * Follow a venue (Atomic operation)
+ */
+export async function followVenue(venueId, userId) {
+    if (!isFirebaseConfigured() || !venueId || !userId) return;
+
     const db = getAdminDb();
     const FieldValue = require("firebase-admin/firestore").FieldValue;
-    await db.collection(VENUES_COLLECTION).doc(venueId).update({
-        followers: FieldValue.increment(1)
+
+    const followId = `${venueId}_${userId}`;
+    const followRef = db.collection("venue_follows").doc(followId);
+
+    const doc = await followRef.get();
+    if (doc.exists) return; // Already following
+
+    await db.runTransaction(async (t) => {
+        t.set(followRef, {
+            venueId,
+            userId,
+            createdAt: FieldValue.serverTimestamp()
+        });
+        t.update(db.collection(VENUES_COLLECTION).doc(venueId), {
+            followers: FieldValue.increment(1)
+        });
     });
+}
+
+/**
+ * Unfollow a venue
+ */
+export async function unfollowVenue(venueId, userId) {
+    if (!isFirebaseConfigured() || !venueId || !userId) return;
+
+    const db = getAdminDb();
+    const FieldValue = require("firebase-admin/firestore").FieldValue;
+
+    const followId = `${venueId}_${userId}`;
+    const followRef = db.collection("venue_follows").doc(followId);
+
+    const doc = await followRef.get();
+    if (!doc.exists) return;
+
+    await db.runTransaction(async (t) => {
+        t.delete(followRef);
+        t.update(db.collection(VENUES_COLLECTION).doc(venueId), {
+            followers: FieldValue.increment(-1)
+        });
+    });
+}
+
+/**
+ * Check if user follows a venue
+ */
+export async function isFollowingVenue(venueId, userId) {
+    if (!isFirebaseConfigured() || !venueId || !userId) return false;
+    const db = getAdminDb();
+    const followId = `${venueId}_${userId}`;
+    const doc = await db.collection("venue_follows").doc(followId).get();
+    return doc.exists;
 }

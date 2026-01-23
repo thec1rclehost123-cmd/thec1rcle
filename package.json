@@ -17,6 +17,7 @@
     "install:all": "npm install"
   },
   "devDependencies": {
+    "expo": "^54.0.31",
     "turbo": "^2.7.3"
   }
 }

@@ -375,44 +375,62 @@ export async function createOrder(payload) {
                 throw new Error(`Event not found in transaction: ${eventId}`);
             }
 
+            // 1. Transaction-level Idempotency Check
+            const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
+            const existingOrderDoc = await transaction.get(orderRef);
+            if (existingOrderDoc.exists) return existingOrderDoc.data();
+
             const currentEvent = eventDoc.data();
             const updatedTickets = [...(currentEvent.tickets || [])];
 
-            // Update ticket inventory
+            // Update ticket inventory and release atomic locks
             for (const update of ticketUpdates) {
                 const ticketIndex = updatedTickets.findIndex(t => t.id === update.ticketId);
                 if (ticketIndex === -1) {
                     throw new Error(`Ticket not found in event: ${update.ticketId}`);
                 }
 
-                const currentRemaining = Number(updatedTickets[ticketIndex].remaining ?? updatedTickets[ticketIndex].quantity) || 0;
+                const tier = updatedTickets[ticketIndex];
+                const currentRemaining = Number(tier.remaining ?? tier.quantity) || 0;
+                const currentLocked = Number(tier.lockedQuantity || 0);
 
                 // Optimization: If it's a free tier in a paid event, we might defer reduction until claim
-                const isClaimBasedFreeTier = updatedTickets[ticketIndex].price === 0 && updatedTickets[ticketIndex].genderRequirement;
+                const isClaimBasedFreeTier = tier.price === 0 && tier.genderRequirement;
+                if (isClaimBasedFreeTier) continue;
 
-                if (isClaimBasedFreeTier) {
-                    // Skip inventory reduction now; will happen on claimTicketSlot
-                    continue;
+                if (reservationId) {
+                    // This inventory was already "Locked" during the gate phase
+                    // We now convert that lock into a physical deduction
+                    updatedTickets[ticketIndex].remaining = Math.max(0, currentRemaining - update.quantity);
+                    updatedTickets[ticketIndex].lockedQuantity = Math.max(0, currentLocked - update.quantity);
+                } else {
+                    // Direct checkout (no formal reservation gate)
+                    // Must still respect existing locks held by other users
+                    if (currentRemaining - currentLocked < update.quantity) {
+                        throw new Error(`Sold out: ${tier.name}`);
+                    }
+                    updatedTickets[ticketIndex].remaining = Math.max(0, currentRemaining - update.quantity);
                 }
-
-                if (currentRemaining < update.quantity) {
-                    throw new Error(
-                        `Ticket sold out during purchase: "${updatedTickets[ticketIndex].name}". Available: ${currentRemaining}`
-                    );
-                }
-
-                updatedTickets[ticketIndex].remaining = currentRemaining - update.quantity;
             }
 
-            // Update event with new ticket counts
+            // Update event with new ticket counts and released locks
             transaction.update(eventRef, {
                 tickets: updatedTickets,
                 updatedAt: now,
             });
 
             // Create order document
-            const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
             transaction.set(orderRef, order);
+
+            // Mark reservation as converted atomically
+            if (reservationId) {
+                const resRef = db.collection("cart_reservations").doc(reservationId);
+                transaction.update(resRef, {
+                    status: 'converted',
+                    orderId: orderId,
+                    convertedAt: now
+                });
+            }
 
             // MONEY LEDGER INTEGRATION (ATOMIC)
             if (order.status === "confirmed") {

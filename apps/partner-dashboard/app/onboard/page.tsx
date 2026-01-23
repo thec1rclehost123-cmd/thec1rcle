@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import {
     Building2,
     Users,
@@ -9,7 +10,6 @@ import {
     ChevronRight,
     CheckCircle2,
     ArrowLeft,
-    Upload,
     Mail,
     Lock,
     User,
@@ -17,7 +17,11 @@ import {
     Phone,
     Briefcase,
     ShieldCheck,
-    AlertCircle
+    AlertCircle,
+    Eye,
+    EyeOff,
+    Instagram,
+    Sparkles
 } from "lucide-react";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/client";
 import { createUserWithEmailAndPassword } from "firebase/auth";
@@ -35,7 +39,7 @@ function OnboardingContent() {
     const [partnerType, setPartnerType] = useState<PartnerType>("venue");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-    // Standard procedure: strictly use form data
+    const [showPassword, setShowPassword] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -47,19 +51,18 @@ function OnboardingContent() {
         city: "",
         area: "",
         capacity: "",
-        plan: "silver", // Default for venues
-        role: "organizer", // Default for hosts
-        association: "", // For promoters
-        associatedHostId: "", // For invited promoters
-        instagram: "", // Social handles
-        bio: "" // Short background
+        plan: "silver",
+        role: "organizer",
+        association: "",
+        associatedHostId: "",
+        instagram: "",
+        bio: ""
     });
 
     useEffect(() => {
         const type = searchParams.get("type") as PartnerType;
         const email = searchParams.get("email");
         const hostId = searchParams.get("hostId");
-        const inviteId = searchParams.get("inviteId");
 
         if (type) {
             setPartnerType(type);
@@ -73,7 +76,7 @@ function OnboardingContent() {
         }
     }, [searchParams]);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
@@ -89,7 +92,6 @@ function OnboardingContent() {
             let uid;
             const effectiveEmail = authUser?.email || formData.email;
 
-            // 1. Resolve Identity: Use current session if available
             if (authUser && authUser.email === effectiveEmail) {
                 uid = authUser.uid;
             } else {
@@ -103,7 +105,7 @@ function OnboardingContent() {
                     uid = credential.user.uid;
                 } catch (err: any) {
                     if (err.code === 'auth/email-already-in-use') {
-                        setError("This email is already registered. If this is you, please Log In first, then return to this form to complete your registry.");
+                        setError("This email is already registered. Please log in first, then return to complete your registry.");
                         setLoading(false);
                         return;
                     }
@@ -111,17 +113,15 @@ function OnboardingContent() {
                 }
             }
 
-            // 2. Create/Update User Profile
             await setDoc(doc(db, "users", uid), {
                 uid,
                 email: effectiveEmail,
                 displayName: formData.name,
-                role: 'onboarding', // Temporary role
+                role: 'onboarding',
                 isApproved: false,
                 updatedAt: serverTimestamp()
             }, { merge: true });
 
-            // 3. Create Onboarding Request
             const requestId = `req_${Date.now()}_${uid.substring(0, 5)}`;
             await setDoc(doc(db, "onboarding_requests", requestId), {
                 id: requestId,
@@ -146,234 +146,390 @@ function OnboardingContent() {
         }
     };
 
+    const roleIcons = {
+        venue: Building2,
+        host: Users,
+        promoter: Zap
+    };
+
     return (
-        <div className="min-h-screen bg-white text-slate-900 font-sans">
+        <div className="min-h-screen bg-[var(--surface-base)]">
             {/* Header */}
-            <div className="max-w-6xl mx-auto px-6 py-8 flex items-center justify-between">
-                <button
-                    onClick={() => step === "role" ? router.back() : setStep("role")}
-                    className="flex items-center gap-2 text-slate-400 hover:text-slate-900 transition-colors font-bold uppercase tracking-widest text-[10px]"
-                >
-                    <ArrowLeft className="h-4 w-4" />
-                    {step === "role" ? "Back to Login" : "Back to Registry"}
-                </button>
-                <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center">
-                        <div className="h-3 w-3 rounded-full bg-white" />
+            <header className="sticky top-0 z-50 bg-[var(--surface-base)]/80 backdrop-blur-xl border-b border-[var(--border-subtle)]">
+                <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+                    <button
+                        onClick={() => step === "role" ? router.push('/login') : setStep("role")}
+                        className="flex items-center gap-2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors text-[11px] font-semibold uppercase tracking-wider"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                        {step === "role" ? "Back to Login" : "Change Role"}
+                    </button>
+                    <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-xl bg-[var(--text-primary)] flex items-center justify-center">
+                            <span className="text-[var(--text-inverse)] font-bold text-sm">C</span>
+                        </div>
+                        <span className="text-[15px] font-bold text-[var(--text-primary)] tracking-tight">THE C1RCLE</span>
                     </div>
-                    <span className="font-black tracking-tighter text-lg italic">THE C1RCLE</span>
+                </div>
+            </header>
+
+            {/* Progress Indicator */}
+            <div className="max-w-5xl mx-auto px-6 py-6">
+                <div className="flex items-center gap-4">
+                    {["role", "details", "success"].map((s, i) => (
+                        <div key={s} className="flex items-center gap-4">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold transition-all ${step === s
+                                    ? "bg-[var(--c1rcle-orange)] text-white"
+                                    : ["role", "details", "success"].indexOf(step) > i
+                                        ? "bg-[var(--state-success)] text-white"
+                                        : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]"
+                                }`}>
+                                {["role", "details", "success"].indexOf(step) > i ? "✓" : i + 1}
+                            </div>
+                            {i < 2 && (
+                                <div className={`w-16 sm:w-24 h-1 rounded-full transition-all ${["role", "details", "success"].indexOf(step) > i
+                                        ? "bg-[var(--state-success)]"
+                                        : "bg-[var(--surface-tertiary)]"
+                                    }`} />
+                            )}
+                        </div>
+                    ))}
                 </div>
             </div>
 
-            <main className="max-w-xl mx-auto px-6 pt-12 pb-24">
-                {step === "role" && (
-                    <div className="animate-in fade-in slide-in-from-bottom-8 duration-500">
-                        <div className="mb-12">
-                            <h1 className="text-4xl font-black tracking-tight mb-4">Request Workspace Access</h1>
-                            <p className="text-slate-500 font-medium">Select your operational role to begin the onboarding process.</p>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4">
-                            <RoleCard
-                                icon={Building2}
-                                title="Venue"
-                                description="Direct management for nightlife venues and lounge spaces."
-                                active={partnerType === 'venue'}
-                                onClick={() => setPartnerType('venue')}
-                            />
-                            <RoleCard
-                                icon={Users}
-                                title="Event Host"
-                                description="For organizers, DJs, and collectives hosting independent events."
-                                active={partnerType === 'host'}
-                                onClick={() => setPartnerType('host')}
-                            />
-                            <RoleCard
-                                icon={Zap}
-                                title="Promoter"
-                                description="Access tools for ticket distribution and guestlist management."
-                                active={partnerType === 'promoter'}
-                                onClick={() => setPartnerType('promoter')}
-                            />
-                        </div>
-
-                        <button
-                            onClick={() => setStep("details")}
-                            className="w-full mt-10 bg-slate-900 text-white h-16 rounded-2xl font-bold uppercase tracking-widest text-sm hover:bg-slate-800 transition-all flex items-center justify-center gap-3 shadow-xl"
+            <main className="max-w-xl mx-auto px-6 pb-24">
+                <AnimatePresence mode="wait">
+                    {step === "role" && (
+                        <motion.div
+                            key="role"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            transition={{ duration: 0.3 }}
                         >
-                            Continue to Details
-                            <ChevronRight className="h-4 w-4" />
-                        </button>
-                    </div>
-                )}
-
-                {step === "details" && (
-                    <div className="animate-in fade-in slide-in-from-right-8 duration-500">
-                        <div className="mb-12">
-                            <div className="flex items-center gap-2 mb-4">
-                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-600">Step 02 — Data Collection</span>
+                            <div className="mb-10">
+                                <p className="text-label text-[var(--c1rcle-orange)] mb-2">STEP 01 — SELECT ROLE</p>
+                                <h1 className="text-display-sm text-[var(--text-primary)] mb-3">Join the Network</h1>
+                                <p className="text-body text-[var(--text-secondary)]">
+                                    Select your operational role to begin the onboarding process.
+                                </p>
                             </div>
-                            <h1 className="text-4xl font-black tracking-tight mb-4">
-                                {partnerType === 'venue' ? 'Venue Registry' :
-                                    partnerType === 'host' ? 'Host Identity' : 'Promoter Enrollment'}
-                            </h1>
-                            <p className="text-slate-500 font-medium italic text-sm">Submit your information for verification and approval.</p>
-                        </div>
 
-                        {error && (
-                            <div className="mb-8 p-6 bg-red-50 border border-red-100 rounded-[2rem] flex flex-col gap-4 shadow-sm">
-                                <div className="flex items-start gap-4">
-                                    <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
-                                    <p className="text-sm text-red-700 font-bold leading-tight">{error}</p>
-                                </div>
-                                {error.includes("sign in") && (
-                                    <button
-                                        onClick={() => router.push('/login')}
-                                        className="h-10 px-6 bg-white border border-red-100 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all w-fit self-end"
-                                    >
-                                        Log In Now
-                                    </button>
-                                )}
+                            <div className="grid grid-cols-1 gap-4 mb-10">
+                                <RoleCard
+                                    icon={Building2}
+                                    title="Venue Partner"
+                                    description="Direct management for nightlife venues, clubs, and lounge spaces."
+                                    active={partnerType === 'venue'}
+                                    onClick={() => setPartnerType('venue')}
+                                />
+                                <RoleCard
+                                    icon={Users}
+                                    title="Event Host"
+                                    description="For organizers, DJs, and collectives hosting independent events."
+                                    active={partnerType === 'host'}
+                                    onClick={() => setPartnerType('host')}
+                                />
+                                <RoleCard
+                                    icon={Zap}
+                                    title="Promoter"
+                                    description="Access tools for ticket distribution and guestlist management."
+                                    active={partnerType === 'promoter'}
+                                    onClick={() => setPartnerType('promoter')}
+                                />
                             </div>
-                        )}
 
-                        <form onSubmit={handleOnboard} className="space-y-10">
-                            {/* Conditional Credentials Section */}
-                            {!authUser ? (
-                                <div className="space-y-6 animate-in fade-in duration-500">
-                                    <SectionTitle title="Account Credentials" />
-                                    <div className="grid grid-cols-1 gap-6">
-                                        <FormInput label="Email Address" icon={Mail} type="email" name="email" value={formData.email} onChange={handleInputChange} required />
-                                        <FormInput label="Account Password" icon={Lock} type="password" name="password" value={formData.password} onChange={handleInputChange} required />
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="p-6 rounded-3xl bg-indigo-50 border border-indigo-100 flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center border border-indigo-100 shadow-sm font-black text-indigo-600">
-                                            {authUser.email?.[0].toUpperCase()}
+                            <button
+                                onClick={() => setStep("details")}
+                                className="w-full bg-[var(--c1rcle-orange)] text-white h-14 rounded-2xl font-semibold text-[14px] hover:brightness-110 transition-all flex items-center justify-center gap-3 shadow-lg shadow-[var(--c1rcle-orange)]/20"
+                            >
+                                Continue to Details
+                                <ChevronRight className="h-5 w-5" />
+                            </button>
+                        </motion.div>
+                    )}
+
+                    {step === "details" && (
+                        <motion.div
+                            key="details"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.3 }}
+                        >
+                            <div className="mb-10">
+                                <p className="text-label text-[var(--c1rcle-orange)] mb-2">STEP 02 — YOUR DETAILS</p>
+                                <h1 className="text-display-sm text-[var(--text-primary)] mb-3">
+                                    {partnerType === 'venue' ? 'Venue Registration' :
+                                        partnerType === 'host' ? 'Host Profile' : 'Promoter Enrollment'}
+                                </h1>
+                                <p className="text-body text-[var(--text-secondary)]">
+                                    Submit your information for verification and approval.
+                                </p>
+                            </div>
+
+                            {error && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="mb-8 p-5 bg-[var(--state-error-bg)] border border-[var(--state-error)]/20 rounded-2xl"
+                                >
+                                    <div className="flex items-start gap-4">
+                                        <AlertCircle className="h-5 w-5 text-[var(--state-error)] flex-shrink-0 mt-0.5" />
+                                        <div className="flex-1">
+                                            <p className="text-[14px] font-semibold text-[var(--state-error)] mb-2">{error}</p>
+                                            {error.includes("log in") && (
+                                                <button
+                                                    onClick={() => router.push('/login')}
+                                                    className="text-[12px] font-semibold text-[var(--state-error)] underline hover:no-underline"
+                                                >
+                                                    Go to Login →
+                                                </button>
+                                            )}
                                         </div>
-                                        <div>
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-0.5">Authorized Identity</p>
-                                            <p className="text-sm font-bold text-slate-900">{authUser.email}</p>
-                                        </div>
                                     </div>
-                                    <div className="px-3 py-1 bg-white rounded-lg border border-indigo-100 text-[9px] font-black text-indigo-600 uppercase tracking-widest">
-                                        Session Active
-                                    </div>
-                                </div>
+                                </motion.div>
                             )}
 
-                            <div className="space-y-6">
-                                <SectionTitle title="Entity Information" />
-                                <div className="grid grid-cols-1 gap-6">
-                                    <FormInput label={partnerType === 'venue' ? 'Venue Name' : 'Profile Name / Brand'} icon={User} name="name" value={formData.name} onChange={handleInputChange} required />
+                            <form onSubmit={handleOnboard} className="space-y-8">
+                                {/* Account Credentials */}
+                                {!authUser ? (
+                                    <div className="space-y-5">
+                                        <SectionTitle title="Account Credentials" />
+                                        <FormInput
+                                            label="Email Address"
+                                            icon={Mail}
+                                            type="email"
+                                            name="email"
+                                            value={formData.email}
+                                            onChange={handleInputChange}
+                                            required
+                                            placeholder="you@company.com"
+                                        />
+                                        <div className="relative">
+                                            <FormInput
+                                                label="Create Password"
+                                                icon={Lock}
+                                                type={showPassword ? "text" : "password"}
+                                                name="password"
+                                                value={formData.password}
+                                                onChange={handleInputChange}
+                                                required
+                                                placeholder="Minimum 8 characters"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-4 top-[42px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                                            >
+                                                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="p-5 rounded-2xl bg-[var(--state-success-bg)] border border-[var(--state-success)]/20 flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-11 w-11 rounded-xl bg-[var(--state-success)] flex items-center justify-center font-bold text-white text-lg">
+                                                {authUser.email?.[0].toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <p className="text-[11px] font-semibold text-[var(--state-success)] uppercase tracking-wider mb-0.5">Signed In As</p>
+                                                <p className="text-[14px] font-semibold text-[var(--text-primary)]">{authUser.email}</p>
+                                            </div>
+                                        </div>
+                                        <CheckCircle2 className="h-6 w-6 text-[var(--state-success)]" />
+                                    </div>
+                                )}
+
+                                {/* Entity Information */}
+                                <div className="space-y-5">
+                                    <SectionTitle title={partnerType === 'promoter' ? 'Your Profile' : 'Entity Information'} />
+
+                                    <FormInput
+                                        label={partnerType === 'venue' ? 'Venue Name' : partnerType === 'host' ? 'Brand / Collective Name' : 'Your Full Name'}
+                                        icon={partnerType === 'venue' ? Building2 : User}
+                                        name="name"
+                                        value={formData.name}
+                                        onChange={handleInputChange}
+                                        required
+                                        placeholder={partnerType === 'venue' ? 'e.g. Club Eclipse' : partnerType === 'host' ? 'e.g. Midnight Collective' : 'Your name'}
+                                    />
 
                                     <div className="grid grid-cols-2 gap-4">
-                                        <FormInput label="Point of Contact" icon={Briefcase} name="contactPerson" value={formData.contactPerson} onChange={handleInputChange} required />
-                                        <FormInput label="Contact Number" icon={Phone} name="phone" value={formData.phone} onChange={handleInputChange} required />
+                                        <FormInput
+                                            label="Contact Person"
+                                            icon={Briefcase}
+                                            name="contactPerson"
+                                            value={formData.contactPerson}
+                                            onChange={handleInputChange}
+                                            required
+                                            placeholder="Primary contact"
+                                        />
+                                        <FormInput
+                                            label="Phone Number"
+                                            icon={Phone}
+                                            name="phone"
+                                            value={formData.phone}
+                                            onChange={handleInputChange}
+                                            required
+                                            placeholder="+91 XXXXX XXXXX"
+                                        />
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-4">
-                                        <FormInput label="Primary City" icon={MapPin} name="city" value={formData.city} onChange={handleInputChange} required />
-                                        <FormInput label="Operating Area" icon={MapPin} name="area" value={formData.area} onChange={handleInputChange} required />
+                                        <FormInput
+                                            label="City"
+                                            icon={MapPin}
+                                            name="city"
+                                            value={formData.city}
+                                            onChange={handleInputChange}
+                                            required
+                                            placeholder="e.g. Mumbai"
+                                        />
+                                        <FormInput
+                                            label="Area / Locality"
+                                            icon={MapPin}
+                                            name="area"
+                                            value={formData.area}
+                                            onChange={handleInputChange}
+                                            required
+                                            placeholder="e.g. Bandra"
+                                        />
                                     </div>
 
+                                    {/* Venue-specific fields */}
                                     {partnerType === 'venue' && (
                                         <>
-                                            <FormInput label="Approximate Capacity" icon={Users} name="capacity" value={formData.capacity} onChange={handleInputChange} required />
-                                            <div className="space-y-3">
-                                                <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Subscription Intent</label>
-                                                <select
-                                                    name="plan"
-                                                    value={formData.plan}
-                                                    onChange={handleInputChange}
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold appearance-none focus:bg-white transition-all outline-none"
-                                                >
-                                                    <option value="basic">Basic Access</option>
-                                                    <option value="silver">Silver Tier</option>
-                                                    <option value="gold">Gold Premium</option>
-                                                    <option value="diamond">Diamond Private</option>
-                                                </select>
-                                            </div>
+                                            <FormInput
+                                                label="Approximate Capacity"
+                                                icon={Users}
+                                                name="capacity"
+                                                value={formData.capacity}
+                                                onChange={handleInputChange}
+                                                required
+                                                placeholder="e.g. 500"
+                                            />
+                                            <FormSelect
+                                                label="Subscription Tier"
+                                                name="plan"
+                                                value={formData.plan}
+                                                onChange={handleInputChange}
+                                                options={[
+                                                    { value: "basic", label: "Basic Access" },
+                                                    { value: "silver", label: "Silver Tier" },
+                                                    { value: "gold", label: "Gold Premium" },
+                                                    { value: "diamond", label: "Diamond Private" },
+                                                ]}
+                                            />
                                         </>
                                     )}
 
+                                    {/* Host-specific fields */}
                                     {partnerType === 'host' && (
-                                        <div className="space-y-3">
-                                            <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Host Category</label>
-                                            <select
-                                                name="role"
-                                                value={formData.role}
-                                                onChange={handleInputChange}
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold appearance-none focus:bg-white transition-all outline-none"
-                                            >
-                                                <option value="dj">Individual DJ / Artist</option>
-                                                <option value="organizer">Event Organizer</option>
-                                                <option value="collective">Collective / Label</option>
-                                            </select>
-                                        </div>
+                                        <FormSelect
+                                            label="Host Category"
+                                            name="role"
+                                            value={formData.role}
+                                            onChange={handleInputChange}
+                                            options={[
+                                                { value: "dj", label: "Individual DJ / Artist" },
+                                                { value: "organizer", label: "Event Organizer" },
+                                                { value: "collective", label: "Collective / Label" },
+                                            ]}
+                                        />
                                     )}
+
+                                    {/* Promoter-specific fields */}
                                     {partnerType === 'promoter' && (
                                         <>
-                                            <FormInput label="Instagram Handle" icon={Users} name="instagram" placeholder="@username" value={formData.instagram} onChange={handleInputChange} required />
-                                            <div className="space-y-3">
-                                                <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Short Bio</label>
+                                            <FormInput
+                                                label="Instagram Handle"
+                                                icon={Instagram}
+                                                name="instagram"
+                                                value={formData.instagram}
+                                                onChange={handleInputChange}
+                                                required
+                                                placeholder="@yourusername"
+                                            />
+                                            <div className="space-y-2">
+                                                <label className="input-label">Short Bio</label>
                                                 <textarea
                                                     name="bio"
                                                     value={formData.bio}
-                                                    onChange={(e: any) => handleInputChange(e)}
-                                                    placeholder="Tell us about your reach and experience..."
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold appearance-none focus:bg-white transition-all outline-none min-h-[100px]"
+                                                    onChange={handleInputChange}
+                                                    placeholder="Tell us about your reach, experience, and what you're looking for..."
+                                                    className="w-full bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-placeholder)] focus:bg-[var(--surface-base)] focus:border-[var(--c1rcle-orange)] focus:ring-3 focus:ring-[var(--c1rcle-orange-glow)] transition-all outline-none min-h-[120px] resize-none"
                                                     required
                                                 />
                                             </div>
                                         </>
                                     )}
                                 </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full bg-[var(--c1rcle-orange)] text-white h-14 rounded-2xl font-semibold text-[14px] hover:brightness-110 transition-all flex items-center justify-center gap-3 shadow-lg shadow-[var(--c1rcle-orange)]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <span className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            Processing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            Submit Application
+                                            <ChevronRight className="h-5 w-5" />
+                                        </>
+                                    )}
+                                </button>
+                            </form>
+                        </motion.div>
+                    )}
+
+                    {step === "success" && (
+                        <motion.div
+                            key="success"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.4 }}
+                            className="text-center pt-8"
+                        >
+                            <motion.div
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                transition={{ type: "spring", delay: 0.2 }}
+                                className="h-24 w-24 rounded-3xl bg-[var(--state-success-bg)] text-[var(--state-success)] flex items-center justify-center mx-auto mb-8"
+                            >
+                                <CheckCircle2 className="h-12 w-12" />
+                            </motion.div>
+
+                            <h1 className="text-display-sm text-[var(--text-primary)] mb-4">Application Submitted</h1>
+                            <p className="text-body text-[var(--text-secondary)] mb-10 max-w-md mx-auto">
+                                Your application for <span className="font-semibold text-[var(--text-primary)]">{formData.name}</span> has been received.
+                                We'll review your details and send access credentials via email once approved.
+                            </p>
+
+                            <div className="p-6 rounded-2xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)] mb-10 flex items-start gap-4 text-left">
+                                <ShieldCheck className="h-6 w-6 text-[var(--c1rcle-orange)] flex-shrink-0" />
+                                <div>
+                                    <p className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">What Happens Next?</p>
+                                    <p className="text-[13px] text-[var(--text-tertiary)] leading-relaxed">
+                                        Our team typically reviews applications within 24-48 hours. You'll receive an email notification once your account is activated.
+                                    </p>
+                                </div>
                             </div>
 
                             <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full bg-slate-900 text-white h-16 rounded-2xl font-bold uppercase tracking-widest text-sm hover:bg-indigo-600 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50"
+                                onClick={() => router.push('/login')}
+                                className="inline-flex items-center gap-2 text-[var(--c1rcle-orange)] font-semibold text-[14px] hover:underline"
                             >
-                                {loading ? "Processing Submission..." : "Submit Registry Request"}
+                                Return to Login
                                 <ChevronRight className="h-4 w-4" />
                             </button>
-                        </form>
-                    </div>
-                )}
-
-                {step === "success" && (
-                    <div className="text-center animate-in zoom-in-95 duration-700 pt-12">
-                        <div className="h-24 w-24 rounded-[2.5rem] bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-10 shadow-inner">
-                            <CheckCircle2 className="h-10 w-10" />
-                        </div>
-                        <h1 className="text-4xl font-black tracking-tight mb-6">Request Submitted</h1>
-                        <p className="text-slate-500 font-medium leading-relaxed mb-12">
-                            Your application for <span className="text-slate-900 font-bold">{formData.name}</span> has been successfully logged in our registry. <br /><br />
-                            The administration will review your details and issue access credentials via email once approved.
-                        </p>
-
-                        <div className="p-8 rounded-[2.5rem] bg-slate-50 border border-slate-100 mb-12 flex items-start gap-4 text-left">
-                            <ShieldCheck className="h-6 w-6 text-indigo-600 flex-shrink-0" />
-                            <div>
-                                <p className="text-xs font-black uppercase tracking-widest text-slate-900 mb-1">Review Protocol 23-A</p>
-                                <p className="text-xs text-slate-400 font-medium leading-relaxed">
-                                    Our typical review window is 24-48 hours. If you haven't heard from us, please contact your account manager if pre-assigned.
-                                </p>
-                            </div>
-                        </div>
-
-                        <button
-                            onClick={() => router.push('/login')}
-                            className="text-slate-900 font-black uppercase tracking-[0.2em] text-[10px] hover:underline"
-                        >
-                            Return to Login Portal
-                        </button>
-                    </div>
-                )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </main>
         </div>
     );
@@ -381,37 +537,75 @@ function OnboardingContent() {
 
 export default function OnboardingPage() {
     return (
-        <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-white">Loading...</div>}>
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-[var(--surface-base)]">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="h-10 w-10 border-3 border-[var(--c1rcle-orange)]/30 border-t-[var(--c1rcle-orange)] rounded-full animate-spin" />
+                    <p className="text-[14px] font-medium text-[var(--text-tertiary)]">Loading...</p>
+                </div>
+            </div>
+        }>
             <OnboardingContent />
         </Suspense>
     );
 }
 
-function RoleCard({ icon: Icon, title, description, active, onClick }: any) {
+// Role Selection Card
+function RoleCard({ icon: Icon, title, description, active, onClick }: {
+    icon: any;
+    title: string;
+    description: string;
+    active: boolean;
+    onClick: () => void;
+}) {
     return (
-        <button
+        <motion.button
             onClick={onClick}
-            className={`p-8 rounded-[2rem] border-2 text-left transition-all duration-500 group ${active ? 'bg-slate-900 border-slate-900 shadow-2xl scale-[1.02]' : 'bg-white border-slate-100 hover:border-slate-200'
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className={`p-6 rounded-2xl border-2 text-left transition-all duration-300 group ${active
+                    ? 'bg-[var(--text-primary)] border-[var(--text-primary)] shadow-xl'
+                    : 'bg-[var(--surface-elevated)] border-[var(--border-subtle)] hover:border-[var(--border-default)]'
                 }`}
         >
-            <div className={`h-12 w-12 rounded-2xl flex items-center justify-center mb-6 transition-transform duration-500 group-hover:scale-110 ${active ? 'bg-white/10 text-white' : 'bg-slate-50 text-slate-400'
-                }`}>
-                <Icon className="h-6 w-6" />
+            <div className="flex items-start gap-4">
+                <div className={`h-12 w-12 rounded-xl flex items-center justify-center transition-all ${active
+                        ? 'bg-white/10 text-white'
+                        : 'bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]'
+                    }`}>
+                    <Icon className="h-6 w-6" />
+                </div>
+                <div className="flex-1">
+                    <h3 className={`text-[16px] font-semibold mb-1 ${active ? 'text-white' : 'text-[var(--text-primary)]'}`}>
+                        {title}
+                    </h3>
+                    <p className={`text-[13px] leading-relaxed ${active ? 'text-white/60' : 'text-[var(--text-tertiary)]'}`}>
+                        {description}
+                    </p>
+                </div>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${active
+                        ? 'border-[var(--c1rcle-orange)] bg-[var(--c1rcle-orange)]'
+                        : 'border-[var(--border-default)]'
+                    }`}>
+                    {active && <div className="w-2 h-2 rounded-full bg-white" />}
+                </div>
             </div>
-            <h3 className={`text-xl font-black mb-2 tracking-tight ${active ? 'text-white' : 'text-slate-900'}`}>{title}</h3>
-            <p className={`text-sm font-medium leading-relaxed ${active ? 'text-slate-400' : 'text-slate-500'}`}>{description}</p>
-        </button>
+        </motion.button>
     );
 }
 
+// Form Input Component
 function FormInput({ label, icon: Icon, ...props }: any) {
     return (
-        <div className="space-y-3">
-            <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>
+        <div className="space-y-2">
+            <label className="input-label">{label}</label>
             <div className="relative group">
-                {Icon && <Icon className="absolute left-6 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-slate-900 transition-colors" />}
+                {Icon && (
+                    <Icon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-placeholder)] group-focus-within:text-[var(--c1rcle-orange)] transition-colors" />
+                )}
                 <input
-                    className={`w-full bg-slate-50 border border-slate-200 rounded-2xl ${Icon ? 'pl-14' : 'px-6'} pr-6 py-4 text-sm font-bold focus:outline-none focus:border-slate-400 focus:bg-white transition-all placeholder:text-slate-300`}
+                    className={`w-full bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-placeholder)] transition-all outline-none ${Icon ? 'pl-12 pr-4' : 'px-4'
+                        } py-3.5 hover:border-[var(--border-default)] focus:bg-[var(--surface-base)] focus:border-[var(--c1rcle-orange)] focus:ring-3 focus:ring-[var(--c1rcle-orange-glow)]`}
                     {...props}
                 />
             </div>
@@ -419,11 +613,32 @@ function FormInput({ label, icon: Icon, ...props }: any) {
     );
 }
 
+// Form Select Component
+function FormSelect({ label, options, ...props }: any) {
+    return (
+        <div className="space-y-2">
+            <label className="input-label">{label}</label>
+            <div className="relative">
+                <select
+                    className="w-full bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3.5 text-[14px] text-[var(--text-primary)] appearance-none cursor-pointer transition-all outline-none hover:border-[var(--border-default)] focus:bg-[var(--surface-base)] focus:border-[var(--c1rcle-orange)] focus:ring-3 focus:ring-[var(--c1rcle-orange-glow)]"
+                    {...props}
+                >
+                    {options.map((opt: { value: string; label: string }) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                </select>
+                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-tertiary)] rotate-90 pointer-events-none" />
+            </div>
+        </div>
+    );
+}
+
+// Section Title Component
 function SectionTitle({ title }: { title: string }) {
     return (
         <div className="flex items-center gap-4">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">{title}</span>
-            <div className="h-px bg-slate-100 w-full" />
+            <span className="text-label text-[var(--text-tertiary)] whitespace-nowrap">{title}</span>
+            <div className="h-px bg-[var(--border-subtle)] flex-1" />
         </div>
     );
 }

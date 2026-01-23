@@ -848,8 +848,26 @@ export async function publishEvent(eventId, context) {
 
   // 2. Strict Content Validation
   const validationErrors = [];
-  if (!eventData.title) validationErrors.push("Title missing");
-  if (!eventData.startDate) validationErrors.push("Start date missing");
+
+  if (!eventData.title || eventData.title.trim().length < 3) {
+    validationErrors.push("Title must be at least 3 characters");
+  } else if (eventData.title.toLowerCase().includes("untitled") || eventData.title.toLowerCase().includes("test event")) {
+    validationErrors.push("Event title must be descriptive (cannot be 'Untitled' or 'Test Event')");
+  }
+
+  if (!eventData.startDate) {
+    validationErrors.push("Event date is required for publication");
+  }
+
+  const location = (eventData.location || eventData.venue || eventData.venueName || "").trim();
+  if (!location || location.toLowerCase() === "tbd" || location.length < 3) {
+    validationErrors.push("A specific location or venue is required for publication");
+  }
+
+  if (!eventData.host || eventData.host.trim().length < 2) {
+    validationErrors.push("Host name is required for publication");
+  }
+
   // City key must be normalized
   const cityKey = eventData.cityKey || normalizeCity(eventData.city, eventData.location);
   if (cityKey === "other-in" && !eventData.city) {
@@ -857,7 +875,7 @@ export async function publishEvent(eventId, context) {
   }
 
   const now = new Date();
-  if (new Date(eventData.startDate) < now) {
+  if (eventData.startDate && new Date(eventData.startDate) < now) {
     validationErrors.push("Event date must be in the future");
   }
 

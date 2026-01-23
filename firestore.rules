@@ -160,7 +160,12 @@ service cloud.firestore {
         resource.data.userId == request.auth.uid ||
         resource.data.customerId == request.auth.uid
       ));
-      allow write: if isAdmin();
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.uid == request.auth.uid ||
+        request.resource.data.customerId == request.auth.uid
+      );
+      allow update, delete: if isAdmin();
     }
 
     // --- 🎟️ TICKETING SYSTEM (Phase 1) ---
@@ -221,6 +226,118 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if isSignedIn(); // Backend creates on checkout
       allow update, delete: if false; // Redemptions are immutable
+    }
+
+    // --- 💬 EVENT SOCIAL LAYER ---
+    
+    // Helper: Check if user has a valid ticket for the event
+    function hasEventTicket(eventId) {
+      return exists(/databases/$(database)/documents/orders/$(request.auth.uid + '_' + eventId)) ||
+             getAfter(/databases/$(database)/documents/orders).data.eventId == eventId;
+    }
+    
+    // Event Group Chat Messages
+    match /eventGroupMessages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isAdmin(); // Only moderators can update (delete flag)
+      allow delete: if false; // Never hard delete, use soft delete
+    }
+    
+    // Private Conversations (DM threads)
+    match /privateConversations/{convoId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
+      allow update: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow delete: if false; // Never delete conversations
+    }
+    
+    // Direct Messages
+    match /directMessages/{messageId} {
+      // Allow read if user is part of the conversation
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false; // Messages are immutable
+    }
+    
+    // Saved Contacts (persist after events)
+    match /savedContacts/{contactId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Event Media (photo gallery)
+    match /eventMedia/{mediaId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+    
+    // Typing Indicators (ephemeral)
+    match /typingIndicators/{indicatorId} {
+      allow read, write: if isSignedIn();
+    }
+    
+    // User Blocks
+    match /userBlocks/{blockId} {
+      allow read: if isSignedIn() && (
+        resource.data.blockerId == request.auth.uid ||
+        resource.data.blockedId == request.auth.uid
+      );
+      allow create: if isSignedIn() && request.resource.data.blockerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.blockerId == request.auth.uid;
+      allow update: if false; // Blocks are immutable
+    }
+    
+    // User Reports
+    match /userReports/{reportId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.reporterId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.reporterId == request.auth.uid;
+      allow update: if isAdmin(); // Only admins can update report status
+      allow delete: if false; // Reports are immutable
+    }
+    
+    // Media Reports
+    match /mediaReports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+    
+    // Event Mutes (moderator action)
+    match /eventMutes/{muteId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+    
+    // Event Chat Removals (moderator action)
+    match /eventChatRemovals/{removalId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+    
+    // Event Chats (legacy, for backwards compatibility)
+    match /eventChats/{chatId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    
+    // Event Messages (legacy)
+    match /eventMessages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+    
+    // Direct Chats (legacy)
+    match /directChats/{chatId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid in resource.data.participants;
     }
 
     // --- 🏁 DEFAULT CATCH-ALL ---

@@ -99,158 +99,164 @@ export async function createCartReservation(eventId, customerId, deviceId, items
         }
     }
 
-    const tiers = event.ticketCatalog?.tiers || event.tickets || [];
-    const errors = [];
-    const reservedItems = [];
-    const now = new Date();
+    // Use Firestore Transaction for Atomic Inventory Locking
+    try {
+        const result = await db.runTransaction(async (transaction) => {
+            const eventRef = db.collection('events').doc(eventId);
+            const eventDoc = await transaction.get(eventRef);
 
-    // Check availability for each item
-    for (const item of items) {
-        const tier = tiers.find(t => t.id === item.tierId);
+            if (!eventDoc.exists) throw new Error('Event not found');
 
-        if (!tier) {
-            errors.push(`Ticket tier not found: ${item.tierId}`);
-            continue;
-        }
+            const event = eventDoc.data();
+            const tiers = event.ticketCatalog?.tiers || event.tickets || [];
+            const updatedTiers = [...tiers];
+            const reservedItems = [];
 
-        const salesStart = tier.salesStart ? new Date(tier.salesStart) : null;
-        const salesEnd = tier.salesEnd ? new Date(tier.salesEnd) : null;
+            // 1. Validate all requested items against atomic current state
+            for (const item of items) {
+                const tierIndex = updatedTiers.findIndex(t => t.id === item.tierId);
+                if (tierIndex === -1) throw new Error(`Tier ${item.tierId} not found`);
 
-        const isInvalidStart = salesStart && isNaN(salesStart.getTime());
-        const isInvalidEnd = salesEnd && isNaN(salesEnd.getTime());
+                const tier = updatedTiers[tierIndex];
 
-        if (salesStart && !isInvalidStart && now < salesStart) {
-            // Relax: If it's a default (matches event.startDate) or a free/RSVP ticket, allow it.
-            const startTs = salesStart.getTime();
-            const eventStartTs = event.startDate ? new Date(event.startDate).getTime() : 0;
-            const isDefaultDate = startTs === eventStartTs;
-            const isFree = tier.price === 0 || tier.isFree;
+                // Effective inventory = Remaining - Locked (Active Reservations)
+                const baseRemaining = Number(tier.remaining ?? tier.quantity ?? 0);
+                const currentLocked = Number(tier.lockedQuantity || 0);
+                const effectiveAvailable = Math.max(0, baseRemaining - currentLocked);
 
-            if (!isDefaultDate && !isFree && !event.isRSVP) {
-                errors.push(`${tier.name} sales haven't started yet`);
-                continue;
+                if (item.quantity > effectiveAvailable) {
+                    throw new Error(`${tier.name} is sold out or unavailable`);
+                }
+
+                // Update locked count in the tier for this transaction
+                updatedTiers[tierIndex] = {
+                    ...tier,
+                    lockedQuantity: (tier.lockedQuantity || 0) + item.quantity
+                };
+
+                // Get effective price
+                const priceInfo = getEffectivePrice(tier);
+
+                reservedItems.push({
+                    tierId: tier.id,
+                    tierName: tier.name,
+                    entryType: tier.entryType || 'general',
+                    quantity: item.quantity,
+                    unitPrice: priceInfo.price,
+                    priceLabel: priceInfo.label,
+                    subtotal: priceInfo.price * item.quantity
+                });
             }
-        }
 
-        if (salesEnd && !isInvalidEnd && now > salesEnd) {
-            errors.push(`${tier.name} sales have ended`);
-            continue;
-        }
+            // 2. Prepare reservation doc
+            const now = new Date();
+            const expiresAt = new Date(now.getTime() + RESERVATION_MINUTES * 60 * 1000);
+            const reservationId = randomUUID();
+            const reservationRef = db.collection(RESERVATIONS_COLLECTION).doc(reservationId);
 
-        // Check purchase limits
-        const minPerOrder = tier.minPerOrder || 1;
-        const maxPerOrder = tier.maxPerOrder || 10;
+            const reservationData = {
+                id: reservationId,
+                eventId,
+                customerId: customerId || null,
+                deviceId: deviceId || null,
+                queueId: queueId || null,
+                items: reservedItems,
+                status: 'active',
+                createdAt: now.toISOString(),
+                expiresAt: expiresAt.toISOString()
+            };
 
-        if (item.quantity < minPerOrder) {
-            errors.push(`Minimum ${minPerOrder} tickets for ${tier.name}`);
-            continue;
-        }
+            // 3. Commit both: create reservation and update event hot-counts
+            transaction.set(reservationRef, reservationData);
 
-        if (item.quantity > maxPerOrder) {
-            errors.push(`Maximum ${maxPerOrder} tickets for ${tier.name}`);
-            continue;
-        }
-
-        // Check inventory (accounting for current reservations)
-        const remaining = tier.remaining ?? tier.quantity ?? 0;
-        const reservedCount = await getReservedCountForTier(eventId, tier.id);
-        const available = Math.max(0, remaining - reservedCount);
-
-        if (item.quantity > available) {
-            if (available === 0) {
-                errors.push(`${tier.name} is sold out`);
+            if (event.ticketCatalog) {
+                transaction.update(eventRef, { 'ticketCatalog.tiers': updatedTiers });
             } else {
-                errors.push(`Only ${available} ${tier.name} tickets available`);
+                transaction.update(eventRef, { tickets: updatedTiers });
             }
-            continue;
-        }
 
-        // Get effective price
-        const priceInfo = getEffectivePrice(tier);
-
-        reservedItems.push({
-            tierId: tier.id,
-            tierName: tier.name,
-            entryType: tier.entryType || 'general',
-            quantity: item.quantity,
-            unitPrice: priceInfo.price,
-            priceLabel: priceInfo.label,
-            subtotal: priceInfo.price * item.quantity
+            return {
+                reservationId: reservationId,
+                items: reservedItems,
+                expiresAt: reservationData.expiresAt,
+                expiresInSeconds: RESERVATION_MINUTES * 60
+            };
         });
+
+        return { success: true, ...result };
+    } catch (error) {
+        console.error('[CheckoutService] Atomic reservation failed:', error);
+        return { success: false, error: error.message };
     }
-
-    if (errors.length > 0) {
-        return { success: false, errors };
-    }
-
-    // Create reservation
-    const expiresAt = new Date(now.getTime() + RESERVATION_MINUTES * 60 * 1000);
-
-    const reservation = {
-        id: randomUUID(),
-        eventId,
-        customerId,
-        deviceId: deviceId || null,
-        queueId: queueId || null,
-        items: reservedItems,
-        status: 'active',
-        createdAt: now.toISOString(),
-        expiresAt: expiresAt.toISOString()
-    };
-
-    if (!isFirebaseConfigured()) {
-        fallbackReservations.set(reservation.id, reservation);
-    } else {
-        const db = getAdminDb();
-        await db.collection(RESERVATIONS_COLLECTION).doc(reservation.id).set(reservation);
-    }
-
-    return {
-        success: true,
-        reservationId: reservation.id,
-        items: reservedItems,
-        expiresAt: reservation.expiresAt,
-        expiresInSeconds: RESERVATION_MINUTES * 60
-    };
 }
 
 /**
- * Get reserved count for a tier
+ * Release a reservation (user abandons cart)
+ * ATOMIC: Restores 'lockedQuantity' to the pool.
  */
-async function getReservedCountForTier(eventId, tierId, excludeId = null) {
-    const now = new Date();
-    let count = 0;
+export async function releaseReservation(reservationId) {
+    const reservation = await getReservation(reservationId);
+    if (!reservation) {
+        return { success: false, error: 'Reservation not found' };
+    }
+
+    if (reservation.status !== 'active') {
+        return { success: false, error: `Reservation is ${reservation.status}` };
+    }
 
     if (!isFirebaseConfigured()) {
-        for (const [id, reservation] of fallbackReservations) {
-            if (id === excludeId) continue;
-            if (reservation.eventId !== eventId) continue;
-            if (reservation.status !== 'active') continue;
-            if (new Date(reservation.expiresAt) < now) continue;
-
-            const item = reservation.items.find(i => i.tierId === tierId);
-            if (item) count += item.quantity;
-        }
-        return count;
+        reservation.status = 'released';
+        reservation.releasedAt = new Date().toISOString();
+        return { success: true };
     }
 
     const db = getAdminDb();
-    const snapshot = await db.collection(RESERVATIONS_COLLECTION)
-        .where('eventId', '==', eventId)
-        .where('status', '==', 'active')
-        .get();
 
-    for (const doc of snapshot.docs) {
-        if (doc.id === excludeId) continue;
+    try {
+        await db.runTransaction(async (transaction) => {
+            const resRef = db.collection(RESERVATIONS_COLLECTION).doc(reservationId);
+            const resDoc = await transaction.get(resRef);
 
-        const reservation = doc.data();
-        if (new Date(reservation.expiresAt) < now) continue;
+            if (!resDoc.exists) throw new Error('Reservation not found');
+            const resData = resDoc.data();
+            if (resData.status !== 'active') throw new Error(`Reservation is ${resData.status}`);
 
-        const item = reservation.items?.find(i => i.tierId === tierId);
-        if (item) count += item.quantity;
+            // 1. Mark as released
+            transaction.update(resRef, {
+                status: 'released',
+                releasedAt: new Date().toISOString()
+            });
+
+            // 2. Restore locked pool
+            const eventRef = db.collection('events').doc(resData.eventId);
+            const eventDoc = await transaction.get(eventRef);
+            if (eventDoc.exists) {
+                const event = eventDoc.data();
+                const tiers = event.ticketCatalog?.tiers || event.tickets || [];
+                const updatedTiers = [...tiers];
+
+                for (const item of resData.items) {
+                    const idx = updatedTiers.findIndex(t => t.id === item.tierId);
+                    if (idx !== -1) {
+                        updatedTiers[idx] = {
+                            ...updatedTiers[idx],
+                            lockedQuantity: Math.max(0, (updatedTiers[idx].lockedQuantity || 0) - item.quantity)
+                        };
+                    }
+                }
+
+                if (event.ticketCatalog) {
+                    transaction.update(eventRef, { 'ticketCatalog.tiers': updatedTiers });
+                } else {
+                    transaction.update(eventRef, { tickets: updatedTiers });
+                }
+            }
+        });
+        return { success: true };
+    } catch (error) {
+        console.error('[CheckoutService] Release failed:', error);
+        return { success: false, error: error.message };
     }
-
-    return count;
 }
 
 /**
@@ -469,30 +475,7 @@ export async function getReservation(reservationId) {
 /**
  * Release a reservation (user abandons cart)
  */
-export async function releaseReservation(reservationId) {
-    const reservation = await getReservation(reservationId);
-    if (!reservation) {
-        return { success: false, error: 'Reservation not found' };
-    }
-
-    if (reservation.status !== 'active') {
-        return { success: false, error: `Reservation is ${reservation.status}` };
-    }
-
-    if (!isFirebaseConfigured()) {
-        reservation.status = 'released';
-        reservation.releasedAt = new Date().toISOString();
-        return { success: true };
-    }
-
-    const db = getAdminDb();
-    await db.collection(RESERVATIONS_COLLECTION).doc(reservationId).update({
-        status: 'released',
-        releasedAt: new Date().toISOString()
-    });
-
-    return { success: true };
-}
+// Handled above in the redone releaseReservation
 
 /**
  * Convert reservation to order and initiate payment
@@ -740,6 +723,7 @@ async function updateReservationStatus(reservationId, status, metadata = {}) {
 
 /**
  * Clean up expired reservations (run periodically)
+ * ATOMIC: Correctly restores 'lockedQuantity' for every expired cart.
  */
 export async function cleanupExpiredReservations() {
     const now = new Date();
@@ -756,22 +740,67 @@ export async function cleanupExpiredReservations() {
     }
 
     const db = getAdminDb();
+
+    // 1. Find active but expired reservations
     const snapshot = await db.collection(RESERVATIONS_COLLECTION)
         .where('status', '==', 'active')
+        .where('expiresAt', '<', now.toISOString())
+        .limit(50)
         .get();
 
-    const batch = db.batch();
+    if (snapshot.empty) return { cleaned: 0 };
 
-    for (const doc of snapshot.docs) {
-        const reservation = doc.data();
-        if (new Date(reservation.expiresAt) < now) {
-            batch.update(doc.ref, { status: 'expired' });
-            cleaned++;
+    // Grouping by event to minimize transactions
+    const eventGroups = {};
+    snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (!eventGroups[data.eventId]) eventGroups[data.eventId] = [];
+        eventGroups[data.eventId].push({ id: doc.id, ...data });
+    });
+
+    for (const eventId of Object.keys(eventGroups)) {
+        const group = eventGroups[eventId];
+        try {
+            await db.runTransaction(async (transaction) => {
+                const eventRef = db.collection('events').doc(eventId);
+                const eventDoc = await transaction.get(eventRef);
+
+                if (!eventDoc.exists) {
+                    group.forEach(r => transaction.update(db.collection(RESERVATIONS_COLLECTION).doc(r.id), { status: 'expired' }));
+                    return;
+                }
+
+                const event = eventDoc.data();
+                const tiers = event.ticketCatalog?.tiers || event.tickets || [];
+                const updatedTiers = [...tiers];
+
+                for (const reservation of group) {
+                    transaction.update(db.collection(RESERVATIONS_COLLECTION).doc(reservation.id), {
+                        status: 'expired',
+                        expiredAt: new Date().toISOString()
+                    });
+
+                    for (const item of reservation.items) {
+                        const idx = updatedTiers.findIndex(t => t.id === item.tierId);
+                        if (idx !== -1) {
+                            updatedTiers[idx] = {
+                                ...updatedTiers[idx],
+                                lockedQuantity: Math.max(0, (updatedTiers[idx].lockedQuantity || 0) - item.quantity)
+                            };
+                        }
+                    }
+                }
+
+                if (event.ticketCatalog) {
+                    transaction.update(eventRef, { 'ticketCatalog.tiers': updatedTiers });
+                } else {
+                    transaction.update(eventRef, { tickets: updatedTiers });
+                }
+            });
+            cleaned += group.length;
+        } catch (e) {
+            console.error(`[CheckoutService] Cleanup failed for event ${eventId}:`, e);
         }
-    }
-
-    if (cleaned > 0) {
-        await batch.commit();
     }
 
     return { cleaned };

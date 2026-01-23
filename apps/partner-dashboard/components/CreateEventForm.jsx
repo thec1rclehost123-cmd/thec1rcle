@@ -7,6 +7,7 @@ import Image from "next/image";
 import { getFirebaseStorage } from "../lib/firebase/client";
 import { EventPage } from "@c1rcle/ui";
 import { CITY_MAP } from "@c1rcle/core/events";
+import { pickDominantColor, formatColor } from "@c1rcle/core/theme";
 
 const categories = ["Trending", "This Week", "Nearby"];
 const accentPalette = ["#8845FF", "#F59E0B", "#EC4899", "#10B981", "#3B82F6", "#F97316", "#8B5CF6"];
@@ -109,9 +110,26 @@ export default function CreateEventForm() {
     setUploadingFlyer(true);
     try {
       const url = await uploadPosterToStorage(file);
-      setForm((prev) => ({ ...prev, image: url }));
+
+      // Auto-extract dominant color for theming
+      const img = new window.Image();
+      img.crossOrigin = "Anonymous";
+      img.src = url;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 10;
+        canvas.height = 10;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, 10, 10);
+        const data = ctx.getImageData(0, 0, 10, 10).data;
+        const bestColor = pickDominantColor(data);
+        const accentColor = formatColor.hex(bestColor);
+        setForm((prev) => ({ ...prev, image: url, accentColor }));
+      };
+
       setStatus({ type: "success", message: "✨ Flyer uploaded successfully!" });
     } catch (error) {
+      console.error("Flyer upload error:", error);
       setStatus({ type: "error", message: "Failed to upload flyer." });
     } finally {
       setUploadingFlyer(false);

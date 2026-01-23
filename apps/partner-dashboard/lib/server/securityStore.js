@@ -70,3 +70,51 @@ export async function deactivateSyncCode(eventId, venueId) {
 
     return true;
 }
+
+/**
+ * Get active SOS alerts for a venue
+ */
+export async function getVenueSOSAlerts(venueId) {
+    if (!isFirebaseConfigured()) return [];
+
+    const db = getAdminDb();
+
+    // First, get all events for this venue
+    const eventsSnap = await db.collection("events")
+        .where("venueId", "==", venueId)
+        .where("lifecycle", "==", "live")
+        .get();
+
+    const liveEventIds = eventsSnap.docs.map(doc => doc.id);
+
+    if (liveEventIds.length === 0) return [];
+
+    // Get alerts for these events
+    const alertsSnap = await db.collection("sosAlerts")
+        .where("eventId", "in", liveEventIds)
+        .where("status", "==", "triggered")
+        .orderBy("triggeredAt", "desc")
+        .get();
+
+    return alertsSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        triggeredAt: doc.data().triggeredAt?.toDate?.() || new Date()
+    }));
+}
+
+/**
+ * Resolve an SOS alert
+ */
+export async function resolveSOSAlert(alertId, resolvedBy) {
+    if (!isFirebaseConfigured()) return true;
+
+    const db = getAdminDb();
+    await db.collection("sosAlerts").doc(alertId).update({
+        status: "resolved",
+        resolvedBy,
+        resolvedAt: Timestamp.now()
+    });
+
+    return true;
+}

@@ -3,6 +3,7 @@ import { verifyAuth } from "@/lib/server/auth";
 import { validateAndScanTicket } from "@/lib/server/ticketShareStore";
 import { processEntryScan } from "@c1rcle/core/entitlement-engine";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { verifyQRPayload } from "@/lib/server/qrStore";
 
 export async function POST(request) {
     try {
@@ -26,35 +27,35 @@ export async function POST(request) {
             // Not JSON, continue to legacy split
         }
 
-        // NEW ENTITLEMENT SCAN FLOW
-        if (parsedPayload && parsedPayload.eid) {
-            const scanResult = await processEntryScan(parsedPayload, scannerId || user.uid, eventId, {
-                scannerEmail: user.email,
-                platform: 'web-scanner-api',
-                // NOTE: In a production scanner app, this would be determined by 
-                // checking for both partners' profiles or a manual "Partner Present" toggle.
-                partnerPresent: true
+        // SIGNED JSON QR FLOW (Standard Orders)
+        if (parsedPayload && (parsedPayload.o || parsedPayload.e)) {
+            const verification = verifyQRPayload(parsedPayload);
+            if (!verification.valid) {
+                return NextResponse.json({
+                    status: "denied",
+                    reason: "invalid_signature",
+                    message: verification.error || "Invalid QR Signature"
+                });
+            }
+
+            const { orderId, ticketId } = verification.data;
+
+            // Re-format for the unified scanner logic
+            const result = await validateAndScanTicket(orderId, "SIGNED-JSON", eventId, scannerId || user.uid, {
+                directPayload: verification.data
             });
 
-            if (scanResult.success) {
+            if (result.valid) {
                 return NextResponse.json({
                     status: "approved",
-                    ticket: scanResult.entitlement,
+                    ticket: result.ticket,
                     message: "Entry Granted"
                 });
             } else {
-                const messageMap = {
-                    STALE_QR: "QR Code Expired. Please refresh.",
-                    INVALID_QR: "Invalid QR code signature.",
-                    ALREADY_CONSUMED: "This ticket has already been used.",
-                    EVENT_MISMATCH: "This ticket is for a different event.",
-                    GENDER_MISMATCH: "Gender restriction violation.",
-                    REVOKED: "This ticket has been cancelled or refunded."
-                };
                 return NextResponse.json({
                     status: "denied",
-                    reason: scanResult.reason,
-                    message: messageMap[scanResult.reason] || "Access Denied"
+                    reason: result.reason,
+                    message: result.message || "Access Denied"
                 });
             }
         }

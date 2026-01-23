@@ -451,9 +451,22 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
   const results = snapshot.docs
     .map(doc => mapEventForClient(doc.data(), doc.id))
     .filter(event => {
-      // Final safety filter: Exclude past events from all public listings
+      // 1. Final safety filter: Exclude past events from all public listings
       const end = event.endDate || event.startDate;
-      return end >= nowIso;
+      if (end < nowIso) return false;
+
+      // 2. Strict content filter for public visibility
+      const title = (event.title || "").trim();
+      if (title.length < 3 || title.toLowerCase().includes("untitled") || title.toLowerCase().includes("test event")) {
+        return false;
+      }
+
+      const location = (event.location || event.venue || "").trim();
+      if (!location || location.toLowerCase() === "tbd" || location.length < 3) {
+        return false;
+      }
+
+      return true;
     });
 
   return limit ? results.slice(0, limit) : results;

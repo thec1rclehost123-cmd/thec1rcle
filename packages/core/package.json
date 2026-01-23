@@ -15,7 +15,8 @@
         "./time": "./time.js",
         "./ledger-engine": "./ledger-engine.js",
         "./payout-engine": "./payout-engine.js",
-        "./entitlement-engine": "./entitlement-engine.js"
+        "./entitlement-engine": "./entitlement-engine.js",
+        "./theme": "./theme.js"
     },
     "dependencies": {
         "firebase": "^12.6.0",

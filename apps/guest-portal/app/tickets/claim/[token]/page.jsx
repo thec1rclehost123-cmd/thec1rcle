@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * THE C1RCLE — Premium Ticket Claim Page (Web)
+ * 
+ * Beautiful warm amber gradient claim experience matching the mobile app.
+ * Features sender attribution, stylized ticket preview with QR, and elegant actions.
+ */
+
 import { useEffect, useState, use } from "react";
 import { useAuth } from "../../../../components/providers/AuthProvider";
 import { useRouter } from "next/navigation";
@@ -60,36 +67,54 @@ export default function ClaimTicketPage({ params: paramsPromise }) {
         }
     };
 
+    const handleDecline = () => {
+        router.push("/explore");
+    };
+
+    // Loading state
     if (loading || authLoading) {
         return (
-            <div className="min-h-screen bg-black flex items-center justify-center">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/20 border-t-orange" />
+            <div className="min-h-screen bg-gradient-to-b from-[#E8913A] via-[#D97B1A] to-[#7A420C] flex items-center justify-center">
+                <div className="text-center">
+                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/30 border-t-white mx-auto" />
+                    <p className="mt-4 text-white/90 font-semibold">Verifying your invite...</p>
+                </div>
             </div>
         );
     }
 
-    if (error) {
+    // Error state
+    if (error && !bundle) {
         const isGenderMismatch = error.toLowerCase().includes("gender mismatch");
         return (
-            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center">
-                <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-8 border ${isGenderMismatch ? 'bg-orange/10 border-orange/20' : 'bg-red-500/10 border-red-500/20'}`}>
-                    {isGenderMismatch ? (
-                        <svg className="w-10 h-10 text-orange" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                    ) : (
-                        <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    )}
+            <div className="min-h-screen bg-gradient-to-b from-[#E8913A] via-[#D97B1A] to-[#7A420C] flex flex-col items-center justify-center p-6 text-center">
+                {/* Decorative orbs */}
+                <div className="absolute top-0 right-0 w-72 h-72 bg-white/10 rounded-full blur-3xl -translate-y-1/3 translate-x-1/3" />
+                <div className="absolute bottom-0 left-0 w-60 h-60 bg-white/10 rounded-full blur-3xl translate-y-1/3 -translate-x-1/3" />
+
+                <div className="relative z-10">
+                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-8 ${isGenderMismatch ? 'bg-white/15' : 'bg-white/15'}`}>
+                        {isGenderMismatch ? (
+                            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        ) : (
+                            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        )}
+                    </div>
+                    <h1 className="text-4xl font-black text-white mb-4">
+                        Oops!
+                    </h1>
+                    <p className="text-white/80 mb-10 max-w-xs text-base font-medium leading-relaxed">{error}</p>
+                    <Link
+                        href="/explore"
+                        className="inline-block px-10 py-4 rounded-full bg-white text-[#8B4513] font-bold text-sm hover:scale-105 transition-transform shadow-lg"
+                    >
+                        Explore Events
+                    </Link>
                 </div>
-                <h1 className="text-4xl font-heading font-black text-white uppercase mb-4 tracking-tighter">
-                    {isGenderMismatch ? "Restricted Access" : "Link Invalid"}
-                </h1>
-                <p className="text-white/40 mb-10 max-w-xs text-sm font-medium leading-relaxed">{error}</p>
-                <Link href="/explore" className="px-10 py-4 rounded-full bg-white text-black font-black uppercase text-[10px] tracking-[0.3em] hover:scale-105 transition-transform shadow-lg shadow-white/5">
-                    Go Explore
-                </Link>
             </div>
         );
     }
@@ -97,20 +122,82 @@ export default function ClaimTicketPage({ params: paramsPromise }) {
     const { event } = bundle;
     const tier = event?.tickets?.find(t => t.id === bundle.tierId);
     const isExhausted = bundle.remainingSlots <= 0;
+    const senderName = bundle.senderName || bundle.senderEmail?.split("@")[0] || "Someone";
+    const ticketCount = bundle.remainingSlots || bundle.ticketCount || 1;
+    const eventDate = event?.date ? new Date(event.date).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    }) : "";
 
+    // Success state after claiming
+    if (claimResult) {
+        return (
+            <div className="min-h-screen bg-gradient-to-b from-[#E8913A] via-[#D97B1A] to-[#7A420C] flex items-center justify-center p-4 overflow-hidden">
+                {/* Decorative orbs */}
+                <div className="absolute top-0 right-0 w-72 h-72 bg-white/10 rounded-full blur-3xl -translate-y-1/3 translate-x-1/3" />
+                <div className="absolute bottom-0 left-0 w-60 h-60 bg-white/10 rounded-full blur-3xl translate-y-1/3 -translate-x-1/3" />
+
+                <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="relative z-10 w-full max-w-md bg-white/95 backdrop-blur-xl rounded-[40px] p-10 shadow-2xl text-center"
+                >
+                    {/* Success Icon */}
+                    <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
+                        <svg className="w-10 h-10 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+
+                    <h1 className="text-3xl font-black text-gray-900 mb-2">
+                        Tickets Secured!
+                    </h1>
+                    <p className="text-gray-500 text-sm font-semibold uppercase tracking-wide mb-8">
+                        {event.title}
+                    </p>
+
+                    {/* QR Code */}
+                    <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-8 mb-8 inline-block shadow-lg">
+                        <QRCodeSVG
+                            value={claimResult.assignment.qrPayload}
+                            size={180}
+                            level="H"
+                        />
+                        <p className="mt-6 text-xs font-bold text-gray-400 uppercase tracking-widest">
+                            Show this at entrance
+                        </p>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="space-y-4">
+                        <Link
+                            href="/tickets"
+                            className="block w-full py-5 rounded-full bg-gradient-to-r from-[#D97B1A] to-[#E8913A] text-white font-bold text-sm uppercase tracking-wider shadow-xl hover:scale-[1.02] transition-transform"
+                        >
+                            View in My Wallet
+                        </Link>
+                        <p className="text-xs text-gray-400 font-medium">
+                            A copy has been saved to your profile
+                        </p>
+                    </div>
+                </motion.div>
+            </div>
+        );
+    }
+
+    // Main claim view
     return (
-        <div className="min-h-screen bg-black relative flex items-center justify-center p-4 overflow-hidden">
-            {/* Immersive Background */}
-            <div className="absolute inset-0 z-0">
-                {event.image && (
-                    <Image
-                        src={event.image}
-                        alt=""
-                        fill
-                        className="object-cover opacity-60 blur-3xl scale-125"
-                    />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black" />
+        <div className="min-h-screen bg-gradient-to-b from-[#E8913A] via-[#D97B1A] to-[#7A420C] relative flex items-center justify-center p-4 overflow-hidden">
+            {/* Decorative orbs */}
+            <div className="absolute top-0 right-0 w-72 h-72 bg-white/15 rounded-full blur-3xl -translate-y-1/3 translate-x-1/3" />
+            <div className="absolute bottom-0 left-0 w-60 h-60 bg-white/15 rounded-full blur-3xl translate-y-1/3 -translate-x-1/3" />
+
+            {/* Logo */}
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20">
+                <div className="w-12 h-12 rounded-full bg-white/15 border border-white/20 flex items-center justify-center backdrop-blur-sm">
+                    <span className="text-white font-black text-sm">C1</span>
+                </div>
             </div>
 
             <motion.div
@@ -119,140 +206,158 @@ export default function ClaimTicketPage({ params: paramsPromise }) {
                 transition={{ type: "spring", damping: 20 }}
                 className="relative z-10 w-full max-w-md"
             >
-                <AnimatePresence mode="wait">
-                    {claimResult ? (
-                        <motion.div
-                            key="success"
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="bg-zinc-900/90 backdrop-blur-3xl rounded-[48px] p-10 border border-white/10 shadow-[0_32px_80px_rgba(0,0,0,0.5)] text-center"
-                        >
-                            <div className="mb-10 text-center">
-                                <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
-                                    <svg className="w-8 h-8 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                </div>
-                                <h1 className="text-3xl font-heading font-black text-white uppercase leading-tight mb-3 tracking-tighter">
-                                    Spot Secured!
-                                </h1>
-                                <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.3em]">
-                                    {event.title}
-                                </p>
-                            </div>
+                {/* Headline */}
+                <motion.h1
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="text-4xl font-black text-white text-center mb-6 leading-tight"
+                    style={{ textShadow: "0 2px 10px rgba(0,0,0,0.15)" }}
+                >
+                    {senderName} sent you {ticketCount > 1 ? "tickets" : "a ticket"}
+                </motion.h1>
 
-                            <div className="bg-white rounded-[40px] p-8 mb-10 inline-block shadow-2xl transform hover:scale-[1.02] transition-transform">
-                                <QRCodeSVG
-                                    value={claimResult.assignment.qrPayload}
-                                    size={200}
-                                    level="H"
+                {/* Ticket Card */}
+                <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.3, type: "spring" }}
+                    className="bg-white/[0.97] backdrop-blur-xl rounded-[32px] overflow-hidden shadow-2xl"
+                >
+                    {/* Event Header */}
+                    <div className="p-5 pb-4 border-b border-gray-100">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-7 h-7 rounded-full bg-gray-900 flex items-center justify-center">
+                                <span className="text-white font-black text-[10px]">C1</span>
+                            </div>
+                            <span className="text-gray-500 font-semibold text-sm truncate">
+                                {event.venue || "The Venue"}
+                            </span>
+                        </div>
+                        <div className="flex items-end justify-between">
+                            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight truncate flex-1">
+                                {event.title}
+                            </h2>
+                            <span className="text-gray-500 font-bold text-xs ml-3 whitespace-nowrap">
+                                {eventDate}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* QR Code Area */}
+                    <div className="relative aspect-square m-5 mt-4 rounded-3xl overflow-hidden bg-gradient-to-br from-amber-100/80 via-orange-100/60 to-amber-200/80">
+                        {/* Wavy lines decoration */}
+                        <div className="absolute inset-0 overflow-hidden opacity-[0.08]">
+                            {Array.from({ length: 8 }).map((_, i) => (
+                                <div
+                                    key={i}
+                                    className="absolute left-0 right-0 h-0.5 bg-amber-900 rounded-full"
+                                    style={{ top: `${12 + i * 12}%` }}
                                 />
-                                <p className="mt-6 text-[10px] font-black text-black/40 uppercase tracking-[0.2em]">
-                                    Show this at entrance
+                            ))}
+                        </div>
+
+                        {/* QR Code */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="bg-white/85 rounded-2xl p-5 shadow-xl">
+                                <QRCodeSVG
+                                    value={JSON.stringify({ type: "claim", token, eventId: bundle.eventId })}
+                                    size={160}
+                                    level="H"
+                                    imageSettings={event.image ? {
+                                        src: event.image,
+                                        height: 40,
+                                        width: 40,
+                                        excavate: true,
+                                    } : undefined}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Ticket Count Badge */}
+                        <div className="absolute bottom-3 right-3 bg-white/95 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg">
+                            <span className="font-bold text-gray-700 text-sm">{ticketCount}x</span>
+                            <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                            </svg>
+                        </div>
+
+                        {/* ID Badge */}
+                        <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-2.5 py-1 rounded-lg">
+                            <span className="font-bold text-white/90 text-[10px] tracking-wider uppercase">
+                                {token?.slice(0, 8)}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Download Prompt */}
+                    <div className="px-6 pb-6 pt-2">
+                        <p className="text-gray-500 text-center text-sm leading-relaxed">
+                            Download the app to easily transfer tickets<br />and manage events on the go
+                        </p>
+                    </div>
+                </motion.div>
+
+                {/* Actions */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="mt-6 space-y-3"
+                >
+                    {isExhausted ? (
+                        <>
+                            <div className="p-5 rounded-2xl bg-red-500/10 border border-red-500/20">
+                                <p className="text-red-100 font-bold uppercase text-xs tracking-widest text-center">
+                                    All spots have been claimed
                                 </p>
                             </div>
-
-                            <div className="space-y-4">
-                                <Link href="/tickets" className="block w-full py-5 rounded-full bg-white text-black font-black uppercase text-[11px] tracking-[0.3em] shadow-xl hover:scale-[1.02] transition-transform active:scale-95">
-                                    View in My Wallet
-                                </Link>
-                                <p className="text-[9px] text-white/30 uppercase tracking-[0.2em]">A copy has been saved to your profile</p>
-                            </div>
-                        </motion.div>
+                            <Link
+                                href="/explore"
+                                className="block w-full py-5 rounded-full border border-white/20 text-white font-bold uppercase text-sm tracking-wider text-center hover:bg-white/10 transition-colors"
+                            >
+                                Discover more events
+                            </Link>
+                        </>
                     ) : (
-                        <motion.div
-                            key="claim"
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="bg-zinc-900/90 backdrop-blur-3xl rounded-[56px] overflow-hidden border border-white/10 shadow-[0_40px_100px_rgba(0,0,0,0.6)]"
-                        >
-                            <div className="relative h-72 w-full">
-                                <Image src={event.image || "/events/placeholder.svg"} alt={event.title} fill className="object-cover" />
-                                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/20 to-transparent" />
+                        <>
+                            <button
+                                onClick={handleClaim}
+                                disabled={claiming}
+                                className="w-full py-5 rounded-full bg-white text-gray-900 font-bold text-lg shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                            >
+                                {claiming ? "Claiming..." : "Accept Tickets"}
+                            </button>
 
-                                <div className="absolute top-8 left-8">
-                                    <div className="px-4 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white text-[10px] font-black uppercase tracking-widest">
-                                        Invitation
-                                    </div>
+                            <button
+                                onClick={handleDecline}
+                                className="w-full py-4 text-white/70 font-semibold text-base underline underline-offset-4 decoration-white/30 hover:text-white transition-colors"
+                            >
+                                Decline
+                            </button>
+
+                            {!user && (
+                                <p className="text-center text-white/40 text-xs uppercase tracking-widest font-medium">
+                                    A C1RCLE account is required to claim
+                                </p>
+                            )}
+
+                            {tier?.isCouple && (
+                                <div className="p-4 rounded-2xl bg-white/10 border border-white/20 mt-4">
+                                    <p className="text-white/80 text-xs font-semibold uppercase tracking-wide text-center leading-relaxed">
+                                        Note: Couple entries must arrive together at the venue for valid entry.
+                                    </p>
                                 </div>
-                            </div>
-
-                            <div className="p-10 pt-4 text-center">
-                                <div className="mb-10">
-                                    <h1 className="text-5xl font-heading font-black text-white uppercase leading-[0.8] mb-6 tracking-tighter">
-                                        {event.title}
-                                    </h1>
-
-                                    <div className="flex flex-col items-center gap-4">
-                                        <div className="px-5 py-2 rounded-2xl bg-white text-black text-[10px] font-black uppercase tracking-[0.3em]">
-                                            {tier?.name || "General Admission"}
-                                        </div>
-
-                                        <div className="flex flex-col items-center gap-1.5 text-white/50 text-[10px] font-bold uppercase tracking-[0.2em]">
-                                            <p className="flex items-center gap-2">
-                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                                {event.venue} • {event.city}
-                                            </p>
-                                            <p className="flex items-center gap-2">
-                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                {event.date} • {event.time}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {isExhausted ? (
-                                    <div className="space-y-6">
-                                        <div className="p-6 rounded-3xl bg-red-500/5 border border-red-500/10">
-                                            <p className="text-red-500 font-black uppercase text-[10px] tracking-[0.2em]">All spots have been claimed</p>
-                                        </div>
-                                        <Link href="/explore" className="block w-full py-5 rounded-full border border-white/10 text-white font-black uppercase text-[11px] tracking-[0.3em] hover:bg-white/5 transition-colors">
-                                            Discover more events
-                                        </Link>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-8">
-                                        <div className="relative py-2">
-                                            <div className="bg-white/5 h-1 w-full rounded-full overflow-hidden">
-                                                <motion.div
-                                                    initial={{ width: 0 }}
-                                                    animate={{ width: `${(bundle.remainingSlots / bundle.totalSlots) * 100}%` }}
-                                                    className="h-full bg-orange"
-                                                />
-                                            </div>
-                                            <p className="mt-3 text-[10px] text-white/40 font-black uppercase tracking-[0.3em]">
-                                                {bundle.remainingSlots} of {bundle.totalSlots} Slots Open
-                                            </p>
-                                        </div>
-
-                                        {tier?.isCouple && (
-                                            <div className="p-4 rounded-2xl bg-orange/5 border border-orange/20">
-                                                <p className="text-orange text-[9px] font-black uppercase tracking-[0.2em] leading-relaxed">
-                                                    Note: Couple entries must arrive together at the venue for valid entry.
-                                                </p>
-                                            </div>
-                                        )}
-
-                                        <button
-                                            onClick={handleClaim}
-                                            disabled={claiming}
-                                            className="group relative w-full py-6 rounded-full bg-white text-black font-black uppercase text-xs tracking-[0.4em] shadow-[0_20px_40px_rgba(255,255,255,0.1)] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 overflow-hidden"
-                                        >
-                                            <span className="relative z-10">{claiming ? "Claiming Spot..." : "Claim Ticket"}</span>
-                                            <div className="absolute inset-0 bg-gradient-to-r from-orange to-gold opacity-0 group-hover:opacity-10 transition-opacity" />
-                                        </button>
-
-                                        {!user && (
-                                            <p className="text-[10px] text-white/20 uppercase tracking-[0.3em] font-medium italic">
-                                                A C1RCLE account is required to claim
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        </motion.div>
+                            )}
+                        </>
                     )}
-                </AnimatePresence>
+
+                    {error && (
+                        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20">
+                            <p className="text-red-200 text-sm font-medium text-center">{error}</p>
+                        </div>
+                    )}
+                </motion.div>
             </motion.div>
         </div>
     );

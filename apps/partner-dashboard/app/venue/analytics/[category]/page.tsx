@@ -115,13 +115,15 @@ export default function VenueAnalyticsPage() {
     if (!stats || !stats.dataReady) {
         return (
             <div className="py-24 flex flex-col items-center text-center">
-                <div className="h-24 w-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-8 border border-slate-100">
-                    <BarChart3 className="h-12 w-12 text-slate-200" />
+                <div className="h-24 w-24 bg-[var(--surface-tertiary)] rounded-3xl flex items-center justify-center mb-8 border border-[var(--border-subtle)]">
+                    <BarChart3 className="h-12 w-12 text-[var(--text-placeholder)]" />
                 </div>
-                <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">Not enough data</h3>
-                <p className="text-slate-500 text-sm font-medium mb-10 max-w-xs mx-auto">Complete your first event to see revenue and performance insights for {categoryLabels[category]}.</p>
-                <Link href="/venue/create" className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-bold text-sm shadow-xl hover:bg-slate-800 transition-all">
-                    Launch First Production
+                <h3 className="text-headline text-[var(--text-primary)] mb-3">No Data Yet</h3>
+                <p className="text-body text-[var(--text-tertiary)] mb-10 max-w-sm mx-auto">
+                    Complete your first event to see {categoryLabels[category].toLowerCase()} analytics and performance insights.
+                </p>
+                <Link href="/venue/create" className="btn btn-primary">
+                    Create Your First Event
                 </Link>
             </div>
         );

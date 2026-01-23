@@ -252,37 +252,37 @@ export default function EventsManagementPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                    <h1 className="text-headline text-[var(--text-primary)]">
                         Events Management
                     </h1>
-                    <p className="text-slate-500 text-sm mt-1">
+                    <p className="text-body-sm text-[var(--text-tertiary)] mt-1">
                         Full lifecycle control from draft to post-event review
                     </p>
                 </div>
-                <Link href="/venue/create" className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 shadow-sm">
+                <Link href="/venue/create" className="btn btn-primary">
                     <Plus className="h-4 w-4" />
                     Create Event
                 </Link>
             </div>
 
             {/* Stats Overview */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 {[
-                    { label: "Live Now", value: liveEvents, icon: Play, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-                    { label: "Requests", value: pendingApprovals, icon: AlertCircle, color: "text-amber-500", bg: "bg-amber-500/10" },
-                    { label: "Published", value: publishedEvents, icon: CheckCircle2, color: "text-blue-500", bg: "bg-blue-500/10" },
-                    { label: "Your Drafts", value: draftEvents, icon: Edit, color: "text-slate-500", bg: "bg-slate-500/10" },
+                    { label: "Live Now", value: liveEvents, icon: Play, color: "text-[var(--state-success)]", bg: "bg-[var(--state-success-bg)]" },
+                    { label: "Requests", value: pendingApprovals, icon: AlertCircle, color: "text-[var(--state-warning)]", bg: "bg-[var(--state-warning-bg)]" },
+                    { label: "Published", value: publishedEvents, icon: CheckCircle2, color: "text-[var(--state-info)]", bg: "bg-[var(--state-info-bg)]" },
+                    { label: "Your Drafts", value: draftEvents, icon: Edit, color: "text-[var(--text-tertiary)]", bg: "bg-[var(--surface-tertiary)]" },
                     { label: "Past Events", value: completedThisMonth, icon: Calendar, color: "text-purple-500", bg: "bg-purple-500/10" },
-                    { label: "Revenue", value: `₹${(events.reduce((sum, e) => sum + (e.revenue || 0), 0) / 100000).toFixed(1)}L`, icon: DollarSign, color: "text-indigo-600", bg: "bg-indigo-500/10" },
+                    { label: "Revenue", value: `₹${(events.reduce((sum, e) => sum + (e.revenue || 0), 0) / 100000).toFixed(1)}L`, icon: DollarSign, color: "text-[var(--c1rcle-orange)]", bg: "bg-[var(--c1rcle-orange-glow)]" },
                 ].map((stat, i) => (
-                    <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm transition-all hover:shadow-md group">
-                        <div className={`w-10 h-10 rounded-2xl ${stat.bg} ${stat.color} flex items-center justify-center mb-4 transition-transform group-hover:scale-110`}>
+                    <div key={i} className="card p-5 transition-all hover:shadow-md group">
+                        <div className={`w-10 h-10 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center mb-3 transition-transform group-hover:scale-110`}>
                             <stat.icon className="h-5 w-5" />
                         </div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">
+                        <p className="text-label text-[var(--text-tertiary)] mb-1">
                             {stat.label}
                         </p>
-                        <p className="text-2xl font-bold text-slate-900 tracking-tight">
+                        <p className="text-stat-sm text-[var(--text-primary)]">
                             {stat.value}
                         </p>
                     </div>
@@ -290,16 +290,16 @@ export default function EventsManagementPage() {
             </div>
 
             {/* Filters & Search */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div className="card p-4">
                 <div className="flex flex-col md:flex-row gap-4">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-placeholder)]" />
                         <input
                             type="text"
                             placeholder="Search by event name or host..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                            className="input pl-10"
                         />
                     </div>
 
@@ -308,10 +308,7 @@ export default function EventsManagementPage() {
                             <button
                                 key={status}
                                 onClick={() => setFilter(status)}
-                                className={`px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${filter === status
-                                    ? "bg-indigo-600 text-white shadow-sm"
-                                    : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"
-                                    }`}
+                                className={`chip ${filter === status ? "chip-active" : ""}`}
                             >
                                 {status === 'draft' ? 'Drafts' : status}
                             </button>
@@ -323,22 +320,22 @@ export default function EventsManagementPage() {
             {/* Events Grid */}
             <div className="space-y-4">
                 {loading ? (
-                    <div className="bg-white p-20 rounded-3xl border border-slate-200 text-center shadow-sm">
-                        <Loader2 className="h-10 w-10 text-indigo-600 mx-auto mb-4 animate-spin" />
-                        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Synchronizing Events...</p>
+                    <div className="card p-20 text-center">
+                        <Loader2 className="h-10 w-10 text-[var(--c1rcle-orange)] mx-auto mb-4 animate-spin" />
+                        <p className="text-label text-[var(--text-tertiary)]">Synchronizing Events...</p>
                     </div>
                 ) : filteredEvents.length === 0 ? (
-                    <div className="bg-white p-20 rounded-3xl border border-slate-200 text-center shadow-sm">
-                        <div className="h-20 w-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <Calendar className="h-10 w-10 text-slate-200" />
+                    <div className="card p-20 text-center">
+                        <div className="h-20 w-20 bg-[var(--surface-tertiary)] rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Calendar className="h-10 w-10 text-[var(--text-placeholder)]" />
                         </div>
-                        <h3 className="text-xl font-bold text-slate-900 mb-2">No events found</h3>
-                        <p className="text-slate-500 max-w-xs mx-auto text-sm leading-relaxed">
+                        <h3 className="text-title text-[var(--text-primary)] mb-2">No events found</h3>
+                        <p className="text-body-sm text-[var(--text-tertiary)] max-w-xs mx-auto">
                             Try adjusting your filters or search terms to find what you're looking for.
                         </p>
                         <button
                             onClick={() => { setFilter("all"); setSearchQuery(""); }}
-                            className="mt-6 text-indigo-600 font-bold text-sm hover:underline"
+                            className="mt-6 text-[var(--c1rcle-orange)] font-semibold text-sm hover:underline"
                         >
                             Reset all filters
                         </button>

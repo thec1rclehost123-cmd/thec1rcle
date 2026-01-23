@@ -42,12 +42,12 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-    manager: "text-iris bg-iris/10 border-iris/20",
+    manager: "text-[var(--c1rcle-orange)] bg-[var(--c1rcle-orange-glow)] border-[var(--c1rcle-orange)]/20",
     floor_manager: "text-blue-500 bg-blue-500/10 border-blue-500/20",
     security: "text-amber-500 bg-amber-500/10 border-amber-500/20",
     ops: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
     finance: "text-rose-500 bg-rose-500/10 border-rose-500/20",
-    viewer: "text-[var(--text-primary)] bg-black/5 border-black/10"
+    viewer: "text-[var(--text-secondary)] bg-[var(--surface-tertiary)] border-[var(--border-subtle)]"
 };
 
 export default function VenueStaffPage() {
@@ -137,14 +137,14 @@ export default function VenueStaffPage() {
     return (
         <div className="space-y-10 pb-20">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-white/5">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-[var(--border-subtle)]">
                 <div>
-                    <h1 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight uppercase">{cleanJargon("management")}</h1>
-                    <p className="text-[var(--text-tertiary)] text-sm mt-1 uppercase tracking-widest font-bold">Staff List & Permissions</p>
+                    <h1 className="text-display-sm text-[var(--text-primary)]">{cleanJargon("management")}</h1>
+                    <p className="text-label text-[var(--text-tertiary)] mt-1">Staff List & Permissions</p>
                 </div>
                 <button
                     onClick={() => setShowAddModal(true)}
-                    className="flex items-center gap-2 px-6 py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-lg hover:opacity-90 transition-all shadow-xl"
+                    className="btn btn-primary"
                 >
                     <UserPlus className="w-4 h-4" />
                     Add Member
@@ -156,27 +156,27 @@ export default function VenueStaffPage() {
 
                 {/* Left: Staff Ledger (8 Cols) */}
                 <div className="lg:col-span-8 space-y-8">
-                    <div className="glass-panel overflow-hidden">
-                        <div className="px-6 py-4 bg-black/[0.02] border-b border-black/5 flex items-center justify-between">
-                            <h2 className="text-[11px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.2em]">Staff Registry</h2>
-                            <span className="text-[10px] font-bold text-[var(--text-placeholder)] tabular-nums">{activeStaff.length} TOTAL</span>
+                    <div className="card overflow-hidden">
+                        <div className="px-6 py-4 bg-[var(--surface-secondary)] border-b border-[var(--border-subtle)] flex items-center justify-between">
+                            <h2 className="text-label text-[var(--text-tertiary)]">Staff Registry</h2>
+                            <span className="text-caption text-[var(--text-placeholder)] tabular-nums">{activeStaff.length} TOTAL</span>
                         </div>
 
                         {loading ? (
                             <div className="p-20 text-center">
                                 <div className="flex flex-col items-center gap-4">
-                                    <div className="w-8 h-8 border-2 border-iris/20 border-t-iris rounded-full animate-spin" />
-                                    <span className="text-[10px] font-black text-white/30 uppercase tracking-widest">Loading...</span>
+                                    <div className="w-8 h-8 border-2 border-[var(--c1rcle-orange)]/20 border-t-[var(--c1rcle-orange)] rounded-full animate-spin" />
+                                    <span className="text-label text-[var(--text-placeholder)]">Loading...</span>
                                 </div>
                             </div>
                         ) : activeStaff.length === 0 ? (
                             <div className="p-20 text-center">
-                                <Users className="w-12 h-12 text-black/10 mx-auto mb-4" />
-                                <h3 className="text-sm font-bold text-[var(--text-primary)] mb-1">Registry Empty</h3>
-                                <p className="text-[var(--text-tertiary)] text-[11px] uppercase tracking-wider">No members found in the database.</p>
+                                <Users className="w-12 h-12 text-[var(--text-placeholder)] mx-auto mb-4" />
+                                <h3 className="text-title text-[var(--text-primary)] mb-1">Registry Empty</h3>
+                                <p className="text-label text-[var(--text-tertiary)]">No members found in the database.</p>
                             </div>
                         ) : (
-                            <div className="divide-y divide-[#ffffff03]">
+                            <div className="divide-y divide-[var(--border-subtle)]">
                                 {activeStaff.map(member => (
                                     <StaffRow
                                         key={member.id}
@@ -193,11 +193,11 @@ export default function VenueStaffPage() {
 
                     {/* Inactive Section */}
                     {inactiveStaff.length > 0 && (
-                        <div className="glass-panel opacity-60">
-                            <div className="px-6 py-3 bg-black/[0.01] border-b border-black/5">
-                                <h2 className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.2em]">Inactive</h2>
+                        <div className="card opacity-60">
+                            <div className="px-6 py-3 bg-[var(--surface-secondary)] border-b border-[var(--border-subtle)]">
+                                <h2 className="text-label text-[var(--text-tertiary)]">Inactive</h2>
                             </div>
-                            <div className="divide-y divide-black/[0.03]">
+                            <div className="divide-y divide-[var(--border-subtle)]">
                                 {inactiveStaff.map(member => (
                                     <StaffRow key={member.id} member={member} inactive />
                                 ))}
@@ -208,19 +208,19 @@ export default function VenueStaffPage() {
 
                 {/* Right: Inspection Panel (4 Cols) */}
                 <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-28">
-                    <div className="glass-panel p-6 space-y-8">
+                    <div className="card p-6 space-y-8">
                         <div>
-                            <h3 className="text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.2em] mb-6">Staff Summary</h3>
+                            <h3 className="text-label text-[var(--text-tertiary)] mb-6">Staff Summary</h3>
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="p-4 bg-black/[0.02] border border-black/5 rounded-lg">
-                                    <p className="text-[20px] font-bold text-[var(--text-primary)] tabular-nums leading-none mb-1">{activeStaff.length}</p>
-                                    <p className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest leading-none">Total Active</p>
+                                <div className="p-4 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl">
+                                    <p className="text-stat-sm text-[var(--text-primary)] mb-1">{activeStaff.length}</p>
+                                    <p className="text-caption text-[var(--text-tertiary)]">Total Active</p>
                                 </div>
-                                <div className="p-4 bg-black/[0.02] border border-black/5 rounded-lg">
-                                    <p className="text-[20px] font-bold text-emerald-500 tabular-nums leading-none mb-1">
+                                <div className="p-4 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl">
+                                    <p className="text-stat-sm text-[var(--state-success)] mb-1">
                                         {activeStaff.filter(s => s.isVerified).length}
                                     </p>
-                                    <p className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest leading-none">Verified</p>
+                                    <p className="text-caption text-[var(--text-tertiary)]">Verified</p>
                                 </div>
                             </div>
                         </div>
@@ -228,35 +228,35 @@ export default function VenueStaffPage() {
                         {selectedStaff ? (
                             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-lg bg-black/5 border border-black/10 flex items-center justify-center text-lg font-bold text-[var(--text-primary)]">
+                                    <div className="w-12 h-12 rounded-xl bg-[var(--surface-tertiary)] border border-[var(--border-subtle)] flex items-center justify-center text-lg font-bold text-[var(--text-primary)]">
                                         {selectedStaff.name.charAt(0)}
                                     </div>
                                     <div>
-                                        <h4 className="text-sm font-bold text-[var(--text-primary)]">{selectedStaff.name}</h4>
-                                        <p className="text-[10px] font-bold text-iris uppercase tracking-widest mt-0.5">{ROLE_LABELS[selectedStaff.role] || selectedStaff.role}</p>
+                                        <h4 className="text-title-sm text-[var(--text-primary)]">{selectedStaff.name}</h4>
+                                        <p className="text-label text-[var(--c1rcle-orange)] mt-0.5">{ROLE_LABELS[selectedStaff.role] || selectedStaff.role}</p>
                                     </div>
                                 </div>
 
                                 <div className="space-y-4">
-                                    <div className="p-3 bg-black/[0.02] border border-black/5 rounded-lg flex items-center gap-3">
+                                    <div className="p-3 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl flex items-center gap-3">
                                         <Mail className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
-                                        <span className="text-[11px] font-medium text-[var(--text-secondary)] truncate">{selectedStaff.email}</span>
+                                        <span className="text-body-sm text-[var(--text-secondary)] truncate">{selectedStaff.email}</span>
                                     </div>
                                     {selectedStaff.phone && (
-                                        <div className="p-3 bg-black/[0.02] border border-black/5 rounded-lg flex items-center gap-3">
+                                        <div className="p-3 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl flex items-center gap-3">
                                             <Phone className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
-                                            <span className="text-[11px] font-medium text-[var(--text-secondary)]">{selectedStaff.phone}</span>
+                                            <span className="text-body-sm text-[var(--text-secondary)]">{selectedStaff.phone}</span>
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="pt-4 border-t border-black/5">
-                                    <p className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.2em] mb-4">Permissions</p>
+                                <div className="pt-4 border-t border-[var(--border-subtle)]">
+                                    <p className="text-label text-[var(--text-tertiary)] mb-4">Permissions</p>
                                     <div className="grid grid-cols-2 gap-2">
                                         {Object.entries(selectedStaff.permissions || {}).map(([key, val]) => (
                                             <div key={key} className="flex items-center gap-2">
-                                                <div className={`w-1 h-1 rounded-full ${val ? 'bg-emerald-500 shadow-[0_0_5px_#10B981]' : 'bg-black/10'}`} />
-                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${val ? 'text-[var(--text-secondary)]' : 'text-[var(--text-placeholder)]'}`}>
+                                                <div className={`w-1.5 h-1.5 rounded-full ${val ? 'bg-[var(--state-success)] shadow-[0_0_5px_var(--state-success)]' : 'bg-[var(--surface-tertiary)]'}`} />
+                                                <span className={`text-caption ${val ? 'text-[var(--text-secondary)]' : 'text-[var(--text-placeholder)]'}`}>
                                                     {key.split('_').join(' ')}
                                                 </span>
                                             </div>
@@ -266,15 +266,15 @@ export default function VenueStaffPage() {
 
                                 <button
                                     onClick={() => setSelectedStaff(null)}
-                                    className="w-full py-2.5 text-[10px] font-bold text-[var(--text-placeholder)] hover:text-black uppercase tracking-[0.2em] transition-colors"
+                                    className="w-full py-2.5 text-label text-[var(--text-placeholder)] hover:text-[var(--text-primary)] transition-colors"
                                 >
                                     Close Details
                                 </button>
                             </div>
                         ) : (
                             <div className="py-12 text-center">
-                                <Shield className="w-8 h-8 text-black/10 mx-auto mb-3" />
-                                <p className="text-[var(--text-placeholder)] text-[10px] font-bold uppercase tracking-[0.2em]">Select a member to view details</p>
+                                <Shield className="w-8 h-8 text-[var(--text-placeholder)] mx-auto mb-3" />
+                                <p className="text-label text-[var(--text-placeholder)]">Select a member to view details</p>
                             </div>
                         )}
                     </div>
@@ -313,27 +313,27 @@ function StaffRow({
     return (
         <div
             onClick={onSelect}
-            className={`px-6 py-4 flex items-center justify-between cursor-pointer transition-colors ${isSelected ? "bg-black/[0.05]" : "hover:bg-black/[0.02]"} ${inactive ? "opacity-50" : ""}`}
+            className={`px-6 py-4 flex items-center justify-between cursor-pointer transition-colors ${isSelected ? "bg-[var(--surface-secondary)]" : "hover:bg-[var(--surface-secondary)]/50"} ${inactive ? "opacity-50" : ""}`}
         >
             <div className="flex items-center gap-4">
-                <div className="h-10 w-10 rounded-lg bg-black/5 border border-black/10 flex items-center justify-center text-[var(--text-primary)] font-bold text-sm">
+                <div className="h-10 w-10 rounded-xl bg-[var(--surface-tertiary)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)] font-bold text-sm">
                     {member.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
                 </div>
                 <div>
                     <div className="flex items-center gap-2">
-                        <h4 className="text-[13px] font-bold text-[var(--text-primary)]">{member.name}</h4>
+                        <h4 className="text-body-sm font-semibold text-[var(--text-primary)]">{member.name}</h4>
                         {member.isVerified ? (
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                            <ShieldCheck className="w-3.5 h-3.5 text-[var(--state-success)]" />
                         ) : (
-                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" title="Pending Verification" />
+                            <div className="w-1.5 h-1.5 rounded-full bg-[var(--state-warning)] animate-pulse" title="Pending Verification" />
                         )}
                     </div>
-                    <p className="text-[10px] font-medium text-[var(--text-tertiary)]">{member.email}</p>
+                    <p className="text-caption text-[var(--text-tertiary)]">{member.email}</p>
                 </div>
             </div>
 
             <div className="flex items-center gap-6">
-                <span className={`px-3 py-1 rounded border text-[9px] font-black uppercase tracking-widest ${ROLE_COLORS[member.role] || ROLE_COLORS.viewer}`}>
+                <span className={`px-3 py-1 rounded-lg border text-caption font-semibold ${ROLE_COLORS[member.role] || ROLE_COLORS.viewer}`}>
                     {ROLE_LABELS[member.role] || member.role}
                 </span>
 
@@ -341,24 +341,24 @@ function StaffRow({
                     <div className="relative">
                         <button
                             onClick={(e) => { e.stopPropagation(); setShowActions(!showActions); }}
-                            className="p-1.5 hover:bg-black/10 rounded-lg transition-colors"
+                            className="p-1.5 hover:bg-[var(--surface-tertiary)] rounded-lg transition-colors"
                         >
                             <MoreHorizontal className="w-4 h-4 text-[var(--text-tertiary)]" />
                         </button>
 
                         {showActions && (
-                            <div className="absolute right-0 top-full mt-2 bg-white border border-black/10 rounded-xl shadow-2xl py-1 z-50 min-w-[180px] animate-in fade-in slide-in-from-top-2">
+                            <div className="absolute right-0 top-full mt-2 bg-[var(--surface-elevated)] border border-[var(--border-subtle)] rounded-xl shadow-2xl py-1 z-50 min-w-[180px] animate-in fade-in slide-in-from-top-2">
                                 {!member.isVerified && onVerify && (
                                     <button
                                         onClick={(e) => { e.stopPropagation(); onVerify(); setShowActions(false); }}
-                                        className="w-full px-4 py-2.5 text-left text-[11px] font-bold text-emerald-500 hover:bg-emerald-500/5 flex items-center gap-2 uppercase tracking-wider"
+                                        className="w-full px-4 py-2.5 text-left text-body-sm text-[var(--state-success)] hover:bg-[var(--state-success-bg)] flex items-center gap-2"
                                     >
                                         <ShieldCheck className="w-3.5 h-3.5" /> Verify User
                                     </button>
                                 )}
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onRemove && onRemove(); setShowActions(false); }}
-                                    className="w-full px-4 py-2.5 text-left text-[11px] font-bold text-rose-500 hover:bg-rose-500/5 flex items-center gap-2 uppercase tracking-wider"
+                                    className="w-full px-4 py-2.5 text-left text-body-sm text-[var(--state-error)] hover:bg-[var(--state-error-bg)] flex items-center gap-2"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" /> Remove User
                                 </button>
@@ -395,70 +395,70 @@ function AddStaffModal({
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-            <div className="glass-panel max-w-md w-full p-8 space-y-8 animate-in zoom-in-95 duration-200">
+            <div className="card max-w-md w-full p-8 space-y-8 animate-in zoom-in-95 duration-200">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h3 className="text-xl font-bold text-[var(--text-primary)] uppercase tracking-tight">Add Member</h3>
-                        <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mt-1">Add a new staff member</p>
+                        <h3 className="text-headline-sm text-[var(--text-primary)]">Add Member</h3>
+                        <p className="text-label text-[var(--text-tertiary)] mt-1">Add a new staff member</p>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-black/10 rounded-lg text-[var(--text-tertiary)] hover:text-black transition-colors">
+                    <button onClick={onClose} className="p-2 hover:bg-[var(--surface-tertiary)] rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-[var(--text-placeholder)] uppercase tracking-[0.2em] ml-1">Name</label>
+                        <label className="input-label">Name</label>
                         <input
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             required
-                            className="w-full bg-black/5 border border-black/10 rounded-xl px-4 py-3 text-[var(--text-primary)] placeholder:text-black/20 focus:outline-none focus:border-black/20 transition-all shadow-inner"
-                            placeholder="OPERATOR NAME"
+                            className="input"
+                            placeholder="Operator name"
                         />
                     </div>
 
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-[var(--text-placeholder)] uppercase tracking-[0.2em] ml-1">Email Address</label>
+                        <label className="input-label">Email Address</label>
                         <input
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
-                            className="w-full bg-black/5 border border-black/10 rounded-xl px-4 py-3 text-[var(--text-primary)] placeholder:text-black/20 focus:outline-none focus:border-black/20 transition-all shadow-inner"
-                            placeholder="EMAIL ADDRESS"
+                            className="input"
+                            placeholder="email@example.com"
                         />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-[var(--text-placeholder)] uppercase tracking-[0.2em] ml-1">Role</label>
+                            <label className="input-label">Role</label>
                             <select
                                 value={role}
                                 onChange={(e) => setRole(e.target.value)}
-                                className="w-full bg-black/5 border border-black/10 rounded-xl px-4 py-3 text-[var(--text-primary)] focus:outline-none focus:border-black/20 transition-all shadow-inner appearance-none"
+                                className="input"
                             >
                                 {roleOptions.map(r => (
-                                    <option key={r} value={r} className="bg-white">{ROLE_LABELS[r] || r}</option>
+                                    <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
                                 ))}
                             </select>
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-[var(--text-placeholder)] uppercase tracking-[0.2em] ml-1">Contact (PH)</label>
+                            <label className="input-label">Contact (PH)</label>
                             <input
                                 type="tel"
                                 value={phone}
                                 onChange={(e) => setPhone(e.target.value)}
-                                className="w-full bg-black/5 border border-black/10 rounded-xl px-4 py-3 text-[var(--text-primary)] placeholder:text-black/20 focus:outline-none focus:border-black/20 transition-all shadow-inner"
+                                className="input"
                                 placeholder="+91"
                             />
                         </div>
                     </div>
 
-                    <div className="bg-iris/5 border border-iris/10 rounded-xl p-4 flex gap-3">
-                        <AlertCircle className="w-5 h-5 text-iris shrink-0" />
-                        <p className="text-[10px] text-[var(--text-tertiary)] leading-relaxed font-medium">
+                    <div className="bg-[var(--state-info-bg)] border border-[var(--state-info)]/20 rounded-xl p-4 flex gap-3">
+                        <AlertCircle className="w-5 h-5 text-[var(--state-info)] shrink-0" />
+                        <p className="text-body-sm text-[var(--text-tertiary)]">
                             A verification link will be sent to their email. They will be active after they verify their account.
                         </p>
                     </div>
@@ -467,16 +467,16 @@ function AddStaffModal({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 py-3 text-[var(--text-tertiary)] font-bold uppercase tracking-widest text-[11px] rounded-xl hover:text-black transition-colors"
+                            className="btn btn-secondary flex-1"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={submitting}
-                            className="flex-1 py-3 bg-black text-white font-black uppercase tracking-widest text-[11px] rounded-xl hover:opacity-90 transition-all disabled:opacity-50 shadow-xl"
+                            className="btn btn-primary flex-1"
                         >
-                            {submitting ? "CREATING..." : "CREATE MEMBER"}
+                            {submitting ? "Creating..." : "Create Member"}
                         </button>
                     </div>
                 </form>
