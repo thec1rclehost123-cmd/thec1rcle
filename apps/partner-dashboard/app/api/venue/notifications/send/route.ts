@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminDb } from "@/lib/server/firebase/admin";
+import { getAdminDb } from "@/lib/firebase/admin";
 import axios from "axios";
 
 /**

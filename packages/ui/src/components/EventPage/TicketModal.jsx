@@ -164,12 +164,12 @@ export default function TicketModal({
                                                 onClick={() => {
                                                     if (isPreview) return;
                                                     const current = quantities[ticket.id] || 0;
-                                                    if (current < (ticket.remaining ?? ticket.quantity || 999)) {
+                                                    if (current < (ticket.remaining ?? (ticket.quantity || 999))) {
                                                         setQuantities(prev => ({ ...prev, [ticket.id]: current + 1 }));
                                                     }
                                                 }}
                                                 className="flex h-8 items-center justify-center px-4 rounded-full text-white/60 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-30"
-                                                disabled={isPreview || (quantities[ticket.id] || 0) >= (ticket.remaining ?? ticket.quantity || 999) || totalQuantity >= maxTicketsPerOrder}
+                                                disabled={isPreview || (quantities[ticket.id] || 0) >= (ticket.remaining ?? (ticket.quantity || 999)) || totalQuantity >= maxTicketsPerOrder}
                                             >
                                                 <Plus className="w-3 h-3" />
                                             </button>
