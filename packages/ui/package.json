@@ -9,11 +9,13 @@
     "exports": {
         ".": "./src/index.js"
     },
+    "dependencies": {
+        "framer-motion": "^11.2.6",
+        "lucide-react": "^0.554.0"
+    },
     "peerDependencies": {
         "react": "^18.0.0",
         "react-dom": "^18.0.0",
-        "next": "^13.0.0 || ^14.0.0",
-        "framer-motion": "^10.0.0 || ^11.0.0",
-        "lucide-react": "^0.284.0"
+        "next": "^13.0.0 || ^14.0.0"
     }
 }
