@@ -46,6 +46,7 @@ import {
 } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
+import { getDatabase, connectDatabaseEmulator } from "firebase/database";
 import { Platform } from "react-native";
 import { IS_DEV } from "../config";
 
@@ -59,6 +60,7 @@ export const modularDb = initializeFirestore(app, {
 export const modularStorage = getStorage(app);
 // Use asia-south1 for THE C1RCLE India production
 export const functions = getFunctions(app, "asia-south1");
+export const modularDatabase = getDatabase(app);
 
 if (IS_DEV) {
     // Deriving host IP for physical devices/emulators
@@ -86,8 +88,10 @@ if (IS_DEV) {
         try {
             connectFirestoreEmulator(modularDb, host, 8080);
             connectFunctionsEmulator(functions, host, 5001);
+            connectDatabaseEmulator(modularDatabase, host, 9000);
             console.log(`[Firebase] Connected to Firestore emulator at ${host}:8080 (Long Polling: ON)`);
             console.log(`[Firebase] Connected to Functions emulator at ${host}:5001`);
+            console.log(`[Firebase] Connected to Database emulator at ${host}:9000`);
         } catch (e) {
             // Ignore if already connected
         }
@@ -119,6 +123,10 @@ export function getFirebaseDb() {
 
 export function getFirebaseStorage() {
     return modularStorage;
+}
+
+export function getRealtimeDb() {
+    return modularDatabase;
 }
 
 // Auth helper functions

@@ -12,6 +12,7 @@
     "@c1rcle/core": "*",
     "@c1rcle/ui": "*",
     "@opentelemetry/api": "^1.9.0",
+    "algoliasearch": "^5.47.0",
     "clsx": "^2.1.1",
     "firebase": "^12.6.0",
     "firebase-admin": "^13.6.0",

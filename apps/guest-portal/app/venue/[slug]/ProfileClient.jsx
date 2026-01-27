@@ -34,6 +34,42 @@ export default function ProfileClient({ upcomingEvents, pastEvents, posts, highl
         { id: "about", label: "About", icon: Info }
     ];
 
+    // CTA Handler
+    const handleCTA = () => {
+        const primaryCta = venue.primaryCta || (venue.categoryTag === 'Host' ? 'follow' : 'reserve');
+
+        switch (primaryCta) {
+            case 'whatsapp':
+                if (venue.whatsapp) {
+                    window.open(`https://wa.me/${venue.whatsapp.replace(/\D/g, '')}`, '_blank');
+                }
+                break;
+            case 'call':
+                if (venue.phone) {
+                    window.location.href = `tel:${venue.phone}`;
+                }
+                break;
+            case 'website':
+                if (venue.website) {
+                    window.open(venue.website.startsWith('http') ? venue.website : `https://${venue.website}`, '_blank');
+                }
+                break;
+            case 'tickets':
+                // Scroll to events or open first event
+                setActiveTab('events');
+                document.getElementById('events-section')?.scrollIntoView({ behavior: 'smooth' });
+                break;
+            case 'directions':
+                if (venue.address) {
+                    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.address + ' ' + (venue.city || ''))}`, '_blank');
+                }
+                break;
+            default:
+                // Follow logic (handled by parent or locally)
+                break;
+        }
+    };
+
     return (
         <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24 pb-32">
             {/* Highlights - Story Style */}
@@ -90,7 +126,34 @@ export default function ProfileClient({ upcomingEvents, pastEvents, posts, highl
                     transition={{ duration: 0.2, ease: "easeOut" }}
                 >
                     {activeTab === "events" && (
-                        <div className="space-y-12">
+                        <div className="space-y-12" id="events-section">
+                            {/* Pinned Events / Featured Section */}
+                            {venue.pinnedEventIds && venue.pinnedEventIds.length > 0 && (
+                                <div className="space-y-8 mb-16">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-1.5 w-1.5 rounded-full bg-orange animate-pulse" />
+                                        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">Featured Experiences</h3>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        {upcomingEvents
+                                            .filter(e => venue.pinnedEventIds.includes(e.id))
+                                            .map(event => (
+                                                <div key={event.id} className="relative group cursor-pointer overflow-hidden rounded-[3rem] border border-white/10 aspect-[16/9]">
+                                                    <img src={event.image || event.coverImage} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt="" />
+                                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
+                                                    <div className="absolute bottom-8 left-10 right-10 flex items-end justify-between">
+                                                        <div>
+                                                            <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-[9px] font-black uppercase tracking-widest text-white mb-3 inline-block">Featured</span>
+                                                            <h4 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">{event.name}</h4>
+                                                        </div>
+                                                        <button className="px-6 py-3 bg-white text-black rounded-full text-[10px] font-black uppercase tracking-widest">Book Now</button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Inner Filters - Minimal Pills */}
                             <div className="flex gap-2">
                                 <div

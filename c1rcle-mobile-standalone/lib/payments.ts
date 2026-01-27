@@ -3,7 +3,11 @@ import { Linking, Alert, Platform } from "react-native";
 import { verifyPayment } from "./api/ticketing";
 
 // Razorpay configuration
-const RAZORPAY_KEY = process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_UaS7oqTKOwuALQ";
+const RAZORPAY_KEY = process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID;
+
+if (!RAZORPAY_KEY && process.env.NODE_ENV === 'production') {
+    console.warn("CRITICAL: Razorpay Key not configured for mobile app");
+}
 
 export interface PaymentOptions {
     razorpayOrderId: string;

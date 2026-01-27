@@ -48,7 +48,7 @@ export const VenueCard: React.FC<VenueCardProps> = ({ venue }) => {
         <Pressable onPress={handlePress} style={styles.container}>
             <View style={styles.card}>
                 <Image
-                    source={{ uri: venue.image }}
+                    source={{ uri: venue.image || venue.coverURL }}
                     style={styles.image}
                     contentFit="cover"
                     transition={500}
@@ -61,6 +61,11 @@ export const VenueCard: React.FC<VenueCardProps> = ({ venue }) => {
 
                 {/* Badges */}
                 <View style={styles.badgeContainer}>
+                    {venue.isVerified && (
+                        <BlurView intensity={30} tint="dark" style={[styles.badge, { backgroundColor: colors.iris + '40' }]}>
+                            <Ionicons name="checkmark-circle" size={14} color={colors.iris} />
+                        </BlurView>
+                    )}
                     {venue.venueType && (
                         <BlurView intensity={30} tint="dark" style={styles.badge}>
                             <Text style={styles.badgeText}>{venue.venueType}</Text>
@@ -77,7 +82,7 @@ export const VenueCard: React.FC<VenueCardProps> = ({ venue }) => {
                 <View style={styles.infoContainer}>
                     <View style={styles.header}>
                         <View>
-                            <Text style={styles.areaText}>{venue.area || venue.city}</Text>
+                            <Text style={styles.areaText}>{venue.neighborhood || venue.area || venue.city}</Text>
                             <Text style={styles.nameText}>{venue.name}</Text>
                         </View>
                     </View>

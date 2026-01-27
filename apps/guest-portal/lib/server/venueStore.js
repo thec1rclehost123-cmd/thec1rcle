@@ -92,7 +92,8 @@ export async function listVenues({ area, vibe, search, tablesOnly } = {}) {
             const lowSearch = search.toLowerCase();
             venues = venues.filter(v =>
                 v.name.toLowerCase().includes(lowSearch) ||
-                v.area.toLowerCase().includes(lowSearch)
+                v.area?.toLowerCase().includes(lowSearch) ||
+                v.neighborhood?.toLowerCase().includes(lowSearch)
             );
         }
         if (tablesOnly) venues = venues.filter(v => v.tablesAvailable);
@@ -115,7 +116,8 @@ export async function listVenues({ area, vibe, search, tablesOnly } = {}) {
         const lowSearch = search.toLowerCase();
         venues = venues.filter(v =>
             v.name?.toLowerCase().includes(lowSearch) ||
-            v.area?.toLowerCase().includes(lowSearch)
+            v.area?.toLowerCase().includes(lowSearch) ||
+            v.neighborhood?.toLowerCase().includes(lowSearch)
         );
     }
 

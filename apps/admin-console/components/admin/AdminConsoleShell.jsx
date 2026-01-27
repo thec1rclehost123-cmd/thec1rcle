@@ -47,6 +47,7 @@ const sidebarItems = [
     { label: "Payments", href: "/payments", icon: CreditCard, minRole: 'finance' },
     { label: "Support", href: "/support", icon: ShieldCheck, minRole: 'support' },
     { label: "Safety", href: "/safety", icon: ShieldAlert, minRole: 'content' },
+    { label: "Discovery", href: "/content/explore", icon: Calendar, minRole: 'ops' },
     { label: "Admins", href: "/admins", icon: ShieldCheck, minRole: 'admin' },
     { label: "Settings", href: "/settings", icon: Settings, minRole: 'admin' },
     { label: "Audit Log", href: "/logs", icon: History, minRole: 'admin' },

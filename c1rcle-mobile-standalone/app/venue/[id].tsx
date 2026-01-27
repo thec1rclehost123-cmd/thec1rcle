@@ -17,6 +17,7 @@ import {
     Pressable,
     ActivityIndicator,
     Dimensions,
+    Linking,
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -159,7 +160,12 @@ export default function VenueProfileScreen() {
                     />
 
                     <View style={styles.heroContent}>
-                        <Badge variant="iris" size="sm">{venue.area}</Badge>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Badge variant="iris" size="sm">{venue.neighborhood || venue.area}</Badge>
+                            {venue.isVerified && (
+                                <Ionicons name="checkmark-circle" size={16} color={colors.iris} />
+                            )}
+                        </View>
                         <Text style={styles.venueName}>{venue.name}</Text>
                         <View style={styles.statsRow}>
                             <Text style={styles.statsText}>
@@ -173,13 +179,34 @@ export default function VenueProfileScreen() {
                 <View style={styles.content}>
                     <View style={styles.actionRow}>
                         <PremiumButton
-                            variant={isFollowing ? "glass" : "primary"}
-                            style={styles.followButton}
-                            onPress={handleFollow}
+                            variant="primary"
+                            style={styles.mainActionButton}
+                            onPress={() => {
+                                const cta = venue.primaryCta || 'follow';
+                                switch (cta) {
+                                    case 'whatsapp': venue.whatsapp && Linking.openURL(`https://wa.me/${venue.whatsapp.replace(/\D/g, '')}`); break;
+                                    case 'call': venue.phone && Linking.openURL(`tel:${venue.phone}`); break;
+                                    case 'website': venue.website && Linking.openURL(venue.website); break;
+                                    default: handleFollow();
+                                }
+                            }}
                         >
-                            {isFollowing ? "Following" : "Follow"}
+                            {venue.primaryCta === 'whatsapp' ? 'Book a Table' :
+                                venue.primaryCta === 'call' ? 'Call Now' :
+                                    venue.primaryCta === 'website' ? 'Visit Website' :
+                                        (isFollowing ? "Following" : "Follow")}
                         </PremiumButton>
-                        <Pressable style={styles.iconButton}>
+
+                        {venue.primaryCta !== 'follow' && (
+                            <Pressable
+                                style={[styles.iconButton, isFollowing && { backgroundColor: colors.iris }]}
+                                onPress={handleFollow}
+                            >
+                                <Ionicons name={isFollowing ? "heart" : "heart-outline"} size={22} color={isFollowing ? "#FFF" : colors.gold} />
+                            </Pressable>
+                        )}
+
+                        <Pressable style={styles.iconButton} onPress={() => {/* Share logic */ }}>
                             <Ionicons name="share-outline" size={22} color={colors.gold} />
                         </Pressable>
                     </View>
@@ -330,6 +357,9 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         gap: 12,
         marginBottom: 32,
+    },
+    mainActionButton: {
+        flex: 1,
     },
     followButton: {
         flex: 1,

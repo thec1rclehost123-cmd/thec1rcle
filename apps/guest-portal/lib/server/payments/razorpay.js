@@ -23,8 +23,12 @@ export async function createRazorpayOrder({
     notes = {}
 }) {
     if (!isRazorpayConfigured()) {
-        // Return mock order for development
-        console.log("[Razorpay] Not configured, returning mock order");
+        // FAIL-CLOSED: Do not allow order creation if keys are missing
+        if (process.env.NODE_ENV === "production") {
+            throw new Error("Payment Gateway Configuration Missing");
+        }
+
+        console.log("[Razorpay] Not configured, returning mock order (DEV MODE)");
         return {
             id: `order_mock_${Date.now()}`,
             amount,
@@ -71,7 +75,11 @@ export function verifyPaymentSignature({
     razorpay_signature
 }) {
     if (!isRazorpayConfigured()) {
-        // Auto-verify in development
+        // FAIL-CLOSED: Auto-verify ONLY in local development
+        if (process.env.NODE_ENV === "production") {
+            console.error("[Razorpay] Security Alert: Payment verification called without API keys!");
+            return false;
+        }
         return true;
     }
 

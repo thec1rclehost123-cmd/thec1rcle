@@ -17,6 +17,7 @@
     "@react-three/postprocessing": "^2.16.2",
     "@react-three/rapier": "^2.2.0",
     "@types/three": "^0.150.0",
+    "algoliasearch": "^5.47.0",
     "clsx": "^2.1.1",
     "firebase": "^12.6.0",
     "firebase-admin": "^13.6.0",

@@ -22,14 +22,27 @@ export interface Venue {
     slug: string;
     name: string;
     area: string;
+    neighborhood?: string;
     address?: string;
     image?: string;
+    coverURL?: string;
     followers: number;
     tags: string[];
     tablesAvailable: boolean;
     description?: string;
+    bio?: string;
     rules?: string[];
     dressCode?: string;
+    isVerified?: boolean;
+    primaryCta?: string;
+    whatsapp?: string;
+    website?: string;
+    phone?: string;
+    socialLinks?: {
+        instagram?: string;
+        twitter?: string;
+        spotify?: string;
+    };
     location?: {
         latitude: number;
         longitude: number;

@@ -6,6 +6,7 @@ import { getProfilePosts, getProfileHighlights, getProfileStats } from "../../..
 import { listEvents } from "../../../lib/server/eventStore";
 import { CheckCircle2, MapPin, Calendar, Heart, Eye, Instagram, Mail, Globe, Clock, Music, Phone, Play, ChevronRight, Users, Car, Wifi, UtensilsCrossed, Award, Building2 } from "lucide-react";
 import ProfileClient from "./ProfileClient";
+import CtaLayer from "../../../components/profile/CtaLayer";
 
 export const revalidate = 60;
 
@@ -138,170 +139,160 @@ export default async function VenuePublicPage({ params }) {
 
                                     {/* Location */}
                                     <div className="flex items-center gap-6 text-white/50 text-sm font-bold uppercase tracking-widest">
-                                        <div className="flex items-center gap-2">
-                                            <MapPin className="h-4 w-4" />
-                                            {venue.address || `${venue.area}, ${venue.city || "India"}`}
-                                        </div>
-                                        {venue.openingHours && (
-                                            <>
-                                                <span className="h-1 w-1 rounded-full bg-white/20" />
-                                                <div className="flex items-center gap-2">
-                                                    <Clock className="h-4 w-4" />
-                                                    {venue.openingHours}
-                                                </div>
-                                            </>
-                                        )}
+                                        <MapPin className="h-4 w-4" />
+                                        {venue.neighborhood ? `${venue.neighborhood}, ${venue.city}` : (venue.address || `${venue.area}, ${venue.city || "India"}`)}
                                     </div>
-                                </div>
-
-                                {/* Stats Row */}
-                                <div className="flex gap-10 pt-4">
-                                    <div className="text-center">
-                                        <p className="text-3xl md:text-4xl font-black">{(stats.followersCount || 0).toLocaleString('en-IN')}</p>
-                                        <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 mt-1">Followers</p>
-                                    </div>
-                                    <div className="text-center">
-                                        <p className="text-3xl md:text-4xl font-black">{upcomingEvents.length}</p>
-                                        <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 mt-1">Upcoming</p>
-                                    </div>
-                                    {venue.capacity && (
-                                        <div className="text-center">
-                                            <p className="text-3xl md:text-4xl font-black">{venue.capacity}</p>
-                                            <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 mt-1">Capacity</p>
-                                        </div>
+                                    {venue.openingHours && (
+                                        <>
+                                            <span className="h-1 w-1 rounded-full bg-white/20" />
+                                            <div className="flex items-center gap-2">
+                                                <Clock className="h-4 w-4" />
+                                                {venue.openingHours}
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Actions */}
-                            <div className="flex flex-col gap-3 lg:pb-4">
-                                <button className="px-10 py-4 bg-white text-black rounded-full text-xs font-black uppercase tracking-[0.2em] hover:scale-105 transition-all shadow-[0_0_30px_rgba(255,255,255,0.3)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)]">
-                                    Follow
-                                </button>
-                                {venue.socialLinks?.instagram && (
-                                    <a
-                                        href={`https://instagram.com/${venue.socialLinks.instagram}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="px-10 py-4 bg-white/10 backdrop-blur-md text-white rounded-full text-xs font-bold uppercase tracking-widest hover:bg-white/20 transition-all flex items-center justify-center gap-2 border border-white/10"
-                                    >
-                                        <Instagram className="w-4 h-4" />
-                                        Instagram
-                                    </a>
+                            {/* Stats Row */}
+                            <div className="flex gap-10 pt-4">
+                                <div className="text-center">
+                                    <p className="text-3xl md:text-4xl font-black">{(stats.followersCount || 0).toLocaleString('en-IN')}</p>
+                                    <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 mt-1">Followers</p>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-3xl md:text-4xl font-black">{upcomingEvents.length}</p>
+                                    <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 mt-1">Upcoming</p>
+                                </div>
+                                {venue.capacity && (
+                                    <div className="text-center">
+                                        <p className="text-3xl md:text-4xl font-black">{venue.capacity}</p>
+                                        <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 mt-1">Capacity</p>
+                                    </div>
                                 )}
                             </div>
+
+                            <CtaLayer venue={venue} />
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Bio Section */}
-            {(venue.bio || venue.description) && (
-                <section className="py-16 border-t border-white/5">
-                    <div className="max-w-4xl mx-auto px-6 sm:px-12 lg:px-24">
-                        <p className="text-lg md:text-xl leading-relaxed text-white/70 font-medium">
-                            {venue.bio || venue.description}
-                        </p>
-                    </div>
-                </section>
-            )}
+            {
+                (venue.bio || venue.description) && (
+                    <section className="py-16 border-t border-white/5">
+                        <div className="max-w-4xl mx-auto px-6 sm:px-12 lg:px-24">
+                            <p className="text-lg md:text-xl leading-relaxed text-white/70 font-medium">
+                                {venue.bio || venue.description}
+                            </p>
+                        </div>
+                    </section>
+                )
+            }
 
             {/* Amenities */}
-            {venue.amenities?.length > 0 && (
-                <section className="pb-12">
-                    <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24">
-                        <div className="flex flex-wrap gap-3">
-                            {venue.amenities.map((amenityId) => {
-                                const Icon = AMENITY_ICONS[amenityId] || Award;
-                                const label = AMENITY_LABELS[amenityId] || amenityId;
-                                return (
-                                    <div key={amenityId} className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-medium text-white/60">
-                                        <Icon className="w-4 h-4" />
-                                        {label}
-                                    </div>
-                                );
-                            })}
+            {
+                venue.amenities?.length > 0 && (
+                    <section className="pb-12">
+                        <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24">
+                            <div className="flex flex-wrap gap-3">
+                                {venue.amenities.map((amenityId) => {
+                                    const Icon = AMENITY_ICONS[amenityId] || Award;
+                                    const label = AMENITY_LABELS[amenityId] || amenityId;
+                                    return (
+                                        <div key={amenityId} className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-medium text-white/60">
+                                            <Icon className="w-4 h-4" />
+                                            {label}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
-                    </div>
-                </section>
-            )}
+                    </section>
+                )
+            }
 
             {/* Upcoming Events */}
-            {upcomingEvents.length > 0 && (
-                <section className="py-16 border-t border-white/5">
-                    <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24">
-                        <div className="flex items-center justify-between mb-10">
-                            <div>
-                                <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Upcoming Events</h2>
-                                <p className="text-white/40 text-sm font-medium mt-2">What's happening next</p>
-                            </div>
-                            <Link href="/explore" className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-white/40 hover:text-white transition-colors">
-                                View All <ChevronRight className="w-4 h-4" />
-                            </Link>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {upcomingEvents.slice(0, 6).map((event) => (
-                                <Link key={event.id} href={`/event/${event.id}`} className="group">
-                                    <div className="relative aspect-[4/5] rounded-2xl overflow-hidden bg-white/5 border border-white/10 hover:border-white/20 transition-all">
-                                        <Image
-                                            src={event.image || event.coverImage || "/events/neon-nights.jpg"}
-                                            alt={event.name}
-                                            fill
-                                            className="object-cover transition-transform duration-700 group-hover:scale-110"
-                                        />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-
-                                        <div className="absolute inset-x-0 bottom-0 p-6">
-                                            <div className="flex items-center gap-2 mb-3">
-                                                <span className="px-3 py-1 bg-emerald-500 rounded-full text-[10px] font-black uppercase tracking-wider text-white">
-                                                    {new Date(event.startDate || event.startAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
-                                                </span>
-                                            </div>
-                                            <h3 className="text-xl font-bold text-white mb-1 line-clamp-2">{event.name}</h3>
-                                            <p className="text-white/50 text-sm font-medium">{event.hostName || event.host || "Host TBA"}</p>
-                                        </div>
-                                    </div>
+            {
+                upcomingEvents.length > 0 && (
+                    <section className="py-16 border-t border-white/5">
+                        <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24">
+                            <div className="flex items-center justify-between mb-10">
+                                <div>
+                                    <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Upcoming Events</h2>
+                                    <p className="text-white/40 text-sm font-medium mt-2">What's happening next</p>
+                                </div>
+                                <Link href="/explore" className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-white/40 hover:text-white transition-colors">
+                                    View All <ChevronRight className="w-4 h-4" />
                                 </Link>
-                            ))}
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {upcomingEvents.slice(0, 6).map((event) => (
+                                    <Link key={event.id} href={`/event/${event.id}`} className="group">
+                                        <div className="relative aspect-[4/5] rounded-2xl overflow-hidden bg-white/5 border border-white/10 hover:border-white/20 transition-all">
+                                            <Image
+                                                src={event.image || event.coverImage || "/events/neon-nights.jpg"}
+                                                alt={event.name}
+                                                fill
+                                                className="object-cover transition-transform duration-700 group-hover:scale-110"
+                                            />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
+
+                                            <div className="absolute inset-x-0 bottom-0 p-6">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <span className="px-3 py-1 bg-emerald-500 rounded-full text-[10px] font-black uppercase tracking-wider text-white">
+                                                        {new Date(event.startDate || event.startAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                                                    </span>
+                                                </div>
+                                                <h3 className="text-xl font-bold text-white mb-1 line-clamp-2">{event.name}</h3>
+                                                <p className="text-white/50 text-sm font-medium">{event.hostName || event.host || "Host TBA"}</p>
+                                            </div>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                </section>
-            )}
+                    </section>
+                )
+            }
 
             {/* Videos Section */}
-            {venue.videos?.length > 0 && (
-                <section className="py-16 border-t border-white/5 bg-white/[0.02]">
-                    <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24">
-                        <div className="flex items-center justify-between mb-10">
-                            <div>
-                                <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Videos & Tours</h2>
-                                <p className="text-white/40 text-sm font-medium mt-2">Experience the venue</p>
+            {
+                venue.videos?.length > 0 && (
+                    <section className="py-16 border-t border-white/5 bg-white/[0.02]">
+                        <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24">
+                            <div className="flex items-center justify-between mb-10">
+                                <div>
+                                    <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Videos & Tours</h2>
+                                    <p className="text-white/40 text-sm font-medium mt-2">Experience the venue</p>
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {venue.videos.map((video, idx) => (
-                                <a key={idx} href={video.url} target="_blank" rel="noopener noreferrer" className="group">
-                                    <div className="relative aspect-video rounded-2xl overflow-hidden bg-white/5 border border-white/10 hover:border-white/20 transition-all">
-                                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/20 to-purple-600/20 flex items-center justify-center">
-                                            <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                                                <Play className="w-8 h-8 text-white ml-1" />
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {venue.videos.map((video, idx) => (
+                                    <a key={idx} href={video.url} target="_blank" rel="noopener noreferrer" className="group">
+                                        <div className="relative aspect-video rounded-2xl overflow-hidden bg-white/5 border border-white/10 hover:border-white/20 transition-all">
+                                            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/20 to-purple-600/20 flex items-center justify-center">
+                                                <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                    <Play className="w-8 h-8 text-white ml-1" />
+                                                </div>
+                                            </div>
+                                            <span className="absolute top-4 left-4 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full text-[10px] font-bold uppercase tracking-widest text-white/80">
+                                                {video.type}
+                                            </span>
+                                            <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black to-transparent">
+                                                <h4 className="text-sm font-bold text-white">{video.title}</h4>
                                             </div>
                                         </div>
-                                        <span className="absolute top-4 left-4 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full text-[10px] font-bold uppercase tracking-widest text-white/80">
-                                            {video.type}
-                                        </span>
-                                        <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black to-transparent">
-                                            <h4 className="text-sm font-bold text-white">{video.title}</h4>
-                                        </div>
-                                    </div>
-                                </a>
-                            ))}
+                                    </a>
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                </section>
-            )}
+                    </section>
+                )
+            }
 
             {/* Posts & Highlights - Using Shared ProfileClient */}
             <ProfileClient
@@ -312,29 +303,31 @@ export default async function VenuePublicPage({ params }) {
             />
 
             {/* Photo Gallery */}
-            {venue.photos?.length > 0 && (
-                <section className="py-16 border-t border-white/5">
-                    <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24">
-                        <div className="mb-10">
-                            <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Gallery</h2>
-                            <p className="text-white/40 text-sm font-medium mt-2">The atmosphere inside</p>
-                        </div>
+            {
+                venue.photos?.length > 0 && (
+                    <section className="py-16 border-t border-white/5">
+                        <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24">
+                            <div className="mb-10">
+                                <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Gallery</h2>
+                                <p className="text-white/40 text-sm font-medium mt-2">The atmosphere inside</p>
+                            </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {venue.photos.slice(0, 8).map((photo, idx) => (
-                                <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-white/5 border border-white/10 group">
-                                    <Image
-                                        src={photo}
-                                        alt={`${venue.name} gallery`}
-                                        fill
-                                        className="object-cover group-hover:scale-105 transition-transform duration-500"
-                                    />
-                                </div>
-                            ))}
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                {venue.photos.slice(0, 8).map((photo, idx) => (
+                                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-white/5 border border-white/10 group">
+                                        <Image
+                                            src={photo}
+                                            alt={`${venue.name} gallery`}
+                                            fill
+                                            className="object-cover group-hover:scale-105 transition-transform duration-500"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                </section>
-            )}
+                    </section>
+                )
+            }
 
             {/* Contact Footer */}
             <section className="py-16 border-t border-white/5">
@@ -379,6 +372,6 @@ export default async function VenuePublicPage({ params }) {
                     </div>
                 </div>
             </section>
-        </main>
+        </main >
     );
 }

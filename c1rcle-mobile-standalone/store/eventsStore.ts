@@ -27,8 +27,9 @@ import {
     limitToLast,
 } from "firebase/firestore";
 import { Image } from "react-native";
+import { algoliasearch } from 'algoliasearch';
 import { getFirebaseDb } from "@/lib/firebase";
-import { WEB_BASE_URL } from "@/lib/config";
+import { WEB_BASE_URL, ALGOLIA_APP_ID, ALGOLIA_SEARCH_KEY, ALGOLIA_INDEX_NAME } from "@/lib/config";
 import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 // ============================================================================
@@ -65,6 +66,9 @@ const CITY_MAP = [
     { key: "jaipur-in", label: "Jaipur, IN", matches: ["jaipur", "pink city"] },
     { key: "chandigarh-in", label: "Chandigarh, IN", matches: ["chandigarh", "mohali", "panchkula"] }
 ];
+
+const algoliaClient = (ALGOLIA_APP_ID) ? algoliasearch(ALGOLIA_APP_ID, ALGOLIA_SEARCH_KEY) : null;
+const algoliaIndex = algoliaClient ? ALGOLIA_INDEX_NAME : 'events';
 
 // ============================================================================
 // HELPER FUNCTIONS (equivalent to @c1rcle/core/events)
@@ -652,6 +656,39 @@ export const useEventsStore = create<EventsState>()(
                     set({ loading: true, error: null });
                 }
 
+                // --- Algolia Discovery Integration (Phase 4 Scalability) ---
+                if (algoliaClient) {
+                    try {
+                        const { results: algoliaResults } = await algoliaClient.search({
+                            requests: [{
+                                indexName: algoliaIndex,
+                                query: '',
+                                filters: `(lifecycle:scheduled OR lifecycle:live)${city ? ` AND cityKey:${city}` : ''}`,
+                                hitsPerPage: maxEvents,
+                            }]
+                        });
+
+                        // @ts-ignore - hits exists on SearchResponse in v5
+                        const hits = algoliaResults[0].hits;
+                        if (hits && hits.length > 0) {
+                            const fetchedEvents = hits.map((hit: any) => ({
+                                ...hit,
+                                id: hit.objectID,
+                                isPublic: true
+                            } as unknown as Event));
+
+                            set({
+                                events: isRefresh ? fetchedEvents : [...get().events, ...fetchedEvents],
+                                loading: false,
+                                hasMore: hits.length === maxEvents // Simple pagination check
+                            });
+                            return;
+                        }
+                    } catch (e) {
+                        console.warn("[EventsStore] Algolia discovery failed, falling back to Firestore:", e);
+                    }
+                }
+
                 try {
                     const db = getFirebaseDb();
                     const eventsRef = collection(db, "events");
@@ -765,9 +802,51 @@ export const useEventsStore = create<EventsState>()(
                 const { city, limit: maxEvents = 30 } = options;
                 const { lastVisible, hasMore, loadingMore, events } = get();
 
-                if (loadingMore || !hasMore || !lastVisible) return;
+                if (loadingMore || !hasMore) return;
 
                 set({ loadingMore: true });
+
+                // --- Algolia Pagination ---
+                if (algoliaClient) {
+                    try {
+                        const currentPage = Math.floor(events.length / maxEvents);
+                        const { results: algoliaResults } = await algoliaClient.search({
+                            requests: [{
+                                indexName: algoliaIndex,
+                                query: '',
+                                filters: `(lifecycle:scheduled OR lifecycle:live)${city ? ` AND cityKey:${city}` : ''}`,
+                                hitsPerPage: maxEvents,
+                                page: currentPage
+                            }]
+                        });
+
+                        const hits = algoliaResults[0].hits;
+                        if (hits && hits.length > 0) {
+                            const moreEvents = hits.map((hit: any) => ({
+                                ...hit,
+                                id: hit.objectID,
+                                isPublic: true
+                            } as unknown as Event));
+
+                            set({
+                                events: [...events, ...moreEvents],
+                                loadingMore: false,
+                                hasMore: hits.length === maxEvents
+                            });
+                            return;
+                        } else {
+                            set({ loadingMore: false, hasMore: false });
+                            return;
+                        }
+                    } catch (e) {
+                        console.warn("[EventsStore] Algolia load more failed:", e);
+                    }
+                }
+
+                if (!lastVisible) {
+                    set({ loadingMore: false });
+                    return;
+                }
 
                 try {
                     const db = getFirebaseDb();
@@ -952,30 +1031,42 @@ export const useEventsStore = create<EventsState>()(
 
             fetchFeaturedEvents: async (options = {}) => {
                 const { city } = options;
-                try {
-                    const db = getFirebaseDb();
-                    const eventsRef = collection(db, "events");
-                    const nowIso = new Date().toISOString();
 
-                    // 1. Fetch top events by heat score for the city
-                    // We also try to fetch explicitly featured ones if they exist
-                    let queryConstraints = [
-                        where("lifecycle", "in", PUBLIC_LIFECYCLE_STATES),
-                        where("endDate", ">=", nowIso),
-                        orderBy("endDate", "asc"),
-                        limit(50)
-                    ];
+                // --- Algolia Featured Integration ---
+                if (algoliaClient) {
+                    try {
+                        const { results: algoliaResults } = await algoliaClient.search({
+                            requests: [{
+                                indexName: algoliaIndex,
+                                query: '',
+                                filters: `(lifecycle:scheduled OR lifecycle:live)${city ? ` AND cityKey:${city}` : ''}`,
+                                // Sort by heatScore if a specific index exists, else we use the default
+                                // For now, we fetch more and sort in memory as a simple compromise
+                                hitsPerPage: 20
+                            }]
+                        });
 
-                    if (city) {
-                        queryConstraints.unshift(where("cityKey", "==", city));
+                        const hits = algoliaResults[0].hits;
+                        if (hits && hits.length > 0) {
+                            // @ts-ignore
+                            let featured = hits.map((hit: any) => ({
+                                ...hit,
+                                id: hit.objectID,
+                                isPublic: true
+                            } as unknown as Event));
+
+                            // Secondary sort by heatScore if not already sorted by engine
+                            featured.sort((a, b) => (b.heatScore || 0) - (a.heatScore || 0));
+
+                            set({ featuredEvents: featured.slice(0, 6) });
+                            return;
+                        }
+                    } catch (e) {
+                        console.warn("[EventsStore] Algolia featured fetch failed:", e);
                     }
+                }
 
-                    const q = query(eventsRef, ...queryConstraints);
-                    const snapshot = await getDocs(q);
-
-                    let allEvents: Event[] = snapshot.docs.map(doc =>
-                        mapEventForClient(doc.data(), doc.id)
-                    );
+                try {
 
                     // 2. Filter out junk
                     allEvents = allEvents.filter(event => {
@@ -1057,6 +1148,32 @@ export const useEventsStore = create<EventsState>()(
             searchEvents: async (searchQuery, options = {}) => {
                 const { city } = options;
                 if (!searchQuery.trim()) return [];
+
+                // --- Algolia Search Integration (Scale-Proof) ---
+                if (algoliaClient) {
+                    try {
+                        const { results: algoliaResults } = await algoliaClient.search({
+                            requests: [{
+                                indexName: algoliaIndex,
+                                query: searchQuery,
+                                filters: `(lifecycle:approved OR lifecycle:scheduled OR lifecycle:live)${city && city !== 'All Cities' ? ` AND city:${city}` : ''}`, // Corrected field name city
+                                hitsPerPage: 40
+                            }]
+                        });
+
+                        // @ts-ignore
+                        const hits = algoliaResults[0].hits;
+                        if (hits && hits.length > 0) {
+                            return hits.map((hit: any) => ({
+                                ...hit,
+                                id: hit.objectID,
+                                isPublic: true,
+                            } as unknown as Event));
+                        }
+                    } catch (e) {
+                        console.error("[EventsStore] Algolia search failed, falling back to Firestore:", e);
+                    }
+                }
 
                 try {
                     const db = getFirebaseDb();

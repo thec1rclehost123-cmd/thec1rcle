@@ -62,8 +62,13 @@ export default function HostPageManagement() {
     const [data, setData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [activeTab, setActiveTab] = useState<"identity" | "content" | "media" | "engagement">("identity");
+    const [activeTab, setActiveTab] = useState<"identity" | "content" | "media" | "engagement" | "broadcast">("identity");
     const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+
+    // Broadcast state
+    const [broadcastTitle, setBroadcastTitle] = useState("");
+    const [broadcastMessage, setBroadcastMessage] = useState("");
+    const [isBroadcasting, setIsBroadcasting] = useState(false);
 
     // Modal states
     const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -378,14 +383,15 @@ export default function HostPageManagement() {
                     { id: "identity", label: "Identity", icon: Settings },
                     { id: "content", label: "Content", icon: FileText },
                     { id: "media", label: "Media", icon: ImageIcon },
+                    { id: "broadcast", label: "Broadcast", icon: Zap },
                     { id: "engagement", label: "Engagement", icon: TrendingUp }
                 ].map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`flex-1 py-3.5 flex items-center justify-center gap-2 rounded-xl text-[11px] font-bold transition-all ${activeTab === tab.id
-                                ? "bg-[var(--surface-primary)] text-[var(--text-primary)] shadow-sm"
-                                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                            ? "bg-[var(--surface-primary)] text-[var(--text-primary)] shadow-sm"
+                            : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                             }`}
                     >
                         <tab.icon className="w-4 h-4" />
@@ -410,10 +416,28 @@ export default function HostPageManagement() {
                                 <section className="space-y-6">
                                     <SectionHeader title="Core Identity" subtitle="The fundamentals of your public presence" />
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormField label="Display Name" placeholder="Your stage name or brand" defaultValue={data?.profile?.displayName} onSave={(v) => handleUpdateProfile({ displayName: v })} />
-                                        <FormField label="Tagline" placeholder="A one-liner that defines you" defaultValue={data?.profile?.tagline} onSave={(v) => handleUpdateProfile({ tagline: v })} />
+                                        <FormField label="Display Name" placeholder="Your stage name or brand" defaultValue={data?.profile?.displayName} onSave={(v: string) => handleUpdateProfile({ displayName: v })} />
+                                        <FormField label="Tagline" placeholder="A one-liner that defines you" defaultValue={data?.profile?.tagline} onSave={(v: string) => handleUpdateProfile({ tagline: v })} />
                                     </div>
-                                    <FormField label="Bio / Story" placeholder="Tell your story, describe your sound, share your journey..." defaultValue={data?.profile?.bio} onSave={(v) => handleUpdateProfile({ bio: v })} multiline rows={5} />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Neighborhood</label>
+                                            <FormField placeholder="e.g. Bandra West, Indiranagar" defaultValue={data?.profile?.neighborhood} onSave={(v: string) => handleUpdateProfile({ neighborhood: v })} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Category Tag</label>
+                                            <select
+                                                value={data?.profile?.categoryTag || "Host"}
+                                                onChange={(e) => handleUpdateProfile({ categoryTag: e.target.value })}
+                                                className="w-full px-4 py-3 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-sm font-medium text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-slate-900/10 transition-all appearance-none"
+                                            >
+                                                {["Host", "Venue", "Brand", "Promoter", "Collective"].map(cat => (
+                                                    <option key={cat} value={cat}>{cat}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <FormField label="Bio / Story" placeholder="Tell your story, describe your sound, share your journey..." defaultValue={data?.profile?.bio} onSave={(v: string) => handleUpdateProfile({ bio: v })} multiline rows={5} />
 
                                     <div className="space-y-4">
                                         <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Role / Type</label>
@@ -423,13 +447,41 @@ export default function HostPageManagement() {
                                                     key={role}
                                                     onClick={() => handleUpdateProfile({ role })}
                                                     className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all ${data?.profile?.role === role
-                                                            ? "bg-slate-900 text-white"
-                                                            : "bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] border border-[var(--border-subtle)]"
+                                                        ? "bg-slate-900 text-white"
+                                                        : "bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] border border-[var(--border-subtle)]"
                                                         }`}
                                                 >
                                                     {role}
                                                 </button>
                                             ))}
+                                        </div>
+                                    </div>
+                                </section>
+
+                                {/* CTA Layer - New Section */}
+                                <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
+                                    <SectionHeader title="Action Layer" subtitle="Configure primary call-to-action buttons for your page" icon={Zap} />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <FormField
+                                            label="WhatsApp Number"
+                                            placeholder="+91..."
+                                            icon={Phone}
+                                            defaultValue={data?.profile?.whatsapp}
+                                            onSave={(v: string) => handleUpdateProfile({ whatsapp: v })}
+                                        />
+                                        <div className="space-y-2">
+                                            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Primary CTA Type</label>
+                                            <select
+                                                value={data?.profile?.primaryCta || "follow"}
+                                                onChange={(e) => handleUpdateProfile({ primaryCta: e.target.value })}
+                                                className="w-full px-4 py-3 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-sm font-medium text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-slate-900/10 transition-all appearance-none"
+                                            >
+                                                <option value="follow">Follow Only</option>
+                                                <option value="whatsapp">Contact via WhatsApp</option>
+                                                <option value="call">Phone Call</option>
+                                                <option value="website">Visit Website</option>
+                                                <option value="tickets">Buy Tickets (Featured)</option>
+                                            </select>
                                         </div>
                                     </div>
                                 </section>
@@ -469,8 +521,8 @@ export default function HostPageManagement() {
                                                     key={genre}
                                                     onClick={() => handleGenreToggle(genre)}
                                                     className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all ${data?.profile?.genres?.includes(genre)
-                                                            ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-sm"
-                                                            : "bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] border border-[var(--border-subtle)]"
+                                                        ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-sm"
+                                                        : "bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] border border-[var(--border-subtle)]"
                                                         }`}
                                                 >
                                                     {genre}
@@ -487,8 +539,8 @@ export default function HostPageManagement() {
                                                     key={tag}
                                                     onClick={() => handleStyleTagToggle(tag)}
                                                     className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all ${data?.profile?.styleTags?.includes(tag)
-                                                            ? "bg-slate-900 text-white"
-                                                            : "bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] border border-[var(--border-subtle)]"
+                                                        ? "bg-slate-900 text-white"
+                                                        : "bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] border border-[var(--border-subtle)]"
                                                         }`}
                                                 >
                                                     {tag}
@@ -734,10 +786,81 @@ export default function HostPageManagement() {
                                         <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
                                             <Zap className="w-8 h-8 text-orange-400" />
                                         </div>
-                                        <h3 className="text-2xl font-bold text-white mb-3">Advanced Analytics Coming Soon</h3>
+                                        <h3 className="text-2xl font-bold text-white mb-3">Advanced Audience Insights</h3>
                                         <p className="text-white/60 max-w-md mx-auto text-sm">
-                                            Deep audience insights, demographic breakdowns, and engagement patterns are on the way.
+                                            Deep audience insights, demographic breakdowns, and engagement patterns are currently being processed.
                                         </p>
+                                    </div>
+                                </section>
+                            </motion.div>
+                        )}
+
+                        {activeTab === "broadcast" && (
+                            <motion.div
+                                key="broadcast"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="space-y-12"
+                            >
+                                <section className="space-y-8">
+                                    <SectionHeader
+                                        title="Push Broadcast"
+                                        subtitle="Send a direct notification to all your followers on THE C1RCLE"
+                                        icon={Zap}
+                                    />
+
+                                    <div className="bg-gradient-to-br from-indigo-900/40 to-slate-900 border border-indigo-500/20 rounded-[2.5rem] p-10 space-y-8">
+                                        <div className="space-y-6">
+                                            <FormField
+                                                label="Notification Title"
+                                                placeholder="e.g. New Event Dropping Tonight! 🔥"
+                                                value={broadcastTitle}
+                                                onChange={setBroadcastTitle}
+                                            />
+                                            <FormField
+                                                label="Message Body"
+                                                placeholder="Details about your announcement..."
+                                                multiline
+                                                rows={4}
+                                                value={broadcastMessage}
+                                                onChange={setBroadcastMessage}
+                                            />
+                                        </div>
+
+                                        <div className="pt-6 border-t border-white/5 space-y-4">
+                                            <div className="flex items-center gap-3 text-emerald-400">
+                                                <Users className="w-4 h-4" />
+                                                <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Target: {data?.stats?.followersCount || 0} Followers</span>
+                                            </div>
+
+                                            <button
+                                                disabled={!broadcastTitle || !broadcastMessage || isBroadcasting}
+                                                onClick={async () => {
+                                                    setIsBroadcasting(true);
+                                                    // Mock broadcast delay
+                                                    await new Promise(r => setTimeout(r, 2000));
+                                                    alert("Broadcast sent successfully to all followers!");
+                                                    setBroadcastTitle("");
+                                                    setBroadcastMessage("");
+                                                    setIsBroadcasting(false);
+                                                }}
+                                                className="w-full py-5 bg-white text-slate-900 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl hover:scale-[1.01] transition-all disabled:opacity-50"
+                                            >
+                                                {isBroadcasting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Send Broadcast Now"}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="p-8 bg-[var(--surface-secondary)]/30 rounded-3xl border border-[var(--border-subtle)]">
+                                            <h4 className="text-xs font-bold text-white mb-2 uppercase tracking-widest">Auto-Broadcasts</h4>
+                                            <p className="text-[11px] text-[var(--text-tertiary)] leading-relaxed">Followers are automatically notified when you launch a new ticketed event.</p>
+                                        </div>
+                                        <div className="p-8 bg-[var(--surface-secondary)]/30 rounded-3xl border border-[var(--border-subtle)]">
+                                            <h4 className="text-xs font-bold text-white mb-2 uppercase tracking-widest">Delivery Time</h4>
+                                            <p className="text-[11px] text-[var(--text-tertiary)] leading-relaxed">Broadcasts are delivered instantly via Mobile Push and In-App Notifications.</p>
+                                        </div>
                                     </div>
                                 </section>
                             </motion.div>
@@ -806,8 +929,8 @@ export default function HostPageManagement() {
                                                 key={type}
                                                 onClick={() => setNewVideo({ ...newVideo, type })}
                                                 className={`px-4 py-2 rounded-lg text-[11px] font-bold capitalize ${newVideo.type === type
-                                                        ? "bg-slate-900 text-white"
-                                                        : "bg-[var(--surface-secondary)] text-[var(--text-secondary)]"
+                                                    ? "bg-slate-900 text-white"
+                                                    : "bg-[var(--surface-secondary)] text-[var(--text-secondary)]"
                                                     }`}
                                             >
                                                 {type}

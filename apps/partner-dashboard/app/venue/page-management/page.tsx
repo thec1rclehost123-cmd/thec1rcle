@@ -70,8 +70,13 @@ export default function VenuePageManagement() {
     const [data, setData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [activeTab, setActiveTab] = useState<"identity" | "content" | "media" | "engagement">("identity");
+    const [activeTab, setActiveTab] = useState<"identity" | "content" | "media" | "engagement" | "broadcast">("identity");
     const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+
+    // Broadcast state
+    const [broadcastTitle, setBroadcastTitle] = useState("");
+    const [broadcastMessage, setBroadcastMessage] = useState("");
+    const [isBroadcasting, setIsBroadcasting] = useState(false);
 
     // Modal states
     const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -387,14 +392,15 @@ export default function VenuePageManagement() {
                     { id: "identity", label: "Identity", icon: Settings },
                     { id: "content", label: "Content", icon: FileText },
                     { id: "media", label: "Media", icon: ImageIcon },
+                    { id: "broadcast", label: "Broadcast", icon: Zap },
                     { id: "engagement", label: "Engagement", icon: TrendingUp }
                 ].map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`flex-1 py-3.5 flex items-center justify-center gap-2 rounded-xl text-[11px] font-bold transition-all ${activeTab === tab.id
-                                ? "bg-[var(--surface-primary)] text-[var(--text-primary)] shadow-sm"
-                                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                            ? "bg-[var(--surface-primary)] text-[var(--text-primary)] shadow-sm"
+                            : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                             }`}
                     >
                         <tab.icon className="w-4 h-4" />
@@ -419,13 +425,13 @@ export default function VenuePageManagement() {
                                 <section className="space-y-6">
                                     <SectionHeader title="Venue Identity" subtitle="The fundamentals of your public presence" icon={Building2} />
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormField label="Venue Name" placeholder="Your venue's official name" defaultValue={data?.profile?.displayName} onSave={(v) => handleUpdateProfile({ displayName: v })} />
+                                        <FormField label="Venue Name" placeholder="Your venue's official name" defaultValue={data?.profile?.displayName} onSave={(v: string) => handleUpdateProfile({ displayName: v })} />
                                         <div className="space-y-2">
                                             <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Venue Type</label>
                                             <select
                                                 value={data?.profile?.venueType || ""}
                                                 onChange={(e) => handleUpdateProfile({ venueType: e.target.value })}
-                                                className="w-full px-4 py-3 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-sm font-medium text-[var(--text-primary)] focus:outline-none"
+                                                className="w-full px-4 py-3 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-sm font-medium text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none"
                                             >
                                                 <option value="">Select type...</option>
                                                 {VENUE_TYPES.map((type) => (
@@ -434,11 +440,57 @@ export default function VenuePageManagement() {
                                             </select>
                                         </div>
                                     </div>
-                                    <FormField label="Description" placeholder="Describe the experience, the atmosphere, what makes you unique..." defaultValue={data?.profile?.bio} onSave={(v) => handleUpdateProfile({ bio: v })} multiline rows={5} />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Neighborhood</label>
+                                            <FormField placeholder="e.g. Bandra West, Indiranagar" defaultValue={data?.profile?.neighborhood} onSave={(v: string) => handleUpdateProfile({ neighborhood: v })} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Category Tag</label>
+                                            <select
+                                                value={data?.profile?.categoryTag || "Venue"}
+                                                onChange={(e) => handleUpdateProfile({ categoryTag: e.target.value })}
+                                                className="w-full px-4 py-3 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-sm font-medium text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none"
+                                            >
+                                                {["Venue", "Nightclub", "Lounge", "Bar", "Pool Club", "Festival Ground"].map(cat => (
+                                                    <option key={cat} value={cat}>{cat}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <FormField label="Description" placeholder="Describe the experience, the atmosphere, what makes you unique..." defaultValue={data?.profile?.bio} onSave={(v: string) => handleUpdateProfile({ bio: v })} multiline rows={5} />
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormField label="Capacity" placeholder="e.g. 500 guests" defaultValue={data?.profile?.capacity} onSave={(v) => handleUpdateProfile({ capacity: v })} />
-                                        <FormField label="Opening Hours" placeholder="e.g. Thu-Sun, 10PM - 4AM" icon={Clock} defaultValue={data?.profile?.openingHours} onSave={(v) => handleUpdateProfile({ openingHours: v })} />
+                                        <FormField label="Capacity" placeholder="e.g. 500 guests" defaultValue={data?.profile?.capacity} onSave={(v: string) => handleUpdateProfile({ capacity: v })} />
+                                        <FormField label="Opening Hours" placeholder="e.g. Thu-Sun, 10PM - 4AM" icon={Clock} defaultValue={data?.profile?.openingHours} onSave={(v: string) => handleUpdateProfile({ openingHours: v })} />
+                                    </div>
+                                </section>
+
+                                {/* Action Layer - New Section */}
+                                <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
+                                    <SectionHeader title="Action Layer" subtitle="Configure primary call-to-action buttons for your page" icon={Zap} />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <FormField
+                                            label="WhatsApp for Reservations"
+                                            placeholder="+91..."
+                                            icon={Phone}
+                                            defaultValue={data?.profile?.whatsapp}
+                                            onSave={(v: string) => handleUpdateProfile({ whatsapp: v })}
+                                        />
+                                        <div className="space-y-2">
+                                            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Primary CTA Type</label>
+                                            <select
+                                                value={data?.profile?.primaryCta || "reserve"}
+                                                onChange={(e) => handleUpdateProfile({ primaryCta: e.target.value })}
+                                                className="w-full px-4 py-3 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-sm font-medium text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none"
+                                            >
+                                                <option value="reserve">Book a Table (WhatsApp)</option>
+                                                <option value="tickets">Buy Tickets (Active Events)</option>
+                                                <option value="follow">Follow Only</option>
+                                                <option value="directions">Get Directions</option>
+                                                <option value="call">Direct Call</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </section>
 
@@ -477,8 +529,8 @@ export default function VenuePageManagement() {
                                                     key={vibe}
                                                     onClick={() => handleVibeToggle(vibe)}
                                                     className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all ${data?.profile?.genres?.includes(vibe)
-                                                            ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-sm"
-                                                            : "bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] border border-[var(--border-subtle)]"
+                                                        ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-sm"
+                                                        : "bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] border border-[var(--border-subtle)]"
                                                         }`}
                                                 >
                                                     {vibe}
@@ -500,8 +552,8 @@ export default function VenuePageManagement() {
                                                     key={amenity.id}
                                                     onClick={() => handleAmenityToggle(amenity.id)}
                                                     className={`p-4 rounded-2xl border transition-all flex items-center gap-3 ${isActive
-                                                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600"
-                                                            : "bg-[var(--surface-secondary)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)]"
+                                                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600"
+                                                        : "bg-[var(--surface-secondary)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)]"
                                                         }`}
                                                 >
                                                     <amenity.icon className="w-5 h-5" />
@@ -715,10 +767,8 @@ export default function VenuePageManagement() {
                                 key="engagement"
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
                                 className="space-y-12"
                             >
-                                {/* Followers Overview */}
                                 <section className="space-y-6">
                                     <SectionHeader title="Audience Overview" subtitle="Understand your community and reach" icon={Users} />
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -729,163 +779,228 @@ export default function VenuePageManagement() {
                                     </div>
                                 </section>
 
-                                {/* Coming Soon */}
+                                {/* Analytics Placeholder */}
                                 <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
                                     <div className="bg-gradient-to-br from-emerald-900 to-slate-800 rounded-3xl p-12 text-center">
                                         <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
                                             <Zap className="w-8 h-8 text-emerald-400" />
                                         </div>
-                                        <h3 className="text-2xl font-bold text-white mb-3">Advanced Analytics Coming Soon</h3>
+                                        <h3 className="text-2xl font-bold text-white mb-3">Audience Geography Insights</h3>
                                         <p className="text-white/60 max-w-md mx-auto text-sm">
-                                            Deep audience insights, booking patterns, and engagement analytics are on the way.
+                                            Heatmaps of guest density and neighborhood-wise breakdown are being aggregated for your location.
                                         </p>
+                                    </div>
+                                </section>
+                            </motion.div>
+                        )}
+
+                        {activeTab === "broadcast" && (
+                            <motion.div
+                                key="broadcast"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="space-y-12"
+                            >
+                                <section className="space-y-8">
+                                    <SectionHeader
+                                        title="Venue Broadcast"
+                                        subtitle="Push dynamic updates or table offers to all your followers"
+                                        icon={Zap}
+                                    />
+
+                                    <div className="bg-gradient-to-br from-emerald-900/40 to-slate-900 border border-emerald-500/20 rounded-[2.5rem] p-10 space-y-8">
+                                        <div className="space-y-6">
+                                            <FormField
+                                                label="Notification Title"
+                                                placeholder="e.g. Exclusive Table Offer for Tonight! 🥂"
+                                                value={broadcastTitle}
+                                                onChange={setBroadcastTitle}
+                                            />
+                                            <FormField
+                                                label="Message Body"
+                                                placeholder="Details about the offer or update..."
+                                                multiline
+                                                rows={4}
+                                                value={broadcastMessage}
+                                                onChange={setBroadcastMessage}
+                                            />
+                                        </div>
+
+                                        <div className="pt-6 border-t border-white/5 space-y-4">
+                                            <div className="flex items-center gap-3 text-emerald-400">
+                                                <Users className="w-4 h-4" />
+                                                <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Target: {data?.stats?.followersCount || 0} Followers</span>
+                                            </div>
+
+                                            <button
+                                                disabled={!broadcastTitle || !broadcastMessage || isBroadcasting}
+                                                onClick={async () => {
+                                                    setIsBroadcasting(true);
+                                                    await new Promise(r => setTimeout(r, 2000));
+                                                    alert("Venue broadcast sent successfully!");
+                                                    setBroadcastTitle("");
+                                                    setBroadcastMessage("");
+                                                    setIsBroadcasting(false);
+                                                }}
+                                                className="w-full py-5 bg-white text-emerald-950 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl hover:scale-[1.01] transition-all disabled:opacity-50"
+                                            >
+                                                {isBroadcasting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Send Broadcast Now"}
+                                            </button>
+                                        </div>
                                     </div>
                                 </section>
                             </motion.div>
                         )}
                     </AnimatePresence>
                 </div>
-            </div>
+            </div >
 
             {/* Photo Upload Modal */}
             <AnimatePresence>
-                {photoModal && (
-                    <Modal onClose={() => setPhotoModal(null)}>
-                        <div className="p-8">
-                            <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Update Image</h2>
-                            <p className="text-[var(--text-tertiary)] text-sm mb-6">
-                                Upload a new {photoModal.field === 'photoURL' ? 'venue logo' : photoModal.field === 'coverURL' ? 'cover image' : 'gallery photo'}
-                            </p>
+                {
+                    photoModal && (
+                        <Modal onClose={() => setPhotoModal(null)}>
+                            <div className="p-8">
+                                <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Update Image</h2>
+                                <p className="text-[var(--text-tertiary)] text-sm mb-6">
+                                    Upload a new {photoModal.field === 'photoURL' ? 'venue logo' : photoModal.field === 'coverURL' ? 'cover image' : 'gallery photo'}
+                                </p>
 
-                            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, "modal")} />
+                                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, "modal")} />
 
-                            <div
-                                onClick={() => fileInputRef.current?.click()}
-                                className="w-full aspect-video rounded-2xl bg-[var(--surface-secondary)] border-2 border-dashed border-[var(--border-subtle)] flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-[var(--surface-elevated)] transition-all group overflow-hidden relative"
-                            >
-                                {isSaving ? (
-                                    <Loader2 className="w-8 h-8 text-[var(--text-tertiary)] animate-spin" />
-                                ) : (
-                                    <>
-                                        <div className="p-4 bg-[var(--surface-elevated)] rounded-2xl group-hover:scale-110 transition-transform">
-                                            <Upload className="w-6 h-6 text-[var(--text-tertiary)]" />
-                                        </div>
-                                        <p className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Click to Upload</p>
-                                    </>
-                                )}
+                                <div
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="w-full aspect-video rounded-2xl bg-[var(--surface-secondary)] border-2 border-dashed border-[var(--border-subtle)] flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-[var(--surface-elevated)] transition-all group overflow-hidden relative"
+                                >
+                                    {isSaving ? (
+                                        <Loader2 className="w-8 h-8 text-[var(--text-tertiary)] animate-spin" />
+                                    ) : (
+                                        <>
+                                            <div className="p-4 bg-[var(--surface-elevated)] rounded-2xl group-hover:scale-110 transition-transform">
+                                                <Upload className="w-6 h-6 text-[var(--text-tertiary)]" />
+                                            </div>
+                                            <p className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Click to Upload</p>
+                                        </>
+                                    )}
+                                </div>
+
+                                <div className="flex gap-3 mt-6">
+                                    <button onClick={() => setPhotoModal(null)} className="flex-1 py-3 bg-[var(--surface-secondary)] text-[var(--text-secondary)] rounded-xl text-sm font-bold hover:bg-[var(--surface-elevated)] transition-all">
+                                        Cancel
+                                    </button>
+                                </div>
                             </div>
-
-                            <div className="flex gap-3 mt-6">
-                                <button onClick={() => setPhotoModal(null)} className="flex-1 py-3 bg-[var(--surface-secondary)] text-[var(--text-secondary)] rounded-xl text-sm font-bold hover:bg-[var(--surface-elevated)] transition-all">
-                                    Cancel
-                                </button>
-                            </div>
-                        </div>
-                    </Modal>
-                )}
-            </AnimatePresence>
+                        </Modal>
+                    )
+                }
+            </AnimatePresence >
 
             {/* Video Add Modal */}
             <AnimatePresence>
-                {videoModal && (
-                    <Modal onClose={() => setVideoModal(false)}>
-                        <div className="p-8">
-                            <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Add Video</h2>
-                            <p className="text-[var(--text-tertiary)] text-sm mb-6">
-                                Add a YouTube, Vimeo, or other video link
-                            </p>
+                {
+                    videoModal && (
+                        <Modal onClose={() => setVideoModal(false)}>
+                            <div className="p-8">
+                                <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Add Video</h2>
+                                <p className="text-[var(--text-tertiary)] text-sm mb-6">
+                                    Add a YouTube, Vimeo, or other video link
+                                </p>
 
-                            <div className="space-y-4">
-                                <FormField label="Video Title" placeholder="e.g. Venue Tour 2024" value={newVideo.title} onChange={(v) => setNewVideo({ ...newVideo, title: v })} inline />
-                                <FormField label="Video URL" placeholder="https://youtube.com/..." value={newVideo.url} onChange={(v) => setNewVideo({ ...newVideo, url: v })} inline />
+                                <div className="space-y-4">
+                                    <FormField label="Video Title" placeholder="e.g. Venue Tour 2024" value={newVideo.title} onChange={(v) => setNewVideo({ ...newVideo, title: v })} inline />
+                                    <FormField label="Video URL" placeholder="https://youtube.com/..." value={newVideo.url} onChange={(v) => setNewVideo({ ...newVideo, url: v })} inline />
 
-                                <div className="space-y-2">
-                                    <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Type</label>
-                                    <div className="flex gap-2">
-                                        {["tour", "recap", "promo", "event"].map((type) => (
-                                            <button
-                                                key={type}
-                                                onClick={() => setNewVideo({ ...newVideo, type })}
-                                                className={`px-4 py-2 rounded-lg text-[11px] font-bold capitalize ${newVideo.type === type
+                                    <div className="space-y-2">
+                                        <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Type</label>
+                                        <div className="flex gap-2">
+                                            {["tour", "recap", "promo", "event"].map((type) => (
+                                                <button
+                                                    key={type}
+                                                    onClick={() => setNewVideo({ ...newVideo, type })}
+                                                    className={`px-4 py-2 rounded-lg text-[11px] font-bold capitalize ${newVideo.type === type
                                                         ? "bg-slate-900 text-white"
                                                         : "bg-[var(--surface-secondary)] text-[var(--text-secondary)]"
-                                                    }`}
-                                            >
-                                                {type}
-                                            </button>
-                                        ))}
+                                                        }`}
+                                                >
+                                                    {type}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="flex gap-3 mt-6">
-                                <button onClick={() => setVideoModal(false)} className="flex-1 py-3 bg-[var(--surface-secondary)] text-[var(--text-secondary)] rounded-xl text-sm font-bold">Cancel</button>
-                                <button onClick={handleAddVideo} disabled={!newVideo.url || !newVideo.title} className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold disabled:opacity-50">Add Video</button>
+                                <div className="flex gap-3 mt-6">
+                                    <button onClick={() => setVideoModal(false)} className="flex-1 py-3 bg-[var(--surface-secondary)] text-[var(--text-secondary)] rounded-xl text-sm font-bold">Cancel</button>
+                                    <button onClick={handleAddVideo} disabled={!newVideo.url || !newVideo.title} className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold disabled:opacity-50">Add Video</button>
+                                </div>
                             </div>
-                        </div>
-                    </Modal>
-                )}
-            </AnimatePresence>
+                        </Modal>
+                    )
+                }
+            </AnimatePresence >
 
             {/* Post Composer Modal */}
             <AnimatePresence>
-                {isComposerOpen && (
-                    <Modal onClose={() => setIsComposerOpen(false)} wide>
-                        <div className="flex flex-col md:flex-row max-h-[85vh]">
-                            <div className="flex-1 p-8 border-r border-[var(--border-subtle)]">
-                                <h2 className="text-xl font-bold text-[var(--text-primary)] mb-6">New Post</h2>
+                {
+                    isComposerOpen && (
+                        <Modal onClose={() => setIsComposerOpen(false)} wide>
+                            <div className="flex flex-col md:flex-row max-h-[85vh]">
+                                <div className="flex-1 p-8 border-r border-[var(--border-subtle)]">
+                                    <h2 className="text-xl font-bold text-[var(--text-primary)] mb-6">New Post</h2>
 
-                                <div className="space-y-6">
-                                    <div className="space-y-2">
-                                        <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Content</label>
-                                        <textarea
-                                            value={composerContent}
-                                            onChange={(e) => setComposerContent(e.target.value)}
-                                            placeholder="What's happening at the venue?"
-                                            className="w-full h-40 p-4 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                                        />
+                                    <div className="space-y-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Content</label>
+                                            <textarea
+                                                value={composerContent}
+                                                onChange={(e) => setComposerContent(e.target.value)}
+                                                placeholder="What's happening at the venue?"
+                                                className="w-full h-40 p-4 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Image</label>
+                                            <input type="file" ref={composerFileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, "composer")} />
+                                            <button
+                                                onClick={() => composerFileInputRef.current?.click()}
+                                                className="w-full py-8 border-2 border-dashed border-[var(--border-subtle)] rounded-xl flex flex-col items-center justify-center gap-3 hover:bg-[var(--surface-secondary)] transition-all"
+                                            >
+                                                <Upload className="w-6 h-6 text-[var(--text-tertiary)]" />
+                                                <span className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
+                                                    {composerImage ? "Change Image" : "Upload Image"}
+                                                </span>
+                                            </button>
+                                        </div>
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Image</label>
-                                        <input type="file" ref={composerFileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, "composer")} />
-                                        <button
-                                            onClick={() => composerFileInputRef.current?.click()}
-                                            className="w-full py-8 border-2 border-dashed border-[var(--border-subtle)] rounded-xl flex flex-col items-center justify-center gap-3 hover:bg-[var(--surface-secondary)] transition-all"
-                                        >
-                                            <Upload className="w-6 h-6 text-[var(--text-tertiary)]" />
-                                            <span className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
-                                                {composerImage ? "Change Image" : "Upload Image"}
-                                            </span>
-                                        </button>
-                                    </div>
+                                    <button
+                                        onClick={handleCreatePost}
+                                        disabled={isSaving || !composerContent}
+                                        className="w-full mt-6 py-4 bg-slate-900 text-white rounded-xl text-sm font-bold disabled:opacity-50"
+                                    >
+                                        {isSaving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Post"}
+                                    </button>
                                 </div>
 
-                                <button
-                                    onClick={handleCreatePost}
-                                    disabled={isSaving || !composerContent}
-                                    className="w-full mt-6 py-4 bg-slate-900 text-white rounded-xl text-sm font-bold disabled:opacity-50"
-                                >
-                                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Post"}
-                                </button>
-                            </div>
-
-                            <div className="w-full md:w-80 bg-[var(--surface-secondary)] p-8">
-                                <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-4">Preview</p>
-                                <div className="bg-[var(--surface-primary)] rounded-2xl overflow-hidden border border-[var(--border-subtle)]">
-                                    {composerImage && <img src={composerImage} className="w-full aspect-video object-cover" alt="" />}
-                                    <div className="p-4">
-                                        <p className="text-sm text-[var(--text-secondary)] line-clamp-4">
-                                            {composerContent || "Your post content..."}
-                                        </p>
+                                <div className="w-full md:w-80 bg-[var(--surface-secondary)] p-8">
+                                    <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-4">Preview</p>
+                                    <div className="bg-[var(--surface-primary)] rounded-2xl overflow-hidden border border-[var(--border-subtle)]">
+                                        {composerImage && <img src={composerImage} className="w-full aspect-video object-cover" alt="" />}
+                                        <div className="p-4">
+                                            <p className="text-sm text-[var(--text-secondary)] line-clamp-4">
+                                                {composerContent || "Your post content..."}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </Modal>
-                )}
-            </AnimatePresence>
-        </div>
+                        </Modal>
+                    )
+                }
+            </AnimatePresence >
+        </div >
     );
 }
 

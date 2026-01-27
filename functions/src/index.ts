@@ -7,6 +7,9 @@ import { calculatePricingInternal } from './lib/pricing';
 import { createOrder, createRSVPOrder, getOrderByReservationId, confirmOrderPayment, failStaleOrders } from './lib/orders';
 import { getEvent } from './lib/events';
 import { createRazorpayOrder } from './lib/razorpay';
+import { initiateTransferInternal, acceptTransferInternal, cancelTransferInternal } from './lib/transfers';
+import { syncEventToAlgolia, removeEventFromAlgolia } from './lib/algolia';
+import { postChatMessageInternal } from './lib/chat';
 
 // Initialize Admin if not already
 if (!admin.apps.length) {
@@ -284,5 +287,119 @@ export const cleanupReservations = functions.pubsub.schedule('every 5 minutes').
     console.log('[Cron] Running reservation + order cleanup...');
     await cleanupExpiredReservations();
     await failStaleOrders(); // Restore inventory for abandoned payments
+    return null;
+});
+
+/**
+ * 7. Ticket Transfers
+ */
+export const initiateTransfer = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+
+    try {
+        return await initiateTransferInternal({
+            ...data,
+            fromUserId: context.auth.uid
+        });
+    } catch (error: any) {
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});
+
+export const acceptTransfer = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+
+    try {
+        return await acceptTransferInternal(data.transferCode, context.auth.uid);
+    } catch (error: any) {
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});
+
+export const cancelTransfer = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+
+    try {
+        return await cancelTransferInternal(data.transferId, context.auth.uid);
+    } catch (error: any) {
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});
+
+/**
+ * 8. Social & Chat
+ */
+export const sendMessage = functions.https.onCall(postChatMessageInternal);
+
+/**
+ * 9. Aggregated Counters (Scale-Proof Analytics)
+ */
+export const onUserCreated = functions.auth.user().onCreate(async (user) => {
+    const statsRef = admin.firestore().collection('platform_stats').doc('current');
+    return statsRef.set({
+        users_total: admin.firestore.FieldValue.increment(1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+});
+
+export const onEventUpdated = functions.firestore.document('events/{eventId}').onWrite(async (change, context) => {
+    const eventId = context.params.eventId;
+
+    // 1. Update Platform Stats (only on create)
+    if (!change.before.exists && change.after.exists) {
+        const statsRef = admin.firestore().collection('platform_stats').doc('current');
+        await statsRef.set({
+            events_total: admin.firestore.FieldValue.increment(1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+    }
+
+    // 2. Sync to Algolia
+    if (!change.after.exists) {
+        // Deleted
+        await removeEventFromAlgolia(eventId);
+    } else {
+        // Created or Updated
+        await syncEventToAlgolia(eventId, change.after.data());
+    }
+
+    return null;
+});
+
+/**
+ * Legacy onEventCreated - Refactored into onEventUpdated (.onWrite) above for efficiency
+ */
+// export const onEventCreated = ...
+
+export const onOrderUpdated = functions.firestore.document('orders/{orderId}').onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+
+    // Only trigger stats update once when order is confirmed
+    if (before.status !== 'confirmed' && after.status === 'confirmed') {
+        const statsRef = admin.firestore().collection('platform_stats').doc('current');
+
+        let totalTickets = 0;
+        if (after.tickets && Array.isArray(after.tickets)) {
+            totalTickets = after.tickets.reduce((sum: number, t: any) => sum + (t.quantity || 0), 0);
+        }
+
+        // 5. Automated FCM Topic Subscription (Fan-out protection)
+        try {
+            const topic = `event_${after.eventId}`;
+            await admin.messaging().subscribeToTopic(after.userId, topic);
+            console.log(`[Messaging] Subscribed user ${after.userId} to topic ${topic}`);
+        } catch (e) {
+            console.warn(`[Messaging] Failed to subscribe user to topic:`, e);
+        }
+
+        return statsRef.set({
+            revenue: {
+                total: admin.firestore.FieldValue.increment(after.totalAmount || 0)
+            },
+            tickets_sold_total: admin.firestore.FieldValue.increment(totalTickets),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+    }
     return null;
 });

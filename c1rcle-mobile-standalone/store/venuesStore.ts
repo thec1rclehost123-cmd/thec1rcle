@@ -27,6 +27,7 @@ export interface Venue {
     name: string;
     area: string;
     city?: string;
+    neighborhood?: string;
     image: string;
     coverURL?: string;
     followers: number;
@@ -38,6 +39,16 @@ export interface Venue {
     description: string;
     rules: string[];
     dressCode: string;
+    isVerified?: boolean;
+    primaryCta?: string;
+    whatsapp?: string;
+    website?: string;
+    phone?: string;
+    socialLinks?: {
+        instagram?: string;
+        twitter?: string;
+        spotify?: string;
+    };
     isFollowing?: boolean;
 }
 
@@ -100,7 +111,8 @@ export const useVenuesStore = create<VenuesState>()(
                         const lowSearch = filters.search.toLowerCase();
                         venues = venues.filter(v =>
                             v.name.toLowerCase().includes(lowSearch) ||
-                            v.area.toLowerCase().includes(lowSearch)
+                            v.area?.toLowerCase().includes(lowSearch) ||
+                            v.neighborhood?.toLowerCase().includes(lowSearch)
                         );
                     }
 

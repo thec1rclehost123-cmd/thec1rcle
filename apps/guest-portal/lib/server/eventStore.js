@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+import { algoliasearch } from 'algoliasearch';
 import { EVENT_LIFECYCLE, PUBLIC_LIFECYCLE_STATES, normalizeCity, resolvePoster, mapEventForClient } from "@c1rcle/core/events";
 import { events as seedEvents } from "../../data/events";
 
@@ -22,6 +23,10 @@ const fallbackCategories = [
   "Events",
   "Connections"
 ];
+
+const ALGOLIA_APP_ID = process.env.NEXT_PUBLIC_ALGOLIA_APP_ID || '';
+const ALGOLIA_SEARCH_KEY = process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_KEY || '';
+const algoliaClient = (ALGOLIA_APP_ID && ALGOLIA_SEARCH_KEY) ? algoliasearch(ALGOLIA_APP_ID, ALGOLIA_SEARCH_KEY) : null;
 
 const cityKeywords = [
   { city: "Pune, IN", matchers: ["pune", "kp", "koregaon", "baner", "fc road", "viman", "yerawada", "mula", "kalyani", "magarpatta"], fallback: true },
@@ -387,6 +392,41 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
       );
     }
     return limit ? results.slice(0, limit) : results;
+  }
+
+  // --- Algolia Search & Discovery Integration (Scale-Proof) ---
+  if (algoliaClient) {
+    try {
+      const cityKey = city ? normalizeCity(city) : null;
+      const { results: algoliaResults } = await algoliaClient.search({
+        requests: [
+          {
+            indexName: 'events',
+            query: search || '',
+            params: {
+              filters: `(lifecycle:approved OR lifecycle:scheduled OR lifecycle:live)${cityKey ? ` AND cityKey:${cityKey}` : ''}`,
+              hitsPerPage: limit || 50
+            }
+          }
+        ]
+      });
+
+      const hits = algoliaResults[0].hits;
+      if (hits && hits.length > 0) {
+        return hits.map(hit => ({
+          ...hit,
+          id: hit.objectID,
+          // Remove internal Algolia fields
+          objectID: undefined,
+          _highlightResult: undefined,
+          _snippetResult: undefined,
+          _rankingInfo: undefined,
+          _distinctSeqID: undefined
+        }));
+      }
+    } catch (e) {
+      console.error("[EventStore] Algolia search/discovery failed, falling back to Firestore:", e);
+    }
   }
 
   const db = getAdminDb();

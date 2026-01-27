@@ -16,3 +16,5 @@ export { useProfileStore } from "./profileStore";
 export type { UserProfile } from "./profileStore";
 export { useUIStore } from "./uiStore";
 export { useCityStore } from "./cityStore";
+export { useDiscoveryStore } from "./discoveryStore";
+export type { DiscoverySectionConfig } from "./discoveryStore";

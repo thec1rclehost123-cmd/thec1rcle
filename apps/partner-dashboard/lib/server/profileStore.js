@@ -53,14 +53,18 @@ export async function updateProfile(profileId, type = "venue", updates, updatedB
     const safeFields = [
         // Identity Layer
         "displayName", "bio", "coverImage", "profileImage", "photos",
-        "photoURL", "coverURL", "tagline", "slug",
+        "photoURL", "coverURL", "tagline", "slug", "categoryTag",
         // Location
-        "city", "address", "phone", "email", "website",
+        "city", "neighborhood", "address", "phone", "email", "website", "whatsapp",
         // Extended Social Links
-        "socialLinks", // { instagram, twitter, soundcloud, spotify, youtube, tiktok, website }
+        "socialLinks", // { instagram, twitter, soundcloud, spotify, youtube, tiktok, website, call, directions }
         // Genre & Style
         "genres", // ["Techno", "House", "Hip-hop"]
         "styleTags", // ["Underground", "Mainstream", "Exclusive"]
+        // Actions / CTA Layer
+        "ctas", // [{ type: "primary"|"secondary", label, action: "book"|"reserve"|"contact"|"follow"|"directions"|"tickets", url? }]
+        // Events & Highlights
+        "pinnedEventIds", // [eventId1, eventId2]
         // Collaborations & Affiliations
         "collaborations", // [{ name, type, logo?, verified? }]
         "affiliations", // Residencies, partnerships
@@ -74,7 +78,7 @@ export async function updateProfile(profileId, type = "venue", updates, updatedB
         "achievements", // [{ title, date, description }]
         "pressSnippets", // [{ source, quote, url, date }]
         // Engagement metadata
-        "isVerified", "isFeatured", "visibility"
+        "isVerified", "isFeatured", "visibility", "status"
     ];
 
     const safeUpdates = {};

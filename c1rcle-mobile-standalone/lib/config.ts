@@ -70,6 +70,14 @@ const RAZORPAY_KEYS: Record<MobileEnv, string> = {
 export const RAZORPAY_KEY_ID = RAZORPAY_KEYS[MOBILE_ENV];
 
 // ============================================================================
+// ALGOLIA CONFIGURATION (Search & Discovery)
+// ============================================================================
+
+export const ALGOLIA_APP_ID = process.env.EXPO_PUBLIC_ALGOLIA_APP_ID || "";
+export const ALGOLIA_SEARCH_KEY = process.env.EXPO_PUBLIC_ALGOLIA_SEARCH_KEY || "";
+export const ALGOLIA_INDEX_NAME = process.env.EXPO_PUBLIC_ALGOLIA_INDEX_NAME || "events";
+
+// ============================================================================
 // FIREBASE CONFIGURATION
 // ============================================================================
 
@@ -211,6 +219,11 @@ export const config = {
     },
     push: {
         channels: PUSH_CHANNELS,
+    },
+    algolia: {
+        appId: ALGOLIA_APP_ID,
+        searchKey: ALGOLIA_SEARCH_KEY,
+        indexName: ALGOLIA_INDEX_NAME,
     },
     features: FEATURES,
     limits: LIMITS,

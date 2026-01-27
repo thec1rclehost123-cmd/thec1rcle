@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { BadgeCheck } from "lucide-react";
 import Skeleton from "../ui/Skeleton";
 import ShimmerImage from "../ShimmerImage";
 
@@ -22,6 +23,11 @@ export function VenueCard({ venue, onFollow }) {
 
                     {/* Badges */}
                     <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
+                        {venue.isVerified && (
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white backdrop-blur-md shadow-lg ring-1 ring-white/20">
+                                <BadgeCheck size={16} />
+                            </div>
+                        )}
                         {venue.venueType && (
                             <span className="px-3 py-1 rounded-full bg-emerald-500/80 backdrop-blur-md text-[10px] font-bold uppercase tracking-widest text-white shadow-lg">
                                 {venue.venueType}
@@ -39,7 +45,7 @@ export function VenueCard({ venue, onFollow }) {
                     <div className="flex items-start justify-between">
                         <div>
                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-1">
-                                {venue.area || venue.city}
+                                {venue.neighborhood || venue.area || venue.city}
                             </p>
                             <h3 className="text-xl font-heading font-black uppercase tracking-tight text-white dark:text-white leading-tight">
                                 {venue.name}
@@ -102,7 +108,7 @@ export function HostCard({ host, onFollow }) {
                     <div className="absolute inset-0 p-8 flex flex-col items-center justify-center">
                         <div className="relative h-28 w-28 rounded-full overflow-hidden border-2 border-white/20 group-hover:border-orange/50 transition-colors shadow-2xl">
                             <ShimmerImage
-                                src={host.avatar}
+                                src={host.photoURL || host.avatar || "/events/holi-edit.svg"}
                                 alt={host.name}
                                 fill
                                 className="object-cover transition-transform duration-500 group-hover:scale-110"

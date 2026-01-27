@@ -350,11 +350,17 @@ export default function CheckoutScreen() {
                     {totals.items > 0 && (
                         <Animated.View entering={FadeInDown.delay(200)} style={styles.promoSection}>
                             {promoCode && pricing ? (
-                                <View style={styles.appliedPromoBadge}>
+                                <Animated.View
+                                    entering={FadeInDown}
+                                    style={styles.appliedPromoBadge}
+                                >
                                     <View style={styles.promoBadgeLeft}>
-                                        <View style={styles.promoIconContainer}>
+                                        <LinearGradient
+                                            colors={['#34c759', '#28a745']}
+                                            style={styles.promoIconContainer}
+                                        >
                                             <Ionicons name="pricetag" size={14} color="#fff" />
-                                        </View>
+                                        </LinearGradient>
                                         <View>
                                             <Text style={styles.appliedPromoCode}>{promoCode}</Text>
                                             <Text style={styles.appliedPromoMessage}>
@@ -364,11 +370,17 @@ export default function CheckoutScreen() {
                                     </View>
                                     <View style={styles.promoBadgeRight}>
                                         <Text style={styles.promoSavings}>- ₹{pricing.discountTotal.toLocaleString()}</Text>
-                                        <Pressable onPress={handleRemovePromo} style={styles.removePromoBtn}>
-                                            <Ionicons name="close-circle" size={20} color={colors.error} />
+                                        <Pressable
+                                            onPress={handleRemovePromo}
+                                            style={({ pressed }) => [
+                                                styles.removePromoBtn,
+                                                { opacity: pressed ? 0.6 : 1 }
+                                            ]}
+                                        >
+                                            <Ionicons name="close-circle" size={22} color={colors.error} />
                                         </Pressable>
                                     </View>
-                                </View>
+                                </Animated.View>
                             ) : (
                                 <View style={styles.promoInputContainer}>
                                     <Ionicons name="pricetag-outline" size={18} color={colors.goldMetallic} style={{ marginLeft: 12 }} />
@@ -377,8 +389,8 @@ export default function CheckoutScreen() {
                                             style={styles.promoInput}
                                             value={promoInput}
                                             onChangeText={setPromoInput}
-                                            placeholder="Have a promo code?"
-                                            placeholderTextColor={colors.goldStone}
+                                            placeholder="HAVE A PROMO CODE?"
+                                            placeholderTextColor="rgba(212, 175, 55, 0.4)"
                                             autoCapitalize="characters"
                                             keyboardAppearance="dark"
                                             returnKeyType="done"
@@ -387,14 +399,28 @@ export default function CheckoutScreen() {
                                     </View>
                                     <Pressable
                                         onPress={handleApplyPromo}
-                                        style={[styles.promoApplyBtn, !promoInput.trim() && { opacity: 0.5 }]}
-                                        disabled={!promoInput.trim()}
+                                        style={({ pressed }) => [
+                                            styles.promoApplyBtn,
+                                            (!promoInput.trim() || isProcessing) && { opacity: 0.3 }
+                                        ]}
+                                        disabled={!promoInput.trim() || isProcessing}
                                     >
-                                        <Text style={styles.promoApplyText}>APPLY</Text>
+                                        {isProcessing && processingState === "pricing" ? (
+                                            <ActivityIndicator size="small" color={colors.gold} />
+                                        ) : (
+                                            <Text style={styles.promoApplyText}>APPLY</Text>
+                                        )}
                                     </Pressable>
                                 </View>
                             )}
-                            {cartError && <Text style={styles.errorTextSmall}>{cartError}</Text>}
+                            {cartError && (
+                                <Animated.Text
+                                    entering={FadeIn}
+                                    style={styles.errorTextSmall}
+                                >
+                                    {cartError}
+                                </Animated.Text>
+                            )}
                         </Animated.View>
                     )}
                 </View>
@@ -643,82 +669,95 @@ const styles = StyleSheet.create({
     promoInputContainer: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: colors.base[50],
-        borderRadius: radii.lg,
-        height: 48,
+        backgroundColor: "rgba(255, 255, 255, 0.03)",
+        borderRadius: radii.xl,
+        height: 56,
         borderWidth: 1,
-        borderColor: "rgba(255, 255, 255, 0.06)",
+        borderColor: "rgba(212, 175, 55, 0.15)",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
     },
-    promoInputPlaceholder: {
-        color: colors.goldMetallic,
-        fontSize: 14,
+    promoInput: {
+        color: colors.gold,
+        fontSize: 15,
+        fontWeight: "600",
+        letterSpacing: 1,
+        height: "100%",
     },
     promoApplyBtn: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 20,
         height: "100%",
         alignItems: "center",
         justifyContent: "center",
         borderLeftWidth: 1,
-        borderLeftColor: "rgba(255, 255, 255, 0.06)",
+        borderLeftColor: "rgba(212, 175, 55, 0.1)",
     },
     promoApplyText: {
         color: colors.gold,
-        fontSize: 12,
-        fontWeight: "700",
+        fontSize: 13,
+        fontWeight: "800",
+        letterSpacing: 1,
     },
     errorTextSmall: {
         color: colors.error,
         fontSize: 12,
-        marginTop: 6,
+        marginTop: 10,
         marginLeft: 4,
+        fontWeight: "600",
     },
     appliedPromoBadge: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        backgroundColor: "rgba(52, 199, 89, 0.1)",
-        borderRadius: radii.lg,
-        padding: 12,
+        backgroundColor: "rgba(52, 199, 89, 0.08)",
+        borderRadius: radii.xl,
+        padding: 16,
         borderWidth: 1,
         borderColor: "rgba(52, 199, 89, 0.2)",
     },
     promoBadgeLeft: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 12,
+        gap: 14,
     },
     promoIconContainer: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         backgroundColor: colors.success,
         alignItems: "center",
         justifyContent: "center",
+        shadowColor: colors.success,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.4,
+        shadowRadius: 4,
     },
     appliedPromoCode: {
         color: colors.gold,
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: "700",
-        letterSpacing: 0.5,
+        letterSpacing: 1,
     },
     appliedPromoMessage: {
-        color: "rgba(52, 199, 89, 0.9)",
-        fontSize: 11,
-        fontWeight: "500",
+        color: "rgba(52, 199, 89, 1)",
+        fontSize: 12,
+        fontWeight: "600",
         marginTop: 1,
     },
     promoBadgeRight: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 12,
+        gap: 16,
     },
     promoSavings: {
         color: colors.success,
-        fontSize: 14,
-        fontWeight: "700",
+        fontSize: 16,
+        fontWeight: "800",
     },
     removePromoBtn: {
-        padding: 2,
+        padding: 4,
     },
 
     // Ticket Card

@@ -17,7 +17,7 @@ export const ALLOWLIST_ACTIONS = [
     'FINANCIAL_REFUND', 'PARTIAL_REFUND',
     'COMMISSION_ADJUST', 'FEE_RULE_UPDATE',
     'PAYOUT_FREEZE', 'PAYOUT_RELEASE', 'PAYOUT_BATCH_RUN',
-    'ADMIN_ROLE_UPDATE', 'ADMIN_ACCESS_REVOKE'
+    'ADMIN_ROLE_UPDATE', 'ADMIN_ACCESS_REVOKE', 'DATABASE_CORRECTION'
 ];
 
 export const TIER2_ACTIONS = [
@@ -141,6 +141,9 @@ export const adminStore = {
                 break;
             case 'FINANCIAL_REFUND':
                 await this.financialRefund(targetId, adminId, reason, evidence, params);
+                break;
+            case 'DATABASE_CORRECTION':
+                await this.databaseCorrection(targetId, params.id || 'global', params.after, adminId, reason, context);
                 break;
             default:
                 throw new Error(`Execution Dispatch Error: ${action} is not yet mapped for transactional resolution.`);
@@ -579,6 +582,27 @@ export const adminStore = {
             reason,
             evidence,
             context
+        });
+    },
+
+    async databaseCorrection(collection, targetId, data, adminId, reason, context) {
+        const db = getAdminDb();
+        const docRef = db.collection(collection).doc(targetId);
+
+        await docRef.set({
+            ...data,
+            updatedAt: FieldValue.serverTimestamp(),
+            lastCorrectedBy: adminId
+        }, { merge: true });
+
+        await this.logAdminAction({
+            adminId,
+            action: 'DATABASE_CORRECTION',
+            targetId: `${collection}/${targetId}`,
+            targetType: 'config',
+            reason,
+            context,
+            after: data
         });
     }
 };

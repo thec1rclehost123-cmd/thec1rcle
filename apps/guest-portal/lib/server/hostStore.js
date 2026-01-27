@@ -109,7 +109,8 @@ export async function listHosts({ search, role, vibe, status, time, sort } = {})
             hosts = hosts.filter(h =>
                 h.name.toLowerCase().includes(lowSearch) ||
                 h.handle.toLowerCase().includes(lowSearch) ||
-                h.vibes.some(v => v.toLowerCase().includes(lowSearch))
+                h.vibes.some(v => v.toLowerCase().includes(lowSearch)) ||
+                h.neighborhood?.toLowerCase().includes(lowSearch)
             );
         }
 
@@ -160,7 +161,8 @@ export async function listHosts({ search, role, vibe, status, time, sort } = {})
         hosts = hosts.filter(h =>
             h.name?.toLowerCase().includes(lowSearch) ||
             h.handle?.toLowerCase().includes(lowSearch) ||
-            h.vibes?.some(v => v.toLowerCase().includes(lowSearch))
+            h.vibes?.some(v => v.toLowerCase().includes(lowSearch)) ||
+            h.neighborhood?.toLowerCase().includes(lowSearch)
         );
     }
 

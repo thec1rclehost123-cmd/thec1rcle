@@ -1,17 +1,17 @@
-// Real-time Typing Indicators Service
+// Real-time Typing Indicators Service (Optimized with RTDB)
 import {
-    doc,
-    setDoc,
-    deleteDoc,
-    onSnapshot,
+    ref,
+    set,
+    remove,
+    onValue,
+    off,
     serverTimestamp,
-    Timestamp,
-} from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase";
+} from "firebase/database";
+import { getRealtimeDb } from "@/lib/firebase";
 
 // Typing indicator data
 export interface TypingIndicator {
-    oderId: string;
+    userId: string;
     userName: string;
     timestamp: any;
 }
@@ -29,12 +29,15 @@ export interface TypingStatus {
 const TYPING_TIMEOUT = 5000;
 
 // Debounce interval for typing updates (ms)
-const TYPING_DEBOUNCE = 1000;
+const TYPING_DEBOUNCE = 2000;
 
-// Track last typing update to debounce
+// Track last typing update in memory to avoid redundant network hits
 const lastTypingUpdate: Record<string, number> = {};
 
-// Set typing status for group chat
+/**
+ * Set typing status for group chat (RTDB implementation)
+ * RTDB is chosen for typing because it's significantly cheaper for high-frequency updates.
+ */
 export async function setGroupTypingStatus(
     eventId: string,
     userId: string,
@@ -42,42 +45,42 @@ export async function setGroupTypingStatus(
     isTyping: boolean
 ): Promise<void> {
     try {
-        const db = getFirebaseDb();
-        const typingRef = doc(db, "typingIndicators", `group_${eventId}_${userId}`);
+        const db = getRealtimeDb();
+        const typingRef = ref(db, `typingIndicators/group/${eventId}/${userId}`);
 
         if (isTyping) {
-            // Debounce - don't update too frequently
             const now = Date.now();
             const key = `group_${eventId}_${userId}`;
+
+            // Only update if we haven't sent an update in the last 2 seconds
             if (lastTypingUpdate[key] && now - lastTypingUpdate[key] < TYPING_DEBOUNCE) {
                 return;
             }
             lastTypingUpdate[key] = now;
 
-            await setDoc(typingRef, {
-                chatType: "group",
-                chatId: eventId,
+            await set(typingRef, {
                 userId,
                 userName,
                 timestamp: serverTimestamp(),
             });
 
-            // Auto-remove after timeout
+            // Fallback auto-remove for safety (onDisconnect is handled by the server normally)
             setTimeout(async () => {
                 try {
-                    await deleteDoc(typingRef);
+                    await remove(typingRef);
                 } catch { }
             }, TYPING_TIMEOUT);
         } else {
-            await deleteDoc(typingRef);
+            await remove(typingRef);
         }
     } catch (error) {
-        // Silently fail - typing indicators are non-critical
         console.debug("Typing indicator error:", error);
     }
 }
 
-// Set typing status for DM
+/**
+ * Set typing status for DM (RTDB implementation)
+ */
 export async function setDMTypingStatus(
     conversationId: string,
     userId: string,
@@ -85,11 +88,10 @@ export async function setDMTypingStatus(
     isTyping: boolean
 ): Promise<void> {
     try {
-        const db = getFirebaseDb();
-        const typingRef = doc(db, "typingIndicators", `dm_${conversationId}_${userId}`);
+        const db = getRealtimeDb();
+        const typingRef = ref(db, `typingIndicators/dm/${conversationId}/${userId}`);
 
         if (isTyping) {
-            // Debounce
             const now = Date.now();
             const key = `dm_${conversationId}_${userId}`;
             if (lastTypingUpdate[key] && now - lastTypingUpdate[key] < TYPING_DEBOUNCE) {
@@ -97,144 +99,137 @@ export async function setDMTypingStatus(
             }
             lastTypingUpdate[key] = now;
 
-            await setDoc(typingRef, {
-                chatType: "dm",
-                chatId: conversationId,
+            await set(typingRef, {
                 userId,
                 userName,
                 timestamp: serverTimestamp(),
             });
 
-            // Auto-remove after timeout
             setTimeout(async () => {
                 try {
-                    await deleteDoc(typingRef);
+                    await remove(typingRef);
                 } catch { }
             }, TYPING_TIMEOUT);
         } else {
-            await deleteDoc(typingRef);
+            await remove(typingRef);
         }
     } catch (error) {
         console.debug("Typing indicator error:", error);
     }
 }
 
-// Subscribe to typing indicators for group chat
+/**
+ * Subscribe to typing indicators for group chat (RTDB implementation)
+ * This avoids the massive "Read Cost" spike that Firestore would trigger.
+ */
 export function subscribeToGroupTyping(
     eventId: string,
     currentUserId: string,
     onTypingChange: (status: TypingStatus) => void
 ): () => void {
-    const db = getFirebaseDb();
+    const db = getRealtimeDb();
+    const typingRef = ref(db, `typingIndicators/group/${eventId}`);
 
-    // We need to listen to multiple documents, so we use collection query
-    // For simplicity, we'll poll or use a workaround
-    // Since we're using document IDs with pattern, we track known typers
+    const handleValue = (snapshot: any) => {
+        const data = snapshot.val();
+        if (!data) {
+            onTypingChange({ isTyping: false, users: [] });
+            return;
+        }
 
-    const typersMap = new Map<string, { userName: string; timestamp: number }>();
-    const unsubscribers: Array<() => void> = [];
-
-    // Clean up stale indicators periodically
-    const cleanupInterval = setInterval(() => {
         const now = Date.now();
-        let changed = false;
+        const activeUsers: Array<{ userId: string; userName: string }> = [];
 
-        typersMap.forEach((data, oderId) => {
-            if (now - data.timestamp > TYPING_TIMEOUT) {
-                typersMap.delete(oderId);
-                changed = true;
+        Object.keys(data).forEach((userId) => {
+            if (userId === currentUserId) return;
+
+            const userTyping = data[userId];
+            // Safety check for stale data (though RTDB is usually very fresh)
+            const timestamp = userTyping.timestamp || now;
+
+            if (now - timestamp < TYPING_TIMEOUT) {
+                activeUsers.push({
+                    userId,
+                    userName: userTyping.userName,
+                });
             }
         });
-
-        if (changed) {
-            emitStatus();
-        }
-    }, 1000);
-
-    const emitStatus = () => {
-        const users = Array.from(typersMap.entries())
-            .filter(([oderId]) => oderId !== currentUserId)
-            .map(([oderId, data]) => ({ userId: oderId, userName: data.userName }));
 
         onTypingChange({
-            isTyping: users.length > 0,
-            users,
+            isTyping: activeUsers.length > 0,
+            users: activeUsers,
         });
     };
 
-    // For now, we'll use a simpler approach - subscribe to the typing collection
-    // and filter client-side
-    const { collection, query, where } = require("firebase/firestore");
+    onValue(typingRef, handleValue);
 
-    const typingQuery = query(
-        collection(db, "typingIndicators"),
-        where("chatType", "==", "group"),
-        where("chatId", "==", eventId)
-    );
-
-    const unsubscribe = onSnapshot(typingQuery, (snapshot) => {
-        typersMap.clear();
-
-        snapshot.docs.forEach((doc) => {
-            const data = doc.data();
-            if (data.userId !== currentUserId) {
-                const timestamp = data.timestamp?.toDate?.()?.getTime() || Date.now();
-                if (Date.now() - timestamp < TYPING_TIMEOUT) {
-                    typersMap.set(data.userId, {
-                        userName: data.userName,
-                        timestamp,
-                    });
-                }
-            }
-        });
-
-        emitStatus();
-    });
-
-    unsubscribers.push(unsubscribe);
-
-    return () => {
-        clearInterval(cleanupInterval);
-        unsubscribers.forEach((unsub) => unsub());
-    };
+    return () => off(typingRef, 'value', handleValue);
 }
 
-// Subscribe to typing indicators for DM
+/**
+ * Subscribe to typing indicators for DM (RTDB implementation)
+ */
 export function subscribeToDMTyping(
     conversationId: string,
     currentUserId: string,
     onTypingChange: (isTyping: boolean, userName?: string) => void
 ): () => void {
-    const db = getFirebaseDb();
+    const db = getRealtimeDb();
+    const typingRef = ref(db, `typingIndicators/dm/${conversationId}`);
 
-    const { collection, query, where } = require("firebase/firestore");
+    const handleValue = (snapshot: any) => {
+        const data = snapshot.val();
+        if (!data) {
+            onTypingChange(false);
+            return;
+        }
 
-    const typingQuery = query(
-        collection(db, "typingIndicators"),
-        where("chatType", "==", "dm"),
-        where("chatId", "==", conversationId)
-    );
-
-    return onSnapshot(typingQuery, (snapshot) => {
         let otherTyping = false;
         let otherName = "";
+        const now = Date.now();
 
-        snapshot.docs.forEach((doc) => {
-            const data = doc.data();
-            if (data.userId !== currentUserId) {
-                const timestamp = data.timestamp?.toDate?.()?.getTime() || Date.now();
-                if (Date.now() - timestamp < TYPING_TIMEOUT) {
-                    otherTyping = true;
-                    otherName = data.userName;
-                }
+        Object.keys(data).forEach((userId) => {
+            if (userId === currentUserId) return;
+
+            const userTyping = data[userId];
+            const timestamp = userTyping.timestamp || now;
+
+            if (now - timestamp < TYPING_TIMEOUT) {
+                otherTyping = true;
+                otherName = userTyping.userName;
             }
         });
 
         onTypingChange(otherTyping, otherName);
-    });
+    };
+
+    onValue(typingRef, handleValue);
+
+    return () => off(typingRef, 'value', handleValue);
 }
 
-// Hook-style typing handler for text input
+/**
+ * Helper to clear own typing on app background/disconnect
+ */
+export async function clearOwnTyping(userId: string) {
+    try {
+        const db = getRealtimeDb();
+        // Since we don't know all active chats here easily without state,
+        // this is more of a placeholder for where onDisconnect() would be set up.
+        // In a full implementation, we'd use onDisconnect().remove() when setting the status.
+    } catch (e) {
+        console.error("Error clearing typing status:", e);
+    }
+}
+
+// Utility functions for text input remain the same
+export function formatTypingText(users: Array<{ userName: string }>): string {
+    if (users.length === 0) return "";
+    if (users.length === 1) return `${users[0].userName} is typing...`;
+    if (users.length === 2) return `${users[0].userName} and ${users[1].userName} are typing...`;
+    return `${users[0].userName} and ${users.length - 1} others are typing...`;
+}
+
 export function createTypingHandler(
     setTyping: (isTyping: boolean) => Promise<void>
 ): {
@@ -245,26 +240,22 @@ export function createTypingHandler(
     let isCurrentlyTyping = false;
 
     const onChangeText = () => {
-        // Set typing to true
         if (!isCurrentlyTyping) {
             isCurrentlyTyping = true;
-            setTyping(true);
+            setTyping(true).catch(e => console.error(e));
         }
 
-        // Clear existing timeout
         if (typingTimeout) {
             clearTimeout(typingTimeout);
         }
 
-        // Set timeout to clear typing status
         typingTimeout = setTimeout(() => {
             isCurrentlyTyping = false;
-            setTyping(false);
-        }, 2000);
+            setTyping(false).catch(e => console.error(e));
+        }, 2000) as any;
     };
 
     const onBlur = () => {
-        // Clear typing when input loses focus
         if (typingTimeout) {
             clearTimeout(typingTimeout);
         }
@@ -275,12 +266,4 @@ export function createTypingHandler(
     };
 
     return { onChangeText, onBlur };
-}
-
-// Format typing indicator text
-export function formatTypingText(users: Array<{ userName: string }>): string {
-    if (users.length === 0) return "";
-    if (users.length === 1) return `${users[0].userName} is typing...`;
-    if (users.length === 2) return `${users[0].userName} and ${users[1].userName} are typing...`;
-    return `${users[0].userName} and ${users.length - 1} others are typing...`;
 }

@@ -48,6 +48,7 @@ import { HeroCardSkeleton, GridCardSkeleton, Shimmer } from "@/components/ui/Ske
 
 import { useUIStore } from "@/store/uiStore";
 import { useCityStore } from "@/store/cityStore";
+import { useDiscoveryStore } from "@/store/discoveryStore";
 import { useScrollToHide } from "@/hooks/useScrollToHide";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -275,10 +276,16 @@ export default function ExplorePage() {
         unsubscribeFromAllStock
     } = useEventsStore();
 
+    const {
+        config: layoutConfig,
+        fetchConfig: fetchLayoutConfig
+    } = useDiscoveryStore();
+
     // Reset tab bar on focus and handle stock subscriptions clean-up
     useEffect(() => {
         setTabBarVisible(true);
         initCity();
+        fetchLayoutConfig();
 
         return () => {
             unsubscribeFromAllStock();
@@ -393,30 +400,51 @@ export default function ExplorePage() {
         return events.slice(0, 5);
     }, [featuredEvents, events]);
 
-    // Group events into horizontal sections
+    // Group events into horizontal sections based on CMS config
     const sectionsData = useMemo<ExploreSection[]>(() => {
         if (loading && events.length === 0) return [];
 
-        // Simple partitioning logic for demonstration/initial implementation
-        const forYou = filteredEvents.filter(e => e.heatScore > 30).slice(0, 8);
-        const similar = filteredEvents.filter(e => e.stats.rsvps > 5).slice(0, 8);
-        const parties = filteredEvents.filter(e => {
-            const cat = normalizeCategory(e.category) || "";
-            return cat.includes('party') || cat.includes('club') || cat.includes('night');
-        }).slice(0, 8);
+        return layoutConfig.map(section => {
+            let sectionEvents: Event[] = [];
 
-        // All events as a horizontal section as well
-        const all = filteredEvents;
+            switch (section.filterType) {
+                case "trending":
+                case "heat_score":
+                    sectionEvents = filteredEvents
+                        .filter(e => e.heatScore > (section.filterValue || 30))
+                        .slice(0, section.limit);
+                    break;
+                case "social_proof":
+                    sectionEvents = filteredEvents
+                        .filter(e => e.stats.rsvps > (section.filterValue || 5))
+                        .slice(0, section.limit);
+                    break;
+                case "category":
+                    const categories = Array.isArray(section.filterValue)
+                        ? section.filterValue
+                        : [section.filterValue];
+                    sectionEvents = filteredEvents.filter(e => {
+                        const cat = normalizeCategory(e.category) || "";
+                        return categories.some((c: string) => cat.includes(c.toLowerCase()));
+                    }).slice(0, section.limit);
+                    break;
+                case "tonight":
+                    sectionEvents = filteredEvents.filter(e => isToday(e.startDate)).slice(0, section.limit);
+                    break;
+                case "all":
+                default:
+                    sectionEvents = filteredEvents.slice(0, section.limit);
+                    break;
+            }
 
-        const results: ExploreSection[] = [
-            { id: 'for-you', title: 'For You', icon: 'sparkles', data: forYou },
-            { id: 'similar', title: 'Similar to you', icon: 'people', data: similar },
-            { id: 'parties', title: 'Parties & Clubs', icon: 'wine', data: parties },
-            { id: 'all', title: 'All Events', icon: 'planet', data: all },
-        ];
-
-        return results.filter(s => s.data.length > 0);
-    }, [filteredEvents, loading]);
+            return {
+                id: section.id,
+                title: section.title,
+                icon: section.icon as any,
+                data: sectionEvents
+            };
+        }).filter(s => s.data.length > 0);
+    }, [filteredEvents, loading, layoutConfig]);
 
     // Handle search press - navigate to search screen
     const handleSearchPress = () => {
@@ -566,7 +594,7 @@ export default function ExplorePage() {
                 viewabilityConfig={viewabilityConfig}
                 scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
-                extraData={{ selectedCategory, quickFilter, loading, isOffline, heroEvents, loadingMore, sectionsData }}
+                extraData={{ selectedCategory, quickFilter, loading, isOffline, heroEvents, loadingMore, sectionsData, layoutConfig }}
             />
         </View>
     );

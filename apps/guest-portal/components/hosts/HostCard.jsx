@@ -69,12 +69,15 @@ export default function HostCard({ host, onFollow, index }) {
                 {/* Host Info Overlay (Bottom Left) */}
                 <div className="absolute bottom-4 left-4 right-4">
                     <div className="flex items-center gap-3 mb-2">
-                        <div className="h-12 w-12 rounded-full border-2 border-white/20 overflow-hidden shadow-2xl relative">
-                            <ShimmerImage src={host.avatar} fill className="object-cover" alt={host.name} />
+                        <div className="h-12 w-12 rounded-full border-2 border-white/20 overflow-hidden shadow-2xl relative flex-shrink-0">
+                            <ShimmerImage src={host.photoURL || host.avatar || "/events/holi-edit.svg"} fill className="object-cover" alt={host.name} />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange mb-0.5">{host.role}</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange mb-0.5">{host.role || "Host"}</p>
                             <h3 className="text-xl font-heading font-black uppercase tracking-tight text-white leading-tight">{host.name}</h3>
+                            {host.neighborhood && (
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-white/40">{host.neighborhood}</p>
+                            )}
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-1.5">

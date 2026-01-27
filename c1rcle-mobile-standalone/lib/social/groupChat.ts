@@ -39,19 +39,17 @@ export async function getEventGroupChat(eventId: string): Promise<{
         const eventDate = eventData.startDate?.toDate?.() || new Date(eventData.startDate);
         const phase = getEventPhase(eventDate);
 
-        // Count participants
-        const ordersQuery = query(
-            collection(db, "orders"),
-            where("eventId", "==", eventId),
-            where("status", "in", ["confirmed", "checked_in"])
+        // Count participants (Optimized via discovery layer)
+        const attendeeCountQuery = query(
+            collection(db, "public_attendees"),
+            where("eventId", "==", eventId)
         );
-        const ordersSnap = await getDocs(ordersQuery);
-        const userIds = new Set(ordersSnap.docs.map(d => d.data().userId));
+        const attendeeCountSnap = await getDocs(attendeeCountQuery);
 
         return {
             enabled: phase !== "EXPIRED",
             phase,
-            participantCount: userIds.size,
+            participantCount: attendeeCountSnap.size,
         };
     } catch (error) {
         console.error("Error getting group chat:", error);
@@ -70,32 +68,34 @@ export async function sendGroupMessage(
     isAnonymous?: boolean
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
-        // Verify entitlement
-        const entitlement = await checkEventEntitlement(userId, eventId);
-        if (!entitlement) {
-            return { success: false, error: "You need a ticket to send messages" };
-        }
+        const { getFunctions, httpsCallable } = await import("firebase/functions");
+        const { getApp } = await import("firebase/app");
 
-        const db = getFirebaseDb();
+        const app = getApp();
+        const functions = getFunctions(app, "asia-south1");
+        const sendMessage = httpsCallable(functions, 'sendMessage');
 
-        const message: Omit<GroupMessage, "id"> = {
+        const result: any = await sendMessage({
             eventId,
-            senderId: userId,
-            senderName: userName,
-            senderAvatar: userAvatar || undefined,
-            senderBadge: userBadge || undefined,
             content,
-            type: "text",
             isAnonymous,
-            createdAt: serverTimestamp(),
-        };
+            type: "text"
+        });
 
-        const docRef = await addDoc(collection(db, "eventGroupMessages"), message);
-
-        return { success: true, messageId: docRef.id };
+        if (result.data.success) {
+            return { success: true, messageId: result.data.messageId };
+        } else {
+            return { success: false, error: result.data.error || "Failed to send message" };
+        }
     } catch (error: any) {
-        console.error("Error sending group message:", error);
-        return { success: false, error: error.message };
+        console.error("Error sending group message via Cloud Function:", error);
+
+        // Map HttpsError to user-friendly message if possible
+        let errorMsg = error.message;
+        if (error.code === 'permission-denied') errorMsg = "You need a ticket to send messages";
+        if (error.code === 'resource-exhausted') errorMsg = "Please slow down";
+
+        return { success: false, error: errorMsg };
     }
 }
 

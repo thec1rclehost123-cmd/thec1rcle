@@ -112,6 +112,9 @@ async function handler(req) {
             case 'PAYOUT_BATCH_RUN':
                 await adminStore.executePayoutBatch(targetId, adminId, reason, evidence);
                 break;
+            case 'DATABASE_CORRECTION':
+                await adminStore.databaseCorrection(targetId, params.id || 'global', params.after, adminId, reason, context);
+                break;
             default:
                 return NextResponse.json({ error: "Unknown action" }, { status: 400 });
         }

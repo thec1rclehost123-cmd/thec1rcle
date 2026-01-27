@@ -340,10 +340,96 @@ service cloud.firestore {
       allow update: if isSignedIn() && request.auth.uid in resource.data.participants;
     }
 
-    // --- 🏁 DEFAULT CATCH-ALL ---
-    match /{document=**} {
-      allow read: if isSignedIn();
+    // --- 🎫 TICKET SHARING & TRANSFERS ---
+    
+    match /share_bundles/{bundleId} {
+      // Read if you are the owner or querying by token
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        request.query.limit <= 1 // Allow looking up specific token if where filter is used
+      ));
+      allow write: if isAdmin(); 
+    }
+
+    match /ticket_assignments/{assignmentId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.redeemerId == request.auth.uid ||
+        resource.data.originalPurchaserId == request.auth.uid
+      ));
       allow write: if isAdmin();
+    }
+
+    match /transfers/{transferId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.fromUserId == request.auth.uid ||
+        resource.data.toUserId == request.auth.uid
+      ));
+      allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;
+      allow update: if isAdmin() || (isSignedIn() && (
+        resource.data.fromUserId == request.auth.uid ||
+        resource.data.toUserId == request.auth.uid
+      ));
+      allow delete: if false;
+    }
+
+    match /couple_assignments/{id} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.partnerId == request.auth.uid
+      ));
+      allow write: if isAdmin();
+    }
+
+    match /couple_claims/{id} {
+      allow read: if isAdmin() || isSignedIn(); // Token lookup usually
+      allow write: if isAdmin();
+    }
+
+    match /rsvp_orders/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // --- 🏢 ADMIN HARROGATE (REFINED) ---
+    
+    match /admin_logs/{logId} {
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
+    }
+    
+    match /admin_proposed_actions/{id} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /host_applications/{id} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+    }
+
+    match /platform_settings/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSuper();
+    }
+
+    // --- ⚙️ CONFIGURATION & CMS ---
+    match /app_config/{configId} {
+      allow read: if true; 
+      allow write: if isAdmin(); 
+    }
+
+    // --- 🤝 PUBLIC SHARING (Phase 3 Prep) ---
+    match /public_attendees/{id} {
+      allow read: if isSignedIn();
+      allow write: if false; // Server only
+    }
+
+    // --- 🏁 DEFAULT CATCH-ALL (STRICT) ---
+    match /{document=**} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
   }
 }

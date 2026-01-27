@@ -1,6 +1,8 @@
 import { db } from './firebase';
+import * as admin from 'firebase-admin';
 import { getEvent } from './events';
 import { generateOrderQRCodes } from './qrStore';
+import { getTierInventoryStats } from './reservations';
 
 const ORDERS_COLLECTION = "orders";
 const RSVP_COLLECTION = "rsvp_orders";
@@ -45,33 +47,60 @@ export async function createOrder(payload: any) {
             return existingOrderDoc.data();
         }
 
-        // Reduce inventory and release lock
+        // --- SHARDED INVENTORY UPDATE ---
         for (const update of ticketUpdates) {
             const ticketIndex = updatedTickets.findIndex((t: any) => t.id === update.ticketId);
             if (ticketIndex === -1) throw new Error("Ticket not found");
 
-            const t = updatedTickets[ticketIndex];
-            const currentRemaining = Number(t.remaining ?? t.quantity ?? 0);
-            const currentLocked = Number(t.lockedQuantity || 0);
-
-            // If we have a reservationId, we expect the inventory to be in 'lockedQuantity'
+            // Determine which shard to use (if reserved, use the same shard that held the lock)
+            let shardId = "0";
             if (reservationId) {
-                // Deduct from remaining and release from locked
-                updatedTickets[ticketIndex].remaining = Math.max(0, currentRemaining - update.quantity);
-                updatedTickets[ticketIndex].lockedQuantity = Math.max(0, currentLocked - update.quantity);
+                const resDoc = await transaction.get(db.collection("cart_reservations").doc(reservationId));
+                if (resDoc.exists) shardId = resDoc.data()!.shardId || "0";
             } else {
-                // Direct purchase (no reservation hold)
-                // In production, we should enforce reservations first, but for now we follow the existing flow
-                if (currentRemaining - currentLocked < update.quantity) {
-                    throw new Error(`Sold out: ${t.name}`);
+                // Pick random shard for direct purchases
+                shardId = Math.floor(Math.random() * 10).toString();
+            }
+
+            const shardRef = eventRef.collection('ticket_shards').doc(`${update.ticketId}_${shardId}`);
+            const shardDoc = await transaction.get(shardRef);
+
+            if (reservationId) {
+                // CONVERT LOCK TO SALE: Decrement locked, Increment sold
+                if (shardDoc.exists) {
+                    transaction.update(shardRef, {
+                        lockedQuantity: Math.max(0, (shardDoc.data()!.lockedQuantity || 0) - update.quantity),
+                        soldQuantity: admin.firestore.FieldValue.increment(update.quantity),
+                        updatedAt: new Date().toISOString()
+                    });
+                } else {
+                    transaction.set(shardRef, {
+                        tierId: update.ticketId,
+                        lockedQuantity: 0,
+                        soldQuantity: update.quantity,
+                        updatedAt: new Date().toISOString()
+                    });
                 }
-                updatedTickets[ticketIndex].remaining = Math.max(0, currentRemaining - update.quantity);
+            } else {
+                // DIRECT PURCHASE: Just increment sold
+                if (shardDoc.exists) {
+                    transaction.update(shardRef, {
+                        soldQuantity: admin.firestore.FieldValue.increment(update.quantity),
+                        updatedAt: new Date().toISOString()
+                    });
+                } else {
+                    transaction.set(shardRef, {
+                        tierId: update.ticketId,
+                        lockedQuantity: 0,
+                        soldQuantity: update.quantity,
+                        updatedAt: new Date().toISOString()
+                    });
+                }
             }
         }
 
-        // Update event
+        // Update event timestamp only (avoid writing large tickets array for scale)
         transaction.update(eventRef, {
-            tickets: updatedTickets,
             updatedAt: new Date().toISOString()
         });
 
@@ -102,6 +131,25 @@ export async function createOrder(payload: any) {
 
         transaction.set(orderRef, orderData);
 
+        // --- PUBLIC DISCOVERY SYNC ---
+        if (orderData.status === 'confirmed') {
+            const attendeeRef = db.collection('public_attendees').doc(`${orderData.userId}_${orderData.eventId}`);
+
+            // Fetch profile for denormalization
+            const userDoc = await transaction.get(db.collection('users').doc(orderData.userId));
+            const userData = userDoc.exists ? userDoc.data() : {};
+
+            transaction.set(attendeeRef, {
+                userId: orderData.userId,
+                userName: userData?.displayName || orderData.userName || "C1RCLE Member",
+                userAvatar: userData?.photoURL || null,
+                eventId: orderData.eventId,
+                orderId: orderId,
+                joinedAt: new Date().toISOString(),
+                type: orderData.isRSVP ? 'rsvp' : 'purchase'
+            });
+        }
+
         // If reserved, mark reservation as converted
         if (reservationId) {
             const resRef = db.collection("cart_reservations").doc(reservationId);
@@ -114,6 +162,7 @@ export async function createOrder(payload: any) {
 
 /**
  * Confirms an order via webhook (Idempotent)
+ * Includes a "Safety Valve" to handle payments arriving for expired/stale orders.
  */
 export async function confirmOrderPayment(orderId: string, paymentData: { paymentId: string, signature: string, mode?: string }) {
     const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
@@ -124,15 +173,72 @@ export async function confirmOrderPayment(orderId: string, paymentData: { paymen
 
         const order = orderDoc.data()!;
 
-        // IDEMPOTENCY: If already confirmed, don't re-issue
+        // 1. IDEMPOTENCY: If already confirmed, don't re-issue
         if (order.status === 'confirmed') {
             console.log(`[Orders] Order ${orderId} already confirmed, skipping.`);
             return order;
         }
 
-        const event = await getEvent(order.eventId);
-        if (!event) throw new Error("Event not found for confirmation");
+        // 2. SAFETY VALVE: Handle Payment for Expired/Timed-out Orders
+        // If the order was 'expired', the inventory has already been returned to the pool by 'failStaleOrders'.
+        // We must re-check if the tickets are still available before confirming.
+        const eventRef = db.collection("events").doc(order.eventId);
+        const eventDoc = await transaction.get(eventRef);
+        if (!eventDoc.exists) throw new Error("Event not found for confirmation");
 
+        const event = eventDoc.data()!;
+
+        if (order.status === 'expired') {
+            console.log(`[Orders] Webhook received for EXPIRED order ${orderId}. Re-verifying sharded inventory...`);
+
+            const orderTickets = order.tickets || [];
+            let canRestore = true;
+
+            for (const ot of orderTickets) {
+                // Check sharded inventory
+                const stats = await getTierInventoryStats(order.eventId, ot.ticketId);
+                const tier = (event.tickets || []).find((t: any) => t.id === ot.ticketId);
+                const totalCapacity = Number(tier?.quantity || 0);
+                const available = totalCapacity - stats.sold; // Don't count locks since it's an expired restoration check
+
+                if (ot.quantity > available) {
+                    canRestore = false;
+                    break;
+                }
+            }
+
+            if (!canRestore) {
+                console.error(`[Orders] INVENTORY EXHAUSTED for expired order ${orderId}. Marking for manual refund.`);
+                const refundOrder = {
+                    ...order,
+                    status: 'payment_received_stale',
+                    paymentId: paymentData.paymentId,
+                    paymentMode: paymentData.mode || 'unknown',
+                    failureReason: 'Inventory no longer available after payment timeout. Manual refund required.',
+                    updatedAt: new Date().toISOString()
+                };
+                transaction.update(orderRef, refundOrder);
+                return refundOrder;
+            }
+
+            // Inventory is available, re-deduct it from shards
+            const shardId = order.shardId || Math.floor(Math.random() * 10).toString();
+            for (const ot of orderTickets) {
+                const shardRef = eventRef.collection('ticket_shards').doc(`${ot.ticketId}_${shardId}`);
+                transaction.set(shardRef, {
+                    soldQuantity: admin.firestore.FieldValue.increment(ot.quantity),
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+            }
+
+            transaction.update(eventRef, {
+                updatedAt: new Date().toISOString()
+            });
+
+            console.log(`[Orders] Sharded inventory successfully re-secured for stale order ${orderId}`);
+        }
+
+        // 3. PROCEED TO CONFIRMATION
         const updatedOrder: any = {
             ...order,
             status: 'confirmed',
@@ -156,6 +262,24 @@ export async function confirmOrderPayment(orderId: string, paymentData: { paymen
         }
 
         transaction.update(orderRef, updatedOrder);
+
+        // --- PUBLIC DISCOVERY SYNC ---
+        const attendeeRef = db.collection('public_attendees').doc(`${updatedOrder.userId}_${updatedOrder.eventId}`);
+
+        // Fetch profile for denormalization
+        const userDoc = await transaction.get(db.collection('users').doc(updatedOrder.userId));
+        const userData = userDoc.exists ? userDoc.data() : {};
+
+        transaction.set(attendeeRef, {
+            userId: updatedOrder.userId,
+            userName: userData?.displayName || updatedOrder.userName || "C1RCLE Member",
+            userAvatar: userData?.photoURL || null,
+            eventId: updatedOrder.eventId,
+            orderId: orderId,
+            joinedAt: new Date().toISOString(),
+            type: 'purchase'
+        });
+
         return updatedOrder;
     });
 }
@@ -179,6 +303,25 @@ export async function createRSVPOrder(payload: any) {
     }
 
     await db.collection(RSVP_COLLECTION).doc(orderId).set(orderData);
+
+    // --- PUBLIC DISCOVERY SYNC ---
+    try {
+        const userDoc = await db.collection('users').doc(payload.userId).get();
+        const userData = userDoc.exists ? userDoc.data() : {};
+
+        await db.collection('public_attendees').doc(`${payload.userId}_${payload.eventId}`).set({
+            userId: payload.userId,
+            userName: userData?.displayName || payload.userName || "C1RCLE Member",
+            userAvatar: userData?.photoURL || null,
+            eventId: payload.eventId,
+            orderId: orderId,
+            joinedAt: new Date().toISOString(),
+            type: 'rsvp'
+        });
+    } catch (e) {
+        console.error("Public attendee sync failed for RSVP:", e);
+    }
+
     return orderData;
 }
 
@@ -214,6 +357,7 @@ export async function getOrderByReservationId(reservationId: string) {
 }
 /**
  * Fails orders that have been stuck in pending_payment for too long (20+ mins)
+ * ATOMIC: Restores inventory back to the event pool.
  */
 export async function failStaleOrders() {
     const twentyMinsAgo = new Date(Date.now() - 20 * 60 * 1000).toISOString();
@@ -224,17 +368,52 @@ export async function failStaleOrders() {
         .limit(20)
         .get();
 
-    console.log(`[Cleanup] Found ${snapshot.size} stale pending orders`);
+    if (snapshot.empty) {
+        console.log(`[Cleanup] No stale pending orders found`);
+        return;
+    }
+
+    console.log(`[Cleanup] Found ${snapshot.size} stale pending orders to expire and restore`);
 
     for (const doc of snapshot.docs) {
         const orderId = doc.id;
+
         try {
-            await db.collection(ORDERS_COLLECTION).doc(orderId).update({
-                status: 'expired',
-                updatedAt: new Date().toISOString(),
-                failureReason: 'Payment timeout'
+            await db.runTransaction(async (transaction) => {
+                const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
+                const currentOrderDoc = await transaction.get(orderRef);
+
+                if (!currentOrderDoc.exists) return;
+                const order = currentOrderDoc.data()!;
+
+                // Safety check: ensure still pending
+                if (order.status !== 'pending_payment') return;
+
+                // 1. Mark order as expired
+                transaction.update(orderRef, {
+                    status: 'expired',
+                    updatedAt: new Date().toISOString(),
+                    failureReason: 'Payment timeout (20m)'
+                });
+
+                // 2. Restore inventory to shards
+                const eventRef = db.collection("events").doc(order.eventId);
+                const orderTickets = order.tickets || [];
+                const shardId = order.shardId || "0";
+
+                for (const ot of orderTickets) {
+                    const shardRef = eventRef.collection('ticket_shards').doc(`${ot.ticketId}_${shardId}`);
+                    transaction.set(shardRef, {
+                        soldQuantity: admin.firestore.FieldValue.increment(-ot.quantity),
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                }
+
+                transaction.update(eventRef, {
+                    updatedAt: new Date().toISOString()
+                });
             });
-            console.log(`[Cleanup] Marked order ${orderId} as expired`);
+            console.log(`[Cleanup] Successfully expired order ${orderId} and restored inventory`);
         } catch (e) {
             console.error(`[Cleanup] Failed to expire order ${orderId}:`, e);
         }

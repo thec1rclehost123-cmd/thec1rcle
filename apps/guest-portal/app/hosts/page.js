@@ -155,7 +155,7 @@ export default function DiscoveryPage() {
                             type="text"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            placeholder={`Search ${activeTab} by name, area, vibe...`}
+                            placeholder={`Search ${activeTab} by name, neighborhood, vibe...`}
                             className="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl py-5 pl-14 pr-6 text-black dark:text-white text-base focus:outline-none focus:ring-2 focus:ring-orange/50 focus:border-orange transition-all placeholder:text-black/20 dark:placeholder:text-white/10"
                         />
                     </div>

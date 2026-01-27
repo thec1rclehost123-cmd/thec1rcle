@@ -1,16 +1,12 @@
-// Ticket transfer service
+// Ticket transfer service (Mobile - Server-authoritative)
 import {
-    doc,
-    updateDoc,
-    addDoc,
-    collection,
     query,
+    collection,
     where,
     getDocs,
-    serverTimestamp,
-    runTransaction,
 } from "firebase/firestore";
-import { getFirebaseDb } from "./firebase";
+import { httpsCallable } from "firebase/functions";
+import { getFirebaseDb, functions } from "./firebase";
 
 export interface TransferRequest {
     orderId: string;
@@ -36,186 +32,79 @@ export interface Transfer {
     expiresAt: any;
 }
 
-// Generate unique transfer code
-function generateTransferCode(): string {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let code = "";
-    for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-}
-
-// Initiate ticket transfer
+/**
+ * Initiate ticket transfer via Cloud Function
+ */
 export async function initiateTransfer(
     orderId: string,
-    fromUserId: string,
+    fromUserId: string, // Kept for API compatibility, but server uses context.auth.uid
     ticketDetails: { name: string; quantity: number },
     recipientEmail?: string,
     recipientPhone?: string
 ): Promise<{ success: boolean; transferId?: string; transferCode?: string; error?: string }> {
     try {
-        const db = getFirebaseDb();
-        const transferCode = generateTransferCode();
+        const createTransferFn = httpsCallable<{
+            orderId: string,
+            ticketDetails: { name: string, quantity: number },
+            recipientEmail?: string,
+            recipientPhone?: string
+        }, { success: boolean, transferId: string, transferCode: string }>(functions, 'initiateTransfer');
 
-        // Create transfer record
-        const transferData: Omit<Transfer, "id"> = {
+        const result = await createTransferFn({
             orderId,
-            fromUserId,
-            toEmail: recipientEmail,
-            toPhone: recipientPhone,
             ticketDetails,
-            status: "pending",
-            transferCode,
-            createdAt: serverTimestamp(),
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-        };
-
-        const docRef = await addDoc(collection(db, "transfers"), transferData);
-
-        // Update order to mark ticket as pending transfer
-        const orderRef = doc(db, "orders", orderId);
-        await updateDoc(orderRef, {
-            transferPending: true,
-            transferId: docRef.id,
-            updatedAt: serverTimestamp(),
+            recipientEmail,
+            recipientPhone
         });
 
         return {
             success: true,
-            transferId: docRef.id,
-            transferCode,
+            transferId: result.data.transferId,
+            transferCode: result.data.transferCode,
         };
     } catch (error: any) {
+        console.error("Transfer Initiation Error:", error);
         return { success: false, error: error.message };
     }
 }
 
-// Accept transfer (by recipient)
+/**
+ * Accept transfer via Cloud Function
+ */
 export async function acceptTransfer(
     transferCode: string,
-    recipientUserId: string
+    recipientUserId: string // Kept for compatibility
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const db = getFirebaseDb();
-
-        // Find transfer by code
-        const transferQuery = query(
-            collection(db, "transfers"),
-            where("transferCode", "==", transferCode),
-            where("status", "==", "pending")
-        );
-        const transferSnap = await getDocs(transferQuery);
-
-        if (transferSnap.empty) {
-            return { success: false, error: "Invalid or expired transfer code" };
-        }
-
-        const transferDoc = transferSnap.docs[0];
-        const transfer = transferDoc.data() as Transfer;
-
-        // Check expiry
-        if (new Date(transfer.expiresAt.toDate()) < new Date()) {
-            return { success: false, error: "Transfer has expired" };
-        }
-
-        // Use transaction to update transfer and create new order
-        await runTransaction(db, async (transaction) => {
-            // Update transfer status
-            const transferRef = doc(db, "transfers", transferDoc.id);
-            transaction.update(transferRef, {
-                status: "accepted",
-                toUserId: recipientUserId,
-                acceptedAt: serverTimestamp(),
-            });
-
-            // Get original order
-            const orderRef = doc(db, "orders", transfer.orderId);
-            const orderDoc = await transaction.get(orderRef);
-
-            if (!orderDoc.exists()) {
-                throw new Error("Original order not found");
-            }
-
-            const originalOrder = orderDoc.data();
-
-            // Update original order
-            transaction.update(orderRef, {
-                status: "transferred",
-                transferredTo: recipientUserId,
-                transferPending: false,
-                updatedAt: serverTimestamp(),
-            });
-
-            // Create new order for recipient
-            const newOrderId = `transfer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            const newOrderRef = doc(db, "orders", newOrderId);
-
-            transaction.set(newOrderRef, {
-                id: newOrderId,
-                userId: recipientUserId,
-                eventId: originalOrder.eventId,
-                eventTitle: originalOrder.eventTitle,
-                eventDate: originalOrder.eventDate,
-                eventLocation: originalOrder.eventLocation,
-                status: "confirmed",
-                tickets: [{
-                    name: transfer.ticketDetails.name,
-                    quantity: transfer.ticketDetails.quantity,
-                }],
-                totalAmount: 0, // No charge for transferred ticket
-                transferredFrom: transfer.fromUserId,
-                originalOrderId: transfer.orderId,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-            });
-        });
-
+        const acceptTransferFn = httpsCallable<{ transferCode: string }, { success: boolean }>(functions, 'acceptTransfer');
+        await acceptTransferFn({ transferCode });
         return { success: true };
     } catch (error: any) {
+        console.error("Accept Transfer Error:", error);
         return { success: false, error: error.message };
     }
 }
 
-// Cancel transfer (by sender)
+/**
+ * Cancel transfer via Cloud Function
+ */
 export async function cancelTransfer(
     transferId: string,
-    userId: string
+    userId: string // Kept for compatibility
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const db = getFirebaseDb();
-        const transferRef = doc(db, "transfers", transferId);
-
-        // Verify ownership
-        const transferSnap = await getDocs(
-            query(collection(db, "transfers"), where("fromUserId", "==", userId))
-        );
-
-        if (transferSnap.empty) {
-            return { success: false, error: "Transfer not found" };
-        }
-
-        await updateDoc(transferRef, {
-            status: "cancelled",
-            cancelledAt: serverTimestamp(),
-        });
-
-        // Update original order
-        const transferData = transferSnap.docs[0].data();
-        const orderRef = doc(db, "orders", transferData.orderId);
-        await updateDoc(orderRef, {
-            transferPending: false,
-            transferId: null,
-            updatedAt: serverTimestamp(),
-        });
-
+        const cancelTransferFn = httpsCallable<{ transferId: string }, { success: boolean }>(functions, 'cancelTransfer');
+        await cancelTransferFn({ transferId });
         return { success: true };
     } catch (error: any) {
+        console.error("Cancel Transfer Error:", error);
         return { success: false, error: error.message };
     }
 }
 
-// Get pending transfers for user
+/**
+ * Get pending transfers for user (Read-only, allowed by rules)
+ */
 export async function getPendingTransfers(
     userId: string
 ): Promise<Transfer[]> {
