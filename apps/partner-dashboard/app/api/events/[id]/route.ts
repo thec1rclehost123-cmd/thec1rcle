@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEvent, updateEventLifecycle, updateEvent } from "@/lib/server/eventStore";
+import { verifyPartnerAccess } from "@/lib/server/auth";
 
 /**
  * GET /api/events/[id]
@@ -101,6 +102,18 @@ export async function PATCH(
                         { error: `Invalid action: ${action}` },
                         { status: 400 }
                     );
+            }
+
+            // Verify management access for approve/reject/publish
+            if (["approve", "reject", "deny", "publish", "request_changes"].includes(action) && actor.role !== 'admin') {
+                const event = await getEvent(params.id);
+                if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
+
+                const venueId = event.venueId;
+                if (!venueId) return NextResponse.json({ error: "Venue ID not associated with this event" }, { status: 400 });
+
+                const hasAccess = await verifyPartnerAccess(req, venueId);
+                if (!hasAccess) return NextResponse.json({ error: "Unauthorized access to this venue" }, { status: 403 });
             }
 
             const result = await updateEventLifecycle(params.id, newStatus, actor, notes);

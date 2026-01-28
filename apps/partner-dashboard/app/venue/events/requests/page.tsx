@@ -134,9 +134,11 @@ export default function VenueEventRequestsPage() {
                         notes: actionNotes,
                         actor: {
                             uid: profile?.uid,
-                            role: "venue",
-                            name: profile?.displayName
-                        }
+                            role: profile?.activeMembership?.role || "venue",
+                            name: profile?.displayName,
+                            partnerId: profile?.activeMembership?.partnerId
+                        },
+                        venueId: profile?.activeMembership?.partnerId
                     })
                 });
 
@@ -160,9 +162,11 @@ export default function VenueEventRequestsPage() {
                             notes: actionNotes,
                             actor: {
                                 uid: profile?.uid,
-                                role: "venue",
-                                name: profile?.displayName
-                            }
+                                role: profile?.activeMembership?.role || "venue",
+                                name: profile?.displayName,
+                                partnerId: profile?.activeMembership?.partnerId
+                            },
+                            venueId: profile?.activeMembership?.partnerId
                         })
                     });
 

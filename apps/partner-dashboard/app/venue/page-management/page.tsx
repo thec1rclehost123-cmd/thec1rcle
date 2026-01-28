@@ -38,12 +38,23 @@ import {
     UtensilsCrossed,
     TrendingUp,
     Zap,
-    Calendar
+    Calendar,
+    Monitor,
+    Utensils,
+    Shield,
+    FileCheck
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { AnimatePresence, motion } from "framer-motion";
 import { getFirebaseStorage } from "@/lib/firebase/client";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
+// New modular components
+import VenuePreviewModal from "@/components/venue-layout/VenuePreviewModal";
+import MenuManagementSection from "@/components/venue-layout/MenuManagementSection";
+import FollowerAnalyticsSection from "@/components/venue-layout/FollowerAnalyticsSection";
+import PublishingControlsSection from "@/components/venue-layout/PublishingControlsSection";
+import PoliciesSection from "@/components/venue-layout/PoliciesSection";
 
 // Venue vibe options
 const VIBE_OPTIONS = [
@@ -72,8 +83,9 @@ export default function VenuePageManagement() {
     const [data, setData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [activeTab, setActiveTab] = useState<"identity" | "content" | "media" | "engagement" | "broadcast">("identity");
+    const [activeTab, setActiveTab] = useState<"identity" | "content" | "media" | "menu" | "policies" | "engagement" | "publishing" | "broadcast">("identity");
     const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+    const [showPreview, setShowPreview] = useState(false);
 
     // Broadcast state
     const [broadcastTitle, setBroadcastTitle] = useState("");
@@ -349,6 +361,14 @@ export default function VenuePageManagement() {
                     </div>
 
                     <div className="flex items-center gap-4">
+                        {/* Preview Button */}
+                        <button
+                            onClick={() => setShowPreview(true)}
+                            className="flex items-center gap-2 px-5 py-3 bg-white/10 backdrop-blur-sm text-white rounded-xl text-[11px] font-bold border border-white/10 hover:bg-white/20 transition-all"
+                        >
+                            <Monitor className="w-4 h-4" />
+                            Preview
+                        </button>
                         {data?.profile?.slug && (
                             <a
                                 href={`${process.env.NEXT_PUBLIC_GUEST_PORTAL_URL || ''}/venue/${data.profile.slug}`}
@@ -388,27 +408,32 @@ export default function VenuePageManagement() {
                 </div>
             </div>
 
-            {/* Tab Navigation */}
-            <div className="flex p-1.5 bg-[var(--surface-secondary)] rounded-2xl border border-[var(--border-subtle)]">
-                {[
-                    { id: "identity", label: "Identity", icon: Settings },
-                    { id: "content", label: "Content", icon: FileText },
-                    { id: "media", label: "Media", icon: ImageIcon },
-                    { id: "broadcast", label: "Broadcast", icon: Zap },
-                    { id: "engagement", label: "Engagement", icon: TrendingUp }
-                ].map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`flex-1 py-3.5 flex items-center justify-center gap-2 rounded-xl text-[11px] font-bold transition-all ${activeTab === tab.id
-                            ? "bg-[var(--surface-primary)] text-[var(--text-primary)] shadow-sm"
-                            : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
-                            }`}
-                    >
-                        <tab.icon className="w-4 h-4" />
-                        {tab.label}
-                    </button>
-                ))}
+            {/* Tab Navigation - Scrollable on mobile */}
+            <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+                <div className="flex p-1.5 bg-[var(--surface-secondary)] rounded-2xl border border-[var(--border-subtle)] min-w-max md:min-w-0">
+                    {[
+                        { id: "identity", label: "Identity", icon: Settings },
+                        { id: "content", label: "Content", icon: FileText },
+                        { id: "media", label: "Media", icon: ImageIcon },
+                        { id: "menu", label: "Menu", icon: Utensils },
+                        { id: "policies", label: "Policies", icon: Shield },
+                        { id: "engagement", label: "Analytics", icon: TrendingUp },
+                        { id: "publishing", label: "Publishing", icon: FileCheck },
+                        { id: "broadcast", label: "Broadcast", icon: Zap }
+                    ].map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex-1 py-3.5 px-4 md:px-2 flex items-center justify-center gap-2 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap ${activeTab === tab.id
+                                ? "bg-[var(--surface-primary)] text-[var(--text-primary)] shadow-sm"
+                                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                                }`}
+                        >
+                            <tab.icon className="w-4 h-4" />
+                            <span className="hidden sm:inline">{tab.label}</span>
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* Main Content Area */}
@@ -463,23 +488,6 @@ export default function VenuePageManagement() {
                                     <FormField label="Description" placeholder="Describe the experience, the atmosphere, what makes you unique..." defaultValue={data?.profile?.bio} onSave={(v: string) => handleUpdateProfile({ bio: v })} multiline rows={4} />
                                     <FormField label="The Specialty (Spotlight)" placeholder="e.g. Pune's legendary home for indie music and high energy nights." defaultValue={data?.profile?.specialty} onSave={(v: string) => handleUpdateProfile({ specialty: v })} multiline rows={2} />
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormField label="Capacity" placeholder="e.g. 500 guests" defaultValue={data?.profile?.capacity} onSave={(v: string) => handleUpdateProfile({ capacity: v })} />
-                                        <div className="space-y-2">
-                                            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Weekly Timings (Detailed)</label>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map(day => (
-                                                    <input
-                                                        key={day}
-                                                        placeholder={`${day.toUpperCase()}: 9PM - 3AM`}
-                                                        defaultValue={data?.profile?.timings?.[day]}
-                                                        onBlur={(e) => handleUpdateProfile({ timings: { ...(data?.profile?.timings || {}), [day]: e.target.value } })}
-                                                        className="px-3 py-2 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-lg text-[10px] font-bold text-[var(--text-primary)] focus:outline-none"
-                                                    />
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
                                 </section>
 
                                 {/* Business Details Section */}
@@ -516,6 +524,34 @@ export default function VenuePageManagement() {
                                                 <option value="directions">Get Directions</option>
                                                 <option value="call">Direct Call</option>
                                             </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                                        <div className="flex items-center justify-between p-4 bg-[var(--surface-secondary)] rounded-xl border border-[var(--border-subtle)]">
+                                            <div>
+                                                <p className="text-sm font-bold text-[var(--text-primary)]">Enable Table Reservations</p>
+                                                <p className="text-[10px] text-[var(--text-tertiary)]">Show "Reserve Table" button to guests</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={data?.profile?.hasReservation || false}
+                                                    onChange={(e) => handleUpdateProfile({ hasReservation: e.target.checked })}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-11 h-6 bg-[var(--surface-elevated)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500" />
+                                            </label>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-4 bg-[var(--surface-secondary)] rounded-xl border border-[var(--border-subtle)]">
+                                            <div>
+                                                <p className="text-sm font-bold text-[var(--text-primary)]">Ticketing Integration</p>
+                                                <p className="text-[10px] text-[var(--text-tertiary)]">{data?.stats?.activeEventsCount > 0 ? "Linked to active events" : "No active events for ticketing"}</p>
+                                            </div>
+                                            <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${data?.stats?.activeEventsCount > 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
+                                                {data?.stats?.activeEventsCount > 0 ? "Active" : "Inactive"}
+                                            </div>
                                         </div>
                                     </div>
                                 </section>
@@ -820,37 +856,71 @@ export default function VenuePageManagement() {
                             </motion.div>
                         )}
 
+                        {/* Menu Tab */}
+                        {activeTab === "menu" && (
+                            <motion.div
+                                key="menu"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                            >
+                                <MenuManagementSection
+                                    venue={data?.profile}
+                                    onUpdate={handleUpdateProfile}
+                                    partnerId={profile?.activeMembership?.partnerId || ""}
+                                />
+                            </motion.div>
+                        )}
+
+                        {/* Policies Tab */}
+                        {activeTab === "policies" && (
+                            <motion.div
+                                key="policies"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                            >
+                                <PoliciesSection
+                                    venue={data?.profile}
+                                    onUpdate={handleUpdateProfile}
+                                />
+                            </motion.div>
+                        )}
+
+                        {/* Analytics/Engagement Tab */}
                         {activeTab === "engagement" && (
                             <motion.div
                                 key="engagement"
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="space-y-12"
+                                exit={{ opacity: 0, y: -10 }}
                             >
-                                <section className="space-y-6">
-                                    <SectionHeader title="Audience Overview" subtitle="Understand your community and reach" icon={Users} />
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <EngagementStat label="Total Followers" value={data?.stats?.followersCount || 0} change="+18%" positive />
-                                        <EngagementStat label="This Month" value={Math.floor((data?.stats?.followersCount || 0) * 0.2)} change="+12%" positive />
-                                        <EngagementStat label="Engagement Rate" value={`${((data?.stats?.totalLikes || 0) / Math.max(data?.stats?.followersCount || 1, 1) * 100).toFixed(1)}%`} change="+5%" positive />
-                                        <EngagementStat label="Page Views" value={data?.stats?.totalViews || 0} change="+32%" positive />
-                                    </div>
-                                </section>
-
-                                {/* Analytics Placeholder */}
-                                <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
-                                    <div className="bg-gradient-to-br from-emerald-900 to-slate-800 rounded-3xl p-12 text-center">
-                                        <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                                            <Zap className="w-8 h-8 text-emerald-400" />
-                                        </div>
-                                        <h3 className="text-2xl font-bold text-white mb-3">Audience Geography Insights</h3>
-                                        <p className="text-white/60 max-w-md mx-auto text-sm">
-                                            Heatmaps of guest density and neighborhood-wise breakdown are being aggregated for your location.
-                                        </p>
-                                    </div>
-                                </section>
+                                <FollowerAnalyticsSection
+                                    stats={data?.stats}
+                                    venue={data?.profile}
+                                />
                             </motion.div>
                         )}
+
+                        {/* Publishing Tab */}
+                        {activeTab === "publishing" && (
+                            <motion.div
+                                key="publishing"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                            >
+                                <PublishingControlsSection
+                                    venue={data?.profile}
+                                    onUpdate={handleUpdateProfile}
+                                    onPublish={async () => {
+                                        await handleUpdateProfile({ publishStatus: "published", lastPublishedAt: new Date().toISOString() });
+                                    }}
+                                    isPublishing={isSaving}
+                                />
+                            </motion.div>
+                        )}
+
 
                         {activeTab === "broadcast" && (
                             <motion.div
@@ -1058,7 +1128,19 @@ export default function VenuePageManagement() {
                     )
                 }
             </AnimatePresence >
-        </div >
+            {/* Preview Modal */}
+            <AnimatePresence>
+                {showPreview && (
+                    <VenuePreviewModal
+                        venue={{
+                            ...data?.profile,
+                            stats: data?.stats
+                        }}
+                        onClose={() => setShowPreview(false)}
+                    />
+                )}
+            </AnimatePresence>
+        </div>
     );
 }
 

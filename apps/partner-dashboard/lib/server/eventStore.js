@@ -557,7 +557,7 @@ export async function updateEvent(eventId, payload) {
   const existingData = doc.data();
 
   // RBAC Enforcement
-  const actorRole = (payload.creatorRole === 'club' ? 'venue' : payload.creatorRole);
+  const actorRole = (['club', 'venue', 'OWNER', 'MANAGER', 'OPS'].includes(payload.creatorRole) ? 'venue' : payload.creatorRole);
   const isCreatorDirect = existingData.creatorId === payload.creatorId;
   // Fallback: If creatorId was saved as partnerId, and we receive uid, or vice-versa
   const isCreatorIdMatch = isCreatorDirect || (payload.partnerId && existingData.creatorId === payload.partnerId);
@@ -687,7 +687,7 @@ export async function updateEventLifecycle(eventId, newStatus, context, notes = 
   if (!doc.exists) throw new Error("Event not found");
   const event = doc.data();
 
-  const actorRole = (context.role === 'club' ? 'venue' : context.role);
+  const actorRole = (['club', 'venue', 'OWNER', 'MANAGER', 'OPS'].includes(context.role) ? 'venue' : context.role);
 
   // Role-based validation
   if (actorRole === "host") {
@@ -717,7 +717,7 @@ export async function updateEventLifecycle(eventId, newStatus, context, notes = 
   // Handle Publish/Approval Action (Venue/Admin only)
   if (newStatus === "scheduled" || newStatus === "approved") {
     if (actorRole !== "venue" && actorRole !== "admin") {
-      throw new Error("Only venues or admins can approve/publish events.");
+      throw new Error(`Unauthorized: Only venues or admins can approve/publish events. (Current role: ${actorRole})`);
     }
     // Hard fail if trying to approve a club event using host-style approval
     if ((event.creatorRole === "venue" || event.creatorRole === "club") && newStatus === "approved") {
@@ -811,7 +811,7 @@ export async function publishEvent(eventId, context) {
   if (!doc.exists) throw new Error("Event not found");
   const eventData = doc.data();
 
-  const actorRole = (context.role === 'club' ? 'venue' : context.role);
+  const actorRole = (['club', 'venue', 'OWNER', 'MANAGER', 'OPS'].includes(context.role) ? 'venue' : context.role);
 
   // 1. Authorization & Ownership Gate
   if (actorRole !== "venue" && actorRole !== "admin") {

@@ -1,13 +1,14 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { getVenueBySlug } from "../../../lib/server/venueStore";
+import { getVenueBySlug, listVenues } from "../../../lib/server/venueStore";
 import { getProfilePosts, getProfileHighlights, getProfileStats } from "../../../lib/server/partnerProfileStore";
 import { listEvents } from "../../../lib/server/eventStore";
 import { CheckCircle2, MapPin, Calendar, Heart, Eye, Instagram, Mail, Globe, Clock, Music, Phone, Play, ChevronRight, ChevronLeft, Users, Car, Wifi, UtensilsCrossed, Award, Building2, ShieldCheck, Star, Sparkles, Zap, Wine, Coffee, Utensils, Camera, X } from "lucide-react";
 import ProfileClient from "./ProfileClient";
 import CtaLayer from "../../../components/profile/CtaLayer";
 import BookTableAction from "../../../components/venue/BookTableAction";
+import VenuePageClient from "../../../components/venue/VenuePageClient";
 
 export const revalidate = 60;
 
@@ -83,12 +84,13 @@ export default async function VenuePublicPage({ params }) {
     const venue = await getVenueBySlug(slug);
     if (!venue) notFound();
 
-    // Fetch posts, highlights, and stats
-    const [posts, highlights, stats, allEvents] = await Promise.all([
+    // Fetch posts, highlights, stats, events, and similar venues
+    const [posts, highlights, stats, allEvents, allVenues] = await Promise.all([
         getProfilePosts(venue.id, "venue"),
         getProfileHighlights(venue.id, "venue"),
         getProfileStats(venue.id, "venue"),
-        listEvents({ limit: 100 })
+        listEvents({ limit: 100 }),
+        listVenues({}).catch(() => [])
     ]);
 
     // Robust event filtering
@@ -101,6 +103,16 @@ export default async function VenuePublicPage({ params }) {
     const now = new Date();
     const upcomingEvents = venueEvents.filter(e => new Date(e.startDate || e.startAt) > now)
         .sort((a, b) => new Date(a.startDate || a.startAt) - new Date(b.startDate || b.startAt));
+
+    // Get past events for the archive section
+    const pastEvents = venueEvents.filter(e => new Date(e.startDate || e.startAt) <= now)
+        .sort((a, b) => new Date(b.startDate || b.startAt) - new Date(a.startDate || a.startAt))
+        .slice(0, 10);
+
+    // Get similar venues (same area or similar tags)
+    const similarVenues = allVenues
+        .filter(v => v.id !== venue.id && (v.area === venue.area || v.city === venue.city))
+        .slice(0, 6);
 
     // Get venue offers or use defaults
     const offers = venue.offers?.length > 0 ? venue.offers : DEFAULT_OFFERS;
@@ -1119,6 +1131,15 @@ export default async function VenuePublicPage({ params }) {
                     </div>
                 </div>
             </footer>
+
+            {/* Enhanced Client Components - Reels, Past Events, Social Proof, Restaurant, CTA Bar */}
+            <VenuePageClient
+                venue={venue}
+                upcomingEvents={upcomingEvents}
+                pastEvents={pastEvents}
+                stats={stats}
+                similarVenues={similarVenues}
+            />
 
         </main>
     );

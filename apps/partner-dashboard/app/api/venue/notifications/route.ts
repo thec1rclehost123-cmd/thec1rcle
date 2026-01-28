@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
         // 2. Fetch pending host slot requests
         try {
             const slotReqsSnap = await db.collection("slot_requests")
-                .where("clubId", "==", venueId)
+                .where("venueId", "==", venueId)
                 .where("status", "==", "pending")
                 .limit(10)
                 .get();
@@ -261,6 +261,12 @@ export async function PATCH(req: NextRequest) {
 
         if (!isFirebaseConfigured()) {
             return NextResponse.json({ error: "Firebase not configured" }, { status: 500 });
+        }
+
+        const { verifyPartnerAccess } = await import("@/lib/server/auth");
+        const hasAccess = await verifyPartnerAccess(req, venueId);
+        if (!hasAccess) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         const db = getAdminDb();

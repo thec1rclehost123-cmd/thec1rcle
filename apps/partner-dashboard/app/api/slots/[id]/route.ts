@@ -5,6 +5,7 @@ import {
     rejectSlotRequest,
     counterProposeSlot
 } from "@/lib/server/slotStore";
+import { verifyPartnerAccess } from "@/lib/server/auth";
 
 /**
  * GET /api/slots/[id]
@@ -57,7 +58,16 @@ export async function PATCH(
 
         switch (action) {
             case "approve":
-                result = await approveSlotRequest(params.id, actor, notes);
+                // Verify management access
+                if (actor.role !== 'admin') {
+                    const venueId = body.venueId || actor.partnerId;
+                    if (!venueId) return NextResponse.json({ error: "venueId is required for authorization" }, { status: 400 });
+                    const hasAccess = await verifyPartnerAccess(req, venueId);
+                    if (!hasAccess) return NextResponse.json({ error: "Unauthorized access to this venue" }, { status: 403 });
+                    result = await approveSlotRequest(params.id, actor, notes, { venueId });
+                } else {
+                    result = await approveSlotRequest(params.id, actor, notes);
+                }
                 break;
 
             case "reject":

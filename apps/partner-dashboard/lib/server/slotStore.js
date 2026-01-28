@@ -139,6 +139,18 @@ export async function approveSlotRequest(id, approvedBy, notes = "", options = {
     if (!slotRequest) throw new Error("Slot request not found");
     if (slotRequest.status !== "pending") throw new Error("Slot request is not pending");
 
+    const actorRole = (['club', 'venue', 'OWNER', 'MANAGER', 'OPS'].includes(approvedBy.role) ? 'venue' : approvedBy.role);
+
+    // Authorization check: User must be a venue staff member or admin, and match the venueId
+    if (actorRole !== "admin") {
+        if (actorRole !== "venue") {
+            throw new Error(`Unauthorized: Role ${actorRole} cannot approve slots.`);
+        }
+        if (options.venueId && slotRequest.venueId !== options.venueId) {
+            throw new Error("Unauthorized: You do not have permission to approve slots for this venue.");
+        }
+    }
+
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString(); // 48 hour expiry
     const updates = {

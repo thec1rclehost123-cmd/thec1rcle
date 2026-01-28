@@ -29,6 +29,18 @@ const nextConfig = {
         hostname: 'api.dicebear.com', // Fix: External Single Point of Failure (Allowing Dicebear)
         port: '',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'i.pravatar.cc',
+        port: '',
+        pathname: '/**',
       }
     ],
   },
