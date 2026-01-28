@@ -4,6 +4,20 @@ import { algoliasearch } from 'algoliasearch';
 import { EVENT_LIFECYCLE, PUBLIC_LIFECYCLE_STATES, normalizeCity, resolvePoster, mapEventForClient } from "@c1rcle/core/events";
 import { events as seedEvents } from "../../data/events";
 
+/**
+ * Helper to serialize data for RSC
+ */
+const serialize = (obj) => {
+  if (!obj) return null;
+  return JSON.parse(JSON.stringify(obj, (key, value) => {
+    // Handle Firestore Timestamps if they still exist in the object
+    if (value && typeof value === 'object' && value.seconds !== undefined && value.nanoseconds !== undefined) {
+      return new Date(value.seconds * 1000).toISOString();
+    }
+    return value;
+  }));
+};
+
 const EVENT_COLLECTION = "events";
 const DEFAULT_CITY = process.env.NEXT_PUBLIC_DEFAULT_CITY || "Pune";
 
@@ -509,7 +523,7 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
       return true;
     });
 
-  return limit ? results.slice(0, limit) : results;
+  return serialize(limit ? results.slice(0, limit) : results);
 }
 
 export async function createEvent(payload) {
@@ -548,7 +562,7 @@ export async function getEvent(identifier) {
 
   const directDoc = await db.collection(EVENT_COLLECTION).doc(identifier).get();
   if (directDoc.exists) {
-    return mapEventDocument(directDoc);
+    return serialize(mapEventDocument(directDoc));
   }
   const slugSnapshot = await db
     .collection(EVENT_COLLECTION)
@@ -556,9 +570,9 @@ export async function getEvent(identifier) {
     .limit(1)
     .get();
   if (!slugSnapshot.empty) {
-    return mapEventDocument(slugSnapshot.docs[0]);
+    return serialize(mapEventDocument(slugSnapshot.docs[0]));
   }
-  return findFallbackEvent(identifier);
+  return serialize(findFallbackEvent(identifier));
 }
 
 export async function getEventInterested(eventId, limit = 20) {
@@ -626,7 +640,7 @@ export async function getEventInterested(eventId, limit = 20) {
       };
     });
 
-  return { count, users };
+  return serialize({ count, users });
 }
 
 export async function getEventGuestlist(eventId, limit = 50) {
@@ -693,7 +707,7 @@ export async function getEventGuestlist(eventId, limit = 50) {
     return fresh.exists ? { id: fresh.id, ...fresh.data() } : null;
   }));
 
-  return profiles.filter(Boolean).map(p => ({
+  const results = profiles.filter(Boolean).map(p => ({
     id: p.id,
     name: p.displayName || "C1RCLE Member",
     handle: p.handle || `@${(p.displayName || "guest").toLowerCase().replace(/\s/g, "")}`,
@@ -701,4 +715,6 @@ export async function getEventGuestlist(eventId, limit = 50) {
     initials: (p.displayName || "G").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2),
     stats: `${(p.attendedEvents?.length || 0)} events attended`
   }));
+
+  return serialize(results);
 }

@@ -62,6 +62,13 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     const [loadError, setLoadError] = useState<string | null>(null);
     const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
     const [completedSteps, setCompletedSteps] = useState<WizardStep[]>([]);
+    const [prefilledSlot, setPrefilledSlot] = useState<{
+        venueId: string;
+        venueName: string;
+        date: string;
+        startTime: string;
+        endTime: string;
+    } | null>(null);
 
     // Form Data
     const [formData, setFormData] = useState<any>(() => ({
@@ -207,6 +214,35 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         }
     }, [role, profile?.activeMembership?.partnerId]);
 
+    // Hydrate from URL params (when coming from venue calendar selection)
+    useEffect(() => {
+        const venueId = searchParams.get('venue');
+        const venueName = searchParams.get('venueName');
+        const date = searchParams.get('date');
+        const startTime = searchParams.get('startTime');
+        const endTime = searchParams.get('endTime');
+
+        if (venueId && date && startTime && endTime) {
+            setPrefilledSlot({
+                venueId,
+                venueName: venueName || 'Partner Venue',
+                date,
+                startTime,
+                endTime
+            });
+
+            // Pre-fill form data
+            setFormData((prev: any) => ({
+                ...prev,
+                venueId,
+                venueName: venueName || prev.venueName,
+                startDate: date,
+                startTime,
+                endTime
+            }));
+        }
+    }, [searchParams]);
+
     // Hydrate creatorId
     useEffect(() => {
         if (profile?.activeMembership?.partnerId || profile?.uid) {
@@ -339,12 +375,16 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
             const endpoint = savedDraftId ? `/api/events/${savedDraftId}` : '/api/events/create';
             const method = savedDraftId ? 'PATCH' : 'POST';
 
+            const hostId = profile?.activeMembership?.partnerId || profile?.uid;
+            const hostName = profile?.activeMembership?.partnerName || profile?.displayName || "C1RCLE Host";
+
             const payload: any = {
                 ...formData,
                 venue: formData.venue || formData.venueName || "TBD",
                 location: formData.venue || formData.venueName || formData.address || "TBD",
-                host: profile?.activeMembership?.partnerName || profile?.displayName || "C1RCLE Partner",
-                hostId: role === 'host' ? (profile?.activeMembership?.partnerId || profile?.uid) : formData.hostId,
+                host: hostName,
+                hostName: hostName,
+                hostId: role === 'host' ? hostId : formData.hostId,
                 venueId: role === 'venue' ? (profile?.activeMembership?.partnerId) : formData.venueId,
                 creatorId: profile?.activeMembership?.partnerId || profile?.uid,
                 creatorRole: formData.creatorRole || role,
@@ -368,6 +408,36 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
             });
 
             if (res.ok) {
+                const eventResult = await res.json();
+                const eventId = eventResult.event?.id || savedDraftId;
+
+                // For hosts: Create a slot request if this is a submission (not draft)
+                if (role === 'host' && !isDraft && eventId && formData.venueId) {
+                    try {
+                        const slotRequestPayload = {
+                            eventId,
+                            hostId,
+                            hostName,
+                            venueId: formData.venueId,
+                            venueName: formData.venueName || formData.venue || "Venue",
+                            requestedDate: formData.startDate,
+                            requestedStartTime: formData.startTime || "21:00",
+                            requestedEndTime: formData.endTime || "04:00",
+                            notes: formData.slotRequestNotes || "",
+                            priority: "normal"
+                        };
+
+                        await fetch('/api/slots', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(slotRequestPayload)
+                        });
+                    } catch (slotErr) {
+                        console.error("Failed to create slot request:", slotErr);
+                        // Don't fail the whole submission if slot request fails
+                    }
+                }
+
                 if (profile?.uid) {
                     const storageKey = `c1rcle_draft_event_v2_${profile.uid}_${savedDraftId || 'new'}`;
                     localStorage.removeItem(storageKey);
@@ -414,18 +484,43 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                             <CheckCircle2 className="h-12 w-12 text-white" />
                         </div>
                     </div>
-                    <h1 className="text-headline text-[var(--text-primary)] mb-4">Event {role === 'venue' ? 'Published' : 'Submitted'}!</h1>
-                    <p className="text-body text-[var(--text-tertiary)] mb-12">
+                    <h1 className="text-headline text-[var(--text-primary)] mb-4">
+                        {role === 'venue' ? 'Event Published!' : 'Slot Request Submitted!'}
+                    </h1>
+                    <p className="text-body text-[var(--text-tertiary)] mb-8">
                         {role === 'venue'
                             ? "Your event is now live and ready for guests to discover."
-                            : "Your event has been submitted to the venue for review."}
+                            : "Your slot request has been sent to the venue. You'll be notified once they respond."}
                     </p>
-                    <button
-                        onClick={() => router.push(role === 'venue' ? '/venue/events' : '/host/events')}
-                        className="btn btn-primary w-full py-4 text-[15px]"
-                    >
-                        Go to Dashboard
-                    </button>
+                    {role === 'host' && (
+                        <div className="p-4 rounded-xl bg-[var(--surface-secondary)] mb-8">
+                            <div className="flex items-center gap-3 text-left">
+                                <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                                    <MapPin className="w-5 h-5 text-indigo-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-[var(--text-primary)]">{formData.venueName || 'Venue'}</p>
+                                    <p className="text-xs text-[var(--text-tertiary)]">
+                                        {formData.startDate} • {formData.startTime} - {formData.endTime}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <div className="space-y-3">
+                        <button
+                            onClick={() => router.push(role === 'venue' ? '/venue/events' : '/host/events/requests')}
+                            className="btn btn-primary w-full py-4 text-[15px]"
+                        >
+                            {role === 'venue' ? 'Go to Events' : 'View My Requests'}
+                        </button>
+                        <button
+                            onClick={() => router.push(role === 'venue' ? '/venue' : '/host')}
+                            className="btn btn-secondary w-full py-4 text-[15px]"
+                        >
+                            Go to Dashboard
+                        </button>
+                    </div>
                 </motion.div>
             </div>
         );

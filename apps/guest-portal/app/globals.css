@@ -371,6 +371,23 @@
   animation: tilt 3s ease-in-out infinite;
 }
 
+/* Venue Page - Slow Zoom Animation */
+@keyframes slow-zoom {
+
+  0%,
+  100% {
+    transform: scale(1.1);
+  }
+
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+.animate-slow-zoom {
+  animation: slow-zoom 20s ease-in-out infinite;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    MOBILE OPTIMIZATION UTILITIES
    Touch-friendly, safe-area aware, performance optimized

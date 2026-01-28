@@ -1067,6 +1067,7 @@ export const useEventsStore = create<EventsState>()(
                 }
 
                 try {
+                    let allEvents = [...get().events];
 
                     // 2. Filter out junk
                     allEvents = allEvents.filter(event => {

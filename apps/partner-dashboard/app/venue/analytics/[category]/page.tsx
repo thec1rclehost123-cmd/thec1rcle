@@ -148,6 +148,7 @@ export default function VenueAnalyticsPage() {
                 {category === "ops" && <OpsView stats={stats} />}
                 {category === "attribution" && <AttributionView stats={stats} />}
                 {category === "timeline" && <TimelineView stats={stats} />}
+                {category === "strategy" && <StrategyView stats={stats} />}
             </div>
 
 

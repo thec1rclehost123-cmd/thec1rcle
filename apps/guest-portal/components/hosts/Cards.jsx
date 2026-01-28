@@ -11,7 +11,7 @@ export function VenueCard({ venue, onFollow }) {
             whileTap={{ scale: 0.98 }}
             className="group relative overflow-hidden rounded-[32px] border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/5 backdrop-blur-xl transition-all duration-300 hover:border-emerald-500/30 dark:hover:border-white/20 hover:shadow-2xl hover:shadow-emerald-500/10 dark:hover:shadow-white/5"
         >
-            <Link href={`/venue/${venue.slug}`} className="block">
+            <Link href={`/venue/${venue.slug || venue.id}`} className="block">
                 <div className="relative aspect-[4/5] overflow-hidden">
                     <ShimmerImage
                         src={venue.image || venue.coverURL}
@@ -91,7 +91,7 @@ export function HostCard({ host, onFollow }) {
             whileTap={{ scale: 0.98 }}
             className="group relative overflow-hidden rounded-[32px] border border-black/10 dark:border-white/10 bg-white/5 backdrop-blur-xl transition-all duration-300 hover:border-orange/30 dark:hover:border-white/20 hover:shadow-2xl hover:shadow-orange/10 dark:hover:shadow-white/5"
         >
-            <Link href={`/host/${host.slug}`} className="block">
+            <Link href={`/host/${host.slug || host.id}`} className="block">
                 <div className="relative aspect-[4/5] overflow-hidden">
                     {/* Background Cover */}
                     {host.cover && (

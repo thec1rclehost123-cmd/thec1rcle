@@ -6,6 +6,23 @@ const PROFILE_POSTS_COLLECTION = "profile_posts";
 const PROFILE_HIGHLIGHTS_COLLECTION = "profile_highlights";
 
 /**
+ * Helper to serialize Firestore docs to plain objects for RSC
+ */
+const serializeDoc = (doc) => {
+    const data = doc.data();
+    const serialized = { id: doc.id, ...data };
+
+    // Convert Timestamps to ISO strings
+    Object.keys(serialized).forEach(key => {
+        if (serialized[key] && typeof serialized[key].toDate === 'function') {
+            serialized[key] = serialized[key].toDate().toISOString();
+        }
+    });
+
+    return serialized;
+};
+
+/**
  * Get posts for a profile (Venue or Host)
  */
 export async function getProfilePosts(profileId, type, limit = 20) {
@@ -17,11 +34,16 @@ export async function getProfilePosts(profileId, type, limit = 20) {
     const snapshot = await db.collection(PROFILE_POSTS_COLLECTION)
         .where("profileId", "==", profileId)
         .where("profileType", "==", type)
-        .orderBy("createdAt", "desc")
         .limit(limit)
         .get();
 
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs
+        .map(serializeDoc)
+        .sort((a, b) => {
+            const dateA = new Date(a.createdAt || 0).getTime();
+            const dateB = new Date(b.createdAt || 0).getTime();
+            return dateB - dateA;
+        });
 }
 
 /**
@@ -36,12 +58,16 @@ export async function getProfileHighlights(profileId, type) {
     const snapshot = await db.collection(PROFILE_HIGHLIGHTS_COLLECTION)
         .where("profileId", "==", profileId)
         .where("profileType", "==", type)
-        .orderBy("createdAt", "desc")
         .get();
 
     const now = new Date().toISOString();
     return snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .map(serializeDoc)
+        .sort((a, b) => {
+            const dateA = new Date(a.createdAt || 0).getTime();
+            const dateB = new Date(b.createdAt || 0).getTime();
+            return dateB - dateA;
+        })
         .filter(h => h.permanent || !h.expiresAt || h.expiresAt > now);
 }
 

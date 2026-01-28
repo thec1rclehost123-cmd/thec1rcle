@@ -31,12 +31,27 @@ export default function VenueDashboardHome() {
     const [summary, setSummary] = useState<any>(null);
     const [tonight, setTonight] = useState<any>(null);
     const [events, setEvents] = useState<any[]>([]);
+    const [alerts, setAlerts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (!venueId) return;
         fetchDashboardData();
+        fetchAlerts();
     }, [venueId]);
+
+    // Fetch alerts/notifications
+    const fetchAlerts = async () => {
+        try {
+            const res = await fetch(`/api/venue/notifications?venueId=${venueId}&limit=5`);
+            const data = await res.json();
+            if (res.ok && data.notifications) {
+                setAlerts(data.notifications.slice(0, 3));
+            }
+        } catch (err) {
+            console.error("Alerts Fetch Error:", err);
+        }
+    };
 
     const fetchDashboardData = async () => {
         setLoading(true);
@@ -78,6 +93,46 @@ export default function VenueDashboardHome() {
         if (amount >= 100000) return `₹${(amount / 100000).toFixed(2)}L`;
         if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}K`;
         return `₹${amount}`;
+    };
+
+    // Helper to get icon for alert type
+    const getAlertIcon = (type: string) => {
+        switch (type) {
+            case 'host_request': return ShieldAlert;
+            case 'promoter_request': return Users;
+            case 'reservation': return Calendar;
+            case 'event': return Sparkles;
+            case 'revenue': return TrendingUp;
+            case 'payment': return TrendingUp;
+            default: return Activity;
+        }
+    };
+
+    // Helper to get state for alert type
+    const getAlertState = (type: string, isRead: boolean): "success" | "warning" | "error" | "info" => {
+        if (!isRead) return "warning";
+        switch (type) {
+            case 'host_request': return "warning";
+            case 'promoter_request': return "info";
+            case 'reservation': return "warning";
+            case 'event': return "success";
+            case 'revenue': return "success";
+            case 'payment': return "success";
+            default: return "info";
+        }
+    };
+
+    // Helper to get href for alert type
+    const getAlertHref = (type: string): string | undefined => {
+        switch (type) {
+            case 'host_request': return "/venue/connections/requests";
+            case 'promoter_request': return "/venue/connections/requests";
+            case 'reservation': return "/venue/reservations";
+            case 'event': return "/venue/events";
+            case 'revenue': return "/venue/analytics";
+            case 'payment': return "/venue/payouts";
+            default: return undefined;
+        }
     };
 
     if (loading) {
@@ -306,7 +361,7 @@ export default function VenueDashboardHome() {
                                     </h4>
                                     <div className="flex items-center gap-2">
                                         <span className={`status-dot ${event.lifecycle === 'published' ? 'status-dot-success' :
-                                                event.lifecycle === 'draft' ? 'status-dot-info' : 'status-dot-neutral'
+                                            event.lifecycle === 'draft' ? 'status-dot-info' : 'status-dot-neutral'
                                             }`} />
                                         <span className="text-caption capitalize">{event.lifecycle}</span>
                                     </div>
@@ -338,29 +393,26 @@ export default function VenueDashboardHome() {
                     <div className="card p-6">
                         <h3 className="text-title text-[var(--text-primary)] mb-5">Alerts & Notifications</h3>
                         <div className="space-y-3">
-                            <AlertItem
-                                icon={ShieldAlert}
-                                title="Host Request"
-                                description="Hyperlink by Anuv Jain"
-                                time="2h ago"
-                                state="warning"
-                                href="/venue/events"
-                            />
-                            <AlertItem
-                                icon={Activity}
-                                title="Device Offline"
-                                description="Register #04 (Main Gate)"
-                                time="15m ago"
-                                state="error"
-                                href="/venue/settings"
-                            />
-                            <AlertItem
-                                icon={CheckCircle2}
-                                title="Security Sync"
-                                description="All 12 devices up to date"
-                                time="Just now"
-                                state="success"
-                            />
+                            {alerts.length > 0 ? (
+                                alerts.map((alert, i) => (
+                                    <AlertItem
+                                        key={alert.id || i}
+                                        icon={getAlertIcon(alert.type)}
+                                        title={alert.title}
+                                        description={alert.description}
+                                        time={alert.timestamp}
+                                        state={getAlertState(alert.type, alert.isRead)}
+                                        href={getAlertHref(alert.type)}
+                                    />
+                                ))
+                            ) : (
+                                <>
+                                    <div className="py-8 text-center">
+                                        <Bell className="w-8 h-8 text-[var(--text-placeholder)] mx-auto mb-3" />
+                                        <p className="text-body-sm text-[var(--text-tertiary)]">No new notifications</p>
+                                    </div>
+                                </>
+                            )}
                         </div>
                         <button className="w-full mt-5 py-3 rounded-xl bg-[var(--surface-secondary)] text-label text-[var(--text-tertiary)] hover:bg-[var(--surface-tertiary)] hover:text-[var(--text-primary)] transition-all">
                             View History

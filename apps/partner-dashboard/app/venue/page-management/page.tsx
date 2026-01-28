@@ -14,6 +14,8 @@ import {
     Camera,
     X,
     CheckCircle2,
+    ShieldCheck,
+    ShieldAlert,
     Settings,
     Globe,
     ExternalLink,
@@ -458,11 +460,35 @@ export default function VenuePageManagement() {
                                             </select>
                                         </div>
                                     </div>
-                                    <FormField label="Description" placeholder="Describe the experience, the atmosphere, what makes you unique..." defaultValue={data?.profile?.bio} onSave={(v: string) => handleUpdateProfile({ bio: v })} multiline rows={5} />
+                                    <FormField label="Description" placeholder="Describe the experience, the atmosphere, what makes you unique..." defaultValue={data?.profile?.bio} onSave={(v: string) => handleUpdateProfile({ bio: v })} multiline rows={4} />
+                                    <FormField label="The Specialty (Spotlight)" placeholder="e.g. Pune's legendary home for indie music and high energy nights." defaultValue={data?.profile?.specialty} onSave={(v: string) => handleUpdateProfile({ specialty: v })} multiline rows={2} />
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <FormField label="Capacity" placeholder="e.g. 500 guests" defaultValue={data?.profile?.capacity} onSave={(v: string) => handleUpdateProfile({ capacity: v })} />
-                                        <FormField label="Opening Hours" placeholder="e.g. Thu-Sun, 10PM - 4AM" icon={Clock} defaultValue={data?.profile?.openingHours} onSave={(v: string) => handleUpdateProfile({ openingHours: v })} />
+                                        <div className="space-y-2">
+                                            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Weekly Timings (Detailed)</label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map(day => (
+                                                    <input
+                                                        key={day}
+                                                        placeholder={`${day.toUpperCase()}: 9PM - 3AM`}
+                                                        defaultValue={data?.profile?.timings?.[day]}
+                                                        onBlur={(e) => handleUpdateProfile({ timings: { ...(data?.profile?.timings || {}), [day]: e.target.value } })}
+                                                        className="px-3 py-2 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-lg text-[10px] font-bold text-[var(--text-primary)] focus:outline-none"
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                {/* Business Details Section */}
+                                <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
+                                    <SectionHeader title="Business Transparency" subtitle="Legal details for guest trust and verification" icon={ShieldCheck} />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <FormField label="Registered Business Name" placeholder="e.g. High Energy Hospitality Pvt Ltd" defaultValue={data?.profile?.businessDetails?.registeredName} onSave={(v) => handleUpdateProfile({ businessDetails: { ...data?.profile?.businessDetails, registeredName: v } })} />
+                                        <FormField label="GST Number" placeholder="22AAAAA0000A1Z5" defaultValue={data?.profile?.businessDetails?.gst} onSave={(v) => handleUpdateProfile({ businessDetails: { ...data?.profile?.businessDetails, gst: v } })} />
+                                        <FormField label="FSSAI License Number" placeholder="100XXXXXXXXXXX" defaultValue={data?.profile?.businessDetails?.fssai} onSave={(v) => handleUpdateProfile({ businessDetails: { ...data?.profile?.businessDetails, fssai: v } })} />
                                     </div>
                                 </section>
 
@@ -672,6 +698,38 @@ export default function VenuePageManagement() {
                                                 <p className="text-[var(--text-tertiary)] text-sm font-medium">No highlights added yet</p>
                                             </div>
                                         )}
+                                    </div>
+                                </section>
+
+                                {/* House Rules Section */}
+                                <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
+                                    <SectionHeader title="House Rules & Entry Policies" subtitle="Explicit rules for entry and behavior" icon={ShieldAlert} />
+                                    <div className="space-y-3">
+                                        {(data?.profile?.rules || ["Must be 21+"]).map((rule: string, idx: number) => (
+                                            <div key={idx} className="flex items-center gap-3">
+                                                <input
+                                                    defaultValue={rule}
+                                                    onBlur={(e) => {
+                                                        const newRules = [...(data?.profile?.rules || [])];
+                                                        newRules[idx] = e.target.value;
+                                                        handleUpdateProfile({ rules: newRules });
+                                                    }}
+                                                    className="flex-1 px-4 py-2 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-xs font-medium text-[var(--text-primary)] focus:outline-none"
+                                                />
+                                                <button
+                                                    onClick={() => handleUpdateProfile({ rules: data.profile.rules.filter((_: any, i: number) => i !== idx) })}
+                                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button
+                                            onClick={() => handleUpdateProfile({ rules: [...(data?.profile?.rules || []), "New Rule"] })}
+                                            className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-50 p-2 rounded-lg transition-all"
+                                        >
+                                            <Plus className="w-3 h-3" /> Add Rule
+                                        </button>
                                     </div>
                                 </section>
 

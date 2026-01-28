@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Bell, Search, X, Command, ChevronDown } from "lucide-react";
+import { NotificationCenter } from "./NotificationCenter";
 import { useDashboardAuth } from "../providers/DashboardAuthProvider";
 import { usePathname, useRouter } from "next/navigation";
 import { parseAsIST } from "@c1rcle/core/time";
@@ -109,10 +110,7 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
                     </button>
 
                     {/* Notifications */}
-                    <button className="relative w-10 h-10 flex items-center justify-center rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--surface-tertiary)] transition-all group">
-                        <Bell className="w-[18px] h-[18px] text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]" />
-                        <span className="absolute top-2 right-2 w-2 h-2 bg-[var(--c1rcle-orange)] rounded-full ring-2 ring-[var(--surface-base)]" />
-                    </button>
+                    <NotificationCenter />
 
                     {/* Divider */}
                     <div className="w-px h-8 bg-[var(--border-subtle)] hidden lg:block" />

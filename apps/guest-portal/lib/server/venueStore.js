@@ -6,11 +6,43 @@ const fallbackVenues = [
         slug: "high-spirits",
         name: "High Spirits",
         area: "Koregaon Park",
+        neighborhood: "Koregaon Park",
+        city: "Pune",
         image: "/events/neon-nights.jpg",
+        coverURL: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?q=80&w=2070&auto=format&fit=crop",
+        photoURL: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?q=80&w=400&auto=format&fit=crop",
         followers: 12500,
         tags: ["Techno", "Rooftop", "Indie"],
         tablesAvailable: true,
-        description: "Pune's legendary home for indie music and high energy nights.",
+        venueType: "Pub",
+        description: "Pune's legendary home for indie music and high energy nights. The venue features an open-air setting with fairy lights and a mix of contemporary and rustic decor.",
+        specialty: "High Spirits Cafe in Koregaon Park, Pune, is a popular nightlife spot known for its lively ambiance, live music, and vibrant events like DJ sets and themed parties.",
+        timings: {
+            "Tuesday": "12PM - 11:45PM",
+            "Wednesday": "12PM - 11:45PM",
+            "Thursday": "12PM - 11:45PM",
+            "Friday": "12PM - 11:45PM",
+            "Saturday": "12PM - 11:45PM",
+            "Sunday": "12PM - 11:45PM"
+        },
+        contact: {
+            email: "highspiritscafe@gmail.com",
+            phone: "9765400484",
+            address: "35A, 1, N Main Rd, next to The Westin, Koregaon Park Annexe, Pune, Maharashtra 411001",
+            instagram: "highspiritscafe"
+        },
+        businessDetails: {
+            gst: "27AAIPG1015J120",
+            fssai: "11521034000388",
+            registeredName: "KHODADAD RUSTOM IRANI",
+            placeName: "HIGH SPIRITS"
+        },
+        photos: [
+            "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?q=80&w=800&auto=format&fit=crop",
+            "https://images.unsplash.com/photo-1543007630-9710e4a00a20?q=80&w=800&auto=format&fit=crop",
+            "https://images.unsplash.com/photo-1470337458703-46ad1756a187?q=80&w=800&auto=format&fit=crop",
+            "https://images.unsplash.com/photo-1574096079543-d8839782b604?q=80&w=800&auto=format&fit=crop"
+        ],
         rules: ["Must be 21+", "Casual dress encouraged"],
         dressCode: "Casual / House party vibes"
     },
@@ -83,6 +115,24 @@ const fallbackVenues = [
 
 const VENUES_COLLECTION = "venues";
 
+/**
+ * Helper to serialize Firestore docs to plain objects for RSC
+ */
+const serializeDoc = (doc) => {
+    if (!doc.exists) return null;
+    const data = doc.data();
+    const serialized = { id: doc.id, ...data };
+
+    // Convert Timestamps to ISO strings
+    Object.keys(serialized).forEach(key => {
+        if (serialized[key] && typeof serialized[key].toDate === 'function') {
+            serialized[key] = serialized[key].toDate().toISOString();
+        }
+    });
+
+    return serialized;
+};
+
 export async function listVenues({ area, vibe, search, tablesOnly } = {}) {
     if (!isFirebaseConfigured()) {
         let venues = [...fallbackVenues];
@@ -106,7 +156,13 @@ export async function listVenues({ area, vibe, search, tablesOnly } = {}) {
     if (area) query = query.where("area", "==", area);
 
     const snapshot = await query.get();
-    let venues = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    let venues = snapshot.docs.map(doc => {
+        const serialized = serializeDoc(doc);
+        return {
+            ...serialized,
+            slug: serialized.slug || serialized.id
+        };
+    });
 
     if (vibe) {
         venues = venues.filter(v => v.tags.some(t => t.toLowerCase() === vibe.toLowerCase()));
@@ -140,8 +196,18 @@ export async function getVenueBySlug(slug) {
     const snapshot = await db.collection(VENUES_COLLECTION).where("slug", "==", slug).limit(1).get();
 
     if (!snapshot.empty) {
-        return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+        const serialized = serializeDoc(snapshot.docs[0]);
+        return { ...serialized, slug: serialized.slug || serialized.id };
     }
+
+    // Try direct ID lookup if slug lookup fails
+    try {
+        const doc = await db.collection(VENUES_COLLECTION).doc(slug).get();
+        if (doc.exists) {
+            const serialized = serializeDoc(doc);
+            return { ...serialized, slug: serialized.slug || serialized.id };
+        }
+    } catch (e) { }
 
     return fallbackVenues.find(v => v.slug === slug) || null;
 }

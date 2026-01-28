@@ -25,9 +25,11 @@ async function handler(req) {
         const pendingReviewsCount = await db.collection('onboarding_requests').where('status', '==', 'pending').count().get();
         const activeIncidentsCount = await db.collection('incidents').where('status', '==', 'active').count().get();
 
-        // Live events count is still fast as it returns a small number of records,
-        // but for absolute efficiency we'd shard this too if it grows past 10k live events.
+        // Live counts for smaller datasets / Fallback for desynced stats
         const liveEvents = await db.collection('events').where('status', '==', 'live').count().get();
+        const liveUsers = await db.collection('users').count().get();
+        const liveHosts = await db.collection('hosts').count().get();
+        const liveVenues = await db.collection('venues').where('status', '==', 'active').count().get();
 
         // 3. Recent Logs (Immutable Trace)
         const logsSnapshot = await db.collection('admin_audit_logs')
@@ -44,9 +46,13 @@ async function handler(req) {
 
         return NextResponse.json({
             snapshot: {
-                users_total: stats.users_total || 0,
-                venues_total: { active: stats.venues_total || 0 }, // Using sharded value if available
-                hosts_total: stats.hosts_total || 0,
+                users_total: stats.users_total || liveUsers.data().count,
+                venues_total: {
+                    active: stats.venues_total?.active || liveVenues.data().count,
+                    pending: stats.venues_total?.pending || 0,
+                    suspended: stats.venues_total?.suspended || 0
+                },
+                hosts_total: stats.hosts_total || liveHosts.data().count,
                 events: {
                     live: liveEvents.data().count,
                     total: stats.events_total || 0
@@ -54,6 +60,8 @@ async function handler(req) {
                 revenue: stats.revenue || { total: 0 },
                 tickets_sold_total: stats.tickets_sold_total || 0,
                 queues: {
+                    venues: stats.venues_total?.pending || 0,
+                    hosts: stats.hosts_total?.pending || 0,
                     refunds: 0, // Mock for now, would use sharded counter
                     incidents: activeIncidentsCount.data().count,
                     webhooks: 0,

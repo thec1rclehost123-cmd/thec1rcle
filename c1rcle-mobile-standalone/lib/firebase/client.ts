@@ -82,7 +82,7 @@ if (IS_DEV) {
     }
 
     // Toggle this to false if you want to test against production data even in DEV
-    const USE_EMULATOR = true;
+    const USE_EMULATOR = false;
 
     if (USE_EMULATOR) {
         try {

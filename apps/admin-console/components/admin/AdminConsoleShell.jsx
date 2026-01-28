@@ -24,7 +24,8 @@ import {
     X,
     CheckSquare,
     History,
-    AlertTriangle
+    AlertTriangle,
+    Star
 } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import AdminGuard from "@/components/admin/AdminGuard";
@@ -47,6 +48,7 @@ const sidebarItems = [
     { label: "Payments", href: "/payments", icon: CreditCard, minRole: 'finance' },
     { label: "Support", href: "/support", icon: ShieldCheck, minRole: 'support' },
     { label: "Safety", href: "/safety", icon: ShieldAlert, minRole: 'content' },
+    { label: "Curation", href: "/content/curation", icon: Star, minRole: 'ops' },
     { label: "Discovery", href: "/content/explore", icon: Calendar, minRole: 'ops' },
     { label: "Admins", href: "/admins", icon: ShieldCheck, minRole: 'admin' },
     { label: "Settings", href: "/settings", icon: Settings, minRole: 'admin' },

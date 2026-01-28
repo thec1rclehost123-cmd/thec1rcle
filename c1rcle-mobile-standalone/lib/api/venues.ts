@@ -26,27 +26,90 @@ export interface Venue {
     address?: string;
     image?: string;
     coverURL?: string;
+    coverImage?: string; // Partner Dashboard uses this field
+    profileImage?: string;
+    photoURL?: string;
     followers: number;
+    followersCount?: number; // Alternative field name from Partner Dashboard
     tags: string[];
+    vibes?: string[]; // Genre/vibe tags for filtering
+    genres?: string[]; // Music genres
+    styleTags?: string[]; // Style descriptors
     tablesAvailable: boolean;
     description?: string;
     bio?: string;
+    tagline?: string;
     rules?: string[];
     dressCode?: string;
     isVerified?: boolean;
+    isFeatured?: boolean;
     primaryCta?: string;
     whatsapp?: string;
     website?: string;
     phone?: string;
+    email?: string;
     socialLinks?: {
         instagram?: string;
         twitter?: string;
         spotify?: string;
+        soundcloud?: string;
+        youtube?: string;
+        tiktok?: string;
     };
+    specialty?: string;
+    venueType?: string;
+    capacity?: number;
+    amenities?: string[];
+    timings?: {
+        [key: string]: string;
+    };
+    openingHours?: {
+        [key: string]: string;
+    };
+    city?: string;
+    photos?: string[];
+    mediaGallery?: {
+        photos?: string[];
+        flyers?: string[];
+        press?: string[];
+    };
+    videos?: Array<{
+        url: string;
+        type: string;
+        title?: string;
+        thumbnail?: string;
+    }>;
+    businessDetails?: {
+        gst?: string;
+        fssai?: string;
+        registeredName?: string;
+        placeName?: string;
+    };
+    gst?: string;
+    fssai?: string;
+    registeredName?: string;
+    placeName?: string;
     location?: {
         latitude: number;
         longitude: number;
     };
+    // CTA configuration from Partner Dashboard
+    ctas?: Array<{
+        type: "primary" | "secondary";
+        label: string;
+        action: string;
+        url?: string;
+    }>;
+    // Collaboration data
+    collaborations?: Array<{
+        name: string;
+        type: string;
+        logo?: string;
+        verified?: boolean;
+    }>;
+    affiliations?: string[];
+    // Pinned events
+    pinnedEventIds?: string[];
 }
 
 /**

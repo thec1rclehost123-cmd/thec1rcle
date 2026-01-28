@@ -97,6 +97,24 @@ const fallbackHosts = [
 const HOSTS_COLLECTION = "hosts";
 
 /**
+ * Helper to serialize Firestore docs to plain objects for RSC
+ */
+const serializeDoc = (doc) => {
+    if (!doc.exists) return null;
+    const data = doc.data();
+    const serialized = { id: doc.id, ...data };
+
+    // Convert Timestamps to ISO strings
+    Object.keys(serialized).forEach(key => {
+        if (serialized[key] && typeof serialized[key].toDate === 'function') {
+            serialized[key] = serialized[key].toDate().toISOString();
+        }
+    });
+
+    return serialized;
+};
+
+/**
  * List hosts with filtering and sorting
  */
 export async function listHosts({ search, role, vibe, status, time, sort } = {}) {
@@ -153,7 +171,13 @@ export async function listHosts({ search, role, vibe, status, time, sort } = {})
     if (status === "Verified") query = query.where("verified", "==", true);
 
     const snapshot = await query.get();
-    let hosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    let hosts = snapshot.docs.map(doc => {
+        const serialized = serializeDoc(doc);
+        return {
+            ...serialized,
+            slug: serialized.slug || serialized.id
+        };
+    });
 
     // In-memory filtering for more complex/search fields to avoid needing composite indexes for everything
     if (search) {
@@ -199,7 +223,7 @@ export async function getHostByHandle(handle) {
     const snapshot = await db.collection(HOSTS_COLLECTION).where("handle", "==", normalizedHandle).limit(1).get();
 
     if (!snapshot.empty) {
-        return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+        return serializeDoc(snapshot.docs[0]);
     }
 
     return fallbackHosts.find(h => h.handle === normalizedHandle) || null;
@@ -219,8 +243,18 @@ export async function getHostBySlug(slug) {
     const snapshot = await db.collection(HOSTS_COLLECTION).where("slug", "==", slug).limit(1).get();
 
     if (!snapshot.empty) {
-        return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+        const serialized = serializeDoc(snapshot.docs[0]);
+        return { ...serialized, slug: serialized.slug || serialized.id };
     }
+
+    // Try direct ID lookup if slug lookup fails
+    try {
+        const doc = await db.collection(HOSTS_COLLECTION).doc(slug).get();
+        if (doc.exists) {
+            const serialized = serializeDoc(doc);
+            return { ...serialized, slug: serialized.slug || serialized.id };
+        }
+    } catch (e) { }
 
     return getHostByHandle(slug);
 }

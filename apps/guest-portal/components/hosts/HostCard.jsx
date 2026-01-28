@@ -36,7 +36,7 @@ export default function HostCard({ host, onFollow, index }) {
             <div className="absolute -inset-4 z-0 bg-gradient-to-br from-orange/10 via-transparent to-purple-500/5 opacity-40 blur-3xl transition-all duration-700 group-hover:opacity-80 group-hover:scale-110" />
 
             {/* Media Section */}
-            <Link href={`/host/${host.slug}`} className="relative aspect-[4/3] w-full overflow-hidden">
+            <Link href={`/host/${host.slug || host.id}`} className="relative aspect-[4/3] w-full overflow-hidden">
                 {host.cover ? (
                     <ShimmerImage
                         src={host.cover}
@@ -134,7 +134,7 @@ export default function HostCard({ host, onFollow, index }) {
                         <Share2 size={18} />
                     </button>
                     <Link
-                        href={`/host/${host.slug}`}
+                        href={`/host/${host.slug || host.id}`}
                         className="flex h-11 w-11 items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-all active:scale-90"
                         title="View Profile"
                     >

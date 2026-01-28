@@ -84,20 +84,11 @@ export default function TicketDetailScreen() {
 
     const loadTicketShares = async () => {
         try {
-            const { GUEST_PORTAL_API_BASE, getAuthHeaders } = await import("@/lib/api/ticketing");
-            const headers = await getAuthHeaders();
-            const url = `${GUEST_PORTAL_API_BASE}/tickets/share?orderId=${id}`;
-            console.log(`[TicketDetail] Loading shares from: ${url}`);
+            const { getTicketShares } = await import("@/lib/api/ticketing");
+            const res = await getTicketShares(id as string);
 
-            const res = await fetch(url, { headers });
-            if (!res.ok) {
-                console.warn(`[TicketDetail] Shares fetch failed: ${res.status} ${res.statusText}`);
-                return;
-            }
-
-            const data = await res.json();
-            if (data.success) {
-                setTicketShares(data.bundles || []);
+            if (res.success) {
+                setTicketShares(res.bundles || []);
             }
         } catch (e) {
             console.error("[TicketDetail] Failed to load shares:", e);

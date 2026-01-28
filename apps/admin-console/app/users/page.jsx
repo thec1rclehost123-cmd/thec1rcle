@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useEffect, useState } from "react";
-import { Search, Shield, User as UserIcon, Calendar, Activity, Lock, Unlock, AlertCircle, TrendingUp, ShieldAlert, Ban, ChevronRight, CheckCircle, XCircle, Info, RefreshCw, X, ShieldCheck } from "lucide-react";
+import { Search, Shield, User as UserIcon, Calendar, Activity, Lock, Unlock, AlertCircle, TrendingUp, ShieldAlert, Ban, ChevronRight, CheckCircle, XCircle, Info, RefreshCw, X, ShieldCheck, Filter } from "lucide-react";
 import AdminConfirmModal from "@/components/admin/AdminConfirmModal";
 
 export default function AdminUsers() {

@@ -154,11 +154,41 @@ service cloud.firestore {
         resource.data.clubId == request.auth.uid); // Clubs can approve
     }
 
+    // --- 🔔 PARTNER NOTIFICATIONS ---
+    
+    // Notification Reads: Track which notifications partners have seen
+    match /notification_reads/{readId} {
+      allow read: if isAdmin() || (isSignedIn() && 
+        resource.data.venueId == request.auth.token.partnerId);
+      allow write: if isSignedIn() && 
+        request.resource.data.venueId == request.auth.token.partnerId;
+    }
+
+    // Table Reservations: Customer table booking requests
+    match /table_reservations/{reservationId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.venueId == request.auth.token.partnerId ||
+        resource.data.customerId == request.auth.uid
+      ));
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || (isSignedIn() && 
+        resource.data.venueId == request.auth.token.partnerId);
+      allow delete: if isAdmin();
+    }
+
+    // Payouts: Partner payouts tracking
+    match /payouts/{payoutId} {
+      allow read: if isAdmin() || (isSignedIn() && 
+        resource.data.venueId == request.auth.token.partnerId);
+      allow write: if isAdmin();
+    }
+
     match /orders/{orderId} {
       allow read: if isAdmin() || (isSignedIn() && (
         resource.data.uid == request.auth.uid ||
         resource.data.userId == request.auth.uid ||
-        resource.data.customerId == request.auth.uid
+        resource.data.customerId == request.auth.uid ||
+        resource.data.venueId == request.auth.token.partnerId
       ));
       allow create: if isSignedIn() && (
         request.resource.data.userId == request.auth.uid ||

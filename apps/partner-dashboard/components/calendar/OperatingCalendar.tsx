@@ -453,8 +453,21 @@ function SidePanel({
         if (isPending) return;
         setIsPending(true);
         try {
-            const action = data?.state === 'BLOCKED' ? 'unblock' : 'block';
+            // If we are in blocking mode, we are ALWAYS performing a 'block' action
+            // regardless of the previous state (we might be overwriting or creating new)
+            const action = 'block';
             await onBlockDate(dateStr, action, reason, startTime, endTime);
+            setIsBlockingMode(false);
+        } finally {
+            setIsPending(false);
+        }
+    };
+
+    const handleUnblock = async () => {
+        if (isPending) return;
+        setIsPending(true);
+        try {
+            await onBlockDate(dateStr, 'unblock');
             setIsBlockingMode(false);
         } finally {
             setIsPending(false);
@@ -731,7 +744,7 @@ function SidePanel({
 
                         {data?.state === 'BLOCKED' && (
                             <button
-                                onClick={() => onBlockDate(dateStr, 'unblock')}
+                                onClick={handleUnblock}
                                 disabled={isPending}
                                 className="text-[10px] font-black text-rose-500 hover:text-rose-400 transition-colors uppercase tracking-widest"
                             >
@@ -768,7 +781,7 @@ function SidePanel({
                                 className="flex-1 py-4 bg-white border border-[rgba(0,0,0,0.08)] text-[#1D1D1F] rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-[#F2F2F7] transition-all flex items-center justify-center gap-3 shadow-sm"
                             >
                                 <Lock className="h-4 w-4" />
-                                Add Manual Block
+                                {data?.state === 'BLOCKED' ? 'Edit Manual Block' : 'Add Manual Block'}
                             </button>
                         )}
                     </>

@@ -5,21 +5,27 @@ import {
     Building2,
     CheckCircle2,
     Clock,
-    Search,
     ArrowUpRight,
     MoreHorizontal,
     Plus,
     AlertCircle,
     ChevronRight,
-    MapPin
+    MapPin,
+    Calendar,
+    Eye
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { AnimatePresence } from "framer-motion";
+import { VenueCalendarPreview } from "@/components/host/VenueCalendarPreview";
 
 export default function PartnershipsPage() {
+    const router = useRouter();
     const { profile } = useDashboardAuth();
     const [partnerships, setPartnerships] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [selectedVenue, setSelectedVenue] = useState<{ id: string; name: string } | null>(null);
 
     useEffect(() => {
         if (!profile?.activeMembership?.partnerId) return;
@@ -38,6 +44,21 @@ export default function PartnershipsPage() {
         }
     };
 
+    const handleSelectSlot = (date: string, startTime: string, endTime: string) => {
+        if (!selectedVenue) return;
+
+        // Navigate to create event wizard with pre-filled venue and slot info
+        const params = new URLSearchParams({
+            venue: selectedVenue.id,
+            venueName: selectedVenue.name,
+            date,
+            startTime,
+            endTime
+        });
+
+        router.push(`/host/create?${params.toString()}`);
+    };
+
     const activePartnerships = partnerships.filter(p => p.status === 'active');
     const pendingPartnerships = partnerships.filter(p => p.status === 'pending');
 
@@ -49,13 +70,22 @@ export default function PartnershipsPage() {
                     <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight uppercase">Venue Network</h1>
                     <p className="text-slate-500 text-lg font-medium mt-2">Manage your verified venue partnerships and slot permissions.</p>
                 </div>
-                <Link
-                    href="/host/discover"
-                    className="flex items-center gap-3 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-2xl transition-all shadow-xl shadow-indigo-100 active:scale-95"
-                >
-                    <Plus className="w-5 h-5" />
-                    Discover New Venues
-                </Link>
+                <div className="flex gap-3">
+                    <Link
+                        href="/host/events/requests"
+                        className="flex items-center gap-3 px-6 py-4 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-sm font-bold rounded-2xl transition-all shadow-sm hover:shadow-md"
+                    >
+                        <Clock className="w-5 h-5" />
+                        My Requests
+                    </Link>
+                    <Link
+                        href="/host/discover"
+                        className="flex items-center gap-3 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-2xl transition-all shadow-xl shadow-indigo-100 active:scale-95"
+                    >
+                        <Plus className="w-5 h-5" />
+                        Discover New Venues
+                    </Link>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -76,16 +106,17 @@ export default function PartnershipsPage() {
                                 </div>
                                 <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">{p.venueName}</h3>
                                 <div className="flex items-center gap-2 text-xs font-bold text-slate-400 mb-6">
-                                    <MapPin className="w-3.5 h-3.5" /> Pune, IN
+                                    <MapPin className="w-3.5 h-3.5" /> {p.venueCity || "Pune"}, IN
                                 </div>
                                 <div className="flex gap-2">
-                                    <Link
-                                        href={`/host/create?venue=${p.venueId}`}
-                                        className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest text-center"
+                                    <button
+                                        onClick={() => setSelectedVenue({ id: p.venueId, name: p.venueName })}
+                                        className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest text-center flex items-center justify-center gap-2 transition-colors"
                                     >
+                                        <Calendar className="w-4 h-4" />
                                         Request Slot
-                                    </Link>
-                                    <button className="px-4 py-3 bg-slate-50 text-slate-600 rounded-xl">
+                                    </button>
+                                    <button className="px-4 py-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl transition-colors">
                                         <ArrowUpRight className="w-4 h-4" />
                                     </button>
                                 </div>
@@ -96,6 +127,12 @@ export default function PartnershipsPage() {
                                 <Building2 className="w-12 h-12 text-slate-300 mb-4" />
                                 <h4 className="text-lg font-bold text-slate-900">No active venues</h4>
                                 <p className="text-slate-500 text-sm font-medium mt-1 max-w-xs">You need a verified partnership to see club calendars and book slots.</p>
+                                <Link
+                                    href="/host/discover"
+                                    className="mt-6 px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors"
+                                >
+                                    Find Venues
+                                </Link>
                             </div>
                         )}
                     </div>
@@ -119,6 +156,26 @@ export default function PartnershipsPage() {
                         ))}
                     </div>
 
+                    {/* Quick Actions Card */}
+                    <div className="p-6 bg-white border border-slate-200 rounded-[2rem] space-y-4">
+                        <h4 className="font-black uppercase tracking-widest text-[10px] text-slate-400">Quick Actions</h4>
+                        <Link
+                            href="/host/events/requests"
+                            className="flex items-center justify-between p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                                    <Eye className="w-5 h-5 text-indigo-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-slate-900">View Slot Requests</p>
+                                    <p className="text-xs text-slate-400">Track pending approvals</p>
+                                </div>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-slate-300" />
+                        </Link>
+                    </div>
+
                     <div className="p-8 bg-indigo-900 rounded-[2.5rem] text-white shadow-2xl shadow-indigo-200">
                         <h4 className="font-black uppercase tracking-widest text-[10px] text-indigo-300 mb-4">Pro Tip</h4>
                         <p className="text-sm font-medium leading-relaxed italic">
@@ -130,6 +187,19 @@ export default function PartnershipsPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Venue Calendar Preview Modal */}
+            <AnimatePresence>
+                {selectedVenue && (
+                    <VenueCalendarPreview
+                        venueId={selectedVenue.id}
+                        venueName={selectedVenue.name}
+                        hostId={profile?.activeMembership?.partnerId || ""}
+                        onSelectSlot={handleSelectSlot}
+                        onClose={() => setSelectedVenue(null)}
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 }

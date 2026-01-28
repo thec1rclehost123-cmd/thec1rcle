@@ -32,9 +32,10 @@ const menuSections = [
                 children: [
                     { label: "Overview", href: "/venue/analytics/overview" },
                     { label: "Audience & Demographics", href: "/venue/analytics/audience" },
-                    { label: "Discovery & Funnel", href: "/venue/analytics/funnel" },
-                    { label: "Entry & Safety", href: "/venue/analytics/ops" },
-                    { label: "Host & Promoter ROI", href: "/venue/analytics/partners" },
+                    { label: "Discovery & Funnel", href: "/venue/analytics/reach" },
+                    { label: "Entry & Operations", href: "/venue/analytics/ops" },
+                    { label: "Host & Promoter ROI", href: "/venue/analytics/attribution" },
+                    { label: "Revenue & Payouts", href: "/venue/analytics/revenue" },
                     { label: "Strategy & Insights", href: "/venue/analytics/strategy" },
                 ]
             },

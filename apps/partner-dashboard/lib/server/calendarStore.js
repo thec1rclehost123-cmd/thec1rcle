@@ -139,8 +139,11 @@ export async function getDateAvailability(venueId, date) {
     const data = doc.data();
     return {
         date: data.date,
-        status: determineOverallStatus(data.slots),
-        slots: data.slots || generateDefaultTimeSlots()
+        status: data.status || determineOverallStatus(data.slots),
+        slots: data.slots || generateDefaultTimeSlots(),
+        reason: data.reason,
+        startTime: data.startTime,
+        endTime: data.endTime
     };
 }
 
@@ -159,7 +162,7 @@ export async function blockDate(venueId, date, reason = "", blockedBy, startTime
     // 1. Verify no overlap with confirmed events
     const eventsSnap = await db.collection("events")
         .where("venueId", "==", venueId)
-        .where("lifecycle", "in", ["scheduled", "live", "published"])
+        .where("lifecycle", "in", ["scheduled", "live", "published", "confirmed", "approved", "upcoming"])
         .get();
 
     const eventConflicts = eventsSnap.docs.filter(doc => {
@@ -398,6 +401,18 @@ function generateMockCalendar(venueId, startDate, endDate) {
  * Ensures correctness, clarity, and zero information leakage.
  */
 export async function getOperatingCalendar(partnerId, role, startDate, endDate) {
+    if (!isFirebaseConfigured()) {
+        const mockDays = generateMockCalendar(partnerId, startDate, endDate);
+        return mockDays.map(d => ({
+            date: d.date,
+            state: d.status === 'booked' ? 'CONFIRMED' : (d.status === 'blocked' ? 'BLOCKED' : 'OPEN'),
+            stats: { eventCount: d.status === 'booked' ? 1 : 0, pendingSlots: 0, hasRisk: false },
+            events: d.status === 'booked' ? [{ id: 'mock', title: 'Mock Event', startTime: '21:00', endTime: '04:00', status: 'confirmed', host: 'Mock Host' }] : [],
+            slots: [],
+            block: d.status === 'blocked' ? { reason: 'Mock Block', startTime: '16:00', endTime: '04:00' } : null
+        }));
+    }
+
     const db = getAdminDb();
 
     let blocks = [];
@@ -440,9 +455,9 @@ export async function getOperatingCalendar(partnerId, role, startDate, endDate) 
             console.log("[CalendarStore] Sample Event:", JSON.stringify(events[0], null, 2));
         }
 
-        // 4. Filter blocks and slots if they only want published events
-        blocks = blocks.filter(b => b.status === 'confirmed'); // Manual blocks usually don't have 'confirmed' unless they are events
-        slots = slots.filter(s => s.status === 'approved'); // Approved slots become events anyway, so this effectively hides tentative ones.
+        // 4. We don't want to filter out blocked or pending items for venue role
+        // The venue should see everything.
+        console.log(`[CalendarStore] Venue ${venueId}: Found ${blocks.length} blocks, ${slots.length} slots, ${events.length} valid events.`);
 
     } else {
         // Host Role: Sees own events + anonymized blocks for venues they have events at

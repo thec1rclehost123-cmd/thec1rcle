@@ -28,27 +28,81 @@ export interface Venue {
     area: string;
     city?: string;
     neighborhood?: string;
+    address?: string;
     image: string;
     coverURL?: string;
+    coverImage?: string; // Partner Dashboard field
+    profileImage?: string;
+    photoURL?: string;
     followers: number;
+    followersCount?: number; // Alternative from Partner Dashboard
     tags: string[];
     vibes?: string[];
     genres?: string[];
+    styleTags?: string[];
     tablesAvailable: boolean;
     venueType?: string;
     description: string;
+    bio?: string;
+    tagline?: string;
     rules: string[];
     dressCode: string;
     isVerified?: boolean;
+    isFeatured?: boolean;
     primaryCta?: string;
     whatsapp?: string;
     website?: string;
     phone?: string;
+    email?: string;
     socialLinks?: {
         instagram?: string;
         twitter?: string;
         spotify?: string;
+        soundcloud?: string;
+        youtube?: string;
+        tiktok?: string;
     };
+    specialty?: string;
+    capacity?: number;
+    amenities?: string[];
+    timings?: { [key: string]: string };
+    openingHours?: { [key: string]: string };
+    photos?: string[];
+    mediaGallery?: {
+        photos?: string[];
+        flyers?: string[];
+        press?: string[];
+    };
+    videos?: Array<{
+        url: string;
+        type: string;
+        title?: string;
+        thumbnail?: string;
+    }>;
+    businessDetails?: {
+        gst?: string;
+        fssai?: string;
+        registeredName?: string;
+        placeName?: string;
+    };
+    location?: {
+        latitude: number;
+        longitude: number;
+    };
+    ctas?: Array<{
+        type: "primary" | "secondary";
+        label: string;
+        action: string;
+        url?: string;
+    }>;
+    collaborations?: Array<{
+        name: string;
+        type: string;
+        logo?: string;
+        verified?: boolean;
+    }>;
+    affiliations?: string[];
+    pinnedEventIds?: string[];
     isFollowing?: boolean;
 }
 

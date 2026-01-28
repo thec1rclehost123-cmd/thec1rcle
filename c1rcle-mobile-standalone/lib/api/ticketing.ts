@@ -366,4 +366,19 @@ export async function getPendingTransfers(): Promise<{ success: boolean; transfe
         return { success: false, error: error.message };
     }
 }
+/**
+ * Fetch all active share bundles for a specific order
+ */
+export async function getTicketShares(orderId: string): Promise<{ success: boolean; bundles?: any[]; error?: string }> {
+    try {
+        const headers = await getAuthHeaders();
+        const response = await fetch(`${GUEST_PORTAL_API_BASE}/tickets/share?orderId=${orderId}`, {
+            headers,
+        });
 
+        const data = await response.json();
+        return { success: response.ok, ...data };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}

@@ -211,17 +211,41 @@ export default function VenueProfileScreen() {
                         </Pressable>
                     </View>
 
+                    {/* Specialty Section */}
+                    {venue.specialty && (
+                        <Animated.View entering={FadeInDown.delay(250)} style={styles.specialtySection}>
+                            <View style={styles.specialtyCard}>
+                                <Text style={styles.specialtyTitle}>The Specialty</Text>
+                                <Text style={styles.specialtyText}>{venue.specialty}</Text>
+                            </View>
+                        </Animated.View>
+                    )}
+
                     {/* Bio Section */}
                     {venue.description && (
-                        <Animated.View entering={FadeInDown.delay(200)} style={styles.section}>
+                        <Animated.View entering={FadeInDown.delay(300)} style={styles.section}>
                             <Text style={styles.sectionTitle}>About</Text>
                             <Text style={styles.description}>{venue.description}</Text>
                         </Animated.View>
                     )}
 
+                    {/* Menu Button */}
+                    <Animated.View entering={FadeInDown.delay(350)} style={styles.section}>
+                        <Pressable
+                            style={styles.menuButton}
+                            onPress={() => {/* In a real app, logic to open menu */ }}
+                        >
+                            <View>
+                                <Text style={styles.menuButtonTitle}>Digital Menu</Text>
+                                <Text style={styles.menuButtonSub}>Explore food & drinks</Text>
+                            </View>
+                            <Ionicons name="restaurant-outline" size={24} color={colors.gold} />
+                        </Pressable>
+                    </Animated.View>
+
                     {/* Vibe Section */}
                     {venue.tags && venue.tags.length > 0 && (
-                        <Animated.View entering={FadeInDown.delay(300)} style={styles.section}>
+                        <Animated.View entering={FadeInDown.delay(400)} style={styles.section}>
                             <Text style={styles.sectionTitle}>The Vibe</Text>
                             <View style={styles.tagsContainer}>
                                 {venue.tags.map((tag, i) => (
@@ -233,23 +257,42 @@ export default function VenueProfileScreen() {
                         </Animated.View>
                     )}
 
-                    {/* Info Grid */}
-                    <Animated.View entering={FadeInDown.delay(400)} style={styles.infoGrid}>
-                        <View style={styles.infoCard}>
-                            <Ionicons name="shirt-outline" size={20} color={colors.iris} />
-                            <Text style={styles.infoLabel}>Dress Code</Text>
-                            <Text style={styles.infoValue}>{venue.dressCode || "Casual"}</Text>
+                    {/* Timings & Rules Grid */}
+                    <Animated.View entering={FadeInDown.delay(450)} style={styles.gridRow}>
+                        <View style={styles.gridCard}>
+                            <Text style={styles.gridCardTitle}>Timings</Text>
+                            {venue.timings ? (
+                                Object.entries(venue.timings).slice(0, 3).map(([day, time]) => (
+                                    <View key={day} style={styles.timingRow}>
+                                        <Text style={styles.timingDay}>{day.toUpperCase()}</Text>
+                                        <Text style={styles.timingTime}>{time as string}</Text>
+                                    </View>
+                                ))
+                            ) : (
+                                <Text style={styles.emptyText}>Check schedule</Text>
+                            )}
                         </View>
-                        <View style={styles.infoCard}>
-                            <Ionicons name="wine-outline" size={20} color={colors.iris} />
-                            <Text style={styles.infoLabel}>Tables</Text>
-                            <Text style={styles.infoValue}>{venue.tablesAvailable ? "Available" : "No Tables"}</Text>
+                        <View style={styles.gridCard}>
+                            <Text style={styles.gridCardTitle}>House Rules</Text>
+                            {venue.rules ? (
+                                venue.rules.slice(0, 2).map((rule, i) => (
+                                    <View key={i} style={styles.ruleRow}>
+                                        <Ionicons name="shield-checkmark" size={14} color={colors.iris} />
+                                        <Text style={styles.ruleText} numberOfLines={1}>{rule}</Text>
+                                    </View>
+                                ))
+                            ) : (
+                                <Text style={styles.emptyText}>Standard rules apply</Text>
+                            )}
                         </View>
                     </Animated.View>
 
                     {/* Upcoming Events */}
                     <Animated.View entering={FadeInDown.delay(500)} style={styles.section}>
-                        <Text style={styles.sectionTitle}>Upcoming Events</Text>
+                        <View style={styles.sectionHeaderRow}>
+                            <Text style={styles.sectionTitle}>Upcoming Events</Text>
+                            <Text style={styles.seeAll}>See All</Text>
+                        </View>
                         {venueEvents.length > 0 ? (
                             venueEvents.map((event, i) => (
                                 <Pressable
@@ -406,12 +449,57 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: "600",
     },
-    infoGrid: {
+    specialtySection: {
+        marginBottom: 32,
+    },
+    specialtyCard: {
+        backgroundColor: "rgba(99, 102, 241, 0.1)",
+        borderLeftWidth: 4,
+        borderLeftColor: colors.iris,
+        padding: 20,
+        borderRadius: radii.xl,
+    },
+    specialtyTitle: {
+        color: colors.gold,
+        fontSize: 12,
+        fontWeight: "900",
+        textTransform: "uppercase",
+        letterSpacing: 2,
+        marginBottom: 8,
+    },
+    specialtyText: {
+        color: "#FFF",
+        fontSize: 16,
+        fontWeight: "600",
+        lineHeight: 24,
+    },
+    menuButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        backgroundColor: colors.base[50],
+        padding: 20,
+        borderRadius: radii.xl,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.06)",
+    },
+    menuButtonTitle: {
+        color: colors.gold,
+        fontSize: 16,
+        fontWeight: "800",
+        textTransform: "uppercase",
+    },
+    menuButtonSub: {
+        color: colors.goldMetallic,
+        fontSize: 12,
+        marginTop: 2,
+    },
+    gridRow: {
         flexDirection: "row",
         gap: 12,
         marginBottom: 32,
     },
-    infoCard: {
+    gridCard: {
         flex: 1,
         backgroundColor: colors.base[50],
         padding: 16,
@@ -419,16 +507,50 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "rgba(255,255,255,0.06)",
     },
-    infoLabel: {
+    gridCardTitle: {
+        color: colors.gold,
+        fontSize: 12,
+        fontWeight: "700",
+        marginBottom: 12,
+        textTransform: "uppercase",
+        opacity: 0.6,
+    },
+    timingRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        marginBottom: 6,
+    },
+    timingDay: {
+        color: colors.goldMetallic,
+        fontSize: 10,
+        fontWeight: "800",
+    },
+    timingTime: {
+        color: "#FFF",
+        fontSize: 10,
+        fontWeight: "600",
+    },
+    ruleRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        marginBottom: 8,
+    },
+    ruleText: {
         color: colors.goldMetallic,
         fontSize: 12,
-        marginTop: 8,
+        fontWeight: "500",
     },
-    infoValue: {
-        color: colors.gold,
-        fontSize: 15,
-        fontWeight: "600",
-        marginTop: 2,
+    sectionHeaderRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    seeAll: {
+        color: colors.iris,
+        fontSize: 13,
+        fontWeight: "700",
     },
     eventItem: {
         flexDirection: "row",
