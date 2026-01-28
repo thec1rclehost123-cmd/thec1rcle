@@ -139,8 +139,8 @@ export const useVenuesStore = create<VenuesState>()(
                     const venuesRef = collection(db, "venues");
                     let q = query(venuesRef);
 
-                    if (filters.area) {
-                        q = query(q, where("area", "==", filters.area));
+                    if (filters.tablesOnly) {
+                        q = query(q, where("tablesAvailable", "==", true));
                     }
 
                     const snapshot = await getDocs(q);
@@ -153,7 +153,18 @@ export const useVenuesStore = create<VenuesState>()(
                         } as Venue;
                     });
 
-                    // Client side filtering for more complex filters if needed
+                    // Client side filtering for robust matching (case-insensitive)
+                    if (filters.area) {
+                        const cleanArea = filters.area.toLowerCase().trim();
+                        venues = venues.filter(v => {
+                            const vArea = (v.area || "").toLowerCase();
+                            const vAddress = (v.address || "").toLowerCase();
+                            const vCity = (v.city || "").toLowerCase();
+                            // Match against area field OR address field
+                            return vArea.includes(cleanArea) || vAddress.includes(cleanArea) || vCity.includes(cleanArea);
+                        });
+                    }
+
                     if (filters.vibe) {
                         venues = venues.filter(v =>
                             (v.tags || []).some(t => t.toLowerCase() === filters.vibe?.toLowerCase()) ||
@@ -165,8 +176,9 @@ export const useVenuesStore = create<VenuesState>()(
                         const lowSearch = filters.search.toLowerCase();
                         venues = venues.filter(v =>
                             v.name.toLowerCase().includes(lowSearch) ||
-                            v.area?.toLowerCase().includes(lowSearch) ||
-                            v.neighborhood?.toLowerCase().includes(lowSearch)
+                            (v.area || "").toLowerCase().includes(lowSearch) ||
+                            (v.neighborhood || "").toLowerCase().includes(lowSearch) ||
+                            (v.address || "").toLowerCase().includes(lowSearch)
                         );
                     }
 

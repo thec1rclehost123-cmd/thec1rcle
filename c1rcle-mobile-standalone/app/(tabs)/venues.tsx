@@ -19,7 +19,7 @@ const AREAS = ["Koregaon Park", "Baner", "Viman Nagar", "Kalyani Nagar", "FC Roa
 
 export default function VenuesTab() {
     const insets = useSafeAreaInsets();
-    const { user } = useAuthStore();
+    const { user, profile } = useAuthStore();
     const { venues, loading, fetchVenues } = useVenuesStore();
     const onScroll = useScrollToHide();
     const { setTabBarVisible } = useUIStore();
@@ -48,35 +48,40 @@ export default function VenuesTab() {
         setActiveArea(activeArea === area ? null : area);
     };
 
-    const renderHeader = () => (
-        <View style={styles.header}>
-            <View>
-                <Text style={styles.headerSubtitle}>Discover</Text>
-                <Text style={styles.headerTitle}>Venues</Text>
+    const renderHeader = () => {
+        const displayImage = user?.photoURL || profile?.photoURL;
+        const displayName = user?.displayName || profile?.displayName;
+
+        return (
+            <View style={styles.header}>
+                <View>
+                    <Text style={styles.headerSubtitle}>Discover</Text>
+                    <Text style={styles.headerTitle}>Venues</Text>
+                </View>
+                <Pressable
+                    onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push("/(tabs)/profile");
+                    }}
+                    style={styles.profileButton}
+                >
+                    {displayImage ? (
+                        <Image
+                            source={{ uri: displayImage }}
+                            style={styles.profileImage}
+                            contentFit="cover"
+                        />
+                    ) : (
+                        <View style={styles.profilePlaceholder}>
+                            <Text style={styles.profileInitials}>
+                                {displayName ? displayName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) : "C"}
+                            </Text>
+                        </View>
+                    )}
+                </Pressable>
             </View>
-            <Pressable
-                onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    router.push("/(tabs)/profile");
-                }}
-                style={styles.profileButton}
-            >
-                {user?.photoURL ? (
-                    <Image
-                        source={{ uri: user.photoURL }}
-                        style={styles.profileImage}
-                        contentFit="cover"
-                    />
-                ) : (
-                    <View style={styles.profilePlaceholder}>
-                        <Text style={styles.profileInitials}>
-                            {user?.displayName ? user.displayName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) : "C"}
-                        </Text>
-                    </View>
-                )}
-            </Pressable>
-        </View>
-    );
+        );
+    };
 
     const renderFilters = () => (
         <View style={styles.filterSection}>

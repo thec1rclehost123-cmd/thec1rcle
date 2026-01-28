@@ -42,6 +42,7 @@ import { useEventsStore, Event } from "@/store/eventsStore";
 import { getVenue, Venue } from "@/lib/api/venues";
 import { PremiumButton } from "@/components/ui/PremiumButton";
 import { Badge } from "@/components/ui/Primitives";
+import { EventCard } from "@/components/ui/EventCard";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const HERO_HEIGHT = SCREEN_HEIGHT * 0.35;
@@ -76,10 +77,19 @@ export default function VenueProfileScreen() {
         const data = await getVenue(id);
         setVenue(data);
 
-        // Load upcoming events for this venue
+        // Load upcoming events for this venue (Fetch from DB to ensure data availability)
         if (data) {
-            const filtered = events.filter(e => e.venueId === id);
-            setVenueEvents(filtered);
+            // Check store first
+            let venueEventsList = events.filter(e => e.venueId === data.id);
+
+            // If store is empty or didn't have them, we could fetch. 
+            // For now, let's try to fetch if local is empty or just simply rely on what we have + a quick fetch
+            // But to avoid complexity, let's just trigger a fetchEvents if we have none
+            if (venueEventsList.length === 0) {
+                await fetchEvents(); // Refresh global events
+                venueEventsList = useEventsStore.getState().events.filter(e => e.venueId === data.id);
+            }
+            setVenueEvents(venueEventsList);
         }
         setLoading(false);
     };
@@ -132,10 +142,10 @@ export default function VenueProfileScreen() {
 
     return (
         <View style={styles.container}>
-            {/* Header Buttons */}
+            {/* Header Actions */}
             <View style={[styles.headerActions, { top: insets.top + 8 }]}>
                 <Pressable onPress={() => router.back()} style={styles.circleButton}>
-                    <Ionicons name="chevron-back" size={24} color={colors.gold} />
+                    <Ionicons name="chevron-back" size={24} color="#FFF" />
                 </Pressable>
             </View>
 
@@ -145,7 +155,7 @@ export default function VenueProfileScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 100 }}
             >
-                {/* Hero Section */}
+                {/* 1. POSTER HERO - Inspired by Image 0 & 3 */}
                 <View style={styles.hero}>
                     <Animated.View style={[styles.heroImageWrapper, heroImageStyle]}>
                         <Image
@@ -155,102 +165,92 @@ export default function VenueProfileScreen() {
                         />
                     </Animated.View>
                     <LinearGradient
-                        colors={["transparent", "rgba(10,10,10,0.8)", "#0A0A0A"]}
+                        colors={["transparent", "rgba(0,0,0,0.4)", "#000"]}
                         style={styles.heroGradient}
                     />
 
+                    {/* Marquee Band (Static for performance, or animated if library available) */}
+                    <View style={styles.marqueeBand}>
+                        <Text style={styles.marqueeText}>{venue.name.toUpperCase()} • LIVE • {venue.city?.toUpperCase() || 'HOST'} • {venue.name.toUpperCase()} • </Text>
+                    </View>
+
                     <View style={styles.heroContent}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Animated.View entering={FadeIn.delay(200)} style={styles.heroBadgeRow}>
                             <Badge variant="iris" size="sm">{venue.neighborhood || venue.area}</Badge>
                             {venue.isVerified && (
-                                <Ionicons name="checkmark-circle" size={16} color={colors.iris} />
+                                <View style={styles.verifiedBadge}>
+                                    <Ionicons name="checkmark-circle-outline" size={14} color="#F44A22" />
+                                    <Text style={styles.verifiedText}>OFFICIAL</Text>
+                                </View>
                             )}
-                        </View>
-                        <Text style={styles.venueName}>{venue.name}</Text>
-                        <View style={styles.statsRow}>
-                            <Text style={styles.statsText}>
-                                <Text style={styles.statsValue}>{venue.followers.toLocaleString()}</Text> Followers
-                            </Text>
-                        </View>
+                        </Animated.View>
+                        <Text style={styles.venueName}>{venue.name.toUpperCase()}</Text>
+                        <Text style={styles.taglineText}>"{venue.tagline || 'Experience the Extraordinary'}"</Text>
                     </View>
                 </View>
 
-                {/* Actions Section */}
+                {/* 2. ACCESS TICKETS - Inspired by Image 1 */}
                 <View style={styles.content}>
-                    <View style={styles.actionRow}>
+                    <View style={styles.sectionHeaderRow}>
+                        <Text style={styles.sectionTitle}>SELECT ACCESS</Text>
+                    </View>
+
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.ticketsScroll}
+                    >
+                        {/* Ticket 1 */}
+                        <View style={[styles.ticketCard, { backgroundColor: '#161616' }]}>
+                            <View style={styles.ticketMain}>
+                                <Text style={styles.ticketType}>GENERAL ENTRY</Text>
+                                <Text style={styles.ticketPrice}>₹1,000</Text>
+                            </View>
+                            <View style={styles.ticketPerforation}>
+                                {[...Array(6)].map((_, i) => <View key={i} style={styles.perfPoint} />)}
+                            </View>
+                            <Pressable style={styles.ticketAction}>
+                                <Text style={styles.ticketActionText}>GET</Text>
+                            </Pressable>
+                        </View>
+
+                        {/* Ticket 2 - Featured */}
+                        <View style={[styles.ticketCard, { backgroundColor: '#A3E635' }]}>
+                            <View style={styles.ticketMain}>
+                                <Text style={[styles.ticketType, { color: '#000' }]}>VIP PASS</Text>
+                                <Text style={[styles.ticketPrice, { color: '#000' }]}>₹3,500</Text>
+                            </View>
+                            <View style={[styles.ticketPerforation, { backgroundColor: 'rgba(0,0,0,0.1)' }]}>
+                                {[...Array(6)].map((_, i) => <View key={i} style={[styles.perfPoint, { backgroundColor: '#000' }]} />)}
+                            </View>
+                            <Pressable style={[styles.ticketAction, { backgroundColor: '#000' }]}>
+                                <Text style={[styles.ticketActionText, { color: '#A3E635' }]}>VIP</Text>
+                            </Pressable>
+                        </View>
+                    </ScrollView>
+
+                    {/* Follow Action */}
+                    <View style={styles.followRow}>
                         <PremiumButton
                             variant="primary"
-                            style={styles.mainActionButton}
-                            onPress={() => {
-                                const cta = venue.primaryCta || 'follow';
-                                switch (cta) {
-                                    case 'whatsapp': venue.whatsapp && Linking.openURL(`https://wa.me/${venue.whatsapp.replace(/\D/g, '')}`); break;
-                                    case 'call': venue.phone && Linking.openURL(`tel:${venue.phone}`); break;
-                                    case 'website': venue.website && Linking.openURL(venue.website); break;
-                                    default: handleFollow();
-                                }
-                            }}
+                            style={styles.followButton}
+                            onPress={handleFollow}
                         >
-                            {venue.primaryCta === 'whatsapp' ? 'Book a Table' :
-                                venue.primaryCta === 'call' ? 'Call Now' :
-                                    venue.primaryCta === 'website' ? 'Visit Website' :
-                                        (isFollowing ? "Following" : "Follow")}
+                            {isFollowing ? "FOLLOWING" : "FOLLOW VENUE"}
                         </PremiumButton>
-
-                        {venue.primaryCta !== 'follow' && (
-                            <Pressable
-                                style={[styles.iconButton, isFollowing && { backgroundColor: colors.iris }]}
-                                onPress={handleFollow}
-                            >
-                                <Ionicons name={isFollowing ? "heart" : "heart-outline"} size={22} color={isFollowing ? "#FFF" : colors.gold} />
-                            </Pressable>
-                        )}
-
-                        <Pressable style={styles.iconButton} onPress={() => {/* Share logic */ }}>
-                            <Ionicons name="share-outline" size={22} color={colors.gold} />
+                        <Pressable style={styles.shareIconButton}>
+                            <Ionicons name="share-outline" size={20} color="#FFF" />
                         </Pressable>
                     </View>
 
-                    {/* Specialty Section */}
-                    {venue.specialty && (
-                        <Animated.View entering={FadeInDown.delay(250)} style={styles.specialtySection}>
-                            <View style={styles.specialtyCard}>
-                                <Text style={styles.specialtyTitle}>The Specialty</Text>
-                                <Text style={styles.specialtyText}>{venue.specialty}</Text>
-                            </View>
-                        </Animated.View>
-                    )}
-
-                    {/* Bio Section */}
-                    {venue.description && (
-                        <Animated.View entering={FadeInDown.delay(300)} style={styles.section}>
-                            <Text style={styles.sectionTitle}>About</Text>
-                            <Text style={styles.description}>{venue.description}</Text>
-                        </Animated.View>
-                    )}
-
-                    {/* Menu Button */}
-                    <Animated.View entering={FadeInDown.delay(350)} style={styles.section}>
-                        <Pressable
-                            style={styles.menuButton}
-                            onPress={() => {/* In a real app, logic to open menu */ }}
-                        >
-                            <View>
-                                <Text style={styles.menuButtonTitle}>Digital Menu</Text>
-                                <Text style={styles.menuButtonSub}>Explore food & drinks</Text>
-                            </View>
-                            <Ionicons name="restaurant-outline" size={24} color={colors.gold} />
-                        </Pressable>
-                    </Animated.View>
-
                     {/* Vibe Section */}
                     {venue.tags && venue.tags.length > 0 && (
-                        <Animated.View entering={FadeInDown.delay(400)} style={styles.section}>
-                            <Text style={styles.sectionTitle}>The Vibe</Text>
+                        <Animated.View entering={FadeInDown.delay(300)} style={styles.section}>
+                            <Text style={styles.sectionTitle}>THE VIBE</Text>
                             <View style={styles.tagsContainer}>
                                 {venue.tags.map((tag, i) => (
                                     <View key={i} style={styles.tag}>
-                                        <Text style={styles.tagText}>{tag}</Text>
+                                        <Text style={styles.tagText}>{tag.toUpperCase()}</Text>
                                     </View>
                                 ))}
                             </View>
@@ -290,44 +290,56 @@ export default function VenueProfileScreen() {
                     {/* Upcoming Events */}
                     <Animated.View entering={FadeInDown.delay(500)} style={styles.section}>
                         <View style={styles.sectionHeaderRow}>
-                            <Text style={styles.sectionTitle}>Upcoming Events</Text>
-                            <Text style={styles.seeAll}>See All</Text>
+                            <Text style={styles.sectionTitle}>UPCOMING EVENTS</Text>
+                            {venueEvents.length > 0 && <Text style={styles.seeAll}>See All</Text>}
                         </View>
                         {venueEvents.length > 0 ? (
-                            venueEvents.map((event, i) => (
-                                <Pressable
-                                    key={event.id}
-                                    onPress={() => router.push(`/event/${event.id}`)}
-                                    style={styles.eventItem}
-                                >
-                                    <Image source={{ uri: event.coverImage }} style={styles.eventThumb} />
-                                    <View style={styles.eventInfo}>
-                                        <Text style={styles.eventTitle}>{event.title}</Text>
-                                        <Text style={styles.eventDate}>{new Date(event.startDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}</Text>
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={{ paddingHorizontal: 24, gap: 12 }}
+                            >
+                                {venueEvents.map((event, i) => (
+                                    <View key={event.id} style={{ width: 160 }}>
+                                        <EventCard
+                                            id={event.id}
+                                            title={event.title}
+                                            venue={event.venue || venue?.name || "Venue"}
+                                            date={new Date(event.startDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                            imageUrl={event.posterUrl || event.coverImage || ""}
+                                            price={event.priceDisplay}
+                                            category={event.category}
+                                            isTonight={event.isTonight}
+                                            isSoldOut={false}
+                                            variant="grid"
+                                            width="100%"
+                                        />
                                     </View>
-                                    <Ionicons name="chevron-forward" size={20} color={colors.goldMetallic} />
-                                </Pressable>
-                            ))
+                                ))}
+                            </ScrollView>
                         ) : (
-                            <Text style={styles.emptyText}>No upcoming events scheduled.</Text>
+                            <View style={styles.emptyEvents}>
+                                <Ionicons name="calendar-outline" size={32} color="rgba(255,255,255,0.2)" />
+                                <Text style={styles.emptyText}>No upcoming events scheduled.</Text>
+                            </View>
                         )}
                     </Animated.View>
-                </View>
-            </Animated.ScrollView>
-        </View>
+                </View >
+            </Animated.ScrollView >
+        </View >
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.base.DEFAULT,
+        backgroundColor: "#000",
     },
     loadingContainer: {
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: colors.base.DEFAULT,
+        backgroundColor: "#000",
     },
     errorContainer: {
         flex: 1,
@@ -336,7 +348,7 @@ const styles = StyleSheet.create({
         padding: 40,
     },
     errorText: {
-        color: colors.gold,
+        color: "#FFF",
         fontSize: 18,
         marginBottom: 20,
     },
@@ -349,14 +361,14 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: "rgba(10,10,10,0.6)",
+        backgroundColor: "rgba(0,0,0,0.5)",
         justifyContent: "center",
         alignItems: "center",
         borderWidth: 1,
         borderColor: "rgba(255,255,255,0.1)",
     },
     hero: {
-        height: HERO_HEIGHT,
+        height: SCREEN_HEIGHT * 0.55,
         overflow: "hidden",
         justifyContent: "flex-end",
     },
@@ -370,66 +382,154 @@ const styles = StyleSheet.create({
     heroGradient: {
         ...StyleSheet.absoluteFillObject,
     },
-    heroContent: {
-        padding: 20,
-        paddingBottom: 24,
+    marqueeBand: {
+        position: "absolute",
+        top: '40%',
+        backgroundColor: "#F44A22",
+        paddingVertical: 12,
+        width: '150%',
+        transform: [{ rotate: '-10deg' }, { translateX: -50 }],
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.5,
+        shadowRadius: 20,
+        elevation: 10,
     },
-    venueName: {
-        color: colors.gold,
-        fontSize: 32,
+    marqueeText: {
+        color: "#FFF",
+        fontSize: 12,
         fontWeight: "900",
-        marginTop: 8,
+        letterSpacing: 4,
     },
-    statsRow: {
+    heroContent: {
+        padding: 24,
+        paddingBottom: 32,
+    },
+    heroBadgeRow: {
         flexDirection: "row",
         alignItems: "center",
-        marginTop: 4,
+        gap: 8,
+        marginBottom: 12,
     },
-    statsText: {
-        color: colors.goldMetallic,
+    verifiedBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        backgroundColor: "rgba(244, 74, 34, 0.1)",
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: "rgba(244, 74, 34, 0.2)",
+    },
+    verifiedText: {
+        color: "#F44A22",
+        fontSize: 10,
+        fontWeight: "900",
+        letterSpacing: 1,
+    },
+    venueName: {
+        color: "#FFF",
+        fontSize: 52,
+        fontWeight: "900",
+        letterSpacing: -2,
+        lineHeight: 48,
+    },
+    taglineText: {
+        color: "rgba(255,255,255,0.6)",
         fontSize: 14,
-    },
-    statsValue: {
-        color: colors.gold,
-        fontWeight: "700",
+        fontWeight: "600",
+        marginTop: 12,
+        fontStyle: "italic",
     },
     content: {
-        padding: 20,
+        paddingTop: 24,
     },
-    actionRow: {
-        flexDirection: "row",
-        gap: 12,
+    section: {
+        paddingHorizontal: 24,
         marginBottom: 32,
     },
-    mainActionButton: {
+    sectionTitle: {
+        color: "#F44A22",
+        fontSize: 12,
+        fontWeight: "900",
+        letterSpacing: 3,
+        marginBottom: 16,
+        paddingHorizontal: 24,
+    },
+    ticketsScroll: {
+        paddingHorizontal: 24,
+        gap: 16,
+        paddingBottom: 8,
+    },
+    ticketCard: {
+        width: 280,
+        height: 120,
+        borderRadius: 20,
+        flexDirection: "row",
+        overflow: "hidden",
+    },
+    ticketMain: {
         flex: 1,
+        padding: 20,
+        justifyContent: "space-between",
+    },
+    ticketType: {
+        color: "#FFF",
+        fontSize: 16,
+        fontWeight: "900",
+    },
+    ticketPrice: {
+        color: "#A3E635",
+        fontSize: 24,
+        fontWeight: "900",
+    },
+    ticketPerforation: {
+        width: 20,
+        height: "100%",
+        backgroundColor: "rgba(255,255,255,0.05)",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 4,
+    },
+    perfPoint: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: "#000",
+    },
+    ticketAction: {
+        width: 60,
+        height: "100%",
+        backgroundColor: "#A3E635",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    ticketActionText: {
+        color: "#000",
+        fontSize: 14,
+        fontWeight: "900",
+        transform: [{ rotate: '90deg' }],
+    },
+    followRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        paddingHorizontal: 24,
+        marginVertical: 32,
     },
     followButton: {
         flex: 1,
     },
-    iconButton: {
+    shareIconButton: {
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: colors.base[100],
+        backgroundColor: "#161616",
         justifyContent: "center",
         alignItems: "center",
         borderWidth: 1,
         borderColor: "rgba(255,255,255,0.1)",
-    },
-    section: {
-        marginBottom: 32,
-    },
-    sectionTitle: {
-        color: colors.gold,
-        fontSize: 18,
-        fontWeight: "700",
-        marginBottom: 16,
-    },
-    description: {
-        color: colors.goldMetallic,
-        fontSize: 15,
-        lineHeight: 24,
     },
     tagsContainer: {
         flexDirection: "row",
@@ -439,81 +539,38 @@ const styles = StyleSheet.create({
     tag: {
         paddingHorizontal: 12,
         paddingVertical: 6,
-        borderRadius: radii.md,
-        backgroundColor: "rgba(244, 74, 34, 0.1)",
+        borderRadius: 12,
+        backgroundColor: "rgba(255,255,255,0.05)",
         borderWidth: 1,
-        borderColor: "rgba(244, 74, 34, 0.2)",
+        borderColor: "rgba(255,255,255,0.1)",
     },
     tagText: {
-        color: colors.iris,
-        fontSize: 13,
-        fontWeight: "600",
-    },
-    specialtySection: {
-        marginBottom: 32,
-    },
-    specialtyCard: {
-        backgroundColor: "rgba(99, 102, 241, 0.1)",
-        borderLeftWidth: 4,
-        borderLeftColor: colors.iris,
-        padding: 20,
-        borderRadius: radii.xl,
-    },
-    specialtyTitle: {
-        color: colors.gold,
-        fontSize: 12,
-        fontWeight: "900",
-        textTransform: "uppercase",
-        letterSpacing: 2,
-        marginBottom: 8,
-    },
-    specialtyText: {
         color: "#FFF",
-        fontSize: 16,
-        fontWeight: "600",
-        lineHeight: 24,
-    },
-    menuButton: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        backgroundColor: colors.base[50],
-        padding: 20,
-        borderRadius: radii.xl,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.06)",
-    },
-    menuButtonTitle: {
-        color: colors.gold,
-        fontSize: 16,
-        fontWeight: "800",
-        textTransform: "uppercase",
-    },
-    menuButtonSub: {
-        color: colors.goldMetallic,
-        fontSize: 12,
-        marginTop: 2,
+        fontSize: 11,
+        fontWeight: "700",
+        letterSpacing: 1,
     },
     gridRow: {
         flexDirection: "row",
         gap: 12,
+        paddingHorizontal: 24,
         marginBottom: 32,
     },
     gridCard: {
         flex: 1,
-        backgroundColor: colors.base[50],
+        backgroundColor: "rgba(255,255,255,0.05)",
         padding: 16,
-        borderRadius: radii.xl,
+        borderRadius: 20,
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.06)",
+        borderColor: "rgba(255,255,255,0.1)",
     },
     gridCardTitle: {
-        color: colors.gold,
-        fontSize: 12,
-        fontWeight: "700",
+        color: "rgba(255,255,255,0.4)",
+        fontSize: 10,
+        fontWeight: "900",
         marginBottom: 12,
         textTransform: "uppercase",
-        opacity: 0.6,
+        letterSpacing: 1.5,
     },
     timingRow: {
         flexDirection: "row",
@@ -521,23 +578,23 @@ const styles = StyleSheet.create({
         marginBottom: 6,
     },
     timingDay: {
-        color: colors.goldMetallic,
-        fontSize: 10,
-        fontWeight: "800",
+        color: "rgba(255,255,255,0.7)",
+        fontSize: 11,
+        fontWeight: "600",
     },
     timingTime: {
         color: "#FFF",
-        fontSize: 10,
-        fontWeight: "600",
+        fontSize: 11,
+        fontWeight: "900",
     },
     ruleRow: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 6,
+        gap: 8,
         marginBottom: 8,
     },
     ruleText: {
-        color: colors.goldMetallic,
+        color: "rgba(255,255,255,0.7)",
         fontSize: 12,
         fontWeight: "500",
     },
@@ -545,45 +602,57 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 16,
+        marginBottom: 8,
     },
     seeAll: {
-        color: colors.iris,
-        fontSize: 13,
-        fontWeight: "700",
+        color: "#F44A22",
+        fontSize: 12,
+        fontWeight: "800",
+        paddingRight: 24,
     },
     eventItem: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: colors.base[50],
+        backgroundColor: "#111",
         padding: 12,
-        borderRadius: radii.lg,
+        borderRadius: 16,
         marginBottom: 12,
+        marginHorizontal: 24,
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.06)",
+        borderColor: "rgba(255,255,255,0.05)",
     },
     eventThumb: {
-        width: 50,
-        height: 50,
-        borderRadius: radii.md,
+        width: 60,
+        height: 60,
+        borderRadius: 12,
     },
     eventInfo: {
         flex: 1,
-        marginLeft: 12,
+        marginLeft: 16,
     },
     eventTitle: {
-        color: colors.gold,
-        fontSize: 15,
-        fontWeight: "600",
+        color: "#FFF",
+        fontSize: 16,
+        fontWeight: "700",
+        marginBottom: 4,
     },
     eventDate: {
-        color: colors.goldMetallic,
+        color: "rgba(255,255,255,0.5)",
         fontSize: 13,
-        marginTop: 2,
     },
     emptyText: {
-        color: colors.goldMetallic,
+        color: "rgba(255,255,255,0.4)",
         fontSize: 14,
         fontStyle: "italic",
+        paddingHorizontal: 24,
+    },
+    emptyEvents: {
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        backgroundColor: "rgba(255,255,255,0.02)",
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.05)",
     },
 });

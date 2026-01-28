@@ -47,6 +47,20 @@ const MONTHS = [
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+const timeOverlaps = (start1: string, end1: string, start2: string, end2: string) => {
+    const toMinutes = (time: string) => {
+        const [h, m] = time.split(":").map(Number);
+        return h * 60 + m;
+    };
+    let s1 = toMinutes(start1);
+    let e1 = toMinutes(end1);
+    let s2 = toMinutes(start2);
+    let e2 = toMinutes(end2);
+    if (e1 < s1) e1 += 24 * 60;
+    if (e2 < s2) e2 += 24 * 60;
+    return !(e1 <= s2 || s1 >= e2);
+};
+
 const TIME_SLOTS = [
     { label: "Evening (17:00 - 21:00)", startTime: "17:00", endTime: "21:00" },
     { label: "Night (21:00 - 01:00)", startTime: "21:00", endTime: "01:00" },
@@ -101,6 +115,13 @@ export function VenueCalendarPreview({
             return;
         }
 
+        // Optimization: Use cached slots if available
+        const cachedDay = calendar.find(d => d.date === selectedDate);
+        if (cachedDay?.slots && cachedDay.slots.length > 0) {
+            setDateAvailability({ slots: cachedDay.slots });
+            return;
+        }
+
         async function fetchAvailability() {
             setLoadingAvailability(true);
             try {
@@ -117,7 +138,7 @@ export function VenueCalendarPreview({
         }
 
         fetchAvailability();
-    }, [venueId, selectedDate]);
+    }, [venueId, selectedDate, calendar]);
 
     // Calendar grid
     const calendarGrid = useMemo(() => {
@@ -219,7 +240,7 @@ export function VenueCalendarPreview({
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                className="bg-white rounded-[2rem] w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl"
+                className="bg-white rounded-[2rem] w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
@@ -243,9 +264,9 @@ export function VenueCalendarPreview({
                     </div>
                 </div>
 
-                <div className="flex flex-col lg:flex-row min-h-[500px]">
+                <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto min-h-0 divide-x divide-gray-100">
                     {/* Calendar Section */}
-                    <div className="flex-1 p-6 border-r border-gray-100">
+                    <div className="flex-[1.5] p-8">
                         {/* Month Navigation */}
                         <div className="flex items-center justify-between mb-6">
                             <button
@@ -336,7 +357,7 @@ export function VenueCalendarPreview({
                     </div>
 
                     {/* Time Slot Selection Panel */}
-                    <div className="w-full lg:w-80 p-6 bg-gray-50">
+                    <div className="w-full lg:w-96 p-8 bg-gray-50/50 backdrop-blur-sm lg:sticky lg:top-0 h-full">
                         <AnimatePresence mode="wait">
                             {selectedDate ? (
                                 <motion.div
@@ -372,7 +393,7 @@ export function VenueCalendarPreview({
                                                 // Check if this slot overlaps with any unavailable times
                                                 const isUnavailable = dateAvailability?.slots?.some((s: any) =>
                                                     s.status !== "available" &&
-                                                    s.startTime === slot.startTime
+                                                    timeOverlaps(s.startTime, s.endTime, slot.startTime, slot.endTime)
                                                 );
 
                                                 return (

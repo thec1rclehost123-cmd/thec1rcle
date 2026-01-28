@@ -82,7 +82,8 @@ service cloud.firestore {
                         resource.data.venueId == request.auth.uid ||
                         resource.data.hostId == request.auth.uid ||
                         request.auth.token.partnerId == resource.data.creatorId ||
-                        request.auth.token.partnerId == resource.data.venueId
+                        request.auth.token.partnerId == resource.data.venueId ||
+                        request.auth.token.partnerId == resource.data.hostId
                     ));
       allow write: if isAdmin(); // Partners write via server routes
     }

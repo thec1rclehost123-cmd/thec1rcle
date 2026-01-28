@@ -71,7 +71,7 @@ export default function VenueDashboardLayout({ children }: { children: React.Rea
             <RoleGuard allowedType="venue">
                 <div className="min-h-screen bg-[var(--surface-base)]">
                     {/* Desktop Sidebar */}
-                    <div className="hidden lg:block">
+                    <div className="hidden lg:block fixed left-0 top-0 bottom-0 h-full z-50">
                         <AppleSidebar
                             brandLetter="C"
                             brandLabel="Venue"

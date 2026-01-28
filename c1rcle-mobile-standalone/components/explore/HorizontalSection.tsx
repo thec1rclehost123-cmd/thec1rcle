@@ -48,7 +48,10 @@ export const HorizontalSection = memo(({ title, events, icon = "sparkles", onSee
                         <EventCard
                             id={item.id}
                             title={item.title}
-                            venue={item.venue || item.location || "Venue TBA"}
+                            venue={item.venue && item.location && item.venue !== item.location
+                                ? `${item.venue}, ${item.location.split(",")[0]}`
+                                : (item.venue || item.location || "Venue TBA")}
+                            venueId={item.venueId}
                             date={formatEventDate(item.startDate, "short")}
                             imageUrl={item.posterUrl || ""}
                             price={item.priceDisplay}
@@ -57,6 +60,7 @@ export const HorizontalSection = memo(({ title, events, icon = "sparkles", onSee
                             isSoldOut={item.isSoldOut}
                             variant="grid"
                             width={180}
+
                         />
                     </Animated.View>
                 )}

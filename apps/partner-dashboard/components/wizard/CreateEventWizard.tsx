@@ -453,6 +453,11 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                 completionPercent: 0,
                 lastSavedAt: new Date().toISOString(),
                 clientUpdatedAt: Date.now()
+            },
+            recurring: {
+                enabled: false,
+                frequency: 'weekly',
+                visibility: 'after_previous', // "opens only after current event expires"
             }
         };
 
@@ -1249,24 +1254,111 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                                     />
                                                 </div>
 
-                                                {/* Date Summary Banner */}
-                                                <AnimatePresence>
-                                                    {(formData.startDate || (formData.startTime && formData.endTime)) && (
-                                                        <motion.div
-                                                            initial={{ opacity: 0, height: 0 }}
-                                                            animate={{ opacity: 1, height: 'auto' }}
-                                                            exit={{ opacity: 0, height: 0 }}
-                                                            className="p-4 rounded-xl state-confirmed-bg border border-emerald-100 flex items-center gap-3"
-                                                        >
-                                                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                                            <p className="text-body-sm text-emerald-800 font-medium">
-                                                                Event takes place {formData.startDate ? `on ${formatEventDate(formData.startDate)}` : 'soon'}
-                                                                {formData.startTime && ` from ${formData.startTime}`}
-                                                                {formData.endTime && ` until ${formData.endTime}`}.
+                                                {/* Recurring Event Options */}
+                                                <div className="pt-6 border-t border-stone-100">
+                                                    <div className="flex items-start md:items-center justify-between gap-4 mb-4">
+                                                        <div className="space-y-1 flex-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="text-body-sm font-bold text-[#1d1d1f]">Repeat Event</p>
+                                                                {formData.recurring?.enabled && (
+                                                                    <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-[9px] font-black uppercase tracking-wider">
+                                                                        Series Active
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-[11px] text-[#86868b] leading-relaxed">
+                                                                Automatically schedule future instances. Next week&apos;s event will remain hidden until the current one ends.
                                                             </p>
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => updateFormData({
+                                                                recurring: {
+                                                                    frequency: 'weekly',
+                                                                    visibility: 'after_previous',
+                                                                    ...(formData.recurring || {}),
+                                                                    enabled: !formData.recurring?.enabled
+                                                                }
+                                                            })}
+                                                            className={`w-12 h-7 rounded-full transition-colors relative flex-shrink-0 ${formData.recurring?.enabled ? 'bg-[#34c759]' : 'bg-[#e5e5e7]'}`}
+                                                        >
+                                                            <motion.div
+                                                                className={`absolute top-1 left-1 w-5 h-5 rounded-full shadow-sm bg-white`}
+                                                                animate={{ x: formData.recurring?.enabled ? 20 : 0 }}
+                                                                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                                            />
+                                                        </button>
+                                                    </div>
+
+                                                    <AnimatePresence>
+                                                        {formData.recurring?.enabled && (
+                                                            <motion.div
+                                                                initial={{ height: 0, opacity: 0 }}
+                                                                animate={{ height: "auto", opacity: 1 }}
+                                                                exit={{ height: 0, opacity: 0 }}
+                                                                className="overflow-hidden"
+                                                            >
+                                                                <div className="p-5 bg-stone-50 rounded-2xl space-y-4 border border-stone-100">
+                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                        <div className="space-y-1.5">
+                                                                            <label className="text-label ml-1">Frequency</label>
+                                                                            <select
+                                                                                className="input appearance-none bg-white font-bold text-sm"
+                                                                                value={formData.recurring?.frequency}
+                                                                                onChange={(e) => updateFormData({
+                                                                                    recurring: { ...formData.recurring, frequency: e.target.value }
+                                                                                })}
+                                                                            >
+                                                                                <option value="weekly">Every Week (Weekly)</option>
+                                                                                <option value="biweekly">Every 2 Weeks (Bi-Weekly)</option>
+                                                                                <option value="monthly">Every Month (Monthly)</option>
+                                                                            </select>
+                                                                        </div>
+                                                                        <div className="space-y-1.5">
+                                                                            <label className="text-label ml-1">On Day</label>
+                                                                            <div className="input flex items-center bg-stone-100 text-stone-500 font-bold text-sm cursor-not-allowed">
+                                                                                {formData.startDate ? new Date(formData.startDate).toLocaleDateString('en-US', { weekday: 'long' }) : 'Select Date First'}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="flex items-start gap-3 p-3 bg-indigo-50/50 border border-indigo-100/50 rounded-xl">
+                                                                        <div className="mt-0.5">
+                                                                            <Zap className="w-4 h-4 text-indigo-500" />
+                                                                        </div>
+                                                                        <div className="space-y-1">
+                                                                            <p className="text-[11px] font-bold text-indigo-900 uppercase tracking-wide">Smart Visibility Logic</p>
+                                                                            <p className="text-[11px] text-indigo-700/80 leading-relaxed">
+                                                                                The system will automatically generate the next event for {formData.startDate ?
+                                                                                    new Date(new Date(formData.startDate).getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                                                                    : 'next week'}. It unlocks for public view exactly when this event ends {formData.endTime ? `(${formData.endTime})` : ''}.
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+
+
+                                                    {/* Date Summary Banner */}
+                                                    <AnimatePresence>
+                                                        {(formData.startDate || (formData.startTime && formData.endTime)) && (
+                                                            <motion.div
+                                                                initial={{ opacity: 0, height: 0 }}
+                                                                animate={{ opacity: 1, height: 'auto' }}
+                                                                exit={{ opacity: 0, height: 0 }}
+                                                                className="p-4 rounded-xl state-confirmed-bg border border-emerald-100 flex items-center gap-3"
+                                                            >
+                                                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                                                <p className="text-body-sm text-emerald-800 font-medium">
+                                                                    Event takes place {formData.startDate ? `on ${formatEventDate(formData.startDate)}` : 'soon'}
+                                                                    {formData.startTime && ` from ${formData.startTime}`}
+                                                                    {formData.endTime && ` until ${formData.endTime}`}.
+                                                                </p>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </div>
                                             </div>
 
                                             {/* Location Details (Only shown or editable if not a managed venue or if specific details needed) */}

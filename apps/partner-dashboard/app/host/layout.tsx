@@ -69,7 +69,7 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
             <RoleGuard allowedType="host">
                 <div className="min-h-screen bg-[var(--surface-base)]">
                     {/* Desktop Sidebar */}
-                    <div className="hidden lg:block">
+                    <div className="hidden lg:block fixed left-0 top-0 bottom-0 h-full z-50">
                         <AppleSidebar
                             brandLetter="H"
                             brandLabel="Host"

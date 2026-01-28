@@ -48,6 +48,8 @@ interface EventCardProps {
     animationDelay?: number;
     variant?: "default" | "compact" | "featured" | "grid";
     width?: number | string;
+    venueId?: string;
+    venueSlug?: string;
 }
 
 export function EventCard({
@@ -67,6 +69,8 @@ export function EventCard({
     animationDelay = 0,
     variant = "default",
     width,
+    venueId,
+    venueSlug,
 }: EventCardProps) {
     const scale = useSharedValue(1);
 
@@ -89,6 +93,14 @@ export function EventCard({
         } else {
             // Navigate to event detail
             router.push({ pathname: "/event/[id]", params: { id } });
+        }
+    };
+
+    const handleVenuePress = () => {
+        const target = venueSlug || venueId;
+        if (target) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            router.push(`/venue/${target}`);
         }
     };
 
@@ -143,10 +155,14 @@ export function EventCard({
                 <View style={styles.gridContent}>
                     <Text style={styles.gridTitle} numberOfLines={2}>{title}</Text>
 
-                    <View style={styles.gridVenueContainer}>
+                    <Pressable
+                        onPress={handleVenuePress}
+                        disabled={!venueId && !venueSlug}
+                        style={styles.gridVenueContainer}
+                    >
                         <Ionicons name="location-sharp" size={10} color={colors.goldMetallic} style={{ marginRight: 2 }} />
                         <Text style={styles.gridVenue} numberOfLines={1}>{venue}</Text>
-                    </View>
+                    </Pressable>
 
                     <View style={styles.gridFooter}>
                         <View style={styles.gridDateContainer}>
@@ -194,10 +210,14 @@ export function EventCard({
                 )}
                 <View style={styles.compactContent}>
                     <Text style={styles.compactTitle} numberOfLines={1}>{title}</Text>
-                    <View style={styles.compactVenueRow}>
+                    <Pressable
+                        onPress={handleVenuePress}
+                        disabled={!venueId && !venueSlug}
+                        style={styles.compactVenueRow}
+                    >
                         <Ionicons name="location-sharp" size={12} color={colors.goldMetallic} style={{ marginRight: 4 }} />
                         <Text style={styles.compactVenue} numberOfLines={1}>{venue}</Text>
-                    </View>
+                    </Pressable>
                     <View style={styles.compactMeta}>
                         <View style={styles.compactDateRow}>
                             <Ionicons name="calendar-outline" size={12} color={colors.goldMetallic} style={{ marginRight: 4 }} />
@@ -264,10 +284,14 @@ export function EventCard({
                     )}
                     <Text style={styles.featuredTitle} numberOfLines={2}>{title}</Text>
                     <View style={styles.featuredMeta}>
-                        <View style={styles.featuredMetaItem}>
+                        <Pressable
+                            onPress={handleVenuePress}
+                            disabled={!venueId && !venueSlug}
+                            style={styles.featuredMetaItem}
+                        >
                             <Ionicons name="location-sharp" size={14} color={colors.goldMetallic} />
                             <Text style={styles.featuredVenue}>{venue}</Text>
-                        </View>
+                        </Pressable>
                         <View style={styles.featuredMetaItem}>
                             <Ionicons name="calendar-outline" size={14} color={colors.goldMetallic} />
                             <Text style={styles.featuredDate}>{date}</Text>
@@ -335,10 +359,14 @@ export function EventCard({
             {/* Content */}
             <View style={styles.defaultContent}>
                 <Text style={styles.defaultTitle} numberOfLines={2}>{title}</Text>
-                <View style={styles.defaultMeta}>
+                <Pressable
+                    onPress={handleVenuePress}
+                    disabled={!venueId && !venueSlug}
+                    style={styles.defaultMeta}
+                >
                     <Ionicons name="location-sharp" size={14} color={colors.goldMetallic} style={{ marginRight: 4 }} />
                     <Text style={styles.defaultVenue} numberOfLines={1}>{venue}</Text>
-                </View>
+                </Pressable>
                 <View style={styles.defaultFooter}>
                     <View style={styles.defaultDateContainer}>
                         <Ionicons name="calendar-outline" size={14} color={colors.goldMetallic} style={{ marginRight: 6 }} />

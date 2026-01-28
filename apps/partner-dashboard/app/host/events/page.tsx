@@ -86,7 +86,7 @@ export default function HostEventsPage() {
 
             {/* Filters */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex p-1 bg-[#f5f5f7] rounded-xl w-fit">
+                <div className="flex p-1 bg-[#f5f5f7] rounded-xl w-fit overflow-x-auto max-w-full scrollbar-hide">
                     <TabButton
                         active={activeTab === "all"}
                         onClick={() => setActiveTab("all")}

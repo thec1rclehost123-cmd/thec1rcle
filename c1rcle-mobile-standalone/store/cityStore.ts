@@ -12,6 +12,10 @@ export interface CityInfo {
     key: string;
     label: string;
     isDetected?: boolean;
+    coordinates?: {
+        latitude: number;
+        longitude: number;
+    }
 }
 
 // Same map as in eventsStore for consistency
@@ -31,6 +35,7 @@ export const CITY_MAP = [
 interface CityState {
     selectedCity: CityInfo;
     detectedCity: CityInfo | null;
+    userLocation: { latitude: number; longitude: number } | null;
     isLocating: boolean;
 
     // Actions
@@ -46,6 +51,7 @@ export const useCityStore = create<CityState>()(
         (set, get) => ({
             selectedCity: DEFAULT_CITY,
             detectedCity: null,
+            userLocation: null,
             isLocating: false,
 
             setCity: (cityKey: string) => {
@@ -81,10 +87,24 @@ export const useCityStore = create<CityState>()(
                         );
 
                         if (found) {
-                            const detected = { ...found, isDetected: true };
-                            set({ detectedCity: detected });
+                            const coords = {
+                                latitude: location.coords.latitude,
+                                longitude: location.coords.longitude
+                            };
+
+                            const detected = {
+                                ...found,
+                                isDetected: true,
+                                coordinates: coords
+                            };
+
+                            set({
+                                detectedCity: detected,
+                                userLocation: coords
+                            });
+
                             // Optionally auto-set if no city selection exists
-                            if (!get().selectedCity.key) {
+                            if (!get().selectedCity.key || get().selectedCity.key === DEFAULT_CITY.key) {
                                 set({ selectedCity: detected });
                             }
                         }

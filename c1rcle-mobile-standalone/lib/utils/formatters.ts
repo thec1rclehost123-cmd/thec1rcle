@@ -248,3 +248,46 @@ export function getLowestPrice(tickets: Array<{ price: number }> | undefined): n
     if (!tickets || tickets.length === 0) return null;
     return Math.min(...tickets.map((t) => t.price));
 }
+
+/**
+ * Calculate Haversine distance between two coordinates in km
+ */
+export function calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+): number {
+    const R = 6371; // Radius of the earth in km
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c; // Distance in km
+    return d;
+}
+
+function deg2rad(deg: number): number {
+    return deg * (Math.PI / 180);
+}
+
+/**
+ * Get formatted distance string (e.g., "1.2 km away")
+ */
+export function getDistanceString(
+    userLat: number | null | undefined,
+    userLon: number | null | undefined,
+    venueLat: number | null | undefined,
+    venueLon: number | null | undefined
+): string | null {
+    if (!userLat || !userLon || !venueLat || !venueLon) return null;
+
+    const dist = calculateDistance(userLat, userLon, venueLat, venueLon);
+    if (dist < 1) {
+        return `${(dist * 1000).toFixed(0)}m away`;
+    }
+    return `${dist.toFixed(1)} km away`;
+}

@@ -153,6 +153,24 @@ export default async function VenuePublicPage({ params }) {
                 <div className="absolute bottom-32 left-[5%] w-96 h-96 bg-[#FF6B4A]/15 rounded-full blur-[120px] animate-pulse delay-1000 opacity-50" />
                 <div className="absolute top-1/2 right-[20%] w-48 h-48 bg-[#F44A22]/10 rounded-full blur-[80px] animate-bounce-slow opacity-40" />
 
+                {/* Inspiration Image 0: Diagonal "Tour" Bands */}
+                <div className="absolute inset-0 z-1 pointer-events-none overflow-hidden flex items-center justify-center">
+                    <div className="absolute h-16 w-[150%] bg-[#F44A22] transform -rotate-12 flex items-center justify-center opacity-80 shadow-2xl">
+                        <div className="flex gap-16 whitespace-nowrap animate-marquee">
+                            {[1, 2, 3, 4, 5].map(i => (
+                                <span key={i} className="text-white text-xs font-black uppercase tracking-[0.5em]">{venue.name} TOUR • LIVE IN {venue.city || 'YOUR CITY'} • </span>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="absolute h-16 w-[150%] bg-black transform rotate-12 flex items-center justify-center opacity-90 shadow-2xl translate-y-24">
+                        <div className="flex gap-16 whitespace-nowrap animate-marquee-reverse">
+                            {[1, 2, 3, 4, 5].map(i => (
+                                <span key={i} className="text-white text-xs font-black uppercase tracking-[0.5em]">EXCLUSIVE EXPERIENCE • NO LIMITS • SECURE TICKETS • </span>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
                 {/* Navigation Header */}
                 <div className="absolute top-0 left-0 right-0 z-50 p-6 flex justify-between items-center">
                     <Link
@@ -204,32 +222,21 @@ export default async function VenuePublicPage({ params }) {
                     </h1>
 
                     {/* Tagline if available */}
-                    {venue.tagline && (
-                        <p className="text-lg md:text-xl text-black/60 dark:text-white/60 font-medium max-w-xl mb-6 animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-200">
-                            "{venue.tagline}"
-                        </p>
-                    )}
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+                        {venue.tagline && (
+                            <p className="text-lg md:text-xl text-black/60 dark:text-white/60 font-medium max-w-xl animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-200">
+                                "{venue.tagline}"
+                            </p>
+                        )}
 
-                    {/* Location & Quick Stats - Sleek Pills */}
-                    <div className="flex flex-wrap items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
-                        {venue.city && (
-                            <div className="flex items-center gap-2 px-4 py-2 bg-black/5 dark:bg-white/5 backdrop-blur-xl rounded-full border border-black/5 dark:border-white/5">
-                                <MapPin className="h-4 w-4 text-[#F44A22]" />
-                                <span className="text-sm font-semibold text-black/70 dark:text-white/70">{venue.city}</span>
-                            </div>
-                        )}
-                        {upcomingEvents.length > 0 && (
-                            <div className="flex items-center gap-2 px-4 py-2 bg-black/5 dark:bg-white/5 backdrop-blur-xl rounded-full border border-black/5 dark:border-white/5">
-                                <Calendar className="h-4 w-4 text-[#F44A22]" />
-                                <span className="text-sm font-semibold text-black/70 dark:text-white/70">{upcomingEvents.length} Upcoming</span>
-                            </div>
-                        )}
-                        {venue.rating && (
-                            <div className="flex items-center gap-2 px-4 py-2 bg-[#F44A22]/10 backdrop-blur-xl rounded-full border border-[#F44A22]/20">
-                                <Star className="h-4 w-4 text-[#F44A22] fill-[#F44A22]" />
-                                <span className="text-sm font-bold text-[#F44A22]">{venue.rating}</span>
-                            </div>
-                        )}
+                        <div className="flex gap-4">
+                            <button className="px-10 py-5 bg-[#F44A22] text-white rounded-full text-[11px] font-black uppercase tracking-[0.3em] shadow-glow hover:scale-105 transition-all">
+                                Secure Your Access
+                            </button>
+                            <button className="px-10 py-5 bg-white/10 dark:bg-white/5 backdrop-blur-xl border border-white/20 text-white rounded-full text-[11px] font-black uppercase tracking-[0.3em] hover:bg-white/20 transition-all">
+                                Explore Vibe
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -244,6 +251,73 @@ export default async function VenuePublicPage({ params }) {
                 <div className="absolute bottom-0 right-0 w-[40%] h-[30%] bg-gradient-to-tl from-[#F44A22]/20 via-transparent to-transparent blur-2xl pointer-events-none" />
                 <div className="absolute top-0 left-0 w-[30%] h-[20%] bg-gradient-to-br from-[#FF6B4A]/10 via-transparent to-transparent blur-2xl pointer-events-none" />
             </section>
+
+            {/* UPCOMING SHOWS - Inspired by Image 0 & 4 */}
+            {upcomingEvents.length > 0 && (
+                <section className="py-32 px-6 sm:px-12 lg:px-24 bg-black overflow-hidden relative">
+                    <div className="absolute top-0 left-0 w-full h-full opacity-20">
+                        <div className="absolute top-1/4 -left-20 w-96 h-96 bg-[#F44A22] rounded-full blur-[150px] animate-pulse" />
+                        <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-purple-600 rounded-full blur-[150px] animate-pulse delay-1000" />
+                    </div>
+
+                    <div className="max-w-7xl mx-auto relative z-10">
+                        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-20">
+                            <div>
+                                <span className="text-[10px] font-black uppercase tracking-[0.5em] text-[#F44A22] mb-4 block">Tour Dates & Events</span>
+                                <h2 className="text-5xl md:text-8xl font-heading font-black uppercase tracking-tighter leading-none text-white italic">
+                                    Upcoming<br />
+                                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#F44A22] to-purple-500">Phenomena.</span>
+                                </h2>
+                            </div>
+                            <button className="flex items-center gap-4 text-white hover:text-[#F44A22] transition-colors group">
+                                <span className="text-[11px] font-black uppercase tracking-[0.3em]">View Full Calendar</span>
+                                <div className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center group-hover:border-[#F44A22] transition-all">
+                                    <ChevronRight className="h-5 w-5" />
+                                </div>
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {upcomingEvents.slice(0, 4).map((event, idx) => (
+                                <Link
+                                    key={event.id}
+                                    href={`/event/${event.id}`}
+                                    className="group relative aspect-[3/4] rounded-[2rem] overflow-hidden border border-white/10"
+                                >
+                                    <Image
+                                        src={event.image || event.coverImage || "/events/neon-nights.jpg"}
+                                        fill
+                                        className="object-cover transition-transform duration-1000 group-hover:scale-110"
+                                        alt={event.name}
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+
+                                    {/* Date Badge */}
+                                    <div className="absolute top-6 left-6 flex flex-col items-center justify-center w-14 h-14 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl">
+                                        <span className="text-[10px] font-black text-white/60 uppercase">{new Date(event.startDate || event.startAt).toLocaleDateString(undefined, { month: 'short' })}</span>
+                                        <span className="text-xl font-black text-white">{new Date(event.startDate || event.startAt).getDate()}</span>
+                                    </div>
+
+                                    {/* Status Badge */}
+                                    <div className="absolute top-6 right-6">
+                                        <div className={`px-4 py-1.5 rounded-full backdrop-blur-md border ${event.status === 'SOLD_OUT' ? 'bg-red-500/20 border-red-500/30' : 'bg-[#F44A22]/20 border-[#F44A22]/30'}`}>
+                                            <span className={`text-[9px] font-black uppercase tracking-widest ${event.status === 'SOLD_OUT' ? 'text-red-400' : 'text-[#F44A22]'}`}>
+                                                {event.status === 'SOLD_OUT' ? 'Sold Out' : 'Available'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="absolute bottom-8 left-8 right-8">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#F44A22] mb-3">Live Show</p>
+                                        <h4 className="text-2xl font-black text-white uppercase tracking-tighter leading-none mb-4 group-hover:text-[#F44A22] transition-colors">{event.name}</h4>
+                                        <div className="h-px w-0 group-hover:w-full bg-gradient-to-r from-[#F44A22] to-transparent transition-all duration-500" />
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            )}
 
             {/* 2. OFFERS SECTION - Premium Cards */}
             <section className="py-32 px-6 sm:px-12 lg:px-24 relative overflow-hidden">
@@ -417,88 +491,29 @@ export default async function VenuePublicPage({ params }) {
 
                 <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24 space-y-16 relative z-10">
                     {/* Section Header */}
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                        <div className="max-w-2xl">
-                            <span className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#F44A22]/10 to-[#FF6B4A]/10 border border-[#F44A22]/20 rounded-full mb-6 shadow-lg shadow-[#F44A22]/5">
-                                <Camera className="h-4 w-4 text-[#F44A22]" />
-                                <span className="text-[10px] font-black uppercase tracking-widest text-[#F44A22]">Visual Stories</span>
-                            </span>
-                            <h2 className="text-4xl md:text-6xl font-heading font-black uppercase tracking-tighter leading-[0.95] mb-4 text-black dark:text-white">
-                                Moments at<br />
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#F44A22] via-[#FF6B4A] to-[#F44A22] animate-gradient-x">
-                                    {venue.name}
-                                </span>
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-12 mb-20">
+                        <div>
+                            <span className="text-[10px] font-black uppercase tracking-[0.5em] text-[#F44A22] mb-4 block">Visual Experience</span>
+                            <h2 className="text-5xl md:text-8xl font-heading font-black uppercase tracking-tighter leading-none text-black dark:text-white">
+                                The<br />
+                                <span className="italic">Atmosphere.</span>
                             </h2>
-                            <p className="text-black/50 dark:text-white/50 text-lg font-medium">Step into our world through curated visual stories</p>
                         </div>
-
-                        {/* View All Button */}
-                        {hasGallery && (
-                            <button className="group flex items-center gap-3 px-6 py-3 bg-black/5 dark:bg-white/5 hover:bg-[#F44A22]/10 border border-black/10 dark:border-white/10 hover:border-[#F44A22]/30 rounded-full transition-all duration-300">
-                                <span className="text-[11px] font-bold uppercase tracking-widest text-black/60 dark:text-white/60 group-hover:text-[#F44A22]">View All</span>
-                                <ChevronRight className="h-4 w-4 text-black/40 dark:text-white/40 group-hover:text-[#F44A22] group-hover:translate-x-1 transition-all" />
+                        <div className="flex gap-4">
+                            <button className="px-8 py-4 bg-black/5 dark:bg-white/5 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-black/10 transition-all">
+                                Interior
                             </button>
-                        )}
-                    </div>
-
-                    {/* Stories Row - Instagram Style Highlights */}
-                    {(highlights.length > 0 || upcomingEvents.length > 0) && (
-                        <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide -mx-6 px-6">
-                            {/* "Add Story" Placeholder for Venue Owners */}
-                            <div className="flex flex-col items-center gap-3 flex-shrink-0">
-                                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-black/5 dark:from-white/5 to-black/10 dark:to-white/10 border-2 border-dashed border-black/20 dark:border-white/20 flex items-center justify-center hover:border-[#F44A22]/50 hover:from-[#F44A22]/10 hover:to-[#FF6B4A]/10 transition-all duration-300 cursor-pointer group">
-                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#F44A22] to-[#FF6B4A] flex items-center justify-center group-hover:scale-110 transition-transform">
-                                        <Play className="h-4 w-4 text-white fill-white" />
-                                    </div>
-                                </div>
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-black/40 dark:text-white/40">Watch Reel</span>
-                            </div>
-
-                            {/* Highlight Stories */}
-                            {highlights.slice(0, 8).map((highlight, idx) => (
-                                <div key={highlight.id || idx} className="flex flex-col items-center gap-3 flex-shrink-0 group cursor-pointer">
-                                    <div className="relative w-24 h-24 rounded-full p-[3px] bg-gradient-to-br from-[#F44A22] via-[#FF6B4A] to-[#F44A22] hover:scale-105 transition-transform duration-300">
-                                        <div className="w-full h-full rounded-full overflow-hidden border-3 border-white dark:border-[#0A0A0A]">
-                                            <Image
-                                                src={highlight.coverImage || highlight.image || "/events/neon-nights.jpg"}
-                                                fill
-                                                className="object-cover"
-                                                alt={highlight.title || "Highlight"}
-                                            />
-                                        </div>
-                                    </div>
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-black/60 dark:text-white/60 group-hover:text-[#F44A22] transition-colors line-clamp-1 max-w-[80px] text-center">{highlight.title || "Highlight"}</span>
-                                </div>
-                            ))}
-
-                            {/* Event Stories from upcoming events */}
-                            {highlights.length < 4 && upcomingEvents.slice(0, 4 - highlights.length).map((event, idx) => (
-                                <Link key={event.id} href={`/event/${event.id}`} className="flex flex-col items-center gap-3 flex-shrink-0 group">
-                                    <div className="relative w-24 h-24 rounded-full p-[3px] bg-gradient-to-br from-[#F44A22]/60 via-[#FF6B4A]/60 to-[#F44A22]/60 hover:from-[#F44A22] hover:via-[#FF6B4A] hover:to-[#F44A22] hover:scale-105 transition-all duration-300">
-                                        <div className="w-full h-full rounded-full overflow-hidden border-3 border-white dark:border-[#0A0A0A]">
-                                            <Image
-                                                src={event.image || event.coverImage || "/events/neon-nights.jpg"}
-                                                fill
-                                                className="object-cover"
-                                                alt={event.name}
-                                            />
-                                        </div>
-                                        {/* Live Badge */}
-                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-[#F44A22] rounded-full">
-                                            <span className="text-[8px] font-black uppercase text-white">Event</span>
-                                        </div>
-                                    </div>
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-black/60 dark:text-white/60 group-hover:text-[#F44A22] transition-colors line-clamp-1 max-w-[80px] text-center">{event.name}</span>
-                                </Link>
-                            ))}
+                            <button className="px-8 py-4 bg-black/5 dark:bg-white/5 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-black/10 transition-all">
+                                Nightlife
+                            </button>
                         </div>
-                    )}
+                    </div>
 
                     {/* Premium Gallery Grid - Bento Style with Video Support */}
                     {hasGallery ? (
-                        <div className="grid grid-cols-4 md:grid-cols-12 gap-4 auto-rows-[100px] md:auto-rows-[120px]">
+                        <div className="grid grid-cols-2 md:grid-cols-12 gap-6 auto-rows-[200px] md:auto-rows-[160px]">
                             {/* Large Featured Video/Image - Main Showcase */}
-                            <div className="col-span-4 md:col-span-6 row-span-4 relative rounded-[2rem] overflow-hidden group border border-black/5 dark:border-white/5 shadow-xl shadow-black/5 dark:shadow-white/5">
+                            <div className="col-span-2 md:col-span-8 row-span-3 md:row-span-4 relative rounded-[3rem] overflow-hidden group border border-black/5 dark:border-white/5 shadow-2xl">
                                 {galleryVideos.length > 0 ? (
                                     <>
                                         <video
@@ -510,9 +525,9 @@ export default async function VenuePublicPage({ params }) {
                                         >
                                             <source src={galleryVideos[0]} type="video/mp4" />
                                         </video>
-                                        <div className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 bg-black/30 backdrop-blur-xl rounded-full">
+                                        <div className="absolute top-8 left-8 flex items-center gap-2 px-4 py-2 bg-black/30 backdrop-blur-xl rounded-full border border-white/10">
                                             <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-white">Video</span>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-white">Live Atmosphere</span>
                                         </div>
                                     </>
                                 ) : (
@@ -523,66 +538,52 @@ export default async function VenuePublicPage({ params }) {
                                         alt="Featured"
                                     />
                                 )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                <div className="absolute bottom-6 left-6 right-6 translate-y-4 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-500">
-                                    <span className="px-4 py-2 bg-white/20 backdrop-blur-xl rounded-full text-[10px] font-black uppercase tracking-widest text-white">Main Space</span>
-                                </div>
-
-                                {/* Corner Play Button for Videos */}
-                                {galleryVideos.length > 0 && (
-                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                                        <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-xl flex items-center justify-center border border-white/30">
-                                            <Play className="h-8 w-8 text-white fill-white ml-1" />
+                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
+                                <div className="absolute bottom-12 left-12 right-12 translate-y-4 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-700">
+                                    <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">The Main Stage</h3>
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-xl flex items-center justify-center border border-white/30">
+                                            <Camera className="h-5 w-5 text-white" />
                                         </div>
+                                        <span className="text-[11px] font-black text-white uppercase tracking-[0.3em]">Full Cinematic View</span>
                                     </div>
-                                )}
+                                </div>
                             </div>
 
-                            {/* Medium Portrait Cards */}
-                            <div className="col-span-2 md:col-span-3 row-span-2 relative rounded-2xl overflow-hidden group border border-black/5 dark:border-white/5 hover:border-[#F44A22]/30 transition-colors duration-300">
+                            {/* Staggered Vertical Cards */}
+                            <div className="col-span-1 md:col-span-4 row-span-2 relative rounded-[2rem] overflow-hidden group border border-black/5 dark:border-white/5 shadow-xl hover:rotate-1 transition-transform duration-500">
                                 <Image
                                     src={galleryPhotos[1] || venue.coverURL || venue.image}
                                     fill
-                                    className="object-cover transition-transform duration-700 group-hover:scale-110"
+                                    className="object-cover transition-transform duration-1000 group-hover:scale-110"
                                     alt="Gallery"
                                 />
-                                <div className="absolute inset-0 bg-gradient-to-t from-[#F44A22]/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
-                            <div className="col-span-2 md:col-span-3 row-span-2 relative rounded-2xl overflow-hidden group border border-black/5 dark:border-white/5 hover:border-[#F44A22]/30 transition-colors duration-300">
+                            <div className="col-span-1 md:col-span-4 row-span-2 md:translate-y-12 relative rounded-[2rem] overflow-hidden group border border-black/5 dark:border-white/5 shadow-xl hover:-rotate-1 transition-transform duration-500">
                                 <Image
                                     src={galleryPhotos[2] || venue.coverURL || venue.image}
                                     fill
-                                    className="object-cover transition-transform duration-700 group-hover:scale-110"
+                                    className="object-cover transition-transform duration-1000 group-hover:scale-110"
                                     alt="Gallery"
                                 />
-                                <div className="absolute inset-0 bg-gradient-to-t from-[#F44A22]/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
 
-                            {/* Small Accent Cards */}
-                            <div className="col-span-2 md:col-span-3 row-span-2 relative rounded-2xl overflow-hidden group border border-black/5 dark:border-white/5 hover:border-[#F44A22]/30 transition-colors duration-300">
+                            {/* Small Accent Cards with Floating Effect */}
+                            <div className="col-span-1 md:col-span-3 row-span-2 relative rounded-[2rem] overflow-hidden group border border-black/5 dark:border-white/5 shadow-xl transition-all duration-500">
                                 <Image
                                     src={galleryPhotos[3] || venue.coverURL || venue.image}
                                     fill
-                                    className="object-cover transition-transform duration-700 group-hover:scale-110"
+                                    className="object-cover transition-transform duration-1000 group-hover:scale-110"
                                     alt="Gallery"
                                 />
                             </div>
-                            <div className="col-span-2 md:col-span-3 row-span-2 relative rounded-2xl overflow-hidden group border border-black/5 dark:border-white/5 hover:border-[#F44A22]/30 transition-colors duration-300 flex items-center justify-center bg-gradient-to-br from-[#F44A22]/10 to-[#FF6B4A]/5">
-                                {galleryPhotos[4] ? (
-                                    <Image
-                                        src={galleryPhotos[4]}
-                                        fill
-                                        className="object-cover transition-transform duration-700 group-hover:scale-110"
-                                        alt="Gallery"
-                                    />
-                                ) : (
-                                    <div className="text-center space-y-3 p-6">
-                                        <div className="w-12 h-12 rounded-full bg-[#F44A22]/10 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
-                                            <Camera className="h-6 w-6 text-[#F44A22]" />
-                                        </div>
-                                        <p className="text-[11px] font-bold uppercase tracking-widest text-black/30 dark:text-white/30">More Photos</p>
-                                    </div>
-                                )}
+                            <div className="col-span-1 md:col-span-3 row-span-2 md:translate-y-8 relative rounded-[2rem] overflow-hidden group border border-black/5 dark:border-white/5 shadow-xl transition-all duration-500">
+                                <Image
+                                    src={galleryPhotos[4] || venue.coverURL || venue.image}
+                                    fill
+                                    className="object-cover transition-transform duration-1000 group-hover:scale-110"
+                                    alt="Gallery"
+                                />
                             </div>
                         </div>
                     ) : (
@@ -604,7 +605,6 @@ export default async function VenuePublicPage({ params }) {
                                     </span>
                                 </div>
                             </div>
-
                             {/* Event posters as gallery items */}
                             {upcomingEvents.slice(0, 4).map((event, idx) => (
                                 <Link key={event.id} href={`/event/${event.id}`} className="relative aspect-[3/4] rounded-2xl overflow-hidden group border border-black/5 dark:border-white/5 hover:border-[#F44A22]/30 transition-colors">
@@ -626,20 +626,107 @@ export default async function VenuePublicPage({ params }) {
                                     </div>
                                 </Link>
                             ))}
-
-                            {/* Fill remaining slots if needed */}
-                            {upcomingEvents.length < 4 && Array.from({ length: 4 - upcomingEvents.length }).map((_, idx) => (
-                                <div key={`placeholder-${idx}`} className="relative aspect-[3/4] rounded-2xl overflow-hidden border border-dashed border-black/10 dark:border-white/10 bg-gradient-to-br from-black/[0.02] dark:from-white/[0.02] to-transparent flex items-center justify-center hover:border-[#F44A22]/30 transition-colors group">
-                                    <div className="text-center space-y-3 p-6">
-                                        <div className="w-12 h-12 rounded-full bg-[#F44A22]/5 flex items-center justify-center mx-auto group-hover:bg-[#F44A22]/10 transition-colors">
-                                            <Camera className="h-5 w-5 text-black/20 dark:text-white/20 group-hover:text-[#F44A22]/50" />
-                                        </div>
-                                        <p className="text-[10px] font-bold uppercase tracking-widest text-black/20 dark:text-white/20">Coming Soon</p>
-                                    </div>
-                                </div>
-                            ))}
                         </div>
                     )}
+                </div>
+            </section>
+
+            {/* PASSES & ENTRY - Inspired by Image 1 */}
+            <section className="py-32 px-6 sm:px-12 lg:px-24 bg-[#0A0A0A] relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-gradient-to-l from-green-500/10 via-transparent to-transparent blur-[120px]" />
+
+                <div className="max-w-7xl mx-auto relative z-10">
+                    <div className="flex flex-col items-center text-center mb-20">
+                        <h2 className="text-6xl md:text-9xl font-heading font-black uppercase tracking-tighter leading-none text-white">
+                            Purchase<br />
+                            <span className="text-[#A3E635]">Access.</span>
+                        </h2>
+                        <div className="mt-8 flex gap-4">
+                            <div className="px-4 py-2 bg-[#A3E635]/10 border border-[#A3E635]/20 rounded-lg">
+                                <span className="text-[10px] font-black text-[#A3E635] uppercase tracking-widest">Instant Booking</span>
+                            </div>
+                            <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg">
+                                <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Digital Passes</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Ticket Card 1 */}
+                        <div className="group relative bg-[#161616] rounded-3xl overflow-hidden border border-white/5 hover:border-[#A3E635]/30 transition-all flex h-48 shadow-2xl">
+                            <div className="flex-1 p-8 flex flex-col justify-between">
+                                <div>
+                                    <h3 className="text-2xl font-black text-white uppercase tracking-tight">General Entry</h3>
+                                    <p className="text-xs text-white/40 font-bold uppercase tracking-widest mt-1">Single Entry Pass</p>
+                                </div>
+                                <div className="flex items-end justify-between">
+                                    <p className="text-3xl font-black text-[#A3E635]">₹1,000</p>
+                                    <button className="px-6 py-2.5 bg-[#A3E635] text-black text-[10px] font-black uppercase tracking-widest rounded-lg hover:scale-105 transition-transform">Purchase</button>
+                                </div>
+                            </div>
+                            {/* Perforation Line */}
+                            <div className="w-12 h-full bg-[#1A1A1A] border-l border-white/5 flex flex-col items-center justify-center gap-1.5 overflow-hidden">
+                                {[...Array(12)].map((_, i) => (
+                                    <div key={i} className="w-4 h-4 rounded-full bg-[#0A0A0A] -mr-8" />
+                                ))}
+                                <div className="absolute right-4 transform rotate-90 text-[10px] font-black text-white/10 tracking-[0.5em] uppercase whitespace-nowrap">C1RCLE PASS</div>
+                            </div>
+                        </div>
+
+                        {/* Ticket Card 2 - Featured */}
+                        <div className="group relative bg-[#A3E635] rounded-3xl overflow-hidden border border-[#A3E635]/20 hover:shadow-[0_0_50px_rgba(163,230,53,0.2)] transition-all flex h-48 shadow-2xl">
+                            <div className="flex-1 p-8 flex flex-col justify-between">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="px-2 py-0.5 bg-black rounded text-[8px] font-black text-[#A3E635] uppercase">Best Value</div>
+                                    </div>
+                                    <h3 className="text-2xl font-black text-black uppercase tracking-tight">VIP Experience</h3>
+                                    <p className="text-xs text-black/60 font-bold uppercase tracking-widest mt-1">Exclusive Lounge Access</p>
+                                </div>
+                                <div className="flex items-end justify-between">
+                                    <p className="text-3xl font-black text-black">₹3,500</p>
+                                    <button className="px-6 py-2.5 bg-black text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:scale-105 transition-transform">Purchase</button>
+                                </div>
+                            </div>
+                            {/* Perforation Line */}
+                            <div className="w-12 h-full bg-black/10 flex flex-col items-center justify-center gap-1.5 overflow-hidden">
+                                {[...Array(12)].map((_, i) => (
+                                    <div key={i} className="w-4 h-4 rounded-full bg-[#0A0A0A] -mr-8" />
+                                ))}
+                                <div className="absolute right-4 transform rotate-90 text-[10px] font-black text-black/20 tracking-[0.5em] uppercase whitespace-nowrap">VIP ACCESS</div>
+                            </div>
+                        </div>
+
+                        {/* Ticket Card 3 */}
+                        <div className="group relative bg-[#161616] rounded-3xl overflow-hidden border border-white/5 flex h-48 shadow-2xl">
+                            <div className="flex-1 p-8 flex flex-col justify-between">
+                                <div>
+                                    <h3 className="text-2xl font-black text-white uppercase tracking-tight">Group Bundle</h3>
+                                    <p className="text-xs text-white/40 font-bold uppercase tracking-widest mt-1">Entry for 5 People</p>
+                                </div>
+                                <div className="flex items-end justify-between">
+                                    <p className="text-3xl font-black text-[#A3E635]">₹4,500</p>
+                                    <button className="px-6 py-2.5 bg-[#A3E635] text-black text-[10px] font-black uppercase tracking-widest rounded-lg hover:scale-105 transition-transform">Purchase</button>
+                                </div>
+                            </div>
+                            <div className="w-12 h-full bg-[#1A1A1A] border-l border-white/5 flex flex-col items-center justify-center gap-1.5 overflow-hidden">
+                                {[...Array(12)].map((_, i) => (
+                                    <div key={i} className="w-4 h-4 rounded-full bg-[#0A0A0A] -mr-8" />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Custom Inquiry */}
+                        <div className="group relative rounded-3xl overflow-hidden border-2 border-dashed border-white/10 flex items-center justify-center p-8 bg-white/[0.02] hover:border-[#A3E635]/50 transition-all cursor-pointer">
+                            <div className="text-center">
+                                <p className="text-sm font-black text-white uppercase tracking-[0.2em] mb-2 text-glow">Corporate & Bulk</p>
+                                <p className="text-xs text-white/40 font-medium">Custom tailored packages for events and groups</p>
+                                <div className="mt-4 inline-flex items-center gap-2 text-[#A3E635] text-[10px] font-black uppercase tracking-widest">
+                                    Let's Talk <ChevronRight className="h-3 w-3" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 

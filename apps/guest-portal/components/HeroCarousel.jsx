@@ -66,11 +66,13 @@ export default function HeroCarousel({ cards = [] }) {
                 velocityRef.current *= FRICTION;
 
                 // 3. Snap-to-center logic
-                // If velocity is low, gently magnetize towards the nearest card
+                // (Disabled to allow continuous river flow)
+                /* 
                 if (Math.abs(velocityRef.current) < 0.005) {
                     const nearest = Math.round(targetProgressRef.current);
                     targetProgressRef.current += (nearest - targetProgressRef.current) * 0.05;
                 }
+                */
 
                 // 4. Lerp actual progress towards target
                 progressRef.current += (targetProgressRef.current - progressRef.current) * LERP_FACTOR;

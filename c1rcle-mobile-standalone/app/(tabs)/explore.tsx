@@ -19,7 +19,8 @@ import {
     ActivityIndicator,
     Pressable,
     Dimensions,
-    Alert
+    Alert,
+    ScrollView
 } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { LinearGradient } from "expo-linear-gradient";
@@ -52,6 +53,10 @@ import { useDiscoveryStore } from "@/store/discoveryStore";
 import { useScrollToHide } from "@/hooks/useScrollToHide";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// Add Venue imports
+import { useVenuesStore, Venue } from "@/store/venuesStore";
+import { VenueCard } from "@/components/venues/VenueCard";
 
 // Quick filter buttons
 interface QuickFilter {
@@ -271,6 +276,7 @@ export default function ExplorePage() {
         fetchEvents,
         fetchMoreEvents,
         fetchFeaturedEvents,
+        fetchEventsNearLocation,
         logEventImpression,
         subscribeToEventStock,
         unsubscribeFromAllStock
@@ -280,6 +286,11 @@ export default function ExplorePage() {
         config: layoutConfig,
         fetchConfig: fetchLayoutConfig
     } = useDiscoveryStore();
+
+    const {
+        venues: allVenues,
+        fetchVenues
+    } = useVenuesStore();
 
     // Reset tab bar on focus and handle stock subscriptions clean-up
     useEffect(() => {
@@ -315,10 +326,24 @@ export default function ExplorePage() {
 
             // Fetch fresh data if online
             if (!isOffline) {
-                await Promise.all([
-                    fetchEvents({ city: selectedCity.key, isRefresh }),
-                    fetchFeaturedEvents({ city: selectedCity.key }),
-                ]);
+                // If we have precise location (detected), use distance-based filtering
+                if (selectedCity.isDetected && selectedCity.coordinates) {
+                    await Promise.all([
+                        fetchEventsNearLocation(
+                            selectedCity.coordinates.latitude,
+                            selectedCity.coordinates.longitude
+                        ),
+                        fetchFeaturedEvents({ city: selectedCity.key }),
+                        fetchVenues(),
+                    ]);
+                } else {
+                    // Fallback to City Key filtering
+                    await Promise.all([
+                        fetchEvents({ city: selectedCity.key, isRefresh }),
+                        fetchFeaturedEvents({ city: selectedCity.key }),
+                        fetchVenues(),
+                    ]);
+                }
 
                 // Cache the new data
                 if (events.length > 0) {
@@ -479,6 +504,10 @@ export default function ExplorePage() {
         }
     };
 
+    const featuredVenues = useMemo(() => {
+        return allVenues.slice(0, 5);
+    }, [allVenues]);
+
     const renderFooter = useCallback(() => (
         <>
             {/* Map Discovery Card at the very end */}
@@ -504,14 +533,45 @@ export default function ExplorePage() {
         </>
     ), [isOffline, usingCachedData]);
 
-    const renderSection = useCallback(({ item }: { item: any }) => (
-        <HorizontalSection
-            title={item.title}
-            events={item.data}
-            icon={item.icon}
-            onSeeAll={() => router.push("/search")}
-        />
-    ), []);
+    const renderSection = useCallback(({ item, index }: { item: any, index: number }) => (
+        <View>
+            <HorizontalSection
+                title={item.title}
+                events={item.data}
+                icon={item.icon}
+                onSeeAll={() => router.push("/search")}
+            />
+
+            {/* Inject Venues section after the first event section */}
+            {index === 0 && featuredVenues.length > 0 && (
+                <View style={styles.venuesSection}>
+                    <View style={styles.sectionHeader}>
+                        <View style={styles.sectionTitleRow}>
+                            <Ionicons name="location" size={18} color={colors.iris} />
+                            <Text style={styles.sectionTitle}>Featured Venues</Text>
+                        </View>
+                        <Pressable
+                            onPress={() => router.push("/(tabs)/venues")}
+                            style={styles.seeAllButton}
+                        >
+                            <Text style={styles.seeAllText}>See All</Text>
+                        </Pressable>
+                    </View>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.venuesScroll}
+                    >
+                        {featuredVenues.map((venue) => (
+                            <View key={venue.id} style={styles.venueCardWrapper}>
+                                <VenueCard venue={venue} />
+                            </View>
+                        ))}
+                    </ScrollView>
+                </View>
+            )}
+        </View>
+    ), [featuredVenues]);
 
     return (
         <View style={styles.container}>
@@ -818,5 +878,18 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         zIndex: 100,
+    },
+
+    // Venues Section Styles
+    venuesSection: {
+        marginVertical: 12,
+    },
+    venuesScroll: {
+        paddingLeft: 20,
+        paddingRight: 10,
+    },
+    venueCardWrapper: {
+        width: 300, // Slightly smaller than full screen width
+        marginRight: 12,
     },
 });

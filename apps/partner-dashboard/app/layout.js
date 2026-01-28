@@ -23,8 +23,8 @@ export default function RootLayout({ children }) {
       <body className="antialiased">
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="light"
+          enableSystem={false}
           disableTransitionOnChange={false}
           storageKey="c1rcle-theme"
         >

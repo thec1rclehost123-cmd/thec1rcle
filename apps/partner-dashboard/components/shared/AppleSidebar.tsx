@@ -50,7 +50,7 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }
     };
 
     return (
-        <aside className="w-[280px] bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] flex flex-col h-screen fixed left-0 top-0 overflow-hidden z-50 shrink-0">
+        <aside className="w-[280px] bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] flex flex-col h-full overflow-hidden z-50 shrink-0">
             {/* Brand Header */}
             <div className="p-6 border-b border-[var(--border-subtle)]">
                 <div className="flex items-center gap-4">
@@ -90,8 +90,8 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }
                                                 }
                                             }}
                                             className={`nav-item relative group w-full ${active || isChildActive
-                                                    ? "nav-item-active"
-                                                    : ""
+                                                ? "nav-item-active"
+                                                : ""
                                                 }`}
                                         >
                                             {/* Active Indicator */}
@@ -105,8 +105,8 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }
 
                                             <div className="relative z-10 flex items-center gap-3 w-full">
                                                 <Icon className={`nav-icon ${active || isChildActive
-                                                        ? "text-[var(--c1rcle-orange)] opacity-100"
-                                                        : "text-[var(--text-tertiary)]"
+                                                    ? "text-[var(--c1rcle-orange)] opacity-100"
+                                                    : "text-[var(--text-tertiary)]"
                                                     }`} />
                                                 <span className="flex-1 text-left">{item.label}</span>
 
@@ -140,8 +140,8 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }
                                                                 key={child.href}
                                                                 href={child.href}
                                                                 className={`block px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all ${childActive
-                                                                        ? "text-[var(--c1rcle-orange)] bg-[var(--c1rcle-orange-glow)]"
-                                                                        : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-tertiary)]"
+                                                                    ? "text-[var(--c1rcle-orange)] bg-[var(--c1rcle-orange-glow)]"
+                                                                    : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-tertiary)]"
                                                                     }`}
                                                             >
                                                                 <span className="flex items-center gap-2">
@@ -172,7 +172,7 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }
             </nav>
 
             {/* Account Footer */}
-            <div className="p-4 border-t border-[var(--border-subtle)] space-y-3">
+            <div className="p-4 border-t border-[var(--border-subtle)] space-y-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 {/* User Info Card */}
                 <div className="flex items-center gap-3 px-3 py-3 bg-[var(--surface-tertiary)] dark:bg-white/[0.04] rounded-xl border border-[var(--border-subtle)]">
                     <div className="h-9 w-9 rounded-lg bg-[var(--text-primary)] flex items-center justify-center text-[var(--text-inverse)] text-[13px] font-bold">

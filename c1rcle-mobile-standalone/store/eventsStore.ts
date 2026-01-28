@@ -529,6 +529,7 @@ interface EventsState {
     getEventInterested: (eventId: string) => Promise<void>;
     getEventAttendees: (eventId: string) => Promise<void>;
     searchEvents: (query: string, options?: { city?: string }) => Promise<Event[]>;
+    fetchEventsNearLocation: (lat: number, lng: number, radiusKm?: number) => Promise<void>;
     clearCurrentEvent: () => void;
     clearError: () => void;
 }
@@ -797,6 +798,82 @@ export const useEventsStore = create<EventsState>()(
                     set({ error: error.message, loading: false });
                 }
             },
+
+            fetchEventsNearLocation: async (lat: number, lng: number, radiusKm = 50) => {
+                set({ loading: true, error: null });
+                try {
+                    const db = getFirebaseDb();
+                    const eventsRef = collection(db, "events");
+                    const nowIso = new Date().toISOString();
+
+                    // 1. Fetch all active public events (future optimization: use geofire or bounding box)
+                    // For now, we fetch scheduled/live events and filter client-side.
+                    // This is acceptable for < 1000 active events.
+                    const q = query(
+                        eventsRef,
+                        where("lifecycle", "in", PUBLIC_LIFECYCLE_STATES),
+                        where("endDate", ">=", nowIso),
+                        orderBy("endDate", "asc"),
+                        limit(100) // Cap to prevent overload
+                    );
+
+                    const snapshot = await getDocs(q);
+                    let fetchedEvents = snapshot.docs.map((doc: any) =>
+                        mapEventForClient(doc.data(), doc.id)
+                    );
+
+                    // 2. Client-side spatial filtering
+                    // We need calculateDistance helper here, but can't import easily if circular dep.
+                    // So we inline simple Haversine or implement it.
+                    // We'll trust the one we added in formatters, assuming no circular dep strictly with store.
+                    // Actually store imports from config/firebase/analytics, not formatters. Let's try importing formatters at top.
+                    // If not, we just reimplement simple math here.
+
+                    const calculateDist = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+                        const R = 6371;
+                        const dLat = (lat2 - lat1) * (Math.PI / 180);
+                        const dLon = (lon2 - lon1) * (Math.PI / 180);
+                        const a =
+                            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+                            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                        return R * c;
+                    };
+
+                    fetchedEvents = fetchedEvents.filter(event => {
+                        if (!event.coordinates) return false;
+                        const dist = calculateDist(lat, lng, event.coordinates.latitude, event.coordinates.longitude);
+                        return dist <= radiusKm;
+                    });
+
+                    // 3. Sort by distance
+                    fetchedEvents.sort((a, b) => {
+                        const distA = calculateDist(lat, lng, a.coordinates!.latitude, a.coordinates!.longitude);
+                        const distB = calculateDist(lat, lng, b.coordinates!.latitude, b.coordinates!.longitude);
+                        return distA - distB;
+                    });
+
+                    // 4. Data Quality Filter
+                    fetchedEvents = fetchedEvents.filter(event => {
+                        const title = (event.title || "").trim();
+                        const titleLower = title.toLowerCase();
+                        if (!title || titleLower === "untitled event") return false;
+                        return true;
+                    });
+
+                    set({
+                        events: fetchedEvents,
+                        loading: false,
+                        hasMore: false // Custom query, usually comprehensive
+                    });
+
+                } catch (error: any) {
+                    console.error("[EventsStore] Error fetching nearby events:", error);
+                    set({ error: error.message, loading: false });
+                }
+            },
+
 
             fetchMoreEvents: async (options = {}) => {
                 const { city, limit: maxEvents = 30 } = options;

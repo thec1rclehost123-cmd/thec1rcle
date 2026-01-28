@@ -350,12 +350,22 @@ export function OperatingCalendar() {
                                             </div>
                                         )}
 
+                                        {/* Blocked Indicator */}
+                                        {cell.state === 'BLOCKED' && eventCount === 0 && (
+                                            <div className="mt-2 space-y-1 relative z-10">
+                                                <div className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tight truncate border bg-gray-100 border-gray-200 text-gray-400 flex items-center justify-between">
+                                                    <span>BLOCKED</span>
+                                                    <Lock className="h-2 w-2 opacity-50" />
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Status Indicators */}
                                         {(cell.stats?.pendingSlots > 0) && (
                                             <div className="absolute bottom-2 right-2 w-1 h-1 rounded-full bg-iris shadow-[0_0_5px_#F44A22] animate-pulse" />
                                         )}
                                         {cell.state === 'BLOCKED' && eventCount === 0 && (
-                                            <div className="absolute inset-0 bg-gray-50/50 pointer-events-none" />
+                                            <div className="absolute inset-0 bg-gray-50/30 pointer-events-none" />
                                         )}
                                     </button>
                                 );
