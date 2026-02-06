@@ -1,10 +1,12 @@
 import { cert, getApp, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { getStorage } from "firebase-admin/storage";
 
 let adminApp;
 let adminDb;
 let adminAuth;
+let adminStorage;
 
 const getAdminConfig = () => {
   const projectId = process.env.FIREBASE_PROJECT_ID;
@@ -40,10 +42,13 @@ const getAdminConfig = () => {
   // Remove debug logs to avoid clutter/leaks
   // console.log("DEBUG: Processed PK Len:", privateKey?.length);
 
+  const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+
   return {
     projectId,
     clientEmail,
     privateKey,
+    storageBucket,
     // Aliases for compatibility
     project_id: projectId,
     client_email: clientEmail,
@@ -95,7 +100,8 @@ export function getAdminApp() {
         projectId: credentials.projectId,
         clientEmail: credentials.clientEmail,
         privateKey: credentials.privateKey
-      })
+      }),
+      storageBucket: credentials.storageBucket
     });
   } catch (err) {
     console.error("FATAL: Failed to initialize Firebase Admin:", err);
@@ -126,4 +132,11 @@ export function getAdminAuth() {
     adminAuth = getAuth(getAdminApp());
   }
   return adminAuth;
+}
+
+export function getAdminStorage() {
+  if (!adminStorage) {
+    adminStorage = getStorage(getAdminApp());
+  }
+  return adminStorage;
 }

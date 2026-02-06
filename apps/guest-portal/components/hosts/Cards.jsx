@@ -5,24 +5,34 @@ import Skeleton from "../ui/Skeleton";
 import ShimmerImage from "../ShimmerImage";
 
 export function VenueCard({ venue, onFollow }) {
+    const imageUrl = venue.image || venue.coverURL || venue.bannerImage || '/events/neon-nights.jpg';
+
+    // Debug log to see why images are missing
+    console.log(`[VenueCard] Rendering ${venue.name}:`, {
+        id: venue.id,
+        image: venue.image,
+        coverURL: venue.coverURL,
+        using: imageUrl
+    });
+
     return (
         <motion.div
             whileHover={{ y: -5 }}
             whileTap={{ scale: 0.98 }}
             className="group relative overflow-hidden rounded-[32px] border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/5 backdrop-blur-xl transition-all duration-300 hover:border-emerald-500/30 dark:hover:border-white/20 hover:shadow-2xl hover:shadow-emerald-500/10 dark:hover:shadow-white/5"
         >
-            <Link href={`/venue/${venue.slug || venue.id}`} className="block">
-                <div className="relative aspect-[4/5] overflow-hidden">
+            <Link href={`/venue/${venue.slug || venue.id}`} className="block relative h-full">
+                <div className="relative aspect-[4/5] w-full overflow-hidden">
                     <ShimmerImage
-                        src={venue.image || venue.coverURL}
-                        alt={venue.name}
+                        src={imageUrl}
+                        alt={venue.name || venue.displayName}
                         fill
                         className="object-cover transition-transform duration-500 group-hover:scale-110"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent z-10" />
 
                     {/* Badges */}
-                    <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
+                    <div className="absolute top-4 right-4 flex flex-col gap-2 items-end z-20">
                         {venue.isVerified && (
                             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white backdrop-blur-md shadow-lg ring-1 ring-white/20">
                                 <BadgeCheck size={16} />
@@ -41,14 +51,14 @@ export function VenueCard({ venue, onFollow }) {
                     </div>
                 </div>
 
-                <div className="absolute bottom-0 left-0 right-0 p-6 space-y-2">
+                <div className="absolute bottom-0 left-0 right-0 p-6 space-y-2 z-20">
                     <div className="flex items-start justify-between">
                         <div>
                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-1">
-                                {venue.neighborhood || venue.area || venue.city}
+                                {venue.neighborhood || venue.area || venue.city || 'Pune, IN'}
                             </p>
                             <h3 className="text-xl font-heading font-black uppercase tracking-tight text-white dark:text-white leading-tight">
-                                {venue.name}
+                                {venue.name || venue.displayName || 'Unnamed Venue'}
                             </h3>
                         </div>
                     </div>
@@ -94,9 +104,9 @@ export function HostCard({ host, onFollow }) {
             <Link href={`/host/${host.slug || host.id}`} className="block">
                 <div className="relative aspect-[4/5] overflow-hidden">
                     {/* Background Cover */}
-                    {host.cover && (
+                    {(host.cover || host.coverURL || host.bannerImage) && (
                         <ShimmerImage
-                            src={host.cover}
+                            src={host.cover || host.coverURL || host.bannerImage}
                             alt={host.name}
                             fill
                             className="object-cover transition-transform duration-500 group-hover:scale-110 opacity-40"

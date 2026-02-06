@@ -54,15 +54,29 @@ export default function VenueDetails({ venue }) {
 
         if (typeof timings === 'object') {
             const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+            // Helper to format timing value (might be string or object)
+            const formatTimeValue = (time) => {
+                if (!time) return null;
+                if (typeof time === 'string') return time;
+                if (typeof time === 'object') {
+                    if (time.closed) return 'Closed';
+                    if (time.open && time.close) return `${time.open} - ${time.close}`;
+                    return JSON.stringify(time); // Fallback
+                }
+                return String(time);
+            };
+
             return (
                 <div className="grid grid-cols-2 gap-x-6 gap-y-2">
                     {days.map(day => {
-                        const time = timings[day] || timings[day.charAt(0).toUpperCase() + day.slice(1)];
-                        if (!time) return null;
+                        const timeValue = timings[day] || timings[day.charAt(0).toUpperCase() + day.slice(1)];
+                        const displayTime = formatTimeValue(timeValue);
+                        if (!displayTime) return null;
                         return (
                             <div key={day} className="flex justify-between">
                                 <span className="text-xs font-bold uppercase text-black/40 dark:text-white/40 capitalize">{day.slice(0, 3)}</span>
-                                <span className="text-xs font-bold text-black/70 dark:text-white/70">{time}</span>
+                                <span className="text-xs font-bold text-black/70 dark:text-white/70">{displayTime}</span>
                             </div>
                         );
                     })}

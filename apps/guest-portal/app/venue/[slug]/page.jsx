@@ -4,7 +4,7 @@ import { getProfilePosts, getProfileHighlights, getProfileStats } from "../../..
 import { listEvents } from "../../../lib/server/eventStore";
 import VenuePageClient from "../../../components/venue/VenuePageClient";
 
-export const revalidate = 60; // Revalidate every 60 seconds
+export const revalidate = 0; // Disable caching for real-time updates during debugging
 
 /**
  * Venue Public Page - Fully Dynamic

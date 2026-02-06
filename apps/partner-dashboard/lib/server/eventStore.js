@@ -557,7 +557,7 @@ export async function updateEvent(eventId, payload) {
   const existingData = doc.data();
 
   // RBAC Enforcement
-  const actorRole = (['club', 'venue', 'OWNER', 'MANAGER', 'OPS'].includes(payload.creatorRole) ? 'venue' : payload.creatorRole);
+  const actorRole = (['club', 'venue', 'owner', 'manager', 'ops', 'OWNER', 'MANAGER', 'OPS'].includes(payload.creatorRole?.toLowerCase() || payload.creatorRole) ? 'venue' : payload.creatorRole);
   const isCreatorDirect = existingData.creatorId === payload.creatorId;
   // Fallback: If creatorId was saved as partnerId, and we receive uid, or vice-versa
   const isCreatorIdMatch = isCreatorDirect || (payload.partnerId && existingData.creatorId === payload.partnerId);
@@ -687,7 +687,7 @@ export async function updateEventLifecycle(eventId, newStatus, context, notes = 
   if (!doc.exists) throw new Error("Event not found");
   const event = doc.data();
 
-  const actorRole = (['club', 'venue', 'OWNER', 'MANAGER', 'OPS'].includes(context.role) ? 'venue' : context.role);
+  const actorRole = (['club', 'venue', 'owner', 'manager', 'ops', 'OWNER', 'MANAGER', 'OPS'].includes(context.role?.toLowerCase() || context.role) ? 'venue' : context.role);
 
   // Role-based validation
   if (actorRole === "host") {
@@ -811,7 +811,7 @@ export async function publishEvent(eventId, context) {
   if (!doc.exists) throw new Error("Event not found");
   const eventData = doc.data();
 
-  const actorRole = (['club', 'venue', 'OWNER', 'MANAGER', 'OPS'].includes(context.role) ? 'venue' : context.role);
+  const actorRole = (['club', 'venue', 'owner', 'manager', 'ops', 'OWNER', 'MANAGER', 'OPS'].includes(context.role?.toLowerCase() || context.role) ? 'venue' : context.role);
 
   // 1. Authorization & Ownership Gate
   if (actorRole !== "venue" && actorRole !== "admin") {
@@ -916,7 +916,7 @@ export async function publishEvent(eventId, context) {
 
     if (!slotRequest || slotRequest.status !== 'approved') {
       // Hardening: If club is approving, we can auto-block the calendar to satisfy the system integrity
-      if (context.role === 'venue' || context.role === 'admin') {
+      if (actorRole === 'venue' || actorRole === 'admin') {
         console.log(`[PublishPipeline][${requestId}] Venue overrides missing hold. Checking for pending requests to resolve...`);
         const { updateCalendarSlot, listSlotRequests, approveSlotRequest } = await import("./slotStore");
 

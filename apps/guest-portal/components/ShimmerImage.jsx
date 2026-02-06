@@ -12,11 +12,14 @@ export default function ShimmerImage({ className = "", wrapperClassName = "", on
   useEffect(() => {
     setLoaded(false);
     setError(false);
+    if (props.src && String(props.src).startsWith('http')) {
+      console.log(`[ShimmerImage] Loading: ${props.alt} -> ${props.src}`);
+    }
     const img = imgRef.current;
     if (img && img.complete && img.naturalWidth > 0 && !isPlaceholder) {
       setLoaded(true);
     }
-  }, [props.src, isPlaceholder]);
+  }, [props.src, isPlaceholder, props.alt]);
 
   const handleLoad = (event) => {
     setLoaded(true);
@@ -33,7 +36,7 @@ export default function ShimmerImage({ className = "", wrapperClassName = "", on
   };
 
   return (
-    <div className={`relative ${wrapperClassName}`}>
+    <div className={`relative ${props.fill ? "h-full w-full" : ""} ${wrapperClassName}`}>
       <div
         className={`absolute inset-0 rounded-[inherit] bg-black/5 dark:bg-white/5 transition-opacity duration-700 ${loaded ? "opacity-0" : "opacity-100"
           }`}
@@ -44,13 +47,17 @@ export default function ShimmerImage({ className = "", wrapperClassName = "", on
       {!isPlaceholder && !error ? (
         <Image
           {...props}
+          unoptimized={props.unoptimized || (props.src && String(props.src).startsWith('http'))}
           ref={imgRef}
           className={`relative z-10 ${className}`}
           onLoad={(event) => {
             handleLoad(event);
             handleComplete(event.target);
           }}
-          onError={() => setError(true)}
+          onError={(e) => {
+            console.error(`[ShimmerImage] Failed to load: ${props.alt}`, props.src);
+            setError(true);
+          }}
         />
       ) : (
         <div className={`relative z-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold uppercase text-zinc-400 ${className}`}>

@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import HostCard, { HostSkeleton } from "../../components/hosts/HostCard";
@@ -47,7 +49,7 @@ export default function DiscoveryPage() {
                 if (activeStatus) params.append("status", activeStatus);
             }
 
-            const res = await fetch(`${endpoint}?${params.toString()}`);
+            const res = await fetch(`${endpoint}?${params.toString()}`, { cache: 'no-store' });
             if (!res.ok) throw new Error(`Failed to load ${activeTab}`);
             const data = await res.json();
             setResults(data);
@@ -103,7 +105,7 @@ export default function DiscoveryPage() {
                             animate={{ opacity: 1, y: 0 }}
                             className="text-5xl md:text-8xl font-heading font-black uppercase tracking-tighter text-black dark:text-white"
                         >
-                            Discover {activeTab}
+                            Explore {activeTab === "venues" ? "" : activeTab}
                         </motion.h1>
                         <motion.p
                             initial={{ opacity: 0, y: 20 }}
@@ -119,18 +121,20 @@ export default function DiscoveryPage() {
 
                     {/* Tab Switcher */}
                     <div className="flex p-1 bg-black/5 dark:bg-white/5 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-full w-fit mx-auto relative z-10 transition-colors">
-                        {["venues", "hosts"].map((tab) => (
+                        {["explore", "hosts"].map((tab) => (
                             <motion.button
                                 key={tab}
                                 whileTap={{ scale: 0.95 }}
                                 onClick={() => {
-                                    setActiveTab(tab);
+                                    setActiveTab(tab === "explore" ? "venues" : "hosts");
                                     clearAll();
                                 }}
-                                className={`relative px-10 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${activeTab === tab ? "text-white dark:text-black" : "text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white"
+                                className={`relative px-10 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${(activeTab === "venues" && tab === "explore") || (activeTab === "hosts" && tab === "hosts")
+                                    ? "text-white dark:text-black"
+                                    : "text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white"
                                     }`}
                             >
-                                {activeTab === tab && (
+                                {((activeTab === "venues" && tab === "explore") || (activeTab === "hosts" && tab === "hosts")) && (
                                     <motion.div
                                         layoutId="tab-pill-discovery"
                                         className="absolute inset-0 bg-black dark:bg-white rounded-full shadow-xl"
@@ -155,7 +159,7 @@ export default function DiscoveryPage() {
                             type="text"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            placeholder={`Search ${activeTab} by name, neighborhood, vibe...`}
+                            placeholder={`Search ${activeTab === "venues" ? "explore" : activeTab} by name, neighborhood, vibe...`}
                             className="w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl py-5 pl-14 pr-6 text-black dark:text-white text-base focus:outline-none focus:ring-2 focus:ring-orange/50 focus:border-orange transition-all placeholder:text-black/20 dark:placeholder:text-white/10"
                         />
                     </div>
@@ -228,8 +232,8 @@ export default function DiscoveryPage() {
                     <div className="py-32 text-center space-y-6 max-w-md mx-auto">
                         <div className="text-6xl mb-4 opacity-50">🌑</div>
                         <h3 className="text-3xl font-heading font-black text-black dark:text-white uppercase tracking-tighter">Quiet Night</h3>
-                        <p className="text-black/40 dark:text-white/40 text-sm font-medium">No {activeTab} match these filters.</p>
-                        <button onClick={clearAll} className="px-10 py-4 rounded-full bg-black dark:bg-white text-white dark:text-black text-[10px] font-bold uppercase tracking-widest shadow-glow">Reset Discovery</button>
+                        <p className="text-black/40 dark:text-white/40 text-sm font-medium">No results match these filters.</p>
+                        <button onClick={clearAll} className="px-10 py-4 rounded-full bg-black dark:bg-white text-white dark:text-black text-[10px] font-bold uppercase tracking-widest shadow-glow">Reset {activeTab === "venues" ? "Explore" : "Hosts"}</button>
                     </div>
                 ) : (
                     <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">

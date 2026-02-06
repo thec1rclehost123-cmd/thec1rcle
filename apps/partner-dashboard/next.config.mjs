@@ -3,45 +3,20 @@ const nextConfig = {
   transpilePackages: ['@c1rcle/core', '@c1rcle/ui'],
   // Disabled optimizePackageImports for framer-motion due to Next.js 14.2.x bug
   typescript: {
-    // Enforce type checking during build for production safety (Fix: Build Safety is Disabled)
     ignoreBuildErrors: false,
   },
   eslint: {
-    // Enforce linting during build for production safety (Temporarily disabled to allow build with existing errors)
     ignoreDuringBuilds: true,
   },
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'firebasestorage.googleapis.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'lh3.googleusercontent.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'api.dicebear.com', // Fix: External Single Point of Failure (Allowing Dicebear)
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'i.pravatar.cc',
-        port: '',
-        pathname: '/**',
-      }
+      { protocol: 'https', hostname: 'firebasestorage.googleapis.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'storage.googleapis.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'thec1rcle-india.firebasestorage.app', pathname: '/**' },
+      { protocol: 'https', hostname: 'lh3.googleusercontent.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'api.dicebear.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'images.unsplash.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'i.pravatar.cc', pathname: '/**' }
     ],
   },
   async headers() {
@@ -68,21 +43,9 @@ const nextConfig = {
   },
   async redirects() {
     return [
-      {
-        source: '/club/:path*',
-        destination: '/venue/:path*',
-        permanent: true,
-      },
-      {
-        source: '/api/club/:path*',
-        destination: '/api/venue/:path*',
-        permanent: true,
-      },
-      {
-        source: '/api/clubs/:path*',
-        destination: '/api/venues/:path*',
-        permanent: true,
-      }
+      { source: '/club/:path*', destination: '/venue/:path*', permanent: true },
+      { source: '/api/club/:path*', destination: '/api/venue/:path*', permanent: true },
+      { source: '/api/clubs/:path*', destination: '/api/venues/:path*', permanent: true }
     ]
   }
 };

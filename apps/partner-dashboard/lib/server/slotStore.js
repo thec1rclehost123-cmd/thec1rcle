@@ -139,7 +139,7 @@ export async function approveSlotRequest(id, approvedBy, notes = "", options = {
     if (!slotRequest) throw new Error("Slot request not found");
     if (slotRequest.status !== "pending") throw new Error("Slot request is not pending");
 
-    const actorRole = (['club', 'venue', 'OWNER', 'MANAGER', 'OPS'].includes(approvedBy.role) ? 'venue' : approvedBy.role);
+    const actorRole = (['club', 'venue', 'owner', 'manager', 'ops', 'OWNER', 'MANAGER', 'OPS'].includes(approvedBy.role?.toLowerCase() || approvedBy.role) ? 'venue' : approvedBy.role);
 
     // Authorization check: User must be a venue staff member or admin, and match the venueId
     if (actorRole !== "admin") {

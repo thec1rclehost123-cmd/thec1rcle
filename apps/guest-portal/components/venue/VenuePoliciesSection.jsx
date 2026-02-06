@@ -72,20 +72,36 @@ export default function VenuePoliciesSection({ venue }) {
                             <div className="pt-8">
                                 <h3 className="text-sm font-black uppercase tracking-[0.3em] text-black/40 dark:text-white/40 mb-8">Hours of Operation</h3>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-                                    {["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => (
-                                        <div key={day} className={`p-4 rounded-2xl border text-center transition-all ${new Date().toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase() === day
+                                    {["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => {
+                                        const timeVal = timings[day];
+                                        // Format timing value - handle objects like { closed: true }
+                                        let displayTime = "Closed";
+                                        if (timeVal) {
+                                            if (typeof timeVal === 'string') {
+                                                displayTime = timeVal;
+                                            } else if (typeof timeVal === 'object') {
+                                                if (timeVal.closed) {
+                                                    displayTime = "Closed";
+                                                } else if (timeVal.open && timeVal.close) {
+                                                    displayTime = `${timeVal.open} - ${timeVal.close}`;
+                                                }
+                                            }
+                                        }
+                                        return (
+                                            <div key={day} className={`p-4 rounded-2xl border text-center transition-all ${new Date().toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase() === day
                                                 ? "bg-red-500/5 border-red-500/20 shadow-sm"
                                                 : "bg-black/[0.01] dark:bg-white/[0.01] border-black/5 dark:border-white/5"
-                                            }`}>
-                                            <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${new Date().toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase() === day
+                                                }`}>
+                                                <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${new Date().toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase() === day
                                                     ? "text-red-500"
                                                     : "text-black/30 dark:text-white/30"
-                                                }`}>{day}</p>
-                                            <p className="text-[11px] font-bold text-black dark:text-white truncate">
-                                                {timings[day] || "Closed"}
-                                            </p>
-                                        </div>
-                                    ))}
+                                                    }`}>{day}</p>
+                                                <p className="text-[11px] font-bold text-black dark:text-white truncate">
+                                                    {displayTime}
+                                                </p>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}

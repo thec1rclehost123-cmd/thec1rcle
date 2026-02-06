@@ -10,7 +10,11 @@ export async function GET(request) {
         const tablesOnly = searchParams.get("tablesOnly") === "true";
 
         const venues = await listVenues({ area, vibe, search, tablesOnly });
-        return NextResponse.json(venues);
+        return NextResponse.json(venues, {
+            headers: {
+                'Cache-Control': 'no-store, max-age=0',
+            }
+        });
     } catch (error) {
         console.error("GET /api/venues error", error);
         return NextResponse.json({ error: "Failed to load venues" }, { status: 500 });

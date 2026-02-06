@@ -1,14 +1,15 @@
 /**
- * THE C1RCLE — Venue Profile Screen
+ * THE C1RCLE — Venue Page Screen (Rebuilt)
  * 
- * Premium venue profile with:
- * - Parallax cover image
- * - Bio & Tags
- * - "Follow" pulse functionality
- * - Upcoming events at this venue
+ * Instagram-style venue profile with:
+ * - Full-width banner hero with logo overlay
+ * - Story highlights strip
+ * - Upcoming Events / Food Menu tabs
+ * - 3x3 Vibe Gallery
+ * - Facilities section
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
     View,
     Text,
@@ -18,6 +19,8 @@ import {
     ActivityIndicator,
     Dimensions,
     Linking,
+    Modal,
+    FlatList,
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -35,93 +38,66 @@ import Animated, {
     Extrapolation,
 } from "react-native-reanimated";
 
-import { colors, radii, shadows } from "@/lib/design/theme";
+import { colors } from "@/lib/design/theme";
 import { useAuthStore } from "@/store/authStore";
-import { useProfileStore } from "@/store/profileStore";
-import { useEventsStore, Event } from "@/store/eventsStore";
-import { getVenue, Venue } from "@/lib/api/venues";
+import { useVenuePageStore, getFacilityEmoji, VenueHighlight } from "@/store/venuePageStore";
 import { PremiumButton } from "@/components/ui/PremiumButton";
-import { Badge } from "@/components/ui/Primitives";
 import { EventCard } from "@/components/ui/EventCard";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const HERO_HEIGHT = SCREEN_HEIGHT * 0.35;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const HERO_HEIGHT = SCREEN_HEIGHT * 0.4;
 
-export default function VenueProfileScreen() {
+export default function VenuePageScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
-
     const { user } = useAuthStore();
-    const { profile, toggleFollowVenue } = useProfileStore();
-    const { events, fetchEvents } = useEventsStore();
 
-    const [venue, setVenue] = useState<Venue | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [venueEvents, setVenueEvents] = useState<Event[]>([]);
+    const {
+        venue,
+        highlights,
+        gallery,
+        menu,
+        facilities,
+        upcomingEvents,
+        loading,
+        error,
+        fetchVenuePage,
+        clearVenuePage,
+    } = useVenuePageStore();
+
+    const [activeTab, setActiveTab] = useState<"events" | "menu">("events");
+    const [storyModal, setStoryModal] = useState<{ highlight: VenueHighlight; index: number } | null>(null);
+    const [menuModal, setMenuModal] = useState(false);
+    const [menuIndex, setMenuIndex] = useState(0);
 
     const scrollY = useSharedValue(0);
-
     const scrollHandler = useAnimatedScrollHandler({
-        onScroll: (event) => {
-            scrollY.value = event.contentOffset.y;
-        },
+        onScroll: (event) => { scrollY.value = event.contentOffset.y; },
     });
 
     useEffect(() => {
-        loadVenueData();
+        if (id) {
+            clearVenuePage();
+            fetchVenuePage(id);
+        }
+        return () => clearVenuePage();
     }, [id]);
 
-    const loadVenueData = async () => {
-        if (!id) return;
-        setLoading(true);
-        const data = await getVenue(id);
-        setVenue(data);
-
-        // Load upcoming events for this venue (Fetch from DB to ensure data availability)
-        if (data) {
-            // Check store first
-            let venueEventsList = events.filter(e => e.venueId === data.id);
-
-            // If store is empty or didn't have them, we could fetch. 
-            // For now, let's try to fetch if local is empty or just simply rely on what we have + a quick fetch
-            // But to avoid complexity, let's just trigger a fetchEvents if we have none
-            if (venueEventsList.length === 0) {
-                await fetchEvents(); // Refresh global events
-                venueEventsList = useEventsStore.getState().events.filter(e => e.venueId === data.id);
-            }
-            setVenueEvents(venueEventsList);
-        }
-        setLoading(false);
-    };
-
-    const isFollowing = profile?.followingVenues?.includes(id || "");
-
-    const handleFollow = async () => {
-        if (!user || !id) {
-            router.push("/(auth)/login");
-            return;
-        }
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        await toggleFollowVenue(user.uid, id);
-    };
-
     const heroImageStyle = useAnimatedStyle(() => {
-        const translateY = interpolate(
-            scrollY.value,
-            [-100, 0, HERO_HEIGHT],
-            [-50, 0, HERO_HEIGHT * 0.5],
-            Extrapolation.CLAMP
-        );
-        const scale = interpolate(
-            scrollY.value,
-            [-100, 0],
-            [1.2, 1],
-            Extrapolation.CLAMP
-        );
-        return {
-            transform: [{ translateY }, { scale }],
-        };
+        const translateY = interpolate(scrollY.value, [-100, 0, HERO_HEIGHT], [-50, 0, HERO_HEIGHT * 0.5], Extrapolation.CLAMP);
+        const scale = interpolate(scrollY.value, [-100, 0], [1.2, 1], Extrapolation.CLAMP);
+        return { transform: [{ translateY }, { scale }] };
     });
+
+    const handleReservation = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        if (venue?.whatsapp) {
+            const message = encodeURIComponent(`Hi, I'd like to make a reservation at ${venue.name || venue.displayName}`);
+            Linking.openURL(`https://wa.me/${venue.whatsapp.replace(/\D/g, "")}?text=${message}`);
+        } else if (venue?.phone) {
+            Linking.openURL(`tel:${venue.phone}`);
+        }
+    };
 
     if (loading) {
         return (
@@ -131,20 +107,24 @@ export default function VenueProfileScreen() {
         );
     }
 
-    if (!venue) {
+    if (error || !venue) {
         return (
             <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>Venue not found</Text>
+                <Text style={styles.errorText}>{error || "Venue not found"}</Text>
                 <PremiumButton onPress={() => router.back()}>Go Back</PremiumButton>
             </View>
         );
     }
 
+    const bannerUrl = venue.bannerImage || venue.coverURL;
+    const logoUrl = venue.logoImage || venue.photoURL;
+    const venueName = venue.displayName || venue.name || "Venue";
+
     return (
         <View style={styles.container}>
-            {/* Header Actions */}
+            {/* Header Back Button */}
             <View style={[styles.headerActions, { top: insets.top + 8 }]}>
-                <Pressable onPress={() => router.back()} style={styles.circleButton}>
+                <Pressable onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="chevron-back" size={24} color="#FFF" />
                 </Pressable>
             </View>
@@ -155,504 +135,399 @@ export default function VenueProfileScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 100 }}
             >
-                {/* 1. POSTER HERO - Inspired by Image 0 & 3 */}
+                {/* HERO SECTION */}
                 <View style={styles.hero}>
                     <Animated.View style={[styles.heroImageWrapper, heroImageStyle]}>
                         <Image
-                            source={{ uri: venue.image || "https://thec1rcle.com/events/placeholder.svg" }}
+                            source={{ uri: bannerUrl || "https://thec1rcle.com/events/placeholder.svg" }}
                             style={styles.heroImage}
                             contentFit="cover"
                         />
                     </Animated.View>
-                    <LinearGradient
-                        colors={["transparent", "rgba(0,0,0,0.4)", "#000"]}
-                        style={styles.heroGradient}
-                    />
+                    <LinearGradient colors={["transparent", "rgba(0,0,0,0.6)", "#000"]} style={styles.heroGradient} />
 
-                    {/* Marquee Band (Static for performance, or animated if library available) */}
-                    <View style={styles.marqueeBand}>
-                        <Text style={styles.marqueeText}>{venue.name.toUpperCase()} • LIVE • {venue.city?.toUpperCase() || 'HOST'} • {venue.name.toUpperCase()} • </Text>
-                    </View>
-
-                    <View style={styles.heroContent}>
-                        <Animated.View entering={FadeIn.delay(200)} style={styles.heroBadgeRow}>
-                            <Badge variant="iris" size="sm">{venue.neighborhood || venue.area}</Badge>
-                            {venue.isVerified && (
-                                <View style={styles.verifiedBadge}>
-                                    <Ionicons name="checkmark-circle-outline" size={14} color="#F44A22" />
-                                    <Text style={styles.verifiedText}>OFFICIAL</Text>
-                                </View>
-                            )}
-                        </Animated.View>
-                        <Text style={styles.venueName}>{venue.name.toUpperCase()}</Text>
-                        <Text style={styles.taglineText}>"{venue.tagline || 'Experience the Extraordinary'}"</Text>
-                    </View>
-                </View>
-
-                {/* 2. ACCESS TICKETS - Inspired by Image 1 */}
-                <View style={styles.content}>
-                    <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.sectionTitle}>SELECT ACCESS</Text>
-                    </View>
-
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.ticketsScroll}
-                    >
-                        {/* Ticket 1 */}
-                        <View style={[styles.ticketCard, { backgroundColor: '#161616' }]}>
-                            <View style={styles.ticketMain}>
-                                <Text style={styles.ticketType}>GENERAL ENTRY</Text>
-                                <Text style={styles.ticketPrice}>₹1,000</Text>
-                            </View>
-                            <View style={styles.ticketPerforation}>
-                                {[...Array(6)].map((_, i) => <View key={i} style={styles.perfPoint} />)}
-                            </View>
-                            <Pressable style={styles.ticketAction}>
-                                <Text style={styles.ticketActionText}>GET</Text>
-                            </Pressable>
+                    {/* Logo Overlay */}
+                    {logoUrl && (
+                        <View style={styles.logoContainer}>
+                            <Image source={{ uri: logoUrl }} style={styles.logo} contentFit="cover" />
                         </View>
-
-                        {/* Ticket 2 - Featured */}
-                        <View style={[styles.ticketCard, { backgroundColor: '#A3E635' }]}>
-                            <View style={styles.ticketMain}>
-                                <Text style={[styles.ticketType, { color: '#000' }]}>VIP PASS</Text>
-                                <Text style={[styles.ticketPrice, { color: '#000' }]}>₹3,500</Text>
-                            </View>
-                            <View style={[styles.ticketPerforation, { backgroundColor: 'rgba(0,0,0,0.1)' }]}>
-                                {[...Array(6)].map((_, i) => <View key={i} style={[styles.perfPoint, { backgroundColor: '#000' }]} />)}
-                            </View>
-                            <Pressable style={[styles.ticketAction, { backgroundColor: '#000' }]}>
-                                <Text style={[styles.ticketActionText, { color: '#A3E635' }]}>VIP</Text>
-                            </Pressable>
-                        </View>
-                    </ScrollView>
-
-                    {/* Follow Action */}
-                    <View style={styles.followRow}>
-                        <PremiumButton
-                            variant="primary"
-                            style={styles.followButton}
-                            onPress={handleFollow}
-                        >
-                            {isFollowing ? "FOLLOWING" : "FOLLOW VENUE"}
-                        </PremiumButton>
-                        <Pressable style={styles.shareIconButton}>
-                            <Ionicons name="share-outline" size={20} color="#FFF" />
-                        </Pressable>
-                    </View>
-
-                    {/* Vibe Section */}
-                    {venue.tags && venue.tags.length > 0 && (
-                        <Animated.View entering={FadeInDown.delay(300)} style={styles.section}>
-                            <Text style={styles.sectionTitle}>THE VIBE</Text>
-                            <View style={styles.tagsContainer}>
-                                {venue.tags.map((tag, i) => (
-                                    <View key={i} style={styles.tag}>
-                                        <Text style={styles.tagText}>{tag.toUpperCase()}</Text>
-                                    </View>
-                                ))}
-                            </View>
-                        </Animated.View>
                     )}
 
-                    {/* Timings & Rules Grid */}
-                    <Animated.View entering={FadeInDown.delay(450)} style={styles.gridRow}>
-                        <View style={styles.gridCard}>
-                            <Text style={styles.gridCardTitle}>Timings</Text>
-                            {venue.timings ? (
-                                Object.entries(venue.timings).slice(0, 3).map(([day, time]) => (
-                                    <View key={day} style={styles.timingRow}>
-                                        <Text style={styles.timingDay}>{day.toUpperCase()}</Text>
-                                        <Text style={styles.timingTime}>{time as string}</Text>
-                                    </View>
-                                ))
-                            ) : (
-                                <Text style={styles.emptyText}>Check schedule</Text>
+                    {/* Venue Info */}
+                    <View style={styles.heroContent}>
+                        <View style={styles.badgeRow}>
+                            {venue.isVerified && (
+                                <View style={styles.verifiedBadge}>
+                                    <Ionicons name="checkmark-circle" size={14} color="#A3E635" />
+                                    <Text style={styles.verifiedText}>VERIFIED</Text>
+                                </View>
+                            )}
+                            {venue.neighborhood && (
+                                <View style={styles.locationBadge}>
+                                    <Text style={styles.locationText}>{venue.neighborhood}</Text>
+                                </View>
                             )}
                         </View>
-                        <View style={styles.gridCard}>
-                            <Text style={styles.gridCardTitle}>House Rules</Text>
-                            {venue.rules ? (
-                                venue.rules.slice(0, 2).map((rule, i) => (
-                                    <View key={i} style={styles.ruleRow}>
-                                        <Ionicons name="shield-checkmark" size={14} color={colors.iris} />
-                                        <Text style={styles.ruleText} numberOfLines={1}>{rule}</Text>
-                                    </View>
-                                ))
-                            ) : (
-                                <Text style={styles.emptyText}>Standard rules apply</Text>
-                            )}
-                        </View>
-                    </Animated.View>
+                        <Text style={styles.venueName}>{venueName}</Text>
+                        {venue.tagline && <Text style={styles.tagline}>"{venue.tagline}"</Text>}
 
-                    {/* Upcoming Events */}
-                    <Animated.View entering={FadeInDown.delay(500)} style={styles.section}>
-                        <View style={styles.sectionHeaderRow}>
-                            <Text style={styles.sectionTitle}>UPCOMING EVENTS</Text>
-                            {venueEvents.length > 0 && <Text style={styles.seeAll}>See All</Text>}
-                        </View>
-                        {venueEvents.length > 0 ? (
-                            <ScrollView
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={{ paddingHorizontal: 24, gap: 12 }}
-                            >
-                                {venueEvents.map((event, i) => (
-                                    <View key={event.id} style={{ width: 160 }}>
+                        {/* Timings */}
+                        {venue.timings && Object.keys(venue.timings).length > 0 && (
+                            <View style={styles.timingsRow}>
+                                <Ionicons name="time-outline" size={14} color="rgba(255,255,255,0.6)" />
+                                <Text style={styles.timingsText}>
+                                    {Object.entries(venue.timings).slice(0, 1).map(([day, time]) => `${day}: ${time}`).join(", ")}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* GET RESERVATION Button */}
+                    {(venue.hasReservation || venue.whatsapp) && (
+                        <Pressable style={styles.reservationButton} onPress={handleReservation}>
+                            <Text style={styles.reservationButtonText}>GET RESERVATION</Text>
+                        </Pressable>
+                    )}
+                </View>
+
+                {/* HIGHLIGHTS STRIP */}
+                {highlights.length > 0 && (
+                    <Animated.View entering={FadeInDown.delay(100)} style={styles.highlightsSection}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.highlightsScroll}>
+                            {highlights.map((highlight) => (
+                                <Pressable
+                                    key={highlight.id}
+                                    onPress={() => {
+                                        if (highlight.images.length > 0) {
+                                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                            setStoryModal({ highlight, index: 0 });
+                                        }
+                                    }}
+                                    style={styles.highlightItem}
+                                >
+                                    <View style={styles.highlightRing}>
+                                        <Image source={{ uri: highlight.coverImage || highlight.images[0] }} style={styles.highlightImage} contentFit="cover" />
+                                    </View>
+                                    <Text style={styles.highlightTitle} numberOfLines={1}>{highlight.title}</Text>
+                                </Pressable>
+                            ))}
+                        </ScrollView>
+                    </Animated.View>
+                )}
+
+                {/* TAB BUTTONS */}
+                <Animated.View entering={FadeInDown.delay(200)} style={styles.tabContainer}>
+                    <Pressable
+                        style={[styles.tabButton, activeTab === "events" && styles.tabButtonActive]}
+                        onPress={() => setActiveTab("events")}
+                    >
+                        <Text style={[styles.tabButtonText, activeTab === "events" && styles.tabButtonTextActive]}>
+                            UPCOMING EVENTS
+                        </Text>
+                    </Pressable>
+                    <Pressable
+                        style={[styles.tabButton, activeTab === "menu" && styles.tabButtonActive]}
+                        onPress={() => setActiveTab("menu")}
+                    >
+                        <Text style={[styles.tabButtonText, activeTab === "menu" && styles.tabButtonTextActive]}>
+                            FOOD MENU
+                        </Text>
+                    </Pressable>
+                </Animated.View>
+
+                {/* TAB CONTENT */}
+                <View style={styles.tabContent}>
+                    {activeTab === "events" ? (
+                        upcomingEvents.length > 0 ? (
+                            <View style={styles.eventsGrid}>
+                                {upcomingEvents.map((event) => (
+                                    <View key={event.id} style={styles.eventCardWrapper}>
                                         <EventCard
                                             id={event.id}
                                             title={event.title}
-                                            venue={event.venue || venue?.name || "Venue"}
-                                            date={new Date(event.startDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                            venue={venueName}
+                                            date={new Date(event.startDate).toLocaleDateString([], { month: "short", day: "numeric" })}
                                             imageUrl={event.posterUrl || event.coverImage || ""}
                                             price={event.priceDisplay}
                                             category={event.category}
-                                            isTonight={event.isTonight}
-                                            isSoldOut={false}
                                             variant="grid"
                                             width="100%"
                                         />
                                     </View>
                                 ))}
-                            </ScrollView>
-                        ) : (
-                            <View style={styles.emptyEvents}>
-                                <Ionicons name="calendar-outline" size={32} color="rgba(255,255,255,0.2)" />
-                                <Text style={styles.emptyText}>No upcoming events scheduled.</Text>
                             </View>
-                        )}
+                        ) : (
+                            <View style={styles.emptyState}>
+                                <Ionicons name="calendar-outline" size={48} color="rgba(255,255,255,0.2)" />
+                                <Text style={styles.emptyText}>No upcoming events</Text>
+                            </View>
+                        )
+                    ) : (
+                        menu.length > 0 ? (
+                            <Pressable
+                                style={styles.menuPreview}
+                                onPress={() => { setMenuIndex(0); setMenuModal(true); }}
+                            >
+                                <Image source={{ uri: menu[0].imageUrl }} style={styles.menuImage} contentFit="cover" />
+                                <View style={styles.menuOverlay}>
+                                    <Ionicons name="expand-outline" size={32} color="#FFF" />
+                                    <Text style={styles.menuOverlayText}>View Full Menu ({menu.length} pages)</Text>
+                                </View>
+                            </Pressable>
+                        ) : (
+                            <View style={styles.emptyState}>
+                                <Ionicons name="restaurant-outline" size={48} color="rgba(255,255,255,0.2)" />
+                                <Text style={styles.emptyText}>Menu coming soon</Text>
+                            </View>
+                        )
+                    )}
+                </View>
+
+                {/* VIBE GALLERY */}
+                {gallery.length > 0 && (
+                    <Animated.View entering={FadeInDown.delay(300)} style={styles.gallerySection}>
+                        <Text style={styles.sectionTitle}>THE VIBE</Text>
+                        <View style={styles.galleryGrid}>
+                            {gallery.slice(0, 9).map((photo, idx) => (
+                                <View key={photo.id} style={styles.galleryItem}>
+                                    <Image source={{ uri: photo.imageUrl }} style={styles.galleryImage} contentFit="cover" />
+                                </View>
+                            ))}
+                        </View>
                     </Animated.View>
-                </View >
-            </Animated.ScrollView >
-        </View >
+                )}
+
+                {/* FACILITIES */}
+                {facilities.length > 0 && (
+                    <Animated.View entering={FadeInDown.delay(400)} style={styles.facilitiesSection}>
+                        <Text style={styles.sectionTitle}>FACILITIES</Text>
+                        <View style={styles.facilitiesGrid}>
+                            {facilities.map((facility) => (
+                                <View key={facility.id} style={styles.facilityItem}>
+                                    <Text style={styles.facilityEmoji}>{getFacilityEmoji(facility.icon)}</Text>
+                                    <Text style={styles.facilityName}>{facility.name}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </Animated.View>
+                )}
+
+                {/* ADDRESS */}
+                {venue.address && (
+                    <Animated.View entering={FadeInDown.delay(500)} style={styles.addressSection}>
+                        <Pressable
+                            style={styles.addressCard}
+                            onPress={() => {
+                                const query = encodeURIComponent(venue.address || venueName);
+                                Linking.openURL(`https://maps.google.com/?q=${query}`);
+                            }}
+                        >
+                            <Ionicons name="location-outline" size={24} color="#A3E635" />
+                            <View style={styles.addressInfo}>
+                                <Text style={styles.addressText}>{venue.address}</Text>
+                                <Text style={styles.addressHint}>Tap to open in Maps</Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+                        </Pressable>
+                    </Animated.View>
+                )}
+            </Animated.ScrollView>
+
+            {/* STORY MODAL */}
+            <StoryModal
+                visible={!!storyModal}
+                highlight={storyModal?.highlight || null}
+                initialIndex={storyModal?.index || 0}
+                onClose={() => setStoryModal(null)}
+            />
+
+            {/* MENU MODAL */}
+            <MenuModal
+                visible={menuModal}
+                menuItems={menu}
+                initialIndex={menuIndex}
+                onClose={() => setMenuModal(false)}
+            />
+        </View>
+    );
+}
+
+// Story Viewer Modal
+function StoryModal({ visible, highlight, initialIndex, onClose }: { visible: boolean; highlight: VenueHighlight | null; initialIndex: number; onClose: () => void }) {
+    const [index, setIndex] = useState(initialIndex);
+    const insets = useSafeAreaInsets();
+
+    useEffect(() => { setIndex(initialIndex); }, [initialIndex]);
+
+    if (!highlight) return null;
+
+    return (
+        <Modal visible={visible} animationType="fade" statusBarTranslucent>
+            <View style={{ flex: 1, backgroundColor: "#000" }}>
+                <View style={[styles.storyHeader, { paddingTop: insets.top + 8 }]}>
+                    <View style={styles.storyProgress}>
+                        {highlight.images.map((_, i) => (
+                            <View key={i} style={[styles.progressBar, i === index && styles.progressBarActive]} />
+                        ))}
+                    </View>
+                    <Pressable onPress={onClose} style={styles.storyClose}>
+                        <Ionicons name="close" size={28} color="#FFF" />
+                    </Pressable>
+                </View>
+                <Pressable
+                    style={styles.storyContent}
+                    onPress={(e) => {
+                        const x = e.nativeEvent.locationX;
+                        if (x < SCREEN_WIDTH / 2) {
+                            setIndex(Math.max(0, index - 1));
+                        } else {
+                            if (index < highlight.images.length - 1) {
+                                setIndex(index + 1);
+                            } else {
+                                onClose();
+                            }
+                        }
+                    }}
+                >
+                    <Image source={{ uri: highlight.images[index] }} style={styles.storyImage} contentFit="contain" />
+                </Pressable>
+                <View style={[styles.storyFooter, { paddingBottom: insets.bottom + 16 }]}>
+                    <Text style={styles.storyTitle}>{highlight.title}</Text>
+                    <Text style={styles.storyCounter}>{index + 1} / {highlight.images.length}</Text>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
+// Menu Viewer Modal
+function MenuModal({ visible, menuItems, initialIndex, onClose }: { visible: boolean; menuItems: any[]; initialIndex: number; onClose: () => void }) {
+    const [index, setIndex] = useState(initialIndex);
+    const insets = useSafeAreaInsets();
+
+    useEffect(() => { setIndex(initialIndex); }, [initialIndex]);
+
+    return (
+        <Modal visible={visible} animationType="slide" statusBarTranslucent>
+            <View style={{ flex: 1, backgroundColor: "#000" }}>
+                <View style={[styles.menuHeader, { paddingTop: insets.top + 8 }]}>
+                    <Text style={styles.menuHeaderText}>Menu - Page {index + 1} of {menuItems.length}</Text>
+                    <Pressable onPress={onClose}>
+                        <Ionicons name="close" size={28} color="#FFF" />
+                    </Pressable>
+                </View>
+                <FlatList
+                    data={menuItems}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    initialScrollIndex={initialIndex}
+                    getItemLayout={(_, i) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * i, index: i })}
+                    onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH))}
+                    renderItem={({ item }) => (
+                        <ScrollView style={{ width: SCREEN_WIDTH }} contentContainerStyle={{ alignItems: "center", padding: 16 }}>
+                            <Image source={{ uri: item.imageUrl }} style={{ width: SCREEN_WIDTH - 32, height: SCREEN_HEIGHT * 0.75 }} contentFit="contain" />
+                        </ScrollView>
+                    )}
+                    keyExtractor={(item) => item.id}
+                />
+                <View style={[styles.menuFooter, { paddingBottom: insets.bottom + 16 }]}>
+                    {menuItems.map((_, i) => (
+                        <View key={i} style={[styles.menuDot, i === index && styles.menuDotActive]} />
+                    ))}
+                </View>
+            </View>
+        </Modal>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "#000",
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: "#000",
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 40,
-    },
-    errorText: {
-        color: "#FFF",
-        fontSize: 18,
-        marginBottom: 20,
-    },
-    headerActions: {
-        position: "absolute",
-        left: 16,
-        zIndex: 10,
-    },
-    circleButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: "rgba(0,0,0,0.5)",
-        justifyContent: "center",
-        alignItems: "center",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.1)",
-    },
-    hero: {
-        height: SCREEN_HEIGHT * 0.55,
-        overflow: "hidden",
-        justifyContent: "flex-end",
-    },
-    heroImageWrapper: {
-        ...StyleSheet.absoluteFillObject,
-    },
-    heroImage: {
-        width: "100%",
-        height: "100%",
-    },
-    heroGradient: {
-        ...StyleSheet.absoluteFillObject,
-    },
-    marqueeBand: {
-        position: "absolute",
-        top: '40%',
-        backgroundColor: "#F44A22",
-        paddingVertical: 12,
-        width: '150%',
-        transform: [{ rotate: '-10deg' }, { translateX: -50 }],
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.5,
-        shadowRadius: 20,
-        elevation: 10,
-    },
-    marqueeText: {
-        color: "#FFF",
-        fontSize: 12,
-        fontWeight: "900",
-        letterSpacing: 4,
-    },
-    heroContent: {
-        padding: 24,
-        paddingBottom: 32,
-    },
-    heroBadgeRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-        marginBottom: 12,
-    },
-    verifiedBadge: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 4,
-        backgroundColor: "rgba(244, 74, 34, 0.1)",
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 4,
-        borderWidth: 1,
-        borderColor: "rgba(244, 74, 34, 0.2)",
-    },
-    verifiedText: {
-        color: "#F44A22",
-        fontSize: 10,
-        fontWeight: "900",
-        letterSpacing: 1,
-    },
-    venueName: {
-        color: "#FFF",
-        fontSize: 52,
-        fontWeight: "900",
-        letterSpacing: -2,
-        lineHeight: 48,
-    },
-    taglineText: {
-        color: "rgba(255,255,255,0.6)",
-        fontSize: 14,
-        fontWeight: "600",
-        marginTop: 12,
-        fontStyle: "italic",
-    },
-    content: {
-        paddingTop: 24,
-    },
-    section: {
-        paddingHorizontal: 24,
-        marginBottom: 32,
-    },
-    sectionTitle: {
-        color: "#F44A22",
-        fontSize: 12,
-        fontWeight: "900",
-        letterSpacing: 3,
-        marginBottom: 16,
-        paddingHorizontal: 24,
-    },
-    ticketsScroll: {
-        paddingHorizontal: 24,
-        gap: 16,
-        paddingBottom: 8,
-    },
-    ticketCard: {
-        width: 280,
-        height: 120,
-        borderRadius: 20,
-        flexDirection: "row",
-        overflow: "hidden",
-    },
-    ticketMain: {
-        flex: 1,
-        padding: 20,
-        justifyContent: "space-between",
-    },
-    ticketType: {
-        color: "#FFF",
-        fontSize: 16,
-        fontWeight: "900",
-    },
-    ticketPrice: {
-        color: "#A3E635",
-        fontSize: 24,
-        fontWeight: "900",
-    },
-    ticketPerforation: {
-        width: 20,
-        height: "100%",
-        backgroundColor: "rgba(255,255,255,0.05)",
-        justifyContent: "center",
-        alignItems: "center",
-        gap: 4,
-    },
-    perfPoint: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: "#000",
-    },
-    ticketAction: {
-        width: 60,
-        height: "100%",
-        backgroundColor: "#A3E635",
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    ticketActionText: {
-        color: "#000",
-        fontSize: 14,
-        fontWeight: "900",
-        transform: [{ rotate: '90deg' }],
-    },
-    followRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-        paddingHorizontal: 24,
-        marginVertical: 32,
-    },
-    followButton: {
-        flex: 1,
-    },
-    shareIconButton: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: "#161616",
-        justifyContent: "center",
-        alignItems: "center",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.1)",
-    },
-    tagsContainer: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: 8,
-    },
-    tag: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 12,
-        backgroundColor: "rgba(255,255,255,0.05)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.1)",
-    },
-    tagText: {
-        color: "#FFF",
-        fontSize: 11,
-        fontWeight: "700",
-        letterSpacing: 1,
-    },
-    gridRow: {
-        flexDirection: "row",
-        gap: 12,
-        paddingHorizontal: 24,
-        marginBottom: 32,
-    },
-    gridCard: {
-        flex: 1,
-        backgroundColor: "rgba(255,255,255,0.05)",
-        padding: 16,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.1)",
-    },
-    gridCardTitle: {
-        color: "rgba(255,255,255,0.4)",
-        fontSize: 10,
-        fontWeight: "900",
-        marginBottom: 12,
-        textTransform: "uppercase",
-        letterSpacing: 1.5,
-    },
-    timingRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginBottom: 6,
-    },
-    timingDay: {
-        color: "rgba(255,255,255,0.7)",
-        fontSize: 11,
-        fontWeight: "600",
-    },
-    timingTime: {
-        color: "#FFF",
-        fontSize: 11,
-        fontWeight: "900",
-    },
-    ruleRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-        marginBottom: 8,
-    },
-    ruleText: {
-        color: "rgba(255,255,255,0.7)",
-        fontSize: 12,
-        fontWeight: "500",
-    },
-    sectionHeaderRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 8,
-    },
-    seeAll: {
-        color: "#F44A22",
-        fontSize: 12,
-        fontWeight: "800",
-        paddingRight: 24,
-    },
-    eventItem: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: "#111",
-        padding: 12,
-        borderRadius: 16,
-        marginBottom: 12,
-        marginHorizontal: 24,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.05)",
-    },
-    eventThumb: {
-        width: 60,
-        height: 60,
-        borderRadius: 12,
-    },
-    eventInfo: {
-        flex: 1,
-        marginLeft: 16,
-    },
-    eventTitle: {
-        color: "#FFF",
-        fontSize: 16,
-        fontWeight: "700",
-        marginBottom: 4,
-    },
-    eventDate: {
-        color: "rgba(255,255,255,0.5)",
-        fontSize: 13,
-    },
-    emptyText: {
-        color: "rgba(255,255,255,0.4)",
-        fontSize: 14,
-        fontStyle: "italic",
-        paddingHorizontal: 24,
-    },
-    emptyEvents: {
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-        backgroundColor: "rgba(255,255,255,0.02)",
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.05)",
-    },
+    container: { flex: 1, backgroundColor: "#000" },
+    loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#000" },
+    errorContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40, backgroundColor: "#000" },
+    errorText: { color: "#FFF", fontSize: 16, marginBottom: 20, textAlign: "center" },
+
+    headerActions: { position: "absolute", left: 16, zIndex: 10 },
+    backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },
+
+    hero: { height: HERO_HEIGHT + 60, overflow: "hidden", justifyContent: "flex-end" },
+    heroImageWrapper: { ...StyleSheet.absoluteFillObject },
+    heroImage: { width: "100%", height: "100%" },
+    heroGradient: { ...StyleSheet.absoluteFillObject },
+
+    logoContainer: { position: "absolute", top: 100, left: 24, width: 72, height: 72, borderRadius: 16, overflow: "hidden", borderWidth: 2, borderColor: "rgba(255,255,255,0.2)" },
+    logo: { width: "100%", height: "100%" },
+
+    heroContent: { padding: 24, paddingBottom: 80 },
+    badgeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+    verifiedBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(163,230,53,0.1)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+    verifiedText: { color: "#A3E635", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+    locationBadge: { backgroundColor: "rgba(255,255,255,0.1)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
+    locationText: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "600" },
+    venueName: { color: "#FFF", fontSize: 36, fontWeight: "900", letterSpacing: -1 },
+    tagline: { color: "rgba(255,255,255,0.6)", fontSize: 14, fontStyle: "italic", marginTop: 4 },
+    timingsRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+    timingsText: { color: "rgba(255,255,255,0.6)", fontSize: 12 },
+
+    reservationButton: { position: "absolute", right: 24, bottom: 24, backgroundColor: "#A3E635", paddingHorizontal: 20, paddingVertical: 14, borderRadius: 12 },
+    reservationButtonText: { color: "#000", fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+
+    highlightsSection: { paddingVertical: 16 },
+    highlightsScroll: { paddingHorizontal: 20, gap: 16 },
+    highlightItem: { alignItems: "center", width: 72 },
+    highlightRing: { width: 68, height: 68, borderRadius: 34, padding: 3, backgroundColor: "transparent", borderWidth: 2, borderColor: "#A3E635" },
+    highlightImage: { width: "100%", height: "100%", borderRadius: 32 },
+    highlightTitle: { color: "rgba(255,255,255,0.7)", fontSize: 11, marginTop: 6, textAlign: "center" },
+
+    tabContainer: { flexDirection: "row", marginHorizontal: 20, marginTop: 8, marginBottom: 16, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 4 },
+    tabButton: { flex: 1, paddingVertical: 12, alignItems: "center", borderRadius: 8 },
+    tabButtonActive: { backgroundColor: "#A3E635" },
+    tabButtonText: { color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+    tabButtonTextActive: { color: "#000" },
+
+    tabContent: { marginHorizontal: 20, minHeight: 200 },
+    eventsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+    eventCardWrapper: { width: (SCREEN_WIDTH - 52) / 2 },
+    emptyState: { alignItems: "center", justifyContent: "center", paddingVertical: 48 },
+    emptyText: { color: "rgba(255,255,255,0.4)", fontSize: 14, marginTop: 12 },
+
+    menuPreview: { aspectRatio: 0.7, borderRadius: 16, overflow: "hidden" },
+    menuImage: { width: "100%", height: "100%" },
+    menuOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
+    menuOverlayText: { color: "#FFF", fontSize: 14, fontWeight: "600", marginTop: 8 },
+
+    gallerySection: { marginTop: 32, paddingHorizontal: 20 },
+    sectionTitle: { color: "#A3E635", fontSize: 11, fontWeight: "900", letterSpacing: 2, marginBottom: 12 },
+    galleryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
+    galleryItem: { width: (SCREEN_WIDTH - 48) / 3, aspectRatio: 1, borderRadius: 8, overflow: "hidden" },
+    galleryImage: { width: "100%", height: "100%" },
+
+    facilitiesSection: { marginTop: 32, paddingHorizontal: 20 },
+    facilitiesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    facilityItem: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.05)", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
+    facilityEmoji: { fontSize: 16 },
+    facilityName: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600" },
+
+    addressSection: { marginTop: 32, paddingHorizontal: 20 },
+    addressCard: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "rgba(255,255,255,0.05)", padding: 16, borderRadius: 16 },
+    addressInfo: { flex: 1 },
+    addressText: { color: "#FFF", fontSize: 14, fontWeight: "500" },
+    addressHint: { color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 },
+
+    storyHeader: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingHorizontal: 16 },
+    storyProgress: { flexDirection: "row", gap: 4, marginBottom: 12 },
+    progressBar: { flex: 1, height: 2, backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 1 },
+    progressBarActive: { backgroundColor: "#FFF" },
+    storyClose: { alignSelf: "flex-end" },
+    storyContent: { flex: 1, justifyContent: "center", alignItems: "center" },
+    storyImage: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.7 },
+    storyFooter: { alignItems: "center", paddingHorizontal: 16 },
+    storyTitle: { color: "#FFF", fontSize: 18, fontWeight: "700" },
+    storyCounter: { color: "rgba(255,255,255,0.5)", fontSize: 12, marginTop: 4 },
+
+    menuHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12 },
+    menuHeaderText: { color: "#FFF", fontSize: 16, fontWeight: "600" },
+    menuFooter: { flexDirection: "row", justifyContent: "center", gap: 8, paddingTop: 16 },
+    menuDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.3)" },
+    menuDotActive: { backgroundColor: "#FFF", width: 24 },
 });
