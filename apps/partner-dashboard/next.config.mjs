@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@c1rcle/core', '@c1rcle/ui'],
-  // Disabled optimizePackageImports for framer-motion due to Next.js 14.2.x bug
+  transpilePackages: ['@c1rcle/core', '@c1rcle/ui', 'framer-motion', 'lucide-react'],
+  experimental: {
+    optimizePackageImports: ['lucide-react'], // Explicitly excluding framer-motion if it's the culprit
+  },
   typescript: {
     ignoreBuildErrors: false,
   },

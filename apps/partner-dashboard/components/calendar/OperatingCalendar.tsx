@@ -637,7 +637,7 @@ function SidePanel({
                                                         {isAnonymized && <Lock className="h-3 w-3 opacity-30 text-[var(--text-tertiary)]" />}
                                                     </div>
                                                     <h3 className="text-sm font-bold truncate leading-tight mb-2 text-[var(--text-primary)]">
-                                                        {isAnonymized ? 'RESERVED' : e.title.toUpperCase()}
+                                                        {isAnonymized ? 'RESERVED' : (e.title?.toUpperCase() || 'UNTITLED')}
                                                     </h3>
                                                     {!isAnonymized && (
                                                         <div className="flex items-center gap-2 mt-auto">
