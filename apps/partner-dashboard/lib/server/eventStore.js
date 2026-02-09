@@ -851,8 +851,8 @@ export async function publishEvent(eventId, context) {
 
   if (!eventData.title || eventData.title.trim().length < 3) {
     validationErrors.push("Title must be at least 3 characters");
-  } else if (eventData.title.toLowerCase().includes("untitled") || eventData.title.toLowerCase().includes("test event")) {
-    validationErrors.push("Event title must be descriptive (cannot be 'Untitled' or 'Test Event')");
+  } else if (eventData.title.toLowerCase().includes("untitled")) {
+    validationErrors.push("Event title must be descriptive (cannot be 'Untitled')");
   }
 
   if (!eventData.startDate) {
@@ -860,7 +860,7 @@ export async function publishEvent(eventId, context) {
   }
 
   const location = (eventData.location || eventData.venue || eventData.venueName || "").trim();
-  if (!location || location.toLowerCase() === "tbd" || location.length < 3) {
+  if (!location || location.length < 3) {
     validationErrors.push("A specific location or venue is required for publication");
   }
 

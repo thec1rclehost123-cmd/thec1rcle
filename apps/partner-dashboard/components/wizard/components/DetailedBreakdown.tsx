@@ -15,40 +15,54 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
         const quantity = Number(tier.quantity) || 0;
         const value = price * quantity;
 
-        // Commission
-        const commRate = tier.overrideCommission
-            ? (Number(tier.promoterCommission) || 0)
-            : (Number(formData.commission) || 15);
-        const commType = tier.overrideCommission
-            ? (tier.promoterCommissionType || "percent")
-            : (formData.commissionType || "percent");
+        // For RSVP/free events or if promoters are disabled, no commission/discount
+        const isRSVP = formData.isRSVP === true;
+        const promotersEnabled = formData.promotersEnabled === true;
+        const isFree = price === 0;
 
-        const commTotal = commType === "percent"
-            ? (value * commRate / 100)
-            : (commRate * quantity);
+        // Commission calculation - only if promoters enabled AND price > 0
+        let commTotal = 0;
+        let commRate = 0;
+        let commType: string = "percent";
 
-        // Discount
-        let discRate = 0;
-        let discType = "percent";
+        if (promotersEnabled && !isFree) {
+            commRate = tier.overrideCommission
+                ? (Number(tier.promoterCommission) || 0)
+                : (Number(formData.commission) || 15);
+            commType = tier.overrideCommission
+                ? (tier.promoterCommissionType || "percent")
+                : (formData.commissionType || "percent");
 
-        if (type === 'ticket') {
-            discRate = tier.overrideDiscount
-                ? (Number(tier.promoterDiscount) || 0)
-                : (Number(formData.discount) || 10);
-            discType = tier.overrideDiscount
-                ? (tier.promoterDiscountType || "percent")
-                : (formData.discountType || "percent");
-        } else {
-            // Tables have buyerDiscountEnabled flag
-            if (tier.buyerDiscountEnabled) {
-                discRate = Number(tier.promoterDiscount) || 0;
-                discType = tier.promoterDiscountType || "percent";
-            }
+            commTotal = commType === "percent"
+                ? (value * commRate / 100)
+                : (commRate * quantity);
         }
 
-        const discTotal = discType === "percent"
-            ? (value * discRate / 100)
-            : (discRate * quantity);
+        // Discount calculation - only if buyer discounts enabled AND price > 0 AND not RSVP
+        let discRate = 0;
+        let discType = "percent";
+        let discTotal = 0;
+
+        if (promotersEnabled && formData.buyerDiscountsEnabled && !isFree && !isRSVP) {
+            if (type === 'ticket') {
+                discRate = tier.overrideDiscount
+                    ? (Number(tier.promoterDiscount) || 0)
+                    : (Number(formData.discount) || 10);
+                discType = tier.overrideDiscount
+                    ? (tier.promoterDiscountType || "percent")
+                    : (formData.discountType || "percent");
+            } else {
+                // Tables have buyerDiscountEnabled flag
+                if (tier.buyerDiscountEnabled) {
+                    discRate = Number(tier.promoterDiscount) || 0;
+                    discType = tier.promoterDiscountType || "percent";
+                }
+            }
+
+            discTotal = discType === "percent"
+                ? (value * discRate / 100)
+                : (discRate * quantity);
+        }
 
         const net = value - discTotal - commTotal;
 

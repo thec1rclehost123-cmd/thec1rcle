@@ -22,14 +22,19 @@ import {
     Banknote
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useToast } from "@/components/ui/Toast";
 
 export default function VenueSettingsPage() {
+    const { success: toastSuccess } = useToast();
     const [activeTab, setActiveTab] = useState<"general" | "ticketing" | "payouts" | "notifications" | "security">("general");
     const [isSaving, setIsSaving] = useState(false);
 
     const handleSave = () => {
         setIsSaving(true);
-        setTimeout(() => setIsSaving(false), 1500);
+        setTimeout(() => {
+            setIsSaving(false);
+            toastSuccess("Settings saved", "Platform configuration has been updated.");
+        }, 1500);
     };
 
     const tabs = [

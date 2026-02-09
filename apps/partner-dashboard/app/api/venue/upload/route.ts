@@ -7,12 +7,19 @@ import { getAdminStorage } from "@/lib/firebase/admin";
  * Handles server-side image uploads to bypass Firebase Storage client-side rules
  */
 export async function POST(req: NextRequest) {
+    console.log("[API /venue/upload] POST request received");
+
     try {
         // 1. Authenticate user
+        console.log("[API /venue/upload] Starting authentication...");
         const decodedToken = await verifyAuth(req);
+
         if (!decodedToken) {
+            console.error("[API /venue/upload] Authentication failed - no decoded token");
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+
+        console.log("[API /venue/upload] Authentication successful for uid:", decodedToken.uid);
 
         const formData = await req.formData();
         const file = formData.get("file") as File;

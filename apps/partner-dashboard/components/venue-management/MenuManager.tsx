@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { Plus, Trash2, GripVertical, FileImage, Loader2, X, Eye } from "lucide-react";
 import { motion, Reorder, AnimatePresence } from "framer-motion";
+import { useToast } from "@/components/ui/Toast";
 import { getFirebaseStorage } from "@/lib/firebase/client";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
@@ -22,6 +23,7 @@ interface MenuManagerProps {
 
 export default function MenuManager({ venueId, menuItems, onRefresh }: MenuManagerProps) {
     const { user } = useDashboardAuth();
+    const { success: toastSuccess } = useToast();
     const [uploading, setUploading] = useState(false);
     const [viewerOpen, setViewerOpen] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -47,12 +49,12 @@ export default function MenuManager({ venueId, menuItems, onRefresh }: MenuManag
         try {
             const storage = getFirebaseStorage();
 
-            for (const file of Array.from(files)) {
+            const uploadPromises = Array.from(files).map(async (file) => {
                 const storageRef = ref(storage, `venues/${venueId}/menu/${Date.now()}_${file.name}`);
                 const snapshot = await uploadBytes(storageRef, file);
                 const downloadURL = await getDownloadURL(snapshot.ref);
 
-                await authedFetch("/api/venue/menu", {
+                return authedFetch("/api/venue/menu", {
                     method: "POST",
                     body: JSON.stringify({
                         venueId,
@@ -60,7 +62,10 @@ export default function MenuManager({ venueId, menuItems, onRefresh }: MenuManag
                         data: { imageUrl: downloadURL, title: file.name.split('.')[0] }
                     })
                 });
-            }
+            });
+
+            await Promise.all(uploadPromises);
+            toastSuccess("Menu Updated", `Successfully uploaded ${files.length} menu pages.`);
             onRefresh();
         } catch (err) {
             console.error("Upload menu error:", err);
@@ -81,6 +86,7 @@ export default function MenuManager({ venueId, menuItems, onRefresh }: MenuManag
                     data: { menuId }
                 })
             });
+            toastSuccess("Page Removed", "The menu page has been deleted.");
             onRefresh();
         } catch (err) {
             console.error("Remove menu error:", err);
@@ -97,6 +103,7 @@ export default function MenuManager({ venueId, menuItems, onRefresh }: MenuManag
                     data: { orderedIds: newOrder.map(m => m.id) }
                 })
             });
+            toastSuccess("Order Saved", "Menu page sequence updated.");
         } catch (err) {
             console.error("Reorder error:", err);
         }

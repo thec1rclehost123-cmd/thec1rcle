@@ -217,35 +217,35 @@ export function OperatingCalendar() {
             <header className="px-4 py-8 flex flex-col md:flex-row items-center justify-between border-b border-[rgba(0,0,0,0.06)] bg-transparent">
                 <div className="flex items-center gap-10">
                     <div>
-                        <h1 className="text-3xl font-bold text-[#1D1D1F] tracking-tight uppercase">
+                        <h1 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight uppercase">
                             {cleanJargon(role === 'venue' ? 'management' : 'operating_calendar')}
                         </h1>
-                        <p className="text-[11px] font-black text-iris uppercase tracking-[0.3em] mt-1">
+                        <p className="text-[11px] font-black text-rose-500 uppercase tracking-[0.3em] mt-1">
                             {MONTHS[month]} {year} — Connected
                         </p>
                     </div>
 
                     {/* Quick Stats */}
-                    <div className="hidden lg:flex items-center gap-8 pl-10 border-l border-[rgba(0,0,0,0.06)]">
+                    <div className="hidden lg:flex items-center gap-8 pl-10 border-l border-[rgba(255,255,255,0.06)]">
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-[#86868B] uppercase tracking-widest mb-1">{cleanJargon('confirmed')}</span>
+                            <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-1">{cleanJargon('confirmed')}</span>
                             <div className="flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10B981]" />
-                                <span className="text-lg font-bold text-[#1D1D1F] tabular-nums">{stats.confirmed}</span>
+                                <span className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{stats.confirmed}</span>
                             </div>
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-[#86868B] uppercase tracking-widest mb-1">{cleanJargon('pending')}</span>
+                            <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-1">{cleanJargon('pending')}</span>
                             <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-iris shadow-[0_0_8px_#F44A22]" />
-                                <span className="text-lg font-bold text-[#1D1D1F] tabular-nums">{stats.pending}</span>
+                                <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_#F44A22]" />
+                                <span className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{stats.pending}</span>
                             </div>
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-[#86868B] uppercase tracking-widest mb-1">Grid Availability</span>
+                            <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-1">Grid Availability</span>
                             <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-gray-200" />
-                                <span className="text-lg font-bold text-[#1D1D1F] tabular-nums">{stats.open}</span>
+                                <div className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+                                <span className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{stats.open}</span>
                             </div>
                         </div>
                     </div>
@@ -253,22 +253,22 @@ export function OperatingCalendar() {
 
                 <div className="flex items-center gap-6">
                     {/* Month Navigation */}
-                    <div className="flex items-center gap-1 bg-[#F2F2F7] border border-[rgba(0,0,0,0.08)] rounded-lg p-1">
+                    <div className="flex items-center gap-1 bg-[var(--surface-secondary)] border border-[rgba(255,255,255,0.08)] rounded-lg p-1">
                         <button
                             onClick={() => navigateMonth(-1)}
-                            className="p-2 hover:bg-white rounded transition-all text-[#86868B] hover:text-[#1D1D1F]"
+                            className="p-2 hover:bg-[var(--surface-elevated)] rounded transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
                         >
                             <ChevronLeft className="h-4 w-4" />
                         </button>
                         <button
                             onClick={() => setCurrentDate(parseAsIST(null))}
-                            className="px-4 py-1.5 text-[10px] font-black text-[#86868B] hover:text-[#1D1D1F] uppercase tracking-widest transition-all"
+                            className="px-4 py-1.5 text-[10px] font-black text-[var(--text-tertiary)] hover:text-[var(--text-primary)] uppercase tracking-widest transition-all"
                         >
                             SYNC TODAY
                         </button>
                         <button
                             onClick={() => navigateMonth(1)}
-                            className="p-2 hover:bg-white rounded transition-all text-[#86868B] hover:text-[#1D1D1F]"
+                            className="p-2 hover:bg-[var(--surface-elevated)] rounded transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
                         >
                             <ChevronRight className="h-4 w-4" />
                         </button>
@@ -292,10 +292,10 @@ export function OperatingCalendar() {
 
                 {/* Left: Calendar Ledger (8 Cols) */}
                 <div className="lg:col-span-8 space-y-6">
-                    <div className="glass-panel overflow-hidden border border-[rgba(0,0,0,0.08)] shadow-sm rounded-[32px]">
-                        <div className="grid grid-cols-7 border-b border-[rgba(0,0,0,0.06)] bg-[#F2F2F7]">
+                    <div className="glass-panel overflow-hidden border border-[var(--border-strong)] shadow-sm rounded-[32px]">
+                        <div className="grid grid-cols-7 border-b border-[var(--border-subtle)] bg-[var(--surface-secondary)]">
                             {DAYS.map(d => (
-                                <div key={d} className="py-4 text-center text-[10px] font-black text-[#86868B] uppercase tracking-[0.2em]">
+                                <div key={d} className="py-4 text-center text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.2em]">
                                     {d}
                                 </div>
                             ))}
@@ -316,10 +316,10 @@ export function OperatingCalendar() {
                                     <button
                                         key={cell.dateStr}
                                         onClick={() => setSelectedDateStr(cell.dateStr)}
-                                        className={`relative aspect-[1.15/1] p-3 text-left border-r border-b border-[rgba(0,0,0,0.04)] transition-all group overflow-hidden ${isSelected ? 'bg-iris/5' : 'hover:bg-[#F9F9FB]'}`}
+                                        className={`relative aspect-[1.15/1] p-3 text-left border-r border-b border-[var(--border-subtle)] transition-all group overflow-hidden ${isSelected ? 'bg-rose-500/10' : 'hover:bg-[var(--surface-secondary)]'}`}
                                     >
                                         <div className="flex items-center justify-between relative z-10">
-                                            <span className={`text-[13px] font-black tabular-nums ${isToday ? 'text-iris animate-pulse' : 'text-[#86868B] group-hover:text-[#1D1D1F]'}`}>
+                                            <span className={`text-[13px] font-black tabular-nums ${isToday ? 'text-rose-500 animate-pulse' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`}>
                                                 {cell.day}
                                             </span>
                                             {isToday && <div className="w-1 h-1 rounded-full bg-iris shadow-[0_0_5px_#F44A22]" />}
@@ -329,16 +329,21 @@ export function OperatingCalendar() {
                                         {eventCount > 0 && (
                                             <div className="mt-2 space-y-1 relative z-10">
                                                 {cell.events.slice(0, 2).map((e: any) => {
-                                                    const isConfirmed = ['published', 'scheduled', 'live', 'confirmed', 'approved'].includes(e.lifecycle || e.status);
+                                                    const status = e.lifecycle || e.status;
+                                                    const isConfirmed = ['published', 'scheduled', 'live', 'confirmed', 'approved'].includes(status);
+                                                    const isPending = ['submitted', 'pending'].includes(status);
+
                                                     return (
                                                         <div
                                                             key={e.id}
                                                             className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tight truncate border ${isConfirmed
                                                                 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
-                                                                : 'bg-[#F2F2F7] border-[rgba(0,0,0,0.06)] text-[#86868B]'
+                                                                : isPending
+                                                                    ? 'bg-orange-500/10 border-orange-500/20 text-orange-600'
+                                                                    : 'bg-[#F2F2F7] border-[rgba(0,0,0,0.06)] text-[#86868B]'
                                                                 }`}
                                                         >
-                                                            {e.isAnonymized ? 'BOOKED' : e.title}
+                                                            {e.isAnonymized ? 'BOOKED' : (isPending ? `Pending: ${e.title}` : e.title)}
                                                         </div>
                                                     );
                                                 })}
@@ -376,16 +381,16 @@ export function OperatingCalendar() {
                     {/* Legend */}
                     <div className="flex items-center gap-8 px-2">
                         <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_5px_#F44A22]" />
+                            <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Pending Review</span>
+                        </div>
+                        <div className="flex items-center gap-2">
                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_#10B981]" />
-                            <span className="text-[9px] font-bold text-[#86868B] uppercase tracking-widest">Confirmed Night</span>
+                            <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Confirmed Night</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-iris shadow-[0_0_5px_#F44A22]" />
-                            <span className="text-[9px] font-bold text-[#86868B] uppercase tracking-widest">Needs Attention</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-gray-200" />
-                            <span className="text-[9px] font-bold text-[#86868B] uppercase tracking-widest">Open Slot</span>
+                            <div className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+                            <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Open Slot</span>
                         </div>
                     </div>
                 </div>
@@ -548,14 +553,14 @@ function SidePanel({
     return (
         <div className="h-full flex flex-col bg-transparent select-none">
             {/* Header */}
-            <div className="px-8 py-6 border-b border-[rgba(0,0,0,0.06)] flex items-start justify-between bg-[#F2F2F7]">
+            <div className="px-8 py-6 border-b border-[var(--border-subtle)] flex items-start justify-between bg-[var(--surface-secondary)]">
                 <div>
-                    <h2 className="text-xl font-bold text-[#1D1D1F] uppercase tracking-tight">{dayName}</h2>
-                    <p className="text-[10px] font-black text-[#86868B] uppercase tracking-widest mt-1">{formattedDate} — SYSTEM_READY</p>
+                    <h2 className="text-xl font-bold text-[var(--text-primary)] uppercase tracking-tight">{dayName}</h2>
+                    <p className="text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest mt-1">{formattedDate} — SYSTEM_READY</p>
                 </div>
                 <button
                     onClick={onClose}
-                    className="p-2 hover:bg-black/5 rounded-lg text-[#86868B] hover:text-[#1D1D1F] transition-all"
+                    className="p-2 hover:bg-[var(--surface-tertiary)] rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
                 >
                     <X className="h-5 w-5" />
                 </button>
@@ -565,9 +570,9 @@ function SidePanel({
                 {/* Timeline Section */}
                 <div className="p-8">
                     <div className="flex items-center justify-between mb-8">
-                        <p className="text-[10px] font-black text-[#86868B] uppercase tracking-[0.2em]">Operational Timeline</p>
+                        <p className="text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.2em]">Operational Timeline</p>
                         {isBlockingMode && (
-                            <span className="text-[9px] font-black text-iris animate-pulse uppercase tracking-widest">Awaiting Range Selection</span>
+                            <span className="text-[9px] font-black text-rose-500 animate-pulse uppercase tracking-widest">Awaiting Range Selection</span>
                         )}
                     </div>
 
@@ -575,7 +580,7 @@ function SidePanel({
                         {/* Time Labels */}
                         <div className="w-16 flex flex-col justify-between pr-4 py-0">
                             {hours.map((h, i) => (
-                                <span key={i} className="text-[9px] font-bold text-[#86868B]/40 uppercase tracking-widest h-0 flex items-center justify-end tabular-nums">{h.label}</span>
+                                <span key={i} className="text-[9px] font-bold text-[var(--text-tertiary)] opacity-40 uppercase tracking-widest h-0 flex items-center justify-end tabular-nums">{h.label}</span>
                             ))}
                         </div>
 
@@ -625,21 +630,21 @@ function SidePanel({
                                                 )}
                                                 <div className="flex-1 min-w-0 flex flex-col">
                                                     <div className="flex items-center justify-between mb-2">
-                                                        <span className={`text-[10px] font-black uppercase tracking-widest tabular-nums ${isConfirmed ? 'text-emerald-500/80' : 'text-[#86868B]'}`}>
+                                                        <span className={`text-[10px] font-black uppercase tracking-widest tabular-nums ${isConfirmed ? 'text-emerald-500/80' : 'text-[var(--text-tertiary)]'}`}>
                                                             {e.startTime} <span className="mx-1 opacity-50">/</span> {e.endTime}
                                                         </span>
                                                         {isConfirmed && !isAnonymized && <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.4)]" />}
-                                                        {isAnonymized && <Lock className="h-3 w-3 opacity-30 text-[#86868B]" />}
+                                                        {isAnonymized && <Lock className="h-3 w-3 opacity-30 text-[var(--text-tertiary)]" />}
                                                     </div>
-                                                    <h3 className="text-sm font-bold truncate leading-tight mb-2 text-[#1D1D1F]">
+                                                    <h3 className="text-sm font-bold truncate leading-tight mb-2 text-[var(--text-primary)]">
                                                         {isAnonymized ? 'RESERVED' : e.title.toUpperCase()}
                                                     </h3>
                                                     {!isAnonymized && (
                                                         <div className="flex items-center gap-2 mt-auto">
-                                                            <div className="w-5 h-5 rounded-full bg-black/5 border border-[rgba(0,0,0,0.06)] flex items-center justify-center">
-                                                                <User className="h-2.5 w-2.5 text-[#86868B]" />
+                                                            <div className="w-5 h-5 rounded-full bg-white/5 border border-[var(--border-subtle)] flex items-center justify-center">
+                                                                <User className="h-2.5 w-2.5 text-[var(--text-tertiary)]" />
                                                             </div>
-                                                            <span className="text-[10px] font-black text-[#86868B] uppercase tracking-widest truncate">{e.host || 'Booking'}</span>
+                                                            <span className="text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest truncate">{e.host || 'Booking'}</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -660,11 +665,11 @@ function SidePanel({
                                         className="absolute inset-x-0 mr-4 rounded-xl p-5 border border-iris/30 bg-iris/5 flex flex-col transition-all"
                                     >
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-iris tabular-nums">{s.startTime} / {s.endTime}</span>
-                                            <span className="px-1.5 py-0.5 rounded bg-iris/10 text-[9px] font-black text-iris uppercase tracking-widest border border-iris/20">PENDING REQUEST</span>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 tabular-nums">{s.startTime} / {s.endTime}</span>
+                                            <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-[9px] font-black text-rose-500 uppercase tracking-widest border border-rose-500/20">PENDING REQUEST</span>
                                         </div>
-                                        <h3 className="text-sm font-black text-[#1D1D1F] uppercase tracking-tight truncate">{s.host}</h3>
-                                        <p className="text-[9px] text-iris font-black uppercase tracking-[0.2em] mt-auto animate-pulse">ACTION_REQUIRED</p>
+                                        <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-tight truncate">{s.host}</h3>
+                                        <p className="text-[9px] text-rose-500 font-black uppercase tracking-[0.2em] mt-auto animate-pulse">ACTION_REQUIRED</p>
                                     </div>
                                 ))}
 
@@ -699,25 +704,25 @@ function SidePanel({
                             {data?.slots?.filter((s: any) => s.status === 'pending').map((s: any) => (
                                 <div key={s.id} className="glass-panel p-6 border-iris/20 bg-iris/5 rounded-2xl">
                                     <div className="flex items-start gap-4 mb-6">
-                                        <div className="w-12 h-12 rounded-xl bg-iris/10 flex items-center justify-center border border-iris/20">
-                                            <CalendarIcon className="h-6 w-6 text-iris" />
+                                        <div className="w-12 h-12 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
+                                            <CalendarIcon className="h-6 w-6 text-rose-500" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h4 className="text-base font-bold text-[#1D1D1F] uppercase tracking-tight">{s.host} Submission</h4>
-                                            <p className="text-[10px] font-black text-[#86868B] uppercase tracking-widest mt-1 tabular-nums">{s.startTime} — {s.endTime}</p>
+                                            <h4 className="text-base font-bold text-[var(--text-primary)] uppercase tracking-tight">{s.host} Submission</h4>
+                                            <p className="text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest mt-1 tabular-nums">{s.startTime} — {s.endTime}</p>
                                         </div>
                                     </div>
                                     {role === 'venue' && (
                                         <div className="flex gap-4">
                                             <button
                                                 onClick={() => onSlotAction(s.id, 'approve')}
-                                                className="flex-1 bg-[#1D1D1F] text-white py-3 rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-black transition-all shadow-lg"
+                                                className="flex-1 bg-[var(--text-primary)] text-[var(--text-inverse)] py-3 rounded-xl font-black text-[11px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg"
                                             >
                                                 Confirm slot
                                             </button>
                                             <button
                                                 onClick={() => onSlotAction(s.id, 'reject')}
-                                                className="px-6 py-3 border border-[rgba(0,0,0,0.06)] text-[#86868B] rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-[#1D1D1F] hover:bg-black/5 transition-all"
+                                                className="px-6 py-3 border border-[var(--border-default)] text-[var(--text-tertiary)] rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-[var(--text-primary)] hover:bg-[var(--surface-tertiary)] transition-all"
                                             >
                                                 Abort
                                             </button>
@@ -732,23 +737,23 @@ function SidePanel({
 
             {/* Block Details Panel (Venue only) */}
             {role === 'venue' && isBlockingMode && (
-                <div className="px-8 py-8 border-t border-[rgba(0,0,0,0.06)] bg-[#F2F2F7] space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+                <div className="px-8 py-8 border-t border-[var(--border-subtle)] bg-[var(--surface-secondary)] space-y-6 animate-in slide-in-from-bottom-4 duration-300">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-[10px] font-black text-[#1D1D1F] uppercase tracking-[0.2em]">Manual Block Settings</h3>
-                        <span className="text-[11px] font-black text-[#1D1D1F] px-3 py-1 bg-white border border-[rgba(0,0,0,0.08)] rounded-lg tabular-nums shadow-sm">
+                        <h3 className="text-[10px] font-black text-[var(--text-primary)] uppercase tracking-[0.2em]">Manual Block Settings</h3>
+                        <span className="text-[11px] font-black text-[var(--text-primary)] px-3 py-1 bg-[var(--surface-base)] border border-[var(--border-default)] rounded-lg tabular-nums shadow-sm">
                             {startTime} — {endTime}
                         </span>
                     </div>
 
                     <div className="space-y-6">
                         <div className="space-y-1.5 text-left">
-                            <label className="text-[9px] font-bold text-[#86868B] uppercase tracking-widest ml-1">Reason</label>
+                            <label className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest ml-1">Reason</label>
                             <input
                                 type="text"
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
                                 placeholder="E.G. PRIVATE_PRODUCTION_UNIT_MAINT"
-                                className="w-full bg-white border border-[rgba(0,0,0,0.08)] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] focus:border-[#4f46e5] outline-none transition-all shadow-inner"
+                                className="w-full bg-[var(--surface-base)] border border-[var(--border-default)] rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] focus:border-rose-500 outline-none transition-all shadow-inner"
                             />
                         </div>
 
@@ -766,21 +771,21 @@ function SidePanel({
             )}
 
             {/* Footer Actions */}
-            <div className="p-8 border-t border-[rgba(0,0,0,0.06)] bg-[#FAFAFB] flex gap-4">
+            <div className="p-8 border-t border-[var(--border-subtle)] bg-[var(--surface-secondary)] flex gap-4">
                 {role === 'venue' ? (
                     <>
                         {isBlockingMode ? (
                             <>
                                 <button
                                     onClick={() => setIsBlockingMode(false)}
-                                    className="flex-1 py-4 border border-[rgba(0,0,0,0.08)] text-[#86868B] rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-[#1D1D1F] hover:bg-black/5 transition-all"
+                                    className="flex-1 py-4 border border-[var(--border-default)] text-[var(--text-tertiary)] rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-[var(--text-primary)] hover:bg-[var(--surface-tertiary)] transition-all"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleAction}
                                     disabled={isPending}
-                                    className="flex-[1.5] py-4 bg-[#1D1D1F] text-white rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-black transition-all shadow-lg"
+                                    className="flex-[1.5] py-4 bg-[var(--text-primary)] text-[var(--text-inverse)] rounded-xl font-black text-[11px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg"
                                 >
                                     {isPending ? "SAVING..." : "Confirm Block"}
                                 </button>
@@ -788,7 +793,7 @@ function SidePanel({
                         ) : (
                             <button
                                 onClick={() => setIsBlockingMode(true)}
-                                className="flex-1 py-4 bg-white border border-[rgba(0,0,0,0.08)] text-[#1D1D1F] rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-[#F2F2F7] transition-all flex items-center justify-center gap-3 shadow-sm"
+                                className="flex-1 py-4 bg-[var(--surface-base)] border border-[var(--border-default)] text-[var(--text-primary)] rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-[var(--surface-secondary)] transition-all flex items-center justify-center gap-3 shadow-sm"
                             >
                                 <Lock className="h-4 w-4" />
                                 {data?.state === 'BLOCKED' ? 'Edit Manual Block' : 'Add Manual Block'}
@@ -798,7 +803,7 @@ function SidePanel({
                 ) : (
                     <Link
                         href="/host/events"
-                        className="flex-1 py-4 bg-white border border-[rgba(0,0,0,0.08)] text-[#1D1D1F] rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-[#F2F2F7] transition-all text-center flex items-center justify-center shadow-sm"
+                        className="flex-1 py-4 bg-[var(--surface-base)] border border-[var(--border-default)] text-[var(--text-primary)] rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-[var(--surface-secondary)] transition-all text-center flex items-center justify-center shadow-sm"
                     >
                         Management view
                     </Link>
@@ -806,7 +811,7 @@ function SidePanel({
                 {!isBlockingMode && (
                     <button
                         onClick={onClose}
-                        className="flex-1 py-4 border border-[rgba(0,0,0,0.08)] text-[#86868B] rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-[#1D1D1F] hover:bg-black/5 transition-all"
+                        className="flex-1 py-4 border border-[var(--border-default)] text-[var(--text-tertiary)] rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-[var(--text-primary)] hover:bg-[var(--surface-tertiary)] transition-all"
                     >
                         Close
                     </button>

@@ -17,8 +17,8 @@ const baseFieldStyles =
   "peer w-full rounded-[28px] border bg-white/[0.04] px-5 py-3 text-base text-white placeholder:text-white/30 transition focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none";
 
 const toneClasses: Record<InputTone, string> = {
-  default: "border-white/10 focus-visible:border-white/40",
-  light: "border-white/30 bg-white/[0.08] text-black placeholder:text-black/40 focus-visible:ring-black/20",
+  default: "border-white/10 hover:border-white/20 focus-visible:border-white/40",
+  light: "border-white/30 bg-white/[0.08] text-black placeholder:text-black/40 hover:border-black/20 focus-visible:ring-black/20",
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(

@@ -19,32 +19,77 @@ const FACILITIES_COLLECTION = "venue_facilities";
 
 // Shared Sync Helpers
 const syncGalleryToVenue = async (vid) => {
-    if (!isFirebaseConfigured()) return;
+    console.log("[VenuePageStore syncGalleryToVenue] Syncing gallery for venueId:", vid);
+
+    if (!isFirebaseConfigured()) {
+        console.warn("[VenuePageStore syncGalleryToVenue] Firebase not configured, skipping");
+        return;
+    }
+
     const db = getAdminDb();
-    const snap = await db.collection(GALLERY_COLLECTION)
-        .where("venueId", "==", vid)
-        .orderBy("order", "asc")
-        .limit(9)
-        .get();
-    const photoUrls = snap.docs.map(doc => doc.data().imageUrl);
-    await db.collection(VENUES_COLLECTION).doc(vid).update({
-        photos: photoUrls,
-        gallery: photoUrls
-    });
+
+    try {
+        // Try with ordering first
+        let snap;
+        try {
+            snap = await db.collection(GALLERY_COLLECTION)
+                .where("venueId", "==", vid)
+                .orderBy("order", "asc")
+                .limit(9)
+                .get();
+        } catch (indexError) {
+            // Fallback: get without ordering if index doesn't exist
+            console.warn("[VenuePageStore syncGalleryToVenue] Index error, fetching without order:", indexError.message);
+            snap = await db.collection(GALLERY_COLLECTION)
+                .where("venueId", "==", vid)
+                .limit(9)
+                .get();
+        }
+
+        const photoUrls = snap.docs.map(doc => doc.data().imageUrl).filter(Boolean);
+        console.log("[VenuePageStore syncGalleryToVenue] Found", photoUrls.length, "photos to sync");
+
+        await db.collection(VENUES_COLLECTION).doc(vid).update({
+            photos: photoUrls,
+            gallery: photoUrls
+        });
+
+        console.log("[VenuePageStore syncGalleryToVenue] Sync complete");
+    } catch (error) {
+        console.error("[VenuePageStore syncGalleryToVenue] Error syncing gallery:", error.message);
+        // Don't throw - this is a background sync, shouldn't fail the main operation
+    }
 };
 
 const syncMenuToVenue = async (vid) => {
+    console.log("[VenuePageStore syncMenuToVenue] Syncing menu for venueId:", vid);
+
     if (!isFirebaseConfigured()) return;
     const db = getAdminDb();
-    const snap = await db.collection(MENU_COLLECTION)
-        .where("venueId", "==", vid)
-        .orderBy("order", "asc")
-        .get();
-    const urls = snap.docs.map(doc => doc.data().imageUrl);
-    await db.collection(VENUES_COLLECTION).doc(vid).update({
-        menuImages: urls,
-        "menu.images": urls
-    });
+
+    try {
+        let snap;
+        try {
+            snap = await db.collection(MENU_COLLECTION)
+                .where("venueId", "==", vid)
+                .orderBy("order", "asc")
+                .get();
+        } catch (indexError) {
+            console.warn("[VenuePageStore syncMenuToVenue] Index error fallback:", indexError.message);
+            snap = await db.collection(MENU_COLLECTION)
+                .where("venueId", "==", vid)
+                .get();
+        }
+
+        const urls = snap.docs.map(doc => doc.data().imageUrl).filter(Boolean);
+        await db.collection(VENUES_COLLECTION).doc(vid).update({
+            menuImages: urls,
+            "menu.images": urls
+        });
+        console.log("[VenuePageStore syncMenuToVenue] Sync complete");
+    } catch (error) {
+        console.error("[VenuePageStore syncMenuToVenue] Error syncing menu:", error.message);
+    }
 };
 
 // Default facilities list
@@ -83,35 +128,74 @@ export async function getVenuePageData(venueId) {
         const venue = { id: venueDoc.id, ...venueDoc.data() };
 
         // Get highlights (ordered)
-        const highlightsSnap = await db.collection(HIGHLIGHTS_COLLECTION)
-            .where("profileId", "==", venueId)
-            .where("profileType", "==", "venue")
-            .orderBy("createdAt", "desc")
-            .get();
-        const highlights = highlightsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        let highlights = [];
+        try {
+            const highlightsSnap = await db.collection(HIGHLIGHTS_COLLECTION)
+                .where("profileId", "==", venueId)
+                .where("profileType", "==", "venue")
+                .orderBy("createdAt", "desc")
+                .get();
+            highlights = highlightsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (err) {
+            console.warn("[VenuePageStore] Highlights fetch index fallback:", err.message);
+            const highlightsSnap = await db.collection(HIGHLIGHTS_COLLECTION)
+                .where("profileId", "==", venueId)
+                .where("profileType", "==", "venue")
+                .get();
+            highlights = highlightsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        }
 
         // Get gallery photos (ordered, max 9)
-        const gallerySnap = await db.collection(GALLERY_COLLECTION)
-            .where("venueId", "==", venueId)
-            .orderBy("order", "asc")
-            .limit(9)
-            .get();
-        const gallery = gallerySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        let gallery = [];
+        try {
+            const gallerySnap = await db.collection(GALLERY_COLLECTION)
+                .where("venueId", "==", venueId)
+                .orderBy("order", "asc")
+                .limit(9)
+                .get();
+            gallery = gallerySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (err) {
+            console.warn("[VenuePageStore] Gallery fetch index fallback:", err.message);
+            const gallerySnap = await db.collection(GALLERY_COLLECTION)
+                .where("venueId", "==", venueId)
+                .limit(9)
+                .get();
+            gallery = gallerySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        }
 
         // Get menu images (ordered)
-        const menuSnap = await db.collection(MENU_COLLECTION)
-            .where("venueId", "==", venueId)
-            .orderBy("order", "asc")
-            .get();
-        const menu = menuSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        let menu = [];
+        try {
+            const menuSnap = await db.collection(MENU_COLLECTION)
+                .where("venueId", "==", venueId)
+                .orderBy("order", "asc")
+                .get();
+            menu = menuSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (err) {
+            console.warn("[VenuePageStore] Menu fetch index fallback:", err.message);
+            const menuSnap = await db.collection(MENU_COLLECTION)
+                .where("venueId", "==", venueId)
+                .get();
+            menu = menuSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        }
 
         // Get facilities (only enabled ones for public)
-        const facilitiesSnap = await db.collection(FACILITIES_COLLECTION)
-            .where("venueId", "==", venueId)
-            .where("isEnabled", "==", true)
-            .orderBy("order", "asc")
-            .get();
-        const facilities = facilitiesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        let facilities = [];
+        try {
+            const facilitiesSnap = await db.collection(FACILITIES_COLLECTION)
+                .where("venueId", "==", venueId)
+                .where("isEnabled", "==", true)
+                .orderBy("order", "asc")
+                .get();
+            facilities = facilitiesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (err) {
+            console.warn("[VenuePageStore] Facilities fetch index fallback:", err.message);
+            const facilitiesSnap = await db.collection(FACILITIES_COLLECTION)
+                .where("venueId", "==", venueId)
+                .where("isEnabled", "==", true)
+                .get();
+            facilities = facilitiesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        }
 
         return {
             venue,
@@ -156,7 +240,12 @@ export async function getVenuePageDataForDashboard(venueId) {
                 .get();
             highlights = highlightsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (err) {
-            console.warn("[VenuePageStore] Could not fetch highlights (index may be missing):", err.message);
+            console.warn("[VenuePageStore] Dashboard highlights fetch index fallback:", err.message);
+            const highlightsSnap = await db.collection(HIGHLIGHTS_COLLECTION)
+                .where("profileId", "==", venueId)
+                .where("profileType", "==", "venue")
+                .get();
+            highlights = highlightsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         }
 
         // Get all gallery photos (ordered) - with error handling
@@ -168,7 +257,11 @@ export async function getVenuePageDataForDashboard(venueId) {
                 .get();
             gallery = gallerySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (err) {
-            console.warn("[VenuePageStore] Could not fetch gallery (index may be missing):", err.message);
+            console.warn("[VenuePageStore] Dashboard gallery fetch index fallback:", err.message);
+            const gallerySnap = await db.collection(GALLERY_COLLECTION)
+                .where("venueId", "==", venueId)
+                .get();
+            gallery = gallerySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         }
 
         // Get all menu images (ordered) - with error handling
@@ -180,7 +273,11 @@ export async function getVenuePageDataForDashboard(venueId) {
                 .get();
             menu = menuSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (err) {
-            console.warn("[VenuePageStore] Could not fetch menu (index may be missing):", err.message);
+            console.warn("[VenuePageStore] Dashboard menu fetch index fallback:", err.message);
+            const menuSnap = await db.collection(MENU_COLLECTION)
+                .where("venueId", "==", venueId)
+                .get();
+            menu = menuSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         }
 
         // Get all facilities (including disabled) - with error handling
@@ -192,7 +289,11 @@ export async function getVenuePageDataForDashboard(venueId) {
                 .get();
             facilities = facilitiesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (err) {
-            console.warn("[VenuePageStore] Could not fetch facilities (index may be missing):", err.message);
+            console.warn("[VenuePageStore] Dashboard facilities fetch index fallback:", err.message);
+            const facilitiesSnap = await db.collection(FACILITIES_COLLECTION)
+                .where("venueId", "==", venueId)
+                .get();
+            facilities = facilitiesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         }
 
         // If no facilities exist, create default ones
@@ -230,7 +331,7 @@ export async function updateVenueDetails(venueId, updates, updatedBy) {
     // Sanitize updates - only allow specific fields
     const allowedFields = [
         "name", "displayName", "tagline", "description", "bio",
-        "image", "logo",
+        "image", "logo", "coverImage",
         "bannerImage", "logoImage", "coverURL", "photoURL",
         "address", "city", "neighborhood",
         "timings", "openingHours",
@@ -247,7 +348,24 @@ export async function updateVenueDetails(venueId, updates, updatedBy) {
             sanitizedUpdates[key] = updates[key];
         }
     }
-    console.log(`[VenuePageStore] Sanitized updates:`, sanitizedUpdates);
+
+    // CRITICAL SYNC: Overwrite all image fields to prevent legacy fields from taking precedence
+    if (sanitizedUpdates.coverURL || sanitizedUpdates.bannerImage || sanitizedUpdates.coverImage) {
+        const bestBanner = sanitizedUpdates.coverURL || sanitizedUpdates.bannerImage || sanitizedUpdates.coverImage;
+        sanitizedUpdates.image = bestBanner;
+        sanitizedUpdates.coverURL = bestBanner;
+        sanitizedUpdates.bannerImage = bestBanner;
+        sanitizedUpdates.coverImage = bestBanner;
+    }
+
+    if (sanitizedUpdates.photoURL || sanitizedUpdates.logoImage || sanitizedUpdates.logo) {
+        const bestLogo = sanitizedUpdates.photoURL || sanitizedUpdates.logoImage || sanitizedUpdates.logo;
+        sanitizedUpdates.logo = bestLogo;
+        sanitizedUpdates.photoURL = bestLogo;
+        sanitizedUpdates.logoImage = bestLogo;
+    }
+
+    console.log(`[VenuePageStore] Sanitized and Synced updates:`, sanitizedUpdates);
 
     sanitizedUpdates.updatedAt = new Date().toISOString();
     sanitizedUpdates.updatedBy = updatedBy?.uid || "system";
@@ -456,6 +574,9 @@ export async function reorderHighlights(venueId, orderedIds) {
  * Add photo to gallery
  */
 export async function addGalleryPhoto(venueId, imageUrl, caption = "") {
+    console.log("[VenuePageStore addGalleryPhoto] Starting for venueId:", venueId);
+    console.log("[VenuePageStore addGalleryPhoto] Image URL:", imageUrl);
+
     if (!isFirebaseConfigured()) {
         throw new Error("Firebase not configured");
     }
@@ -463,22 +584,32 @@ export async function addGalleryPhoto(venueId, imageUrl, caption = "") {
     const db = getAdminDb();
 
     // Check current count
+    console.log("[VenuePageStore addGalleryPhoto] Checking existing gallery count...");
     const existingSnap = await db.collection(GALLERY_COLLECTION)
         .where("venueId", "==", venueId)
         .get();
+
+    console.log("[VenuePageStore addGalleryPhoto] Existing count:", existingSnap.size);
 
     if (existingSnap.size >= 9) {
         throw new Error("Maximum 9 photos in gallery");
     }
 
-    // Get max order
-    const orderedSnap = await db.collection(GALLERY_COLLECTION)
-        .where("venueId", "==", venueId)
-        .orderBy("order", "desc")
-        .limit(1)
-        .get();
+    // Get max order - handle missing index gracefully
+    let maxOrder = 0;
+    try {
+        const orderedSnap = await db.collection(GALLERY_COLLECTION)
+            .where("venueId", "==", venueId)
+            .orderBy("order", "desc")
+            .limit(1)
+            .get();
+        maxOrder = orderedSnap.empty ? 0 : (orderedSnap.docs[0].data().order || 0);
+    } catch (indexError) {
+        console.warn("[VenuePageStore addGalleryPhoto] Index error, using count as order:", indexError.message);
+        maxOrder = existingSnap.size;
+    }
 
-    const maxOrder = orderedSnap.empty ? 0 : (orderedSnap.docs[0].data().order || 0);
+    console.log("[VenuePageStore addGalleryPhoto] Max order:", maxOrder);
 
     const photoId = randomUUID();
     const photo = {
@@ -490,9 +621,13 @@ export async function addGalleryPhoto(venueId, imageUrl, caption = "") {
         createdAt: new Date().toISOString()
     };
 
+    console.log("[VenuePageStore addGalleryPhoto] Saving photo:", photoId);
     await db.collection(GALLERY_COLLECTION).doc(photoId).set(photo);
+
+    console.log("[VenuePageStore addGalleryPhoto] Syncing to venue...");
     await syncGalleryToVenue(venueId);
 
+    console.log("[VenuePageStore addGalleryPhoto] Success!");
     return photo;
 }
 

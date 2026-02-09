@@ -108,8 +108,23 @@
     background: var(--text-secondary);
   }
 
+  /* Premium Selection Color */
   ::selection {
-    @apply bg-orange/40 text-white;
+    background-color: rgba(244, 74, 34, 0.3);
+    color: #ffffff;
+    text-shadow: 0 0 10px rgba(244, 74, 34, 0.4);
+  }
+
+  /* Global Focus States */
+  :focus-visible {
+    outline: 2px solid #F44A22;
+    outline-offset: 4px;
+    border-radius: 4px;
+  }
+
+  /* Smooth focus transitions */
+  * {
+    transition: outline-offset 0.2s ease, outline-color 0.2s ease;
   }
 
   /* Support for reduced motion */

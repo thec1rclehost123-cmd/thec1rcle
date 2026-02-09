@@ -447,7 +447,7 @@ export async function getOperatingCalendar(partnerId, role, startDate, endDate) 
             .map(doc => ({ id: doc.id, ...doc.data(), isOwner: true }))
             .filter(e => {
                 const state = e.lifecycle || e.status;
-                return ["scheduled", "live", "published", "confirmed", "approved", "upcoming"].includes(state);
+                return ["scheduled", "live", "published", "confirmed", "approved", "upcoming", "submitted", "pending"].includes(state);
             });
 
         console.log(`[CalendarStore] Venue ${venueId}: Found ${blocks.length} blocks, ${slots.length} slots, ${events.length} valid events.`);

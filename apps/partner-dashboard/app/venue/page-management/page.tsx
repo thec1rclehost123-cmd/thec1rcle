@@ -27,7 +27,8 @@ export default function VenuePageManagement() {
     // Helper for authenticated API calls
     const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
         if (!user) throw new Error("Not authenticated");
-        const token = await user.getIdToken();
+        // Force refresh token to ensure it's valid
+        const token = await user.getIdToken(true);
         return fetch(url, {
             ...options,
             headers: {

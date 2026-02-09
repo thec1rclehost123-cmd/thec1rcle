@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Building2, Check, MapPin, Calendar, Clock, AlertCircle, ChevronDown } from "lucide-react";
 import { toISODateIST, parseAsIST } from "@c1rcle/core/time";
 import { motion, AnimatePresence } from "framer-motion";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 interface VenueStepProps {
     role: "venue" | "host";
@@ -22,10 +23,28 @@ export function VenueStep({
     profile,
     validationErrors
 }: VenueStepProps) {
+    const { user } = useDashboardAuth();
     const [calendar, setCalendar] = useState<any[]>([]);
     const [loadingCalendar, setLoadingCalendar] = useState(false);
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [showCalendar, setShowCalendar] = useState(false);
+
+    // Helper for authenticated API calls
+    const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+        if (!user) {
+            console.error("[VenueStep] authedFetch called without user");
+            throw new Error("Not authenticated");
+        }
+        // Force refresh token to ensure it's valid
+        const token = await user.getIdToken(true);
+        return fetch(url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                "Authorization": `Bearer ${token}`,
+            },
+        });
+    }, [user]);
 
     // Fetch calendar when venue is selected (host only)
     useEffect(() => {
@@ -42,7 +61,7 @@ export function VenueStep({
             const endDate = toISODateIST(new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000));
 
             const hostId = profile?.activeMembership?.partnerId;
-            const res = await fetch(
+            const res = await authedFetch(
                 `/api/venues/${venueId}/calendar?startDate=${startDate}&endDate=${endDate}&hostId=${hostId}`
             );
             const data = await res.json();
@@ -81,13 +100,13 @@ export function VenueStep({
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case "available": return "bg-emerald-50 text-emerald-600 border-emerald-100";
-            case "blocked": return "bg-red-50 text-red-600 border-red-100";
-            case "booked": return "bg-stone-100 text-stone-500 border-stone-200";
-            case "partial": return "bg-amber-50 text-amber-600 border-amber-100";
-            case "tentative": return "bg-amber-100 text-amber-700 border-amber-200 ring-2 ring-amber-500/10";
-            case "approved_hold": return "bg-indigo-50 text-indigo-600 border-indigo-200 font-bold shadow-sm";
-            default: return "bg-stone-50 text-stone-900";
+            case "available": return "bg-[var(--state-success-bg)] text-[var(--state-success)] border-[var(--state-success)]/20";
+            case "blocked": return "bg-[var(--state-error-bg)] text-[var(--state-error)] border-[var(--state-error)]/20";
+            case "booked": return "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] border-[var(--border-subtle)]";
+            case "partial": return "bg-[var(--state-warning-bg)] text-[var(--state-warning)] border-[var(--state-warning)]/20";
+            case "tentative": return "bg-[var(--state-warning-bg)] text-[var(--state-warning)] border-[var(--state-warning)]/40 ring-2 ring-[var(--state-warning)]/10";
+            case "approved_hold": return "bg-indigo-500/10 text-indigo-500 border-indigo-500/30 font-bold shadow-sm";
+            default: return "bg-[var(--surface-secondary)] text-[var(--text-primary)]";
         }
     };
 
@@ -123,27 +142,27 @@ export function VenueStep({
                             <Building2 className="w-8 h-8" />
                         </div>
                         <div className="space-y-1">
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Active Identity</p>
-                            <p className="text-display-xs">
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">Active Identity</p>
+                            <p className="text-display-xs text-[var(--text-primary)]">
                                 {profile?.activeMembership?.partnerName || "Your Venue"}
                             </p>
-                            <div className="flex items-center gap-2 text-stone-400">
+                            <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
                                 <MapPin className="w-3.5 h-3.5" />
                                 <span className="text-body-sm">{profile?.activeMembership?.city || "Primary Facility"}</span>
                             </div>
                         </div>
                         <div className="ml-auto">
-                            <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center shadow-2xl shadow-emerald-100 ring-8 ring-emerald-50">
+                            <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center shadow-2xl shadow-emerald-500/20 ring-8 ring-emerald-500/5">
                                 <Check className="w-6 h-6 text-white" />
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="p-6 rounded-[2rem] bg-emerald-50 border border-emerald-100/50 flex items-center gap-4">
+                <div className="p-6 rounded-[2rem] bg-[var(--state-success-bg)] border border-[var(--state-success)]/20 flex items-center gap-4">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <p className="text-body-sm text-emerald-900 leading-relaxed">
-                        <span className="font-bold">Direct Authority:</span> As a venue operator, you are authorized for immediate publication. No external synchronization required.
+                    <p className="text-body-sm text-[var(--text-primary)] leading-relaxed">
+                        <span className="font-bold text-emerald-500">Direct Authority:</span> As a venue operator, you are authorized for immediate publication. No external synchronization required.
                     </p>
                 </div>
             </div>
@@ -161,31 +180,31 @@ export function VenueStep({
 
             {/* Error States */}
             {validationErrors.venueId && (
-                <div className="p-5 rounded-2xl bg-rose-50 border border-rose-100 flex items-center gap-3 shadow-sm border-l-4 border-l-rose-500">
-                    <AlertCircle className="w-5 h-5 text-rose-600" />
-                    <p className="text-body-sm text-rose-800 font-bold">{validationErrors.venueId}</p>
+                <div className="p-5 rounded-2xl bg-[var(--state-error-bg)] border border-[var(--state-error)]/20 flex items-center gap-3 shadow-sm border-l-4 border-l-rose-500">
+                    <AlertCircle className="w-5 h-5 text-[var(--state-error)]" />
+                    <p className="text-body-sm text-[var(--state-error)] font-bold">{validationErrors.venueId}</p>
                 </div>
             )}
 
             {/* Venue Selection Matrix */}
             <div className="space-y-6">
                 <div className="flex items-center justify-between px-1">
-                    <p className="text-label font-black uppercase tracking-widest">Select Partner Facility</p>
+                    <p className="text-label font-black uppercase tracking-widest text-[var(--text-secondary)]">Select Partner Facility</p>
                     {partnerships.length > 0 && (
-                        <span className="text-[10px] font-black uppercase tracking-widest text-[#4f46e5]">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500">
                             {partnerships.length} Active Node{partnerships.length > 1 ? 's' : ''}
                         </span>
                     )}
                 </div>
 
                 {partnerships.length === 0 ? (
-                    <div className="p-12 rounded-[3rem] bg-stone-50 border border-dashed border-stone-200 text-center space-y-6">
-                        <div className="w-20 h-20 rounded-[2.5rem] bg-white flex items-center justify-center border border-stone-100 mx-auto shadow-xl">
-                            <Building2 className="w-10 h-10 text-stone-200" />
+                    <div className="p-12 rounded-[3rem] bg-[var(--surface-secondary)] border border-dashed border-[var(--border-strong)] text-center space-y-6">
+                        <div className="w-20 h-20 rounded-[2.5rem] bg-[var(--surface-base)] flex items-center justify-center border border-[var(--border-subtle)] mx-auto shadow-xl">
+                            <Building2 className="w-10 h-10 text-[var(--text-tertiary)]/30" />
                         </div>
                         <div className="space-y-2">
-                            <h3 className="text-headline-sm">No Active Partnerships</h3>
-                            <p className="text-body-sm text-stone-500 max-w-sm mx-auto">
+                            <h3 className="text-headline-sm text-[var(--text-primary)]">No Active Partnerships</h3>
+                            <p className="text-body-sm text-[var(--text-tertiary)] max-w-sm mx-auto uppercase tracking-wide">
                                 You require an established node in the network to initiate event logs.
                             </p>
                         </div>
@@ -206,7 +225,7 @@ export function VenueStep({
                                     const venue = partnerships.find(p => p.venueId === e.target.value);
                                     if (venue) handleVenueSelect(venue);
                                 }}
-                                className="input h-16 pl-14 pr-12 text-[15px] font-bold appearance-none cursor-pointer bg-white border-stone-100 shadow-sm focus:shadow-indigo-100/50 rounded-[1.5rem]"
+                                className="input h-16 pl-14 pr-12 text-[15px] font-bold appearance-none cursor-pointer bg-[var(--surface-base)] border-[var(--border-subtle)] shadow-sm focus:shadow-indigo-500/20 rounded-[1.5rem]"
                             >
                                 <option value="" disabled>Search network or select facility...</option>
                                 {partnerships.map(p => (
@@ -215,10 +234,10 @@ export function VenueStep({
                                     </option>
                                 ))}
                             </select>
-                            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-stone-300 pointer-events-none transition-colors group-focus-within:text-[#4f46e5]">
+                            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] pointer-events-none transition-colors group-focus-within:text-indigo-500">
                                 <Building2 className="w-5 h-5" />
                             </div>
-                            <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-stone-300">
+                            <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-tertiary)]">
                                 <ChevronDown className="w-4 h-4" />
                             </div>
                         </div>
@@ -236,27 +255,27 @@ export function VenueStep({
                         className="space-y-8"
                     >
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <p className="text-label font-black uppercase tracking-widest">Temporal Availability</p>
-                            <div className="flex flex-wrap items-center gap-4 bg-stone-50 px-5 py-2 rounded-full border border-stone-100 shadow-inner">
-                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-stone-500">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Open
+                            <p className="text-label font-black uppercase tracking-widest text-[var(--text-secondary)]">Temporal Availability</p>
+                            <div className="flex flex-wrap items-center gap-4 bg-[var(--surface-secondary)] px-5 py-2 rounded-xl border border-[var(--border-subtle)]">
+                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" /> Open
                                 </div>
-                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-stone-500">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Pending
+                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.5)]" /> Pending
                                 </div>
-                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-stone-500">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Reserved
+                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_5px_rgba(99,102,241,0.5)]" /> Reserved
                                 </div>
-                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-stone-500">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-stone-300" /> Blocked
+                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-[var(--border-strong)]" /> Blocked
                                 </div>
                             </div>
                         </div>
 
                         {loadingCalendar ? (
-                            <div className="p-16 rounded-[2.5rem] bg-stone-50 border border-stone-100 text-center">
-                                <div className="w-10 h-10 border-2 border-[#4f46e5] border-t-transparent rounded-full mx-auto mb-4 animate-spin" />
-                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-stone-400">Syncing Facility Data...</p>
+                            <div className="p-16 rounded-[2.5rem] bg-[var(--surface-secondary)] border border-[var(--border-subtle)] text-center">
+                                <div className="w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4 animate-spin" />
+                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Syncing Facility Data...</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-4 md:grid-cols-7 gap-3">
@@ -280,10 +299,10 @@ export function VenueStep({
                                                 ${isDisabled ? "cursor-not-allowed opacity-40 grayscale-[0.5]" : ""}
                                             `}
                                         >
-                                            <span className={`text-[9px] font-black uppercase tracking-widest ${isSelected ? "text-indigo-100" : "opacity-60"}`}>
+                                            <span className={`text-[9px] font-black uppercase tracking-widest ${isSelected ? "text-white/70" : "text-[var(--text-tertiary)]"}`}>
                                                 {date.toLocaleDateString("en-US", { weekday: "short" })}
                                             </span>
-                                            <span className={`text-lg font-bold ${isSelected ? "text-white" : "text-stone-900"}`}>
+                                            <span className={`text-lg font-black ${isSelected ? "text-white" : "text-[var(--text-primary)]"}`}>
                                                 {date.getDate()}
                                             </span>
 
@@ -302,9 +321,9 @@ export function VenueStep({
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="relative overflow-hidden group"
+                                className="relative overflow-hidden group rounded-[2.5rem]"
                             >
-                                <div className="absolute inset-0 bg-indigo-600 rounded-[2.5rem] shadow-2xl shadow-indigo-100" />
+                                <div className="absolute inset-0 bg-indigo-600 shadow-2xl shadow-indigo-500/20" />
                                 <div className="relative p-8 flex flex-col md:flex-row md:items-center gap-8">
                                     <div className="w-16 h-16 rounded-3xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white ring-1 ring-white/20">
                                         <Calendar className="w-8 h-8" />
@@ -334,13 +353,13 @@ export function VenueStep({
                         )}
 
                         {/* Operational Warnings */}
-                        <div className="p-5 rounded-2xl bg-amber-50/50 border border-amber-100/50 flex items-start gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 flex-shrink-0">
+                        <div className="p-5 rounded-2xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)] flex items-start gap-4">
+                            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 flex-shrink-0">
                                 <AlertCircle className="w-5 h-5" />
                             </div>
                             <div className="space-y-1">
-                                <p className="text-body-sm text-amber-900 font-bold">Intersystem Synchronization Required</p>
-                                <p className="text-[11px] text-amber-800 leading-relaxed">
+                                <p className="text-body-sm text-[var(--text-primary)] font-bold uppercase tracking-wider">Intersystem Synchronization Required</p>
+                                <p className="text-[11px] text-[var(--text-tertiary)] leading-relaxed font-medium">
                                     Your request will trigger an external hold logic at {formData.venueName}. Visibility and final confirmation are contingent on manual administrative approval.
                                 </p>
                             </div>

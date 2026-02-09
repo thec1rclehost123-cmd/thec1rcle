@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Calendar, Clock, AlertCircle, Check, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatEventDate, toISODateIST, parseAsIST } from "@c1rcle/core/time";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 interface SchedulingStepProps {
     formData: any;
@@ -31,8 +32,8 @@ function AppleInput({
         <div className="space-y-1.5">
             {label && (
                 <div className="flex items-center justify-between">
-                    <label className="text-label ml-1">{label}</label>
-                    {hint && <span className="text-[10px] text-[#86868b] font-medium">{hint}</span>}
+                    <label className="text-label ml-1 text-[var(--text-secondary)]">{label}</label>
+                    {hint && <span className="text-[10px] text-[var(--text-tertiary)] font-medium uppercase tracking-widest">{hint}</span>}
                 </div>
             )}
             <div className="relative group">
@@ -60,9 +61,27 @@ export function SchedulingStep({
     role,
     profile
 }: SchedulingStepProps) {
+    const { user } = useDashboardAuth();
     const [venueCalendar, setVenueCalendar] = useState<any[]>([]);
     const [isLoadingCalendar, setIsLoadingCalendar] = useState(false);
     const [showCalendar, setShowCalendar] = useState(false);
+
+    // Helper for authenticated API calls
+    const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+        if (!user) {
+            console.error("[SchedulingStep] authedFetch called without user");
+            throw new Error("Not authenticated");
+        }
+        // Force refresh token to ensure it's valid
+        const token = await user.getIdToken(true);
+        return fetch(url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                "Authorization": `Bearer ${token}`,
+            },
+        });
+    }, [user]);
 
     // Fetch venue calendar when venue is selected
     useEffect(() => {
@@ -74,7 +93,7 @@ export function SchedulingStep({
     const fetchVenueCalendar = async (venueId: string) => {
         setIsLoadingCalendar(true);
         try {
-            const res = await fetch(`/api/venue/calendar?venueId=${venueId}`);
+            const res = await authedFetch(`/api/venue/calendar?venueId=${venueId}`);
             if (res.ok) {
                 const data = await res.json();
                 setVenueCalendar(data.dates || []);
@@ -93,10 +112,10 @@ export function SchedulingStep({
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'blocked': return 'bg-red-100 text-red-600 border-red-200';
-            case 'tentative': return 'bg-amber-100 text-amber-600 border-amber-200';
-            case 'booked': return 'bg-blue-100 text-blue-600 border-blue-200';
-            default: return 'bg-emerald-100 text-emerald-600 border-emerald-200';
+            case 'blocked': return 'bg-[var(--state-error-bg)] text-[var(--state-error)] border-[var(--state-error)]/20';
+            case 'tentative': return 'bg-[var(--state-warning-bg)] text-[var(--state-warning)] border-[var(--state-warning)]/20';
+            case 'booked': return 'bg-[var(--state-info-bg)] text-[var(--state-info)] border-[var(--state-info)]/20';
+            default: return 'bg-[var(--state-success-bg)] text-[var(--state-success)] border-[var(--state-success)]/20';
         }
     };
 
@@ -133,12 +152,12 @@ export function SchedulingStep({
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="p-4 rounded-xl bg-red-50 border border-red-100 flex items-start gap-3"
+                            className="p-4 rounded-xl bg-[var(--state-error-bg)] border border-[var(--state-error)]/20 flex items-start gap-3"
                         >
-                            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                            <AlertCircle className="w-5 h-5 text-[var(--state-error)] flex-shrink-0 mt-0.5" />
                             <div>
-                                <p className="text-body font-semibold text-red-800">Date Conflict Detected</p>
-                                <p className="text-caption text-red-700 mt-1">
+                                <p className="text-body font-semibold text-[var(--state-error)]">Date Conflict Detected</p>
+                                <p className="text-caption text-[var(--state-error)] opacity-80 mt-1">
                                     This date is blocked on the venue calendar. Please select a different date or contact the venue.
                                 </p>
                             </div>
@@ -164,7 +183,7 @@ export function SchedulingStep({
                                     initial={{ opacity: 0, height: 0 }}
                                     animate={{ opacity: 1, height: 'auto' }}
                                     exit={{ opacity: 0, height: 0 }}
-                                    className="mt-4 p-4 rounded-xl bg-[#f5f5f7] border border-[#e5e5e7]"
+                                    className="mt-4 p-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)]"
                                 >
                                     {isLoadingCalendar ? (
                                         <p className="text-caption text-center py-4">Loading calendar...</p>
@@ -183,18 +202,18 @@ export function SchedulingStep({
                                                     </div>
                                                 ))}
                                             </div>
-                                            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-[#e5e5e7]">
+                                            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-[var(--border-subtle)]">
                                                 <div className="flex items-center gap-1.5">
-                                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                                    <span className="text-[10px] text-[#86868b]">Available</span>
+                                                    <div className="w-2 h-2 rounded-full bg-[var(--state-success)]" />
+                                                    <span className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider font-bold">Available</span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5">
-                                                    <div className="w-2 h-2 rounded-full bg-amber-500" />
-                                                    <span className="text-[10px] text-[#86868b]">Tentative</span>
+                                                    <div className="w-2 h-2 rounded-full bg-[var(--state-warning)]" />
+                                                    <span className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider font-bold">Tentative</span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5">
-                                                    <div className="w-2 h-2 rounded-full bg-red-500" />
-                                                    <span className="text-[10px] text-[#86868b]">Blocked</span>
+                                                    <div className="w-2 h-2 rounded-full bg-[var(--state-error)]" />
+                                                    <span className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider font-bold">Blocked</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -263,14 +282,14 @@ export function SchedulingStep({
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center gap-3"
+                            className="p-4 rounded-xl bg-[var(--state-success-bg)] border border-[var(--state-success)]/20 flex items-center gap-3"
                         >
-                            <Check className="w-5 h-5 text-emerald-600" />
+                            <Check className="w-5 h-5 text-[var(--state-success)]" />
                             <div>
-                                <p className="text-body font-medium text-emerald-800">
+                                <p className="text-body font-medium text-[var(--state-success)]">
                                     {formData.startDate ? formatEventDate(formData.startDate) : 'Date TBD'}
                                 </p>
-                                <p className="text-caption text-emerald-700">
+                                <p className="text-caption text-[var(--state-success)] opacity-70">
                                     {formData.doorsOpen && `Doors: ${formData.doorsOpen} • `}
                                     {formData.startTime && `Start: ${formData.startTime}`}
                                     {formData.endTime && ` • End: ${formData.endTime}`}

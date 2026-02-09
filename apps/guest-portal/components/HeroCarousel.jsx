@@ -1,31 +1,30 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import Image from "next/image";
-import Link from "next/link";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "framer-motion";
 
 /**
  * HeroCarousel - A high-performance 3D "Museum Shelf" carousel.
  * Optimized for smoothness with a physics-based animation loop.
  */
 export default function HeroCarousel({ cards = [] }) {
-    const [progress, setProgress] = useState(0); // The "state" progress that drives the UI
+    const progress = useMotionValue(0);
     const [mounted, setMounted] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [isTablet, setIsTablet] = useState(false);
     const [isDraggingState, setIsDraggingState] = useState(false);
+    const [renderProgress, setRenderProgress] = useState(0); // For pagination only
 
     // Animation & Physics Refs
     const requestRef = useRef();
     const lastTimestampRef = useRef();
-    const progressRef = useRef(0);        // Internal precise progress
     const targetProgressRef = useRef(0);  // Goal progress (incorporates drag & momentum)
     const velocityRef = useRef(0);        // Current rotational velocity
     const isDragging = useRef(false);
     const lastX = useRef(0);
     const lastTime = useRef(0);
     const dragStartTime = useRef(0);
+    const lastSyncTime = useRef(0);
 
     useEffect(() => {
         setMounted(true);
@@ -51,40 +50,33 @@ export default function HeroCarousel({ cards = [] }) {
         lastTimestampRef.current = time;
 
         if (cards.length > 0) {
+            let currentVal = progress.get();
+
             if (isDragging.current) {
                 // Dragging: we manually set targetProgress in handleMouseMove
                 // Smoothly pull current progress towards target
-                progressRef.current += (targetProgressRef.current - progressRef.current) * LERP_FACTOR;
+                const nextVal = currentVal + (targetProgressRef.current - currentVal) * LERP_FACTOR;
+                progress.set(nextVal);
             } else {
                 // Not Dragging: Handle momentum, river flow, and snapping
-
-                // 1. River Flow (Constant drift)
                 targetProgressRef.current += RIVER_SPEED * deltaTime;
-
-                // 2. Momentum
                 targetProgressRef.current += velocityRef.current;
                 velocityRef.current *= FRICTION;
 
-                // 3. Snap-to-center logic
-                // (Disabled to allow continuous river flow)
-                /* 
-                if (Math.abs(velocityRef.current) < 0.005) {
-                    const nearest = Math.round(targetProgressRef.current);
-                    targetProgressRef.current += (nearest - targetProgressRef.current) * 0.05;
-                }
-                */
-
-                // 4. Lerp actual progress towards target
-                progressRef.current += (targetProgressRef.current - progressRef.current) * LERP_FACTOR;
+                const nextVal = currentVal + (targetProgressRef.current - currentVal) * LERP_FACTOR;
+                progress.set(nextVal);
             }
 
-            // Sync with React state for rendering
-            const wrappedProgress = ((progressRef.current % cards.length) + cards.length) % cards.length;
-            setProgress(wrappedProgress);
+            // Sync with React state infrequently for pagination UI only
+            if (time - lastSyncTime.current > 100) {
+                const wrappedProgress = ((progress.get() % cards.length) + cards.length) % cards.length;
+                setRenderProgress(wrappedProgress);
+                lastSyncTime.current = time;
+            }
         }
 
         requestRef.current = requestAnimationFrame(animate);
-    }, [cards.length]);
+    }, [cards.length, progress]);
 
     useEffect(() => {
         if (mounted && !isMobile) {
@@ -133,11 +125,12 @@ export default function HeroCarousel({ cards = [] }) {
     const handleCardClick = (index) => {
         const dragDuration = performance.now() - dragStartTime.current;
         if (dragDuration < 200 && Math.abs(velocityRef.current) < 0.01) {
-            let diff = index - (progressRef.current % cards.length);
+            const current = progress.get();
+            let diff = index - (current % cards.length);
             if (diff > cards.length / 2) diff -= cards.length;
             if (diff < -cards.length / 2) diff += cards.length;
 
-            targetProgressRef.current = progressRef.current + diff;
+            targetProgressRef.current = current + diff;
             velocityRef.current = 0;
         }
     };
@@ -204,14 +197,13 @@ export default function HeroCarousel({ cards = [] }) {
                 </div>
             </div>
 
-            {/* Pagination Tabs */}
             {!isMobile && (
                 <div className="mt-12 z-20 flex gap-2">
                     {cards.map((_, i) => {
                         const dist = Math.min(
-                            Math.abs(i - progress),
-                            Math.abs(i - progress + cards.length),
-                            Math.abs(i - progress - cards.length)
+                            Math.abs(i - renderProgress),
+                            Math.abs(i - renderProgress + cards.length),
+                            Math.abs(i - renderProgress - cards.length)
                         );
                         const isActive = dist < 0.5;
                         return (
@@ -240,24 +232,36 @@ export default function HeroCarousel({ cards = [] }) {
 }
 
 function CardItem({ card, index, progress, isMobile, isTablet, onClick, cardsCount }) {
-    let offset = index - progress;
-    if (offset > cardsCount / 2) offset -= cardsCount;
-    if (offset < -cardsCount / 2) offset += cardsCount;
+    // We use useTransform to calculate the position based on the progress motion value
+    const transform = useTransform(progress, (p) => {
+        let offset = index - (p % cardsCount);
+        if (offset > cardsCount / 2) offset -= cardsCount;
+        if (offset < -cardsCount / 2) offset += cardsCount;
 
-    const absOffset = Math.abs(offset);
+        const absOffset = Math.abs(offset);
+        const radius = isTablet ? 1200 : 1800;
+        const angleStep = isTablet ? 16 : 11;
+        const angle = offset * angleStep;
+        const rad = (angle * Math.PI) / 180;
 
-    const radius = isTablet ? 1200 : 1800;
-    const angleStep = isTablet ? 16 : 11;
-    const angle = offset * angleStep;
-    const rad = (angle * Math.PI) / 180;
+        const x = Math.sin(rad) * radius;
+        const z = Math.cos(rad) * radius - radius + (isTablet ? 60 : 120);
+        const rotateY = angle;
+        const scale = 1.45 / (1 + absOffset * 0.14);
+        const opacity = Math.max(0, 1 - (absOffset - 1.8) * 0.6);
+        const zIndex = Math.round(1000 - absOffset * 100);
 
-    const interpX = Math.sin(rad) * radius;
-    const interpZ = Math.cos(rad) * radius - radius + (isTablet ? 60 : 120);
-    const interpRotateY = angle;
+        return { x, z, rotateY, scale, opacity, zIndex, absOffset };
+    });
 
-    const interpScale = 1.45 / (1 + absOffset * 0.14);
-    const interpOpacity = Math.max(0, 1 - (absOffset - 1.8) * 0.6);
-    const interpZIndex = Math.round(1000 - absOffset * 100);
+    // Derived values for animations that don't need to be in the main physics loop
+    const x = useTransform(transform, (t) => t.x);
+    const z = useTransform(transform, (t) => t.z);
+    const rotateY = useTransform(transform, (t) => t.rotateY);
+    const scale = useTransform(transform, (t) => t.scale);
+    const opacity = useTransform(transform, (t) => t.opacity);
+    const zIndex = useTransform(transform, (t) => t.zIndex);
+    const absOffset = useTransform(transform, (t) => t.absOffset);
 
     const width = isMobile ? 320 : isTablet ? 250 : 300;
     const height = isMobile ? 480 : isTablet ? 380 : 450;
@@ -265,7 +269,7 @@ function CardItem({ card, index, progress, isMobile, isTablet, onClick, cardsCou
     if (isMobile) {
         return (
             <motion.div
-                className="relative shrink-0 rounded-[28px] overflow-hidden bg-white/5 backdrop-blur-md border border-white/10 snap-center"
+                className="relative shrink-0 rounded-[24px] overflow-hidden bg-white/5 backdrop-blur-md border border-white/10 snap-center"
                 style={{ width, height }}
                 whileTap={{ scale: 0.98 }}
                 onClick={onClick}
@@ -277,55 +281,80 @@ function CardItem({ card, index, progress, isMobile, isTablet, onClick, cardsCou
 
     return (
         <motion.div
-            className="absolute rounded-[28px] overflow-hidden bg-[#0A0A0A] cursor-pointer group shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] transition-shadow duration-500 hover:shadow-[0_40px_80px_-20px_rgba(255,75,31,0.15)]"
+            className="absolute cursor-pointer group"
             style={{
                 width,
                 height,
+                x,
+                z,
+                rotateY,
+                scale,
+                opacity,
+                zIndex,
                 transformStyle: "preserve-3d",
-            }}
-            animate={{
-                x: interpX,
-                z: interpZ,
-                rotateY: interpRotateY,
-                opacity: interpOpacity,
-                scale: interpScale,
-                zIndex: interpZIndex,
-                borderColor: absOffset < 0.5 ? `rgba(255, 75, 31, 0.5)` : `rgba(255, 255, 255, 0.05)`,
-            }}
-            transition={{
-                duration: 0.05,
-                ease: "linear"
+                perspective: "1000px",
             }}
             whileHover={{
-                scale: interpScale * 1.04,
+                scale: 1.05,
                 transition: { duration: 0.3 }
             }}
             onClick={onClick}
         >
-            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000 pointer-events-none z-30" />
-            <div className="w-full h-full relative text-white border-[1px] border-inherit rounded-[inherit]">
-                <CardContent card={card} isCenter={absOffset < 0.5} />
+            {/* 
+              Fix for "Shredded" distortion: 
+              We use a separate internal wrapper for overflow-hidden and border-radius.
+              Applying overflow-hidden and 3D transforms on the SAME div is what causes the browser to glitch.
+            */}
+            <div className="relative w-full h-full rounded-[28px] overflow-hidden bg-[#0A0A0A] border-[1.5px] border-white/5 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] transition-all duration-500 group-hover:border-[#ff4b1f]/30 group-hover:shadow-[0_40px_80px_-20px_rgba(255,75,31,0.15)]">
+                <CardContent card={card} progress={progress} index={index} cardsCount={cardsCount} />
             </div>
         </motion.div>
     );
 }
 
-function CardContent({ card, isCenter }) {
+function CardContent({ card, progress, index, cardsCount }) {
+    const overlayTransform = useTransform(progress, (p) => {
+        if (!progress) return { opacity: 1, y: 0, textOpacity: 1 };
+        let offset = index - (p % cardsCount);
+        if (offset > cardsCount / 2) offset -= cardsCount;
+        if (offset < -cardsCount / 2) offset += cardsCount;
+        const absOffset = Math.abs(offset);
+
+        // Calculate opacity and Y based on distance from center
+        const opacity = Math.max(0, 1 - absOffset * 0.8);
+        const y = absOffset * 20;
+        const textOpacity = Math.max(0, 1 - absOffset * 1.5);
+
+        return { opacity, y, textOpacity };
+    });
+
+    const opacity = useTransform(overlayTransform, (t) => t.opacity);
+    const y = useTransform(overlayTransform, (t) => t.y);
+    const textOpacity = useTransform(overlayTransform, (t) => t.textOpacity);
+
     return (
         <>
-            <Image
-                src={card.image}
-                alt={card.title}
-                fill
-                className="object-cover transition-transform duration-1000 group-hover:scale-110"
-                sizes="(max-width: 768px) 400px, 500px"
-            />
+            <motion.div
+                className="absolute inset-0 z-0"
+                style={{ scale: 1.1 }}
+            >
+                <Image
+                    src={card.image}
+                    alt={card.title}
+                    fill
+                    className="object-cover transition-transform duration-1000 group-hover:scale-110"
+                    sizes="(max-width: 768px) 400px, 500px"
+                />
+            </motion.div>
 
             {/* Rich Gradient Layer */}
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent opacity-80" />
 
             {/* Info Overlay */}
-            <div className={`absolute bottom-0 left-0 right-0 p-6 md:p-8 z-30 transition-all duration-700 ${isCenter ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-80'}`}>
+            <motion.div
+                className="absolute bottom-0 left-0 right-0 p-6 md:p-8 z-30"
+                style={{ opacity, y }}
+            >
                 <div className="flex items-center gap-3 mb-4">
                     <span className="px-3.5 py-1.5 rounded-full bg-[#ff4b1f] text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(255,75,31,0.4)]">
                         Live
@@ -344,11 +373,14 @@ function CardContent({ card, isCenter }) {
                 </p>
 
                 {/* CTA / Detail Link */}
-                <div className={`flex items-center gap-3 text-[#ff4b1f] text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${isCenter ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
+                <motion.div
+                    className="flex items-center gap-3 text-[#ff4b1f] text-[11px] font-black uppercase tracking-[0.2em]"
+                    style={{ opacity: textOpacity }}
+                >
                     <span>View Drop</span>
                     <div className="w-8 h-[2px] bg-[#ff4b1f]" />
-                </div>
-            </div>
+                </motion.div>
+            </motion.div>
         </>
     );
 }

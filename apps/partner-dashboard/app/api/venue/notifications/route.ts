@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
+import { approveSlotRequest, rejectSlotRequest } from "@/lib/server/slotStore";
+import { verifyAuth } from "@/lib/server/auth";
 
 /**
  * GET /api/venue/notifications
@@ -266,8 +268,19 @@ export async function PATCH(req: NextRequest) {
         const { verifyPartnerAccess } = await import("@/lib/server/auth");
         const hasAccess = await verifyPartnerAccess(req, venueId);
         if (!hasAccess) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+            return NextResponse.json({ error: "Unauthorized access to this venue" }, { status: 403 });
         }
+
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) {
+            return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+        }
+
+        const actor = {
+            uid: decodedToken.uid,
+            role: (decodedToken as any).partnerRole || (decodedToken as any).role || "venue", // Fallback to venue if in venue context
+            name: (decodedToken as any).name || "Venue Staff"
+        };
 
         const db = getAdminDb();
 
@@ -315,14 +328,14 @@ export async function PATCH(req: NextRequest) {
 
             if (type === "host_request") {
                 const slotId = data.slotId;
-                const updateData: any = {
-                    status: specificAction === "approve" ? "approved" : "rejected",
-                    updatedAt: new Date().toISOString(),
-                    resolvedAt: new Date().toISOString()
-                };
 
-                await db.collection("slot_requests").doc(slotId).update(updateData);
-                return NextResponse.json({ success: true, message: `Host request ${specificAction}d` });
+                if (specificAction === "approve") {
+                    await approveSlotRequest(slotId, actor, "Approved via Notification Center", { venueId });
+                    return NextResponse.json({ success: true, message: `Host request approved and event updated` });
+                } else {
+                    await rejectSlotRequest(slotId, actor, "Rejected via Notification Center");
+                    return NextResponse.json({ success: true, message: `Host request rejected` });
+                }
             }
 
             if (type === "reservation") {

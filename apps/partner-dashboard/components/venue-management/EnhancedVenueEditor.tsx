@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { EventCard } from "@c1rcle/ui";
+import { useToast } from "@/components/ui/Toast";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 interface EnhancedVenueEditorProps {
     venueId: string;
@@ -33,19 +35,43 @@ export default function EnhancedVenueEditor({
     onUpdate,
     error = null
 }: EnhancedVenueEditorProps) {
+    const { user } = useDashboardAuth();
+    const { success: toastSuccess, error: toastError } = useToast();
     const [isEditing, setIsEditing] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [localVenue, setLocalVenue] = useState(venue);
+    const [localGallery, setLocalGallery] = useState(gallery);
 
     useEffect(() => {
         setLocalVenue(venue);
     }, [venue]);
 
+    useEffect(() => {
+        setLocalGallery(gallery);
+    }, [gallery]);
+
+    // Helper to get auth token for authenticated API calls
+    const getAuthToken = async (): Promise<string | null> => {
+        if (!user) {
+            console.log("[getAuthToken] No user available");
+            return null;
+        }
+        try {
+            // Force refresh the token to ensure it's valid
+            const token = await user.getIdToken(true);
+            console.log("[getAuthToken] Got token, length:", token?.length);
+            return token;
+        } catch (err) {
+            console.error("[getAuthToken] Failed to get auth token:", err);
+            return null;
+        }
+    };
     const handleSave = async (section: string, updates: any) => {
         setSaving(true);
         try {
             await onUpdate(updates);
             setIsEditing(null);
+            toastSuccess("Update Successful", "Your changes have been saved to the live profile.");
         } catch (err) {
             console.error(`Error saving ${section}:`, err);
         } finally {
@@ -60,7 +86,7 @@ export default function EnhancedVenueEditor({
 
     return (
         <div className="bg-white dark:bg-[#0A0A0A] min-h-screen text-black dark:text-white pb-32">
-            {/* Global Error Alert */}
+            {/* Global Error Alerts */}
             <AnimatePresence>
                 {error && (
                     <motion.div
@@ -352,7 +378,7 @@ export default function EnhancedVenueEditor({
                     <EditModal title="Visual Identity" onClose={() => setIsEditing(null)} onSave={() => handleSave('hero', localVenue)}>
                         <div className="space-y-6">
                             <div className="space-y-2">
-                                <label className="text-xs font-bold uppercase tracking-widest opacity-40">Venue Name</label>
+                                <label className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Venue Name</label>
                                 <input
                                     value={localVenue.displayName || localVenue.name}
                                     onChange={(e) => setLocalVenue({
@@ -363,11 +389,11 @@ export default function EnhancedVenueEditor({
                                     className="w-full bg-[var(--surface-secondary)] border border-[var(--border-subtle)] p-4 rounded-2xl text-lg font-bold outline-none ring-offset-0 focus:ring-2 focus:ring-[#F44A22]/50 transition-all"
                                     placeholder="Enter club name"
                                 />
-                                <p className="text-[10px] text-white/40 uppercase font-bold mt-2 ml-1">Changes are synced across all your club's public profiles.</p>
+                                <p className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold mt-2 ml-1">Changes are synced across all your club's public profiles.</p>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase tracking-widest opacity-40">Category</label>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Category</label>
                                     <input
                                         value={localVenue.venueType || localVenue.category}
                                         onChange={(e) => setLocalVenue({ ...localVenue, venueType: e.target.value })}
@@ -375,20 +401,20 @@ export default function EnhancedVenueEditor({
                                     />
                                 </div>
                                 <div className="space-y-2 flex flex-col items-center">
-                                    <label className="text-xs font-bold uppercase tracking-widest opacity-40 mb-2">Verified</label>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)] mb-2">Verified</label>
                                     <div className="flex-1 flex items-center">
                                         <input type="checkbox" checked={localVenue.verified} onChange={(e) => setLocalVenue({ ...localVenue, verified: e.target.checked })} className="w-6 h-6 rounded-lg accent-[#F44A22]" />
                                     </div>
                                 </div>
                             </div>
-                            <ImageUploadField label="Cover Image" value={coverImage} type="banner" venueId={venueId} onUpdate={(url) => setLocalVenue({ ...localVenue, coverURL: url, bannerImage: url })} />
-                            <ImageUploadField label="Logo Image" value={logo} type="logo" venueId={venueId} onUpdate={(url) => setLocalVenue({ ...localVenue, photoURL: url, logoImage: url })} />
+                            <ImageUploadField label="Cover Image" value={coverImage} type="banner" venueId={venueId} getAuthToken={getAuthToken} onUpdate={(url) => setLocalVenue({ ...localVenue, coverURL: url, bannerImage: url, coverImage: url, image: url })} onError={(msg) => toastError("Upload Failed", msg)} />
+                            <ImageUploadField label="Logo Image" value={logo} type="logo" venueId={venueId} getAuthToken={getAuthToken} onUpdate={(url) => setLocalVenue({ ...localVenue, photoURL: url, logoImage: url, logo: url })} onError={(msg) => toastError("Upload Failed", msg)} />
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Business Bio / About</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] ml-1">Business Bio / About</label>
                                 <textarea
                                     value={localVenue.bio || localVenue.description || ""}
                                     onChange={(e) => setLocalVenue({ ...localVenue, bio: e.target.value })}
-                                    className="w-full bg-[var(--surface-secondary)] border border-white/10 p-4 rounded-2xl text-sm font-medium outline-none focus:border-[var(--c1rcle-orange)]/50 transition-colors resize-none"
+                                    className="w-full bg-[var(--surface-secondary)] border border-[var(--border-default)] p-4 rounded-2xl text-sm font-medium text-[var(--text-primary)] outline-none focus:border-[var(--c1rcle-orange)] transition-colors resize-none"
                                     rows={4}
                                     placeholder="Tell your guests what makes your venue unique..."
                                 />
@@ -403,18 +429,18 @@ export default function EnhancedVenueEditor({
                             <p className="text-xs text-[var(--text-tertiary)] uppercase font-bold tracking-widest">Your Story Sets</p>
                             <div className="space-y-3">
                                 {highlights.map((h, i) => (
-                                    <div key={h.id || i} className="flex items-center gap-4 p-4 bg-[var(--surface-secondary)] border border-white/5 rounded-2xl">
-                                        <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 border border-white/10">
+                                    <div key={h.id || i} className="flex items-center gap-4 p-4 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-2xl">
+                                        <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 border border-[var(--border-default)]">
                                             <img src={h.coverImage || h.images?.[0]} className="w-full h-full object-cover" alt="" />
                                         </div>
                                         <div className="flex-1">
-                                            <p className="font-bold text-sm tracking-tight">{h.title}</p>
-                                            <p className="text-[10px] text-white/40 uppercase font-black">{h.images?.length || 0} Images</p>
+                                            <p className="font-bold text-sm tracking-tight text-[var(--text-primary)]">{h.title}</p>
+                                            <p className="text-[10px] text-[var(--text-tertiary)] uppercase font-black">{h.images?.length || 0} Images</p>
                                         </div>
-                                        <button className="p-2 hover:bg-white/5 rounded-lg text-red-500"><Trash2 className="w-4 h-4" /></button>
+                                        <button className="p-2 hover:bg-[var(--surface-tertiary)] rounded-lg text-red-500"><Trash2 className="w-4 h-4" /></button>
                                     </div>
                                 ))}
-                                <button className="w-full py-4 border-2 border-dashed border-white/10 rounded-2xl flex items-center justify-center gap-2 hover:bg-white/5 transition-all text-xs font-bold uppercase tracking-widest opacity-60">
+                                <button className="w-full py-4 border-2 border-dashed border-[var(--border-default)] rounded-2xl flex items-center justify-center gap-2 hover:bg-[var(--surface-secondary)] transition-all text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)]">
                                     <Plus className="w-4 h-4" /> Create New Highlight
                                 </button>
                             </div>
@@ -438,18 +464,14 @@ export default function EnhancedVenueEditor({
 
                 {isEditing === 'gallery' && (
                     <EditModal title="Manage Gallery" onClose={() => setIsEditing(null)} onSave={() => handleSave('gallery', localVenue)}>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {gallery.map((p, i) => (
-                                <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-white/5">
-                                    <img src={p.imageUrl || p} className="w-full h-full object-cover" alt="" />
-                                    <button className="absolute top-2 right-2 bg-red-500 p-1 rounded-lg text-white"><Trash2 className="w-4 h-4" /></button>
-                                </div>
-                            ))}
-                            <div className="aspect-square rounded-xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-colors">
-                                <Plus className="w-6 h-6 mb-2 opacity-40" />
-                                <span className="text-[10px] font-bold uppercase opacity-40">Add Photo</span>
-                            </div>
-                        </div>
+                        <GalleryEditor
+                            venueId={venueId}
+                            gallery={localGallery}
+                            getAuthToken={getAuthToken}
+                            onGalleryUpdate={setLocalGallery}
+                            onError={(msg) => toastError("Gallery Error", msg)}
+                            onSuccess={(msg) => toastSuccess("Success", msg)}
+                        />
                     </EditModal>
                 )}
             </AnimatePresence>
@@ -495,16 +517,16 @@ function EditModal({ title, children, onClose, onSave }: { title: string, childr
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="w-full max-w-2xl bg-[var(--surface-primary)] border border-white/10 rounded-[2.5rem] overflow-hidden"
+                className="w-full max-w-2xl bg-[var(--surface-base)] border border-[var(--border-default)] rounded-[2.5rem] overflow-hidden shadow-2xl"
             >
-                <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between">
+                <div className="px-8 py-6 border-b border-[var(--border-subtle)] flex items-center justify-between">
                     <h3 className="text-xl font-bold uppercase tracking-tighter text-[var(--text-primary)]">{title}</h3>
-                    <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-xl"><X className="w-6 h-6" /></button>
+                    <button onClick={onClose} className="p-2 hover:bg-[var(--surface-secondary)] rounded-xl text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"><X className="w-6 h-6" /></button>
                 </div>
                 <div className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
                     {children}
                 </div>
-                <div className="p-8 border-t border-white/5 bg-[var(--surface-secondary)] flex gap-3">
+                <div className="p-8 border-t border-[var(--border-subtle)] bg-[var(--surface-secondary)] flex gap-3">
                     <button onClick={onClose} className="flex-1 py-4 px-6 rounded-2xl font-bold uppercase tracking-widest text-[var(--text-tertiary)] hover:bg-white/5 transition-all">Cancel</button>
                     <button onClick={onSave} className="flex-1 py-4 px-6 rounded-2xl bg-[var(--c1rcle-orange)] text-white font-bold uppercase tracking-widest shadow-xl shadow-orange-500/20 hover:scale-[1.02] transition-all">Save Changes</button>
                 </div>
@@ -516,14 +538,14 @@ function EditModal({ title, children, onClose, onSave }: { title: string, childr
 function InputField({ label, icon: Icon, value, onChange, multiline }: { label: string, icon: any, value: string, onChange: (v: string) => void, multiline?: boolean }) {
     return (
         <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">{label}</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] ml-1">{label}</label>
             <div className="relative">
-                <div className="absolute left-4 top-4 opacity-40"><Icon className="w-5 h-5" /></div>
+                <div className="absolute left-4 top-4 text-[var(--text-tertiary)]"><Icon className="w-5 h-5" /></div>
                 {multiline ? (
                     <textarea
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
-                        className="w-full bg-[var(--surface-secondary)] border border-white/10 p-4 pl-12 rounded-2xl text-sm font-bold outline-none focus:border-[var(--c1rcle-orange)]/50 transition-colors resize-none"
+                        className="w-full bg-[var(--surface-secondary)] border border-[var(--border-default)] p-4 pl-12 rounded-2xl text-sm font-bold text-[var(--text-primary)] outline-none focus:border-[var(--c1rcle-orange)] transition-colors resize-none"
                         rows={3}
                     />
                 ) : (
@@ -531,7 +553,7 @@ function InputField({ label, icon: Icon, value, onChange, multiline }: { label: 
                         type="text"
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
-                        className="w-full bg-[var(--surface-secondary)] border border-white/10 p-4 pl-12 rounded-2xl text-sm font-bold outline-none focus:border-[var(--c1rcle-orange)]/50 transition-colors"
+                        className="w-full bg-[var(--surface-secondary)] border border-[var(--border-default)] p-4 pl-12 rounded-2xl text-sm font-bold text-[var(--text-primary)] outline-none focus:border-[var(--c1rcle-orange)] transition-colors"
                     />
                 )}
             </div>
@@ -539,40 +561,76 @@ function InputField({ label, icon: Icon, value, onChange, multiline }: { label: 
     );
 }
 
-function ImageUploadField({ label, value, type, venueId, onUpdate }: { label: string, value: string, type: string, venueId: string, onUpdate: (url: string) => void }) {
+function ImageUploadField({
+    label,
+    value,
+    type,
+    venueId,
+    getAuthToken,
+    onUpdate,
+    onError
+}: {
+    label: string,
+    value: string,
+    type: string,
+    venueId: string,
+    getAuthToken: () => Promise<string | null>,
+    onUpdate: (url: string) => void,
+    onError?: (msg: string) => void
+}) {
     const [uploading, setUploading] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
     const handleUpload = async (file: File) => {
         setUploading(true);
         try {
+            const token = await getAuthToken();
+            if (!token) {
+                onError?.("Authentication required. Please log in again.");
+                return;
+            }
+
             const formData = new FormData();
             formData.append("file", file);
             formData.append("venueId", venueId);
             formData.append("type", type);
-            // This is a placeholder for actual upload logic. 
-            // In a real app we'd call the API but for now let's simulate.
-            const res = await fetch("/api/venue/upload", { method: "POST", body: formData });
+
+            const res = await fetch("/api/venue/upload", {
+                method: "POST",
+                body: formData,
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+
             const data = await res.json();
-            if (data.url) onUpdate(data.url);
-        } catch (err) {
-            console.error(err);
+
+            if (!res.ok) {
+                throw new Error(data.error || "Upload failed");
+            }
+
+            if (data.url) {
+                onUpdate(data.url);
+            }
+        } catch (err: any) {
+            console.error("Image upload error:", err);
+            onError?.(err.message || "Failed to upload image");
         } finally {
-            setUploading(null);
+            setUploading(false);
         }
     };
 
     return (
         <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">{label}</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] ml-1">{label}</label>
             <div
                 onClick={() => inputRef.current?.click()}
-                className="relative aspect-video w-full rounded-2xl overflow-hidden border border-dashed border-white/10 group cursor-pointer"
+                className="relative aspect-video w-full rounded-2xl overflow-hidden border border-dashed border-[var(--border-default)] group cursor-pointer bg-[var(--surface-secondary)]"
             >
                 {value ? (
                     <img src={value} className="w-full h-full object-cover group-hover:opacity-50 transition-opacity" alt="" />
                 ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center opacity-30">
+                    <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-tertiary)]">
                         <Upload className="w-8 h-8 mb-2" />
                         <span className="text-xs font-bold uppercase">Click to upload</span>
                     </div>
@@ -582,11 +640,210 @@ function ImageUploadField({ label, value, type, venueId, onUpdate }: { label: st
                         <Loader2 className="w-8 h-8 animate-spin text-white" />
                     </div>
                 )}
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity bg-black/30">
                     <Camera className="w-10 h-10 text-white" />
                 </div>
-                <input ref={inputRef} type="file" className="hidden" onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])} />
+                <input
+                    ref={inputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+                />
             </div>
+        </div>
+    );
+}
+
+// Gallery Editor Component for the 3x3 grid
+function GalleryEditor({
+    venueId,
+    gallery,
+    getAuthToken,
+    onGalleryUpdate,
+    onError,
+    onSuccess
+}: {
+    venueId: string;
+    gallery: any[];
+    getAuthToken: () => Promise<string | null>;
+    onGalleryUpdate: (gallery: any[]) => void;
+    onError?: (msg: string) => void;
+    onSuccess?: (msg: string) => void;
+}) {
+    const [uploading, setUploading] = useState(false);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const handleUpload = async (file: File) => {
+        if (gallery.length >= 9) {
+            onError?.("Maximum 9 photos allowed in gallery");
+            return;
+        }
+
+        setUploading(true);
+        try {
+            console.log("[GalleryEditor] Starting upload for venueId:", venueId);
+            const token = await getAuthToken();
+            console.log("[GalleryEditor] Got auth token:", token ? `length ${token.length}` : "NULL");
+
+            if (!token) {
+                onError?.("Authentication required. Please log in again.");
+                return;
+            }
+
+            // First, upload the image to storage
+            console.log("[GalleryEditor] Step 1: Uploading file to storage...");
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("venueId", venueId);
+            formData.append("type", "gallery");
+
+            const uploadRes = await fetch("/api/venue/upload", {
+                method: "POST",
+                body: formData,
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+
+            console.log("[GalleryEditor] Upload response status:", uploadRes.status);
+            const uploadData = await uploadRes.json();
+            console.log("[GalleryEditor] Upload response data:", uploadData);
+
+            if (!uploadRes.ok) {
+                throw new Error(uploadData.error || "Upload failed");
+            }
+
+            console.log("[GalleryEditor] Step 2: Adding to gallery collection...");
+
+            const galleryRes = await fetch("/api/venue/gallery", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    venueId,
+                    action: "add",
+                    data: { imageUrl: uploadData.url }
+                })
+            });
+
+            console.log("[GalleryEditor] Gallery API response status:", galleryRes.status);
+            const galleryData = await galleryRes.json();
+            console.log("[GalleryEditor] Gallery API response data:", galleryData);
+
+            if (!galleryRes.ok) {
+                throw new Error(galleryData.error || "Failed to add to gallery");
+            }
+
+            // Update local state with new photo
+            const newPhoto = galleryData.result || { id: Date.now().toString(), imageUrl: uploadData.url };
+            console.log("[GalleryEditor] Success! New photo:", newPhoto);
+            onGalleryUpdate([...gallery, newPhoto]);
+            onSuccess?.("Photo added to gallery");
+
+        } catch (err: any) {
+            console.error("Gallery upload error:", err);
+            onError?.(err.message || "Failed to upload photo");
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleDelete = async (photoId: string) => {
+        setDeletingId(photoId);
+        try {
+            const token = await getAuthToken();
+            if (!token) {
+                onError?.("Authentication required. Please log in again.");
+                return;
+            }
+
+            const res = await fetch("/api/venue/gallery", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    venueId,
+                    action: "remove",
+                    data: { photoId }
+                })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || "Failed to remove photo");
+            }
+
+            // Update local state
+            onGalleryUpdate(gallery.filter(p => p.id !== photoId));
+            onSuccess?.("Photo removed from gallery");
+
+        } catch (err: any) {
+            console.error("Gallery delete error:", err);
+            onError?.(err.message || "Failed to remove photo");
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <p className="text-xs text-[var(--text-tertiary)] uppercase font-bold tracking-widest">
+                Gallery Photos ({gallery.length}/9)
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {gallery.map((photo) => (
+                    <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden border border-[var(--border-subtle)] group">
+                        <img
+                            src={photo.imageUrl || photo}
+                            className="w-full h-full object-cover"
+                            alt=""
+                        />
+                        <button
+                            onClick={() => handleDelete(photo.id)}
+                            disabled={deletingId === photo.id}
+                            className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 p-1.5 rounded-lg text-white transition-colors disabled:opacity-50"
+                        >
+                            {deletingId === photo.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Trash2 className="w-4 h-4" />
+                            )}
+                        </button>
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                    </div>
+                ))}
+
+                {/* Add Photo Button */}
+                {gallery.length < 9 && (
+                    <div
+                        onClick={() => !uploading && inputRef.current?.click()}
+                        className={`aspect-square rounded-xl border-2 border-dashed border-[var(--border-default)] flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--surface-secondary)] transition-colors ${uploading ? 'pointer-events-none' : ''}`}
+                    >
+                        {uploading ? (
+                            <Loader2 className="w-6 h-6 animate-spin text-[var(--text-tertiary)]" />
+                        ) : (
+                            <>
+                                <Plus className="w-6 h-6 mb-2 text-[var(--text-tertiary)]" />
+                                <span className="text-[10px] font-bold uppercase text-[var(--text-tertiary)]">Add Photo</span>
+                            </>
+                        )}
+                    </div>
+                )}
+            </div>
+            <input
+                ref={inputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+            />
         </div>
     );
 }

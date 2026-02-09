@@ -1,6 +1,7 @@
 import "./globals.css";
 import { DashboardAuthProvider } from "../components/providers/DashboardAuthProvider";
 import ThemeProvider from "../components/providers/ThemeProvider";
+import { ToastProvider } from "../components/ui/Toast";
 
 export const metadata = {
   title: {
@@ -29,7 +30,9 @@ export default function RootLayout({ children }) {
           storageKey="c1rcle-theme"
         >
           <DashboardAuthProvider>
-            {children}
+            <ToastProvider position="top-center">
+              {children}
+            </ToastProvider>
           </DashboardAuthProvider>
         </ThemeProvider>
       </body>

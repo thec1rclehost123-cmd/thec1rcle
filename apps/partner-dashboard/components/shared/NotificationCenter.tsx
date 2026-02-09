@@ -33,8 +33,25 @@ interface Notification {
 }
 
 export function NotificationCenter() {
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
     const venueId = profile?.activeMembership?.partnerId;
+
+    // Helper for authenticated API calls
+    const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+        if (!user) {
+            console.error("[NotificationCenter] authedFetch called without user");
+            throw new Error("Not authenticated");
+        }
+        // Force refresh token to ensure it's valid
+        const token = await user.getIdToken(true);
+        return fetch(url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                "Authorization": `Bearer ${token}`,
+            },
+        });
+    }, [user]);
 
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -50,7 +67,7 @@ export function NotificationCenter() {
         setError(null);
 
         try {
-            const res = await fetch(`/api/venue/notifications?venueId=${venueId}&limit=20`);
+            const res = await authedFetch(`/api/venue/notifications?venueId=${venueId}&limit=20`);
             const data = await res.json();
 
             if (res.ok && data.notifications) {
@@ -91,7 +108,7 @@ export function NotificationCenter() {
         setActionLoading(`${notif.id}_${action}`);
 
         try {
-            const res = await fetch(`/api/venue/notifications`, {
+            const res = await authedFetch(`/api/venue/notifications`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -125,7 +142,7 @@ export function NotificationCenter() {
         setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
 
         try {
-            await fetch(`/api/venue/notifications`, {
+            await authedFetch(`/api/venue/notifications`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -76,8 +76,9 @@ export default function LivePreviewEditor({
             formData.append("venueId", venueId);
             formData.append("type", type);
 
-            // Get Auth Token for the API call
-            const token = await user.getIdToken();
+            // Get Auth Token for the API call - force refresh to ensure token is valid
+            const token = await user.getIdToken(true);
+            console.log(`[LivePreviewEditor] Got auth token, length:`, token?.length);
 
             // Call our new backend upload API
             const response = await fetch("/api/venue/upload", {

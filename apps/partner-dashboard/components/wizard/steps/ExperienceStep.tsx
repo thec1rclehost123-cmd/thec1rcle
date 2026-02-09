@@ -49,8 +49,8 @@ function AppleInput({
         <div className="space-y-1.5">
             {label && (
                 <div className="flex items-center justify-between">
-                    <label className="text-label ml-1">{label}</label>
-                    {hint && <span className="text-[10px] text-[#86868b] font-medium">{hint}</span>}
+                    <label className="text-label ml-1 text-[var(--text-secondary)]">{label}</label>
+                    {hint && <span className="text-[10px] text-[var(--text-tertiary)] font-medium uppercase tracking-widest">{hint}</span>}
                 </div>
             )}
             <div className="relative group">
@@ -141,15 +141,15 @@ export function ExperienceStep({
                                 key={artist}
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 border border-purple-100"
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20"
                             >
-                                <span className="text-body-sm font-medium text-purple-800">{artist}</span>
+                                <span className="text-body-sm font-medium text-purple-500">{artist}</span>
                                 <button
                                     type="button"
                                     onClick={() => removeArtist(artist)}
-                                    className="w-4 h-4 rounded-full bg-purple-200/50 hover:bg-purple-200 flex items-center justify-center transition-colors"
+                                    className="w-4 h-4 rounded-full bg-purple-500/20 hover:bg-purple-500/30 flex items-center justify-center transition-colors"
                                 >
-                                    <X className="w-2.5 h-2.5 text-purple-600" />
+                                    <X className="w-2.5 h-2.5 text-purple-500" />
                                 </button>
                             </motion.div>
                         ))}
@@ -176,8 +176,8 @@ export function ExperienceStep({
                             type="button"
                             onClick={() => toggleGenre(genre)}
                             className={`px-3 py-1.5 rounded-full text-body-sm font-medium border transition-all ${genres.includes(genre)
-                                    ? 'bg-indigo-500 text-white border-indigo-500'
-                                    : 'bg-white text-[#1d1d1f] border-[#e5e5e7] hover:border-indigo-300'
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20'
+                                : 'bg-[var(--surface-secondary)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-indigo-500/30 hover:bg-[var(--surface-base)]'
                                 }`}
                         >
                             {genre}
@@ -211,12 +211,12 @@ export function ExperienceStep({
                             type="button"
                             onClick={() => updateFormData({ dressCode: option.id })}
                             className={`p-4 rounded-xl border-2 text-left transition-all ${formData.dressCode === option.id
-                                    ? 'border-amber-500 bg-amber-50/50'
-                                    : 'border-[#e5e5e7] hover:border-amber-200'
+                                ? 'border-amber-500 bg-amber-500/10 shadow-sm'
+                                : 'border-[var(--border-subtle)] hover:border-amber-500/30 hover:bg-[var(--surface-secondary)]'
                                 }`}
                         >
-                            <p className="text-body font-semibold text-[#1d1d1f]">{option.label}</p>
-                            <p className="text-caption mt-0.5">{option.desc}</p>
+                            <p className="text-body font-semibold text-[var(--text-primary)]">{option.label}</p>
+                            <p className="text-caption text-[var(--text-tertiary)] mt-0.5">{option.desc}</p>
                         </button>
                     ))}
                 </div>
@@ -253,8 +253,8 @@ export function ExperienceStep({
                                     type="button"
                                     onClick={() => updateFormData({ ageRestriction: option.value })}
                                     className={`px-4 py-2 rounded-lg border-2 text-body-sm font-medium transition-all ${formData.ageRestriction === option.value
-                                            ? 'border-red-500 bg-red-50 text-red-700'
-                                            : 'border-[#e5e5e7] hover:border-red-200'
+                                        ? 'border-red-500 bg-red-500/10 text-red-500'
+                                        : 'border-[var(--border-subtle)] hover:border-red-500/30 hover:bg-[var(--surface-secondary)]'
                                         }`}
                                 >
                                     {option.label}
@@ -270,12 +270,12 @@ export function ExperienceStep({
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: 'auto' }}
                                 exit={{ opacity: 0, height: 0 }}
-                                className="p-4 rounded-xl bg-amber-50 border border-amber-100 flex items-start gap-3"
+                                className="p-4 rounded-xl bg-[var(--state-warning-bg)] border border-[var(--state-warning)]/20 flex items-start gap-3"
                             >
-                                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                                <AlertCircle className="w-5 h-5 text-[var(--state-warning)] flex-shrink-0 mt-0.5" />
                                 <div>
-                                    <p className="text-body font-medium text-amber-800">ID Verification Required</p>
-                                    <p className="text-caption text-amber-700 mt-1">
+                                    <p className="text-body font-medium text-[var(--state-warning)]">ID Verification Required</p>
+                                    <p className="text-caption text-[var(--state-warning)] opacity-80 mt-1">
                                         Guests will be required to show valid government ID at entry.
                                         This will be displayed prominently on the event page.
                                     </p>

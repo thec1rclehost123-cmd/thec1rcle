@@ -389,7 +389,24 @@ function DraftsLanding({ drafts, onResume, onStartFresh, onDelete }: { drafts: a
 export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
+
+    // Helper for authenticated API calls
+    const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+        if (!user) {
+            console.error("[WizardV1] authedFetch called without user");
+            throw new Error("Not authenticated");
+        }
+        // Force refresh token to ensure it's valid
+        const token = await user.getIdToken(true);
+        return fetch(url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                "Authorization": `Bearer ${token}`,
+            },
+        });
+    }, [user]);
     const [currentStep, setCurrentStep] = useState<WizardStep>('basics');
     const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
     const [showDemoHover, setShowDemoHover] = useState(false);
@@ -730,7 +747,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
 
                     if (savedDraftId) {
                         // Update existing draft
-                        const res = await fetch(`/api/events/${savedDraftId}`, {
+                        const res = await authedFetch(`/api/events/${savedDraftId}`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -746,7 +763,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                         setSaveState('saved');
                     } else {
                         // Create initial draft
-                        const res = await fetch('/api/events/create', {
+                        const res = await authedFetch('/api/events/create', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -807,7 +824,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                 }
             };
 
-            const res = await fetch(endpoint, {
+            const res = await authedFetch(endpoint, {
                 method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(method === 'PATCH' ? {
@@ -891,7 +908,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
     const handleDeleteDraft = async (id: string) => {
         if (!confirm("Are you sure you want to delete this draft?")) return;
         try {
-            const res = await fetch(`/api/events/${id}`, {
+            const res = await authedFetch(`/api/events/${id}`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

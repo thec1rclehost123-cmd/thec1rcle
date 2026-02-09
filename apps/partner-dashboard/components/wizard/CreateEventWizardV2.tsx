@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     Sparkles, Calendar, Music, Ticket, Wine, Percent,
     Image as ImageIcon, CheckCircle2, ChevronRight, ChevronLeft,
-    AlertCircle, Loader2, MapPin
+    AlertCircle, Loader2, MapPin, Plus
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -44,7 +44,24 @@ const formatCurrency = (value: number) => {
 export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
+
+    // Helper for authenticated API calls
+    const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+        if (!user) {
+            console.error("[WizardV2] authedFetch called without user");
+            throw new Error("Not authenticated");
+        }
+        // Force refresh token to ensure it's valid
+        const token = await user.getIdToken(true);
+        return fetch(url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                "Authorization": `Bearer ${token}`,
+            },
+        });
+    }, [user]);
 
     // State
     const [currentStep, setCurrentStep] = useState<WizardStep>('identity');
@@ -62,6 +79,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     const [loadError, setLoadError] = useState<string | null>(null);
     const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
     const [completedSteps, setCompletedSteps] = useState<WizardStep[]>([]);
+    const [localRecoveryData, setLocalRecoveryData] = useState<any>(null);
+    const [showRecoveryBanner, setShowRecoveryBanner] = useState(false);
     const [prefilledSlot, setPrefilledSlot] = useState<{
         venueId: string;
         venueName: string;
@@ -203,7 +222,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         if (role === 'host' && profile?.activeMembership?.partnerId) {
             const fetchPartnerships = async () => {
                 try {
-                    const res = await fetch(`/api/venue/partnerships?hostId=${profile.activeMembership.partnerId}&status=active`);
+                    const res = await authedFetch(`/api/venue/partnerships?hostId=${profile.activeMembership.partnerId}&status=active`);
                     const data = await res.json();
                     setPartnerships(data.partnerships || []);
                 } catch (err) {
@@ -212,7 +231,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
             };
             fetchPartnerships();
         }
-    }, [role, profile?.activeMembership?.partnerId]);
+    }, [role, profile?.activeMembership?.partnerId, authedFetch]);
 
     // Hydrate from URL params (when coming from venue calendar selection)
     useEffect(() => {
@@ -243,15 +262,119 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         }
     }, [searchParams]);
 
-    // Hydrate creatorId
+    // 1. Load Local Recovery Snapshot (Crash recovery)
+    useEffect(() => {
+        if (!profile?.uid || isLoadingDraft) return;
+        const currentId = searchParams.get('id') || 'new';
+        const storageKey = `c1rcle_draft_event_v2_${profile.uid}_${currentId}`;
+        const stored = localStorage.getItem(storageKey);
+
+        if (stored) {
+            try {
+                const localData = JSON.parse(stored);
+                // If we don't have an ID in URL, we can just hydrate from local immediately if it's "new"
+                if (currentId === 'new' && !formData.id && localData.title) {
+                    setFormData((prev: any) => ({ ...prev, ...localData }));
+                    return;
+                }
+                setLocalRecoveryData(localData);
+            } catch (e) {
+                console.error("Failed to parse local draft", e);
+            }
+        }
+    }, [profile?.uid, searchParams, isLoadingDraft]);
+
+    // 2. Fetch remote draft if ID is in URL
+    useEffect(() => {
+        const eventId = searchParams.get('id');
+        if (eventId && eventId !== 'new' && eventId !== savedDraftId && !isLoadingDraft && !loadError) {
+            const fetchDraft = async () => {
+                setIsLoadingDraft(true);
+                setLoadError(null);
+                try {
+                    console.log("[WizardV2] Fetching draft:", eventId);
+                    const res = await authedFetch(`/api/events/${eventId}`);
+                    if (!res.ok) throw new Error("Failed to load event draft.");
+                    const data = await res.json();
+
+                    if (data.event) {
+                        const remote = data.event;
+                        const remoteUpdated = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
+
+                        // Compare with local recovery data if available
+                        if (localRecoveryData && localRecoveryData.draftMeta?.clientUpdatedAt > remoteUpdated) {
+                            // Local is newer! Show recovery option
+                            console.log("[WizardV2] Local recovery data is newer");
+                            setFormData(remote);
+                            setSavedDraftId(remote.id);
+                            setShowRecoveryBanner(true);
+                        } else {
+                            // Remote is newer or no local data
+                            console.log("[WizardV2] Loading remote draft data");
+                            setFormData(remote);
+                            setSavedDraftId(remote.id);
+
+                            // Restore progress if saved
+                            if (remote.draftMeta?.lastStep) {
+                                setCurrentStep(remote.draftMeta.lastStep as WizardStep);
+                            }
+                        }
+                    }
+                } catch (err: any) {
+                    console.error("Failed to fetch remote draft:", err);
+                    setLoadError(err.message || "Failed to load draft");
+                } finally {
+                    setIsLoadingDraft(false);
+                }
+            };
+            fetchDraft();
+        }
+    }, [searchParams, savedDraftId, loadError, isLoadingDraft, localRecoveryData, authedFetch]);
+
+    // 3. Fetch drafts list if no ID provided
+    useEffect(() => {
+        if (!searchParams.get('id') && profile?.activeMembership?.partnerId) {
+            const fetchDrafts = async () => {
+                try {
+                    const res = await authedFetch(`/api/events?lifecycle=draft&creatorId=${profile.activeMembership.partnerId}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setDrafts(data.events || []);
+                    }
+                } catch (err) {
+                    console.error("Failed to fetch drafts:", err);
+                }
+            };
+            fetchDrafts();
+        }
+    }, [searchParams, profile?.activeMembership?.partnerId, authedFetch]);
+
+    // Hydrate creatorId and Venue Info (if role is venue)
     useEffect(() => {
         if (profile?.activeMembership?.partnerId || profile?.uid) {
             const preferredId = profile.activeMembership?.partnerId || profile.uid;
+
+            const updates: any = {};
+
             if (formData.creatorId !== preferredId) {
-                updateFormData({ creatorId: preferredId });
+                updates.creatorId = preferredId;
+            }
+
+            // For venues, auto-fill the venue identity
+            if (role === 'venue' && profile?.activeMembership?.partnerId) {
+                const venueName = profile.activeMembership.partnerName || "Your Venue";
+                if (formData.venueId !== preferredId || formData.venueName !== venueName) {
+                    updates.venueId = preferredId;
+                    updates.venueName = venueName;
+                    updates.venue = venueName; // Legacy support
+                }
+            }
+
+            if (Object.keys(updates).length > 0) {
+                updateFormData(updates);
             }
         }
-    }, [profile, formData.creatorId, updateFormData]);
+    }, [profile, role, formData.creatorId, formData.venueId, formData.venueName, updateFormData]);
 
     // Auto-save to localStorage
     useEffect(() => {
@@ -289,7 +412,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                     };
 
                     if (savedDraftId) {
-                        const res = await fetch(`/api/events/${savedDraftId}`, {
+                        const res = await authedFetch(`/api/events/${savedDraftId}`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -303,7 +426,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                         });
                         if (!res.ok) throw new Error("Update failed");
                     } else {
-                        const res = await fetch('/api/events/create', {
+                        const res = await authedFetch('/api/events/create', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -331,7 +454,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
             }
         }, 3000);
         return () => clearTimeout(timer);
-    }, [formData, savedDraftId, profile, role, router, currentStep, searchParams]);
+    }, [formData, savedDraftId, profile, role, router, currentStep, searchParams, authedFetch]);
 
     const validateCurrentStep = (): boolean => {
         const validation = stepValidation[currentStep];
@@ -393,7 +516,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                 settings: { ...(formData.settings || {}), showGuestlist }
             };
 
-            const res = await fetch(endpoint, {
+            const res = await authedFetch(endpoint, {
                 method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(method === 'PATCH' ? {
@@ -427,7 +550,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                             priority: "normal"
                         };
 
-                        await fetch('/api/slots', {
+                        await authedFetch('/api/slots', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(slotRequestPayload)
@@ -458,13 +581,32 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         }
     };
 
-    // Loading State
     if (isLoadingDraft) {
         return (
-            <div className="min-h-[400px] flex items-center justify-center">
+            <div className="min-h-screen bg-[var(--surface-base)] flex items-center justify-center">
                 <div className="text-center">
                     <Loader2 className="h-10 w-10 text-indigo-600 animate-spin mx-auto mb-4" />
                     <p className="text-body text-muted">Loading your draft...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (loadError) {
+        return (
+            <div className="min-h-screen bg-[var(--surface-base)] flex items-center justify-center p-6">
+                <div className="text-center max-w-sm">
+                    <div className="bg-red-50 text-red-600 p-4 rounded-2xl mb-6">
+                        <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+                        <p className="font-semibold">Error Loading Draft</p>
+                        <p className="text-sm opacity-90">{loadError}</p>
+                    </div>
+                    <button
+                        onClick={() => router.push(role === 'venue' ? '/venue/events' : '/host/events')}
+                        className="btn btn-primary w-full py-4"
+                    >
+                        Back to Events
+                    </button>
                 </div>
             </div>
         );
@@ -549,214 +691,332 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                     />
 
                     {/* Main Layout */}
-                    <div className="flex flex-col lg:flex-row gap-12">
-                        {/* Form Area */}
-                        <div className="flex-1">
-                            <AnimatePresence mode="wait">
-                                <motion.div
-                                    key={currentStep}
-                                    initial={{ opacity: 0, y: 8 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -8 }}
-                                    transition={{ duration: 0.2 }}
-                                >
-                                    {currentStep === 'identity' && (
-                                        <IdentityStep
-                                            formData={formData}
-                                            updateFormData={updateFormData}
-                                            validationErrors={validationErrors}
-                                            role={role}
-                                            partnerships={partnerships}
-                                            profile={profile}
-                                        />
-                                    )}
-
-                                    {currentStep === 'scheduling' && (
-                                        <SchedulingStep
-                                            formData={formData}
-                                            updateFormData={updateFormData}
-                                            validationErrors={validationErrors}
-                                            role={role}
-                                            profile={profile}
-                                        />
-                                    )}
-
-                                    {currentStep === 'experience' && (
-                                        <ExperienceStep
-                                            formData={formData}
-                                            updateFormData={updateFormData}
-                                            validationErrors={validationErrors}
-                                        />
-                                    )}
-
-                                    {currentStep === 'ticketing' && (
-                                        <TicketTierStep
-                                            formData={formData}
-                                            updateFormData={updateFormData}
-                                            validationErrors={validationErrors}
-                                        />
-                                    )}
-
-                                    {currentStep === 'tables' && (
-                                        <TableBookingStep
-                                            formData={formData}
-                                            updateFormData={updateFormData}
-                                            validationErrors={validationErrors}
-                                        />
-                                    )}
-
-                                    {currentStep === 'promoters' && (
-                                        <PromoterStep
-                                            formData={formData}
-                                            updateFormData={updateFormData}
-                                        />
-                                    )}
-
-                                    {currentStep === 'media' && (
-                                        <MediaStep
-                                            formData={formData}
-                                            updateFormData={updateFormData}
-                                        />
-                                    )}
-
-                                    {currentStep === 'review' && (
-                                        <div className="space-y-8">
-                                            {/* Balance Sheet - UNCHANGED */}
-                                            <DetailedBreakdown formData={formData} />
-                                        </div>
-                                    )}
-
-                                    {/* Navigation Footer */}
-                                    <div className="flex items-center justify-between mt-12 pt-8 border-t border-[rgba(0,0,0,0.06)]">
-                                        <div className="flex items-center gap-4">
-                                            <button
-                                                onClick={prevStep}
-                                                className="btn btn-secondary flex items-center gap-2"
-                                            >
-                                                <ChevronLeft className="w-4 h-4" /> Back
-                                            </button>
-                                            <button
-                                                onClick={() => handleSubmit(true)}
-                                                className="text-[15px] text-[#86868b] hover:text-[#1d1d1f] transition-colors"
-                                            >
-                                                Save Draft
-                                            </button>
-                                        </div>
-
-                                        {currentStep === 'review' ? (
-                                            <button
-                                                disabled={isSubmitting}
-                                                onClick={() => setShowPublishModal(true)}
-                                                className="btn btn-primary flex items-center gap-2 disabled:opacity-50"
-                                            >
-                                                Continue <ChevronRight className="w-4 h-4" />
-                                            </button>
-                                        ) : (
-                                            <button
-                                                onClick={nextStep}
-                                                className="btn btn-primary flex items-center gap-2"
-                                            >
-                                                Continue <ChevronRight className="w-4 h-4" />
-                                            </button>
-                                        )}
-                                    </div>
-                                </motion.div>
-                            </AnimatePresence>
-                        </div>
-
-                        {/* Preview Sidebar */}
-                        <div className="w-full lg:w-[360px] lg:sticky lg:top-8 self-start space-y-6">
-                            <div className="flex items-center justify-between px-1">
-                                <span className="text-label">Live Preview</span>
-                                <SaveStatus status={saveState} />
+                    {drafts.length > 0 && !searchParams.get('id') && currentStep === 'identity' && !formData.title ? (
+                        <div className="max-w-5xl mx-auto py-16 px-4">
+                            <div className="text-center mb-16 space-y-4">
+                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-[24px] bg-indigo-50 text-indigo-600 mb-4 shadow-sm">
+                                    <Sparkles className="w-8 h-8" />
+                                </div>
+                                <h2 className="text-[32px] font-black tracking-tight text-[var(--text-primary)] uppercase">Draft Sessions</h2>
+                                <p className="text-[var(--text-tertiary)] text-sm font-medium tracking-wide uppercase opacity-60">Resume your creative sequence</p>
                             </div>
 
-                            <div className="flex justify-center">
-                                <div
-                                    className="w-[320px] h-[420px] rounded-[32px] overflow-hidden shadow-2xl cursor-pointer hover:scale-[1.02] transition-transform"
-                                    onClick={() => setIsFullPagePreviewOpen(true)}
-                                >
-                                    <EventCard
-                                        event={formData}
-                                        isPreview={true}
-                                        device="desktop"
-                                        height="h-full"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Quick Stats */}
-                            <div className="px-2 space-y-3">
-                                <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                                    <span className="text-caption">Inventory Value</span>
-                                    <span className="text-body font-bold">{formatCurrency(grandTotal.value)}</span>
-                                </div>
-                                <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                                    <span className="text-caption">Total Capacity</span>
-                                    <span className="text-body font-bold">{grandTotal.quantity}</span>
-                                </div>
-                                <div className="flex items-center justify-between py-2">
-                                    <span className="text-caption">Ticket Tiers</span>
-                                    <span className="text-body font-bold">{formData.tickets?.length || 0}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Full Page Preview Modal */}
-                <AnimatePresence>
-                    {isFullPagePreviewOpen && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-[100] bg-black"
-                        >
-                            <div className="flex flex-col h-full">
-                                <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-zinc-900">
-                                    <button
-                                        onClick={() => setIsFullPagePreviewOpen(false)}
-                                        className="flex items-center gap-2 text-white hover:text-stone-300"
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {drafts.map(draft => (
+                                    <div
+                                        key={draft.id}
+                                        onClick={() => {
+                                            const params = new URLSearchParams(searchParams.toString());
+                                            params.set('id', draft.id);
+                                            router.push(`${window.location.pathname}?${params.toString()}`);
+                                        }}
+                                        className="group relative overflow-hidden rounded-[32px] bg-[var(--surface-elevated)] border border-[var(--border-subtle)] p-8 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-2xl hover:border-indigo-500/30 active:scale-[0.98]"
                                     >
-                                        <ChevronLeft className="w-5 h-5" />
-                                        <span className="text-[11px] font-bold uppercase">Back to Wizard</span>
-                                    </button>
-                                    <span className="text-[11px] font-bold uppercase text-white/40">Preview Mode</span>
-                                </div>
-                                <div className="flex-1 overflow-y-auto">
-                                    <EventPage
-                                        event={{
-                                            ...formData,
-                                            id: "preview-id",
-                                            host: profile?.activeMembership?.partnerName || "Host",
-                                            settings: { showGuestlist }
-                                        }}
-                                        host={{
-                                            name: profile?.activeMembership?.partnerName || "Host",
-                                            avatar: "/events/holi-edit.svg",
-                                            followers: 0,
-                                            location: formData.city || "India",
-                                            bio: "Preview mode"
-                                        }}
-                                        isPreview={true}
-                                    />
+                                        <div className="flex flex-col h-full gap-6">
+                                            <div className="flex items-start justify-between">
+                                                <div className="w-14 h-14 rounded-2xl bg-[var(--surface-secondary)] flex items-center justify-center overflow-hidden border border-[var(--border-subtle)]">
+                                                    {draft.poster || draft.image ? (
+                                                        <img src={draft.poster || draft.image} className="w-full h-full object-cover" />
+                                                    ) : <Music className="w-6 h-6 text-[var(--text-tertiary)]" />}
+                                                </div>
+                                                <span className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-500 text-[10px] font-bold uppercase tracking-wider border border-indigo-500/20">
+                                                    Draft
+                                                </span>
+                                            </div>
+
+                                            <div>
+                                                <h3 className="text-xl font-bold text-[var(--text-primary)] leading-tight group-hover:text-indigo-600 transition-colors mb-2">
+                                                    {draft.title || "Untitled Sequence"}
+                                                </h3>
+                                                <div className="flex items-center gap-2 text-[var(--text-tertiary)] opacity-60">
+                                                    <Loader2 className="w-3 h-3" />
+                                                    <p className="text-[11px] font-bold uppercase tracking-widest">
+                                                        Edited {draft.updatedAt ? new Date(draft.updatedAt).toLocaleDateString() : 'Just now'}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-4 mt-auto border-t border-[var(--border-subtle)] flex items-center justify-between text-indigo-500">
+                                                <span className="text-[xs] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Resume Project</span>
+                                                <ChevronRight className="w-5 h-5 translate-x-[-8px] group-hover:translate-x-0 transition-transform" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                <div
+                                    onClick={() => {
+                                        const params = new URLSearchParams(searchParams.toString());
+                                        params.set('id', 'new');
+                                        router.push(`${window.location.pathname}?${params.toString()}`);
+                                    }}
+                                    className="group flex flex-col items-center justify-center gap-4 rounded-[32px] border-2 border-dashed border-[var(--border-strong)] p-12 cursor-pointer transition-all hover:bg-[var(--surface-secondary)] hover:border-indigo-500/50 hover:scale-[1.02] active:scale-[0.98]"
+                                >
+                                    <div className="w-16 h-16 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                        <Plus className="w-8 h-8" />
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="font-bold text-[var(--text-primary)] group-hover:text-indigo-500 transition-colors uppercase tracking-widest text-xs">Initialize New</p>
+                                        <p className="text-[10px] text-[var(--text-tertiary)] font-medium uppercase mt-1">From scratch</p>
+                                    </div>
                                 </div>
                             </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col lg:flex-row gap-12">
+                            {/* Form Area */}
+                            <div className="flex-1">
+                                <AnimatePresence mode="wait">
+                                    <motion.div
+                                        key={currentStep}
+                                        initial={{ opacity: 0, y: 8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -8 }}
+                                        transition={{ duration: 0.2 }}
+                                    >
+                                        {/* Recovery Banner */}
+                                        <AnimatePresence>
+                                            {showRecoveryBanner && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, height: 0, scale: 0.95 }}
+                                                    animate={{ opacity: 1, height: 'auto', scale: 1 }}
+                                                    exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                                                    className="overflow-hidden"
+                                                >
+                                                    <div className="mb-8 p-1 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-[24px] shadow-2xl shadow-indigo-500/20">
+                                                        <div className="bg-[var(--surface-base)] rounded-[20px] p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+                                                            <div className="flex items-center gap-5">
+                                                                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
+                                                                    <Sparkles className="w-6 h-6 text-indigo-500 animate-pulse" />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[13px] font-black uppercase tracking-wider text-[var(--text-primary)]">Sequence Recovery Available</p>
+                                                                    <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mt-1 opacity-60">High-fidelity session state detected</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (localRecoveryData) {
+                                                                            setFormData(localRecoveryData);
+                                                                            setShowRecoveryBanner(false);
+                                                                        }
+                                                                    }}
+                                                                    className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-indigo-500/30"
+                                                                >
+                                                                    Restore Snapshot
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setShowRecoveryBanner(false)}
+                                                                    className="px-6 py-3 bg-[var(--surface-secondary)] text-[var(--text-tertiary)] rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-[var(--surface-tertiary)] transition-all"
+                                                                >
+                                                                    Ignore
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
 
-                {/* Publish Confirmation Modal */}
-                <PublishConfirmationModal
-                    isOpen={showPublishModal}
-                    onClose={() => setShowPublishModal(false)}
-                    onConfirm={() => handleSubmit(false)}
-                    isSubmitting={isSubmitting}
-                    formData={formData}
-                    role={role}
-                />
+                                        {currentStep === 'identity' && (
+                                            <IdentityStep
+                                                formData={formData}
+                                                updateFormData={updateFormData}
+                                                validationErrors={validationErrors}
+                                                role={role}
+                                                partnerships={partnerships}
+                                                profile={profile}
+                                            />
+                                        )}
+
+                                        {currentStep === 'scheduling' && (
+                                            <SchedulingStep
+                                                formData={formData}
+                                                updateFormData={updateFormData}
+                                                validationErrors={validationErrors}
+                                                role={role}
+                                                profile={profile}
+                                            />
+                                        )}
+
+                                        {currentStep === 'experience' && (
+                                            <ExperienceStep
+                                                formData={formData}
+                                                updateFormData={updateFormData}
+                                                validationErrors={validationErrors}
+                                            />
+                                        )}
+
+                                        {currentStep === 'ticketing' && (
+                                            <TicketTierStep
+                                                formData={formData}
+                                                updateFormData={updateFormData}
+                                                validationErrors={validationErrors}
+                                            />
+                                        )}
+
+                                        {currentStep === 'tables' && (
+                                            <TableBookingStep
+                                                formData={formData}
+                                                updateFormData={updateFormData}
+                                                validationErrors={validationErrors}
+                                            />
+                                        )}
+
+                                        {currentStep === 'promoters' && (
+                                            <PromoterStep
+                                                formData={formData}
+                                                updateFormData={updateFormData}
+                                            />
+                                        )}
+
+                                        {currentStep === 'media' && (
+                                            <MediaStep
+                                                formData={formData}
+                                                updateFormData={updateFormData}
+                                            />
+                                        )}
+
+                                        {currentStep === 'review' && (
+                                            <div className="space-y-8">
+                                                {/* Balance Sheet - UNCHANGED */}
+                                                <DetailedBreakdown formData={formData} />
+                                            </div>
+                                        )}
+
+                                        {/* Navigation Footer */}
+                                        <div className="flex items-center justify-between mt-12 pt-8 border-t border-[var(--border-subtle)]">
+                                            <div className="flex items-center gap-4">
+                                                <button
+                                                    onClick={prevStep}
+                                                    className="btn btn-secondary flex items-center gap-2"
+                                                >
+                                                    <ChevronLeft className="w-4 h-4" /> Back
+                                                </button>
+                                                <button
+                                                    onClick={() => handleSubmit(true)}
+                                                    className="text-[15px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors font-medium"
+                                                >
+                                                    Save Draft
+                                                </button>
+                                            </div>
+
+                                            {currentStep === 'review' ? (
+                                                <button
+                                                    disabled={isSubmitting}
+                                                    onClick={() => setShowPublishModal(true)}
+                                                    className="btn btn-primary flex items-center gap-2 disabled:opacity-50"
+                                                >
+                                                    Continue <ChevronRight className="w-4 h-4" />
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={nextStep}
+                                                    className="btn btn-primary flex items-center gap-2"
+                                                >
+                                                    Continue <ChevronRight className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                </AnimatePresence>
+                            </div>
+
+                            {/* Preview Sidebar */}
+                            <div className="w-full lg:w-[360px] lg:sticky lg:top-8 self-start space-y-6">
+                                <div className="flex items-center justify-between px-1">
+                                    <span className="text-label">Live Preview</span>
+                                    <SaveStatus status={saveState} />
+                                </div>
+
+                                <div className="flex justify-center">
+                                    <div
+                                        className="w-[320px] h-[420px] rounded-[32px] overflow-hidden shadow-2xl cursor-pointer hover:scale-[1.02] transition-transform"
+                                        onClick={() => setIsFullPagePreviewOpen(true)}
+                                    >
+                                        <EventCard
+                                            event={formData}
+                                            isPreview={true}
+                                            device="desktop"
+                                            height="h-full"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Quick Stats */}
+                                <div className="px-2 space-y-3">
+                                    <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
+                                        <span className="text-caption text-[var(--text-tertiary)]">Inventory Value</span>
+                                        <span className="text-body font-bold text-[var(--text-primary)]">{formatCurrency(grandTotal.value)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
+                                        <span className="text-caption text-[var(--text-tertiary)]">Total Capacity</span>
+                                        <span className="text-body font-bold text-[var(--text-primary)]">{grandTotal.quantity}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between py-2">
+                                        <span className="text-caption">Ticket Tiers</span>
+                                        <span className="text-body font-bold">{formData.tickets?.length || 0}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
+
+            {/* Full Page Preview Modal */}
+            <AnimatePresence>
+                {isFullPagePreviewOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] bg-black"
+                    >
+                        <div className="flex flex-col h-full">
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-zinc-900">
+                                <button
+                                    onClick={() => setIsFullPagePreviewOpen(false)}
+                                    className="flex items-center gap-2 text-white hover:text-stone-300"
+                                >
+                                    <ChevronLeft className="w-5 h-5" />
+                                    <span className="text-[11px] font-bold uppercase">Back to Wizard</span>
+                                </button>
+                                <span className="text-[11px] font-bold uppercase text-white/40">Preview Mode</span>
+                            </div>
+                            <div className="flex-1 overflow-y-auto">
+                                <EventPage
+                                    event={{
+                                        ...formData,
+                                        id: "preview-id",
+                                        host: profile?.activeMembership?.partnerName || "Host",
+                                        settings: { showGuestlist }
+                                    }}
+                                    host={{
+                                        name: profile?.activeMembership?.partnerName || "Host",
+                                        avatar: "/events/holi-edit.svg",
+                                        followers: 0,
+                                        location: formData.city || "India",
+                                        bio: "Preview mode"
+                                    }}
+                                    isPreview={true}
+                                />
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Publish Confirmation Modal */}
+            <PublishConfirmationModal
+                isOpen={showPublishModal}
+                onClose={() => setShowPublishModal(false)}
+                onConfirm={() => handleSubmit(false)}
+                isSubmitting={isSubmitting}
+                formData={formData}
+                role={role}
+            />
         </>
     );
 }

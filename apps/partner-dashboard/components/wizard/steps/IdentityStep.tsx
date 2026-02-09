@@ -30,8 +30,8 @@ function AppleInput({
         <div className="space-y-1.5">
             {label && (
                 <div className="flex items-center justify-between">
-                    <label className="text-label ml-1">{label}</label>
-                    {hint && <span className="text-[10px] text-[#86868b] font-medium">{hint}</span>}
+                    <label className="text-label ml-1 text-[var(--text-secondary)]">{label}</label>
+                    {hint && <span className="text-[10px] text-[var(--text-tertiary)] font-medium uppercase tracking-widest">{hint}</span>}
                 </div>
             )}
             <div className="relative group">
@@ -66,8 +66,8 @@ function AppleTextArea({
         <div className="space-y-1.5">
             {label && (
                 <div className="flex items-center justify-between">
-                    <label className="text-label ml-1">{label}</label>
-                    {hint && <span className="text-[10px] text-[#86868b] font-medium">{hint}</span>}
+                    <label className="text-label ml-1 text-[var(--text-secondary)]">{label}</label>
+                    {hint && <span className="text-[10px] text-[var(--text-tertiary)] font-medium uppercase tracking-widest">{hint}</span>}
                 </div>
             )}
             <textarea
@@ -156,7 +156,7 @@ export function IdentityStep({
                     onChange={(e) => updateFormData({ description: e.target.value })}
                     className="text-body-sm min-h-[140px]"
                     autoCapitalize="sentences"
-                    hint="Recommended: 100+ characters"
+                    hint="Recommended: 100+ chars"
                 />
 
                 <div className="grid grid-cols-2 gap-6">
@@ -187,23 +187,59 @@ export function IdentityStep({
                     </div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-[#f5f5f7] border border-[#e5e5e7]">
+                <div className="p-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)]">
                     <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
                             {(profile?.activeMembership?.partnerName || profile?.displayName || "H")[0]}
                         </div>
                         <div>
-                            <p className="text-body font-semibold text-[#1d1d1f]">
+                            <p className="text-body font-semibold text-[var(--text-primary)]">
                                 {profile?.activeMembership?.partnerName || profile?.displayName || "Your Organization"}
                             </p>
-                            <p className="text-caption">Event Host</p>
+                            <p className="text-caption text-[var(--text-tertiary)]">Event Host</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Venue Selection (Host Role Only) */}
-            {role === 'host' && (
+            {/* Venue Identity / Selection */}
+            {role === 'venue' ? (
+                <div className="card-elevated p-8 space-y-6">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                            <Building2 className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                            <h3 className="text-headline-sm">Venue Identity</h3>
+                            <p className="text-caption">The physical location for this event</p>
+                        </div>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)]">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-[var(--surface-base)] border border-[var(--border-subtle)] flex items-center justify-center">
+                                <Building2 className="w-6 h-6 text-indigo-500" />
+                            </div>
+                            <div>
+                                <p className="text-body font-semibold text-[var(--text-primary)]">
+                                    {profile?.activeMembership?.partnerName || "Your Venue"}
+                                </p>
+                                <p className="text-caption text-[var(--text-tertiary)]">
+                                    {profile?.activeMembership?.city || formData.city || "Primary Facility"}
+                                </p>
+                            </div>
+                            <div className="ml-auto">
+                                <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest text-emerald-600">
+                                    Pre-selected
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p className="text-[11px] text-[var(--text-tertiary)] ml-1">
+                        As a venue operator, your facility is automatically linked to this event.
+                    </p>
+                </div>
+            ) : (
                 <div className="card-elevated p-8 space-y-6">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -234,18 +270,18 @@ export function IdentityStep({
                                         venue: venue.venueName
                                     })}
                                     className={`p-4 rounded-xl border-2 text-left transition-all ${formData.venueId === venue.venueId
-                                            ? 'border-indigo-500 bg-indigo-50/50 shadow-sm'
-                                            : 'border-[#e5e5e7] hover:border-indigo-200 hover:bg-[#fafafa]'
+                                        ? 'border-indigo-500 bg-indigo-500/5 shadow-sm'
+                                        : 'border-[var(--border-subtle)] hover:border-indigo-500/30 hover:bg-[var(--surface-secondary)]'
                                         }`}
                                 >
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-lg bg-stone-100 flex items-center justify-center">
-                                                <Building2 className="w-5 h-5 text-stone-500" />
+                                            <div className="w-10 h-10 rounded-lg bg-[var(--surface-base)] border border-[var(--border-subtle)] flex items-center justify-center">
+                                                <Building2 className="w-5 h-5 text-[var(--text-tertiary)]" />
                                             </div>
                                             <div>
-                                                <p className="text-body font-semibold text-[#1d1d1f]">{venue.venueName}</p>
-                                                <p className="text-caption">{venue.city || 'Location TBD'}</p>
+                                                <p className="text-body font-semibold text-[var(--text-primary)]">{venue.venueName}</p>
+                                                <p className="text-caption text-[var(--text-tertiary)]">{venue.city || 'Location TBD'}</p>
                                             </div>
                                         </div>
                                         {formData.venueId === venue.venueId && (

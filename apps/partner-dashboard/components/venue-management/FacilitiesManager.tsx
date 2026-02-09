@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { Plus, Trash2, GripVertical, Loader2, Edit3 } from "lucide-react";
 import { motion, Reorder, AnimatePresence } from "framer-motion";
+import { useToast } from "@/components/ui/Toast";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 const FACILITY_ICONS = [
@@ -36,6 +37,7 @@ interface FacilitiesManagerProps {
 
 export default function FacilitiesManager({ venueId, facilities, onRefresh }: FacilitiesManagerProps) {
     const { user } = useDashboardAuth();
+    const { success: toastSuccess } = useToast();
     const [isAdding, setIsAdding] = useState(false);
     const [newName, setNewName] = useState("");
     const [newIcon, setNewIcon] = useState("star");
@@ -57,29 +59,34 @@ export default function FacilitiesManager({ venueId, facilities, onRefresh }: Fa
         });
     }, [user]);
 
-    const apiCall = async (action: string, data: any) => {
+    const apiCall = async (action: string, data: any, successMsg?: string) => {
         if (!user) return;
-        await authedFetch("/api/venue/facilities", {
-            method: "POST",
-            body: JSON.stringify({ venueId, action, data })
-        });
-        onRefresh();
+        try {
+            await authedFetch("/api/venue/facilities", {
+                method: "POST",
+                body: JSON.stringify({ venueId, action, data })
+            });
+            if (successMsg) toastSuccess(successMsg, "Live profile updated.");
+            onRefresh();
+        } catch (err) {
+            console.error("Facility API error:", err);
+        }
     };
 
     const handleAddFacility = async () => {
         if (!newName.trim()) return;
         setSaving(true);
-        await apiCall("add", { name: newName.trim(), icon: newIcon });
+        await apiCall("add", { name: newName.trim(), icon: newIcon }, "Facility added");
         setNewName("");
         setNewIcon("star");
         setIsAdding(false);
         setSaving(false);
     };
 
-    const handleToggle = (id: string, isEnabled: boolean) => apiCall("toggle", { facilityId: id, isEnabled });
-    const handleUpdate = (id: string, updates: any) => { apiCall("update", { facilityId: id, updates }); setEditingId(null); };
-    const handleDelete = (id: string) => window.confirm("Remove?") && apiCall("delete", { facilityId: id });
-    const handleReorder = (newOrder: Facility[]) => apiCall("reorder", { orderedIds: newOrder.map(f => f.id) });
+    const handleToggle = (id: string, isEnabled: boolean) => apiCall("toggle", { facilityId: id, isEnabled }, isEnabled ? "Facility visible" : "Facility hidden");
+    const handleUpdate = (id: string, updates: any) => { apiCall("update", { facilityId: id, updates }, "Facility updated"); setEditingId(null); };
+    const handleDelete = (id: string) => window.confirm("Remove?") && apiCall("delete", { facilityId: id }, "Facility removed");
+    const handleReorder = (newOrder: Facility[]) => apiCall("reorder", { orderedIds: newOrder.map(f => f.id) }, "Layout saved");
 
     const enabledCount = facilities.filter(f => f.isEnabled).length;
 
