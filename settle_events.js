@@ -39,5 +39,10 @@ async function runSettlement() {
     console.log("\n🏁 Settlement Audit Completed.");
 }
 
+import { withLock } from "./packages/core/lock-service.js";
+
 // In polyfill environment (Node)
-runSettlement().catch(console.error);
+withLock("settle-events", runSettlement).catch(err => {
+    console.error("❌ " + err.message);
+    process.exit(1);
+});

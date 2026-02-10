@@ -40,6 +40,10 @@ export interface Event {
         rsvps?: number;
     };
     isFeatured?: boolean;
+    coordinates?: {
+        latitude: number;
+        longitude: number;
+    };
 }
 
 export interface TicketTier {

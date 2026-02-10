@@ -497,6 +497,15 @@ export default function ExploreScreen() {
                                     <Text style={styles.offlineText}>Offline</Text>
                                 </View>
                             )}
+                            <Pressable
+                                onPress={() => {
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    router.push("/map" as any);
+                                }}
+                                style={styles.mapButton}
+                            >
+                                <Text style={styles.mapButtonText}>🗺️</Text>
+                            </Pressable>
                             <NotificationBell variant="solid" />
                         </View>
                     </View>
@@ -995,5 +1004,18 @@ const styles = StyleSheet.create({
         textAlign: "center",
         marginTop: 16,
         opacity: 0.5,
+    },
+    mapButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: colors.base[50],
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.1)",
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+    },
+    mapButtonText: {
+        fontSize: 18,
     },
 });

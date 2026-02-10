@@ -8,6 +8,7 @@ import { Tabs } from "expo-router";
 import { View, Text, StyleSheet, Platform, Dimensions } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+import { Compass, Ticket, MessageCircle, Sparkles, type LucideIcon } from "lucide-react-native";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -28,11 +29,11 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // PREMIUM TAB ICON
 // ============================================
 function PremiumTabIcon({
-    emoji,
+    Icon,
     label,
     focused,
 }: {
-    emoji: string;
+    Icon: LucideIcon;
     label: string;
     focused: boolean;
 }) {
@@ -101,9 +102,11 @@ function PremiumTabIcon({
 
             {/* Icon with animation */}
             <Animated.View style={[styles.iconWrapper, iconStyle]}>
-                <Text style={[styles.emoji, focused && styles.emojiActive]}>
-                    {emoji}
-                </Text>
+                <Icon
+                    size={focused ? 26 : 22}
+                    color={focused ? colors.iris : colors.goldMetallic}
+                    strokeWidth={focused ? 2.2 : 1.8}
+                />
             </Animated.View>
 
             {/* Label */}
@@ -242,7 +245,7 @@ export default function PremiumTabLayout() {
                 options={{
                     title: "Explore",
                     tabBarIcon: ({ focused }) => (
-                        <PremiumTabIcon emoji="🔥" label="Explore" focused={focused} />
+                        <PremiumTabIcon Icon={Compass} label="Explore" focused={focused} />
                     ),
                 }}
             />
@@ -251,7 +254,7 @@ export default function PremiumTabLayout() {
                 options={{
                     title: "Tickets",
                     tabBarIcon: ({ focused }) => (
-                        <PremiumTabIcon emoji="🎟️" label="Tickets" focused={focused} />
+                        <PremiumTabIcon Icon={Ticket} label="Tickets" focused={focused} />
                     ),
                 }}
             />
@@ -260,7 +263,7 @@ export default function PremiumTabLayout() {
                 options={{
                     title: "Inbox",
                     tabBarIcon: ({ focused }) => (
-                        <PremiumTabIcon emoji="💬" label="Inbox" focused={focused} />
+                        <PremiumTabIcon Icon={MessageCircle} label="Inbox" focused={focused} />
                     ),
                 }}
             />
@@ -269,7 +272,7 @@ export default function PremiumTabLayout() {
                 options={{
                     title: "Profile",
                     tabBarIcon: ({ focused }) => (
-                        <PremiumTabIcon emoji="✨" label="Me" focused={focused} />
+                        <PremiumTabIcon Icon={Sparkles} label="Me" focused={focused} />
                     ),
                 }}
             />
@@ -357,12 +360,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
     },
-    emoji: {
-        fontSize: 24,
-    },
-    emojiActive: {
-        fontSize: 28,
-    },
+
     label: {
         fontSize: 10,
         fontWeight: "600",

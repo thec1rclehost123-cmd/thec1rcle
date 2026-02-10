@@ -1,13 +1,20 @@
+/**
+ * THE C1RCLE - Checkout Screen
+ * Uses the same backend APIs as the guest-portal website.
+ * Flow: reserve → initiate → Razorpay → verify → webhook confirms
+ */
+
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { router } from "expo-router";
+import { useState, useCallback } from "react";
 import { useCartStore, CartItem } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { Image } from "expo-image";
+import { processFullCheckout, type CheckoutStatus } from "@/lib/payments";
 
-// Cart item component
+// ─── Cart Item Card ──────────────────────────────────────────────
+
 function CartItemCard({ item, onRemove, onUpdateQuantity }: {
     item: CartItem;
     onRemove: () => void;
@@ -16,7 +23,6 @@ function CartItemCard({ item, onRemove, onUpdateQuantity }: {
     return (
         <View className="bg-midnight-100 rounded-bubble border border-white/10 p-4 mb-3">
             <View className="flex-row">
-                {/* Event Image */}
                 {item.eventCoverImage ? (
                     <Image
                         source={{ uri: item.eventCoverImage }}
@@ -29,7 +35,6 @@ function CartItemCard({ item, onRemove, onUpdateQuantity }: {
                     </View>
                 )}
 
-                {/* Item Details */}
                 <View className="flex-1">
                     <Text className="text-gold font-semibold" numberOfLines={1}>
                         {item.eventTitle}
@@ -40,13 +45,11 @@ function CartItemCard({ item, onRemove, onUpdateQuantity }: {
                     </Text>
                 </View>
 
-                {/* Remove Button */}
                 <Pressable onPress={onRemove} className="p-2">
                     <Text className="text-red-400">✕</Text>
                 </Pressable>
             </View>
 
-            {/* Quantity Controls */}
             <View className="flex-row items-center justify-between mt-3 pt-3 border-t border-white/10">
                 <View className="flex-row items-center bg-surface rounded-pill border border-white/10">
                     <Pressable
@@ -71,49 +74,73 @@ function CartItemCard({ item, onRemove, onUpdateQuantity }: {
     );
 }
 
+// ─── Status Labels ───────────────────────────────────────────────
+
+const STATUS_LABELS: Record<CheckoutStatus, string> = {
+    reserving: "Reserving your tickets...",
+    initiating: "Processing order...",
+    awaiting_payment: "Opening payment...",
+    verifying: "Verifying payment...",
+    confirmed: "Order confirmed!",
+    failed: "Something went wrong",
+    cancelled: "Payment cancelled",
+};
+
+// ─── Checkout Screen ─────────────────────────────────────────────
+
 export default function CheckoutScreen() {
     const { user } = useAuthStore();
     const {
         items,
-        promoCode,
-        promoDiscount,
+        promo,
         removeItem,
         updateQuantity,
         applyPromoCode,
         clearPromoCode,
         getSubtotal,
         getTotal,
-        createOrder,
-        clearCart
+        getCheckoutItems,
+        getEventId,
+        clearCart,
     } = useCartStore();
 
     const [promoInput, setPromoInput] = useState("");
     const [promoLoading, setPromoLoading] = useState(false);
     const [promoError, setPromoError] = useState<string | null>(null);
     const [checkoutLoading, setCheckoutLoading] = useState(false);
+    const [checkoutStatus, setCheckoutStatus] = useState<CheckoutStatus | null>(null);
 
     const subtotal = getSubtotal();
     const total = getTotal();
-    const discount = subtotal - total;
+    const discount = promo?.discountAmount || 0;
 
-    const handleApplyPromo = async () => {
+    // ─── Promo Code Handler (validated via backend API) ──────────
+
+    const handleApplyPromo = useCallback(async () => {
         if (!promoInput.trim()) return;
+        const eventId = getEventId();
+        if (!eventId) return;
+
         setPromoLoading(true);
         setPromoError(null);
 
-        const result = await applyPromoCode(promoInput.trim());
+        const result = await applyPromoCode(promoInput.trim(), eventId);
 
         if (!result.success) {
             setPromoError(result.error || "Invalid code");
+        } else {
+            setPromoInput(""); // Clear input on success
         }
         setPromoLoading(false);
-    };
+    }, [promoInput, applyPromoCode, getEventId]);
 
-    const handleCheckout = async () => {
+    // ─── Checkout Handler (server-side flow) ─────────────────────
+
+    const handleCheckout = useCallback(async () => {
         if (!user?.uid) {
             Alert.alert("Login Required", "Please login to complete your purchase", [
                 { text: "Cancel", style: "cancel" },
-                { text: "Login", onPress: () => router.push("/(auth)/login") }
+                { text: "Login", onPress: () => router.push("/(auth)/login") },
             ]);
             return;
         }
@@ -124,55 +151,51 @@ export default function CheckoutScreen() {
         }
 
         setCheckoutLoading(true);
+        setCheckoutStatus(null);
 
-        // Create order first
-        const orderResult = await createOrder(user.uid);
-
-        if (!orderResult.success || !orderResult.orderId) {
+        const eventId = getEventId();
+        if (!eventId) {
             setCheckoutLoading(false);
-            Alert.alert("Error", orderResult.error || "Failed to create order");
+            Alert.alert("Error", "Missing event information");
             return;
         }
 
-        // If free tickets, go directly to success
-        if (total === 0) {
-            setCheckoutLoading(false);
-            router.replace({
-                pathname: "/checkout/success",
-                params: { orderId: orderResult.orderId }
-            });
-            return;
-        }
-
-        // For paid orders, process payment
-        const { processPayment } = await import("@/lib/payments");
-
-        const paymentResult = await processPayment(
-            orderResult.orderId,
-            total,
-            user.email || undefined,
-            undefined, // phone - could get from user profile
-            user.displayName || undefined
-        );
+        // Use the full server-side checkout flow
+        const result = await processFullCheckout({
+            eventId,
+            eventTitle: items[0].eventTitle,
+            items: getCheckoutItems(),
+            userName: user.displayName || "Guest",
+            userEmail: user.email || "",
+            userPhone: undefined,
+            promoCode: promo?.code || null,
+            promoterCode: null, // TODO: pass from deep link params
+            onStatusChange: (status) => setCheckoutStatus(status),
+        });
 
         setCheckoutLoading(false);
 
-        if (paymentResult.success) {
+        if (result.success && result.orderId) {
+            // Clear the cart on success
+            clearCart();
+
             router.replace({
                 pathname: "/checkout/success",
-                params: { orderId: orderResult.orderId }
+                params: { orderId: result.orderId },
             });
-        } else {
+        } else if (!result.success && result.error !== "Payment was cancelled") {
             Alert.alert(
-                "Payment Failed",
-                paymentResult.error || "Something went wrong with the payment",
+                "Checkout Failed",
+                result.error || "Something went wrong",
                 [
                     { text: "Try Again", onPress: handleCheckout },
-                    { text: "Cancel", style: "cancel" }
+                    { text: "Cancel", style: "cancel" },
                 ]
             );
         }
-    };
+    }, [user, items, promo, getEventId, getCheckoutItems, clearCart]);
+
+    // ─── Empty Cart State ────────────────────────────────────────
 
     if (items.length === 0) {
         return (
@@ -236,13 +259,15 @@ export default function CheckoutScreen() {
                 <View className="bg-midnight-100 rounded-bubble border border-white/10 p-4 mt-4">
                     <Text className="text-gold font-semibold mb-3">🏷️ Promo Code</Text>
 
-                    {promoCode ? (
+                    {promo ? (
                         <View className="flex-row items-center justify-between">
                             <View className="flex-row items-center">
                                 <View className="bg-iris/20 px-3 py-2 rounded-pill mr-3">
-                                    <Text className="text-iris font-semibold">{promoCode}</Text>
+                                    <Text className="text-iris font-semibold">{promo.code}</Text>
                                 </View>
-                                <Text className="text-green-400">-{promoDiscount}% applied!</Text>
+                                <Text className="text-green-400">
+                                    -₹{promo.discountAmount} applied!
+                                </Text>
                             </View>
                             <Pressable onPress={clearPromoCode}>
                                 <Text className="text-red-400">Remove</Text>
@@ -293,8 +318,10 @@ export default function CheckoutScreen() {
 
                     {discount > 0 && (
                         <View className="flex-row justify-between mb-2">
-                            <Text className="text-green-400">Discount</Text>
-                            <Text className="text-green-400">-₹{discount.toFixed(0)}</Text>
+                            <Text className="text-green-400">
+                                Discount {promo?.code ? `(${promo.code})` : ""}
+                            </Text>
+                            <Text className="text-green-400">-₹{discount}</Text>
                         </View>
                     )}
 
@@ -309,8 +336,13 @@ export default function CheckoutScreen() {
                     </View>
                 </View>
 
+                {/* Security Notice */}
+                <View className="flex-row items-center justify-center mt-4 mb-2">
+                    <Text className="text-gold-stone text-xs">🔒 Secured by Razorpay</Text>
+                </View>
+
                 {/* Terms Notice */}
-                <Text className="text-gold-stone text-xs text-center mt-4">
+                <Text className="text-gold-stone text-xs text-center mt-2">
                     By proceeding, you agree to our Terms of Service and Refund Policy
                 </Text>
             </ScrollView>
@@ -318,6 +350,16 @@ export default function CheckoutScreen() {
             {/* Fixed Bottom Checkout Button */}
             <View className="absolute bottom-0 left-0 right-0 bg-midnight/95 border-t border-white/10 px-4 py-4">
                 <SafeAreaView edges={["bottom"]}>
+                    {/* Status indicator during checkout */}
+                    {checkoutStatus && checkoutLoading && (
+                        <View className="flex-row items-center justify-center mb-3">
+                            <ActivityIndicator size="small" color="#a78bfa" />
+                            <Text className="text-iris text-sm ml-2">
+                                {STATUS_LABELS[checkoutStatus] || "Processing..."}
+                            </Text>
+                        </View>
+                    )}
+
                     <Pressable
                         onPress={handleCheckout}
                         disabled={checkoutLoading}

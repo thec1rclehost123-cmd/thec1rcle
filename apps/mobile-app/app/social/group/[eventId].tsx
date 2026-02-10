@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useChatRateLimit } from "@/hooks/useChatRateLimit";
+import { useChatImagePicker } from "@/hooks/useChatImagePicker";
 import {
     View,
     Text,
@@ -8,7 +10,8 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
-    Alert
+    Alert,
+    Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,6 +22,7 @@ import {
     getEventGroupChat,
     subscribeToGroupChat,
     sendGroupMessage,
+    sendGroupImageMessage,
     getEventAttendees,
     getEventMediaCount,
     GroupMessage,
@@ -153,16 +157,26 @@ function MessageBubble({
                 </View>
             )}
 
-            <View
-                className={`max-w-[80%] px-4 py-3 rounded-bubble ${isOwnMessage
-                    ? "bg-iris rounded-br-lg"
-                    : "bg-midnight-100 border border-white/10 rounded-bl-lg"
-                    }`}
-            >
-                <Text className={isOwnMessage ? "text-white" : "text-gold"}>
-                    {message.content}
-                </Text>
-            </View>
+            {message.type === "image" ? (
+                <View className="max-w-[80%]">
+                    <Image
+                        source={{ uri: message.content }}
+                        style={{ width: 220, height: 165, borderRadius: 16 }}
+                        resizeMode="cover"
+                    />
+                </View>
+            ) : (
+                <View
+                    className={`max-w-[80%] px-4 py-3 rounded-bubble ${isOwnMessage
+                        ? "bg-iris rounded-br-lg"
+                        : "bg-midnight-100 border border-white/10 rounded-bl-lg"
+                        }`}
+                >
+                    <Text className={isOwnMessage ? "text-white" : "text-gold"}>
+                        {message.content}
+                    </Text>
+                </View>
+            )}
             <Text className="text-gold-stone/50 text-xs mt-1 mx-1">{time}</Text>
         </Pressable>
     );
@@ -232,6 +246,15 @@ export default function EventGroupChatScreen() {
     const [attendeeCount, setAttendeeCount] = useState(0);
     const [mediaCount, setMediaCount] = useState(0);
     const [typingStatus, setTypingStatus] = useState<TypingStatus>({ isTyping: false, users: [] });
+
+    // Rate limiting
+    const { canSend, cooldownSeconds, checkRateLimit } = useChatRateLimit();
+
+    // Image picker
+    const { uploading: imageUploading, pickAndUpload } = useChatImagePicker(
+        user?.uid || "",
+        `group/${eventId || "unknown"}`
+    );
 
     // Typing handler
     const typingHandler = useCallback(() => {
@@ -304,6 +327,7 @@ export default function EventGroupChatScreen() {
 
     const handleSend = async () => {
         if (!inputText.trim() || !user?.uid || !eventId) return;
+        if (!checkRateLimit()) return;
 
         const messageContent = inputText.trim();
         setInputText("");
@@ -487,6 +511,33 @@ export default function EventGroupChatScreen() {
                 <View className="border-t border-white/10 px-4 py-3 bg-midnight">
                     <SafeAreaView edges={["bottom"]}>
                         <View className="flex-row items-end">
+                            {/* Image button */}
+                            <Pressable
+                                onPress={async () => {
+                                    if (!user?.uid || !eventId) return;
+                                    if (!checkRateLimit()) return;
+                                    const url = await pickAndUpload();
+                                    if (url) {
+                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                        const result = await sendGroupImageMessage(
+                                            eventId, user.uid, user.displayName || "Guest", url
+                                        );
+                                        if (!result.success) {
+                                            Alert.alert("Error", result.error || "Failed to send image");
+                                        }
+                                    }
+                                }}
+                                disabled={imageUploading || !canSend}
+                                className={`w-12 h-12 rounded-full items-center justify-center mr-2 ${imageUploading ? "bg-iris/50" : "bg-surface border border-white/10"
+                                    }`}
+                            >
+                                {imageUploading ? (
+                                    <ActivityIndicator size="small" color="#F44A22" />
+                                ) : (
+                                    <Text className="text-lg">📷</Text>
+                                )}
+                            </Pressable>
+
                             <TextInput
                                 value={inputText}
                                 onChangeText={handleTextChange}
@@ -499,12 +550,14 @@ export default function EventGroupChatScreen() {
                             />
                             <Pressable
                                 onPress={handleSend}
-                                disabled={!inputText.trim() || sending}
-                                className={`w-12 h-12 rounded-full items-center justify-center ${inputText.trim() && !sending ? "bg-iris" : "bg-iris/50"
+                                disabled={!inputText.trim() || sending || !canSend}
+                                className={`w-12 h-12 rounded-full items-center justify-center ${inputText.trim() && !sending && canSend ? "bg-iris" : "bg-iris/50"
                                     }`}
                             >
                                 {sending ? (
                                     <ActivityIndicator size="small" color="#fff" />
+                                ) : !canSend ? (
+                                    <Text className="text-white text-xs font-bold">{cooldownSeconds}s</Text>
                                 ) : (
                                     <Text className="text-white text-lg">↑</Text>
                                 )}

@@ -60,7 +60,19 @@ async function handler(request) {
                     eventPosterUrl: posterUrl,
                     orderId: order.id,
                     tickets: order.tickets,
-                    totalAmount: order.totalAmount
+                    totalAmount: order.totalAmount,
+                    // Enhanced params for professional email
+                    eventId: payload.eventId,
+                    eventVenue: event.venue || '',
+                    startDate: event.startDate,
+                    endDate: event.endDate,
+                    startTime: event.startTime,
+                    endTime: event.endTime,
+                    eventDescription: event.summary || event.description || '',
+                    isRSVP: event.isRSVP || payload.isRSVP || false,
+                    userId: payload.userId,
+                    order,
+                    event,
                 });
             }
         } catch (emailError) {

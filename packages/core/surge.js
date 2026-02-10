@@ -1,4 +1,5 @@
 import { randomUUID, createHmac } from "node:crypto";
+import { getRedisClient } from "./redis.js";
 
 /**
  * THE C1RCLE - Surge Protection System (Core v2 - Production Hardened)
@@ -196,13 +197,20 @@ export async function admitUsers(db, eventId, totalCount = 10, source = "system"
  * Standardized Analytics Definitions
  */
 export async function getSurgeAnalytics(db, eventId) {
+    const redis = getRedisClient();
+    const metricsKey = `surge:metrics:${eventId}`;
+
+    // Get real-time metrics from Redis
+    const redisMetrics = await redis.hgetall(metricsKey);
+
+    // Also fetch historical from DB for full funnel (since we haven't migrated persistent state yet)
     const metricsDocs = await db.collection(SURGE_METRICS_COLLECTION)
         .where("eventId", "==", eventId)
         .get();
 
-    let totalViews = 0;
-    let totalJoins = 0;
-    let totalCheckoutInitiates = 0;
+    let totalViews = parseInt(redisMetrics.views || 0);
+    let totalJoins = parseInt(redisMetrics.queue_join || 0);
+    let totalCheckoutInitiates = parseInt(redisMetrics.checkout_initiate || 0);
 
     metricsDocs.docs.forEach(doc => {
         const data = doc.data();
@@ -217,13 +225,13 @@ export async function getSurgeAnalytics(db, eventId) {
 
     const funnel = {
         total_demand: totalJoins + totalCheckoutInitiates,
-        velocity: 0, // Calculated post-fetch
+        velocity: 0,
         conversion_stats: {
             admitted: 0,
-            consumed: 0, // Successful orders
+            consumed: 0,
             abandoned_pre_reserve: 0,
             payment_failed: 0,
-            stalled: 0 // Waiting in queue
+            stalled: 0
         }
     };
 
@@ -297,48 +305,94 @@ export async function flagPaymentFailure(db, queueId) {
     });
 }
 
+/**
+ * High-performance metric recording using Redis.
+ * Uses Firestore as a secondary audit log every 100 increments.
+ */
 export async function recordSurgeMetric(db, eventId, type) {
-    const now = new Date();
-    const minuteKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}-${now.getUTCHours()}-${now.getUTCMinutes()}`;
-    const metricRef = db.collection(SURGE_METRICS_COLLECTION).doc(`${eventId}_${minuteKey}`);
+    const redis = getRedisClient();
+    const metricsKey = `surge:metrics:${eventId}`;
+    const statusKey = `surge:status:${eventId}`;
 
-    const doc = await metricRef.get();
-    const data = doc.exists ? doc.data() : {};
+    try {
+        // Atomic increment in Redis (Fast path)
+        const newValue = await redis.hincrby(metricsKey, type, 1);
 
-    await metricRef.set({
-        eventId,
-        minute: minuteKey,
-        [type]: (data[type] || 0) + 1,
-        updatedAt: now.toISOString()
-    }, { merge: true });
+        // Background sync to Firestore for persistence (only every N hits to save costs)
+        if (newValue % 50 === 0) {
+            const now = new Date();
+            const minuteKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}-${now.getUTCHours()}-${now.getUTCMinutes()}`;
+            db.collection(SURGE_METRICS_COLLECTION).doc(`${eventId}_${minuteKey}`).set({
+                eventId,
+                minute: minuteKey,
+                [type]: newValue,
+                updatedAt: now.toISOString()
+            }, { merge: true }).catch(err => console.error("Firestore Metric Sync Error:", err));
+        }
 
-    return checkAndTriggerSurge(db, eventId, { ...data, [type]: (data[type] || 0) + 1 });
+        // Trigger surge check if not already in surge mode
+        const cachedStatus = await redis.get(statusKey);
+        if (cachedStatus !== "surge") {
+            const views = await redis.hget(metricsKey, "views") || 0;
+            const checkouts = await redis.hget(metricsKey, "checkout_initiate") || 0;
+            return checkAndTriggerSurge(db, eventId, { views, checkout_initiate: checkouts });
+        }
+
+        return true;
+    } catch (error) {
+        console.error("Redis Surge Metric Error:", error);
+        return false;
+    }
 }
 
 async function checkAndTriggerSurge(db, eventId, currentMetrics) {
-    const views = currentMetrics.views || 0;
-    const checkouts = currentMetrics.checkout_initiate || 0;
+    const views = parseInt(currentMetrics.views || 0);
+    const checkouts = parseInt(currentMetrics.checkout_initiate || 0);
+    const redis = getRedisClient();
+    const statusKey = `surge:status:${eventId}`;
 
     const shouldSurge = views > RPS_THRESHOLD * 6 || checkouts > CHECKOUT_RATE_THRESHOLD;
-    const statusRef = db.collection(SURGE_STATUS_COLLECTION).doc(eventId);
-    const statusDoc = await statusRef.get();
-    const status = statusDoc.exists ? statusDoc.data() : { status: "normal" };
 
-    if (shouldSurge && status.status === "normal") {
-        await statusRef.set({
+    if (shouldSurge) {
+        const surgeData = {
             status: "surge",
             reason: views > RPS_THRESHOLD * 6 ? "high_traffic" : "high_checkout_rate",
             triggeredAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             admitRate: 10
-        });
+        };
+
+        // Update Redis (Fast path for clients)
+        await redis.set(statusKey, "surge", "EX", 300); // 5 minute TTL for surge mode
+        await redis.set(`${statusKey}:data`, JSON.stringify(surgeData), "EX", 300);
+
+        // Update Firestore (Source of truth)
+        await db.collection(SURGE_STATUS_COLLECTION).doc(eventId).set(surgeData);
         return true;
     }
-    return status.status === "surge";
+    return false;
 }
 
 export async function getSurgeStatus(db, eventId) {
-    const doc = await db.collection(SURGE_STATUS_COLLECTION).doc(eventId).get();
-    if (!doc.exists) return { status: "normal" };
-    return doc.data();
+    const redis = getRedisClient();
+    const statusKey = `surge:status:${eventId}`;
+
+    try {
+        const cachedData = await redis.get(`${statusKey}:data`);
+        if (cachedData) return JSON.parse(cachedData);
+
+        // Fallback to Firestore and cache the result
+        const doc = await db.collection(SURGE_STATUS_COLLECTION).doc(eventId).get();
+        if (!doc.exists) return { status: "normal" };
+
+        const data = doc.data();
+        if (data.status === "surge") {
+            await redis.set(statusKey, "surge", "EX", 60);
+            await redis.set(`${statusKey}:data`, JSON.stringify(data), "EX", 60);
+        }
+        return data;
+    } catch (err) {
+        // Fail-safe to normal
+        return { status: "normal" };
+    }
 }

@@ -6,6 +6,15 @@
 import { randomUUID } from "node:crypto";
 import { getAdminDb, isFirebaseConfigured } from "./admin.js";
 import { FieldValue } from "firebase-admin/firestore";
+import { getRedisClient } from "./redis.js";
+
+/**
+ * REDIS KEYS:
+ * promo:uses:{id} -> String counter for real-time uses (TTL: 24h or event end)
+ * promo:user:{id}:{userId} -> String marker if user has used this code (EX: 24h)
+ */
+const REDIS_PROMO_PREFIX = "promo:uses:";
+const REDIS_USER_PROMO_PREFIX = "promo:user:";
 
 // Collection names
 const PROMO_CODES_COLLECTION = "promo_codes";
@@ -226,18 +235,33 @@ export async function validatePromoCode(eventId, code, userId, items) {
         return { valid: false, error: 'This promo code has expired' };
     }
 
-    // Check total redemption limit
-    if (promoCode.maxRedemptions && promoCode.redemptionCount >= promoCode.maxRedemptions) {
-        return { valid: false, error: 'This promo code has reached its maximum uses' };
+    // --- REDIS RACE PROTECTION ---
+    const redis = getRedisClient();
+    const usesKey = `${REDIS_PROMO_PREFIX}${promoCode.id}`;
+
+    // Check total redemption limit in Redis
+    if (promoCode.maxRedemptions) {
+        // Sync Firestore count to Redis if not present
+        const currentRedisUses = await redis.get(usesKey);
+        const currentCount = currentRedisUses !== null
+            ? parseInt(currentRedisUses)
+            : promoCode.redemptionCount || 0;
+
+        if (currentCount >= promoCode.maxRedemptions) {
+            return { valid: false, error: 'This promo code has reached its maximum uses' };
+        }
     }
 
-    // Check per-user limit
+    // Check per-user limit in Redis
     if (promoCode.maxPerUser && userId) {
-        const userRedemptions = await getUserRedemptionCount(promoCode.id, userId);
-        if (userRedemptions >= promoCode.maxPerUser) {
+        const userKey = `${REDIS_USER_PROMO_PREFIX}${promoCode.id}:${userId}`;
+        const userUses = await redis.get(userKey) || 0;
+
+        if (parseInt(userUses) >= promoCode.maxPerUser) {
             return { valid: false, error: 'You have already used this promo code' };
         }
     }
+    // --- END REDIS CHECKS ---
 
     // Calculate discount for applicable items
     const applicableItems = items.filter(item => {
@@ -307,9 +331,25 @@ export async function recordRedemption(promoCodeId, orderId, userId, details = {
     }
 
     const db = getAdminDb();
+    const redis = getRedisClient();
+    const usesKey = `${REDIS_PROMO_PREFIX}${promoCodeId}`;
+    const userKey = userId ? `${REDIS_USER_PROMO_PREFIX}${promoCodeId}:${userId}` : null;
+
+    // 1. Atomic Redis Update (The Source of Truth for Race Conditions)
+    const multi = redis.multi();
+    multi.incr(usesKey);
+    if (userKey) multi.incr(userKey);
+
+    // Set 24h expiry on these tracking keys if they are new
+    multi.expire(usesKey, 86400, "NX");
+    if (userKey) multi.expire(userKey, 86400, "NX");
+
+    await multi.exec();
+
+    // 2. Background Sync to Firestore (Persistent Storage)
     const batch = db.batch();
 
-    // 1. Create redemption record
+    // Create redemption record
     const redemptionRef = db.collection(PROMO_REDEMPTIONS_COLLECTION).doc(randomUUID());
     batch.set(redemptionRef, {
         promoCodeId,
@@ -319,7 +359,7 @@ export async function recordRedemption(promoCodeId, orderId, userId, details = {
         timestamp: new Date().toISOString()
     });
 
-    // 2. Increment redemption count on promo code
+    // Increment redemption count on promo code
     const promoCodeRef = db.collection(PROMO_CODES_COLLECTION).doc(promoCodeId);
     batch.update(promoCodeRef, {
         redemptionCount: FieldValue.increment(1),

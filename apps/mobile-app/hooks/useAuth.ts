@@ -1,10 +1,13 @@
 import { useState, useCallback } from "react";
+import { Platform } from "react-native";
 import { useAuthStore } from "@/store/authStore";
 import {
     loginWithEmail,
     signupWithEmail,
     logout,
-    resetPassword
+    resetPassword,
+    loginWithApple as firebaseLoginWithApple,
+    loginWithGoogle as firebaseLoginWithGoogle,
 } from "@/lib/firebase";
 
 export function useAuth() {
@@ -70,6 +73,53 @@ export function useAuth() {
         }
     }, []);
 
+    // ─── Social Login ────────────────────────────────────────────
+
+    const loginApple = useCallback(async () => {
+        if (Platform.OS !== "ios") {
+            setError("Apple Sign-In is only available on iOS");
+            return { success: false, error: "Apple Sign-In is only available on iOS" };
+        }
+
+        setAuthLoading(true);
+        setError(null);
+        try {
+            await firebaseLoginWithApple();
+            return { success: true };
+        } catch (err: any) {
+            // User cancelled Apple Sign-In — not an error
+            if (err.code === "ERR_REQUEST_CANCELED") {
+                setAuthLoading(false);
+                return { success: false, error: null };
+            }
+            const message = err.message || "Apple Sign-In failed";
+            setError(message);
+            return { success: false, error: message };
+        } finally {
+            setAuthLoading(false);
+        }
+    }, []);
+
+    const loginGoogle = useCallback(async () => {
+        setAuthLoading(true);
+        setError(null);
+        try {
+            await firebaseLoginWithGoogle();
+            return { success: true };
+        } catch (err: any) {
+            // User cancelled Google Sign-In — not an error
+            if (err.code === "SIGN_IN_CANCELLED" || err.code === "12501") {
+                setAuthLoading(false);
+                return { success: false, error: null };
+            }
+            const message = err.message || "Google Sign-In failed";
+            setError(message);
+            return { success: false, error: message };
+        } finally {
+            setAuthLoading(false);
+        }
+    }, []);
+
     return {
         user,
         loading: loading || authLoading,
@@ -79,6 +129,8 @@ export function useAuth() {
         signup,
         signOut,
         sendResetEmail,
+        loginApple,
+        loginGoogle,
         clearError: () => setError(null),
     };
 }
@@ -102,7 +154,10 @@ function getErrorMessage(code: string): string {
             return "Too many failed attempts. Please try again later";
         case "auth/network-request-failed":
             return "Network error. Please check your connection";
+        case "auth/account-exists-with-different-credential":
+            return "An account with this email already exists. Try a different login method.";
         default:
             return "Something went wrong. Please try again";
     }
 }
+

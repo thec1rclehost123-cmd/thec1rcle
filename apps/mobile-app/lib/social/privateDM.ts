@@ -253,6 +253,55 @@ export async function sendDirectMessage(
     }
 }
 
+// Send an image message in a DM conversation
+export async function sendDirectImageMessage(
+    conversationId: string,
+    senderId: string,
+    imageUrl: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+        const db = getFirebaseDb();
+
+        const convoRef = doc(db, "privateConversations", conversationId);
+        const convoDoc = await getDoc(convoRef);
+
+        if (!convoDoc.exists()) {
+            return { success: false, error: "Conversation not found" };
+        }
+
+        const convoData = convoDoc.data();
+        if (convoData.status !== "accepted") {
+            return { success: false, error: "This conversation is not active" };
+        }
+        if (!convoData.participants.includes(senderId)) {
+            return { success: false, error: "You are not part of this conversation" };
+        }
+
+        const message: Omit<DirectMessage, "id"> = {
+            conversationId,
+            senderId,
+            content: imageUrl,
+            type: "image",
+            createdAt: serverTimestamp(),
+        };
+
+        const msgRef = await addDoc(collection(db, "directMessages"), message);
+
+        await updateDoc(convoRef, {
+            lastMessage: {
+                content: "📷 Photo",
+                senderId,
+                createdAt: serverTimestamp(),
+            },
+        });
+
+        return { success: true, messageId: msgRef.id };
+    } catch (error: any) {
+        console.error("Error sending DM image:", error);
+        return { success: false, error: error.message };
+    }
+}
+
 // Subscribe to DM messages
 export function subscribeToDirectMessages(
     conversationId: string,

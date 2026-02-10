@@ -288,8 +288,8 @@ export async function getEventOrders(eventId, limit = 100) {
 
     const db = getAdminDb();
     const [ordersSnapshot, rsvpsSnapshot] = await Promise.all([
-        db.collection(ORDERS_COLLECTION).where("eventId", "==", eventId).orderBy("createdAt", "desc").limit(limit).get(),
-        db.collection(RSVP_COLLECTION).where("eventId", "==", eventId).orderBy("createdAt", "desc").limit(limit).get()
+        db.collection(ORDERS_COLLECTION).where("eventId", "==", eventId).limit(limit).get(),
+        db.collection(RSVP_COLLECTION).where("eventId", "==", eventId).limit(limit).get()
     ]);
 
     const allOrders = [

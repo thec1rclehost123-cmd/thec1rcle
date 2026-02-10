@@ -15,7 +15,7 @@ import VenueDetails from "./VenueDetails";
 // Existing components
 import VenueCtaBar from "./VenueCtaBar";
 import VenuePastEvents from "./VenuePastEvents";
-import ReservationModal from "./ReservationModal";
+import ReservationCalendarModal from "./ReservationCalendarModal";
 
 /**
  * VenuePageClient - Main client component for the venue page
@@ -177,13 +177,13 @@ export default function VenuePageClient({
                 showOnScroll={true}
             />
 
-            {/* Reservation Modal */}
-            {showReservation && (
-                <ReservationModal
-                    venue={venue}
-                    onClose={() => setShowReservation(false)}
-                />
-            )}
+            {/* Reservation Calendar Modal */}
+            <ReservationCalendarModal
+                venue={venue}
+                upcomingEvents={upcomingEvents}
+                isOpen={showReservation}
+                onClose={() => setShowReservation(false)}
+            />
         </>
     );
 }

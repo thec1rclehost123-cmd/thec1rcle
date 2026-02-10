@@ -8,7 +8,21 @@ import { useAuth } from "@/hooks/useAuth";
 export default function LoginScreen() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const { login, loading, error, clearError } = useAuth();
+    const { login, loginApple, loginGoogle, loading, error, clearError } = useAuth();
+
+    const handleAppleLogin = async () => {
+        const result = await loginApple();
+        if (result.success) {
+            router.replace("/(tabs)/explore");
+        }
+    };
+
+    const handleGoogleLogin = async () => {
+        const result = await loginGoogle();
+        if (result.success) {
+            router.replace("/(tabs)/explore");
+        }
+    };
 
     const handleLogin = async () => {
         if (!email || !password) return;
@@ -115,13 +129,29 @@ export default function LoginScreen() {
 
                     {/* Social Login */}
                     <View className="flex-row gap-4">
-                        <Pressable className="flex-1 bg-surface border border-white/10 py-4 rounded-bubble items-center flex-row justify-center">
-                            <Text className="text-lg mr-2">🍎</Text>
-                            <Text className="text-gold font-semibold">Apple</Text>
-                        </Pressable>
-                        <Pressable className="flex-1 bg-surface border border-white/10 py-4 rounded-bubble items-center flex-row justify-center">
-                            <Text className="text-lg mr-2">🔵</Text>
-                            <Text className="text-gold font-semibold">Google</Text>
+                        {Platform.OS === "ios" && (
+                            <Pressable
+                                onPress={handleAppleLogin}
+                                disabled={loading}
+                                className={`flex-1 bg-surface border border-white/10 py-4 rounded-bubble items-center ${loading ? "opacity-50" : "opacity-100"
+                                    }`}
+                            >
+                                <View className="flex-row items-center justify-center">
+                                    <Text className="text-lg mr-2">🍎</Text>
+                                    <Text className="text-gold font-semibold">Apple</Text>
+                                </View>
+                            </Pressable>
+                        )}
+                        <Pressable
+                            onPress={handleGoogleLogin}
+                            disabled={loading}
+                            className={`flex-1 bg-surface border border-white/10 py-4 rounded-bubble items-center ${loading ? "opacity-50" : "opacity-100"
+                                }`}
+                        >
+                            <View className="flex-row items-center justify-center">
+                                <Text className="text-lg mr-2">🔵</Text>
+                                <Text className="text-gold font-semibold">Google</Text>
+                            </View>
                         </Pressable>
                     </View>
                 </View>
@@ -132,6 +162,39 @@ export default function LoginScreen() {
                     <Pressable onPress={() => router.push("/(auth)/signup")}>
                         <Text className="text-iris font-semibold">Sign Up</Text>
                     </Pressable>
+                </View>
+
+                {/* ─── Scanner Access (No Login) ─── */}
+                <View className="mt-8">
+                    <View className="flex-row items-center my-3">
+                        <View className="flex-1 h-px bg-white/5" />
+                        <Text className="text-gold-stone/50 mx-4 text-xs">STAFF ACCESS</Text>
+                        <View className="flex-1 h-px bg-white/5" />
+                    </View>
+                    <Pressable
+                        onPress={() => router.push("/scanner" as any)}
+                        className="overflow-hidden rounded-bubble"
+                        style={({ pressed }) => ({
+                            opacity: pressed ? 0.8 : 1,
+                            transform: [{ scale: pressed ? 0.98 : 1 }],
+                        })}
+                    >
+                        <LinearGradient
+                            colors={["rgba(244, 74, 34, 0.08)", "rgba(244, 74, 34, 0.02)"]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            className="border border-iris/20 rounded-bubble py-4 flex-row items-center justify-center"
+                        >
+                            <Text className="text-lg mr-2">📱</Text>
+                            <Text className="text-iris font-semibold text-base">
+                                Scan Tickets
+                            </Text>
+                            <Text className="text-iris/50 ml-2 text-xs">→</Text>
+                        </LinearGradient>
+                    </Pressable>
+                    <Text className="text-gold-stone/30 text-xs text-center mt-2">
+                        For event security — no account needed
+                    </Text>
                 </View>
             </KeyboardAvoidingView>
         </SafeAreaView>

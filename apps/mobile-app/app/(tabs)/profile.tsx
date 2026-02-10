@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthStore } from "@/store/authStore";
@@ -263,18 +264,28 @@ export default function ProfileScreen() {
                 >
                     {/* Avatar */}
                     <Animated.View style={[styles.avatarContainer, avatarAnimatedStyle]}>
-                        <LinearGradient
-                            colors={gradients.primary as [string, string]}
-                            style={styles.avatarGradient}
-                        >
-                            <View style={styles.avatarInner}>
-                                <Text style={styles.avatarText}>{initials}</Text>
-                            </View>
-                        </LinearGradient>
+                        <Pressable onPress={() => router.push("/profile/edit")}>
+                            <LinearGradient
+                                colors={gradients.primary as [string, string]}
+                                style={styles.avatarGradient}
+                            >
+                                {user?.photoURL ? (
+                                    <Image
+                                        source={{ uri: user.photoURL }}
+                                        style={styles.avatarPhoto}
+                                        contentFit="cover"
+                                    />
+                                ) : (
+                                    <View style={styles.avatarInner}>
+                                        <Text style={styles.avatarText}>{initials}</Text>
+                                    </View>
+                                )}
+                            </LinearGradient>
 
-                        {/* Edit badge */}
-                        <Pressable style={styles.avatarEditBadge}>
-                            <Text style={styles.avatarEditIcon}>✏️</Text>
+                            {/* Edit badge */}
+                            <View style={styles.avatarEditBadge}>
+                                <Text style={styles.avatarEditIcon}>✏️</Text>
+                            </View>
                         </Pressable>
                     </Animated.View>
 
@@ -513,6 +524,11 @@ const styles = StyleSheet.create({
         color: colors.iris,
         fontSize: 36,
         fontWeight: "800",
+    },
+    avatarPhoto: {
+        width: 94,
+        height: 94,
+        borderRadius: 47,
     },
     avatarEditBadge: {
         position: "absolute",

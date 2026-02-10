@@ -16,10 +16,21 @@
         "./ledger-engine": "./ledger-engine.js",
         "./payout-engine": "./payout-engine.js",
         "./entitlement-engine": "./entitlement-engine.js",
-        "./theme": "./theme.js"
+        "./theme": "./theme.js",
+        "./redis": "./redis.js",
+        "./rate-limiter": "./rate-limiter.js",
+        "./lock-service": "./lock-service.js",
+        "./analytics-service": "./analytics-service.js",
+        "./inngest": "./inngest-client.js",
+        "./workflows/ticketing": "./workflows/ticketing.js",
+        "./search": "./search.js",
+        "./workflows/search-sync": "./workflows/search-sync.js"
     },
     "dependencies": {
         "firebase": "^12.6.0",
-        "firebase-admin": "^13.6.0"
+        "firebase-admin": "^13.6.0",
+        "inngest": "^3.52.0",
+        "ioredis": "^5.9.2",
+        "meilisearch": "^0.55.0"
     }
 }

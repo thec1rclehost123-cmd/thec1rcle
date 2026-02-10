@@ -19,7 +19,7 @@ import { useTicketsStore, Order } from "@/store/ticketsStore";
 import { useAuthStore } from "@/store/authStore";
 import { cacheUserOrders, getCachedUserOrders } from "@/lib/cache";
 import { shareEventLink } from "@/lib/deeplinks";
-import { addToWallet, isWalletAvailable, PassData } from "@/lib/wallet";
+import { addToWallet, isWalletAvailable, saveTicket, PassData } from "@/lib/wallet";
 import QRCode from "react-native-qrcode-svg";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -102,6 +102,25 @@ function QRModal({ visible, order, onClose }: {
                 ticketName: order.tickets?.[0]?.tierName || "Ticket"
             }
         });
+    };
+
+    const handleDownload = async () => {
+        const passData: PassData = {
+            orderId: order.id,
+            eventTitle: order.eventTitle || "Event",
+            eventDate: order.eventDate || "",
+            eventTime: order.eventDate
+                ? new Date(order.eventDate).toLocaleTimeString("en-IN", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                })
+                : "",
+            venue: order.venueLocation || "TBA",
+            ticketType: order.tickets?.[0]?.tierName || "General Entry",
+            ticketCount: order.tickets?.reduce((sum, t) => sum + t.quantity, 0) || 1,
+            qrCodeData: order.id,
+        };
+        await saveTicket(passData);
     };
 
     return (
@@ -219,6 +238,14 @@ function QRModal({ visible, order, onClose }: {
                             )}
 
                             <View style={styles.modalActionRow}>
+                                <Pressable
+                                    onPress={handleDownload}
+                                    style={[styles.modalSecondaryButton, { marginRight: 8 }]}
+                                >
+                                    <Text style={styles.modalSecondaryIcon}>📄</Text>
+                                    <Text style={styles.modalSecondaryText}>Download</Text>
+                                </Pressable>
+
                                 <Pressable
                                     onPress={async () => {
                                         if (order.eventId && order.eventTitle) {
@@ -376,6 +403,25 @@ function TicketCard({ order, onShowQR, index }: {
 
             {/* Action bar */}
             <View style={styles.ticketActionBar}>
+                <Pressable
+                    onPress={async () => {
+                        const passData: PassData = {
+                            orderId: order.id,
+                            eventTitle: order.eventTitle || "Event",
+                            eventDate: order.eventDate || "",
+                            eventTime: formattedTime,
+                            venue: order.venueLocation || "TBA",
+                            ticketType,
+                            ticketCount: totalTickets,
+                            qrCodeData: order.id,
+                        };
+                        await saveTicket(passData);
+                    }}
+                    style={styles.ticketActionButton}
+                >
+                    <Text style={styles.ticketActionText}>📄 Download</Text>
+                </Pressable>
+                <View style={styles.ticketActionDivider} />
                 <Pressable
                     onPress={async () => {
                         if (order.eventId && order.eventTitle) {

@@ -83,38 +83,22 @@ export default function VenueCtaBar({
                         <button
                             onClick={onFollow}
                             className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${isFollowing
-                                    ? 'bg-[#F44A22]/10 text-[#F44A22] border border-[#F44A22]/20'
-                                    : 'bg-black/5 dark:bg-white/5 text-black/60 dark:text-white/60 border border-black/10 dark:border-white/10'
+                                ? 'bg-[#F44A22]/10 text-[#F44A22] border border-[#F44A22]/20'
+                                : 'bg-black/5 dark:bg-white/5 text-black/60 dark:text-white/60 border border-black/10 dark:border-white/10'
                                 }`}
                         >
                             <Heart className={`h-4 w-4 ${isFollowing ? 'fill-[#F44A22]' : ''}`} />
                             {isFollowing ? 'Following' : 'Follow'}
                         </button>
 
-                        {/* Primary CTA */}
-                        {hasReservation ? (
-                            <button
-                                onClick={onReserve}
-                                className="flex-[2] py-4 bg-[#F44A22] text-white rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-[#F44A22]/30"
-                            >
-                                Reserve Table
-                            </button>
-                        ) : hasTickets ? (
-                            <Link
-                                href={`/explore?venue=${venue.id}`}
-                                className="flex-[2] py-4 bg-[#F44A22] text-white rounded-2xl text-[11px] font-black uppercase tracking-widest text-center shadow-lg shadow-[#F44A22]/30"
-                            >
-                                Get Tickets
-                            </Link>
-                        ) : (
-                            <button
-                                onClick={openWhatsApp}
-                                className="flex-[2] flex items-center justify-center gap-2 py-4 bg-[#25D366] text-white rounded-2xl text-[11px] font-black uppercase tracking-widest"
-                            >
-                                <MessageCircle className="h-4 w-4" />
-                                Contact
-                            </button>
-                        )}
+                        {/* Primary CTA — Always show Get Reservation */}
+                        <button
+                            onClick={onReserve}
+                            className="flex-[2] flex items-center justify-center gap-2 py-4 bg-[#F44A22] text-white rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-[#F44A22]/30 active:scale-[0.97] transition-transform"
+                        >
+                            <Calendar className="h-4 w-4" />
+                            Get Reservation
+                        </button>
 
                         {/* More Actions */}
                         <button
@@ -166,8 +150,8 @@ export default function VenueCtaBar({
                     <button
                         onClick={onFollow}
                         className={`flex items-center gap-2 px-6 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${isFollowing
-                                ? 'bg-[#F44A22]/10 text-[#F44A22]'
-                                : 'hover:bg-black/5 dark:hover:bg-white/5 text-black/60 dark:text-white/60'
+                            ? 'bg-[#F44A22]/10 text-[#F44A22]'
+                            : 'hover:bg-black/5 dark:hover:bg-white/5 text-black/60 dark:text-white/60'
                             }`}
                     >
                         <Heart className={`h-4 w-4 ${isFollowing ? 'fill-[#F44A22]' : ''}`} />
@@ -176,25 +160,14 @@ export default function VenueCtaBar({
 
                     <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
 
-                    {/* Reservation/Tickets */}
-                    {hasReservation && (
-                        <button
-                            onClick={onReserve}
-                            className="flex items-center gap-2 px-6 py-3 rounded-full text-[11px] font-black uppercase tracking-widest bg-[#F44A22] text-white shadow-lg shadow-[#F44A22]/30 hover:scale-105 transition-transform"
-                        >
-                            <Calendar className="h-4 w-4" />
-                            Reserve
-                        </button>
-                    )}
-
-                    {hasTickets && (
-                        <Link
-                            href={`/explore?venue=${venue.id}`}
-                            className="flex items-center gap-2 px-6 py-3 rounded-full text-[11px] font-black uppercase tracking-widest bg-[#F44A22] text-white shadow-lg shadow-[#F44A22]/30 hover:scale-105 transition-transform"
-                        >
-                            Get Tickets
-                        </Link>
-                    )}
+                    {/* Reservation — Always Shown */}
+                    <button
+                        onClick={onReserve}
+                        className="flex items-center gap-2 px-6 py-3 rounded-full text-[11px] font-black uppercase tracking-widest bg-[#F44A22] text-white shadow-lg shadow-[#F44A22]/30 hover:scale-105 active:scale-95 transition-transform"
+                    >
+                        <Calendar className="h-4 w-4" />
+                        Get Reservation
+                    </button>
 
                     <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
 

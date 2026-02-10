@@ -1,189 +1,299 @@
-// Razorpay payment integration for mobile app
-import { Linking, Alert, Platform } from "react-native";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { getFirebaseDb } from "./firebase";
+/**
+ * THE C1RCLE - Mobile Payment Service
+ * Uses the same backend APIs as the guest-portal website.
+ * Flow: reserve → initiate → Razorpay SDK → verify → webhook confirms
+ *
+ * The mobile app NEVER creates orders client-side.
+ * All pricing, order creation, and payment verification happens server-side.
+ */
 
-// Razorpay configuration
-const RAZORPAY_KEY = process.env.EXPO_PUBLIC_RAZORPAY_KEY || "rzp_test_UaS7oqTKOwuALQ";
+import { Alert, Platform } from "react-native";
+import {
+    reserveTickets,
+    initiateCheckout,
+    verifyPayment,
+    cancelOrder,
+    type ReserveResponse,
+    type InitiateCheckoutResponse,
+} from "./api";
 
-export interface PaymentOptions {
-    orderId: string;
-    amount: number; // in paise (₹100 = 10000)
-    currency?: string;
-    name?: string;
-    description?: string;
-    prefill?: {
-        email?: string;
-        contact?: string;
-        name?: string;
+// Razorpay key for the frontend SDK (public key only — secret stays on server)
+const RAZORPAY_KEY =
+    process.env.EXPO_PUBLIC_RAZORPAY_KEY || "rzp_test_UaS7oqTKOwuALQ";
+
+// ─── Types ───────────────────────────────────────────────────────
+
+export interface CheckoutItem {
+    tierId: string;
+    quantity: number;
+}
+
+export interface CheckoutParams {
+    eventId: string;
+    eventTitle: string;
+    items: CheckoutItem[];
+    userName: string;
+    userEmail: string;
+    userPhone?: string;
+    promoCode?: string | null;
+    promoterCode?: string | null;
+    onStatusChange?: (status: CheckoutStatus) => void;
+}
+
+export type CheckoutStatus =
+    | "reserving"
+    | "initiating"
+    | "awaiting_payment"
+    | "verifying"
+    | "confirmed"
+    | "failed"
+    | "cancelled";
+
+export interface CheckoutResult {
+    success: boolean;
+    orderId?: string;
+    error?: string;
+    requiresPayment?: boolean;
+}
+
+// ─── Main Checkout Flow ──────────────────────────────────────────
+
+/**
+ * Full checkout flow — mirrors the guest-portal CheckoutContainer.jsx exactly.
+ *
+ * 1. POST /api/checkout/reserve   → Lock inventory
+ * 2. POST /api/checkout/initiate  → Create order + Razorpay order
+ * 3. Razorpay native SDK          → Collect payment
+ * 4. PATCH /api/payments          → Verify signature
+ * 5. Webhook confirms in background (same as web)
+ */
+export async function processFullCheckout(
+    params: CheckoutParams
+): Promise<CheckoutResult> {
+    const { onStatusChange } = params;
+
+    try {
+        // ── Step 1: Reserve Inventory ──
+        onStatusChange?.("reserving");
+
+        const reservation = await reserveTickets({
+            eventId: params.eventId,
+            items: params.items,
+        });
+
+        if (!reservation.success) {
+            throw new Error("Failed to reserve tickets. They may no longer be available.");
+        }
+
+        // ── Step 2: Initiate Checkout (server creates order + Razorpay order) ──
+        onStatusChange?.("initiating");
+
+        const checkout = await initiateCheckout({
+            reservationId: reservation.reservationId,
+            userName: params.userName,
+            userEmail: params.userEmail,
+            userPhone: params.userPhone,
+            promoCode: params.promoCode,
+            promoterCode: params.promoterCode,
+        });
+
+        if (!checkout.success) {
+            throw new Error("Failed to initiate checkout.");
+        }
+
+        // ── Step 3: Branch — Free vs Paid ──
+        if (!checkout.requiresPayment) {
+            // Free order — already confirmed server-side
+            onStatusChange?.("confirmed");
+            return {
+                success: true,
+                orderId: checkout.order.id,
+                requiresPayment: false,
+            };
+        }
+
+        // ── Step 4: Open Razorpay Native SDK ──
+        onStatusChange?.("awaiting_payment");
+
+        const paymentResult = await openNativeRazorpay({
+            razorpayOrderId: checkout.razorpay!.orderId,
+            amount: checkout.razorpay!.amount,
+            currency: checkout.razorpay!.currency || "INR",
+            eventTitle: params.eventTitle,
+            prefill: {
+                name: params.userName,
+                email: params.userEmail,
+                contact: params.userPhone || "",
+            },
+        });
+
+        if (!paymentResult.success) {
+            // User cancelled or payment failed — release inventory
+            try {
+                await cancelOrder(checkout.order.id);
+            } catch (e) {
+                console.error("[Checkout] Failed to cancel order after payment failure:", e);
+            }
+            onStatusChange?.("cancelled");
+            return {
+                success: false,
+                error: paymentResult.error || "Payment was cancelled",
+            };
+        }
+
+        // ── Step 5: Verify payment signature with backend ──
+        onStatusChange?.("verifying");
+
+        const verification = await verifyPayment({
+            orderId: checkout.order.id,
+            razorpay_order_id: paymentResult.razorpay_order_id!,
+            razorpay_payment_id: paymentResult.razorpay_payment_id!,
+            razorpay_signature: paymentResult.razorpay_signature!,
+        });
+
+        if (!verification.success) {
+            throw new Error(verification.error || "Payment verification failed");
+        }
+
+        onStatusChange?.("confirmed");
+        return {
+            success: true,
+            orderId: checkout.order.id,
+            requiresPayment: true,
+        };
+
+    } catch (error: any) {
+        onStatusChange?.("failed");
+        console.error("[Checkout] Error:", error);
+        return {
+            success: false,
+            error: error.message || "Something went wrong with the checkout",
+        };
+    }
+}
+
+// ─── Razorpay Native SDK Integration ─────────────────────────────
+
+interface RazorpayOptions {
+    razorpayOrderId: string;
+    amount: number; // in paise
+    currency: string;
+    eventTitle: string;
+    prefill: {
+        name: string;
+        email: string;
+        contact: string;
     };
 }
 
-export interface PaymentResult {
+interface RazorpayResult {
     success: boolean;
-    paymentId?: string;
-    orderId?: string;
-    signature?: string;
+    razorpay_order_id?: string;
+    razorpay_payment_id?: string;
+    razorpay_signature?: string;
     error?: string;
 }
 
-// Create Razorpay order via backend
-export async function createRazorpayOrder(amount: number, orderId: string): Promise<{
-    success: boolean;
-    razorpayOrderId?: string;
-    error?: string;
-}> {
+/**
+ * Opens the native Razorpay checkout SDK.
+ * In production, uses react-native-razorpay.
+ * Falls back to a dev simulation in __DEV__ mode ONLY if the SDK is unavailable.
+ */
+async function openNativeRazorpay(options: RazorpayOptions): Promise<RazorpayResult> {
     try {
-        // In production, this should call your backend API to create order
-        // For now, we'll use a mock order ID
-        const razorpayOrderId = `order_${Date.now()}`;
+        // Attempt to use the native Razorpay SDK
+        const RazorpayCheckout = await importRazorpaySDK();
 
-        return {
-            success: true,
-            razorpayOrderId,
-        };
+        if (RazorpayCheckout) {
+            const rzpOptions = {
+                key: RAZORPAY_KEY,
+                amount: options.amount,
+                currency: options.currency,
+                name: "THE C1RCLE",
+                description: `Passes for ${options.eventTitle}`,
+                order_id: options.razorpayOrderId,
+                prefill: options.prefill,
+                theme: {
+                    color: "#1d1d1f",
+                },
+            };
+
+            const response = await RazorpayCheckout.open(rzpOptions);
+
+            return {
+                success: true,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+            };
+        }
+
+        // SDK not available — development fallback
+        if (__DEV__) {
+            return devPaymentFallback(options);
+        }
+
+        throw new Error("Payment SDK not available. Please update the app.");
+
     } catch (error: any) {
-        return {
-            success: false,
-            error: error.message,
-        };
-    }
-}
+        // Razorpay SDK throws on user cancellation
+        if (
+            error.code === "PAYMENT_CANCELLED" ||
+            error.description?.includes("cancelled") ||
+            error.message?.includes("cancelled")
+        ) {
+            return { success: false, error: "Payment cancelled by user" };
+        }
 
-// Open Razorpay checkout
-export async function openRazorpayCheckout(options: PaymentOptions): Promise<PaymentResult> {
-    try {
-        const { orderId, amount, currency = "INR", name = "THE C1RCLE", description = "Event Tickets", prefill } = options;
-
-        // Build Razorpay checkout URL
-        // Note: For production, use react-native-razorpay package
-        // This is a web checkout fallback
-        const checkoutParams = new URLSearchParams({
-            key: RAZORPAY_KEY,
-            amount: amount.toString(),
-            currency,
-            name,
-            description,
-            order_id: orderId,
-            prefill: JSON.stringify(prefill || {}),
-            callback_url: `https://thec1rcle.com/api/payments/verify`,
-        });
-
-        // For demo purposes, simulate successful payment
-        return new Promise((resolve) => {
-            Alert.alert(
-                "Payment Mode",
-                "Choose how to proceed with payment",
-                [
-                    {
-                        text: "Cancel",
-                        style: "cancel",
-                        onPress: () => resolve({ success: false, error: "Payment cancelled" }),
-                    },
-                    {
-                        text: "Simulate Success",
-                        onPress: () => {
-                            resolve({
-                                success: true,
-                                paymentId: `pay_${Date.now()}`,
-                                orderId,
-                                signature: `sig_${Date.now()}`,
-                            });
-                        },
-                    },
-                    {
-                        text: "Open Razorpay (Real)",
-                        onPress: async () => {
-                            // In production, use react-native-razorpay
-                            // For now, open web checkout
-                            const url = `https://api.razorpay.com/v1/checkout/embedded?${checkoutParams}`;
-                            const canOpen = await Linking.canOpenURL(url);
-                            if (canOpen) {
-                                await Linking.openURL(url);
-                            }
-                            // Resolve with pending - actual verification happens via webhook
-                            resolve({
-                                success: true,
-                                paymentId: "pending_verification",
-                                orderId,
-                            });
-                        },
-                    },
-                ]
-            );
-        });
-    } catch (error: any) {
         return {
             success: false,
-            error: error.message,
+            error: error.description || error.message || "Payment failed",
         };
     }
 }
 
-// Verify payment and update order status
-export async function verifyAndConfirmPayment(
-    orderId: string,
-    paymentId: string,
-    signature?: string
-): Promise<{ success: boolean; error?: string }> {
+/**
+ * Dynamically import react-native-razorpay.
+ * Returns null if not installed (e.g. in Expo Go).
+ */
+async function importRazorpaySDK(): Promise<any | null> {
     try {
-        const db = getFirebaseDb();
-        const orderRef = doc(db, "orders", orderId);
-
-        // Update order with payment details
-        await updateDoc(orderRef, {
-            status: "confirmed",
-            paymentId,
-            paymentSignature: signature || null,
-            confirmedAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-        });
-
-        return { success: true };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+        const mod = await import("react-native-razorpay");
+        return mod.default || mod;
+    } catch {
+        console.warn("[Payments] react-native-razorpay not available");
+        return null;
     }
 }
 
-// Full payment flow
-export async function processPayment(
-    orderId: string,
-    amount: number,
-    userEmail?: string,
-    userPhone?: string,
-    userName?: string
-): Promise<PaymentResult> {
-    // Step 1: Create Razorpay order
-    const orderResult = await createRazorpayOrder(amount, orderId);
-    if (!orderResult.success) {
-        return { success: false, error: orderResult.error };
-    }
-
-    // Step 2: Open checkout
-    const paymentResult = await openRazorpayCheckout({
-        orderId: orderResult.razorpayOrderId!,
-        amount: amount * 100, // Convert to paise
-        prefill: {
-            email: userEmail,
-            contact: userPhone,
-            name: userName,
-        },
+/**
+ * Development-only fallback when native SDK is not available (e.g. Expo Go).
+ * This ONLY works in __DEV__ mode and clearly labels itself as a simulation.
+ */
+function devPaymentFallback(options: RazorpayOptions): Promise<RazorpayResult> {
+    return new Promise((resolve) => {
+        Alert.alert(
+            "🔧 DEV MODE — Payment Simulation",
+            `Amount: ₹${(options.amount / 100).toFixed(0)}\nOrder: ${options.razorpayOrderId}\n\nThis is a DEVELOPMENT simulation. In production, the native Razorpay SDK opens here.`,
+            [
+                {
+                    text: "Cancel",
+                    style: "cancel",
+                    onPress: () => resolve({ success: false, error: "Payment cancelled" }),
+                },
+                {
+                    text: "✓ Simulate Success",
+                    onPress: () =>
+                        resolve({
+                            success: true,
+                            razorpay_order_id: options.razorpayOrderId,
+                            razorpay_payment_id: `pay_dev_${Date.now()}`,
+                            razorpay_signature: `sig_dev_${Date.now()}`,
+                        }),
+                },
+            ]
+        );
     });
-
-    if (!paymentResult.success) {
-        return paymentResult;
-    }
-
-    // Step 3: Verify and confirm
-    const verification = await verifyAndConfirmPayment(
-        orderId,
-        paymentResult.paymentId!,
-        paymentResult.signature
-    );
-
-    if (!verification.success) {
-        return { success: false, error: verification.error };
-    }
-
-    return paymentResult;
 }
+
+export { RAZORPAY_KEY };

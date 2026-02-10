@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
     View,
     Text,
@@ -9,11 +9,14 @@ import {
     Alert,
     StyleSheet,
     Platform,
+    Linking,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { useLocalSearchParams, router } from "expo-router";
+import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
+import * as Location from "expo-location";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -194,6 +197,8 @@ export default function EventDetailScreen() {
     const [event, setEvent] = useState<Event | null>(null);
     const [loading, setLoading] = useState(true);
     const [isLiked, setIsLiked] = useState(false);
+    const [venueCoords, setVenueCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+    const miniMapRef = useRef<MapView>(null);
 
     const scrollY = useSharedValue(0);
     const cartCount = getItemCount();
@@ -205,6 +210,30 @@ export default function EventDetailScreen() {
             const eventData = await getEventById(id);
             setEvent(eventData);
             setLoading(false);
+
+            // Geocode venue
+            if (eventData) {
+                if (eventData.coordinates) {
+                    setVenueCoords(eventData.coordinates);
+                } else {
+                    const searchText = [eventData.venue, eventData.location, eventData.city]
+                        .filter(Boolean)
+                        .join(", ");
+                    if (searchText) {
+                        try {
+                            const results = await Location.geocodeAsync(searchText);
+                            if (results.length > 0) {
+                                setVenueCoords({
+                                    latitude: results[0].latitude,
+                                    longitude: results[0].longitude,
+                                });
+                            }
+                        } catch (e) {
+                            console.warn("[EventDetail] Geocode failed:", e);
+                        }
+                    }
+                }
+            }
         }
         loadEvent();
     }, [id]);
@@ -235,6 +264,27 @@ export default function EventDetailScreen() {
     const handleShare = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         // Share implementation
+    };
+
+    const handleGetDirections = () => {
+        if (!venueCoords) return;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+        const { latitude, longitude } = venueCoords;
+        const label = encodeURIComponent(event?.venue || event?.title || "Event");
+
+        const url = Platform.select({
+            ios: `maps:0,0?q=${label}@${latitude},${longitude}`,
+            android: `geo:0,0?q=${latitude},${longitude}(${label})`,
+        });
+
+        if (url) {
+            Linking.openURL(url).catch(() => {
+                Linking.openURL(
+                    `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
+                );
+            });
+        }
     };
 
     const handleGetTickets = () => {
@@ -411,6 +461,73 @@ export default function EventDetailScreen() {
                             </View>
                         </View>
                     </Animated.View>
+
+                    {/* Venue Map */}
+                    {venueCoords && (
+                        <Animated.View
+                            entering={FadeInDown.delay(180).springify()}
+                            style={styles.mapSection}
+                        >
+                            <Text style={styles.sectionTitle}>📍 Venue Location</Text>
+                            <View style={styles.mapContainer}>
+                                <MapView
+                                    ref={miniMapRef}
+                                    style={styles.miniMap}
+                                    provider={PROVIDER_DEFAULT}
+                                    initialRegion={{
+                                        ...venueCoords,
+                                        latitudeDelta: 0.008,
+                                        longitudeDelta: 0.008,
+                                    }}
+                                    scrollEnabled={false}
+                                    zoomEnabled={false}
+                                    rotateEnabled={false}
+                                    pitchEnabled={false}
+                                    customMapStyle={darkMapStyle}
+                                >
+                                    <Marker coordinate={venueCoords}>
+                                        <View style={styles.mapMarker}>
+                                            <LinearGradient
+                                                colors={gradients.primary as [string, string]}
+                                                style={styles.mapMarkerGradient}
+                                            >
+                                                <Text style={{ fontSize: 16 }}>📍</Text>
+                                            </LinearGradient>
+                                        </View>
+                                    </Marker>
+                                </MapView>
+
+                                {/* Map overlay buttons */}
+                                <View style={styles.mapActions}>
+                                    <Pressable
+                                        onPress={handleGetDirections}
+                                        style={styles.mapActionButton}
+                                    >
+                                        <LinearGradient
+                                            colors={gradients.primary as [string, string]}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={styles.mapActionGradient}
+                                        >
+                                            <Text style={styles.mapActionText}>🧭 Get Directions</Text>
+                                        </LinearGradient>
+                                    </Pressable>
+                                    <Pressable
+                                        onPress={() => {
+                                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                            router.push({
+                                                pathname: "/map" as any,
+                                                params: { eventId: id },
+                                            });
+                                        }}
+                                        style={styles.mapActionButtonOutline}
+                                    >
+                                        <Text style={styles.mapActionOutlineText}>🗺️ Open Map</Text>
+                                    </Pressable>
+                                </View>
+                            </View>
+                        </Animated.View>
+                    )}
 
                     {/* Attendees Preview */}
                     <Animated.View
@@ -1037,4 +1154,103 @@ const styles = StyleSheet.create({
         fontSize: 18,
         marginLeft: 8,
     },
+
+    // Venue Map
+    mapSection: {
+        marginBottom: 24,
+    },
+    mapContainer: {
+        borderRadius: radii.xl,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.06)",
+    },
+    miniMap: {
+        width: "100%",
+        height: 180,
+    },
+    mapMarker: {
+        alignItems: "center",
+    },
+    mapMarkerGradient: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 2,
+        borderColor: "rgba(255,255,255,0.3)",
+    },
+    mapActions: {
+        flexDirection: "row",
+        gap: 10,
+        padding: 12,
+        backgroundColor: colors.base[50],
+    },
+    mapActionButton: {
+        flex: 1,
+    },
+    mapActionGradient: {
+        paddingVertical: 12,
+        borderRadius: radii.pill,
+        alignItems: "center",
+    },
+    mapActionText: {
+        color: "#fff",
+        fontSize: 14,
+        fontWeight: "700",
+    },
+    mapActionButtonOutline: {
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: radii.pill,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.15)",
+        backgroundColor: "rgba(255,255,255,0.04)",
+    },
+    mapActionOutlineText: {
+        color: colors.gold,
+        fontSize: 14,
+        fontWeight: "600",
+    },
 });
+
+// Dark map style matching the app theme
+const darkMapStyle = [
+    { elementType: "geometry", stylers: [{ color: "#1d1d1d" }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#8a8a8a" }] },
+    { elementType: "labels.text.stroke", stylers: [{ color: "#1d1d1d" }] },
+    {
+        featureType: "administrative",
+        elementType: "geometry",
+        stylers: [{ visibility: "off" }],
+    },
+    {
+        featureType: "poi",
+        stylers: [{ visibility: "off" }],
+    },
+    {
+        featureType: "road",
+        elementType: "geometry.fill",
+        stylers: [{ color: "#2c2c2c" }],
+    },
+    {
+        featureType: "road",
+        elementType: "geometry.stroke",
+        stylers: [{ color: "#212121" }],
+    },
+    {
+        featureType: "road.highway",
+        elementType: "geometry.fill",
+        stylers: [{ color: "#3c3c3c" }],
+    },
+    {
+        featureType: "transit",
+        stylers: [{ visibility: "off" }],
+    },
+    {
+        featureType: "water",
+        elementType: "geometry",
+        stylers: [{ color: "#0e1626" }],
+    },
+];

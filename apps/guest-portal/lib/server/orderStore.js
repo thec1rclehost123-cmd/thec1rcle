@@ -1041,6 +1041,23 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
         }
     }
 
+    // REAL-TIME NOTIFICATION (Redis Pub/Sub)
+    if (event.venueId) {
+        try {
+            const { notifySale } = await import("@c1rcle/core/analytics-service");
+            await notifySale(event.venueId, {
+                orderId,
+                totalAmount: order.totalAmount,
+                userName: order.userName,
+                tickets: order.tickets,
+                eventTitle: event.title
+            });
+            console.log(`[OrderStore] Published sale notification for venue ${event.venueId}`);
+        } catch (err) {
+            console.error("[OrderStore] Failed to publish sale notification:", err);
+        }
+    }
+
     return { ...order, ...updates };
 }
 

@@ -4,12 +4,19 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { getRedisClient } from "./redis.js";
 
 // Cart reservation timeout (default 10 minutes)
 const DEFAULT_RESERVATION_MINUTES = 10;
 
-// In-memory reservation store for development
-const reservations = new Map();
+/**
+ * REDIS KEYS:
+ * res:data:{id} -> JSON reservation object (EX: 10m)
+ * res:event:{eventId}:tier:{tierId} -> Set of active reservation IDs for a specific tier
+ * inv:lock:{eventId}:{tierId} -> Mutex for atomic inventory checks (Redlock pattern)
+ */
+const REDIS_RES_PREFIX = "res:data:";
+const REDIS_TIER_RES_PREFIX = "res:event:";
 
 /**
  * Check availability for requested items
@@ -153,9 +160,9 @@ export function checkAvailability(event, items, options = {}) {
 }
 
 /**
- * Calculate effective inventory for a tier (accounting for holdbacks and reservations)
+ * Calculate effective inventory for a tier (accounting for holdbacks and Redis reservations)
  */
-export function calculateEffectiveInventory(tier, event, excludeReservationId = null) {
+export async function calculateEffectiveInventory(tier, event, excludeReservationId = null) {
     const inventory = tier.inventory || {};
 
     // Unlimited inventory
@@ -166,40 +173,34 @@ export function calculateEffectiveInventory(tier, event, excludeReservationId = 
     // Get base remaining quantity
     let remaining = inventory.remainingQuantity ?? tier.remaining ?? tier.quantity ?? 0;
 
-    // Subtract active holdbacks
+    // Subtract active holdbacks (these are typically metadata on the event/tier doc)
     if (inventory.holdbacks && Array.isArray(inventory.holdbacks)) {
         const now = new Date();
         for (const holdback of inventory.holdbacks) {
-            // Check if holdback is expired
-            if (holdback.expiresAt && new Date(holdback.expiresAt) < now) {
-                continue;
-            }
+            if (holdback.expiresAt && new Date(holdback.expiresAt) < now) continue;
             remaining -= holdback.quantity;
         }
     }
 
-    // Subtract active cart reservations
-    const activeReservations = getActiveReservationsForTier(
-        event.id,
-        tier.id,
-        excludeReservationId
-    );
+    // Subtract active cart reservations from Redis
+    const redis = getRedisClient();
+    const tierResKey = `${REDIS_TIER_RES_PREFIX}${event.id}:tier:${tier.id}`;
+    const activeResIds = await redis.smembers(tierResKey);
 
-    for (const reservation of activeReservations) {
+    for (const resId of activeResIds) {
+        if (resId === excludeReservationId) continue;
+
+        const resData = await redis.get(`${REDIS_RES_PREFIX}${resId}`);
+        if (!resData) {
+            // Cleanup orphaned reference in background
+            redis.srem(tierResKey, resId).catch(() => { });
+            continue;
+        }
+
+        const reservation = JSON.parse(resData);
         const reservedItem = reservation.items.find(i => i.tierId === tier.id);
         if (reservedItem) {
             remaining -= reservedItem.quantity;
-        }
-    }
-
-    // Check scheduled releases
-    if (inventory.releaseSchedule && Array.isArray(inventory.releaseSchedule)) {
-        const now = new Date();
-        for (const release of inventory.releaseSchedule) {
-            if (release.status === 'pending' && new Date(release.releasesAt) <= now) {
-                // This release should have happened - add to available
-                remaining += release.quantity;
-            }
         }
     }
 
@@ -303,92 +304,129 @@ export function checkPurchaseLimits(tier, quantity, context = {}) {
 }
 
 /**
- * Create a cart reservation
+ * Create a cart reservation with REDIS ATOMICITY
+ * This prevents two people from snagging the last ticket simultaneously.
  */
-export function createReservation(eventId, customerId, deviceId, items, options = {}) {
+export async function createReservation(event, customerId, deviceId, items, options = {}) {
     const {
         reservationMinutes = DEFAULT_RESERVATION_MINUTES,
         accessCode = null
     } = options;
 
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + reservationMinutes * 60 * 1000);
+    const redis = getRedisClient();
+    const reservationId = randomUUID();
+    const expiresAt = new Date(Date.now() + reservationMinutes * 60 * 1000);
+    const ttlSeconds = reservationMinutes * 60;
 
-    const reservation = {
-        id: randomUUID(),
-        eventId,
-        customerId,
-        deviceId,
-        items: items.map(i => ({
-            tierId: i.tierId,
-            quantity: i.quantity
-        })),
-        accessCode,
-        status: 'active',
-        createdAt: now.toISOString(),
-        expiresAt: expiresAt.toISOString()
-    };
+    // We use a Redis Mutex (Lock) to ensure atomic check-and-reserve
+    // This is the "Double Purchase Protection" you asked about.
+    const lockKey = `inv:lock:${event.id}`;
+    const acquiredLock = await redis.set(lockKey, "locked", "NX", "EX", 5); // 5 sec lock
 
-    reservations.set(reservation.id, reservation);
+    if (!acquiredLock) {
+        throw new Error("System is busy processing transactions. Please try again in 1 second.");
+    }
 
-    return {
-        success: true,
-        reservationId: reservation.id,
-        expiresAt: reservation.expiresAt,
-        expiresInSeconds: reservationMinutes * 60
-    };
+    try {
+        // 1. Re-check availability now that we have the lock
+        for (const item of items) {
+            const tier = event.ticketCatalog?.tiers?.find(t => t.id === item.tierId) ||
+                event.tickets?.find(t => t.id === item.tierId);
+
+            const available = await calculateEffectiveInventory(tier, event);
+            if (item.quantity > available) {
+                throw new Error(`Insufficient tickets available for ${tier.name}.`);
+            }
+        }
+
+        // 2. All items available, commit the reservation to Redis
+        const reservation = {
+            id: reservationId,
+            eventId: event.id,
+            customerId,
+            deviceId,
+            items: items.map(i => ({ tierId: i.tierId, quantity: i.quantity })),
+            accessCode,
+            status: 'active',
+            createdAt: new Date().toISOString(),
+            expiresAt: expiresAt.toISOString()
+        };
+
+        const multi = redis.multi();
+
+        // Store reservation data
+        multi.set(`${REDIS_RES_PREFIX}${reservationId}`, JSON.stringify(reservation), "EX", ttlSeconds);
+
+        // Index by tier for fast availability calculations
+        for (const item of items) {
+            multi.sadd(`${REDIS_TIER_RES_PREFIX}${event.id}:tier:${item.tierId}`, reservationId);
+        }
+
+        await multi.exec();
+
+        return {
+            success: true,
+            reservationId,
+            expiresAt: reservation.expiresAt,
+            expiresInSeconds: ttlSeconds
+        };
+    } finally {
+        // Always release the lock
+        await redis.del(lockKey);
+    }
 }
 
 /**
- * Release a cart reservation
+ * Release a cart reservation (and remove from Redis indices)
  */
-export function releaseReservation(reservationId) {
-    const reservation = reservations.get(reservationId);
-    if (!reservation) {
-        return { success: false, error: 'Reservation not found' };
+export async function releaseReservation(reservationId) {
+    const redis = getRedisClient();
+    const resKey = `${REDIS_RES_PREFIX}${reservationId}`;
+
+    const resData = await redis.get(resKey);
+    if (!resData) return { success: false, error: 'Reservation not found' };
+
+    const reservation = JSON.parse(resData);
+
+    // Atomically remove data and index references
+    const multi = redis.multi();
+    multi.del(resKey);
+    for (const item of reservation.items) {
+        multi.srem(`${REDIS_TIER_RES_PREFIX}${reservation.eventId}:tier:${item.tierId}`, reservationId);
     }
 
-    if (reservation.status !== 'active') {
-        return { success: false, error: `Reservation is ${reservation.status}` };
-    }
-
-    reservation.status = 'released';
-    reservation.releasedAt = new Date().toISOString();
-
+    await multi.exec();
     return { success: true };
 }
 
 /**
- * Convert a reservation to an order
+ * Convert a reservation to an order (Permanent conversion)
  */
-export function convertReservation(reservationId, orderId) {
-    const reservation = reservations.get(reservationId);
-    if (!reservation) {
-        return { success: false, error: 'Reservation not found' };
-    }
+export async function convertReservation(reservationId, orderId) {
+    const redis = getRedisClient();
+    const resKey = `${REDIS_RES_PREFIX}${reservationId}`;
 
-    if (reservation.status !== 'active') {
-        return { success: false, error: `Reservation is ${reservation.status}` };
-    }
+    const resData = await redis.get(resKey);
+    if (!resData) return { success: false, error: 'Reservation not found' };
 
-    // Check if expired
-    if (new Date(reservation.expiresAt) < new Date()) {
-        reservation.status = 'expired';
-        return { success: false, error: 'Reservation has expired' };
-    }
-
+    const reservation = JSON.parse(resData);
     reservation.status = 'converted';
     reservation.orderId = orderId;
     reservation.convertedAt = new Date().toISOString();
 
+    // Kill the reservation in Redis (it's now a permanent order in Firestore)
+    await releaseReservation(reservationId);
+
     return { success: true };
 }
 
 /**
- * Get reservation by ID
+ * Get reservation by ID from Redis
  */
-export function getReservation(reservationId) {
-    return reservations.get(reservationId) || null;
+export async function getReservation(reservationId) {
+    const redis = getRedisClient();
+    const resData = await redis.get(`${REDIS_RES_PREFIX}${reservationId}`);
+    return resData ? JSON.parse(resData) : null;
 }
 
 /**

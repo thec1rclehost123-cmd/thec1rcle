@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+export const dynamic = 'force-dynamic';
+
 import {
     getVenueAnalytics,
     getVenueAudienceAnalytics,
@@ -21,9 +23,11 @@ export async function GET(
 ) {
     try {
         const { searchParams } = new URL(req.url);
-        const venueId = searchParams.get("venueId") || searchParams.get("venueId");
+        const venueId = searchParams.get("venueId") || searchParams.get("partnerId");
         const range = searchParams.get("range") || "30d";
         const { type } = params;
+
+        console.log(`📡 [API/Analytics] Request: type=${type}, venueId=${venueId}, range=${range}`);
 
         if (!venueId) {
             return NextResponse.json({ error: "venueId is required" }, { status: 400 });
@@ -37,12 +41,19 @@ export async function GET(
             case "audience":
                 analytics = await getVenueAudienceAnalytics(venueId, range);
                 break;
+            case "reach":
             case "funnel":
                 analytics = await getVenueFunnelAnalytics(venueId, range);
                 break;
+            case "engagement":
             case "ops":
                 analytics = await getVenueOpsAnalytics(venueId, range);
                 break;
+            case "revenue":
+                // Standard venue overview covers revenue totals
+                analytics = await getVenueAnalytics(venueId, range);
+                break;
+            case "attribution":
             case "partners":
                 analytics = await getVenuePartnerAnalytics(venueId, range);
                 break;

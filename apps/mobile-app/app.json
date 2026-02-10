@@ -46,6 +46,13 @@
       "expo-router",
       "expo-font",
       "expo-secure-store",
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.GOOGLE_IOS_CLIENT_ID"
+        }
+      ],
       [
         "expo-location",
         {
@@ -56,6 +63,18 @@
         "expo-notifications",
         {
           "color": "#F44A22"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow THE C1RCLE to access your camera for scanning ticket QR codes."
+        }
+      ],
+      [
+        "react-native-maps",
+        {
+          "googleMapsApiKey": "GOOGLE_MAPS_API_KEY_HERE"
         }
       ]
     ],

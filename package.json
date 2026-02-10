@@ -12,6 +12,7 @@
     "dev:guest": "npm run dev -w apps/guest-portal",
     "dev:partner": "npm run dev -w apps/partner-dashboard",
     "dev:admin": "npm run dev -w apps/admin-console",
+    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:3005/api/inngest",
     "build": "turbo build",
     "lint": "turbo lint",
     "install:all": "npm install"

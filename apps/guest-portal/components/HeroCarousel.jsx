@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "framer-motion";
+import Image from "next/image";
 
 /**
  * HeroCarousel - A high-performance 3D "Museum Shelf" carousel.

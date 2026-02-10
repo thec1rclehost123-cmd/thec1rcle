@@ -1,7 +1,20 @@
-// Apple Wallet / Google Wallet pass generation
-import { Linking, Platform, Alert } from "react-native";
+/**
+ * Ticket Download, Share & Wallet Integration
+ *
+ * Provides:
+ * - downloadTicketPDF: fetches PDF from backend → saves to device → option to share/open
+ * - shareTicket: generates share sheet with ticket info + PDF attachment
+ * - addToWallet: platform-specific wallet pass (Apple Wallet / Google Wallet)
+ * - isWalletAvailable: checks if wallet app is installed
+ */
+
+import { Alert, Linking, Platform } from "react-native";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
+import * as Haptics from "expo-haptics";
+
+const API_BASE =
+    process.env.EXPO_PUBLIC_API_BASE_URL || "https://thec1rcle.com";
 
 export interface PassData {
     orderId: string;
@@ -17,97 +30,237 @@ export interface PassData {
     coverImageUrl?: string;
 }
 
-// Generate Apple Wallet pass (.pkpass)
-// Note: In production, this should be generated server-side with proper signing
+// ─── Download Ticket PDF ────────────────────────────────────────────────────
+
+/**
+ * Download a PDF ticket from the backend and save it to the device.
+ * Returns the local file URI on success, null on failure.
+ */
+export async function downloadTicketPDF(orderId: string): Promise<string | null> {
+    try {
+        const fileUri = `${FileSystem.cacheDirectory}ticket-${orderId.substring(0, 8)}.pdf`;
+
+        // Check if already downloaded
+        const existing = await FileSystem.getInfoAsync(fileUri);
+        if (existing.exists) {
+            return fileUri;
+        }
+
+        const downloadResult = await FileSystem.downloadAsync(
+            `${API_BASE}/api/tickets/download?orderId=${orderId}`,
+            fileUri
+        );
+
+        if (downloadResult.status !== 200) {
+            throw new Error(`Download failed with status ${downloadResult.status}`);
+        }
+
+        return downloadResult.uri;
+    } catch (error) {
+        console.error("[Wallet] Download error:", error);
+        return null;
+    }
+}
+
+/**
+ * Download and open/share the ticket PDF
+ */
+export async function saveTicket(passData: PassData): Promise<boolean> {
+    try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+        const fileUri = await downloadTicketPDF(passData.orderId);
+
+        if (!fileUri) {
+            Alert.alert("Download Failed", "Could not download the ticket. Please try again.");
+            return false;
+        }
+
+        // Check sharing support
+        const sharingAvailable = await Sharing.isAvailableAsync();
+        if (sharingAvailable) {
+            await Sharing.shareAsync(fileUri, {
+                mimeType: "application/pdf",
+                dialogTitle: `Ticket — ${passData.eventTitle}`,
+                UTI: "com.adobe.pdf",
+            });
+        } else {
+            Alert.alert("Downloaded!", "Your ticket has been saved to the app cache.");
+        }
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        return true;
+    } catch (error) {
+        console.error("[Wallet] Save ticket error:", error);
+        Alert.alert("Error", "Failed to save ticket. Please try again.");
+        return false;
+    }
+}
+
+// ─── Share Ticket ───────────────────────────────────────────────────────────
+
+/**
+ * Share ticket as PDF attachment via the system share sheet.
+ */
+export async function shareTicket(passData: PassData): Promise<boolean> {
+    try {
+        const sharingAvailable = await Sharing.isAvailableAsync();
+        if (!sharingAvailable) {
+            Alert.alert("Error", "Sharing is not available on this device.");
+            return false;
+        }
+
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+        // Try to download PDF first
+        const fileUri = await downloadTicketPDF(passData.orderId);
+
+        if (fileUri) {
+            await Sharing.shareAsync(fileUri, {
+                mimeType: "application/pdf",
+                dialogTitle: `🎟️ ${passData.eventTitle} — Ticket`,
+                UTI: "com.adobe.pdf",
+            });
+        } else {
+            // Fallback: share text info
+            Alert.alert(
+                "Share Ticket",
+                `🎟️ ${passData.eventTitle}\n📅 ${passData.eventDate} ${passData.eventTime}\n📍 ${passData.venue}\n🎫 ${passData.ticketType} × ${passData.ticketCount}\n\nOrder: ${passData.orderId.substring(0, 8)}`,
+                [{ text: "OK" }]
+            );
+        }
+
+        return true;
+    } catch (error) {
+        console.error("[Wallet] Share ticket error:", error);
+        Alert.alert("Error", "Failed to share ticket.");
+        return false;
+    }
+}
+
+// ─── Wallet Integration ─────────────────────────────────────────────────────
+
+/**
+ * Generate and add Apple Wallet pass (.pkpass)
+ * Requires server-side pass generation with Apple certificates.
+ */
 export async function generateAppleWalletPass(passData: PassData): Promise<string | null> {
-    if (Platform.OS !== "ios") {
+    if (Platform.OS !== "ios") return null;
+
+    try {
+        const fileUri = `${FileSystem.cacheDirectory}pass-${passData.orderId.substring(0, 8)}.pkpass`;
+
+        const downloadResult = await FileSystem.downloadAsync(
+            `${API_BASE}/api/passes/apple?orderId=${passData.orderId}`,
+            fileUri
+        );
+
+        if (downloadResult.status === 200) {
+            return downloadResult.uri;
+        }
+
+        // API not yet available — show PDF fallback
+        return null;
+    } catch (error) {
+        console.error("[Wallet] Apple pass error:", error);
         return null;
     }
-
-    // In production, call your backend API to generate a signed .pkpass file
-    // The backend needs Apple Wallet certificates to sign passes
-    const apiUrl = `https://api.thec1rcle.com/passes/apple?orderId=${passData.orderId}`;
-
-    // For now, show info about wallet integration
-    Alert.alert(
-        "Apple Wallet",
-        "Apple Wallet passes require server-side generation with Apple certificates. This feature will be available soon!",
-        [
-            { text: "OK" },
-            {
-                text: "View Ticket Instead",
-                onPress: () => {
-                    // Navigate to ticket detail
-                }
-            }
-        ]
-    );
-
-    return null;
 }
 
-// Generate Google Wallet pass
+/**
+ * Generate and add Google Wallet pass
+ * Requires server-side JWT generation with Google Wallet credentials.
+ */
 export async function generateGoogleWalletPass(passData: PassData): Promise<string | null> {
-    if (Platform.OS !== "android") {
+    if (Platform.OS !== "android") return null;
+
+    try {
+        const response = await fetch(
+            `${API_BASE}/api/passes/google?orderId=${passData.orderId}`
+        );
+
+        if (response.ok) {
+            const { saveUrl } = await response.json();
+            return saveUrl;
+        }
+
+        return null;
+    } catch (error) {
+        console.error("[Wallet] Google pass error:", error);
         return null;
     }
-
-    // In production, call your backend API to generate a Google Wallet JWT
-    // The backend signs the pass data with your Google Wallet credentials
-
-    Alert.alert(
-        "Google Wallet",
-        "Google Wallet passes require server-side generation. This feature will be available soon!",
-        [
-            { text: "OK" },
-            {
-                text: "View Ticket Instead",
-                onPress: () => {
-                    // Navigate to ticket detail
-                }
-            }
-        ]
-    );
-
-    return null;
 }
 
-// Add to wallet (platform-agnostic)
+/**
+ * Add to wallet (platform-agnostic).
+ * Falls back to PDF download if wallet pass generation isn't available.
+ */
 export async function addToWallet(passData: PassData): Promise<boolean> {
     try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
         if (Platform.OS === "ios") {
             const passUrl = await generateAppleWalletPass(passData);
             if (passUrl) {
-                await Linking.openURL(passUrl);
+                // .pkpass files auto-open in Apple Wallet
+                await Sharing.shareAsync(passUrl, {
+                    mimeType: "application/vnd.apple.pkpass",
+                    UTI: "com.apple.pkpass",
+                });
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 return true;
             }
         } else if (Platform.OS === "android") {
-            const passUrl = await generateGoogleWalletPass(passData);
-            if (passUrl) {
-                await Linking.openURL(passUrl);
+            const saveUrl = await generateGoogleWalletPass(passData);
+            if (saveUrl) {
+                await Linking.openURL(saveUrl);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 return true;
             }
         }
+
+        // Fallback: download PDF instead
+        Alert.alert(
+            Platform.OS === "ios" ? "Apple Wallet" : "Google Wallet",
+            "Wallet pass generation is coming soon. Would you like to download the ticket as a PDF instead?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Download PDF",
+                    onPress: () => saveTicket(passData),
+                },
+            ]
+        );
+
         return false;
     } catch (error) {
-        console.error("Error adding to wallet:", error);
+        console.error("[Wallet] Add to wallet error:", error);
+        Alert.alert("Error", "Failed to add to wallet.");
         return false;
     }
 }
 
-// Check if wallet is available
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Check if the device's native wallet app is available.
+ */
 export async function isWalletAvailable(): Promise<boolean> {
-    if (Platform.OS === "ios") {
-        // Check if Wallet app can be opened
-        return await Linking.canOpenURL("wallet://");
-    } else if (Platform.OS === "android") {
-        // Check if Google Wallet is installed
-        return await Linking.canOpenURL("https://pay.google.com/");
+    try {
+        if (Platform.OS === "ios") {
+            return await Linking.canOpenURL("wallet://");
+        } else if (Platform.OS === "android") {
+            return await Linking.canOpenURL("https://pay.google.com/");
+        }
+    } catch {
+        // Ignore
     }
     return false;
 }
 
-// Generate pass preview data for display
+/**
+ * Generate pass preview data for display in the app.
+ */
 export function generatePassPreview(passData: PassData): {
     headerFields: Array<{ label: string; value: string }>;
     primaryFields: Array<{ label: string; value: string }>;
@@ -126,8 +279,8 @@ export function generatePassPreview(passData: PassData): {
                 value: eventDate.toLocaleDateString("en-IN", {
                     weekday: "short",
                     month: "short",
-                    day: "numeric"
-                })
+                    day: "numeric",
+                }),
             },
             { label: "TIME", value: passData.eventTime },
         ],
@@ -137,60 +290,10 @@ export function generatePassPreview(passData: PassData): {
         ],
         auxiliaryFields: [
             { label: "QTY", value: passData.ticketCount.toString() },
-            { label: "ORDER", value: passData.orderId.substring(0, 8).toUpperCase() },
+            {
+                label: "ORDER",
+                value: passData.orderId.substring(0, 8).toUpperCase(),
+            },
         ],
     };
-}
-
-// Create a shareable ticket image (fallback for wallet)
-export async function createTicketImage(passData: PassData): Promise<string | null> {
-    // This would generate an image that can be saved/shared
-    // Implementation would use canvas or a server-side image generation service
-
-    return null;
-}
-
-// Save ticket to device (as PDF or image)
-export async function saveTicket(
-    passData: PassData,
-    format: "pdf" | "image" = "pdf"
-): Promise<boolean> {
-    try {
-        // In production, fetch the ticket PDF/image from your server
-        const ticketUrl = `https://api.thec1rcle.com/tickets/${passData.orderId}/download?format=${format}`;
-
-        Alert.alert(
-            "Download Ticket",
-            "Ticket download feature coming soon! Use the QR code in the app for now.",
-            [{ text: "OK" }]
-        );
-
-        return false;
-    } catch (error) {
-        console.error("Error saving ticket:", error);
-        return false;
-    }
-}
-
-// Share ticket
-export async function shareTicket(passData: PassData): Promise<boolean> {
-    try {
-        const isAvailable = await Sharing.isAvailableAsync();
-        if (!isAvailable) {
-            Alert.alert("Error", "Sharing is not available on this device");
-            return false;
-        }
-
-        // In production, generate and share the ticket file
-        Alert.alert(
-            "Share Ticket",
-            "Ticket sharing feature coming soon!",
-            [{ text: "OK" }]
-        );
-
-        return false;
-    } catch (error) {
-        console.error("Error sharing ticket:", error);
-        return false;
-    }
 }

@@ -442,19 +442,24 @@ const ensureSeedEvents = async () => {
 };
 
 export async function listEvents({ city, limit = 12, sort = "heat", search, host, venueId, creatorId, lifecycle, creatorRole } = {}) {
+  console.log(`📋 [listEvents] Called with: venueId=${venueId}, city=${city}, host=${host}, limit=${limit}, sort=${sort}`);
+  console.log(`📋 [listEvents] isToyMode=${isToyMode()}, isFirebaseConfigured=${isFirebaseConfigured()}`);
+
   // Fix: Hardcoded "Toy Mode" check
   if (isToyMode()) {
-    console.warn("Listing events from Toy Mode memory.");
+    console.warn("⚠️ [listEvents] RUNNING IN TOY MODE — returning fallback events from memory!");
     let results = listFallbackEvents({ city, limit: 1000, sort, host });
     // ... search logic exists in listFallbackEvents (partial)
     return limit ? results.slice(0, limit) : results;
   }
 
   if (!isFirebaseConfigured()) {
+    console.error("❌ [listEvents] Firebase NOT configured!");
     throw new Error("Firebase not configured for listEvents");
   }
 
   const db = getAdminDb();
+  console.log(`📋 [listEvents] Got db instance: ${db ? 'YES' : 'NULL'}`);
   let query = db.collection(EVENT_COLLECTION).where("isDeleted", "==", false);
 
   if (host) {
@@ -500,17 +505,27 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
       soonest: { field: "startDate", direction: "asc" },
       price: { field: "priceRange.min", direction: "asc" }
     };
-    const order = ordering[sort] || ordering.heat;
-    query = query.orderBy(order.field, order.direction);
+    if (sort && sort !== "none" && ordering[sort]) {
+      const order = ordering[sort];
+      query = query.orderBy(order.field, order.direction);
+    }
   }
 
   const baseLimit = Math.max(limit || 12, 12);
-  const snapshot = await query.limit(baseLimit).get();
+  try {
+    const snapshot = await query.limit(baseLimit).get();
+    console.log(`📋 [listEvents] Firestore returned ${snapshot.size} documents for venueId=${venueId}`);
 
-  // Use shared mapper
-  let events = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
-
-  return limit ? events.slice(0, limit) : events;
+    // Use shared mapper
+    let events = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
+    return limit ? events.slice(0, limit) : events;
+  } catch (err) {
+    console.error(`❌ [listEvents] Firestore query FAILED:`, err.message);
+    if (err.message?.includes('index')) {
+      console.error(`❌ [listEvents] Missing Firestore index! Create it at the URL above.`);
+    }
+    throw err;
+  }
 }
 
 export async function createEvent(payload) {

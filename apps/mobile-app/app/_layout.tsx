@@ -1,5 +1,5 @@
 import "../global.css";
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { Stack, router, useSegments, useRootNavigationState } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
@@ -14,6 +14,8 @@ import {
     addNotificationResponseListener,
 } from "@/lib/notifications";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { hasCompletedOnboarding } from "@/app/onboarding";
 import { colors } from "@/lib/design/theme";
 
 // Prevent auto-hide until we're ready
@@ -28,21 +30,40 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 function useProtectedRoute(user: unknown) {
     const segments = useSegments();
     const navigationState = useRootNavigationState();
+    const [onboardingChecked, setOnboardingChecked] = useState(false);
+    const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+    // Check onboarding status once on mount
+    useEffect(() => {
+        hasCompletedOnboarding().then((completed) => {
+            setNeedsOnboarding(!completed);
+            setOnboardingChecked(true);
+        });
+    }, []);
 
     useEffect(() => {
-        // Wait for navigation to be ready
-        if (!navigationState?.key) return;
+        // Wait for navigation + onboarding check to be ready
+        if (!navigationState?.key || !onboardingChecked) return;
 
         const inAuthGroup = segments[0] === "(auth)";
+        const inOnboarding = segments[0] === "onboarding";
+        const inScanner = segments[0] === "scanner";
 
-        if (!user && !inAuthGroup) {
-            // Redirect to login if not authenticated and not already in auth group
+        // Scanner routes are public — no auth needed (security staff)
+        if (inScanner) return;
+
+        // First-time user — show onboarding
+        if (needsOnboarding && !inOnboarding && !user) {
+            router.replace("/onboarding");
+            return;
+        }
+
+        if (!user && !inAuthGroup && !inOnboarding) {
             router.replace("/(auth)/login");
-        } else if (user && inAuthGroup) {
-            // Redirect to main app if authenticated but in auth group
+        } else if (user && (inAuthGroup || inOnboarding)) {
             router.replace("/(tabs)/explore");
         }
-    }, [user, segments, navigationState?.key]);
+    }, [user, segments, navigationState?.key, onboardingChecked, needsOnboarding]);
 }
 
 /**
@@ -147,178 +168,198 @@ export default function RootLayout() {
     }
 
     return (
-        <SafeAreaProvider>
-            <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
-                <View style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}>
-                    <StatusBar style="light" backgroundColor={colors.base.DEFAULT} />
+        <ErrorBoundary>
+            <SafeAreaProvider>
+                <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+                    <View style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}>
+                        <StatusBar style="light" backgroundColor={colors.base.DEFAULT} />
 
-                    {/* Global offline indicator */}
-                    <OfflineBanner />
+                        {/* Global offline indicator */}
+                        <OfflineBanner />
 
-                    <Stack
-                        screenOptions={{
-                            headerShown: false,
-                            contentStyle: { backgroundColor: colors.base.DEFAULT },
-                            animation: "slide_from_right",
-                        }}
-                    >
-                        {/* Auth Flow */}
-                        <Stack.Screen
-                            name="(auth)"
-                            options={{
+                        <Stack
+                            screenOptions={{
                                 headerShown: false,
-                                animation: "fade",
+                                contentStyle: { backgroundColor: colors.base.DEFAULT },
+                                animation: "slide_from_right",
                             }}
-                        />
+                        >
+                            {/* Onboarding (first-time users) */}
+                            <Stack.Screen
+                                name="onboarding"
+                                options={{
+                                    headerShown: false,
+                                    animation: "fade",
+                                }}
+                            />
 
-                        {/* Main Tab Navigation */}
-                        <Stack.Screen
-                            name="(tabs)"
-                            options={{
-                                headerShown: false
-                            }}
-                        />
+                            {/* Auth Flow */}
+                            <Stack.Screen
+                                name="(auth)"
+                                options={{
+                                    headerShown: false,
+                                    animation: "fade",
+                                }}
+                            />
 
-                        {/* Index redirect */}
-                        <Stack.Screen
-                            name="index"
-                            options={{
-                                headerShown: false
-                            }}
-                        />
+                            {/* Main Tab Navigation */}
+                            <Stack.Screen
+                                name="(tabs)"
+                                options={{
+                                    headerShown: false
+                                }}
+                            />
 
-                        {/* Event Detail */}
-                        <Stack.Screen
-                            name="event/[id]"
-                            options={{
-                                headerShown: false,
-                                presentation: "card",
-                            }}
-                        />
+                            {/* Index redirect */}
+                            <Stack.Screen
+                                name="index"
+                                options={{
+                                    headerShown: false
+                                }}
+                            />
 
-                        {/* Checkout Flow (Modal) */}
-                        <Stack.Screen
-                            name="checkout"
-                            options={{
-                                headerShown: false,
-                                presentation: "modal",
-                                animation: "slide_from_bottom",
-                            }}
-                        />
+                            {/* Event Detail */}
+                            <Stack.Screen
+                                name="event/[id]"
+                                options={{
+                                    headerShown: false,
+                                    presentation: "card",
+                                }}
+                            />
 
-                        {/* Chat Screens */}
-                        <Stack.Screen
-                            name="chat"
-                            options={{
-                                headerShown: false,
-                            }}
-                        />
+                            {/* Checkout Flow (Modal) */}
+                            <Stack.Screen
+                                name="checkout"
+                                options={{
+                                    headerShown: false,
+                                    presentation: "modal",
+                                    animation: "slide_from_bottom",
+                                }}
+                            />
 
-                        {/* Safety Features (Modal) */}
-                        <Stack.Screen
-                            name="safety"
-                            options={{
-                                headerShown: false,
-                                presentation: "modal",
-                                animation: "slide_from_bottom",
-                            }}
-                        />
+                            {/* Chat Screens */}
+                            <Stack.Screen
+                                name="chat"
+                                options={{
+                                    headerShown: false,
+                                }}
+                            />
 
-                        {/* Ticket Transfer */}
-                        <Stack.Screen
-                            name="transfer"
-                            options={{
-                                headerShown: false,
-                                presentation: "modal",
-                                animation: "slide_from_bottom",
-                            }}
-                        />
+                            {/* Safety Features (Modal) */}
+                            <Stack.Screen
+                                name="safety"
+                                options={{
+                                    headerShown: false,
+                                    presentation: "modal",
+                                    animation: "slide_from_bottom",
+                                }}
+                            />
 
-                        {/* Social Screens */}
-                        <Stack.Screen
-                            name="social"
-                            options={{
-                                headerShown: false,
-                            }}
-                        />
+                            {/* Ticket Transfer */}
+                            <Stack.Screen
+                                name="transfer"
+                                options={{
+                                    headerShown: false,
+                                    presentation: "modal",
+                                    animation: "slide_from_bottom",
+                                }}
+                            />
 
-                        {/* Notifications */}
-                        <Stack.Screen
-                            name="notifications"
-                            options={{
-                                headerShown: false,
-                                presentation: "card",
-                            }}
-                        />
+                            {/* Social Screens */}
+                            <Stack.Screen
+                                name="social"
+                                options={{
+                                    headerShown: false,
+                                }}
+                            />
 
-                        {/* Settings */}
-                        <Stack.Screen
-                            name="settings"
-                            options={{
-                                headerShown: false,
-                                presentation: "card",
-                            }}
-                        />
+                            {/* Notifications */}
+                            <Stack.Screen
+                                name="notifications"
+                                options={{
+                                    headerShown: false,
+                                    presentation: "card",
+                                }}
+                            />
 
-                        {/* Search */}
-                        <Stack.Screen
-                            name="search"
-                            options={{
-                                headerShown: false,
-                                presentation: "card",
-                                animation: "fade",
-                            }}
-                        />
+                            {/* Settings */}
+                            <Stack.Screen
+                                name="settings"
+                                options={{
+                                    headerShown: false,
+                                    presentation: "card",
+                                }}
+                            />
 
-                        {/* Profile Edit (Modal) */}
-                        <Stack.Screen
-                            name="profile/edit"
-                            options={{
-                                headerShown: false,
-                                presentation: "modal",
-                                animation: "slide_from_bottom",
-                            }}
-                        />
+                            {/* Scanner (No auth — security staff) */}
+                            <Stack.Screen
+                                name="scanner"
+                                options={{
+                                    headerShown: false,
+                                    animation: "slide_from_bottom",
+                                }}
+                            />
 
-                        {/* Legal Pages */}
-                        <Stack.Screen
-                            name="legal/terms"
-                            options={{
-                                headerShown: false,
-                                presentation: "card",
-                            }}
-                        />
-                        <Stack.Screen
-                            name="legal/privacy"
-                            options={{
-                                headerShown: false,
-                                presentation: "card",
-                            }}
-                        />
-                        <Stack.Screen
-                            name="legal/refunds"
-                            options={{
-                                headerShown: false,
-                                presentation: "card",
-                            }}
-                        />
-                        <Stack.Screen
-                            name="legal/guidelines"
-                            options={{
-                                headerShown: false,
-                                presentation: "card",
-                            }}
-                        />
-                        <Stack.Screen
-                            name="legal/safety"
-                            options={{
-                                headerShown: false,
-                                presentation: "card",
-                            }}
-                        />
-                    </Stack>
-                </View>
-            </GestureHandlerRootView>
-        </SafeAreaProvider>
+                            {/* Search */}
+                            <Stack.Screen
+                                name="search"
+                                options={{
+                                    headerShown: false,
+                                    presentation: "card",
+                                    animation: "fade",
+                                }}
+                            />
+
+                            {/* Profile Edit (Modal) */}
+                            <Stack.Screen
+                                name="profile/edit"
+                                options={{
+                                    headerShown: false,
+                                    presentation: "modal",
+                                    animation: "slide_from_bottom",
+                                }}
+                            />
+
+                            {/* Legal Pages */}
+                            <Stack.Screen
+                                name="legal/terms"
+                                options={{
+                                    headerShown: false,
+                                    presentation: "card",
+                                }}
+                            />
+                            <Stack.Screen
+                                name="legal/privacy"
+                                options={{
+                                    headerShown: false,
+                                    presentation: "card",
+                                }}
+                            />
+                            <Stack.Screen
+                                name="legal/refunds"
+                                options={{
+                                    headerShown: false,
+                                    presentation: "card",
+                                }}
+                            />
+                            <Stack.Screen
+                                name="legal/guidelines"
+                                options={{
+                                    headerShown: false,
+                                    presentation: "card",
+                                }}
+                            />
+                            <Stack.Screen
+                                name="legal/safety"
+                                options={{
+                                    headerShown: false,
+                                    presentation: "card",
+                                }}
+                            />
+                        </Stack>
+                    </View>
+                </GestureHandlerRootView>
+            </SafeAreaProvider>
+        </ErrorBoundary>
     );
 }

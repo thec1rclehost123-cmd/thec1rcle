@@ -1,37 +1,17 @@
+/**
+ * THE C1RCLE - Cart Store
+ * Client-side cart state only. Order creation and payment happens via
+ * the guest-portal backend APIs (see lib/api.ts and lib/payments.ts).
+ *
+ * Cart persistence uses AsyncStorage (not SecureStore) to avoid the
+ * 2KB size limit that caused silent data loss on iOS.
+ */
+
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import {
-    collection,
-    doc,
-    runTransaction,
-    serverTimestamp,
-} from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { TicketTier } from "./eventsStore";
-
-// Simple async storage for React Native
-const asyncStorage = {
-    getItem: async (name: string): Promise<string | null> => {
-        try {
-            const { getItemAsync } = await import("expo-secure-store");
-            return await getItemAsync(name);
-        } catch {
-            return null;
-        }
-    },
-    setItem: async (name: string, value: string): Promise<void> => {
-        try {
-            const { setItemAsync } = await import("expo-secure-store");
-            await setItemAsync(name, value);
-        } catch { }
-    },
-    removeItem: async (name: string): Promise<void> => {
-        try {
-            const { deleteItemAsync } = await import("expo-secure-store");
-            await deleteItemAsync(name);
-        } catch { }
-    },
-};
+import { validatePromoCode as apiValidatePromo } from "@/lib/api";
 
 export interface CartItem {
     eventId: string;
@@ -45,30 +25,43 @@ export interface CartItem {
     discount?: number;
 }
 
+interface PromoState {
+    code: string;
+    discountAmount: number;    // absolute ₹ amount (from server)
+    discountPercent: number;   // percentage (for display)
+    label?: string;
+}
+
 interface CartState {
     items: CartItem[];
-    promoCode: string | null;
-    promoDiscount: number;
+    promo: PromoState | null;
     reservationExpiry: number | null;
 
+    // Cart actions
     addItem: (item: CartItem) => void;
     removeItem: (eventId: string, tierId: string) => void;
     updateQuantity: (eventId: string, tierId: string, quantity: number) => void;
-    applyPromoCode: (code: string) => Promise<{ success: boolean; error?: string }>;
-    clearPromoCode: () => void;
     clearCart: () => void;
+
+    // Promo code — validated via backend API
+    applyPromoCode: (code: string, eventId: string) => Promise<{ success: boolean; error?: string }>;
+    clearPromoCode: () => void;
+
+    // Computed
     getSubtotal: () => number;
     getTotal: () => number;
     getItemCount: () => number;
-    createOrder: (userId: string) => Promise<{ success: boolean; orderId?: string; error?: string }>;
+    getEventId: () => string | null;
+
+    // For checkout — returns items in the format the API expects
+    getCheckoutItems: () => { tierId: string; quantity: number }[];
 }
 
 export const useCartStore = create<CartState>()(
     persist(
         (set, get) => ({
             items: [],
-            promoCode: null,
-            promoDiscount: 0,
+            promo: null,
             reservationExpiry: null,
 
             addItem: (item: CartItem) => {
@@ -82,12 +75,12 @@ export const useCartStore = create<CartState>()(
                     updatedItems[existingIndex].quantity += item.quantity;
                     set({
                         items: updatedItems,
-                        reservationExpiry: Date.now() + 10 * 60 * 1000
+                        reservationExpiry: Date.now() + 10 * 60 * 1000,
                     });
                 } else {
                     set({
                         items: [...items, item],
-                        reservationExpiry: Date.now() + 10 * 60 * 1000
+                        reservationExpiry: Date.now() + 10 * 60 * 1000,
                     });
                 }
             },
@@ -97,7 +90,7 @@ export const useCartStore = create<CartState>()(
                 set({
                     items: items.filter(
                         (i) => !(i.eventId === eventId && i.tier.id === tierId)
-                    )
+                    ),
                 });
             },
 
@@ -117,24 +110,60 @@ export const useCartStore = create<CartState>()(
                 });
             },
 
-            applyPromoCode: async (code: string) => {
-                if (code.toUpperCase() === "FIRST10") {
-                    set({ promoCode: code, promoDiscount: 10 });
-                    return { success: true };
+            /**
+             * Validate promo code via backend API (same endpoint as website).
+             * Uses POST /api/checkout/promo
+             */
+            applyPromoCode: async (code: string, eventId: string) => {
+                const items = get().items;
+
+                try {
+                    const result = await apiValidatePromo({
+                        eventId,
+                        code: code.toUpperCase(),
+                        items: items.map((i) => ({
+                            tierId: i.tier.id,
+                            quantity: i.quantity,
+                            price: i.tier.price,
+                            subtotal: i.tier.price * i.quantity,
+                        })),
+                    });
+
+                    if (result.valid) {
+                        const subtotal = get().getSubtotal();
+                        const discountPercent = subtotal > 0
+                            ? Math.round(((result.discountAmount || 0) / subtotal) * 100)
+                            : 0;
+
+                        set({
+                            promo: {
+                                code: code.toUpperCase(),
+                                discountAmount: result.discountAmount || 0,
+                                discountPercent,
+                                label: result.label,
+                            },
+                        });
+                        return { success: true };
+                    }
+
+                    return { success: false, error: result.error || "Invalid promo code" };
+                } catch (error: any) {
+                    return {
+                        success: false,
+                        error: error.message || "Failed to validate promo code",
+                    };
                 }
-                return { success: false, error: "Invalid promo code" };
             },
 
             clearPromoCode: () => {
-                set({ promoCode: null, promoDiscount: 0 });
+                set({ promo: null });
             },
 
             clearCart: () => {
                 set({
                     items: [],
-                    promoCode: null,
-                    promoDiscount: 0,
-                    reservationExpiry: null
+                    promo: null,
+                    reservationExpiry: null,
                 });
             },
 
@@ -145,8 +174,8 @@ export const useCartStore = create<CartState>()(
 
             getTotal: () => {
                 const subtotal = get().getSubtotal();
-                const promoDiscount = get().promoDiscount;
-                const discount = (subtotal * promoDiscount) / 100;
+                const promo = get().promo;
+                const discount = promo?.discountAmount || 0;
                 return Math.max(0, subtotal - discount);
             },
 
@@ -155,66 +184,24 @@ export const useCartStore = create<CartState>()(
                 return items.reduce((sum, item) => sum + item.quantity, 0);
             },
 
-            createOrder: async (userId: string) => {
-                const state = get();
-                const items = state.items;
-                const promoCode = state.promoCode;
+            getEventId: () => {
+                const items = get().items;
+                return items.length > 0 ? items[0].eventId : null;
+            },
 
-                if (items.length === 0) {
-                    return { success: false, error: "Cart is empty" };
-                }
-
-                try {
-                    const db = getFirebaseDb();
-                    const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-                    const orderData = {
-                        id: orderId,
-                        userId,
-                        status: "pending_payment",
-                        items: items.map(i => ({
-                            eventId: i.eventId,
-                            eventTitle: i.eventTitle,
-                            tierId: i.tier.id,
-                            tierName: i.tier.name,
-                            quantity: i.quantity,
-                            unitPrice: i.tier.price,
-                            subtotal: i.tier.price * i.quantity,
-                            entryType: i.tier.entryType,
-                        })),
-                        eventId: items[0].eventId,
-                        eventTitle: items[0].eventTitle,
-                        eventDate: items[0].eventDate,
-                        venueLocation: items[0].eventVenue,
-                        promoCode: promoCode || null,
-                        subtotal: state.getSubtotal(),
-                        discount: state.getSubtotal() - state.getTotal(),
-                        totalAmount: state.getTotal(),
-                        currency: "INR",
-                        createdAt: serverTimestamp(),
-                        updatedAt: serverTimestamp(),
-                    };
-
-                    await runTransaction(db, async (transaction) => {
-                        const orderRef = doc(db, "orders", orderId);
-                        transaction.set(orderRef, orderData);
-                    });
-
-                    state.clearCart();
-                    return { success: true, orderId };
-                } catch (error: any) {
-                    console.error("Error creating order:", error);
-                    return { success: false, error: error.message };
-                }
+            getCheckoutItems: () => {
+                return get().items.map((i) => ({
+                    tierId: i.tier.id,
+                    quantity: i.quantity,
+                }));
             },
         }),
         {
             name: "c1rcle-cart",
-            storage: createJSONStorage(() => asyncStorage),
+            storage: createJSONStorage(() => AsyncStorage),
             partialize: (state) => ({
                 items: state.items,
-                promoCode: state.promoCode,
-                promoDiscount: state.promoDiscount,
+                promo: state.promo,
                 reservationExpiry: state.reservationExpiry,
             }),
         }

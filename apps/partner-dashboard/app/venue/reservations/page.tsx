@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
     Calendar,
     Users,
@@ -13,60 +13,126 @@ import {
     Search,
     Filter,
     ArrowUpRight,
-    Loader2
+    Loader2,
+    RefreshCw,
+    Utensils,
+    Music,
+    MessageSquare,
+    IndianRupee,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 export default function ReservationsPage() {
     const [filter, setFilter] = useState("pending");
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [reservations, setReservations] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const { profile } = useDashboardAuth();
+    const venueId = profile?.activeMembership?.partnerId;
 
-    // Mock Reservations Data
-    const [reservations, setReservations] = useState([
-        {
-            id: "res-101",
-            guestName: "Aayush Divase",
-            email: "aayush@example.com",
-            phone: "+91 98765 43210",
-            date: "2026-02-14",
-            time: "21:00",
-            guests: 4,
-            status: "pending",
-            requestedAt: "2h ago"
-        },
-        {
-            id: "res-102",
-            guestName: "Sarah Chen",
-            email: "sarah@example.com",
-            phone: "+91 91234 56789",
-            date: "2026-02-15",
-            time: "20:30",
-            guests: 2,
-            status: "pending",
-            requestedAt: "5h ago"
-        },
-        {
-            id: "res-103",
-            guestName: "Rohan Mehta",
-            email: "rohan@example.com",
-            phone: "+91 99887 76655",
-            date: "2026-02-14",
-            time: "22:00",
-            guests: 6,
-            status: "approved",
-            requestedAt: "1d ago"
+    // Fetch reservations from the API
+    const fetchReservations = useCallback(async () => {
+        if (!venueId) return;
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            const res = await fetch(`/api/venue/reservations?venueId=${venueId}`);
+            if (!res.ok) throw new Error("Failed to fetch reservations");
+            const data = await res.json();
+            setReservations(data.reservations || []);
+        } catch (err: any) {
+            console.error("[Reservations] Fetch error:", err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
         }
-    ]);
+    }, [venueId]);
 
-    const handleAction = async (id: string, newStatus: string) => {
+    useEffect(() => {
+        fetchReservations();
+    }, [fetchReservations]);
+
+    // Approve or reject a reservation
+    const handleAction = async (id: string, newStatus: "approved" | "rejected") => {
         setProcessingId(id);
-        // Simulate API call/Email sending
-        await new Promise(r => setTimeout(r, 1500));
-        setReservations(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
-        setProcessingId(null);
+
+        try {
+            const res = await fetch(`/api/venue/reservations/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: newStatus }),
+            });
+
+            if (!res.ok) throw new Error("Failed to update reservation");
+
+            // Update local state immediately
+            setReservations(prev =>
+                prev.map(r => r.id === id ? { ...r, status: newStatus } : r)
+            );
+        } catch (err: any) {
+            console.error("[Reservations] Action error:", err);
+            // Show error state briefly
+            setError(`Failed to ${newStatus} reservation`);
+            setTimeout(() => setError(null), 3000);
+        } finally {
+            setProcessingId(null);
+        }
     };
 
     const filteredReservations = reservations.filter(r => r.status === filter);
+
+    const statusCounts = {
+        pending: reservations.filter(r => r.status === "pending").length,
+        approved: reservations.filter(r => r.status === "approved").length,
+        rejected: reservations.filter(r => r.status === "rejected").length,
+    };
+
+    const totalGuests = reservations
+        .filter(r => r.status === "approved")
+        .reduce((sum, r) => sum + (r.guests || 0), 0);
+
+    const totalRevenue = reservations
+        .filter(r => r.status === "approved" && r.totalAmount)
+        .reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+
+    const formatDate = (date: string) => {
+        if (!date) return "N/A";
+        try {
+            return new Date(date).toLocaleDateString("en-IN", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+            });
+        } catch {
+            return date;
+        }
+    };
+
+    const formatTime = (time: string) => {
+        if (!time) return "";
+        return time;
+    };
+
+    const timeAgo = (dateStr: string) => {
+        if (!dateStr) return "";
+        try {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = now.getTime() - date.getTime();
+            const minutes = Math.floor(diff / 60000);
+            if (minutes < 60) return `${minutes}m ago`;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `${hours}h ago`;
+            const days = Math.floor(hours / 24);
+            return `${days}d ago`;
+        } catch {
+            return "";
+        }
+    };
 
     return (
         <div className="max-w-[1400px] mx-auto space-y-8 pb-20">
@@ -84,50 +150,90 @@ export default function ReservationsPage() {
                     </h1>
                 </div>
 
-                <div className="flex p-1 bg-slate-100 rounded-2xl border border-slate-200">
-                    {["pending", "approved", "rejected"].map((s) => (
-                        <button
-                            key={s}
-                            onClick={() => setFilter(s)}
-                            className={`px-6 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all ${filter === s
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={fetchReservations}
+                        disabled={loading}
+                        className="h-10 w-10 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-slate-600 transition-all"
+                        title="Refresh"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                    </button>
+                    <div className="flex p-1 bg-slate-100 rounded-2xl border border-slate-200">
+                        {(["pending", "approved", "rejected"] as const).map((s) => (
+                            <button
+                                key={s}
+                                onClick={() => setFilter(s)}
+                                className={`px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${filter === s
                                     ? "bg-white text-slate-900 shadow-sm"
                                     : "text-slate-400 hover:text-slate-600"
-                                }`}
-                        >
-                            {s} {filter === s && `(${filteredReservations.length})`}
-                        </button>
-                    ))}
+                                    }`}
+                            >
+                                {s}
+                                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[8px] ${filter === s ? 'bg-slate-100' : 'bg-transparent'}`}>
+                                    {statusCounts[s]}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
+
+            {/* Error Banner */}
+            <AnimatePresence>
+                {error && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-600 font-medium"
+                    >
+                        {error}
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Stats Overview */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Total Today</p>
-                    <p className="text-3xl font-black text-slate-900">12</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Total Requests</p>
+                    <p className="text-3xl font-black text-slate-900">{reservations.length}</p>
                 </div>
                 <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Pending Requests</p>
-                    <p className="text-3xl font-black text-indigo-600">{reservations.filter(r => r.status === 'pending').length}</p>
+                    <p className="text-3xl font-black text-indigo-600">{statusCounts.pending}</p>
                 </div>
                 <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Confirmed Guests</p>
-                    <p className="text-3xl font-black text-slate-900">42</p>
+                    <p className="text-3xl font-black text-slate-900">{totalGuests}</p>
                 </div>
                 <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Available Capacity</p>
-                    <p className="text-3xl font-black text-emerald-600">65%</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Revenue (Approved)</p>
+                    <div className="flex items-center gap-1">
+                        <IndianRupee className="w-5 h-5 text-emerald-600" />
+                        <p className="text-3xl font-black text-emerald-600">{totalRevenue.toLocaleString("en-IN")}</p>
+                    </div>
                 </div>
             </div>
 
             {/* List */}
             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                {filteredReservations.length === 0 ? (
+                {loading ? (
+                    <div className="py-24 text-center space-y-4">
+                        <Loader2 className="w-8 h-8 text-slate-300 animate-spin mx-auto" />
+                        <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Loading reservations…</p>
+                    </div>
+                ) : filteredReservations.length === 0 ? (
                     <div className="py-24 text-center space-y-4">
                         <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto">
                             <Search className="w-6 h-6 text-slate-200" />
                         </div>
                         <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No {filter} reservations</p>
+                        {filter === "pending" && (
+                            <p className="text-slate-300 text-xs max-w-sm mx-auto">
+                                When guests request a reservation via your venue page, they'll appear here for your approval.
+                            </p>
+                        )}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -135,38 +241,81 @@ export default function ReservationsPage() {
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-100 text-left">
                                     <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Guest</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Type</th>
                                     <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date & Time</th>
                                     <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Guests</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
                                     <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                                     <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                                 {filteredReservations.map((res) => (
-                                    <tr key={res.id} className="group hover:bg-slate-50/50 transition-all">
+                                    <motion.tr
+                                        key={res.id}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className="group hover:bg-slate-50/50 transition-all"
+                                    >
                                         <td className="px-8 py-6">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 font-black">
-                                                    {res.guestName[0]}
+                                                <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 font-black text-sm">
+                                                    {res.guestName?.[0] || "G"}
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-bold text-slate-900">{res.guestName}</p>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <Mail className="w-3 h-3 text-slate-300" />
-                                                        <span className="text-[10px] text-slate-400 font-medium">{res.email}</span>
+                                                    <p className="text-sm font-bold text-slate-900">{res.guestName || "Guest"}</p>
+                                                    <div className="flex items-center gap-3 mt-1">
+                                                        {res.guestPhone && (
+                                                            <div className="flex items-center gap-1">
+                                                                <Phone className="w-3 h-3 text-slate-300" />
+                                                                <span className="text-[10px] text-slate-400 font-medium">{res.guestPhone}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
+                                                    {res.specialRequests && (
+                                                        <div className="flex items-center gap-1 mt-1.5">
+                                                            <MessageSquare className="w-3 h-3 text-amber-400" />
+                                                            <span className="text-[10px] text-amber-600 font-medium italic truncate max-w-[200px]">
+                                                                "{res.specialRequests}"
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-2">
+                                                {res.bookingType === "event" ? (
+                                                    <>
+                                                        <Music className="w-4 h-4 text-purple-400" />
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Event</p>
+                                                            {res.eventTitle && (
+                                                                <p className="text-[10px] text-slate-400 font-medium mt-0.5">{res.eventTitle}</p>
+                                                            )}
+                                                            {res.tableName && (
+                                                                <p className="text-[10px] text-slate-400 font-medium">{res.tableName}</p>
+                                                            )}
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Utensils className="w-4 h-4 text-emerald-400" />
+                                                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Restaurant</p>
+                                                    </>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-8 py-6">
                                             <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
                                                 <Calendar className="w-4 h-4 text-slate-300" />
-                                                {res.date}
+                                                {formatDate(res.date)}
                                             </div>
                                             <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold mt-1">
                                                 <Clock className="w-3 h-3 text-slate-300" />
-                                                {res.time}
+                                                {formatTime(res.time) || "—"}
                                             </div>
+                                            <p className="text-[9px] text-slate-300 mt-1">{timeAgo(res.createdAt)}</p>
                                         </td>
                                         <td className="px-8 py-6">
                                             <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
@@ -175,22 +324,32 @@ export default function ReservationsPage() {
                                             </div>
                                         </td>
                                         <td className="px-8 py-6">
+                                            {res.totalAmount ? (
+                                                <div className="flex items-center gap-1 text-sm font-bold text-slate-900">
+                                                    <IndianRupee className="w-3.5 h-3.5 text-slate-400" />
+                                                    {res.totalAmount.toLocaleString("en-IN")}
+                                                </div>
+                                            ) : (
+                                                <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Free</span>
+                                            )}
+                                        </td>
+                                        <td className="px-8 py-6">
                                             <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${res.status === 'approved'
-                                                    ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                                                    : res.status === 'rejected'
-                                                        ? "bg-red-50 text-red-600 border-red-100"
-                                                        : "bg-indigo-50 text-indigo-600 border-indigo-100"
+                                                ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                                : res.status === 'rejected'
+                                                    ? "bg-red-50 text-red-600 border-red-100"
+                                                    : "bg-indigo-50 text-indigo-600 border-indigo-100"
                                                 }`}>
                                                 {res.status}
                                             </span>
                                         </td>
                                         <td className="px-8 py-6 text-right">
-                                            {filter === 'pending' ? (
+                                            {res.status === "pending" ? (
                                                 <div className="flex items-center justify-end gap-2">
                                                     <button
                                                         onClick={() => handleAction(res.id, 'approved')}
                                                         disabled={processingId === res.id}
-                                                        className="h-10 px-4 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100 flex items-center gap-2"
+                                                        className="h-10 px-4 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100 flex items-center gap-2 disabled:opacity-50"
                                                     >
                                                         {processingId === res.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
                                                         Approve
@@ -198,7 +357,7 @@ export default function ReservationsPage() {
                                                     <button
                                                         onClick={() => handleAction(res.id, 'rejected')}
                                                         disabled={processingId === res.id}
-                                                        className="h-10 px-4 bg-white border border-slate-200 text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-all flex items-center gap-2"
+                                                        className="h-10 px-4 bg-white border border-slate-200 text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-all flex items-center gap-2 disabled:opacity-50"
                                                     >
                                                         <XCircle className="w-3 h-3" />
                                                         Reject
@@ -210,7 +369,7 @@ export default function ReservationsPage() {
                                                 </button>
                                             )}
                                         </td>
-                                    </tr>
+                                    </motion.tr>
                                 ))}
                             </tbody>
                         </table>

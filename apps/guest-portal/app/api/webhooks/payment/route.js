@@ -29,14 +29,27 @@ function verifyWebhookSignature(body, signature, secret) {
     return expectedSignature === signature;
 }
 
-// Check if webhook was already processed (idempotency)
+// Check if webhook was already processed (Redis + Firestore Idempotency)
 async function wasWebhookProcessed(paymentId) {
+    // 1. Check Redis first (Fast path - prevents duplicate calls within a window)
+    const redis = (await import("@c1rcle/core/redis")).getRedisClient();
+    const redisKey = `payment:${paymentId}:processed`;
+    const isLocked = await redis.set(redisKey, "1", "NX", "EX", 86400); // 24h safety
+
+    // If we couldn't set the key, it means it's already in Redis (processed or processing)
+    if (!isLocked) {
+        return true;
+    }
+
+    // 2. Double-check Firestore (Persistence path)
     if (!isFirebaseConfigured()) {
         return fallbackWebhookLogs.has(paymentId);
     }
 
     const db = getAdminDb();
     const doc = await db.collection(WEBHOOK_LOGS_COLLECTION).doc(paymentId).get();
+
+    // If it exists in Firestore but not Redis (e.g. Redis restart), we're still safe
     return doc.exists;
 }
 
@@ -153,40 +166,76 @@ export async function POST(request) {
             // Log successful processing (idempotency)
             await logWebhookProcessed(paymentId, orderId, 'confirmed');
 
-            // Send confirmation email
+            // === PRODUCTION: Dispatch to Inngest for reliable background processing ===
+            // This handles: PDF generation, email, promoter credits, analytics
             try {
-                const eventDetails = await getEvent(order.eventId);
+                const { sendEvent, Events } = await import("@c1rcle/core/inngest");
 
-                if (eventDetails && order.userEmail) {
-                    const origin = new URL(request.url).origin;
-                    const posterUrl = eventDetails.image?.startsWith('http')
-                        ? eventDetails.image
-                        : `${origin}${eventDetails.image || '/placeholder.jpg'}`;
+                await sendEvent(Events.TICKET_PURCHASED, {
+                    orderId: order.id,
+                    userId: order.userId,
+                    userEmail: order.userEmail,
+                    eventId: order.eventId,
+                    tickets: order.tickets,
+                    totalAmount: order.totalAmount,
+                    promoterCode: order.promoCode || null
+                }, {
+                    // Idempotency: Same orderId = same workflow execution
+                    idempotencyKey: `ticket-fulfillment-${order.id}`
+                });
 
-                    await sendTicketEmail({
-                        to: order.userEmail,
-                        userName: order.userName || "Guest",
-                        eventName: eventDetails.title,
-                        eventDate: new Date(eventDetails.startDate).toLocaleDateString('en-IN', {
-                            weekday: 'short',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: 'numeric',
-                            minute: 'numeric',
-                            timeZone: 'Asia/Kolkata'
-                        }),
-                        eventLocation: eventDetails.location,
-                        eventPosterUrl: posterUrl,
-                        orderId: order.id,
-                        tickets: order.tickets,
-                        totalAmount: order.totalAmount
-                    });
+                console.log(`[Webhook] Dispatched ticket fulfillment workflow for order ${orderId}`);
+            } catch (inngestError) {
+                // Don't fail webhook if Inngest dispatch fails
+                // The order is already confirmed - this is a best-effort async operation
+                console.error(`[Webhook] Inngest dispatch failed for order ${orderId}:`, inngestError.message);
 
-                    console.log(`[Webhook] Email sent for order ${orderId}`);
+                // Fallback: Send email directly (legacy behavior)
+                try {
+                    const eventDetails = await getEvent(order.eventId);
+
+                    if (eventDetails && order.userEmail) {
+                        const origin = new URL(request.url).origin;
+                        const posterUrl = eventDetails.image?.startsWith('http')
+                            ? eventDetails.image
+                            : `${origin}${eventDetails.image || '/placeholder.jpg'}`;
+
+                        await sendTicketEmail({
+                            to: order.userEmail,
+                            userName: order.userName || "Guest",
+                            eventName: eventDetails.title,
+                            eventDate: new Date(eventDetails.startDate).toLocaleDateString('en-IN', {
+                                weekday: 'short',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: 'numeric',
+                                minute: 'numeric',
+                                timeZone: 'Asia/Kolkata'
+                            }),
+                            eventLocation: eventDetails.location,
+                            eventPosterUrl: posterUrl,
+                            orderId: order.id,
+                            tickets: order.tickets,
+                            totalAmount: order.totalAmount,
+                            // Enhanced params for professional email
+                            eventId: order.eventId,
+                            eventVenue: eventDetails.venue || '',
+                            startDate: eventDetails.startDate,
+                            endDate: eventDetails.endDate,
+                            startTime: eventDetails.startTime,
+                            endTime: eventDetails.endTime,
+                            eventDescription: eventDetails.summary || eventDetails.description || '',
+                            isRSVP: eventDetails.isRSVP || order.isRSVP || false,
+                            userId: order.userId,
+                            order,
+                            event: eventDetails,
+                        });
+
+                        console.log(`[Webhook] Fallback email sent for order ${orderId}`);
+                    }
+                } catch (emailError) {
+                    console.error(`[Webhook] Fallback email failed for order ${orderId}:`, emailError.message);
                 }
-            } catch (emailError) {
-                // Don't fail webhook for email errors
-                console.error(`[Webhook] Email failed for order ${orderId}:`, emailError.message);
             }
 
             console.log(`[Webhook] Successfully processed payment ${paymentId} for order ${orderId}`);
@@ -219,31 +268,205 @@ export async function POST(request) {
             });
         }
 
-        // Handle refund events
-        if (eventType === "refund.processed" || eventType === "refund.created") {
+        // ================================================================
+        // Handle refund events (comprehensive lifecycle)
+        // ================================================================
+        if (eventType === "refund.processed" || eventType === "refund.created" ||
+            eventType === "refund.failed" || eventType === "refund.speed_changed") {
+
             const refundEntity = payload.payload?.refund?.entity || payload;
             const paymentId = refundEntity.payment_id;
+            const refundId = refundEntity.id;
+            const refundStatus = refundEntity.status; // "processed", "failed", etc.
+            const refundAmount = refundEntity.amount ? refundEntity.amount / 100 : 0; // Convert paise to rupees
 
-            console.log(`[Webhook] Refund processed for payment ${paymentId}`);
+            console.log(`[Webhook] Refund event: ${eventType} | Refund: ${refundId} | Payment: ${paymentId} | Status: ${refundStatus} | Amount: ₹${refundAmount}`);
 
-            if (isFirebaseConfigured()) {
-                const db = getAdminDb();
-                const orderSnapshot = await db.collection("orders")
+            if (!isFirebaseConfigured()) {
+                return NextResponse.json({ status: "handled", message: "Refund event acknowledged (no DB)" });
+            }
+
+            const db = getAdminDb();
+
+            // Find the associated order
+            const orderSnapshot = await db.collection("orders")
+                .where("payment.razorpayPaymentId", "==", paymentId)
+                .limit(1)
+                .get();
+
+            // Also check alternate field path
+            let orderId = null;
+            let orderDoc = null;
+
+            if (!orderSnapshot.empty) {
+                orderDoc = orderSnapshot.docs[0];
+                orderId = orderDoc.id;
+            } else {
+                // Try alternate payment field
+                const altSnapshot = await db.collection("orders")
                     .where("paymentDetails.razorpayPaymentId", "==", paymentId)
                     .limit(1)
                     .get();
 
-                if (!orderSnapshot.empty) {
-                    const orderId = orderSnapshot.docs[0].id;
+                if (!altSnapshot.empty) {
+                    orderDoc = altSnapshot.docs[0];
+                    orderId = orderDoc.id;
+                }
+            }
+
+            const now = new Date().toISOString();
+
+            // ── Handle REFUND PROCESSED ──
+            if (eventType === "refund.processed" && orderId) {
+                console.log(`[Webhook] ✅ Refund ${refundId} processed for order ${orderId} — ₹${refundAmount}`);
+
+                // Update order refund status
+                await orderDoc.ref.update({
+                    refundStatus: "completed",
+                    refundCompletedAt: now,
+                    razorpayRefundId: refundId,
+                    refundAmount: refundAmount,
+                    updatedAt: now,
+                });
+
+                // Invalidate tickets
+                try {
                     const { invalidateOrderTickets } = await import("@/lib/server/ticketShareStore");
                     await invalidateOrderTickets(orderId, "refunded");
                     console.log(`[Webhook] Invalidated tickets for refunded order ${orderId}`);
+                } catch (invalidateErr) {
+                    console.error(`[Webhook] Failed to invalidate tickets for ${orderId}:`, invalidateErr);
                 }
+
+                // Finalize ledger entry
+                try {
+                    const { finalizeRefund } = await import("@c1rcle/core/ledger-engine");
+                    await finalizeRefund(orderId, refundAmount, refundId);
+                    console.log(`[Webhook] Ledger refund finalized for order ${orderId}`);
+                } catch (ledgerErr) {
+                    console.error(`[Webhook] Ledger finalization failed for ${orderId}:`, ledgerErr);
+                }
+
+                // Notify user — refund successful
+                const orderData = orderDoc.data();
+                if (orderData.userId) {
+                    try {
+                        const notifRef = db.collection("notifications").doc();
+                        await notifRef.set({
+                            id: notifRef.id,
+                            userId: orderData.userId,
+                            type: "refund_completed",
+                            title: "Refund Processed",
+                            body: `Your refund of ₹${refundAmount.toLocaleString("en-IN")} has been processed and will reflect in your account within 5-7 business days.`,
+                            data: {
+                                orderId,
+                                refundId,
+                                refundAmount,
+                                paymentId,
+                            },
+                            read: false,
+                            createdAt: now,
+                        });
+                    } catch (notifErr) {
+                        console.error(`[Webhook] Failed to notify user about refund:`, notifErr);
+                    }
+                }
+
+                // Update event-level cancellation summary if exists
+                if (orderData.eventId) {
+                    try {
+                        const eventRef = db.collection("events").doc(orderData.eventId);
+                        const eventDoc = await eventRef.get();
+                        if (eventDoc.exists && eventDoc.data().cancellationSummary) {
+                            const summary = eventDoc.data().cancellationSummary;
+                            await eventRef.update({
+                                "cancellationSummary.refundsCompleted": (summary.refundsCompleted || 0) + 1,
+                                "cancellationSummary.totalRefundedAmount": (summary.totalRefundedAmount || 0) + refundAmount,
+                                updatedAt: now,
+                            });
+                        }
+                    } catch (e) {
+                        // Non-critical
+                    }
+                }
+
+                return NextResponse.json({
+                    status: "success",
+                    message: `Refund ${refundId} processed for order ${orderId}`,
+                });
+            }
+
+            // ── Handle REFUND FAILED ──
+            if (eventType === "refund.failed" && orderId) {
+                console.error(`[Webhook] ❌ Refund ${refundId} FAILED for order ${orderId}`);
+
+                await orderDoc.ref.update({
+                    refundStatus: "failed",
+                    refundFailedAt: now,
+                    refundFailureReason: refundEntity.error?.description || "Unknown failure",
+                    updatedAt: now,
+                });
+
+                // Notify user — refund failed
+                const orderData = orderDoc.data();
+                if (orderData.userId) {
+                    try {
+                        const notifRef = db.collection("notifications").doc();
+                        await notifRef.set({
+                            id: notifRef.id,
+                            userId: orderData.userId,
+                            type: "refund_failed",
+                            title: "Refund Issue",
+                            body: `We encountered an issue processing your refund of ₹${refundAmount.toLocaleString("en-IN")}. Our support team has been notified and will resolve this shortly.`,
+                            data: {
+                                orderId,
+                                refundId,
+                                refundAmount,
+                            },
+                            read: false,
+                            createdAt: now,
+                        });
+                    } catch (notifErr) {
+                        console.error(`[Webhook] Failed to notify user about failed refund:`, notifErr);
+                    }
+                }
+
+                // TODO: Alert support team (Slack/email) about failed refund
+
+                return NextResponse.json({
+                    status: "handled",
+                    message: `Refund failure recorded for order ${orderId}`,
+                });
+            }
+
+            // ── Handle REFUND SPEED CHANGED ──
+            if (eventType === "refund.speed_changed" && orderId) {
+                const newSpeed = refundEntity.speed_processed || refundEntity.speed_requested;
+                console.log(`[Webhook] ⚡ Refund speed changed for order ${orderId}: ${newSpeed}`);
+
+                await orderDoc.ref.update({
+                    refundSpeed: newSpeed,
+                    updatedAt: now,
+                });
+
+                return NextResponse.json({
+                    status: "handled",
+                    message: `Refund speed change recorded for order ${orderId}`,
+                });
+            }
+
+            // Generic refund event (refund.created)
+            if (orderId) {
+                await orderDoc.ref.update({
+                    refundStatus: "initiated",
+                    razorpayRefundId: refundId,
+                    updatedAt: now,
+                });
             }
 
             return NextResponse.json({
                 status: "handled",
-                message: "Refund processed and tickets invalidated"
+                message: "Refund event processed",
             });
         }
 

@@ -24,7 +24,8 @@ import ShimmerImage from "../../components/ShimmerImage";
 import { motion, AnimatePresence } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import clsx from "clsx";
-import { Share2, ArrowLeftRight, ChevronLeft, ChevronRight, ExternalLink, Crown, Heart, User, Users, Ticket, Sparkles } from "lucide-react";
+import { Share2, ArrowLeftRight, ChevronLeft, ChevronRight, ExternalLink, Crown, Heart, User, Users, Ticket, Sparkles, XCircle } from "lucide-react";
+import CancelOrderModal from "../../components/CancelOrderModal";
 
 // --- Hooks ---
 
@@ -1268,6 +1269,28 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
                         <div className="text-center text-[9px] font-bold text-black/20 dark:text-white/20 uppercase tracking-[0.3em]">
                             {currentTicket.orderType} Pass • Paid by you
                         </div>
+
+                        {/* Cancel Order action — only for primary buyer, upcoming, confirmed tickets */}
+                        {ticket.isPrimaryBuyer && ticket.orderId && !isUsed && !isCancelled && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onClose();
+                                    if (typeof window !== 'undefined') {
+                                        window.__cancelOrderData = {
+                                            orderId: ticket.orderId,
+                                            eventTitle: ticket.eventTitle,
+                                            ticketCount: tickets.length,
+                                        };
+                                        window.dispatchEvent(new CustomEvent('openCancelOrder'));
+                                    }
+                                }}
+                                className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-red-400 hover:text-red-500 transition-colors mt-2"
+                            >
+                                <XCircle className="w-3 h-3" />
+                                Cancel Order
+                            </button>
+                        )}
                     </div>
 
                     <button onClick={onClose} className="absolute top-6 right-6 p-2 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors">
@@ -1290,6 +1313,20 @@ function TicketsContent() {
     const [sharingTicket, setSharingTicket] = useState(null);
     const [partnerTicket, setPartnerTicket] = useState(null);
     const [transferTicket, setTransferTicket] = useState(null);
+    const [cancellingOrder, setCancellingOrder] = useState(null);
+
+    // Listen for cancel order events from QR modal
+    useEffect(() => {
+        const handler = () => {
+            const data = window.__cancelOrderData;
+            if (data) {
+                setCancellingOrder(data);
+                window.__cancelOrderData = null;
+            }
+        };
+        window.addEventListener('openCancelOrder', handler);
+        return () => window.removeEventListener('openCancelOrder', handler);
+    }, []);
 
     const loadTickets = async () => {
         if (!user?.uid) return;
@@ -1765,6 +1802,17 @@ function TicketsContent() {
                     />
                 )}
             </AnimatePresence>
+
+            {/* Cancel Order Modal */}
+            <CancelOrderModal
+                isOpen={!!cancellingOrder}
+                onClose={() => setCancellingOrder(null)}
+                order={cancellingOrder}
+                onSuccess={() => {
+                    setCancellingOrder(null);
+                    loadTickets(); // Refresh tickets after cancellation
+                }}
+            />
 
             <style jsx global>{`
     /* Hide scrollbar for Chrome, Safari and Opera */

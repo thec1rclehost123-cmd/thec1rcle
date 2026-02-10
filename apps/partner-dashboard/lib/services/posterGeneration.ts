@@ -1,11 +1,13 @@
 /**
- * AI Poster Generation Service
+ * AI Poster Generation Service — Ideogram V3 Engine
  * 
- * This service implements the hardened poster generation logic with:
- * - Strict prompt segmentation (Event Name vs Design Instructions)
- * - Unique generation signatures for cache invalidation
- * - Stateless generation (no memory of previous posters)
- * - Clear error handling with no silent fallbacks
+ * Client-side service that interfaces with /api/poster/generate.
+ * Handles:
+ *   - Input validation & prompt sanitization
+ *   - Fresh generation on every request (no cache reuse)
+ *   - Generation history management
+ *   - Style preset + mood + aspect ratio configuration
+ *   - Clear error handling with no silent fallbacks
  */
 
 // ============================================
@@ -13,19 +15,26 @@
 // ============================================
 
 export interface PosterGenerationInput {
-    // A. Event Name (Locked Identity) - MANDATORY
-    // Single-line, treated as immutable identity per generation
+    // REQUIRED — Event title rendered on the poster
     eventName: string;
 
-    // B. Design Instructions (Creative Intent)
-    // Multi-line free text for styling, mood, and visual direction
+    // Creative direction from the user (free text)
     designPrompt: string;
 
-    // C. System Context (Hidden from user, auto-injected)
+    // Ideogram-specific options
+    stylePreset?: string;     // e.g. "neon_nights", "minimal_luxury"
+    mood?: string;            // e.g. "energetic", "chill", "luxury"
+    aspectRatio?: string;     // e.g. "poster", "story", "square"
+    quality?: "quality" | "default" | "turbo";
+    colorScheme?: string;     // e.g. "black and gold", "neon pink and blue"
+
+    // Context (auto-populated from form)
     city?: string;
     eventType?: string;
     eventDate?: string;
-    includeDate?: boolean; // Whether to show date on poster
+    includeDate?: boolean;
+    includeTextOnPoster?: boolean;  // Ideogram renders text directly
+    artists?: string;
 }
 
 export interface PosterGenerationResult {
@@ -37,6 +46,11 @@ export interface PosterGenerationResult {
     metadata?: {
         eventName: string;
         designPrompt: string;
+        styleUsed: string;
+        enhancedPrompt?: string;
+        resolution?: string;
+        seed?: number;
+        renderingSpeed?: string;
         systemContext: {
             city: string;
             eventType: string;
@@ -58,8 +72,72 @@ export interface GenerationHistoryEntry {
     timestamp: string;
     eventName: string;
     designPrompt: string;
+    stylePreset: string;
+    mood: string;
     isSelected: boolean;
 }
+
+// ============================================
+// STYLE PRESET OPTIONS (mirrors API)
+// ============================================
+
+export interface StyleOption {
+    id: string;
+    label: string;
+    description: string;
+    emoji: string;
+}
+
+export const STYLE_OPTIONS: StyleOption[] = [
+    { id: "neon_nights", label: "Neon Nights", description: "Electric neon glow with cyberpunk energy", emoji: "💜" },
+    { id: "minimal_luxury", label: "Minimal Luxury", description: "Clean elegance with gold accents on black", emoji: "✨" },
+    { id: "dark_elegance", label: "Dark Elegance", description: "Moody sophistication with smoke and shadows", emoji: "🖤" },
+    { id: "street_hype", label: "Street Hype", description: "Bold urban energy with graffiti vibes", emoji: "🔥" },
+    { id: "holographic", label: "Holographic", description: "Prismatic iridescent futurism", emoji: "🌈" },
+    { id: "retro_wave", label: "Retro Wave", description: "Synthwave sunset with 80s nostalgia", emoji: "🌅" },
+    { id: "ethereal", label: "Ethereal", description: "Dreamy celestial atmosphere", emoji: "🌌" },
+    { id: "brutalist", label: "Brutalist", description: "Raw concrete geometry with stark contrast", emoji: "🏗️" },
+    { id: "tropical_heat", label: "Tropical Heat", description: "Lush jungle vibes with warm golden light", emoji: "🌴" },
+    { id: "film_noir", label: "Film Noir", description: "Cinematic mystery with dramatic shadows", emoji: "🎬" },
+    { id: "psychedelic", label: "Psychedelic", description: "Vivid kaleidoscopic patterns and fractals", emoji: "🍄" },
+    { id: "abstract_art", label: "Abstract Art", description: "Gallery-quality contemporary art", emoji: "🎨" },
+    { id: "cinematic", label: "Cinematic", description: "Movie poster blockbuster aesthetic", emoji: "🎞️" },
+    { id: "glitch_digital", label: "Digital Glitch", description: "Corrupted digital aesthetics", emoji: "📟" },
+    { id: "indian_festival", label: "Desi Festival", description: "Vibrant Indian celebration energy", emoji: "🪔" },
+];
+
+export interface MoodOption {
+    id: string;
+    label: string;
+    emoji: string;
+}
+
+export const MOOD_OPTIONS: MoodOption[] = [
+    { id: "energetic", label: "Energetic", emoji: "⚡" },
+    { id: "chill", label: "Chill", emoji: "🧊" },
+    { id: "luxury", label: "Luxury", emoji: "💎" },
+    { id: "underground", label: "Underground", emoji: "🕳️" },
+    { id: "romantic", label: "Romantic", emoji: "🌹" },
+    { id: "wild", label: "Wild", emoji: "🐆" },
+    { id: "mysterious", label: "Mysterious", emoji: "🌑" },
+    { id: "futuristic", label: "Futuristic", emoji: "🚀" },
+    { id: "spiritual", label: "Spiritual", emoji: "🕉️" },
+    { id: "rebellious", label: "Rebellious", emoji: "🤘" },
+];
+
+export interface AspectRatioOption {
+    id: string;
+    label: string;
+    ratio: string;
+}
+
+export const ASPECT_RATIO_OPTIONS: AspectRatioOption[] = [
+    { id: "poster", label: "Poster", ratio: "3:4" },
+    { id: "story", label: "Story", ratio: "9:16" },
+    { id: "square", label: "Square", ratio: "1:1" },
+    { id: "landscape", label: "Landscape", ratio: "16:9" },
+    { id: "tall", label: "Tall", ratio: "2:3" },
+];
 
 // ============================================
 // ERROR DEFINITIONS
@@ -75,32 +153,32 @@ export const POSTER_ERRORS = {
     GENERATION_FAILED: {
         code: "GENERATION_FAILED",
         message: "AI image generation failed",
-        userFriendlyMessage: "Poster generation failed. The AI service may be busy. Please wait 30 seconds and try again.",
+        userFriendlyMessage: "Poster generation failed. Please wait a moment and try again.",
         isRetryable: true,
     },
     NETWORK_ERROR: {
         code: "NETWORK_ERROR",
         message: "Network request failed",
-        userFriendlyMessage: "Unable to connect to AI service. Please check your connection and try again.",
+        userFriendlyMessage: "Unable to connect to AI service. Check your connection and try again.",
         isRetryable: true,
     },
     TIMEOUT: {
         code: "TIMEOUT",
         message: "Generation request timed out",
-        userFriendlyMessage: "Generation is taking longer than expected. Please try again in a moment.",
+        userFriendlyMessage: "Generation is taking longer than expected. Please try again.",
         isRetryable: true,
     },
     RATE_LIMITED: {
         code: "RATE_LIMITED",
         message: "Too many generation requests",
-        userFriendlyMessage: "AI is processing too many requests. Please wait 1 minute and try again.",
+        userFriendlyMessage: "Too many requests. Please wait 1 minute and try again.",
         isRetryable: true,
     },
-    SERVICE_UNAVAILABLE: {
-        code: "SERVICE_UNAVAILABLE",
-        message: "AI service temporarily unavailable",
-        userFriendlyMessage: "AI poster service is temporarily unavailable. Please try again in a few minutes.",
-        isRetryable: true,
+    CREDIT_EXHAUSTED: {
+        code: "CREDIT_EXHAUSTED",
+        message: "API credits exhausted",
+        userFriendlyMessage: "AI generation credits have been exhausted. Contact support.",
+        isRetryable: false,
     },
 } as const;
 
@@ -108,20 +186,12 @@ export const POSTER_ERRORS = {
 // UTILITY FUNCTIONS
 // ============================================
 
-/**
- * Generates a unique generation signature to force fresh generation.
- * This ensures each request is treated as new with no cache reuse.
- */
 export function generateUniqueSignature(): string {
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 15);
     return `gen_${timestamp}_${random}`;
 }
 
-/**
- * Validates the input before sending to the API.
- * Returns null if valid, or an error object if invalid.
- */
 export function validatePosterInput(input: PosterGenerationInput): PosterGenerationError | null {
     if (!input.eventName || input.eventName.trim() === "") {
         return POSTER_ERRORS.EVENT_NAME_REQUIRED;
@@ -129,46 +199,17 @@ export function validatePosterInput(input: PosterGenerationInput): PosterGenerat
     return null;
 }
 
-/**
- * Sanitizes user input to prevent prompt injection.
- * Removes any attempts to override the canonical prompt structure.
- */
 export function sanitizeDesignPrompt(prompt: string): string {
     if (!prompt) return "";
 
-    // Remove any attempts to inject new sections or override event name
-    let sanitized = prompt
-        // Remove potential prompt injection patterns
+    return prompt
         .replace(/EVENT\s*(TITLE|NAME)\s*:/gi, "")
         .replace(/DESIGN\s*RULES\s*:/gi, "")
         .replace(/STYLE\s*CONSTRAINTS\s*:/gi, "")
         .replace(/IMPORTANT\s*:/gi, "")
-        // Remove attempts to specify different event names
         .replace(/my\s*event\s*(is|name|called|titled)\s*[:=]/gi, "")
-        // Limit length to prevent abuse
         .substring(0, 500)
         .trim();
-
-    return sanitized;
-}
-
-/**
- * Formats an event date for display on poster (if enabled).
- */
-export function formatEventDateForPoster(dateString: string): string {
-    if (!dateString) return "";
-
-    try {
-        const [year, month, day] = dateString.split("-").map(Number);
-        const date = new Date(year, month - 1, day);
-        return date.toLocaleDateString("en-IN", {
-            weekday: "short",
-            day: "numeric",
-            month: "short",
-        });
-    } catch {
-        return dateString;
-    }
 }
 
 // ============================================
@@ -185,16 +226,11 @@ export class PosterGenerationService {
     }
 
     /**
-     * Generate a new poster. This is ALWAYS a fresh generation.
-     * 
-     * Key guarantees:
-     * - Every call produces a new image
-     * - No memory of prior generations
-     * - No cache reuse
-     * - Clear error handling with no silent fallbacks
+     * Generate a new poster with Ideogram V3.
+     * Every call produces a fresh, unique image.
      */
     async generatePoster(input: PosterGenerationInput): Promise<PosterGenerationResult> {
-        // 1. Validate input
+        // 1. Validate
         const validationError = validatePosterInput(input);
         if (validationError) {
             return {
@@ -206,31 +242,36 @@ export class PosterGenerationService {
             };
         }
 
-        // 2. Sanitize design prompt
+        // 2. Sanitize
         const sanitizedPrompt = sanitizeDesignPrompt(input.designPrompt);
 
-        // 3. Generate unique signature (critical for cache invalidation)
+        // 3. Unique signature for cache busting
         const requestSignature = generateUniqueSignature();
 
         try {
-            // 4. Make API request
+            // 4. Call the API with Ideogram-specific params
             const response = await fetch(this.baseUrl, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    // Add unique signature to headers for additional cache busting
                     "X-Generation-Signature": requestSignature,
                     "Cache-Control": "no-cache, no-store, must-revalidate",
                 },
                 body: JSON.stringify({
                     eventName: input.eventName.trim(),
                     designPrompt: sanitizedPrompt,
+                    stylePreset: input.stylePreset || "neon_nights",
+                    mood: input.mood || "energetic",
+                    category: input.eventType || "Party",
                     city: input.city || "Pune",
-                    eventType: input.eventType || "Music",
-                    eventDate: input.eventDate,
+                    aspectRatio: input.aspectRatio || "poster",
+                    quality: input.quality || "quality",
+                    colorScheme: input.colorScheme || "",
+                    eventDate: input.eventDate || null,
                     includeDate: input.includeDate || false,
+                    includeTextOnPoster: input.includeTextOnPoster ?? true,
+                    artists: input.artists || "",
                 }),
-                // Prevent caching at the fetch level
                 cache: "no-store",
             });
 
@@ -244,6 +285,16 @@ export class PosterGenerationService {
                         generationId: "",
                         timestamp: new Date().toISOString(),
                         error: POSTER_ERRORS.RATE_LIMITED,
+                    };
+                }
+
+                if (response.status === 402) {
+                    return {
+                        success: false,
+                        imageUrl: null,
+                        generationId: "",
+                        timestamp: new Date().toISOString(),
+                        error: POSTER_ERRORS.CREDIT_EXHAUSTED,
                     };
                 }
 
@@ -264,23 +315,23 @@ export class PosterGenerationService {
             const data = await response.json();
 
             if (data.success && data.imageUrl) {
-                // 5. Store in history (but never auto-reuse)
+                // 5. Add to history
                 const historyEntry: GenerationHistoryEntry = {
                     generationId: data.generationId,
                     imageUrl: data.imageUrl,
                     timestamp: data.timestamp,
                     eventName: input.eventName,
                     designPrompt: sanitizedPrompt,
+                    stylePreset: input.stylePreset || "neon_nights",
+                    mood: input.mood || "energetic",
                     isSelected: true,
                 };
 
-                // Mark all previous entries as not selected
                 this.generationHistory = this.generationHistory.map(entry => ({
                     ...entry,
                     isSelected: false,
                 }));
 
-                // Add new entry
                 this.generationHistory.push(historyEntry);
                 this.currentGenerationId = data.generationId;
 
@@ -292,16 +343,20 @@ export class PosterGenerationService {
                     metadata: {
                         eventName: input.eventName,
                         designPrompt: sanitizedPrompt,
+                        styleUsed: data.styleUsed || input.stylePreset || "neon_nights",
+                        enhancedPrompt: data.enhancedPrompt,
+                        resolution: data.resolution,
+                        seed: data.seed,
+                        renderingSpeed: data.renderingSpeed,
                         systemContext: {
                             city: input.city || "Pune",
-                            eventType: input.eventType || "Music",
+                            eventType: input.eventType || "Party",
                             dateIncluded: input.includeDate || false,
                         },
                     },
                 };
             }
 
-            // Generation returned but without success
             return {
                 success: false,
                 imageUrl: null,
@@ -318,7 +373,6 @@ export class PosterGenerationService {
         } catch (error: any) {
             console.error("Poster generation service error:", error);
 
-            // Network or timeout error
             const isTimeout = error.name === "AbortError" || error.message?.includes("timeout");
 
             return {
@@ -332,29 +386,17 @@ export class PosterGenerationService {
     }
 
     /**
-     * Regenerate with the same parameters.
-     * This is a FRESH generation, not a cache lookup.
+     * Regenerate with the same parameters — always fresh, never cached.
      */
     async regenerate(input: PosterGenerationInput): Promise<PosterGenerationResult> {
-        // Clear current selection to indicate regeneration is in progress
         this.currentGenerationId = null;
-
-        // Generate fresh - never reuse
         return this.generatePoster(input);
     }
 
-    /**
-     * Get generation history for this session.
-     * Users can view previous generations but must explicitly select them.
-     */
     getHistory(): GenerationHistoryEntry[] {
         return [...this.generationHistory];
     }
 
-    /**
-     * Select a previous generation as the active poster.
-     * This is an explicit user action, not automatic reuse.
-     */
     selectFromHistory(generationId: string): GenerationHistoryEntry | null {
         const entry = this.generationHistory.find(e => e.generationId === generationId);
 
@@ -370,18 +412,11 @@ export class PosterGenerationService {
         return null;
     }
 
-    /**
-     * Clear all history and reset state.
-     * Used when starting a new event or after publishing.
-     */
     clearHistory(): void {
         this.generationHistory = [];
         this.currentGenerationId = null;
     }
 
-    /**
-     * Get the currently selected poster.
-     */
     getCurrentPoster(): GenerationHistoryEntry | null {
         if (!this.currentGenerationId) return null;
         return this.generationHistory.find(e => e.generationId === this.currentGenerationId) || null;
@@ -389,10 +424,9 @@ export class PosterGenerationService {
 }
 
 // ============================================
-// DEFAULT EXPORT - SINGLETON INSTANCE
+// SINGLETON INSTANCE
 // ============================================
 
-// Create a singleton instance for consistent state management
 let serviceInstance: PosterGenerationService | null = null;
 
 export function getPosterGenerationService(): PosterGenerationService {
@@ -402,5 +436,4 @@ export function getPosterGenerationService(): PosterGenerationService {
     return serviceInstance;
 }
 
-// Direct export for simpler usage
 export { PosterGenerationService as default };

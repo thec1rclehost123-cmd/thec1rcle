@@ -80,8 +80,8 @@ export async function sendGroupMessage(
             eventId,
             senderId: userId,
             senderName: userName,
-            senderAvatar: userAvatar || null,
-            senderBadge: userBadge || null,
+            senderAvatar: userAvatar || undefined,
+            senderBadge: userBadge || undefined,
             content,
             type: "text",
             createdAt: serverTimestamp(),
@@ -92,6 +92,43 @@ export async function sendGroupMessage(
         return { success: true, messageId: docRef.id };
     } catch (error: any) {
         console.error("Error sending group message:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Send image message to event group chat
+export async function sendGroupImageMessage(
+    eventId: string,
+    userId: string,
+    userName: string,
+    imageUrl: string,
+    userAvatar?: string,
+    userBadge?: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+        const entitlement = await checkEventEntitlement(userId, eventId);
+        if (!entitlement) {
+            return { success: false, error: "You need a ticket to send messages" };
+        }
+
+        const db = getFirebaseDb();
+
+        const message: Omit<GroupMessage, "id"> = {
+            eventId,
+            senderId: userId,
+            senderName: userName,
+            senderAvatar: userAvatar || undefined,
+            senderBadge: userBadge || undefined,
+            content: imageUrl,
+            type: "image",
+            createdAt: serverTimestamp(),
+        };
+
+        const docRef = await addDoc(collection(db, "eventGroupMessages"), message);
+
+        return { success: true, messageId: docRef.id };
+    } catch (error: any) {
+        console.error("Error sending group image:", error);
         return { success: false, error: error.message };
     }
 }

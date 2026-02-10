@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Calendar,
@@ -19,12 +19,16 @@ import {
     Check,
     Lock,
     Edit,
-    AlertCircle
+    AlertCircle,
+    Ban,
+    AlertTriangle
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import AuditTrail from "@/components/shared/AuditTrail";
+import CancelEventModal from "@/components/event-detail/CancelEventModal";
+import { useCancelEvent } from "@/lib/hooks/useCancelEvent";
 
 export default function EventManagementPage() {
     const { id } = useParams();
@@ -41,6 +45,24 @@ export default function EventManagementPage() {
     const [isUpdating, setIsUpdating] = useState(false);
     const [promoterSearch, setPromoterSearch] = useState("");
     const [guestSearch, setGuestSearch] = useState("");
+    const [showCancelModal, setShowCancelModal] = useState(false);
+
+    const actor = {
+        uid: profile?.uid || "",
+        role: role,
+        partnerId: profile?.activeMembership?.partnerId,
+        name: profile?.displayName || profile?.uid,
+    };
+
+    const { cancelEvent, isCancelling } = useCancelEvent(id as string, actor, {
+        onSuccess: () => {
+            fetchEventData(); // Refresh to show cancelled state
+        },
+    });
+
+    const handleCancelEvent = useCallback(async (data: any) => {
+        await cancelEvent(data);
+    }, [cancelEvent]);
 
     useEffect(() => {
         if (id) fetchEventData();
@@ -159,6 +181,36 @@ export default function EventManagementPage() {
 
     return (
         <div className="max-w-6xl mx-auto space-y-8 pb-20">
+            {/* Cancelled Banner */}
+            {event.lifecycle === 'cancelled' && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-4 p-6 rounded-2xl bg-rose-50 border border-rose-200 shadow-sm"
+                >
+                    <div className="w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center flex-shrink-0">
+                        <Ban className="h-6 w-6 text-rose-600" />
+                    </div>
+                    <div className="flex-1">
+                        <p className="font-bold text-rose-900">This event has been cancelled</p>
+                        <p className="text-sm text-rose-600 mt-0.5">
+                            {event.cancellationReason || 'No reason provided'}
+                            {event.refundStatus && (
+                                <span className="ml-2">• Refund status: <strong>{event.refundStatus}</strong></span>
+                            )}
+                        </p>
+                    </div>
+                    {event.cancellationSummary && (
+                        <div className="text-right flex-shrink-0">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-rose-400">Refunds</p>
+                            <p className="text-lg font-bold text-rose-900">
+                                {event.cancellationSummary.refundsProcessed || 0} / {event.cancellationSummary.totalOrders || 0}
+                            </p>
+                        </div>
+                    )}
+                </motion.div>
+            )}
+
             {/* Header / Breadcrumbs */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
@@ -172,7 +224,9 @@ export default function EventManagementPage() {
                         <div className="flex items-center gap-2 mb-1">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${event.lifecycle === 'scheduled' || event.lifecycle === 'live'
                                 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                : 'bg-slate-100 text-slate-500'
+                                : event.lifecycle === 'cancelled'
+                                    ? 'bg-rose-50 text-rose-600 border border-rose-100'
+                                    : 'bg-slate-100 text-slate-500'
                                 }`}>
                                 {event.lifecycle}
                             </span>
@@ -194,17 +248,21 @@ export default function EventManagementPage() {
                             Approve & Publish
                         </button>
                     )}
-                    <Link
-                        href={`/venue/create?id=${id}`}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-sm bg-white hover:bg-slate-50 transition-all shadow-sm"
-                    >
-                        <Edit className="h-4 w-4" />
-                        Edit Details
-                    </Link>
-                    <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
-                        <Share2 className="h-4 w-4" />
-                        Share Link
-                    </button>
+                    {event.lifecycle !== 'cancelled' && (
+                        <>
+                            <Link
+                                href={`/venue/create?id=${id}`}
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-sm bg-white hover:bg-slate-50 transition-all shadow-sm"
+                            >
+                                <Edit className="h-4 w-4" />
+                                Edit Details
+                            </Link>
+                            <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
+                                <Share2 className="h-4 w-4" />
+                                Share Link
+                            </button>
+                        </>
+                    )}
                     <a
                         href={`https://thec1rcle.in/e/${id}`}
                         target="_blank"
@@ -213,6 +271,15 @@ export default function EventManagementPage() {
                     >
                         <Globe className="h-5 w-5" />
                     </a>
+                    {event.lifecycle !== 'cancelled' && event.lifecycle !== 'deleted' && (
+                        <button
+                            onClick={() => setShowCancelModal(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-rose-600 font-bold text-sm bg-white hover:bg-rose-50 transition-all shadow-sm"
+                        >
+                            <AlertTriangle className="h-4 w-4" />
+                            Cancel Event
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -573,6 +640,21 @@ export default function EventManagementPage() {
                     )}
                 </motion.div>
             </AnimatePresence>
+
+            {/* Cancel Event Modal */}
+            <CancelEventModal
+                isOpen={showCancelModal}
+                onClose={() => setShowCancelModal(false)}
+                onConfirm={handleCancelEvent}
+                event={{
+                    id: event.id || (id as string),
+                    title: event.title,
+                    startDate: event.startDate,
+                    lifecycle: event.lifecycle,
+                    ticketsSold: guestlistStats?.total || 0,
+                    totalRevenue: event.stats?.revenue || 0,
+                }}
+            />
         </div>
     );
 }

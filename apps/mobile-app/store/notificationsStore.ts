@@ -1,6 +1,8 @@
 /**
  * Notifications Store
- * Manages in-app notifications and activity feed
+ * Manages in-app notifications and activity feed.
+ * Reads from the same Firestore 'notifications' collection used by the
+ * guest-portal webhook and partner-dashboard notification sender.
  */
 
 import { create } from "zustand";
@@ -30,7 +32,9 @@ export type NotificationType =
     | "dm_message"
     | "chat_mention"
     | "contact_saved"
-    | "safety_alert";
+    | "safety_alert"
+    | "refund_completed"
+    | "refund_failed";
 
 export interface Notification {
     id: string;
@@ -44,6 +48,8 @@ export interface Notification {
         orderId?: string;
         chatId?: string;
         userId?: string;
+        refundId?: string;
+        refundAmount?: number;
     };
     read: boolean;
     createdAt: Date;
@@ -63,46 +69,6 @@ interface NotificationsState {
     clearNotification: (notificationId: string) => Promise<void>;
 }
 
-// Mock notifications for development
-const mockNotifications: Notification[] = [
-    {
-        id: "1",
-        type: "ticket_purchased",
-        title: "Ticket Confirmed! 🎉",
-        body: "Your tickets for NEON NIGHTS are ready. See you there!",
-        data: { eventId: "event-1", orderId: "order-1" },
-        read: false,
-        createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 mins ago
-    },
-    {
-        id: "2",
-        type: "event_reminder",
-        title: "Event Tomorrow ⏰",
-        body: "NEON NIGHTS starts in 24 hours. Don't forget your ticket!",
-        data: { eventId: "event-1" },
-        read: false,
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-    },
-    {
-        id: "3",
-        type: "dm_request",
-        title: "New Message Request",
-        body: "Someone from NEON NIGHTS wants to connect with you.",
-        data: { userId: "user-123", eventId: "event-1" },
-        read: true,
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-    },
-    {
-        id: "4",
-        type: "contact_saved",
-        title: "New Connection 🤝",
-        body: "Alex saved you as a contact from NEON NIGHTS.",
-        data: { userId: "user-456" },
-        read: true,
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 days ago
-    },
-];
-
 export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     notifications: [],
     unreadCount: 0,
@@ -113,16 +79,6 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         set({ loading: true, error: null });
 
         try {
-            // For development, use mock data
-            if (__DEV__) {
-                set({
-                    notifications: mockNotifications,
-                    unreadCount: mockNotifications.filter((n) => !n.read).length,
-                    loading: false,
-                });
-                return;
-            }
-
             const q = query(
                 collection(getFirebaseDb(), "notifications"),
                 where("userId", "==", userId),
@@ -134,7 +90,8 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
             const notifications = snapshot.docs.map((doc) => ({
                 id: doc.id,
                 ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate() || new Date(),
+                createdAt: doc.data().createdAt?.toDate?.()
+                    || (typeof doc.data().createdAt === 'string' ? new Date(doc.data().createdAt) : new Date()),
             })) as Notification[];
 
             set({
@@ -143,7 +100,13 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
                 loading: false,
             });
         } catch (error: any) {
-            set({ error: error.message, loading: false });
+            console.error("Failed to fetch notifications:", error);
+            set({
+                notifications: [],
+                unreadCount: 0,
+                error: error.message,
+                loading: false,
+            });
         }
     },
 
@@ -159,11 +122,9 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         });
 
         try {
-            if (!__DEV__) {
-                await updateDoc(doc(getFirebaseDb(), "notifications", notificationId), {
-                    read: true,
-                });
-            }
+            await updateDoc(doc(getFirebaseDb(), "notifications", notificationId), {
+                read: true,
+            });
         } catch (error) {
             console.error("Failed to mark notification as read:", error);
         }
@@ -179,27 +140,19 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         });
 
         try {
-            if (!__DEV__) {
-                const batch = writeBatch(getFirebaseDb());
-                notifications
-                    .filter((n) => !n.read)
-                    .forEach((n) => {
-                        batch.update(doc(getFirebaseDb(), "notifications", n.id), { read: true });
-                    });
-                await batch.commit();
-            }
+            const batch = writeBatch(getFirebaseDb());
+            notifications
+                .filter((n) => !n.read)
+                .forEach((n) => {
+                    batch.update(doc(getFirebaseDb(), "notifications", n.id), { read: true });
+                });
+            await batch.commit();
         } catch (error) {
             console.error("Failed to mark all notifications as read:", error);
         }
     },
 
     subscribeToNotifications: (userId: string) => {
-        if (__DEV__) {
-            // For dev, just fetch once
-            get().fetchNotifications(userId);
-            return () => { };
-        }
-
         const q = query(
             collection(getFirebaseDb(), "notifications"),
             where("userId", "==", userId),
@@ -211,13 +164,16 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
             const notifications = snapshot.docs.map((doc) => ({
                 id: doc.id,
                 ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate() || new Date(),
+                createdAt: doc.data().createdAt?.toDate?.()
+                    || (typeof doc.data().createdAt === 'string' ? new Date(doc.data().createdAt) : new Date()),
             })) as Notification[];
 
             set({
                 notifications,
                 unreadCount: notifications.filter((n) => !n.read).length,
             });
+        }, (error) => {
+            console.error("Notification subscription error:", error);
         });
 
         return unsubscribe;
@@ -248,6 +204,8 @@ export function getNotificationIcon(type: NotificationType): string {
         chat_mention: "@",
         contact_saved: "👥",
         safety_alert: "🚨",
+        refund_completed: "✅",
+        refund_failed: "⚠️",
     };
     return icons[type] || "🔔";
 }
@@ -258,6 +216,8 @@ export function getNotificationDeepLink(notification: Notification): string {
         case "ticket_purchased":
         case "ticket_transfer_received":
         case "ticket_refund":
+        case "refund_completed":
+        case "refund_failed":
             return `/tickets`;
         case "event_reminder":
         case "event_changed":

@@ -1,119 +1,223 @@
 /**
- * AI Poster Generation API - HARDENED VERSION
+ * AI Poster Generation API — Ideogram V3 Engine
  * 
- * This endpoint generates REAL AI posters using Google Gemini API.
- * NO FALLBACK TO DEMO IMAGES - always generates fresh, unique posters.
+ * Uses Ideogram 3.0 — the industry's best text-on-image AI model.
+ * Generates stunning, professional event posters with perfect typography,
+ * rich artistic styles, and MagicPrompt enhancement.
  * 
- * Key Features:
- * - Internal creative prompts for professional quality
- * - All user inputs incorporated into generation
- * - Randomization for unique outputs every time
- * - Strict error handling (no silent fallbacks)
+ * Primary:  Ideogram V3 (QUALITY mode — best output)
+ * Fallback: Ideogram V3 (TURBO mode — faster, still excellent)
+ * 
+ * Features:
+ *   - 12 curated style presets for nightlife/events
+ *   - MagicPrompt auto-enhancement for richer results
+ *   - Multiple aspect ratios (poster, story, square, landscape)
+ *   - Quality tiers (quality, default, turbo)
+ *   - Perfect text rendering (event name baked into the poster)
+ *   - Negative prompt support to avoid bad outputs
+ *   - Multiple style types (DESIGN, REALISTIC, GENERAL)
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
-
-// Gemini API Configuration
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-// Generate UUID using native crypto module
-function generateUUID(): string {
-    return crypto.randomUUID();
-}
+import * as crypto from "crypto";
 
 // ============================================
-// INTERNAL CREATIVE PROMPTING SYSTEM
+// CONFIGURATION
 // ============================================
 
-// Creative style variations for unique outputs
-const CREATIVE_STYLES = [
-    "cinematic noir with dramatic spotlights and deep shadows",
-    "neon-drenched cyberpunk with electric blues and hot pinks",
-    "minimalist luxury with gold accents on black velvet",
-    "retro-futuristic with chrome gradients and laser lines",
-    "dark elegance with smoke effects and ambient glow",
-    "urban graffiti art with bold colors and street energy",
-    "ethereal dreamscape with soft glows and floating elements",
-    "high-contrast brutalist with geometric shapes",
-    "vintage film noir with grain texture and moody lighting",
-    "holographic iridescent with prismatic light effects"
-];
-
-const TYPOGRAPHY_STYLES = [
-    "bold sans-serif with neon glow effect",
-    "elegant serif with metallic gold finish",
-    "futuristic geometric with chrome reflection",
-    "hand-drawn artistic with organic flow",
-    "minimalist clean with subtle shadow",
-    "distressed grunge with urban texture",
-    "3D extruded with dramatic depth",
-    "art deco inspired with ornate details"
-];
-
-const MOOD_ENHANCERS = [
-    "exclusive VIP atmosphere",
-    "electric underground energy",
-    "sophisticated nightlife elegance",
-    "raw artistic expression",
-    "premium luxury experience",
-    "cutting-edge avant-garde",
-    "intimate boutique ambiance",
-    "high-energy celebration"
-];
-
-const VISUAL_ELEMENTS = [
-    "with subtle particle effects and light rays",
-    "featuring abstract geometric patterns",
-    "with bokeh lights in the background",
-    "including subtle smoke or mist effects",
-    "with dynamic light streaks",
-    "featuring gradient color transitions",
-    "with textured overlays for depth",
-    "including subtle lens flare accents"
-];
+const IDEOGRAM_API_KEY = process.env.IDEOGRAM_API_KEY;
+const IDEOGRAM_API_URL = "https://api.ideogram.ai/v1/ideogram-v3/generate";
 
 // ============================================
-// HELPER FUNCTIONS
+// STYLE PRESETS — Curated for Nightlife & Events
 // ============================================
 
-/**
- * Get random element from array for variation
- */
-function getRandomElement<T>(array: T[]): T {
-    return array[Math.floor(Math.random() * array.length)];
+interface StylePreset {
+    label: string;
+    description: string;
+    promptTemplate: string;
+    negativePrompt: string;
+    styleType: "DESIGN" | "REALISTIC" | "GENERAL" | "FICTION";
 }
 
-/**
- * Get multiple random elements (no duplicates)
- */
-function getRandomElements<T>(array: T[], count: number): T[] {
-    const shuffled = [...array].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, count);
+const STYLE_PRESETS: Record<string, StylePreset> = {
+    neon_nights: {
+        label: "Neon Nights",
+        description: "Electric neon glow with cyberpunk energy",
+        promptTemplate: `A stunning nightlife event poster with neon-drenched atmosphere. Electric blue and hot pink neon lights pierce through volumetric fog. Dark black background with vivid glowing neon accents. Dramatic rim lighting illuminates the scene. Reflective wet surfaces catch neon reflections. Cyberpunk-inspired visual elements with sharp geometric neon outlines. Ultra-premium nightclub energy.`,
+        negativePrompt: "daylight, nature, cartoon, childish, blurry, low quality, watermark, stock photo",
+        styleType: "DESIGN"
+    },
+    minimal_luxury: {
+        label: "Minimal Luxury",
+        description: "Clean elegance with gold accents on black",
+        promptTemplate: `A premium luxury event poster with minimalist sophistication. Matte black background with subtle gold and champagne metallic accents. Clean geometric lines and sophisticated negative space. Premium fashion editorial aesthetic. Soft ambient glow with delicate light particles. Ultra-refined typography layout. Opulent yet restrained. High-end brand feel.`,
+        negativePrompt: "cluttered, busy, colorful, cartoon, cheap, amateur, blurry, watermark",
+        styleType: "DESIGN"
+    },
+    dark_elegance: {
+        label: "Dark Elegance",
+        description: "Moody sophistication with smoke and shadows",
+        promptTemplate: `An elegant dark-themed event poster. Deep blacks and rich burgundy wine tones. Subtle wisps of smoke drifting across the composition. Dramatic chiaroscuro lighting with cinematic depth. Velvet texture undertones. Mysterious atmospheric perspective. Professional cinematic color grading with warm shadows. Exclusive VIP atmosphere.`,
+        negativePrompt: "bright, colorful, cartoon, daylight, childish, blurry, watermark, cheap",
+        styleType: "DESIGN"
+    },
+    street_hype: {
+        label: "Street Hype",
+        description: "Bold urban energy with graffiti vibes",
+        promptTemplate: `An urban street culture event poster with raw energy. Bold graffiti-inspired visual elements and spray paint texture effects. Gritty concrete and brick wall backdrop. High contrast composition with dynamic angular shapes. Hip-hop culture vibes. Dripping paint effects. Vibrant accent colors against dark background. Underground warehouse party aesthetic.`,
+        negativePrompt: "clean, corporate, nature, soft, elegant, fancy, watermark, blurry",
+        styleType: "DESIGN"
+    },
+    holographic: {
+        label: "Holographic",
+        description: "Prismatic iridescent futurism",
+        promptTemplate: `A futuristic holographic event poster with prismatic iridescent effects. Chrome and mirror surfaces reflecting rainbow caustics. Translucent overlapping geometric forms. Digital aurora light effects. Y2K futuristic vibes with modern refinement. Gradient mesh color transitions. Pearlescent shimmer across the entire composition.`,
+        negativePrompt: "matte, dark, grungy, vintage, old, retro, blurry, watermark, dull",
+        styleType: "DESIGN"
+    },
+    retro_wave: {
+        label: "Retro Wave",
+        description: "Synthwave sunset with 80s nostalgia",
+        promptTemplate: `A synthwave retrowave event poster. Dramatic sunset gradient transitioning from deep purple through magenta to burning orange. Chrome perspective grid extending to the horizon. Palm tree silhouettes framing the scene. 80s nostalgia aesthetic with modern polish. Outrun style geometric sun. Laser lines. VHS-inspired subtle scan line texture.`,
+        negativePrompt: "modern minimalist, corporate, plain, boring, watermark, blurry",
+        styleType: "DESIGN"
+    },
+    ethereal: {
+        label: "Ethereal",
+        description: "Dreamy celestial atmosphere",
+        promptTemplate: `An ethereal dreamscape event poster. Soft pastel aurora lights dancing across a twilight sky. Floating luminous particles and gentle lens flares. Celestial atmosphere with cosmic depth. Gentle fog creating depth layers. Opalescent color palette of lavender, rose gold, and soft cyan. Otherworldly serenity meets celebration.`,
+        negativePrompt: "dark, grungy, harsh, urban, industrial, dirty, blurry, watermark",
+        styleType: "GENERAL"
+    },
+    brutalist: {
+        label: "Brutalist",
+        description: "Raw concrete geometry with stark contrast",
+        promptTemplate: `A brutalist architecture-inspired event poster. Raw exposed concrete textures and industrial surfaces. Stark geometric shapes with precise angular composition. High contrast black and white with a single bold accent color. Deconstructivist design language. Massive typographic presence. Industrial warehouse aesthetic. Powerful and confrontational.`,
+        negativePrompt: "soft, pretty, nature, flowers, pastel, delicate, blurry, watermark",
+        styleType: "DESIGN"
+    },
+    tropical_heat: {
+        label: "Tropical Heat",
+        description: "Lush jungle vibes with warm golden light",
+        promptTemplate: `A tropical nightlife event poster. Lush jungle foliage silhouettes and exotic monstera leaves. Warm amber and deep emerald lighting. Exotic tropical flowers as accents. Luxury resort poolside party vibes. Golden hour warmth with sensual atmosphere. Tiki torch ambient glow. Paradise island celebration.`,
+        negativePrompt: "cold, urban, industrial, winter, snow, grey, boring, blurry, watermark",
+        styleType: "GENERAL"
+    },
+    film_noir: {
+        label: "Film Noir",
+        description: "Cinematic mystery with dramatic shadows",
+        promptTemplate: `A cinematic film noir event poster. Dramatic hard shadows and venetian blind light stripe patterns. High contrast black and white tones with subtle warm sepia tinting. Moody rain-soaked reflective surfaces. Detective movie atmosphere. Vintage film grain texture. Cigarette smoke volumetric wisps. Classic Hollywood glamour.`,
+        negativePrompt: "colorful, bright, modern, cheerful, happy, cartoon, blurry, watermark",
+        styleType: "REALISTIC"
+    },
+    psychedelic: {
+        label: "Psychedelic",
+        description: "Vivid kaleidoscopic patterns and fractals",
+        promptTemplate: `A psychedelic art event poster. Swirling kaleidoscopic patterns with vivid saturated colors. Liquid art nouveau organic forms flowing and morphing. Fractal geometric patterns. Mandala-inspired circular motifs. Music festival energy. Tie-dye color explosions. Mind-expanding visual journey.`,
+        negativePrompt: "minimalist, corporate, clean lines, boring, plain, blurry, watermark",
+        styleType: "DESIGN"
+    },
+    abstract_art: {
+        label: "Abstract Art",
+        description: "Gallery-quality contemporary art",
+        promptTemplate: `An abstract contemporary art event poster. Bold expressive brush strokes and dynamic paint splatter effects. Gallery-quality artistic composition. Color field painting with emotional depth. Modern art museum aesthetic. Acrylic and oil paint textures. Raw artistic energy. Abstract expressionism meets event design.`,
+        negativePrompt: "photorealistic, corporate, clean, digital, boring, plain, blurry, watermark",
+        styleType: "DESIGN"
+    },
+    cinematic: {
+        label: "Cinematic",
+        description: "Movie poster blockbuster aesthetic",
+        promptTemplate: `A cinematic blockbuster-style event poster. Dramatic wide-angle composition with epic scale. Volumetric god rays and atmospheric haze. Hollywood movie poster color grading with teal and orange tones. Lens flare accents. Epic dramatic sky. Silhouette focal elements. Professional film production quality.`,
+        negativePrompt: "flat, boring, simple, amateur, cartoon, childish, blurry, watermark",
+        styleType: "REALISTIC"
+    },
+    glitch_digital: {
+        label: "Digital Glitch",
+        description: "Corrupted digital aesthetics",
+        promptTemplate: `A glitch art digital event poster. Corrupted digital pixel artifacts and RGB channel splitting. Distorted scan lines and data moshing effects. VHS tracking error aesthetics. Cyberpunk digital corruption. Neon colors bleeding through visual noise. Matrix-inspired digital rain. Intentional visual chaos.`,
+        negativePrompt: "clean, natural, organic, traditional, calm, simple, watermark",
+        styleType: "DESIGN"
+    },
+    indian_festival: {
+        label: "Desi Festival",
+        description: "Vibrant Indian celebration energy",
+        promptTemplate: `A vibrant Indian festival event poster. Rich jewel-tone colors — saffron, magenta, royal blue, emerald. Rangoli-inspired geometric patterns. Marigold flower garland motifs. Festival of lights warmth with diyas and sparklers. Mehndi-inspired decorative borders. Bollywood glamour meets modern design. Celebratory firework bursts.`,
+        negativePrompt: "dull, grey, western, cold, boring, plain, blurry, watermark",
+        styleType: "DESIGN"
+    }
+};
+
+// ============================================
+// MOOD DESCRIPTORS
+// ============================================
+
+const MOOD_MAP: Record<string, string> = {
+    energetic: "explosive high-energy atmosphere, dynamic movement, adrenaline rush",
+    chill: "relaxed laid-back vibes, smooth gradients, cool blue tones, mellow ambiance",
+    luxury: "ultra-premium exclusive VIP experience, champagne gold, crystal chandelier luxury",
+    underground: "raw underground subculture energy, warehouse rave, industrial pipes, DIY aesthetic",
+    romantic: "intimate romantic atmosphere, soft bokeh fairy lights, warm candlelit glow, roses",
+    wild: "untamed chaotic celebration, explosive confetti, maximum sensory overload",
+    mysterious: "enigmatic mysterious aura, hidden doorways, shadow play, fog machine haze",
+    futuristic: "cutting-edge technology aesthetic, hologram displays, sci-fi architecture",
+    spiritual: "transcendent meditative energy, sacred geometry, cosmic consciousness",
+    rebellious: "punk rock defiance, torn textures, anarchy symbols, counterculture edge",
+};
+
+// ============================================
+// CATEGORY VISUAL ENHANCEMENTS
+// ============================================
+
+const CATEGORY_THEMES: Record<string, string> = {
+    Music: "DJ booth with turntables, sound wave visualization, concert stage spotlights, bass speaker stacks",
+    Art: "artistic gallery installation, paint splatter, sculptural forms, creative expression",
+    Fashion: "haute couture runway, model silhouettes, luxury fabric textures, fashion week glamour",
+    Tech: "digital circuit patterns, holographic data visualization, futuristic interface",
+    "Food & Drink": "gourmet culinary artistry, cocktail glass composition, warm bistro ambiance",
+    Party: "disco ball reflections, champagne bottle spray, confetti explosion, dance floor strobe",
+    Venue: "premium nightclub interior, bottle service VIP table, ambient mood lighting",
+    Social: "sophisticated cocktail hour, rooftop terrace, city skyline at dusk",
+    Festival: "massive outdoor stage, crowd silhouettes, pyrotechnics, laser beam array",
+    Comedy: "spotlight cone on microphone stand, brick wall backdrop, theatrical warmth",
+    Sports: "stadium floodlights, athletic motion blur, competitive intensity",
+    Wellness: "zen garden tranquility, meditation space, healing crystal light",
+};
+
+// ============================================
+// ASPECT RATIOS
+// ============================================
+
+type AspectRatioKey = "poster" | "story" | "square" | "landscape" | "tall" | "wide_poster";
+
+const ASPECT_RATIOS: Record<AspectRatioKey, string> = {
+    poster: "3:4",
+    story: "9:16",
+    square: "1:1",
+    landscape: "16:9",
+    tall: "2:3",
+    wide_poster: "4:3",
+};
+
+// ============================================
+// PROMPT CONSTRUCTION ENGINE
+// ============================================
+
+interface PromptInputs {
+    eventName: string;
+    designPrompt: string;
+    stylePreset: string;
+    mood: string;
+    category: string;
+    city: string;
+    eventDate?: string | null;
+    includeDate?: boolean;
+    includeTextOnPoster?: boolean;
+    colorScheme?: string;
+    artists?: string;
 }
 
-/**
- * Map category to visual theme
- */
-function getCategoryTheme(category: string): string {
-    const themes: Record<string, string> = {
-        "Music": "club music event with DJ booth vibes, sound wave visuals, and concert energy",
-        "Art": "artistic gallery event with creative expression, abstract elements, and cultural sophistication",
-        "Fashion": "high fashion runway event with glamour, style, and couture elegance",
-        "Tech": "tech innovation event with digital aesthetics, modern design, and futuristic elements",
-        "Food & Drink": "culinary experience event with gourmet vibes, warm ambiance, and social gathering",
-        "Party": "exclusive party event with celebration energy, dance vibes, and nightlife excitement",
-        "Venue": "premium nightclub event with VIP atmosphere, bottle service vibes, and exclusive energy",
-        "Social": "upscale social gathering with networking elegance and sophisticated mingling"
-    };
-    return themes[category] || "premium nightlife event with exclusive atmosphere";
-}
-
-/**
- * Format date for visual display
- */
 function formatDateForPoster(dateStr: string): string {
-    if (!dateStr) return "";
     try {
         const [year, month, day] = dateStr.split("-").map(Number);
         const date = new Date(year, month - 1, day);
@@ -123,341 +227,382 @@ function formatDateForPoster(dateStr: string): string {
             month: "short"
         }).toUpperCase();
     } catch {
-        return dateStr;
+        return dateStr.toUpperCase();
     }
 }
 
-// ============================================
-// MASTER PROMPT CONSTRUCTOR
-// ============================================
-
-interface PromptInputs {
-    eventName: string;
-    designPrompt: string;
-    city: string;
-    category: string;
-    eventDate: string | null;
-    includeDate: boolean;
-    generationId: string;
-}
-
 /**
- * Constructs the ultimate AI prompt with internal creative enhancements
- * This combines user input with professional creative direction
+ * Build the ultimate Ideogram prompt.
+ * 
+ * Ideogram V3 excels at text rendering — so we CAN include the event name
+ * directly in the generated image. This is the key advantage over Flux/SD.
  */
-function constructMasterPrompt(inputs: PromptInputs): string {
+function buildIdeogramPrompt(inputs: PromptInputs): { prompt: string; negativePrompt: string } {
     const {
         eventName,
         designPrompt,
-        city,
+        stylePreset,
+        mood,
         category,
+        city,
         eventDate,
         includeDate,
-        generationId
+        includeTextOnPoster = true,
+        colorScheme,
+        artists,
     } = inputs;
 
-    // Random creative elements for uniqueness
-    const creativeStyle = getRandomElement(CREATIVE_STYLES);
-    const typographyStyle = getRandomElement(TYPOGRAPHY_STYLES);
-    const mood = getRandomElement(MOOD_ENHANCERS);
-    const visualElement = getRandomElement(VISUAL_ELEMENTS);
-    const categoryTheme = getCategoryTheme(category);
+    const style = STYLE_PRESETS[stylePreset] || STYLE_PRESETS.neon_nights;
+    const moodText = MOOD_MAP[mood] || MOOD_MAP.energetic;
+    const categoryText = CATEGORY_THEMES[category] || CATEGORY_THEMES.Party;
 
-    // Date handling
-    const formattedDate = eventDate ? formatDateForPoster(eventDate) : null;
-    const dateInstruction = includeDate && formattedDate
-        ? `Include the date "${formattedDate}" in an elegant, secondary position that complements the title.`
-        : "Do NOT include any date or time on the poster.";
+    // Build prompt sections
+    const sections: string[] = [];
 
-    // Build the comprehensive prompt
-    const prompt = `
-CREATE A STUNNING, PROFESSIONAL EVENT POSTER:
+    // 1. Core identity
+    sections.push(`A breathtaking professional event poster design`);
 
-═══════════════════════════════════════════════════════════════
-PRIMARY REQUIREMENT - EVENT TITLE:
-═══════════════════════════════════════════════════════════════
-The event name is: "${eventName}"
+    // 2. TEXT ON POSTER — Ideogram's killer feature
+    if (includeTextOnPoster) {
+        sections.push(`The poster prominently features the event title text "${eventName}" as the dominant hero element, displayed in large, bold, stylish typography that is clearly readable and artistically integrated into the design`);
 
-This title MUST be:
-- The largest, most dominant text element
-- Clearly readable and prominently displayed
-- Styled with ${typographyStyle}
-- Positioned as the clear focal point of the poster
+        if (includeDate && eventDate) {
+            const formatted = formatDateForPoster(eventDate);
+            sections.push(`The date "${formatted}" appears in an elegant secondary position below or near the title`);
+        }
 
-═══════════════════════════════════════════════════════════════
-USER'S DESIGN VISION:
-═══════════════════════════════════════════════════════════════
-${designPrompt || "Modern, premium nightlife aesthetic"}
-
-═══════════════════════════════════════════════════════════════
-EVENT CONTEXT:
-═══════════════════════════════════════════════════════════════
-- Event Type: ${categoryTheme}
-- Location: ${city}, India
-- Atmosphere: ${mood}
-
-═══════════════════════════════════════════════════════════════
-INTERNAL CREATIVE DIRECTION (Professional Enhancement):
-═══════════════════════════════════════════════════════════════
-Overall Style: Create a ${creativeStyle} aesthetic
-Visual Treatment: ${visualElement}
-Target Audience: Premium, sophisticated young adults (21-35)
-Brand Feel: Exclusive, aspirational, share-worthy on social media
-
-═══════════════════════════════════════════════════════════════
-TECHNICAL SPECIFICATIONS:
-═══════════════════════════════════════════════════════════════
-- Format: Vertical poster (portrait orientation, 4:5 aspect ratio)
-- Resolution: High quality, print-ready
-- Margins: Clean edges, social-media optimized
-- Style: Professional event marketing poster
-
-═══════════════════════════════════════════════════════════════
-STRICT RULES:
-═══════════════════════════════════════════════════════════════
-✓ DO: Make the event title "${eventName}" the hero element
-✓ DO: Use cinematic, high-contrast composition
-✓ DO: Create a modern, premium feel
-✓ DO: Make it unique and artistically compelling
-
-✗ DON'T: Add any text except the event name "${eventName}"
-✗ DON'T: Include venue names, prices, or contact info
-✗ DON'T: Add watermarks or logos
-✗ DON'T: Use stock photo aesthetics
-✗ DON'T: Include random slogans or taglines
-
-${dateInstruction}
-
-═══════════════════════════════════════════════════════════════
-UNIQUENESS REQUIREMENT:
-═══════════════════════════════════════════════════════════════
-Generation Seed: ${generationId}
-Timestamp: ${Date.now()}
-
-Create a COMPLETELY UNIQUE design. This must be fresh, original,
-and different from any previous generation. The composition,
-color grading, and artistic treatment should be distinctive.
-`.trim();
-
-    return prompt;
-}
-
-// ============================================
-// GEMINI API INTEGRATION
-// ============================================
-
-interface GenerationResult {
-    success: boolean;
-    imageBase64?: string;
-    error?: string;
-    retryAfter?: number;
-}
-
-/**
- * Generate image using Gemini 2.0 Flash Image Generation model
- */
-async function generateWithGemini(prompt: string): Promise<GenerationResult> {
-    const models = [
-        "gemini-2.0-flash-exp-image-generation",
-        "gemini-2.5-flash-image-preview",
-        "gemini-2.5-flash-image"
-    ];
-
-    for (const model of models) {
-        console.log(`🎨 Attempting generation with model: ${model}`);
-
-        try {
-            const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        contents: [
-                            {
-                                parts: [
-                                    {
-                                        text: prompt
-                                    }
-                                ]
-                            }
-                        ],
-                        generationConfig: {
-                            responseModalities: ["image", "text"]
-                        }
-                    }),
-                }
-            );
-
-            if (response.status === 429) {
-                const errorData = await response.json();
-                const retryMatch = errorData.error?.message?.match(/retry in (\d+)/i);
-                const retryAfter = retryMatch ? parseInt(retryMatch[1]) : 60;
-                console.log(`⏳ Rate limited on ${model}, retry after ${retryAfter}s`);
-
-                // Try next model instead of waiting
-                continue;
-            }
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`❌ Model ${model} error:`, response.status, errorText);
-                continue;
-            }
-
-            const data = await response.json();
-
-            // Extract image from response
-            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-                const parts = data.candidates[0].content.parts;
-                for (const part of parts) {
-                    if (part.inlineData && part.inlineData.data) {
-                        console.log(`✅ Successfully generated with ${model}`);
-                        return {
-                            success: true,
-                            imageBase64: part.inlineData.data
-                        };
-                    }
-                }
-            }
-
-            console.log(`⚠️ No image in ${model} response, trying next...`);
-
-        } catch (error) {
-            console.error(`❌ Model ${model} exception:`, error);
-            continue;
+        if (artists && artists.trim()) {
+            sections.push(`Artist/performer names "${artists.trim()}" appear in supporting text`);
         }
     }
 
-    // All models failed
+    // 3. Style preset (dominant visual direction)
+    sections.push(style.promptTemplate);
+
+    // 4. Category-specific visuals
+    sections.push(categoryText);
+
+    // 5. Mood layer
+    sections.push(moodText);
+
+    // 6. User's custom creative direction
+    if (designPrompt) {
+        sections.push(`Additional creative direction: ${designPrompt}`);
+    }
+
+    // 7. Color scheme
+    if (colorScheme) {
+        sections.push(`Color palette emphasis: ${colorScheme}`);
+    }
+
+    // 8. Location flavor
+    if (city) {
+        sections.push(`Subtle cultural nod to ${city}, India`);
+    }
+
+    // 9. Quality maximizers
+    sections.push("Ultra-high quality, award-winning graphic design, print-ready resolution, professional event marketing material, stunning visual impact, share-worthy on social media");
+
+    // Build negative prompt
+    const negParts = [
+        style.negativePrompt,
+        "ugly, deformed, noisy, low quality, blurry, distorted, amateur, poorly designed, generic clip art, stock photo watermark, out of frame, bad anatomy",
+    ];
+
+    if (includeTextOnPoster) {
+        negParts.push("misspelled text, garbled letters, illegible text, overlapping text");
+    }
+
     return {
-        success: false,
-        error: "All Gemini models failed. Please try again in a moment."
+        prompt: sections.join(". ") + ".",
+        negativePrompt: negParts.join(", "),
     };
 }
 
 // ============================================
-// REQUEST/RESPONSE TYPES
+// IDEOGRAM API INTEGRATION
 // ============================================
 
-interface PosterGenerationRequest {
-    eventName: string;
-    designPrompt: string;
-    city?: string;
-    eventType?: string;
-    eventDate?: string;
-    includeDate?: boolean;
+interface IdeogramImageData {
+    url: string;
+    is_image_safe: boolean;
+    prompt: string;
+    resolution: string;
+    seed: number;
+    style_type: string;
 }
 
-interface PosterGenerationResponse {
+interface IdeogramResponse {
+    created: string;
+    data: IdeogramImageData[];
+}
+
+interface GenerationResult {
     success: boolean;
     imageUrl?: string;
-    imageBase64?: string;
-    generationId: string;
-    timestamp: string;
+    enhancedPrompt?: string;
+    resolution?: string;
+    seed?: number;
     error?: string;
-    message?: string;
-    model?: string;
+    renderingSpeed?: string;
+}
+
+/**
+ * Call Ideogram V3 API to generate a poster image.
+ * Uses QUALITY rendering by default for the best output.
+ * Falls back through TURBO → DEFAULT if QUALITY fails.
+ */
+async function generateWithIdeogram(
+    prompt: string,
+    negativePrompt: string,
+    aspectRatio: string,
+    styleType: string,
+    quality: "QUALITY" | "DEFAULT" | "TURBO" = "QUALITY"
+): Promise<GenerationResult> {
+    if (!IDEOGRAM_API_KEY) {
+        return {
+            success: false,
+            error: "IDEOGRAM_API_KEY is not configured. Get one at ideogram.ai/manage-api and add it to your .env file.",
+        };
+    }
+
+    // Try each rendering speed tier
+    const speeds = quality === "QUALITY"
+        ? ["QUALITY", "DEFAULT", "TURBO"] as const
+        : quality === "DEFAULT"
+            ? ["DEFAULT", "TURBO"] as const
+            : ["TURBO"] as const;
+
+    for (const speed of speeds) {
+        console.log(`🎨 Generating with Ideogram V3 [${speed}]...`);
+
+        try {
+            const requestBody: Record<string, unknown> = {
+                prompt,
+                rendering_speed: speed,
+                aspect_ratio: aspectRatio,
+                magic_prompt: "ON",               // Always enhance prompts
+                style_type: styleType,
+                negative_prompt: negativePrompt,
+            };
+
+            const response = await fetch(IDEOGRAM_API_URL, {
+                method: "POST",
+                headers: {
+                    "Api-Key": IDEOGRAM_API_KEY,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(requestBody),
+            });
+
+            if (response.status === 401 || response.status === 403) {
+                return {
+                    success: false,
+                    error: "Invalid IDEOGRAM_API_KEY. Check your API key at ideogram.ai/manage-api.",
+                };
+            }
+
+            if (response.status === 429) {
+                console.log(`⏳ Rate limited on ${speed}, trying next tier...`);
+                continue;
+            }
+
+            if (response.status === 402) {
+                return {
+                    success: false,
+                    error: "Ideogram API credit limit reached. Top up your account at ideogram.ai.",
+                };
+            }
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`❌ Ideogram ${speed} error (${response.status}):`, errorText);
+                continue;
+            }
+
+            const data: IdeogramResponse = await response.json();
+
+            if (data.data && data.data.length > 0) {
+                const image = data.data[0];
+
+                if (!image.is_image_safe) {
+                    console.log(`⚠️ Image flagged as unsafe on ${speed}, trying next...`);
+                    continue;
+                }
+
+                console.log(`✅ Poster generated with Ideogram V3 [${speed}] — ${image.resolution}`);
+
+                return {
+                    success: true,
+                    imageUrl: image.url,
+                    enhancedPrompt: image.prompt,
+                    resolution: image.resolution,
+                    seed: image.seed,
+                    renderingSpeed: speed,
+                };
+            }
+
+            console.log(`⚠️ Empty response from ${speed}, trying next...`);
+
+        } catch (error) {
+            console.error(`❌ Ideogram ${speed} exception:`, error);
+            continue;
+        }
+    }
+
+    return {
+        success: false,
+        error: "All rendering speeds failed. Please try again in a moment.",
+    };
 }
 
 // ============================================
-// API ENDPOINT
+// REQUEST / RESPONSE TYPES
+// ============================================
+
+interface PosterRequest {
+    eventName: string;
+    designPrompt?: string;
+    stylePreset?: string;
+    mood?: string;
+    category?: string;
+    city?: string;
+    aspectRatio?: string;
+    quality?: "quality" | "default" | "turbo";
+    colorScheme?: string;
+    eventDate?: string;
+    includeDate?: boolean;
+    includeTextOnPoster?: boolean;
+    artists?: string;
+}
+
+interface PosterResponse {
+    success: boolean;
+    imageUrl?: string;
+    generationId: string;
+    timestamp: string;
+    enhancedPrompt?: string;
+    resolution?: string;
+    seed?: number;
+    renderingSpeed?: string;
+    styleUsed?: string;
+    error?: string;
+    message?: string;
+}
+
+// ============================================
+// POST — Generate Poster
 // ============================================
 
 export async function POST(request: NextRequest) {
-    const generationId = generateUUID();
+    const generationId = crypto.randomUUID();
     const timestamp = new Date().toISOString();
 
     try {
-        const body: PosterGenerationRequest = await request.json();
+        const body: PosterRequest = await request.json();
 
-        // ============================================
-        // 1. VALIDATE REQUIRED FIELDS
-        // ============================================
-
+        // ── Validate ──
         if (!body.eventName || body.eventName.trim() === "") {
             return NextResponse.json({
                 success: false,
                 generationId,
                 timestamp,
                 error: "EVENT_NAME_REQUIRED",
-                message: "Event name is required for poster generation."
-            }, { status: 400 });
+                message: "Event name is required.",
+            } satisfies PosterResponse, { status: 400 });
         }
 
-        // ============================================
-        // 2. PREPARE ALL USER INPUTS
-        // ============================================
-
+        // ── Parse Inputs ──
         const eventName = body.eventName.trim();
         const designPrompt = body.designPrompt?.trim() || "";
+        const stylePreset = body.stylePreset || "neon_nights";
+        const mood = body.mood || "energetic";
+        const category = body.category || "Party";
         const city = body.city || "Pune";
-        const category = body.eventType || "Music";
+        const aspectRatioKey = (body.aspectRatio || "poster") as AspectRatioKey;
+        const aspectRatio = ASPECT_RATIOS[aspectRatioKey] || "3:4";
+        const quality = (body.quality?.toUpperCase() || "QUALITY") as "QUALITY" | "DEFAULT" | "TURBO";
+        const colorScheme = body.colorScheme || "";
         const eventDate = body.eventDate || null;
-        const includeDate = body.includeDate || false;
+        const includeDate = body.includeDate ?? false;
+        const includeTextOnPoster = body.includeTextOnPoster ?? true;
+        const artists = body.artists || "";
 
-        // ============================================
-        // 3. CONSTRUCT MASTER PROMPT
-        // ============================================
+        // Get style config
+        const styleConfig = STYLE_PRESETS[stylePreset] || STYLE_PRESETS.neon_nights;
 
-        const masterPrompt = constructMasterPrompt({
+        // ── Build Prompt ──
+        const { prompt, negativePrompt } = buildIdeogramPrompt({
             eventName,
             designPrompt,
-            city,
+            stylePreset,
+            mood,
             category,
+            city,
             eventDate,
             includeDate,
-            generationId
+            includeTextOnPoster,
+            colorScheme,
+            artists,
         });
 
-        console.log("\n" + "=".repeat(60));
-        console.log("🎯 AI POSTER GENERATION REQUEST");
-        console.log("=".repeat(60));
-        console.log(`📋 Generation ID: ${generationId}`);
+        console.log("\n" + "═".repeat(60));
+        console.log("🎯 IDEOGRAM POSTER GENERATION");
+        console.log("═".repeat(60));
+        console.log(`📋 ID: ${generationId}`);
         console.log(`🎪 Event: ${eventName}`);
-        console.log(`🎨 Design: ${designPrompt || "(default)"}`);
-        console.log(`📍 City: ${city}`);
+        console.log(`🎨 Style: ${styleConfig.label}`);
+        console.log(`🌊 Mood: ${mood}`);
         console.log(`🏷️ Category: ${category}`);
-        console.log(`📅 Date: ${includeDate && eventDate ? eventDate : "Not included"}`);
-        console.log("=".repeat(60) + "\n");
+        console.log(`📐 Aspect: ${aspectRatio}`);
+        console.log(`⚡ Quality: ${quality}`);
+        console.log(`🖋️ Text on poster: ${includeTextOnPoster ? "YES" : "NO"}`);
+        console.log(`📅 Date: ${includeDate && eventDate ? eventDate : "—"}`);
+        console.log(`🎤 Artists: ${artists || "—"}`);
+        console.log(`💬 Custom prompt: ${designPrompt || "(none)"}`);
+        console.log("═".repeat(60) + "\n");
 
-        // ============================================
-        // 4. GENERATE IMAGE WITH GEMINI
-        // ============================================
+        // ── Generate ──
+        const result = await generateWithIdeogram(
+            prompt,
+            negativePrompt,
+            aspectRatio,
+            styleConfig.styleType,
+            quality
+        );
 
-        const result = await generateWithGemini(masterPrompt);
-
-        if (result.success && result.imageBase64) {
-            // SUCCESS! Return the AI-generated poster
-            console.log("✅ Poster generated successfully!");
+        if (result.success && result.imageUrl) {
+            console.log(`✅ Poster ready!`);
+            console.log(`   Resolution: ${result.resolution}`);
+            console.log(`   Speed: ${result.renderingSpeed}`);
+            console.log(`   Seed: ${result.seed}`);
 
             return NextResponse.json({
                 success: true,
-                imageBase64: result.imageBase64,
-                imageUrl: `data:image/png;base64,${result.imageBase64}`,
+                imageUrl: result.imageUrl,
                 generationId,
                 timestamp,
-                message: "AI poster generated successfully"
-            } as PosterGenerationResponse);
+                enhancedPrompt: result.enhancedPrompt,
+                resolution: result.resolution,
+                seed: result.seed,
+                renderingSpeed: result.renderingSpeed,
+                styleUsed: styleConfig.label,
+                message: "Poster generated successfully",
+            } satisfies PosterResponse);
         }
 
-        // ============================================
-        // 5. GENERATION FAILED - NO FALLBACK
-        // ============================================
-
-        console.error("❌ Poster generation failed:", result.error);
+        // ── Failed ──
+        console.error("❌ Generation failed:", result.error);
 
         return NextResponse.json({
             success: false,
             generationId,
             timestamp,
             error: "GENERATION_FAILED",
-            message: result.error || "Poster generation failed. The AI service may be temporarily unavailable. Please try again in a moment."
-        }, { status: 503 });
+            message: result.error || "Generation failed. Please try again.",
+        } satisfies PosterResponse, { status: 503 });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("❌ Poster generation exception:", error);
 
         return NextResponse.json({
@@ -465,23 +610,56 @@ export async function POST(request: NextRequest) {
             generationId,
             timestamp,
             error: "GENERATION_FAILED",
-            message: "An unexpected error occurred. Please try again."
-        }, { status: 500 });
+            message: "An unexpected error occurred. Please try again.",
+        } satisfies PosterResponse, { status: 500 });
     }
 }
 
-/**
- * GET endpoint for health check
- */
+// ============================================
+// GET — Health Check + Available Options
+// ============================================
+
 export async function GET() {
+    const styles = Object.entries(STYLE_PRESETS).map(([key, val]) => ({
+        id: key,
+        label: val.label,
+        description: val.description,
+        styleType: val.styleType,
+    }));
+
+    const moods = Object.entries(MOOD_MAP).map(([key]) => ({
+        id: key,
+        label: key.charAt(0).toUpperCase() + key.slice(1),
+    }));
+
+    const categories = Object.keys(CATEGORY_THEMES);
+
+    const aspectRatios = Object.entries(ASPECT_RATIOS).map(([key, value]) => ({
+        id: key,
+        ratio: value,
+        label: key.charAt(0).toUpperCase() + key.slice(1).replace("_", " "),
+    }));
+
     return NextResponse.json({
-        status: "ready",
-        service: "AI Poster Generation",
-        models: [
-            "gemini-2.0-flash-exp-image-generation",
-            "gemini-2.5-flash-image-preview",
-            "gemini-2.5-flash-image"
+        status: IDEOGRAM_API_KEY ? "ready" : "missing_api_key",
+        engine: "Ideogram V3",
+        capabilities: [
+            "Perfect text rendering on posters",
+            "MagicPrompt auto-enhancement",
+            "Multiple artistic style types",
+            "Negative prompt support",
+            "Quality/speed tiers",
         ],
-        note: "No fallback images. All posters are AI-generated."
+        renderingSpeeds: {
+            quality: "Best output, ~15-20s",
+            default: "Balanced, ~8-12s",
+            turbo: "Fastest, ~4-6s",
+        },
+        options: {
+            styles,
+            moods,
+            categories,
+            aspectRatios,
+        },
     });
 }

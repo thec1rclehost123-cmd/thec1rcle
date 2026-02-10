@@ -5,7 +5,7 @@
 
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { listEvents } from "./eventStore";
-import { getEventSalesStats, getEventGuestlist } from "./orderStore";
+import { getEventSalesStats, getEventGuestlist, getEventOrders } from "./orderStore";
 import { getPromoterStats, getEventPromoterSummary } from "./promoterLinkStore";
 
 /**
@@ -14,7 +14,8 @@ import { getPromoterStats, getEventPromoterSummary } from "./promoterLinkStore";
  */
 export async function getVenueAnalytics(venueId, range = "30d") {
     // 1. List all events for this venue
-    const events = await listEvents({ venueId, limit: 100 });
+    const events = await listEvents({ venueId, limit: 100, sort: "none" });
+    console.log(`📊 [getVenueAnalytics] Found ${events.length} events for venueId=${venueId}`);
 
     if (events.length === 0) {
         return {
@@ -81,7 +82,7 @@ export async function getVenueAnalytics(venueId, range = "30d") {
  */
 export async function getVenueOverviewStats(venueId) {
     const db = getAdminDb();
-    const events = await listEvents({ venueId, limit: 100 });
+    const events = await listEvents({ venueId, limit: 100, sort: "none" });
 
     // 1. Filter for events happening "This Weekend" (Friday-Sunday logic)
     const now = new Date();
@@ -131,7 +132,7 @@ export async function getVenueOverviewStats(venueId) {
  * Get foundational overview for a host (Category 1)
  */
 export async function getHostAnalytics(hostId, range = "30d") {
-    const events = await listEvents({ creatorId: hostId, limit: 100 });
+    const events = await listEvents({ creatorId: hostId, limit: 100, sort: "none" });
 
     if (events.length === 0) {
         return { totalEvents: 0, approvalRate: 0, avgTurnout: 0, dataReady: false };
@@ -182,7 +183,7 @@ export async function getHostAnalytics(hostId, range = "30d") {
  * Get "Numbers-First" overview stats for a host
  */
 export async function getHostOverviewStats(hostId) {
-    const events = await listEvents({ creatorId: hostId, limit: 100 });
+    const events = await listEvents({ creatorId: hostId, limit: 100, sort: "none" });
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -225,7 +226,7 @@ export async function getHostOverviewStats(hostId) {
  * Get event performance intelligence for a host (Category 2)
  */
 export async function getHostPerformanceAnalytics(hostId, range = "30d") {
-    const events = await listEvents({ creatorId: hostId, limit: 100 });
+    const events = await listEvents({ creatorId: hostId, limit: 100, sort: "none" });
     if (events.length === 0) return { dataReady: false };
 
     const performanceStats = [];
@@ -271,7 +272,7 @@ function calculateEventSuccessScore(actual, predicted) {
  * Get audience quality & demographics for host (Category 3)
  */
 export async function getHostAudienceAnalytics(hostId, range = "30d") {
-    const events = await listEvents({ creatorId: hostId, limit: 100 });
+    const events = await listEvents({ creatorId: hostId, limit: 100, sort: "none" });
     if (events.length === 0) return { dataReady: false };
 
     const ageBands = { "18-20": 0, "21-24": 0, "25-28": 0, "28+": 0 };
@@ -311,7 +312,7 @@ export async function getHostAudienceAnalytics(hostId, range = "30d") {
  * Get reliability & trust analytics for host (Category 4)
  */
 export async function getHostReliabilityAnalytics(hostId, range = "30d") {
-    const events = await listEvents({ creatorId: hostId, limit: 100 });
+    const events = await listEvents({ creatorId: hostId, limit: 100, sort: "none" });
     if (events.length === 0) return { dataReady: false };
 
     const cancelledCount = events.filter(e => e.lifecycle === 'cancelled').length;
@@ -342,7 +343,7 @@ export async function getHostReliabilityAnalytics(hostId, range = "30d") {
  * Get venue & partnership performance for host (Category 5)
  */
 export async function getHostPartnerAnalytics(hostId, range = "30d") {
-    const events = await listEvents({ creatorId: hostId, limit: 100 });
+    const events = await listEvents({ creatorId: hostId, limit: 100, sort: "none" });
     if (events.length === 0) return { dataReady: false };
 
     const venuePerf = {};
@@ -628,7 +629,7 @@ export async function getPromoterStrategyAnalytics(promoterId, range = "30d") {
  * Get audience and demographics analytics for a venue
  */
 export async function getVenueAudienceAnalytics(venueId, range = "30d") {
-    const events = await listEvents({ venueId, limit: 100 });
+    const events = await listEvents({ venueId, limit: 100, sort: "none" });
     if (events.length === 0) return { dataReady: false };
 
     // Group by age and gender
@@ -689,7 +690,7 @@ function calculateAge(dob) {
  * Get discovery and conversion funnel analytics
  */
 export async function getVenueFunnelAnalytics(venueId, range = "30d") {
-    const events = await listEvents({ venueId, limit: 100 });
+    const events = await listEvents({ venueId, limit: 100, sort: "none" });
     if (events.length === 0) return { dataReady: false };
 
     let totalViews = 0;
@@ -746,7 +747,7 @@ export async function getVenueFunnelAnalytics(venueId, range = "30d") {
  * Get entry operations and safety analytics
  */
 export async function getVenueOpsAnalytics(venueId, range = "30d") {
-    const events = await listEvents({ venueId, limit: 100 });
+    const events = await listEvents({ venueId, limit: 100, sort: "none" });
     if (events.length === 0) return { dataReady: false };
 
     const db = getAdminDb();
@@ -783,7 +784,7 @@ export async function getVenueOpsAnalytics(venueId, range = "30d") {
  * Get host and promoter performance
  */
 export async function getVenuePartnerAnalytics(venueId, range = "30d") {
-    const events = await listEvents({ venueId, limit: 100 });
+    const events = await listEvents({ venueId, limit: 100, sort: "none" });
     if (events.length === 0) return { dataReady: false };
 
     const hostStats = {};

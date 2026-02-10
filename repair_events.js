@@ -1,13 +1,16 @@
-/**
- * THE C1RCLE - Event Data Repair & Migration Script
- * Standardizes lifecycle, cityKey, and media fields for all existing events.
- */
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+import { withLock } from "./packages/core/lock-service.js";
 
-const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, "apps/guest-portal/.env.local") });
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const { getAdminDb, isFirebaseConfigured } = require("./apps/partner-dashboard/lib/firebase/admin");
-const { EVENT_LIFECYCLE, normalizeCity, getCityLabel, resolvePoster, CITY_MAP } = require("@c1rcle/core/events");
+dotenv.config({ path: path.join(__dirname, "apps/guest-portal/.env.local") });
+
+// Use imports for core packages
+import { getAdminDb, isFirebaseConfigured } from "./apps/partner-dashboard/lib/firebase/admin.js";
+import { EVENT_LIFECYCLE, normalizeCity, getCityLabel, resolvePoster, CITY_MAP } from "@c1rcle/core/events";
 
 async function repairEvents() {
     if (!isFirebaseConfigured()) {
@@ -89,4 +92,8 @@ async function repairEvents() {
     }
 }
 
-repairEvents().catch(console.error);
+// Wrap in global distributed lock
+withLock("repair-events", repairEvents).catch(err => {
+    console.error("❌ " + err.message);
+    process.exit(1);
+});
