@@ -8,7 +8,7 @@ import OfflineListener from "../OfflineListener";
 
 export default function AppProviders({ children }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <ThemeProvider attribute="class" defaultTheme="dark" disableTransitionOnChange={false}>
       <AuthProvider>
         <ToastProvider>
           <GlobalAuthManager />

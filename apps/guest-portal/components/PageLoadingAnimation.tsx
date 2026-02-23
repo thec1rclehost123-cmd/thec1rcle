@@ -12,18 +12,35 @@ import { useEffect, useState, useMemo } from "react";
  * - Responsive sizing with fluid transitions.
  * - Perfectly timed "Portal" exit reveal.
  */
+const SPLASH_KEY = 'c1rcle:splash_played';
+
 export default function PageLoadingAnimation() {
+    // ⚡ PERF FIX: Only show the splash animation ONCE per browser session.
+    // On every subsequent page visit or navigation, skip entirely for instant load.
+    const [shouldRender, setShouldRender] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isFinished, setIsFinished] = useState(false);
     const [radius, setRadius] = useState(200);
+
+    useEffect(() => {
+        const alreadyPlayed = sessionStorage.getItem(SPLASH_KEY);
+        if (!alreadyPlayed) {
+            setShouldRender(true);
+        }
+    }, []);
 
     const BRAND_COLOR = '#FF3D00';
     const circumference = useMemo(() => 2 * Math.PI * radius, [radius]);
 
     useEffect(() => {
+        // ⚡ PERF FIX: Only run the whole timing sequence if we're actually rendering.
+        if (!shouldRender) return;
+
+        // Mark it as played immediately so future loads skip the splash
+        sessionStorage.setItem(SPLASH_KEY, '1');
+
         const updateSizing = () => {
             const screenWidth = window.innerWidth;
-            // Fluid radius: 42% of width on mobile, capped at 240px for desktop
             const newRadius = Math.min(screenWidth * 0.42, 240);
             setRadius(newRadius);
         };
@@ -31,13 +48,12 @@ export default function PageLoadingAnimation() {
         updateSizing();
         window.addEventListener('resize', updateSizing);
 
-        // Prevent scroll interaction during load
+        // Lock scroll only while showing the animation
         document.documentElement.style.overflow = 'hidden';
         document.body.style.overflow = 'hidden';
 
-        // Cinematic Sequence Timing
-        const PORTAL_EXPAND_TIME = 2200; // When the portal starts growing
-        const COMPONENT_EXIT_TIME = PORTAL_EXPAND_TIME + 1200; // Complete unmount
+        const PORTAL_EXPAND_TIME = 2200;
+        const COMPONENT_EXIT_TIME = PORTAL_EXPAND_TIME + 1200;
 
         const portalTimer = setTimeout(() => setIsFinished(true), PORTAL_EXPAND_TIME);
         const exitTimer = setTimeout(() => setIsLoading(false), COMPONENT_EXIT_TIME);
@@ -49,7 +65,7 @@ export default function PageLoadingAnimation() {
             clearTimeout(portalTimer);
             clearTimeout(exitTimer);
         };
-    }, []);
+    }, [shouldRender]);
 
     // Optimized Animation Variants
     const portalVariants = {
@@ -85,6 +101,9 @@ export default function PageLoadingAnimation() {
             }
         }
     };
+
+    // ⚡ If already played this session, skip rendering entirely
+    if (!shouldRender) return null;
 
     return (
         <AnimatePresence mode="wait">

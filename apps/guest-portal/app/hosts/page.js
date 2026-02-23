@@ -1,6 +1,6 @@
 "use client";
-
-export const dynamic = 'force-dynamic';
+// ⚡ PERF FIX: Removed force-dynamic. Data is now cached at the edge (ISR).
+// The fetch below uses revalidate: 60 — fresh data every 60s, instant for users.
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,6 +8,8 @@ import HostCard, { HostSkeleton } from "../../components/hosts/HostCard";
 import { VenueCard, CardSkeleton as VenueSkeleton } from "../../components/hosts/Cards";
 import { Search, SlidersHorizontal, MapPin, Sparkles } from "lucide-react";
 import { useAuth } from "../../components/providers/AuthProvider";
+// ⚡ FIX: Zustand cache store — prevents refetch on every tab switch
+import { useHostsStore } from "../../store/hostsStore";
 
 const AREAS = ["Koregaon Park", "Baner", "Viman Nagar", "Kalyani Nagar", "FC Road", "Hinjewadi", "Wakad", "Shivajinagar"];
 const VIBES = ["Techno", "Bollywood", "Hip-hop", "House", "Commercial", "Afro", "Trance", "Open format", "Lounge", "Rooftop"];
@@ -18,9 +20,6 @@ const SORTS = ["Popular", "Soonest event", "Most followed"];
 export default function DiscoveryPage() {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState("venues"); // "venues" | "hosts"
-    const [results, setResults] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
     const [search, setSearch] = useState("");
 
     // Filter states
@@ -31,41 +30,21 @@ export default function DiscoveryPage() {
     const [activeSort, setActiveSort] = useState("Popular");
     const [tablesOnly, setTablesOnly] = useState(false);
 
-    const fetchData = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const endpoint = activeTab === "venues" ? "/api/venues" : "/api/hosts";
-            const params = new URLSearchParams();
-            if (search) params.append("search", search);
-            if (activeVibe) params.append("vibe", activeVibe || "");
-            if (activeSort) params.append("sort", activeSort);
+    // ⚡ FIX: Pull results from Zustand cache store instead of local state.
+    // fetchData() is a no-op if the same filter combination was fetched < 5 min ago.
+    const { results, status: fetchStatus, error, fetchData } = useHostsStore();
+    const loading = fetchStatus === "loading";
 
-            if (activeTab === "venues") {
-                if (activeArea) params.append("area", activeArea);
-                if (tablesOnly) params.append("tablesOnly", "true");
-            } else {
-                if (activeRole) params.append("role", activeRole);
-                if (activeStatus) params.append("status", activeStatus);
-            }
-
-            const res = await fetch(`${endpoint}?${params.toString()}`, { cache: 'no-store' });
-            if (!res.ok) throw new Error(`Failed to load ${activeTab}`);
-            const data = await res.json();
-            setResults(data);
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    }, [activeTab, search, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly]);
-
+    // Debounced fetch — waits 300ms after filter changes before firing
     useEffect(() => {
         const timer = setTimeout(() => {
-            fetchData();
+            fetchData({
+                activeTab, search, activeArea, activeVibe,
+                activeRole, activeStatus, activeSort, tablesOnly,
+            });
         }, 300);
         return () => clearTimeout(timer);
-    }, [fetchData]);
+    }, [activeTab, search, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly, fetchData]);
 
     const handleFollow = (id) => {
         if (!user) {

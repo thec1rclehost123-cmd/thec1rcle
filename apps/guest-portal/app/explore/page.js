@@ -9,6 +9,8 @@ import ExploreFilterBar from "../../components/ExploreFilterBar";
 import CategoryTabs from "../../components/CategoryTabs";
 import ExploreEventGrid from "../../components/ExploreEventGrid";
 import Skeleton from "../../components/ui/Skeleton";
+// ⚡ FIX 2: Import Zustand cache store — replaces local useState+fetch below
+import { useExploreStore } from "../../store/exploreStore";
 
 const sortTabs = ["Trending", "This Week", "New", "Soonest", "Price Low to High"];
 const dateFilters = [
@@ -97,9 +99,12 @@ const sortComparators = {
 
 export default function ExplorePage() {
   const [activeSort, setActiveSort] = useState(sortTabs[0]);
-  const [events, setEvents] = useState([]);
-  const [status, setStatus] = useState("loading");
-  const [error, setError] = useState("");
+
+  // ⚡ FIX 2: Pull events from Zustand cache instead of local state.
+  // On first mount: fetches from API and caches for 5 minutes.
+  // On tab-switch revisit (< 5min): returns cached data instantly — no network.
+  const { events, status, error, fetchEvents } = useExploreStore();
+
   const [selectedCity, setSelectedCity] = useState("");
   const [filters, setFilters] = useState({
     datePreset: "any",
@@ -114,39 +119,9 @@ export default function ExplorePage() {
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    const controller = new AbortController();
-    let cancelled = false;
-
-    async function loadEvents() {
-      setStatus("loading");
-      setError("");
-      try {
-        const response = await fetch("/api/events?limit=60&sort=heat", {
-          signal: controller.signal,
-          cache: "no-store"
-        });
-        if (!response.ok) {
-          throw new Error("Unable to fetch events");
-        }
-        const payload = await response.json();
-        if (!cancelled) {
-          setEvents(Array.isArray(payload) ? payload : []);
-          setStatus("ready");
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err?.name === "AbortError" ? "" : err.message || "Unable to fetch events");
-          setStatus(err?.name === "AbortError" ? "loading" : "error");
-        }
-      }
-    }
-
-    loadEvents();
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, []);
+    // Calls fetchEvents() — if cache is fresh, this is a no-op (instant)
+    fetchEvents();
+  }, [fetchEvents]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

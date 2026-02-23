@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { useAuth } from "../../components/providers/AuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -22,10 +23,32 @@ import Link from "next/link";
 import Image from "next/image";
 import ShimmerImage from "../../components/ShimmerImage";
 import { motion, AnimatePresence } from "framer-motion";
-import { QRCodeSVG } from "qrcode.react";
 import clsx from "clsx";
 import { Share2, ArrowLeftRight, ChevronLeft, ChevronRight, ExternalLink, Crown, Heart, User, Users, Ticket, Sparkles, XCircle } from "lucide-react";
-import CancelOrderModal from "../../components/CancelOrderModal";
+// ⚡ FIX: Zustand cache store — prevents refetch on every tab switch to /tickets
+import { useTicketsStore } from "../../store/ticketsStore";
+
+// ⚡ FIX 3: Lazy-load heavy components that are NOT needed on initial render.
+//
+// QRCodeSVG: Large library (~120KB). Only needed when user opens a ticket detail.
+// Loaded eagerly before = slows the initial /tickets route for ALL users,
+// even those who just want to glance at their ticket list.
+const QRCodeSVG = dynamic(
+    () => import("qrcode.react").then((mod) => mod.QRCodeSVG),
+    {
+        ssr: false, // QR generation needs browser canvas APIs
+        loading: () => (
+            <div className="animate-pulse w-[200px] h-[200px] rounded-2xl bg-black/5 dark:bg-white/5" />
+        )
+    }
+);
+
+// CancelOrderModal: Only shown when user clicks a cancel button.
+// No reason to parse this component's code on every /tickets page load.
+const CancelOrderModal = dynamic(
+    () => import("../../components/CancelOrderModal"),
+    { ssr: false }
+);
 
 // --- Hooks ---
 
@@ -1305,8 +1328,6 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
 function TicketsContent() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
-    const [tickets, setTickets] = useState({ upcomingTickets: [], pastTickets: [], actionNeeded: [], cancelledTickets: [] });
-    const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("upcoming");
     const [selectedTicket, setSelectedTicket] = useState(null);
     const searchParams = useSearchParams();
@@ -1314,6 +1335,11 @@ function TicketsContent() {
     const [partnerTicket, setPartnerTicket] = useState(null);
     const [transferTicket, setTransferTicket] = useState(null);
     const [cancellingOrder, setCancellingOrder] = useState(null);
+
+    // ⚡ FIX: Pull tickets from Zustand cache store instead of local state.
+    // loadTickets() is a no-op if the same user's data was fetched < 2 min ago.
+    const { tickets, status: ticketStatus, error: ticketError, loadTickets, invalidate } = useTicketsStore();
+    const loading = ticketStatus === "loading" || ticketStatus === "idle";
 
     // Listen for cancel order events from QR modal
     useEffect(() => {
@@ -1328,56 +1354,28 @@ function TicketsContent() {
         return () => window.removeEventListener('openCancelOrder', handler);
     }, []);
 
-    const loadTickets = async () => {
-        if (!user?.uid) return;
-        setLoading(true);
-        try {
-            const data = await getUserTickets(user.uid);
-
-            // Group tickets by Order ID for the summary view
-            const groupTickets = (list) => {
-                const groups = {};
-                list.forEach(t => {
-                    // Use orderId as primary key, fallback to eventId for RSVPs/unclassified
-                    const key = t.orderId || t.eventId;
-                    if (!groups[key]) {
-                        groups[key] = { ...t, isGroup: true, tickets: [] };
-                    }
-                    groups[key].tickets.push(t);
-                });
-                return Object.values(groups);
-            };
-
-            setTickets({
-                upcomingTickets: groupTickets(data.upcomingTickets),
-                pastTickets: groupTickets(data.pastTickets),
-                actionNeeded: data.actionNeeded,
-                cancelledTickets: data.cancelledTickets
-            });
-
-            // Handle Deep Linking
-            const targetEventId = searchParams.get("eventId");
-            if (targetEventId) {
-                const allGrouped = [...groupTickets(data.upcomingTickets), ...groupTickets(data.pastTickets)];
-                const ticketToOpen = allGrouped.find(t => t.eventId === targetEventId);
-
-                if (ticketToOpen) {
-                    setSelectedTicket(ticketToOpen);
-                    if (data.pastTickets.some(t => t.eventId === targetEventId)) {
-                        setActiveTab("past");
-                    }
-                }
-            }
-        } catch (error) {
-            console.error("Failed to load tickets", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
+    // Load tickets on mount — uses cache if available, fetches if stale
     useEffect(() => {
-        loadTickets();
-    }, [user?.uid, searchParams]);
+        if (user?.uid) {
+            loadTickets(user.uid);
+        }
+    }, [user?.uid, loadTickets]);
+
+    // Handle deep link: open specific ticket from URL ?eventId=
+    useEffect(() => {
+        if (ticketStatus !== "ready" || !searchParams) return;
+        const targetEventId = searchParams.get("eventId");
+        if (!targetEventId) return;
+
+        const allGrouped = [...tickets.upcomingTickets, ...tickets.pastTickets];
+        const ticketToOpen = allGrouped.find(t => t.eventId === targetEventId);
+        if (ticketToOpen) {
+            setSelectedTicket(ticketToOpen);
+            if (tickets.pastTickets.some(t => t.eventId === targetEventId)) {
+                setActiveTab("past");
+            }
+        }
+    }, [ticketStatus, searchParams]);
 
     if (authLoading) {
         return (
