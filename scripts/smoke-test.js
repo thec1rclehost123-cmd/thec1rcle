@@ -1,9 +1,9 @@
 /**
- * THE C1RCLE - Daily Smoke Test
+ * THE C1RCLE - Daily Smoke Test (ESM)
  * A lightweight script to verify that critical platform services are reachable.
  */
 
-const https = require('https');
+import https from 'https';
 
 const services = [
     { name: 'Guest Portal', url: process.env.STAGING_GUEST_URL || 'https://staging.thec1rcle.com' },
