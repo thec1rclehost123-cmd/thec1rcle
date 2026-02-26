@@ -30,21 +30,40 @@ export default function DiscoveryPage() {
     const [activeSort, setActiveSort] = useState("Popular");
     const [tablesOnly, setTablesOnly] = useState(false);
 
-    // ⚡ FIX: Pull results from Zustand cache store instead of local state.
-    // fetchData() is a no-op if the same filter combination was fetched < 5 min ago.
-    const { results, status: fetchStatus, error, fetchData } = useHostsStore();
+    // ⚡ FIX: Pull results from Zustand cache store
+    const {
+        results,
+        status: fetchStatus,
+        error,
+        fetchData,
+        hasMore
+    } = useHostsStore();
+
     const loading = fetchStatus === "loading";
 
-    // Debounced fetch — waits 300ms after filter changes before firing
+    // ⚡ Debounced Search logic
+    const [searchTerm, setSearchTerm] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+
     useEffect(() => {
-        const timer = setTimeout(() => {
-            fetchData({
-                activeTab, search, activeArea, activeVibe,
-                activeRole, activeStatus, activeSort, tablesOnly,
-            });
-        }, 300);
+        const timer = setTimeout(() => setDebouncedSearch(search), 300);
         return () => clearTimeout(timer);
-    }, [activeTab, search, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly, fetchData]);
+    }, [search]);
+
+    // Initial fetch + filter changes (reset = true)
+    useEffect(() => {
+        fetchData({
+            activeTab, search, activeArea, activeVibe,
+            activeRole, activeStatus, activeSort, tablesOnly,
+        }, true);
+    }, [activeTab, debouncedSearch, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly, fetchData]);
+
+    const handleLoadMore = () => {
+        fetchData({
+            activeTab, search, activeArea, activeVibe,
+            activeRole, activeStatus, activeSort, tablesOnly,
+        }, false);
+    };
 
     const handleFollow = (id) => {
         if (!user) {
@@ -215,18 +234,34 @@ export default function DiscoveryPage() {
                         <button onClick={clearAll} className="px-10 py-4 rounded-full bg-black dark:bg-white text-white dark:text-black text-[10px] font-bold uppercase tracking-widest shadow-glow">Reset {activeTab === "venues" ? "Explore" : "Hosts"}</button>
                     </div>
                 ) : (
-                    <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                        <AnimatePresence mode="popLayout">
-                            {results.map((item, idx) => (
-                                <motion.div key={item.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                    {activeTab === "hosts"
-                                        ? <HostCard host={item} index={idx} onFollow={handleFollow} />
-                                        : <VenueCard venue={item} onFollow={handleFollow} />
-                                    }
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
-                    </motion.div>
+                    <div className="space-y-12">
+                        <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                            <AnimatePresence mode="popLayout">
+                                {results.map((item, idx) => (
+                                    <motion.div key={item.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                        {activeTab === "hosts"
+                                            ? <HostCard host={item} index={idx} onFollow={handleFollow} />
+                                            : <VenueCard venue={item} onFollow={handleFollow} />
+                                        }
+                                    </motion.div>
+                                ))}
+                            </AnimatePresence>
+                        </motion.div>
+
+                        {hasMore && (
+                            <div className="flex justify-center">
+                                <button
+                                    onClick={handleLoadMore}
+                                    disabled={loading}
+                                    className="group flex items-center gap-4 px-10 py-5 rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-all duration-500 disabled:opacity-50"
+                                >
+                                    <span className="text-xs font-black uppercase tracking-[0.3em]">
+                                        {loading ? "Loading..." : "Load More"}
+                                    </span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
             <div className="py-20" />

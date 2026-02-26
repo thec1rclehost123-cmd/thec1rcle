@@ -1,19 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { NextResponse } from 'next/server';
+import { getOrderById } from '@/lib/server/orderStore';
+import { getEvent } from '@/lib/server/eventStore';
 
 /**
  * GET /api/passes/apple?orderId=xxx
- * 
+ *
  * Generates an Apple Wallet pass (.pkpass) for the given order.
- * 
- * Prerequisites (production):
- * - Apple Developer pass certificates (.p12 / .pem)
- * - passkit-generator npm package
- * - Pass Type ID registered with Apple
- * 
- * Currently returns a structured JSON with pass data that the mobile
- * app uses for rendering a pass preview. When Apple certificates are
- * configured, this will return an actual .pkpass binary.
+ * Data fetched via allowlisted store layer (no direct Firestore).
  */
 export async function GET(req) {
     const { searchParams } = new URL(req.url);
@@ -24,21 +17,14 @@ export async function GET(req) {
     }
 
     try {
-        // Fetch order
-        const orderDoc = await adminDb.collection('orders').doc(orderId).get();
-        if (!orderDoc.exists) {
+        const order = await getOrderById(orderId);
+        if (!order) {
             return NextResponse.json({ error: 'Order not found' }, { status: 404 });
         }
 
-        const order = { id: orderDoc.id, ...orderDoc.data() };
-
-        // Fetch event details
         let eventData = {};
         if (order.eventId) {
-            const eventDoc = await adminDb.collection('events').doc(order.eventId).get();
-            if (eventDoc.exists) {
-                eventData = eventDoc.data();
-            }
+            eventData = (await getEvent(order.eventId)) || {};
         }
 
         // Check if Apple Wallet certificates are configured
@@ -48,27 +34,18 @@ export async function GET(req) {
 
         if (hasAppleCerts) {
             // Production: Generate actual .pkpass file
-            // This requires the passkit-generator package and valid Apple certificates
-            //
-            // const passkit = require('passkit-generator');
-            // const pass = new passkit.PKPass({...});
-            // const buffer = await pass.generate();
-            //
-            // return new NextResponse(buffer, {
-            //     status: 200,
-            //     headers: {
-            //         'Content-Type': 'application/vnd.apple.pkpass',
-            //         'Content-Disposition': `attachment; filename="pass-${orderId.substring(0, 8)}.pkpass"`,
-            //     },
-            // });
-
-            // For now, return pass data as JSON (mobile app will show preview)
+            // (Apple certificates not yet configured — see TODO)
         }
 
-        // Return pass data for preview rendering on mobile
-        const startDate = eventData.startDate?.toDate
-            ? eventData.startDate.toDate()
-            : new Date(eventData.startDate || order.eventDate);
+        // Safe date parsing — eventData.startDate may be undefined when event fetch fails
+        let startDate = null;
+        const rawDate = eventData.startDate || order.eventDate;
+        if (rawDate) {
+            try {
+                const parsed = rawDate?.toDate ? rawDate.toDate() : new Date(rawDate);
+                if (!isNaN(parsed.getTime())) startDate = parsed;
+            } catch (_) { /* leave startDate null */ }
+        }
 
         const passData = {
             status: 'preview',
@@ -86,20 +63,16 @@ export async function GET(req) {
                         {
                             key: 'date',
                             label: 'DATE',
-                            value: startDate.toLocaleDateString('en-IN', {
-                                weekday: 'short',
-                                month: 'short',
-                                day: 'numeric',
-                            }),
+                            value: startDate
+                                ? startDate.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })
+                                : 'TBA',
                         },
                         {
                             key: 'time',
                             label: 'TIME',
-                            value: startDate.toLocaleTimeString('en-IN', {
-                                hour: 'numeric',
-                                minute: '2-digit',
-                                timeZone: 'Asia/Kolkata',
-                            }),
+                            value: startDate
+                                ? startDate.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })
+                                : 'TBA',
                         },
                     ],
                     secondaryFields: [
@@ -129,15 +102,9 @@ export async function GET(req) {
             },
         };
 
-        // Return 501 to indicate the feature is not yet fully implemented
-        // The mobile app checks for status 200 and falls back to PDF
         return NextResponse.json(passData, { status: 501 });
-
     } catch (error) {
         console.error('[Apple Pass] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to generate Apple Wallet pass' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: 'Failed to generate Apple Wallet pass' }, { status: 500 });
     }
 }

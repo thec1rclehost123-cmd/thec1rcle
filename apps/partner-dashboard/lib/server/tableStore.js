@@ -1,101 +1,48 @@
 /**
- * THE C1RCLE - Table Store
- * Manages club floor plans, table definitions, and event assignments.
+ * Table Store (Refactored for API Governance)
+ * 
+ * Uses the unified C1rcleApiClient to manage venue tables/floor plans.
+ * All table logic moved to @c1rcle/core/table-engine via API Gateway.
  */
 
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import { randomUUID } from "node:crypto";
+import { getApiClient } from "./apiClient";
 
-const TABLES_COLLECTION = "venue_tables";
-const TABLE_BOOKINGS_COLLECTION = "table_bookings";
-
-/**
- * Get all defined tables (floor plan) for a club
- */
-export async function getVenueMasterTables(venueId) {
-    if (!isFirebaseConfigured()) return [];
-
-    const db = getAdminDb();
-    const snapshot = await db.collection(TABLES_COLLECTION)
-        .where("venueId", "==", venueId)
-        .orderBy("name", "asc")
-        .get();
-
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+export async function getVenueMasterTables(venueId, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.getVenueTables(venueId);
+    } catch (error) {
+        console.error("[TableStore] getVenueMasterTables failed:", error.message);
+        return [];
+    }
 }
 
-/**
- * Create or update a master table in the club's floor plan
- */
-export async function saveMasterTable(venueId, tableData) {
-    const db = getAdminDb();
-    const id = tableData.id || randomUUID();
-    const now = new Date().toISOString();
-
-    const table = {
-        ...tableData,
-        id,
-        venueId,
-        updatedAt: now,
-        createdAt: tableData.createdAt || now
-    };
-
-    await db.collection(TABLES_COLLECTION).doc(id).set(table, { merge: true });
-    return table;
+export async function saveMasterTable(venueId, tableData, token) {
+    const client = getApiClient(token);
+    return client.saveTable(venueId, tableData);
 }
 
-/**
- * Delete a table from the floor plan
- */
-export async function deleteMasterTable(tableId) {
-    const db = getAdminDb();
-    await db.collection(TABLES_COLLECTION).doc(tableId).delete();
-    return { success: true };
+export async function deleteMasterTable(tableId, venueId, token) {
+    const client = getApiClient(token);
+    return client.deleteTable(tableId, venueId);
 }
 
-/**
- * Get table assignments and status for a specific event
- */
-export async function getEventTableStatus(eventId) {
-    const db = getAdminDb();
-
-    // 1. Get the event to see defined packages
-    const eventDoc = await db.collection("events").doc(eventId).get();
-    if (!eventDoc.exists) return null;
-    const event = eventDoc.data();
-
-    // 2. Get all bookings for this event's tables
-    const bookingsSnapshot = await db.collection(TABLE_BOOKINGS_COLLECTION)
-        .where("eventId", "==", eventId)
-        .get();
-
-    const bookings = bookingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-    return {
-        eventTables: event.tables || [],
-        bookings
-    };
+export async function getEventTableBookings(eventId, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.getEventTableBookings(eventId);
+    } catch (error) {
+        console.error("[TableStore] getEventTableBookings failed:", error.message);
+        return [];
+    }
 }
 
-/**
- * Manually block or reserve a table for an event (Internal Note)
- */
-export async function updateTableStatus(eventId, tableId, status, notes = "", metadata = {}) {
-    const db = getAdminDb();
-    const now = new Date().toISOString();
+export async function bookTable(eventId, tableId, bookingData, token) {
+    const client = getApiClient(token);
+    return client.bookTable(eventId, tableId, bookingData);
+}
 
-    const update = {
-        eventId,
-        tableId,
-        status, // 'reserved', 'blocked', 'available', 'paid'
-        notes,
-        updatedAt: now,
-        ...metadata
-    };
-
-    // This would typically update a 'table_assignments' or similar collection
-    // to track exactly which physical table is assigned to which guest/booking
-    await db.collection("table_assignments").doc(`${eventId}_${tableId}`).set(update, { merge: true });
-
-    return update;
+export async function releaseTable(bookingId, eventId, token) {
+    const client = getApiClient(token);
+    return client.releaseTable(bookingId, eventId);
 }

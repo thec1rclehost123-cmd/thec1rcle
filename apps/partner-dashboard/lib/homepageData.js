@@ -1,5 +1,4 @@
 import { cache } from "react";
-import { getAdminDb, isFirebaseConfigured } from "./firebase/admin";
 import { DEFAULT_CITY, getCategoryFilters, listEvents } from "./server/eventStore";
 import { formatEventTime, getEventHref } from "./eventCardUtils";
 
@@ -54,25 +53,10 @@ const toPlainDocument = (doc) => ({
   ...doc.data()
 });
 
-const loadCollectionWithSeed = async (collectionName, seed) => {
-  if (!isFirebaseConfigured()) {
-    return seed;
-  }
-  const db = getAdminDb();
-  const snapshot = await db.collection(collectionName).get();
-  if (snapshot.empty && seed?.length) {
-    const batch = db.batch();
-    seed.forEach((item) => {
-      const docId = item.slug || slugify(item.title);
-      batch.set(db.collection(collectionName).doc(docId), {
-        ...item,
-        updatedAt: new Date().toISOString()
-      });
-    });
-    await batch.commit();
-    return seed;
-  }
-  return snapshot.docs.map(toPlainDocument);
+const loadCollectionWithSeed = async (_collectionName, seed) => {
+  // Homepage CMS content is served from hardcoded seed by default.
+  // Live CMS updates flow through the API Gateway's /api/v1/cms route.
+  return seed ?? [];
 };
 
 const mapHeroCards = (events) =>

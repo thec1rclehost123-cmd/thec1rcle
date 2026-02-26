@@ -1,58 +1,46 @@
+/**
+ * THE C1RCLE - Host Settings API (BFF Proxy)
+ * Delegates to API Gateway for host configuration
+ */
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
+import { verifyAuth } from "@/lib/server/auth";
+
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
+
+async function gatewayRequest(url: string, init: RequestInit) {
+    const res = await fetch(url, init);
+    const data = await res.json().catch(() => ({}));
+    return NextResponse.json(data, { status: res.status });
+}
 
 /**
- * GET /api/host/settings
- * Fetches host-specific settings
+ * GET /api/host/settings?hostId=XXX
  */
 export async function GET(req: NextRequest) {
-    try {
-        const { searchParams } = new URL(req.url);
-        const hostId = searchParams.get("hostId");
+    if (!GATEWAY_URL) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+    const auth = await verifyAuth(req);
+    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-        if (!hostId) {
-            return NextResponse.json({ error: "hostId is required" }, { status: 400 });
-        }
-
-        const db = getAdminDb();
-        const doc = await db.collection("hosts").doc(hostId).get();
-        if (!doc.exists) return NextResponse.json({ error: "Host not found" }, { status: 404 });
-
-        return NextResponse.json(doc.data());
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const { searchParams } = new URL(req.url);
+    return gatewayRequest(
+        `${GATEWAY_URL}/api/v1/venue-settings/host?${searchParams.toString()}`,
+        { headers: { Authorization: req.headers.get("Authorization") || "" } }
+    );
 }
 
 /**
  * POST /api/host/settings
- * Updates host settings
+ * Update host settings
  */
 export async function POST(req: NextRequest) {
-    try {
-        const body = await req.json();
-        const { hostId, settings } = body;
+    if (!GATEWAY_URL) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+    const auth = await verifyAuth(req);
+    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-        if (!hostId) {
-            return NextResponse.json({ error: "hostId is required" }, { status: 400 });
-        }
-
-        const db = getAdminDb();
-        const allowedSettings = ["phone", "email", "socialLinks", "bankAccount", "payoutMode"];
-        const updates: any = {};
-
-        for (const key of allowedSettings) {
-            if (settings[key] !== undefined) {
-                updates[key] = settings[key];
-            }
-        }
-
-        updates.updatedAt = new Date().toISOString();
-
-        await db.collection("hosts").doc(hostId).update(updates);
-
-        return NextResponse.json({ success: true });
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const body = await req.json();
+    return gatewayRequest(`${GATEWAY_URL}/api/v1/venue-settings/host`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: req.headers.get("Authorization") || "" },
+        body: JSON.stringify(body)
+    });
 }

@@ -1,12 +1,12 @@
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import { Timestamp } from "firebase-admin/firestore";
+/**
+ * Connection Service (Refactored for API Governance)
+ * 
+ * Thin orchestrator over partnershipStore and promoterConnectionStore.
+ * Both stores are now SDK-backed, so this service delegates cleanly.
+ */
+
 import * as partnershipStore from "./partnershipStore";
 import * as promoterConnectionStore from "./promoterConnectionStore";
-
-/**
- * Connection Service
- * Bridges partnershipStore (Host <-> Venue) and promoterConnectionStore (Promoter <-> Host/Venue)
- */
 
 export async function createRequest({
     requesterId,
@@ -17,8 +17,8 @@ export async function createRequest({
     targetType,
     targetName,
     message = ""
-}) {
-    // 1. Host <-> Venue
+}, token) {
+    // Host <-> Venue partnership
     if (
         (requesterType === "host" && targetType === "venue") ||
         (requesterType === "venue" && targetType === "host")
@@ -27,13 +27,12 @@ export async function createRequest({
         const venueId = requesterType === "venue" ? requesterId : targetId;
         const hostName = requesterType === "host" ? requesterName : targetName;
         const venueName = requesterType === "venue" ? requesterName : targetName;
-
-        return await partnershipStore.requestPartnership(hostId, venueId, hostName, venueName);
+        return partnershipStore.requestPartnership(hostId, venueId, hostName, venueName, token);
     }
 
-    // 2. Anything involving a Promoter
+    // Promoter-initiated connection
     if (requesterType === "promoter") {
-        return await promoterConnectionStore.createConnectionRequest({
+        return promoterConnectionStore.createConnectionRequest({
             promoterId: requesterId,
             promoterName: requesterName,
             promoterEmail: requesterEmail,
@@ -41,99 +40,57 @@ export async function createRequest({
             targetType,
             targetName,
             message
-        });
+        }, token);
     }
 
+    // Target is a promoter
     if (targetType === "promoter") {
-        // Currently, promoterConnectionStore explicitly handles promoter as requester.
-        // If a Host/Venue requests a Promoter, we might need a new method or adapt existing.
-        // For now, the requirements say roles can request each other.
-        // Let's adapt createConnectionRequest or use it as is if it supports targetType=promoter.
-
-        // Actually, let's just use the promoterConnectionStore but swap roles if needed,
-        // or better, generalize promoterConnectionStore.
-        return await promoterConnectionStore.createConnectionRequest({
-            promoterId: targetId, // This is confusing, signifies the 'promoter' side of the connection
+        return promoterConnectionStore.createConnectionRequest({
+            promoterId: targetId,
             targetId: requesterId,
             targetType: requesterType,
             targetName: requesterName,
             message
-        });
+        }, token);
     }
 
     throw new Error(`Unsupported connection type: ${requesterType} to ${targetType}`);
 }
 
-export async function approveRequest(connectionId, role, partnerId, partnerName) {
-    // We need to know which store to use.
-    // Try both or check prefix/length (usually partnership IDs are auto-generated, promoter_connections IDs are randomUUID)
-
-    // Better: check which collection the ID belongs to.
-    const db = getAdminDb();
-
-    // Check partnerships first
-    const pDoc = await db.collection("partnerships").doc(connectionId).get();
-    if (pDoc.exists) {
-        return await partnershipStore.approvePartnership(connectionId);
+export async function approveRequest(connectionId, type, role, partnerId, partnerName, token) {
+    if (type === "partnership") {
+        return partnershipStore.approvePartnership(connectionId, token);
     }
-
-    // Check promoter_connections
-    const cDoc = await db.collection("promoter_connections").doc(connectionId).get();
-    if (cDoc.exists) {
-        return await promoterConnectionStore.approveConnectionRequest(connectionId, { uid: partnerId, name: partnerName, role });
-    }
-
-    throw new Error("Connection not found");
+    return promoterConnectionStore.approveConnectionRequest(connectionId, { uid: partnerId, name: partnerName, role }, token);
 }
 
-export async function rejectRequest(connectionId, role, partnerId, partnerName, reason = "") {
-    const db = getAdminDb();
-
-    const pDoc = await db.collection("partnerships").doc(connectionId).get();
-    if (pDoc.exists) {
-        return await partnershipStore.rejectPartnership(connectionId);
+export async function rejectRequest(connectionId, type, role, partnerId, partnerName, reason = "", token) {
+    if (type === "partnership") {
+        return partnershipStore.rejectPartnership(connectionId, reason, token);
     }
-
-    const cDoc = await db.collection("promoter_connections").doc(connectionId).get();
-    if (cDoc.exists) {
-        return await promoterConnectionStore.rejectConnectionRequest(connectionId, { uid: partnerId, name: partnerName, role }, reason);
-    }
-
-    throw new Error("Connection not found");
+    return promoterConnectionStore.rejectConnectionRequest(connectionId, { uid: partnerId, name: partnerName, role }, reason, token);
 }
 
-export async function blockRequest(connectionId, role, partnerId, partnerName, reason = "") {
-    const db = getAdminDb();
-
-    const pDoc = await db.collection("partnerships").doc(connectionId).get();
-    if (pDoc.exists) {
-        return await partnershipStore.blockPartnership(connectionId, { uid: partnerId, role }, reason);
+export async function blockRequest(connectionId, type, role, partnerId, partnerName, reason = "", token) {
+    if (type === "partnership") {
+        return partnershipStore.blockPartnership(connectionId, reason, token);
     }
-
-    const cDoc = await db.collection("promoter_connections").doc(connectionId).get();
-    if (cDoc.exists) {
-        return await promoterConnectionStore.blockConnectionRequest(connectionId, { uid: partnerId, role, name: partnerName }, reason);
-    }
-
-    throw new Error("Connection not found");
+    return promoterConnectionStore.blockConnectionRequest(connectionId, { uid: partnerId, role, name: partnerName }, reason, token);
 }
 
-
-export async function listConnections(partnerId, role, status = null) {
-    // Combines both stores
+export async function listConnections(partnerId, role, status = null, token) {
     const filters = {};
     if (role === "host") filters.hostId = partnerId;
     if (role === "venue") filters.venueId = partnerId;
     if (status) filters.status = status;
 
     const [partnerships, promoterConnections] = await Promise.all([
-        role === "promoter" ? [] : partnershipStore.listPartnerships(filters),
+        role === "promoter" ? [] : partnershipStore.listPartnerships(filters, token),
         role === "promoter"
-            ? promoterConnectionStore.listPromoterConnections(partnerId, status)
-            : promoterConnectionStore.listIncomingRequests(partnerId, role, status)
+            ? promoterConnectionStore.listPromoterConnections(partnerId, status, token)
+            : promoterConnectionStore.listIncomingRequests(partnerId, role, status, token)
     ]);
 
-    // Normalize
     const normalizedPartnerships = partnerships.map(p => ({
         id: p.id,
         type: "partnership",
@@ -157,7 +114,6 @@ export async function listConnections(partnerId, role, status = null) {
         message: c.message
     }));
 
-    return [...normalizedPartnerships, ...normalizedPromoters].sort((a, b) =>
-        (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0)
-    );
+    return [...normalizedPartnerships, ...normalizedPromoters]
+        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 }

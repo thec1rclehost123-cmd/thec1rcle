@@ -1,19 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { NextResponse } from 'next/server';
+import { getOrderById } from '@/lib/server/orderStore';
+import { getEvent } from '@/lib/server/eventStore';
 
 /**
  * GET /api/passes/google?orderId=xxx
- * 
+ *
  * Generates a Google Wallet save URL for the given order.
- * 
- * Prerequisites (production):
- * - Google Cloud project with Google Wallet API enabled
- * - Service account with Wallet Object Issuer permissions
- * - Issuer ID configured in Google Pay & Wallet Console
- * 
- * The response contains a `saveUrl` that the mobile app opens to
- * add the pass to Google Wallet. Currently returns preview data
- * until Google Wallet credentials are configured.
+ * Data fetched via allowlisted store layer (no direct Firestore).
  */
 export async function GET(req) {
     const { searchParams } = new URL(req.url);
@@ -24,21 +17,14 @@ export async function GET(req) {
     }
 
     try {
-        // Fetch order
-        const orderDoc = await adminDb.collection('orders').doc(orderId).get();
-        if (!orderDoc.exists) {
+        const order = await getOrderById(orderId);
+        if (!order) {
             return NextResponse.json({ error: 'Order not found' }, { status: 404 });
         }
 
-        const order = { id: orderDoc.id, ...orderDoc.data() };
-
-        // Fetch event details
         let eventData = {};
         if (order.eventId) {
-            const eventDoc = await adminDb.collection('events').doc(order.eventId).get();
-            if (eventDoc.exists) {
-                eventData = eventDoc.data();
-            }
+            eventData = (await getEvent(order.eventId)) || {};
         }
 
         // Check if Google Wallet credentials are configured
@@ -47,29 +33,18 @@ export async function GET(req) {
 
         if (hasGoogleCreds) {
             // Production: Generate JWT and create save URL
-            //
-            // 1. Create the event ticket object
-            // const ticketObject = {
-            //     id: `${ISSUER_ID}.${orderId}`,
-            //     classId: `${ISSUER_ID}.${eventId}`,
-            //     state: 'ACTIVE',
-            //     ... (event ticket fields)
-            // };
-            //
-            // 2. Sign JWT with service account
-            // const token = jwt.sign({ ... }, serviceAccountKey);
-            //
-            // 3. Return save URL
-            // return NextResponse.json({
-            //     saveUrl: `https://pay.google.com/gp/v/save/${token}`,
-            // });
+            // (Google Wallet credentials not yet configured — see TODO)
         }
 
-        // Return preview data with 501 status
-        // The mobile app checks for response.ok (status 200) and falls back to PDF
-        const startDate = eventData.startDate?.toDate
-            ? eventData.startDate.toDate()
-            : new Date(eventData.startDate || order.eventDate);
+        // Safe date parsing — eventData.startDate may be undefined when event fetch fails
+        let dateTimeIso;
+        const rawDate = eventData.startDate || order.eventDate;
+        if (rawDate) {
+            try {
+                const parsed = rawDate?.toDate ? rawDate.toDate() : new Date(rawDate);
+                if (!isNaN(parsed.getTime())) dateTimeIso = parsed.toISOString();
+            } catch (_) { /* leave dateTimeIso undefined */ }
+        }
 
         const passData = {
             status: 'preview',
@@ -77,7 +52,7 @@ export async function GET(req) {
             pass: {
                 eventName: eventData.title || order.eventTitle,
                 venue: eventData.location || eventData.venueLocation || order.venue || 'TBA',
-                dateTime: startDate.toISOString(),
+                ...(dateTimeIso && { dateTime: dateTimeIso }),
                 ticketType: order.tickets?.[0]?.tierName || 'General',
                 quantity: order.quantity || 1,
                 orderId: orderId.substring(0, 8).toUpperCase(),
@@ -89,12 +64,8 @@ export async function GET(req) {
         };
 
         return NextResponse.json(passData, { status: 501 });
-
     } catch (error) {
         console.error('[Google Pass] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to generate Google Wallet pass' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: 'Failed to generate Google Wallet pass' }, { status: 500 });
     }
 }

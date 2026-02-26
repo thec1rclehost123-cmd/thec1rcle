@@ -51,3 +51,23 @@ export async function notifySale(venueId, saleData) {
         timestamp: new Date().toISOString()
     }));
 }
+
+/**
+ * Track user interaction (swipe, click, view)
+ */
+export async function trackInteraction(userId, targetId, type, metadata = {}) {
+    const redis = getRedisClient();
+    const event = {
+        userId,
+        targetId,
+        type,
+        metadata,
+        timestamp: new Date().toISOString()
+    };
+
+    // 1. Push to a Redis Stream or List for real-time processing
+    await redis.lpush('raw_interactions', JSON.stringify(event));
+
+    // 2. Publish for real-time dashboards
+    await redis.publish('interactions:stream', JSON.stringify(event));
+}

@@ -1,12 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { NextResponse } from 'next/server';
+import { getOrderById } from '@/lib/server/orderStore';
+import { getEvent } from '@/lib/server/eventStore';
+import { getUserProfile } from '@/lib/server/profileStore';
 import { generateTicketPDF } from '@/lib/email/generateTicketPDF';
 
 /**
  * GET /api/tickets/download?orderId=xxx
- * 
+ *
  * Generates and returns a PDF ticket for the given order.
- * Requires the order's userId to match or allow public QR access.
+ * Data is fetched via allowlisted store layer (no direct Firestore).
  */
 export async function GET(req) {
     const { searchParams } = new URL(req.url);
@@ -17,52 +19,44 @@ export async function GET(req) {
     }
 
     try {
-        // Fetch order from Firestore
-        const orderDoc = await adminDb.collection('orders').doc(orderId).get();
-        if (!orderDoc.exists) {
+        // Fetch order via store layer
+        const order = await getOrderById(orderId);
+        if (!order) {
             return NextResponse.json({ error: 'Order not found' }, { status: 404 });
         }
 
-        const order = { id: orderDoc.id, ...orderDoc.data() };
-
-        // Fetch event details
+        // Fetch event details via store layer
         let eventName = order.eventTitle || 'Event';
         let eventDate = '';
         let eventTime = '';
         let location = '';
 
         if (order.eventId) {
-            const eventDoc = await adminDb.collection('events').doc(order.eventId).get();
-            if (eventDoc.exists) {
-                const event = eventDoc.data();
+            const event = await getEvent(order.eventId);
+            if (event) {
                 eventName = event.title || eventName;
                 location = event.location || event.venueLocation || '';
 
                 if (event.startDate) {
                     const date = event.startDate?.toDate ? event.startDate.toDate() : new Date(event.startDate);
                     eventDate = date.toLocaleDateString('en-IN', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
                         timeZone: 'Asia/Kolkata',
                     });
                     eventTime = date.toLocaleTimeString('en-IN', {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        timeZone: 'Asia/Kolkata',
+                        hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata',
                     });
                 }
             }
         }
 
-        // Fetch user name
+        // Fetch user display name — orders store userId, not userName
         let userName = 'Guest';
         if (order.userId) {
-            const userDoc = await adminDb.collection('users').doc(order.userId).get();
-            if (userDoc.exists) {
-                userName = userDoc.data().displayName || userDoc.data().name || 'Guest';
-            }
+            try {
+                const profile = await getUserProfile(order.userId);
+                userName = profile?.displayName || profile?.name || 'Guest';
+            } catch (_) { /* non-critical — fall back to Guest */ }
         }
 
         // Build ticket list
@@ -85,7 +79,6 @@ export async function GET(req) {
             isRSVP: order.totalAmount === 0,
         });
 
-        // Return as PDF
         return new NextResponse(pdfBuffer, {
             status: 200,
             headers: {
@@ -96,9 +89,6 @@ export async function GET(req) {
         });
     } catch (error) {
         console.error('[Ticket Download] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to generate ticket' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: 'Failed to generate ticket' }, { status: 500 });
     }
 }

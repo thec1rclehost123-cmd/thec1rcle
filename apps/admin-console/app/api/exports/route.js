@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { withAdminAuth } from "@/lib/server/adminMiddleware";
-import { getAdminDb } from "@/lib/firebase/admin";
 import { adminStore } from "@/lib/server/adminStore";
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_EXPORTS = ['users', 'venues', 'hosts', 'events', 'orders', 'admin_logs'];
+const ALLOWED_EXPORTS = ['users', 'venues', 'hosts', 'events', 'orders', 'admin_audit_logs'];
 
 async function handler(req) {
     try {
@@ -27,11 +26,6 @@ async function handler(req) {
         }
 
         // --- 🔐 RBAC ENFORCEMENT ---
-        // Matrix:
-        // Super: All
-        // Finance: users, orders, payments, host_applications
-        // Ops: users, venues, events, hosts, safety_reports
-        // Others: Deny
         const ALLOWED_MAP = {
             'super': ['*'],
             'finance': ['users', 'orders', 'payments', 'host_applications', 'admin_audit_logs'],
@@ -43,23 +37,13 @@ async function handler(req) {
             return NextResponse.json({ error: "Access Denied: Insufficient authority for this dataset." }, { status: 403 });
         }
 
-        const db = getAdminDb();
-        let query = db.collection(collection).limit(limit);
-
-        // Enforce deterministic ordering for exports
-        if (collection === 'users' || collection === 'orders' || collection === 'admin_audit_logs') {
-            query = query.orderBy('createdAt', 'desc'); // or ts/timestamp depending on collection, but createdAt is safe default or fields need alignment
-        }
-
-        const snapshot = await query.get();
-        const rawData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const rawData = await adminStore.exportCollection(collection, limit);
 
         if (rawData.length === 0) {
             return NextResponse.json({ error: "No data available for export" }, { status: 404 });
         }
 
         // --- 🧹 PII SANITIZATION ---
-        // Enhanced redaction list
         const BLOCKED_FIELDS = [
             'password', 'hash', 'salt', 'token', 'refreshToken', 'accessToken',
             'secret', 'key', 'otp', 'emailVerified', 'phoneNumber',
@@ -69,20 +53,15 @@ async function handler(req) {
         const data = rawData.map(item => {
             const clean = { ...item };
 
-            // Explicit PII removal for non-super/finance
             if (adminRole !== 'super' && adminRole !== 'finance') {
                 if (clean.email) clean.email = '[REDACTED]';
                 if (clean.phone) clean.phone = '[REDACTED]';
             }
 
-            BLOCKED_FIELDS.forEach(f => {
-                if (f in clean) clean[f] = '[REDACTED]';
-            });
+            BLOCKED_FIELDS.forEach(f => { if (f in clean) clean[f] = '[REDACTED]'; });
 
-            // Nested object redaction (shallow)
             Object.keys(clean).forEach(k => {
                 if (typeof clean[k] === 'object' && clean[k] !== null) {
-                    // Check common nested PII
                     if (clean[k].token) clean[k].token = '[REDACTED]';
                     if (clean[k].secret) clean[k].secret = '[REDACTED]';
                 }
@@ -98,7 +77,6 @@ async function handler(req) {
         ];
         const csvString = csvRows.join('\n');
 
-        // Task 3: Unified Auditing using logAdminAction
         await adminStore.logAdminAction({
             adminId,
             adminRole,

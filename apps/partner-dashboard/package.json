@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "next dev -p 3001",
+    "dev:staging": "cmd /c \"copy /Y .env.staging .env.local\" && next dev -p 3001",
+    "dev:prod": "cmd /c \"copy /Y .env.production .env.local\" && next dev -p 3001",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

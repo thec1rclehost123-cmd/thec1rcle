@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { getAdminDb } from "@/lib/firebase/admin";
+import { adminStore } from "@/lib/server/adminStore";
 import { withAdminAuth } from "@/lib/server/adminMiddleware";
+
+export const dynamic = 'force-dynamic';
 
 async function handler(req) {
     const start = Date.now();
@@ -20,15 +22,9 @@ async function handler(req) {
     };
 
     try {
-        const db = getAdminDb();
-        // Database Check
-        await db.collection('admin_audit_config').doc('integrity_state').get();
-        results.services.database = 'Healthy';
-
-        // Audit Pipeline Check (fetch last 1 log)
-        const lastLog = await db.collection('admin_audit_logs').orderBy('sequence', 'desc').limit(1).get();
-        results.services.audit_pipeline = lastLog.empty ? 'Empty' : 'Healthy';
-
+        const health = await adminStore.getHealthStatus();
+        results.services.database = health.database;
+        results.services.audit_pipeline = health.audit_pipeline;
     } catch (err) {
         results.status = 'Degraded';
         results.error = err.message;

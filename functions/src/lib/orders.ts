@@ -7,156 +7,76 @@ import { getTierInventoryStats } from './reservations';
 const ORDERS_COLLECTION = "orders";
 const RSVP_COLLECTION = "rsvp_orders";
 
+
+// @ts-ignore
+import { executeOrderCreation as coreExecuteOrderCreation } from '@c1rcle/core/order-engine';
+// @ts-ignore
+import inventoryEngine from '@c1rcle/core/inventory-engine';
+
 export async function createOrder(payload: any) {
     const {
         eventId,
-        tickets,
-        // userId,
-        // userEmail,
-        // userName,
         reservationId = null
     } = payload;
 
     const event = await getEvent(eventId);
-    if (!event) {
-        throw new Error("Event not found");
-    }
+    if (!event) throw new Error("Event not found");
 
     // Atomic transaction
-    return await db.runTransaction(async (transaction) => {
-        const eventRef = db.collection("events").doc(eventId);
-        const eventDoc = await transaction.get(eventRef);
-
-        if (!eventDoc.exists) {
-            throw new Error(`Event not found in transaction`);
-        }
-
-        const currentEvent = eventDoc.data()!;
-        const updatedTickets = [...(currentEvent.tickets || [])];
-        const ticketUpdates = tickets.map((t: any) => ({
-            ticketId: t.ticketId,
-            quantity: Number(t.quantity)
-        }));
-
-        // Check if order already exists inside the transaction (High-Concurrency Idempotency)
+    return await db.runTransaction(async (transaction: any) => {
         const orderId = reservationId ? `ORD-${reservationId}` : `ORD-${Date.now()}`;
-        const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
-        const existingOrderDoc = await transaction.get(orderRef);
 
-        if (existingOrderDoc.exists) {
-            return existingOrderDoc.data();
-        }
+        // Inject dependencies for core engine
+        transaction.db = db;
 
-        // --- SHARDED INVENTORY UPDATE ---
-        for (const update of ticketUpdates) {
-            const ticketIndex = updatedTickets.findIndex((t: any) => t.id === update.ticketId);
-            if (ticketIndex === -1) throw new Error("Ticket not found");
-
-            // Determine which shard to use (if reserved, use the same shard that held the lock)
-            let shardId = "0";
-            if (reservationId) {
-                const resDoc = await transaction.get(db.collection("cart_reservations").doc(reservationId));
-                if (resDoc.exists) shardId = resDoc.data()!.shardId || "0";
-            } else {
-                // Pick random shard for direct purchases
-                shardId = Math.floor(Math.random() * 10).toString();
-            }
-
-            const shardRef = eventRef.collection('ticket_shards').doc(`${update.ticketId}_${shardId}`);
-            const shardDoc = await transaction.get(shardRef);
-
-            if (reservationId) {
-                // CONVERT LOCK TO SALE: Decrement locked, Increment sold
-                if (shardDoc.exists) {
-                    transaction.update(shardRef, {
-                        lockedQuantity: Math.max(0, (shardDoc.data()!.lockedQuantity || 0) - update.quantity),
-                        soldQuantity: admin.firestore.FieldValue.increment(update.quantity),
-                        updatedAt: new Date().toISOString()
-                    });
-                } else {
-                    transaction.set(shardRef, {
-                        tierId: update.ticketId,
-                        lockedQuantity: 0,
-                        soldQuantity: update.quantity,
-                        updatedAt: new Date().toISOString()
-                    });
-                }
-            } else {
-                // DIRECT PURCHASE: Just increment sold
-                if (shardDoc.exists) {
-                    transaction.update(shardRef, {
-                        soldQuantity: admin.firestore.FieldValue.increment(update.quantity),
-                        updatedAt: new Date().toISOString()
-                    });
-                } else {
-                    transaction.set(shardRef, {
-                        tierId: update.ticketId,
-                        lockedQuantity: 0,
-                        soldQuantity: update.quantity,
-                        updatedAt: new Date().toISOString()
-                    });
-                }
-            }
-        }
-
-        // Update event timestamp only (avoid writing large tickets array for scale)
-        transaction.update(eventRef, {
-            updatedAt: new Date().toISOString()
-        });
-
-        // Create Order
         const orderData: any = {
             ...payload,
             id: orderId,
             status: payload.totalAmount === 0 ? 'confirmed' : 'pending_payment',
-            ledger: payload.ledger || {}, // Store audit ledger from pricing
+            ledger: payload.ledger || {},
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
 
-        // Generate QR codes if confirmed
-        if (orderData.status === 'confirmed') {
-            orderData.qrCodes = generateOrderQRCodes(orderData, currentEvent);
-            orderData.confirmedAt = new Date().toISOString();
-            orderData.confirmationSource = payload.totalAmount === 0 ? 'system_zero_total' : 'internal_override';
+        // 1. Execute unified order creation and inventory commitment
+        const finalOrder = await coreExecuteOrderCreation(transaction, {
+            db,
+            event,
+            orderData,
+            reservationId,
+            inventoryEngine
+        });
+
+        // 2. Generate QR codes if confirmed
+        if (finalOrder.status === 'confirmed') {
+            finalOrder.qrCodes = generateOrderQRCodes(finalOrder, event);
+            finalOrder.confirmedAt = new Date().toISOString();
 
             // Record promo redemption if applicable
-            if (orderData.promoCodeId) {
+            if (finalOrder.promoCodeId) {
                 const { recordRedemption } = await import('./promos');
-                await recordRedemption(orderData.promoCodeId, orderId, orderData.userId, {
-                    discountAmount: orderData.discountAmount || 0
+                await recordRedemption(finalOrder.promoCodeId, orderId, finalOrder.userId, {
+                    discountAmount: finalOrder.discountAmount || 0
                 });
             }
-        }
 
-        transaction.set(orderRef, orderData);
-
-        // --- PUBLIC DISCOVERY SYNC ---
-        if (orderData.status === 'confirmed') {
-            const attendeeRef = db.collection('public_attendees').doc(`${orderData.userId}_${orderData.eventId}`);
-
-            // Fetch profile for denormalization
-            const userDoc = await transaction.get(db.collection('users').doc(orderData.userId));
+            // --- PUBLIC DISCOVERY SYNC ---
+            const attendeeRef = db.collection('public_attendees').doc(`${finalOrder.userId}_${finalOrder.eventId}`);
+            const userDoc = await transaction.get(db.collection('users').doc(finalOrder.userId));
             const userData = userDoc.exists ? userDoc.data() : {};
 
             transaction.set(attendeeRef, {
-                userId: orderData.userId,
-                userName: userData?.displayName || orderData.userName || "C1RCLE Member",
+                userId: finalOrder.userId,
+                userName: userData?.displayName || finalOrder.userName || "C1RCLE Member",
                 userAvatar: userData?.photoURL || null,
-                eventId: orderData.eventId,
+                eventId: finalOrder.eventId,
                 orderId: orderId,
                 joinedAt: new Date().toISOString(),
-                type: orderData.isRSVP ? 'rsvp' : 'purchase'
+                type: finalOrder.isRSVP ? 'rsvp' : 'purchase'
             });
         }
 
-        // If reserved, mark reservation as converted
-        if (reservationId) {
-            const resRef = db.collection("cart_reservations").doc(reservationId);
-            transaction.update(resRef, { status: 'converted', orderId: orderId, updatedAt: new Date().toISOString() });
-        }
-
-        return orderData;
+        return finalOrder;
     });
 }
 

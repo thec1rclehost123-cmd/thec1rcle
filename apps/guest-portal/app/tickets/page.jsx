@@ -1711,10 +1711,13 @@ function TicketsContent() {
                                                         action={action}
                                                         onAccept={async (id) => {
                                                             await acceptTransfer(id);
-                                                            loadTickets();
+                                                            invalidate(user.uid);
+                                                            loadTickets(user.uid);
                                                         }}
                                                         onDecline={async (id) => {
-                                                            loadTickets();
+                                                            await cancelTransfer(id);
+                                                            invalidate(user.uid);
+                                                            loadTickets(user.uid);
                                                         }}
                                                     />
                                                 ))}
@@ -1775,7 +1778,8 @@ function TicketsContent() {
                         onClose={() => setPartnerTicket(null)}
                         onSuccess={() => {
                             setPartnerTicket(null);
-                            loadTickets();
+                            invalidate(user.uid);
+                            loadTickets(user.uid);
                         }}
                     />
                 )}
@@ -1785,7 +1789,8 @@ function TicketsContent() {
                         onClose={() => setSharingTicket(null)}
                         onSuccess={() => {
                             setSharingTicket(null);
-                            loadTickets();
+                            invalidate(user.uid);
+                            loadTickets(user.uid);
                         }}
                     />
                 )}
@@ -1795,7 +1800,8 @@ function TicketsContent() {
                         onClose={() => setTransferTicket(null)}
                         onSuccess={() => {
                             setTransferTicket(null);
-                            loadTickets();
+                            invalidate(user.uid);
+                            loadTickets(user.uid);
                         }}
                     />
                 )}
@@ -1808,7 +1814,8 @@ function TicketsContent() {
                 order={cancellingOrder}
                 onSuccess={() => {
                     setCancellingOrder(null);
-                    loadTickets(); // Refresh tickets after cancellation
+                    invalidate(user.uid);
+                    loadTickets(user.uid);
                 }}
             />
 

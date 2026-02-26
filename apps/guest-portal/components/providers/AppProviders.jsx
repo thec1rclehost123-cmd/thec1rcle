@@ -5,6 +5,7 @@ import AuthProvider from "./AuthProvider";
 import ToastProvider from "./ToastProvider";
 import GlobalAuthManager from "../GlobalAuthManager";
 import OfflineListener from "../OfflineListener";
+import CacheWarmer from "../CacheWarmer";
 
 export default function AppProviders({ children }) {
   return (
@@ -13,6 +14,7 @@ export default function AppProviders({ children }) {
         <ToastProvider>
           <GlobalAuthManager />
           <OfflineListener />
+          <CacheWarmer />
           {children}
         </ToastProvider>
       </AuthProvider>

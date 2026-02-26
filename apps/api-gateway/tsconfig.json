@@ -1,0 +1,58 @@
+{
+  "compilerOptions": {
+    // File Layout
+    "rootDir": "src",
+    "outDir": "dist",
+    // Environment Settings
+    "module": "esnext",
+    "target": "es2020",
+    // Monorepo: packages are hoisted to workspace root node_modules.
+    // node10 walks up directories — but the local node_modules/@types stops the search
+    // before reaching root. typeRoots explicitly points TypeScript at root @types.
+    "moduleResolution": "node",
+    "typeRoots": [
+      "../../node_modules/@types",
+      "node_modules/@types"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "fastify": [
+        "../../node_modules/fastify"
+      ],
+      "fastify/*": [
+        "../../node_modules/fastify/*"
+      ],
+      "@fastify/*": [
+        "../../node_modules/@fastify/*"
+      ],
+      "@c1rcle/core/*": [
+        "../../packages/core/*"
+      ],
+      "firebase-admin": [
+        "../../node_modules/firebase-admin"
+      ],
+      "firebase-admin/*": [
+        "../../node_modules/firebase-admin/*"
+      ],
+      "fastify-plugin": [
+        "../../node_modules/fastify-plugin"
+      ],
+      "fastify-plugin/*": [
+        "../../node_modules/fastify-plugin/*"
+      ]
+    },
+    // Other Outputs
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    // Strict mode — relaxed from original config to match JS-first codebase
+    "strict": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "src/**/*"
+  ]
+}

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAdminDb } from "@/lib/firebase/admin";
+import { adminStore } from "@/lib/server/adminStore";
 import { withAdminAuth } from "@/lib/server/adminMiddleware";
 
 export const dynamic = 'force-dynamic';
@@ -13,39 +13,31 @@ async function handler(req) {
             return NextResponse.json({ error: "Search query too short" }, { status: 400 });
         }
 
-        const db = getAdminDb();
-        const results = [];
+        // Try direct doc fetch by ID for each entity type (O(1) per collection),
+        // plus an email scan for users (list-based).
+        // Bug fix: never use listCollection(..., {limit:1}).find() for ID lookup —
+        // listCollection sorts by createdAt and returns the FIRST doc, not the one with matching ID.
+        const [userById, userByEmail, venueById, hostById, promoterById, eventById, orderById] = await Promise.all([
+            adminStore.getDocumentById('users', q),
+            adminStore.listCollection('users', { limit: 50 }).then(r => r.filter(u => u.email === q.toLowerCase())),
+            adminStore.getDocumentById('venues', q),
+            adminStore.getDocumentById('hosts', q),
+            adminStore.getDocumentById('promoters', q),
+            adminStore.getDocumentById('events', q),
+            adminStore.getDocumentById('orders', q),
+        ]);
 
-        // 1. Search Users (by email, phone, ID)
-        const userById = await db.collection('users').doc(q).get();
-        if (userById.exists) results.push({ type: 'user', ...userById.data(), id: userById.id });
+        const results = [
+            ...(userById ? [{ type: 'user', ...userById }] : []),
+            ...userByEmail.map(u => ({ type: 'user', ...u })),
+            ...(venueById ? [{ type: 'venue', ...venueById }] : []),
+            ...(hostById ? [{ type: 'host', ...hostById }] : []),
+            ...(promoterById ? [{ type: 'promoter', ...promoterById }] : []),
+            ...(eventById ? [{ type: 'event', ...eventById }] : []),
+            ...(orderById ? [{ type: 'order', ...orderById }] : []),
+        ];
 
-        const userByEmail = await db.collection('users').where('email', '==', q.toLowerCase()).get();
-        userByEmail.forEach(doc => results.push({ type: 'user', ...doc.data(), id: doc.id }));
-
-        // 2. Search Venues
-        const venueById = await db.collection('venues').doc(q).get();
-        if (venueById.exists) results.push({ type: 'venue', ...venueById.data(), id: venueById.id });
-
-        // 3. Search Hosts
-        const hostById = await db.collection('hosts').doc(q).get();
-        if (hostById.exists) results.push({ type: 'host', ...hostById.data(), id: hostById.id });
-
-        // 4. Search Promoters
-        const promoterById = await db.collection('promoters').doc(q).get();
-        if (promoterById.exists) results.push({ type: 'promoter', ...promoterById.data(), id: promoterById.id });
-
-        // 5. Search Events
-        const eventById = await db.collection('events').doc(q).get();
-        if (eventById.exists) results.push({ type: 'event', ...eventById.data(), id: eventById.id });
-
-        // 6. Search Orders
-        const orderById = await db.collection('orders').doc(q).get();
-        if (orderById.exists) results.push({ type: 'order', ...orderById.data(), id: orderById.id });
-
-        // Deduplicate results by ID
         const uniqueResults = Array.from(new Map(results.map(item => [item.id, item])).values());
-
         return NextResponse.json({ results: uniqueResults });
     } catch (error) {
         console.error("Lookup Error:", error.message);

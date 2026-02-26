@@ -11,6 +11,8 @@ import { createOrder, confirmOrder } from "./orderStore";
 import { generateOrderQRCodes } from "./qrStore";
 import { getPromoterLinkByCode, recordConversion } from "./promoterStore";
 import { validatePromoCode } from "@c1rcle/core/promo-service";
+import { calculatePricing as coreCalculatePricing, getEffectivePrice } from "@c1rcle/core/pricing-engine";
+import { createReservation as coreCreateReservation, releaseReservation as coreReleaseReservation } from "@c1rcle/core/inventory-engine";
 
 
 // Constants
@@ -20,243 +22,84 @@ const RESERVATIONS_COLLECTION = "cart_reservations";
 // In-memory fallback
 const fallbackReservations = new Map();
 
-/**
- * Get effective price for a tier at a given timestamp
- */
-function getEffectivePrice(tier, timestamp = new Date()) {
-    const now = timestamp instanceof Date ? timestamp : new Date(timestamp);
+// getEffectivePrice is now imported from @c1rcle/core/pricing-engine
 
-    // Check scheduled prices
-    if (tier.scheduledPrices && Array.isArray(tier.scheduledPrices)) {
-        for (const schedule of tier.scheduledPrices) {
-            const startsAt = new Date(schedule.startsAt);
-            const endsAt = new Date(schedule.endsAt);
-
-            if (now >= startsAt && now <= endsAt) {
-                return {
-                    price: schedule.price,
-                    label: schedule.name,
-                    isScheduled: true
-                };
-            }
-        }
-    }
-
-    // Fall back to base price
-    return {
-        price: tier.basePrice ?? tier.price ?? 0,
-        label: null,
-        isScheduled: false
-    };
-}
 
 /**
  * Check availability and create a cart reservation
  */
 export async function createCartReservation(eventId, customerId, deviceId, items, options = {}) {
     const { queueId = null } = options;
-    const event = await getEvent(eventId);
-    if (!event) {
-        return { success: false, error: 'Event not found' };
-    }
-
-    const db = isFirebaseConfigured() ? getAdminDb() : null;
+    const db = getAdminDb();
 
     // 1. Idempotency Check: Return existing active reservation for this queueId
-    if (queueId) {
-        let existingRes = null;
-        if (!isFirebaseConfigured()) {
-            for (const res of fallbackReservations.values()) {
-                if (res.queueId === queueId && res.status === 'active' && new Date(res.expiresAt) > new Date()) {
-                    existingRes = res;
-                    break;
-                }
+    if (queueId && isFirebaseConfigured()) {
+        const snapshot = await db.collection(RESERVATIONS_COLLECTION)
+            .where('queueId', '==', queueId)
+            .where('status', '==', 'active')
+            .limit(1)
+            .get();
+        if (!snapshot.empty) {
+            const doc = snapshot.docs[0];
+            const data = doc.data();
+            if (new Date(data.expiresAt) > new Date()) {
+                console.log(`[CheckoutService] Reusing existing reservation ${doc.id} for queueId ${queueId}`);
+                return {
+                    success: true,
+                    reservationId: doc.id,
+                    items: data.items,
+                    expiresAt: data.expiresAt,
+                    expiresInSeconds: Math.floor((new Date(data.expiresAt) - new Date()) / 1000)
+                };
             }
-        } else {
-            const snapshot = await db.collection(RESERVATIONS_COLLECTION)
-                .where('queueId', '==', queueId)
-                .where('status', '==', 'active')
-                .limit(1)
-                .get();
-            if (!snapshot.empty) {
-                const doc = snapshot.docs[0];
-                const data = doc.data();
-                if (new Date(data.expiresAt) > new Date()) {
-                    existingRes = { id: doc.id, ...data };
-                }
-            }
-        }
-
-        if (existingRes) {
-            console.log(`[CheckoutService] Reusing existing reservation ${existingRes.id} for queueId ${queueId}`);
-            return {
-                success: true,
-                reservationId: existingRes.id,
-                items: existingRes.items,
-                expiresAt: existingRes.expiresAt,
-                expiresInSeconds: Math.floor((new Date(existingRes.expiresAt) - new Date()) / 1000)
-            };
         }
     }
 
-    // Use Firestore Transaction for Atomic Inventory Locking
+    const event = await getEvent(eventId);
+    if (!event) return { success: false, error: 'Event not found' };
+
+    // 2. Delegate to Core Master Engine (Redis Atomic Lock)
     try {
-        const result = await db.runTransaction(async (transaction) => {
-            const eventRef = db.collection('events').doc(eventId);
-            const eventDoc = await transaction.get(eventRef);
+        const result = await coreCreateReservation(event, customerId, deviceId, items, options);
 
-            if (!eventDoc.exists) throw new Error('Event not found');
-
-            const event = eventDoc.data();
-            const tiers = event.ticketCatalog?.tiers || event.tickets || [];
-            const updatedTiers = [...tiers];
-            const reservedItems = [];
-
-            // 1. Validate all requested items against atomic current state
-            for (const item of items) {
-                const tierIndex = updatedTiers.findIndex(t => t.id === item.tierId);
-                if (tierIndex === -1) throw new Error(`Tier ${item.tierId} not found`);
-
-                const tier = updatedTiers[tierIndex];
-
-                // Effective inventory = Remaining - Locked (Active Reservations)
-                const baseRemaining = Number(tier.remaining ?? tier.quantity ?? 0);
-                const currentLocked = Number(tier.lockedQuantity || 0);
-                const effectiveAvailable = Math.max(0, baseRemaining - currentLocked);
-
-                if (item.quantity > effectiveAvailable) {
-                    throw new Error(`${tier.name} is sold out or unavailable`);
-                }
-
-                // Update locked count in the tier for this transaction
-                updatedTiers[tierIndex] = {
-                    ...tier,
-                    lockedQuantity: (tier.lockedQuantity || 0) + item.quantity
-                };
-
-                // Get effective price
-                const priceInfo = getEffectivePrice(tier);
-
-                reservedItems.push({
-                    tierId: tier.id,
-                    tierName: tier.name,
-                    entryType: tier.entryType || 'general',
-                    quantity: item.quantity,
-                    unitPrice: priceInfo.price,
-                    priceLabel: priceInfo.label,
-                    subtotal: priceInfo.price * item.quantity
-                });
-            }
-
-            // 2. Prepare reservation doc
-            const now = new Date();
-            const expiresAt = new Date(now.getTime() + RESERVATION_MINUTES * 60 * 1000);
-            const reservationId = randomUUID();
-            const reservationRef = db.collection(RESERVATIONS_COLLECTION).doc(reservationId);
-
-            const reservationData = {
-                id: reservationId,
+        if (result.success && isFirebaseConfigured()) {
+            // Also store in Firestore for legacy visibility/audit
+            await db.collection(RESERVATIONS_COLLECTION).doc(result.reservationId).set({
                 eventId,
                 customerId: customerId || null,
                 deviceId: deviceId || null,
                 queueId: queueId || null,
-                items: reservedItems,
+                items: items, // Simplified for legacy
                 status: 'active',
-                createdAt: now.toISOString(),
-                expiresAt: expiresAt.toISOString()
-            };
+                createdAt: new Date().toISOString(),
+                expiresAt: result.expiresAt
+            });
+        }
 
-            // 3. Commit both: create reservation and update event hot-counts
-            transaction.set(reservationRef, reservationData);
-
-            if (event.ticketCatalog) {
-                transaction.update(eventRef, { 'ticketCatalog.tiers': updatedTiers });
-            } else {
-                transaction.update(eventRef, { tickets: updatedTiers });
-            }
-
-            return {
-                reservationId: reservationId,
-                items: reservedItems,
-                expiresAt: reservationData.expiresAt,
-                expiresInSeconds: RESERVATION_MINUTES * 60
-            };
-        });
-
-        return { success: true, ...result };
+        return result;
     } catch (error) {
-        console.error('[CheckoutService] Atomic reservation failed:', error);
+        console.error('[CheckoutService] Reservation failed:', error);
         return { success: false, error: error.message };
     }
 }
 
 /**
  * Release a reservation (user abandons cart)
- * ATOMIC: Restores 'lockedQuantity' to the pool.
  */
 export async function releaseReservation(reservationId) {
-    const reservation = await getReservation(reservationId);
-    if (!reservation) {
-        return { success: false, error: 'Reservation not found' };
+    // 1. Core Release (Redis)
+    const result = await coreReleaseReservation(reservationId);
+
+    // 2. Legacy Cleanup (Firestore)
+    if (isFirebaseConfigured()) {
+        const db = getAdminDb();
+        await db.collection(RESERVATIONS_COLLECTION).doc(reservationId).update({
+            status: 'released',
+            releasedAt: new Date().toISOString()
+        }).catch(() => { }); // Ignore if already deleted/replaced
     }
 
-    if (reservation.status !== 'active') {
-        return { success: false, error: `Reservation is ${reservation.status}` };
-    }
-
-    if (!isFirebaseConfigured()) {
-        reservation.status = 'released';
-        reservation.releasedAt = new Date().toISOString();
-        return { success: true };
-    }
-
-    const db = getAdminDb();
-
-    try {
-        await db.runTransaction(async (transaction) => {
-            const resRef = db.collection(RESERVATIONS_COLLECTION).doc(reservationId);
-            const resDoc = await transaction.get(resRef);
-
-            if (!resDoc.exists) throw new Error('Reservation not found');
-            const resData = resDoc.data();
-            if (resData.status !== 'active') throw new Error(`Reservation is ${resData.status}`);
-
-            // 1. Mark as released
-            transaction.update(resRef, {
-                status: 'released',
-                releasedAt: new Date().toISOString()
-            });
-
-            // 2. Restore locked pool
-            const eventRef = db.collection('events').doc(resData.eventId);
-            const eventDoc = await transaction.get(eventRef);
-            if (eventDoc.exists) {
-                const event = eventDoc.data();
-                const tiers = event.ticketCatalog?.tiers || event.tickets || [];
-                const updatedTiers = [...tiers];
-
-                for (const item of resData.items) {
-                    const idx = updatedTiers.findIndex(t => t.id === item.tierId);
-                    if (idx !== -1) {
-                        updatedTiers[idx] = {
-                            ...updatedTiers[idx],
-                            lockedQuantity: Math.max(0, (updatedTiers[idx].lockedQuantity || 0) - item.quantity)
-                        };
-                    }
-                }
-
-                if (event.ticketCatalog) {
-                    transaction.update(eventRef, { 'ticketCatalog.tiers': updatedTiers });
-                } else {
-                    transaction.update(eventRef, { tickets: updatedTiers });
-                }
-            }
-        });
-        return { success: true };
-    } catch (error) {
-        console.error('[CheckoutService] Release failed:', error);
-        return { success: false, error: error.message };
-    }
+    return result;
 }
 
 /**
@@ -266,133 +109,20 @@ export async function calculatePricing(eventId, items, options = {}) {
     const { promoCode = null, promoterCode = null, userId = null } = options;
 
     const event = await getEvent(eventId);
-    if (!event) {
-        return { success: false, error: 'Event not found' };
-    }
+    if (!event) return { success: false, error: 'Event not found' };
 
-    const tiers = event.ticketCatalog?.tiers || event.tickets || [];
-    const result = {
-        items: [],
-        subtotal: 0,
-        discounts: [],
-        discountTotal: 0,
-        fees: { platform: 0, payment: 0, gst: 0, total: 0 },
-        grandTotal: 0,
-        isFree: false
-    };
-
-    // Calculate item prices
-    for (const item of items) {
-        const tier = tiers.find(t => t.id === item.tierId);
-        if (!tier) continue;
-
-        const priceInfo = getEffectivePrice(tier);
-        const quantity = Number(item.quantity) || 1;
-        const subtotal = priceInfo.price * quantity;
-
-        result.items.push({
-            tierId: tier.id,
-            tierName: tier.name,
-            quantity,
-            unitPrice: priceInfo.price,
-            priceLabel: priceInfo.label,
-            subtotal
-        });
-
-        result.subtotal += subtotal;
-    }
-
-    // Apply promoter discount if applicable
-    if (promoterCode && event.promoterSettings?.enabled && event.promoterSettings?.buyerDiscountsEnabled) {
-        const promoterLink = await getPromoterLinkByCode(promoterCode);
-
-        if (promoterLink && promoterLink.eventId === eventId) {
-            const discountAmount = calculatePromoterDiscount(result.items, event);
-
-            if (discountAmount > 0) {
-                result.discounts.push({
-                    type: 'promoter',
-                    code: promoterCode,
-                    amount: discountAmount,
-                    label: 'Promoter Discount'
-                });
-                result.discountTotal += discountAmount;
-            }
-        }
-    }
-
-    // Apply promo code if provided
-    if (promoCode) {
-        const promoDiscount = await validateAndCalculatePromoDiscount(eventId, promoCode, result.items, userId);
-
-        if (promoDiscount.valid) {
-            result.discounts.push({
-                type: 'promo',
-                code: promoCode,
-                id: promoDiscount.promoCode.id,
-                amount: promoDiscount.amount,
-                label: promoDiscount.label
-            });
-            result.discountTotal += promoDiscount.amount;
-        } else {
-            result.promoCodeError = promoDiscount.error;
-        }
-    }
-
-    // Calculate final subtotal after discounts
-    const discountedSubtotal = Math.max(0, result.subtotal - result.discountTotal);
-
-    // Calculate fees (only for paid orders)
-    if (discountedSubtotal > 0) {
-        result.fees.platform = Math.round((discountedSubtotal * 0.05) * 100) / 100; // 5%
-        result.fees.payment = Math.round((discountedSubtotal * 0.025) * 100) / 100; // 2.5%
-        result.fees.gst = Math.round(((result.fees.platform + result.fees.payment) * 0.18) * 100) / 100; // 18% GST
-        result.fees.total = result.fees.platform + result.fees.payment + result.fees.gst;
-    }
-
-    result.grandTotal = Math.round((discountedSubtotal + result.fees.total) * 100) / 100;
-    result.isFree = result.grandTotal === 0;
-
-    return { success: true, pricing: result };
+    // Use unified core engine
+    return await coreCalculatePricing({
+        event,
+        items,
+        promoCode,
+        promoterCode,
+        userId,
+        promoValidator: validateAndCalculatePromoDiscount // Inject local validator wrapper
+    });
 }
 
-/**
- * Calculate promoter buyer discount
- */
-function calculatePromoterDiscount(items, event) {
-    const settings = event.promoterSettings;
-    if (!settings?.enabled || !settings?.buyerDiscountsEnabled) return 0;
-
-    const tiers = event.ticketCatalog?.tiers || event.tickets || [];
-    let totalDiscount = 0;
-
-    for (const item of items) {
-        const tier = tiers.find(t => t.id === item.tierId);
-        if (!tier) continue;
-
-        // Check if tier allows promoter sales
-        if (tier.promoterEnabled === false) continue;
-
-        // Get discount rate
-        let discountRate = settings.discount || 10;
-        let discountType = settings.discountType || 'percent';
-
-        // Check for tier override
-        if (!settings.useDefaultDiscount && tier.promoterDiscount !== undefined) {
-            discountRate = tier.promoterDiscount;
-            discountType = tier.promoterDiscountType || 'percent';
-        }
-
-        // Calculate discount
-        if (discountType === 'percent') {
-            totalDiscount += (item.subtotal * discountRate) / 100;
-        } else {
-            totalDiscount += discountRate * item.quantity;
-        }
-    }
-
-    return Math.round(totalDiscount * 100) / 100;
-}
+// calculatePromoterDiscount is now handled by the core engine
 
 /**
  * Validate promo code and calculate discount

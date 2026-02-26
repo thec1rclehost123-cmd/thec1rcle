@@ -157,10 +157,12 @@ export default function EventCard({
                                                         className="relative h-5 w-5 sm:h-7 sm:w-7 rounded-full ring-1 sm:ring-2 ring-black/50 bg-gradient-to-br from-purple-400 to-pink-400"
                                                         style={{ zIndex: 3 - i }}
                                                     >
-                                                        <img
+                                                        <ShimmerImage
                                                             src={`https://api.dicebear.com/9.x/notionists/svg?seed=${guest}&backgroundColor=c0aede,b6e3f4`}
                                                             alt={guest}
+                                                            fill
                                                             className="h-full w-full rounded-full object-cover"
+                                                            sizes="28px"
                                                         />
                                                     </div>
                                                 ))}
