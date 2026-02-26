@@ -1,627 +1,204 @@
 /**
- * THE C1RCLE - Pricing Engine
- * Production-grade pricing calculations for tickets, fees, and discounts
+ * THE C1RCLE - Master Pricing Engine
+ * Production-grade pricing calculations for tickets, fees, and discounts.
+ * Unified source of truth for Apps, API, and Functions.
  */
 
-// Default fee configuration (platform defaults)
+// Default fee configuration (platform authority)
 const DEFAULT_FEES = {
-    platformFee: 5,          // 5%
-    platformFeeType: 'percent',
-    paymentFee: 2.5,         // 2.5% for Razorpay
-    paymentFeeType: 'percent',
-    tax: 18,                 // 18% GST
-    taxType: 'percent'
+    platformFeeRate: 0.05,     // 5%
+    paymentFeeRate: 0.025,    // 2.5% (Razorpay)
+    gstRate: 0.18             // 18% on fees
 };
 
-// Minimum payout floor to prevent negative margins
-const MINIMUM_PAYOUT_FLOOR = 10; // ₹10 minimum
-
 /**
- * Calculate price for a single tier at a given timestamp
- * Handles scheduled price changes and quantity-based pricing
+ * Get effective price for a single tier at a given timestamp
+ * Handles scheduled price changes
  */
-export function calculateTierPrice(tier, quantity, timestamp = new Date()) {
-    let price = tier.pricing?.basePrice ?? tier.price ?? 0;
+export function getEffectivePrice(tier, timestamp = new Date()) {
+    const now = timestamp instanceof Date ? timestamp : new Date(timestamp);
 
-    // Apply scheduled price changes
-    if (tier.pricing?.scheduledChanges && Array.isArray(tier.pricing.scheduledChanges)) {
-        const activeSchedule = tier.pricing.scheduledChanges.find(schedule => {
+    // 1. Check scheduled prices (if any)
+    const schedules = tier.scheduledPrices || tier.pricing?.scheduledChanges || [];
+    if (Array.isArray(schedules)) {
+        for (const schedule of schedules) {
             const startsAt = new Date(schedule.startsAt);
             const endsAt = new Date(schedule.endsAt);
-            return schedule.isActive && timestamp >= startsAt && timestamp <= endsAt;
-        });
 
-        if (activeSchedule) {
-            price = activeSchedule.price;
-        }
-    }
-
-    // Apply quantity-based pricing
-    if (tier.pricing?.quantityPricing && Array.isArray(tier.pricing.quantityPricing)) {
-        const applicableRule = tier.pricing.quantityPricing.find(rule =>
-            quantity >= rule.minQuantity && quantity <= rule.maxQuantity
-        );
-
-        if (applicableRule) {
-            price = applicableRule.pricePerUnit;
-        }
-    }
-
-    return Math.max(0, price);
-}
-
-/**
- * Apply rounding rules to a price
- */
-export function applyRounding(amount, roundingRule = 'none', precision = 0) {
-    if (roundingRule === 'none') {
-        return amount;
-    }
-
-    const factor = Math.pow(10, precision);
-
-    switch (roundingRule) {
-        case 'up':
-            return Math.ceil(amount * factor) / factor;
-        case 'down':
-            return Math.floor(amount * factor) / factor;
-        case 'nearest':
-            return Math.round(amount * factor) / factor;
-        default:
-            return amount;
-    }
-}
-
-/**
- * Calculate fees for a given subtotal
- */
-export function calculateFees(subtotal, event, feeConfig = {}) {
-    const fees = {
-        ...DEFAULT_FEES,
-        ...feeConfig
-    };
-
-    let platformFee = 0;
-    let paymentFee = 0;
-    let hostFee = 0;
-    let clubFee = 0;
-    let tax = 0;
-
-    // Platform fee
-    if (fees.platformFeeType === 'percent') {
-        platformFee = (subtotal * fees.platformFee) / 100;
-    } else {
-        platformFee = fees.platformFee;
-    }
-
-    // Payment fee
-    if (fees.paymentFeeType === 'percent') {
-        paymentFee = (subtotal * fees.paymentFee) / 100;
-    } else {
-        paymentFee = fees.paymentFee;
-    }
-
-    // Host fee (if applicable)
-    if (fees.hostFee) {
-        if (fees.hostFeeType === 'percent') {
-            hostFee = (subtotal * fees.hostFee) / 100;
-        } else {
-            hostFee = fees.hostFee;
-        }
-    }
-
-    // Club fee (if applicable)
-    if (fees.clubFee) {
-        if (fees.clubFeeType === 'percent') {
-            clubFee = (subtotal * fees.clubFee) / 100;
-        } else {
-            clubFee = fees.clubFee;
-        }
-    }
-
-    // Tax (applied on subtotal + fees)
-    const taxableAmount = subtotal + platformFee + paymentFee + hostFee + clubFee;
-    if (fees.tax) {
-        if (fees.taxType === 'percent') {
-            tax = (taxableAmount * fees.tax) / 100;
-        } else {
-            tax = fees.tax;
-        }
-    }
-
-    const total = platformFee + paymentFee + hostFee + clubFee + tax;
-
-    return {
-        platformFee: Math.round(platformFee * 100) / 100,
-        paymentFee: Math.round(paymentFee * 100) / 100,
-        hostFee: Math.round(hostFee * 100) / 100,
-        clubFee: Math.round(clubFee * 100) / 100,
-        tax: Math.round(tax * 100) / 100,
-        total: Math.round(total * 100) / 100
-    };
-}
-
-/**
- * Validate and apply a promo code
- */
-export function applyPromoCode(code, items, event, context = {}) {
-    const { userId, deviceId, timestamp = new Date(), redemptionHistory = [] } = context;
-
-    // Find promo code in event
-    const promoCodes = event.ticketCatalog?.promoCodes || event.promoCodes || [];
-    const promoCode = promoCodes.find(
-        pc => pc.code.toUpperCase() === code.toUpperCase() && pc.isActive
-    );
-
-    if (!promoCode) {
-        return { valid: false, error: 'Invalid promo code' };
-    }
-
-    // Check validity period
-    const now = timestamp instanceof Date ? timestamp : new Date(timestamp);
-    const startsAt = promoCode.validity?.startsAt || promoCode.startsAt;
-    const endsAt = promoCode.validity?.endsAt || promoCode.endsAt;
-
-    if (startsAt && now < new Date(startsAt)) {
-        return { valid: false, error: 'Promo code not yet active' };
-    }
-
-    if (endsAt && now > new Date(endsAt)) {
-        return { valid: false, error: 'Promo code has expired' };
-    }
-
-    // Check redemption limits
-    const totalRedemptionsLimit = promoCode.limits?.totalRedemptions || promoCode.maxRedemptions;
-    if (totalRedemptionsLimit &&
-        (promoCode.redemptionCount || 0) >= totalRedemptionsLimit) {
-        return { valid: false, error: 'Promo code has reached maximum redemptions' };
-    }
-
-    // Check per-user limit
-    const perUserLimit = promoCode.limits?.perUserRedemptions || promoCode.maxPerUser;
-    if (perUserLimit && userId) {
-        const userRedemptions = redemptionHistory.filter(
-            r => r.userId === userId && r.codeId === (promoCode.id || promoCode.code)
-        ).length;
-
-        if (userRedemptions >= perUserLimit) {
-            return { valid: false, error: 'You have already used this code' };
-        }
-    }
-
-    // Check per-device limit
-    if (promoCode.limits.perDeviceRedemptions && deviceId) {
-        const deviceRedemptions = redemptionHistory.filter(
-            r => r.deviceId === deviceId && r.codeId === promoCode.id
-        ).length;
-
-        if (deviceRedemptions >= promoCode.limits.perDeviceRedemptions) {
-            return { valid: false, error: 'Code already used on this device' };
-        }
-    }
-
-    // Check cooldown
-    if (promoCode.limits.cooldownMinutes && userId) {
-        const lastRedemption = redemptionHistory
-            .filter(r => r.userId === userId && r.codeId === promoCode.id)
-            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-
-        if (lastRedemption) {
-            const cooldownEnd = new Date(lastRedemption.timestamp);
-            cooldownEnd.setMinutes(cooldownEnd.getMinutes() + promoCode.limits.cooldownMinutes);
-
-            if (now < cooldownEnd) {
-                const remainingMinutes = Math.ceil((cooldownEnd - now) / 60000);
-                return { valid: false, error: `Please wait ${remainingMinutes} minutes before using this code again` };
+            if (now >= startsAt && now <= endsAt) {
+                return {
+                    price: Number(schedule.price),
+                    label: schedule.name,
+                    isScheduled: true
+                };
             }
         }
     }
 
-    // Check role binding
-    if (promoCode.roleBound) {
-        if (!context.userRole || !promoCode.roleBound.roles.includes(context.userRole)) {
-            return { valid: false, error: 'This code is not available for your account type' };
-        }
-    }
-
-    // Check geo restrictions
-    if (promoCode.validity.validRegions && promoCode.validity.validRegions.length > 0) {
-        if (!context.region || !promoCode.validity.validRegions.includes(context.region)) {
-            return { valid: false, error: 'This code is not valid in your region' };
-        }
-    }
-
-    // Calculate discount
-    let discountAmount = 0;
-    const tierIds = promoCode.scope?.tierIds || promoCode.tierIds;
-    const applicableItems = items.filter(item => {
-        // Check if code applies to this tier
-        if (tierIds && tierIds.length > 0) {
-            return tierIds.includes(item.tierId);
-        }
-        return true;
-    });
-
-    if (applicableItems.length === 0) {
-        return { valid: false, error: 'Code does not apply to selected items' };
-    }
-
-    const applicableSubtotal = applicableItems.reduce((sum, item) => sum + item.subtotal, 0);
-
-    if (promoCode.discountType === 'percent') {
-        discountAmount = (applicableSubtotal * promoCode.discountValue) / 100;
-    } else {
-        discountAmount = Math.min(promoCode.discountValue, applicableSubtotal);
-    }
-
+    // 2. Fall back to base price
     return {
-        valid: true,
-        code: promoCode,
-        discountAmount: Math.round(discountAmount * 100) / 100,
-        applicableItems: applicableItems.map(i => i.tierId),
-        label: `${promoCode.name} (-₹${Math.round(discountAmount)})`
+        price: Number(tier.basePrice ?? tier.price ?? 0),
+        label: null,
+        isScheduled: false
     };
 }
 
 /**
- * Calculate promoter discount and commission
+ * Calculate fees for a given discounted subtotal
+ * Hierarchy: Platform 5% -> Payment 2.5% -> GST 18% on Fees
  */
-export function calculatePromoterDiscounts(items, event, promoterSettings) {
-    if (!promoterSettings || !promoterSettings.enabled) {
-        return {
-            buyerDiscount: 0,
-            commission: 0,
-            applicableItems: []
-        };
+export function calculateFees(discountedSubtotal) {
+    if (discountedSubtotal <= 0) {
+        return { platform: 0, payment: 0, gst: 0, total: 0 };
     }
 
-    let totalBuyerDiscount = 0;
-    let totalCommission = 0;
-    const applicableItems = [];
+    const platform = Math.round((discountedSubtotal * DEFAULT_FEES.platformFeeRate) * 100) / 100;
+    const payment = Math.round((discountedSubtotal * DEFAULT_FEES.paymentFeeRate) * 100) / 100;
 
-    for (const item of items) {
-        // Skip if tier is not promoter-enabled
-        const tier = event.ticketCatalog?.tiers?.find(t => t.id === item.tierId);
-        if (!tier) continue;
-
-        const tierPromoterEnabled = tier.promoterOverride?.enabled ??
-            (promoterSettings.enabled && tier.promoterEnabled !== false);
-
-        if (!tierPromoterEnabled) continue;
-
-        // Get commission rate
-        let commissionRate = promoterSettings.defaultCommissionRate;
-        let commissionType = promoterSettings.defaultCommissionType;
-
-        if (!promoterSettings.useDefaultCommission && tier.promoterOverride) {
-            commissionRate = tier.promoterOverride.commissionRate ?? commissionRate;
-            commissionType = tier.promoterOverride.commissionType ?? commissionType;
-        }
-
-        // Get buyer discount rate
-        let discountRate = 0;
-        let discountType = 'percent';
-
-        if (promoterSettings.buyerDiscountsEnabled) {
-            discountRate = promoterSettings.defaultBuyerDiscountRate || 0;
-            discountType = promoterSettings.defaultBuyerDiscountType || 'percent';
-
-            if (!promoterSettings.useDefaultBuyerDiscount && tier.promoterOverride) {
-                discountRate = tier.promoterOverride.buyerDiscountRate ?? discountRate;
-                discountType = tier.promoterOverride.buyerDiscountType ?? discountType;
-            }
-        }
-
-        // Calculate amounts
-        let itemDiscount = 0;
-        let itemCommission = 0;
-
-        if (discountType === 'percent') {
-            itemDiscount = (item.subtotal * discountRate) / 100;
-        } else {
-            itemDiscount = discountRate * item.quantity;
-        }
-
-        if (commissionType === 'percent') {
-            itemCommission = (item.subtotal * commissionRate) / 100;
-        } else {
-            itemCommission = commissionRate * item.quantity;
-        }
-
-        totalBuyerDiscount += itemDiscount;
-        totalCommission += itemCommission;
-
-        applicableItems.push({
-            tierId: item.tierId,
-            discount: Math.round(itemDiscount * 100) / 100,
-            commission: Math.round(itemCommission * 100) / 100
-        });
-    }
+    // GST is applied ONLY on the service fees (platform + payment)
+    const gst = Math.round(((platform + payment) * DEFAULT_FEES.gstRate) * 100) / 100;
 
     return {
-        buyerDiscount: Math.round(totalBuyerDiscount * 100) / 100,
-        commission: Math.round(totalCommission * 100) / 100,
-        applicableItems
+        platform,
+        payment,
+        gst,
+        total: Math.round((platform + payment + gst) * 100) / 100
     };
 }
 
 /**
- * Calculate bundle pricing
+ * Main Pricing Engine
+ * Calculates complete pricing for a checkout session
  */
-export function calculateBundlePricing(items, event) {
-    if (!event.ticketCatalog?.bundleRules || event.ticketCatalog.bundleRules.length === 0) {
-        return { bundles: [], savings: 0 };
-    }
-
-    const bundles = [];
-    let totalSavings = 0;
-
-    // Create a map of items for easier lookup
-    const itemMap = new Map();
-    for (const item of items) {
-        itemMap.set(item.tierId, (itemMap.get(item.tierId) || 0) + item.quantity);
-    }
-
-    for (const bundleRule of event.ticketCatalog.bundleRules) {
-        if (!bundleRule.isActive) continue;
-
-        // Check if we can form this bundle
-        let maxBundles = Infinity;
-        for (const component of bundleRule.components) {
-            const available = itemMap.get(component.tierId) || 0;
-            maxBundles = Math.min(maxBundles, Math.floor(available / component.quantity));
-        }
-
-        if (maxBundles > 0 && maxBundles !== Infinity) {
-            // Limit to maxBundlesPerOrder
-            maxBundles = Math.min(maxBundles, bundleRule.maxBundlesPerOrder);
-
-            // Calculate individual price
-            let individualPrice = 0;
-            for (const component of bundleRule.components) {
-                const tier = event.ticketCatalog.tiers.find(t => t.id === component.tierId);
-                if (tier) {
-                    individualPrice += (tier.pricing?.basePrice ?? tier.price ?? 0) * component.quantity;
-                }
-            }
-
-            const savings = (individualPrice - bundleRule.bundlePrice) * maxBundles;
-
-            bundles.push({
-                bundleId: bundleRule.id,
-                name: bundleRule.name,
-                quantity: maxBundles,
-                price: bundleRule.bundlePrice * maxBundles,
-                savings: savings,
-                label: bundleRule.savingsLabel
-            });
-
-            totalSavings += savings;
-        }
-    }
-
-    return {
-        bundles,
-        savings: Math.round(totalSavings * 100) / 100
-    };
-}
-
-/**
- * Validate pricing ensures positive margins
- */
-export function validateMargins(pricing, promoterSettings, event) {
-    const warnings = [];
-    const errors = [];
-
-    // Check that we don't have negative payouts
-    const totalDiscounts = pricing.discountTotal || 0;
-    const totalCommission = promoterSettings?.commission || 0;
-    const netRevenue = pricing.subtotal - totalDiscounts - totalCommission;
-
-    if (netRevenue < 0) {
-        errors.push('Total discounts and commissions exceed ticket value');
-    }
-
-    // Check minimum payout floor
-    const minimumFloor = promoterSettings?.minimumPayoutFloor || MINIMUM_PAYOUT_FLOOR;
-    if (netRevenue > 0 && netRevenue < minimumFloor) {
-        warnings.push(`Net revenue (₹${netRevenue}) is below minimum floor (₹${minimumFloor})`);
-    }
-
-    // Check commission doesn't exceed 50%
-    if (promoterSettings?.commission && pricing.subtotal > 0) {
-        const commissionPercent = (totalCommission / pricing.subtotal) * 100;
-        if (commissionPercent > 50) {
-            warnings.push(`Commission (${commissionPercent.toFixed(1)}%) exceeds 50% of ticket value`);
-        }
-    }
-
-    return {
-        valid: errors.length === 0,
-        errors,
-        warnings,
-        netRevenue: Math.round(netRevenue * 100) / 100
-    };
-}
-
-/**
- * Main pricing engine function
- * Calculates complete pricing for a checkout
- */
-export function calculatePricing(input) {
+export async function calculatePricing(input) {
     const {
-        items,
         event,
+        items,
         promoCode = null,
         promoterCode = null,
-        timestamp = new Date(),
-        context = {}
+        userId = null,
+        timestamp = new Date()
     } = input;
 
-    const warnings = [];
-    const calculatedItems = [];
+    const tiers = event.ticketCatalog?.tiers || event.tickets || [];
+    const result = {
+        items: [],
+        subtotal: 0,
+        discounts: [],
+        discountTotal: 0,
+        fees: { platform: 0, payment: 0, gst: 0, total: 0 },
+        grandTotal: 0,
+        isFree: false,
+        ledger: {
+            subtotal_raw: 0,
+            discount_total_raw: 0,
+            fees_total_raw: 0,
+            total_raw: 0,
+            currency: 'INR',
+            version: '3.0.unified'
+        }
+    };
 
-    // Calculate base prices for each item
+    // 1. Calculate Item Base Prices
     for (const item of items) {
-        const tier = event.ticketCatalog?.tiers?.find(t => t.id === item.tierId) ||
-            event.tickets?.find(t => t.id === item.tierId);
+        const tier = tiers.find(t => t.id === item.tierId);
+        if (!tier) continue;
 
-        if (!tier) {
-            throw new Error(`Ticket tier not found: ${item.tierId}`);
-        }
+        const priceInfo = getEffectivePrice(tier, timestamp);
+        const quantity = Number(item.quantity) || 1;
+        const subtotal = priceInfo.price * quantity;
 
-        const unitPrice = calculateTierPrice(tier, item.quantity, timestamp);
-        const subtotal = unitPrice * item.quantity;
-
-        calculatedItems.push({
-            tierId: item.tierId,
+        result.items.push({
+            tierId: tier.id,
             tierName: tier.name,
-            entryType: tier.entryType || 'general',
-            quantity: item.quantity,
-            unitPrice,
+            quantity,
+            unitPrice: priceInfo.price,
+            priceLabel: priceInfo.label,
             subtotal,
-            discounts: [],
-            finalPrice: subtotal
-        });
-    }
-
-    // Calculate subtotal
-    const subtotal = calculatedItems.reduce((sum, item) => sum + item.subtotal, 0);
-
-    // Apply discounts
-    const discounts = [];
-    let discountTotal = 0;
-
-    // 1. Promo code discount
-    if (promoCode) {
-        const promoResult = applyPromoCode(promoCode, calculatedItems, event, context);
-        if (promoResult.valid) {
-            discounts.push({
-                type: 'promo',
-                code: promoCode,
-                amount: promoResult.discountAmount,
-                label: promoResult.label
-            });
-            discountTotal += promoResult.discountAmount;
-
-            // Distribute discount across items
-            for (const item of calculatedItems) {
-                if (promoResult.applicableItems.includes(item.tierId)) {
-                    const itemShare = (item.subtotal / subtotal) * promoResult.discountAmount;
-                    item.discounts.push({
-                        type: 'promo',
-                        amount: Math.round(itemShare * 100) / 100,
-                        label: promoCode
-                    });
-                    item.finalPrice -= itemShare;
-                }
+            formatted: {
+                unitPrice: `₹${priceInfo.price.toLocaleString()}`,
+                subtotal: `₹${subtotal.toLocaleString()}`
             }
-        } else {
-            warnings.push(promoResult.error);
-        }
+        });
+
+        result.subtotal += subtotal;
     }
 
-    // 2. Promoter discount
-    if (promoterCode && event.promoterSettings?.enabled) {
-        const promoterResult = calculatePromoterDiscounts(calculatedItems, event, event.promoterSettings);
-        if (promoterResult.buyerDiscount > 0) {
-            discounts.push({
+    // 2. Apply Promoter Discounts (Buyer side)
+    if (promoterCode && event.promoterSettings?.enabled && event.promoterSettings?.buyerDiscountsEnabled) {
+        let totalPromoterDiscount = 0;
+        for (const item of result.items) {
+            const tier = tiers.find(t => t.id === item.tierId);
+            if (!tier || tier.promoterEnabled === false) continue;
+
+            let rate = event.promoterSettings.discount || 0;
+            let type = event.promoterSettings.discountType || 'percent';
+
+            if (!event.promoterSettings.useDefaultDiscount && tier.promoterDiscount !== undefined) {
+                rate = tier.promoterDiscount;
+                type = tier.promoterDiscountType || 'percent';
+            }
+
+            if (type === 'percent') {
+                totalPromoterDiscount += (item.subtotal * rate) / 100;
+            } else {
+                totalPromoterDiscount += rate * item.quantity;
+            }
+        }
+
+        if (totalPromoterDiscount > 0) {
+            const amount = Math.round(totalPromoterDiscount * 100) / 100;
+            result.discounts.push({
                 type: 'promoter',
                 code: promoterCode,
-                amount: promoterResult.buyerDiscount,
-                label: `Promoter Discount (-₹${Math.round(promoterResult.buyerDiscount)})`
+                amount,
+                label: 'Promoter Discount'
             });
-            discountTotal += promoterResult.buyerDiscount;
-
-            // Distribute discount
-            for (const item of calculatedItems) {
-                const itemPromoter = promoterResult.applicableItems.find(a => a.tierId === item.tierId);
-                if (itemPromoter) {
-                    item.discounts.push({
-                        type: 'promoter',
-                        amount: itemPromoter.discount,
-                        label: 'Promoter Discount'
-                    });
-                    item.finalPrice -= itemPromoter.discount;
-                }
-            }
+            result.discountTotal += amount;
         }
     }
 
-    // 3. Bundle savings
-    const bundleResult = calculateBundlePricing(items, event);
-    if (bundleResult.savings > 0) {
-        discounts.push({
-            type: 'bundle',
-            amount: bundleResult.savings,
-            label: `Bundle Savings (-₹${Math.round(bundleResult.savings)})`
-        });
-        discountTotal += bundleResult.savings;
+    // 3. Apply Promo Codes
+    // Note: In Phase 1, we still rely on the external validator if provided, 
+    // but the engine handles the arithmetic.
+    if (promoCode && input.promoValidator) {
+        const promoRes = await input.promoValidator(event.id, promoCode, userId, result.items);
+        if (promoRes.valid) {
+            result.discounts.push({
+                type: 'promo',
+                code: promoCode,
+                id: promoRes.promoCode?.id,
+                amount: promoRes.discountAmount,
+                label: promoRes.message || 'Promo Applied'
+            });
+            result.discountTotal += promoRes.discountAmount;
+        }
     }
 
-    // Round final prices
-    for (const item of calculatedItems) {
-        item.finalPrice = Math.max(0, Math.round(item.finalPrice * 100) / 100);
-    }
+    // 4. Final Reconciliation
+    const discountedSubtotal = Math.max(0, result.subtotal - result.discountTotal);
+    result.fees = calculateFees(discountedSubtotal);
+    result.grandTotal = Math.round((discountedSubtotal + result.fees.total) * 100) / 100;
+    result.isFree = result.grandTotal === 0;
 
-    // Calculate fees on discounted subtotal
-    const discountedSubtotal = subtotal - discountTotal;
-    const fees = calculateFees(discountedSubtotal, event, event.ticketCatalog?.tiers?.[0]?.pricing?.fees);
-
-    // Calculate grand total based on fee display mode
-    const feeDisplayMode = event.ticketCatalog?.tiers?.[0]?.pricing?.feeDisplayMode || 'exclusive';
-    let grandTotal;
-
-    if (feeDisplayMode === 'inclusive') {
-        // Fees are included in the base price
-        grandTotal = discountedSubtotal;
-    } else {
-        // Fees are added on top
-        grandTotal = discountedSubtotal + fees.total;
-    }
-
-    // Apply rounding
-    const roundingRule = event.ticketCatalog?.tiers?.[0]?.pricing?.roundingRule || 'none';
-    const roundingPrecision = event.ticketCatalog?.tiers?.[0]?.pricing?.roundingPrecision || 0;
-    grandTotal = applyRounding(grandTotal, roundingRule, roundingPrecision);
-
-    // Validate margins
-    const marginValidation = validateMargins(
-        { subtotal, discountTotal },
-        { commission: promoterCode ? calculatePromoterDiscounts(calculatedItems, event, event.promoterSettings).commission : 0 },
-        event
-    );
-
-    warnings.push(...marginValidation.warnings);
-
-    return {
-        items: calculatedItems,
-        subtotal: Math.round(subtotal * 100) / 100,
-        discounts,
-        discountTotal: Math.round(discountTotal * 100) / 100,
-        fees: {
-            platformFee: fees.platformFee,
-            paymentFee: fees.paymentFee,
-            serviceFee: fees.hostFee + fees.clubFee,
-            tax: fees.tax,
-            total: fees.total
-        },
-        grandTotal: Math.round(grandTotal * 100) / 100,
-        currency: 'INR',
-        warnings,
-        isFreeOrder: grandTotal === 0
+    // 5. Populate Audit Ledger
+    result.ledger = {
+        ...result.ledger,
+        subtotal_raw: result.subtotal,
+        discount_total_raw: result.discountTotal,
+        fees_platform_raw: result.fees.platform,
+        fees_payment_raw: result.fees.payment,
+        fees_gst_raw: result.fees.gst,
+        fees_total_raw: result.fees.total,
+        total_raw: result.grandTotal
     };
+
+    return { success: true, pricing: result };
 }
 
 export default {
-    calculateTierPrice,
-    applyRounding,
+    getEffectivePrice,
     calculateFees,
-    applyPromoCode,
-    calculatePromoterDiscounts,
-    calculateBundlePricing,
-    validateMargins,
     calculatePricing,
-    DEFAULT_FEES,
-    MINIMUM_PAYOUT_FLOOR
+    DEFAULT_FEES
 };

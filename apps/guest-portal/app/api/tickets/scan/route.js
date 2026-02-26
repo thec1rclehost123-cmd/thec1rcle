@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
 import { validateAndScanTicket } from "@/lib/server/ticketShareStore";
 import { processEntryScan } from "@c1rcle/core/entitlement-engine";
-import { getAdminDb } from "@/lib/firebase/admin";
 import { verifyQRPayload } from "@/lib/server/qrStore";
 
 export async function POST(request) {

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFirebaseDb } from "@/lib/firebase/client";
-import { collection, query, where, getDocs, Timestamp } from "firebase/firestore";
+import { listEvents } from "@/lib/server/eventStore";
 
+/**
+ * GET /api/venue/availability?venueId=xxx
+ *
+ * Returns blocked date/time slots based on approved/scheduled/live events.
+ * Data fetched via eventStore (API Gateway) — no direct Firestore access.
+ */
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
@@ -11,36 +16,25 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "venueId is required" }, { status: 400 });
         }
 
-        const db = getFirebaseDb();
-        const eventsRef = collection(db, "events");
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
+        if (!token) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
 
-        // Fetch events for the club to determine blocked dates
-        // Only fetch future events
-        const q = query(
-            eventsRef,
-            where("venueId", "==", venueId),
-            where("lifecycle", "in", ["approved", "scheduled", "live"])
-        );
+        // Fetch events for this venue with relevant lifecycle statuses
+        // Gateway now supports comma-separated status values via the venueId+status filter
+        const events = await listEvents({ venueId, status: "approved,scheduled,live" }, token);
 
-        const snapshot = await getDocs(q);
-
-        // Map to blocked slots (minimal info)
-        const blockedSlots = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                date: data.startDate?.toDate?.()?.toISOString() || data.startDate,
-                startTime: data.startTime,
-                endTime: data.endTime,
-                // NO event name, NO host info, NO notes
-                isBlocked: true
-            };
-        });
-
-        // Also fetch general venue blocks if any (e.g. maintenance)
-        // For now, just events.
+        const blockedSlots = events.map((event: any) => ({
+            // Gateway returns startDate as ISO string (Firestore Timestamps are serialized)
+            date: event.startDate || event.date || null,
+            startTime: event.startTime || null,
+            endTime: event.endTime || null,
+            eventId: event.id,
+            isBlocked: true
+        }));
 
         return NextResponse.json({ blockedSlots });
-
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }

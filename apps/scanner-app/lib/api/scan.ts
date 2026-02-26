@@ -1,70 +1,18 @@
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001/api";
+import { apiClient } from './client';
 
-interface ScanRequest {
-    qrData: string;
-    eventId: string;
-    eventCode: string;
-    gate?: string;
-}
-
-interface ScanResponse {
-    success: boolean;
-    result?: string;
-    scanId?: string;
-    error?: string;
-    message?: string;
-    ticket?: {
-        orderId: string;
-        eventId: string;
-        eventTitle: string;
-        ticketName: string;
-        quantity: number;
-        entryType: string;
-        userName: string;
-        userEmail: string;
-    };
-    previousScan?: {
-        scannedAt: string;
-        scannedBy: {
-            name: string;
-            role: string;
-        };
-    };
-}
-
-/**
- * Process a QR code scan
- */
 export async function processQRScan(request: ScanRequest): Promise<ScanResponse> {
     try {
-        const response = await fetch(`${API_BASE}/scan`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
+        const data = await apiClient.processScan({
+            qrData: request.qrData,
+            eventId: request.eventId,
+            eventCode: request.eventCode,
+            gate: request.gate,
+            scannedBy: {
+                uid: `scanner_${request.eventCode}`,
+                name: "Scanner",
+                role: "door_staff",
             },
-            body: JSON.stringify({
-                qrData: request.qrData,
-                eventId: request.eventId,
-                eventCode: request.eventCode,
-                gate: request.gate,
-                scannedBy: {
-                    uid: `scanner_${request.eventCode}`,
-                    name: "Scanner",
-                    role: "door_staff",
-                },
-            }),
         });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            return {
-                success: false,
-                result: data.result || "invalid",
-                error: data.error || "Scan failed",
-                previousScan: data.previousScan,
-            };
-        }
 
         return {
             success: true,
@@ -72,6 +20,15 @@ export async function processQRScan(request: ScanRequest): Promise<ScanResponse>
         };
     } catch (error: any) {
         console.error("[processQRScan] Error:", error);
+
+        if (error.status === 400 || error.status === 404 || error.status === 403) {
+            return {
+                success: false,
+                result: error.data?.result || "invalid",
+                error: error.message || "Scan failed",
+                previousScan: error.data?.previousScan,
+            };
+        }
 
         // For development, simulate scan results
         if (__DEV__) {

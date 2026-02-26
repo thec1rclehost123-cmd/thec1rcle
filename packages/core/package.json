@@ -2,12 +2,17 @@
     "name": "@c1rcle/core",
     "version": "0.1.0",
     "type": "module",
+    "types": "./types.d.ts",
     "scripts": {
-        "build": "echo 'No build step required for core'"
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "test": "vitest run",
+        "test:watch": "vitest"
     },
     "exports": {
         ".": "./main.js",
         "./client": "./client.js",
+        "./api-client": "./api-client.js",
         "./admin": "./admin.js",
         "./events": "./events.js",
         "./surge": "./surge.js",
@@ -24,7 +29,36 @@
         "./inngest": "./inngest-client.js",
         "./workflows/ticketing": "./workflows/ticketing.js",
         "./search": "./search.js",
-        "./workflows/search-sync": "./workflows/search-sync.js"
+        "./workflows/search-sync": "./workflows/search-sync.js",
+        "./pricing-engine": "./pricing-engine.js",
+        "./inventory-engine": "./inventory-engine.js",
+        "./order-engine": "./order-engine.js",
+        "./event-engine": "./event-engine.js",
+        "./scan-engine": "./scan-engine.js",
+        "./ticket-engine": "./ticket-engine.js",
+        "./staff-engine": "./staff-engine.js",
+        "./profile-engine": "./profile-engine.js",
+        "./finance-engine": "./finance-engine.js",
+        "./promoter-engine": "./promoter-engine.js",
+        "./analytics-engine": "./analytics-engine.js",
+        "./table-engine": "./table-engine.js",
+        "./waitlist-engine": "./waitlist-engine.js",
+        "./calendar-engine": "./calendar-engine.js",
+        "./cms-engine": "./cms-engine.js",
+        "./auth-domain": "./dist/domain/auth/interfaces.js",
+        "./auth-infra": "./dist/infrastructure/auth/firebase-auth-service.js",
+        "./profile-repo": "./dist/infrastructure/repositories/firebase/profile-repository.js",
+        "./profile-service": "./dist/domain/services/profile-service.js",
+        "./event-repo": "./dist/infrastructure/repositories/firebase/event-repository.js",
+        "./event-service": "./dist/domain/services/event-service.js",
+        "./notification-repo": "./dist/infrastructure/repositories/firebase/notification-repository.js",
+        "./notification-service": "./dist/domain/services/notification-service.js",
+        "./order-repo": "./dist/infrastructure/repositories/firebase/order-repository.js",
+        "./checkout-service": "./dist/domain/services/checkout-service.js",
+        "./match-repo": "./dist/infrastructure/repositories/firebase/matching-repository.js",
+        "./matching-service": "./dist/domain/services/matching-service.js",
+        "./report-repo": "./dist/infrastructure/repositories/firebase/report-repository.js",
+        "./moderation-service": "./dist/domain/services/moderation-service.js"
     },
     "dependencies": {
         "firebase": "^12.6.0",
@@ -32,5 +66,9 @@
         "inngest": "^3.52.0",
         "ioredis": "^5.9.2",
         "meilisearch": "^0.55.0"
+    },
+    "devDependencies": {
+        "typescript": "^5.3.3",
+        "@types/node": "^20.11.0"
     }
 }

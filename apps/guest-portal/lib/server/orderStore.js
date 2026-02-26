@@ -13,6 +13,8 @@ import {
     MONEY_STATES
 } from "@c1rcle/core/ledger-engine";
 import { issueEntitlements, revokeEntitlement } from "@c1rcle/core/entitlement-engine";
+import { validateOrder as coreValidateOrder, executeOrderCreation as coreExecuteOrderCreation, generateOrderId } from "@c1rcle/core/order-engine";
+import inventoryEngine from "@c1rcle/core/inventory-engine";
 
 const ORDERS_COLLECTION = "orders";
 const RSVP_COLLECTION = "rsvp_orders";
@@ -21,7 +23,9 @@ const RSVP_COLLECTION = "rsvp_orders";
 let fallbackOrders = [];
 let fallbackRSVPs = [];
 
-const generateOrderId = (prefix = "ORD") => {
+// Local fallback order ID generator (used in mock/dev env where core engine isn't available).
+// Renamed to avoid shadowing the named import from '@c1rcle/core/order-engine'.
+const generateLocalOrderId = (prefix = "ORD") => {
     const timestamp = Date.now().toString(36).toUpperCase();
     const random = Math.random().toString(36).substring(2, 7).toUpperCase();
     return `${prefix}-${timestamp}-${random}`;
@@ -81,7 +85,7 @@ export async function createRSVPOrder(payload) {
         throw new Error("You have already RSVP'd for this event");
     }
 
-    const orderId = reservationId ? `RSVP-${reservationId}` : generateOrderId("RSVP");
+    const orderId = reservationId ? `RSVP-${reservationId}` : generateLocalOrderId("RSVP");
     const now = new Date().toISOString();
 
     const rsvpOrder = {
@@ -133,7 +137,14 @@ export async function createRSVPOrder(payload) {
     const db = getAdminDb();
 
     await db.runTransaction(async (transaction) => {
-        transaction.set(db.collection(RSVP_COLLECTION).doc(orderId), rsvpOrder);
+        transaction.db = db; // Inject db for unified engine
+        await coreExecuteOrderCreation(transaction, {
+            db,
+            event,
+            orderData: rsvpOrder,
+            reservationId,
+            inventoryEngine
+        });
 
         // MONEY LEDGER INTEGRATION (₹0 RSVP) - ATOMIC
         await recordOrderCaptured(rsvpOrder, "INTERNAL_RSVP", transaction);
@@ -210,23 +221,17 @@ export async function createOrder(payload) {
         throw error;
     }
 
-    // Global order limits validation
-    const totalSelectedQuantity = tickets.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
-    const minTickets = event.minTicketsPerOrder || 1;
-    const maxTickets = event.maxTicketsPerOrder || 10;
-
-    if (totalSelectedQuantity < minTickets) {
-        throw new Error(`Minimum ${minTickets} tickets required per order`);
-    }
-
-    // Checking global limit across all user orders
+    // Global order limits validation via Core Engine
     const existingTicketCount = await getUserTicketCountForEvent(eventId, { userId, email: userEmail });
-    if (existingTicketCount + totalSelectedQuantity > maxTickets) {
-        if (existingTicketCount > 0) {
-            throw new Error(`You have already purchased ${existingTicketCount} tickets. Maximum ${maxTickets} tickets allowed per account.`);
-        } else {
-            throw new Error(`Maximum ${maxTickets} tickets allowed per account.`);
-        }
+    const hasExistingRSVP = await checkExistingRSVP(eventId, { userId, email: userEmail });
+
+    const validation = await coreValidateOrder(event, tickets, {
+        existingTicketCount,
+        hasExistingRSVP
+    });
+
+    if (!validation.success) {
+        throw new Error(validation.error);
     }
 
     // Build order tickets with full details
@@ -368,71 +373,23 @@ export async function createOrder(payload) {
 
     try {
         await db.runTransaction(async (transaction) => {
-            const eventRef = db.collection("events").doc(eventId);
-            const eventDoc = await transaction.get(eventRef);
-
-            if (!eventDoc.exists) {
-                throw new Error(`Event not found in transaction: ${eventId}`);
-            }
+            transaction.db = db; // Inject db for unified engine
 
             // 1. Transaction-level Idempotency Check
             const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
             const existingOrderDoc = await transaction.get(orderRef);
             if (existingOrderDoc.exists) return existingOrderDoc.data();
 
-            const currentEvent = eventDoc.data();
-            const updatedTickets = [...(currentEvent.tickets || [])];
-
-            // Update ticket inventory and release atomic locks
-            for (const update of ticketUpdates) {
-                const ticketIndex = updatedTickets.findIndex(t => t.id === update.ticketId);
-                if (ticketIndex === -1) {
-                    throw new Error(`Ticket not found in event: ${update.ticketId}`);
-                }
-
-                const tier = updatedTickets[ticketIndex];
-                const currentRemaining = Number(tier.remaining ?? tier.quantity) || 0;
-                const currentLocked = Number(tier.lockedQuantity || 0);
-
-                // Optimization: If it's a free tier in a paid event, we might defer reduction until claim
-                const isClaimBasedFreeTier = tier.price === 0 && tier.genderRequirement;
-                if (isClaimBasedFreeTier) continue;
-
-                if (reservationId) {
-                    // This inventory was already "Locked" during the gate phase
-                    // We now convert that lock into a physical deduction
-                    updatedTickets[ticketIndex].remaining = Math.max(0, currentRemaining - update.quantity);
-                    updatedTickets[ticketIndex].lockedQuantity = Math.max(0, currentLocked - update.quantity);
-                } else {
-                    // Direct checkout (no formal reservation gate)
-                    // Must still respect existing locks held by other users
-                    if (currentRemaining - currentLocked < update.quantity) {
-                        throw new Error(`Sold out: ${tier.name}`);
-                    }
-                    updatedTickets[ticketIndex].remaining = Math.max(0, currentRemaining - update.quantity);
-                }
-            }
-
-            // Update event with new ticket counts and released locks
-            transaction.update(eventRef, {
-                tickets: updatedTickets,
-                updatedAt: now,
+            // 2. Execute unified order creation and inventory commitment
+            await coreExecuteOrderCreation(transaction, {
+                db,
+                event,
+                orderData: order,
+                reservationId,
+                inventoryEngine
             });
 
-            // Create order document
-            transaction.set(orderRef, order);
-
-            // Mark reservation as converted atomically
-            if (reservationId) {
-                const resRef = db.collection("cart_reservations").doc(reservationId);
-                transaction.update(resRef, {
-                    status: 'converted',
-                    orderId: orderId,
-                    convertedAt: now
-                });
-            }
-
-            // MONEY LEDGER INTEGRATION (ATOMIC)
+            // 3. MONEY LEDGER INTEGRATION (ATOMIC)
             if (order.status === "confirmed") {
                 // Free tickets/Auto-confirmed
                 await recordOrderCaptured(order, "INTERNAL_FREE", transaction);

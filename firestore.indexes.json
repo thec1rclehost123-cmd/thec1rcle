@@ -37,12 +37,52 @@
             "queryScope": "COLLECTION",
             "fields": [
                 {
+                    "fieldPath": "lifecycle",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "cityKey",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "startDate",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "events",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "lifecycle",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "host",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "startDate",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "events",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
                     "fieldPath": "venueId",
                     "order": "ASCENDING"
                 },
                 {
                     "fieldPath": "lifecycle",
                     "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "startDate",
+                    "order": "DESCENDING"
                 }
             ]
         },

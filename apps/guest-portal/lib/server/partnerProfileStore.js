@@ -9,6 +9,7 @@ const PROFILE_HIGHLIGHTS_COLLECTION = "profile_highlights";
  * Helper to serialize Firestore docs to plain objects for RSC
  */
 const serializeDoc = (doc) => {
+    if (!doc.exists) return null;
     const data = doc.data();
     const serialized = { id: doc.id, ...data };
 

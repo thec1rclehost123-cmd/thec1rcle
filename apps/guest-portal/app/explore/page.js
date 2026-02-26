@@ -3,11 +3,16 @@
 import Link from "next/link";
 import clsx from "clsx";
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import ExploreCarouselHeader from "../../components/ExploreCarouselHeader";
-import ExploreFilterBar from "../../components/ExploreFilterBar";
-import CategoryTabs from "../../components/CategoryTabs";
-import ExploreEventGrid from "../../components/ExploreEventGrid";
+
+// ⚡ PERF FIX: Dynamic imports for heavy visual components
+const ExploreCarouselHeader = dynamic(() => import("../../components/ExploreCarouselHeader"), {
+  ssr: true,
+  loading: () => <div className="h-[50vh] bg-black/5 animate-pulse rounded-[40px] mx-12 mt-12" />
+});
+const ExploreEventGrid = dynamic(() => import("../../components/ExploreEventGrid"), { ssr: true });
+const ExploreFilterBar = dynamic(() => import("../../components/ExploreFilterBar"), { ssr: true });
 import Skeleton from "../../components/ui/Skeleton";
 // ⚡ FIX 2: Import Zustand cache store — replaces local useState+fetch below
 import { useExploreStore } from "../../store/exploreStore";
@@ -100,10 +105,14 @@ const sortComparators = {
 export default function ExplorePage() {
   const [activeSort, setActiveSort] = useState(sortTabs[0]);
 
-  // ⚡ FIX 2: Pull events from Zustand cache instead of local state.
-  // On first mount: fetches from API and caches for 5 minutes.
-  // On tab-switch revisit (< 5min): returns cached data instantly — no network.
-  const { events, status, error, fetchEvents } = useExploreStore();
+  // ⚡ FIX 2: Pull events from Zustand cache
+  const {
+    events,
+    status,
+    error,
+    fetchEvents,
+    hasMore
+  } = useExploreStore();
 
   const [selectedCity, setSelectedCity] = useState("");
   const [filters, setFilters] = useState({
@@ -114,12 +123,23 @@ export default function ExplorePage() {
     eventType: "all",
     curatedCategory: "all"
   });
+
+  // ⚡ Debounced Search Input
   const [searchTerm, setSearchTerm] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   useEffect(() => {
-    // Calls fetchEvents() — if cache is fresh, this is a no-op (instant)
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  useEffect(() => {
+    // Initial fetch
     fetchEvents();
   }, [fetchEvents]);
 
@@ -212,7 +232,7 @@ export default function ExplorePage() {
     const typeFilter = filters.eventType || "all";
     const priceFilter = filters.price;
     const curatedFilter = filters.curatedCategory || "all";
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const normalizedSearch = debouncedSearch.trim().toLowerCase();
     const targetCity = selectedCity || cityOptions[0]?.value || "";
     const customStart = filters.datePreset === "custom" && filters.startDate ? new Date(`${filters.startDate}T00:00:00`) : null;
     const customEnd =
@@ -298,7 +318,7 @@ export default function ExplorePage() {
         );
       })
       .sort(comparator);
-  }, [events, filters, searchTerm, activeSort, selectedCity, cityOptions]);
+  }, [events, filters, debouncedSearch, activeSort, selectedCity, cityOptions]);
 
   const activeCityLabel = cityOptions.find((option) => option.value === selectedCity)?.label || cityOptions[0]?.label || "your city";
   const fallbackCities = cityOptions.filter((option) => option.value !== selectedCity).slice(0, 2);
@@ -317,23 +337,9 @@ export default function ExplorePage() {
     ? `${activeFilterCount} active ${activeFilterCount === 1 ? "filter" : "filters"}`
     : "No filters applied";
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filters, searchTerm, activeSort, selectedCity]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredEvents.length / pageSize));
-
-  useEffect(() => {
-    setCurrentPage((prev) => {
-      const next = Math.min(prev, totalPages);
-      return next < 1 ? 1 : next;
-    });
-  }, [totalPages]);
-
-  const paginatedEvents = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredEvents.slice(start, start + pageSize);
-  }, [filteredEvents, currentPage]);
+  const handleLoadMore = () => {
+    fetchEvents(false); // fetch next page
+  };
 
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({
@@ -417,9 +423,21 @@ export default function ExplorePage() {
               )}
               {filteredEvents.length > 0 && (
                 <>
-                  <ExploreEventGrid events={paginatedEvents} />
-                  {filteredEvents.length > pageSize && (
-                    <Pagination current={currentPage} total={totalPages} onChange={setCurrentPage} />
+                  <ExploreEventGrid events={filteredEvents} />
+
+                  {hasMore && (
+                    <div className="flex justify-center mt-12 pb-12">
+                      <button
+                        onClick={handleLoadMore}
+                        disabled={status === "loading"}
+                        className="group flex items-center gap-4 px-10 py-5 rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-all duration-500 disabled:opacity-50"
+                      >
+                        <span className="text-xs font-black uppercase tracking-[0.3em]">
+                          {status === "loading" ? "Loading..." : "Load More Events"}
+                        </span>
+                        {status !== "loading" && <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-2 transition-transform duration-500" />}
+                      </button>
+                    </div>
                   )}
                 </>
               )}

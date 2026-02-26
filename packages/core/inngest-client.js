@@ -49,6 +49,10 @@ export const Events = {
     // Search & Discovery
     SEARCH_SYNC_EVENT: "search/sync-event",
     SEARCH_SYNC_VENUE: "search/sync-venue",
+
+    // Analytics & Maintenance
+    HOST_STATS_SYNC: "analytics/host-stats-sync",
+    MAINTENANCE_PING: "maintenance/ping",
 };
 
 /**

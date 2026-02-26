@@ -87,28 +87,13 @@ export async function POST(
         // ── Update Event Lifecycle ──
         const now = new Date().toISOString();
 
-        await updateEventLifecycle(eventId, "cancelled", actor, reason);
-
-        // Also store cancellation metadata
-        try {
-            const { getAdminDb, isFirebaseConfigured } = await import("@/lib/firebase/admin");
-            if (isFirebaseConfigured()) {
-                const db = getAdminDb();
-                await db.collection("events").doc(eventId).update({
-                    cancelledAt: now,
-                    cancellationReason: reason,
-                    cancellationNotes: notes || "",
-                    cancelledBy: actor.uid,
-                    cancelledByName: actor.name || actor.uid,
-                    cancelledByRole: actor.role,
-                    refundPolicy,
-                    partialRefundPercent: refundPolicy === "partial" ? partialRefundPercent : null,
-                    refundStatus: "processing",
-                });
-            }
-        } catch (err) {
-            console.error("[Cancel API] Failed to store cancellation metadata:", err);
-        }
+        await updateEventLifecycle(
+            eventId,
+            "cancelled",
+            actor,
+            // Embed metadata in the notes passed to the lifecycle engine
+            JSON.stringify({ reason, notes, refundPolicy, partialRefundPercent, cancelledByName: actor.name || actor.uid })
+        );
 
         // ── Dispatch Inngest Workflow ──
         let workflowDispatched = false;

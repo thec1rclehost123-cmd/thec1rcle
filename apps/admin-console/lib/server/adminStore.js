@@ -604,5 +604,130 @@ export const adminStore = {
             context,
             after: data
         });
+    },
+
+    // --- 📊 7. Read Queries (admin-console app layer delegates here) ---
+    async getPlatformSnapshot() {
+        const db = getAdminDb();
+        const statsDoc = await db.collection('platform_stats').doc('current').get();
+        const stats = statsDoc.exists ? statsDoc.data() : { users_total: 0, events_total: 0, revenue: { total: 0 }, tickets_sold_total: 0 };
+        const [pendingReviewsCount, activeIncidentsCount, liveEvents, liveUsers, liveHosts, liveVenues, logsSnapshot] = await Promise.all([
+            db.collection('onboarding_requests').where('status', '==', 'pending').count().get(),
+            db.collection('incidents').where('status', '==', 'active').count().get(),
+            db.collection('events').where('status', '==', 'live').count().get(),
+            db.collection('users').count().get(),
+            db.collection('hosts').count().get(),
+            db.collection('venues').where('status', '==', 'active').count().get(),
+            db.collection('admin_audit_logs').orderBy('createdAt', 'desc').limit(5).get()
+        ]);
+        const recentLogs = logsSnapshot.docs.map(doc => ({
+            id: doc.id, action: doc.data().actionType,
+            timestamp: doc.data().createdAt?.toDate?.() || new Date(), reason: doc.data().reason
+        }));
+        return { stats, pendingReviewsCount: pendingReviewsCount.data().count, activeIncidentsCount: activeIncidentsCount.data().count, liveEvents: liveEvents.data().count, liveUsers: liveUsers.data().count, liveHosts: liveHosts.data().count, liveVenues: liveVenues.data().count, recentLogs };
+    },
+
+    async listCollection(collection, { status, limit, adminRole } = {}) {
+        const db = getAdminDb();
+        let query = db.collection(collection);
+        if (status) query = query.where('status', '==', status);
+        const ORDER_MAP = {
+            'admin_audit_logs': ['createdAt', 'desc'],   // logs use createdAt, not timestamp
+            'events': ['startDate', 'desc'],              // events use startDate, not startTime
+            'onboarding_requests': ['submittedAt', 'desc'],
+        };
+        const defaultOrder = ['createdAt', 'desc'];
+        const [field, dir] = ORDER_MAP[collection] || defaultOrder;
+        try { query = query.orderBy(field, dir); } catch (_) { /* no orderBy if field missing */ }
+        const snapshot = await query.limit(limit || 50).get();
+        return snapshot.docs.map(doc => {
+            const d = doc.data();
+            return { id: doc.id, ...d, timestamp: d.timestamp?.toDate?.()?.toISOString() || d.ts?.toDate?.()?.toISOString(), createdAt: d.createdAt?.toDate?.()?.toISOString() || d.createdAt, updatedAt: d.updatedAt?.toDate?.()?.toISOString() || d.updatedAt, submittedAt: d.submittedAt?.toDate?.()?.toISOString(), ts: d.ts?.toDate?.()?.toISOString() || d.ts };
+        });
+    },
+
+    async exportCollection(collection, limit = 2000) {
+        const db = getAdminDb();
+        // Firestore requires: orderBy() BEFORE limit()
+        let query = db.collection(collection);
+        if (['users', 'orders', 'admin_audit_logs'].includes(collection)) query = query.orderBy('createdAt', 'desc');
+        const snapshot = await query.limit(limit).get();
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    },
+
+    async getLedgerEntries({ entityId, actorId, state, limit = 100 } = {}) {
+        const db = getAdminDb();
+        // Firestore requires: where() BEFORE orderBy()
+        let query = db.collection('ledger_entries');
+        if (entityId) query = query.where('entityId', '==', entityId);
+        if (actorId) query = query.where('actorId', '==', actorId);
+        if (state) query = query.where('state', '==', state);
+        query = query.orderBy('timestamp', 'desc');
+        const snapshot = await query.limit(limit).get();
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    },
+
+    async getHealthStatus() {
+        const db = getAdminDb();
+        const results = { database: 'Unknown', audit_pipeline: 'Unknown' };
+        await db.collection('admin_audit_config').doc('integrity_state').get();
+        results.database = 'Healthy';
+        const lastLog = await db.collection('admin_audit_logs').orderBy('sequence', 'desc').limit(1).get();
+        results.audit_pipeline = lastLog.empty ? 'Empty' : 'Healthy';
+        return results;
+    },
+
+    // --- 🔍 8. Direct Document Fetch (for lookup by ID) ---
+    async getDocumentById(collection, id) {
+        const db = getAdminDb();
+        const doc = await db.collection(collection).doc(id).get();
+        if (!doc.exists) return null;
+        return { id: doc.id, ...doc.data() };
+    },
+
+    // --- 💰 9. Refund Request Management ---
+    async getRefunds({ status = 'pending', limit = 50 } = {}) {
+        const db = getAdminDb();
+        // Firestore requires: where() BEFORE orderBy()
+        let query = db.collection('refund_requests');
+        if (status !== 'all') query = query.where('status', '==', status);
+        query = query.orderBy('createdAt', 'desc').limit(limit);
+        const snapshot = await query.get();
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    },
+
+    async approveRefundRequest(refundId, admin) {
+        const db = getAdminDb();
+        const refundRef = db.collection('refund_requests').doc(refundId);
+        const refundDoc = await refundRef.get();
+        if (!refundDoc.exists) throw new Error('Refund request not found');
+        const refundData = refundDoc.data();
+        if (refundData.status !== 'pending') throw new Error(`Refund is already ${refundData.status}`);
+        if (refundData.approvers?.some(a => a.uid === admin.uid)) throw new Error('You have already approved this refund');
+        const now = new Date().toISOString();
+        const newApprovers = [...(refundData.approvers || []), { uid: admin.uid, name: admin.name || admin.email, role: admin.role, at: now }];
+        const isFullyApproved = newApprovers.length >= (refundData.approversRequired || 1);
+        const batch = db.batch();
+        batch.update(refundRef, { approvers: newApprovers, status: isFullyApproved ? 'approved' : 'pending', updatedAt: now, ...(isFullyApproved && { approvedAt: now }) });
+        if (isFullyApproved) batch.update(db.collection('orders').doc(refundData.orderId), { status: 'refunded', refundedAt: now, refundAmount: refundData.amount });
+        await batch.commit();
+        await this.logAdminAction({ action: 'refund_approved', targetType: 'refund_request', targetId: refundId, adminId: admin.uid, reason: 'Admin approval', after: { orderId: refundData.orderId, amount: refundData.amount, fullyApproved: isFullyApproved } });
+        return { isFullyApproved, pendingApprovals: isFullyApproved ? 0 : (refundData.approversRequired - newApprovers.length) };
+    },
+
+    async rejectRefundRequest(refundId, reason, admin) {
+        const db = getAdminDb();
+        const refundRef = db.collection('refund_requests').doc(refundId);
+        const refundDoc = await refundRef.get();
+        if (!refundDoc.exists) throw new Error('Refund request not found');
+        const refundData = refundDoc.data();
+        if (refundData.status !== 'pending') throw new Error(`Refund is already ${refundData.status}`);
+        const now = new Date().toISOString();
+        const batch = db.batch();
+        batch.update(refundRef, { status: 'rejected', rejectedBy: { uid: admin.uid, name: admin.name || admin.email, role: admin.role }, rejectionReason: reason, rejectedAt: now, updatedAt: now });
+        batch.update(db.collection('orders').doc(refundData.orderId), { status: 'confirmed', refundRejected: true, refundRejectionReason: reason, updatedAt: now });
+        await batch.commit();
+        await this.logAdminAction({ action: 'refund_rejected', targetType: 'refund_request', targetId: refundId, adminId: admin.uid, reason, after: { orderId: refundData.orderId, amount: refundData.amount } });
     }
 };
+

@@ -1,25 +1,43 @@
 /**
- * THE C1RCLE - Finance Store
- * Manages event financial records and settlement audits
- * Location: apps/partner-dashboard/lib/server/financeStore.js
+ * Finance Store (Refactored for API Governance)
+ * 
+ * Uses the unified C1rcleApiClient to manage financial records.
+ * All aggregation and DB access moved to @c1rcle/core/finance-engine via API Gateway.
  */
 
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+import { getApiClient } from "./apiClient";
 
 /**
  * Get financial breakdown for a specific event
  */
-export async function getEventFinanceBreakdown(eventId) {
-    // For now, return a placeholder structure matching expectations
-    // In production, this would query aggregated order totals from Firestore
-
-    return {
-        gross: 0,
-        net: 0,
-        commissions: 0,
-        discounts: 0,
-        fees: 0,
-        payouts: [],
-        auditStatus: "pending"
-    };
+export async function getEventFinanceBreakdown(eventId, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.request(`/finance/summary?entityId=${eventId}&type=event`);
+    } catch (error) {
+        console.error("[FinanceStore] getEventFinanceBreakdown failed:", error.message);
+        return {
+            gross: 0,
+            net: 0,
+            commissions: 0,
+            discounts: 0,
+            fees: 0,
+            payouts: [],
+            auditStatus: "error"
+        };
+    }
 }
+
+/**
+ * Get transaction history for an entity
+ */
+export async function getTransactionHistory(entityId, options = {}, token) {
+    const client = getApiClient(token);
+    const query = new URLSearchParams({ entityId, ...options }).toString();
+    return client.request(`/finance/history?${query}`);
+}
+
+export default {
+    getEventFinanceBreakdown,
+    getTransactionHistory
+};

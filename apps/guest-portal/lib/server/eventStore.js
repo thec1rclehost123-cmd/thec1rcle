@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { algoliasearch } from 'algoliasearch';
 import { EVENT_LIFECYCLE, PUBLIC_LIFECYCLE_STATES, normalizeCity, resolvePoster, mapEventForClient } from "@c1rcle/core/events";
+import { filterAndSortEvents, calculateHeatScore as coreHeatScore } from "@c1rcle/core/event-engine";
 import { events as seedEvents } from "../../data/events";
 
 /**
@@ -158,7 +159,7 @@ const formatTickets = (tickets, fallbackName, fallbackPrice, startDate) => {
       price,
       quantity,
       isFree: price === 0,
-      salesStart: ticket.salesStart || payload.createdAt || "",
+      salesStart: ticket.salesStart || startDate || "",
       salesEnd: ticket.salesEnd || "",
       minPerOrder: Number(ticket.minPerOrder) || 1,
       maxPerOrder: Number(ticket.maxPerOrder) || Math.max(quantity, 1),
@@ -221,18 +222,7 @@ const inferCity = (providedCity, location = "") => {
 };
 
 const calculateHeatScore = (event) => {
-  const stats = event.stats || {};
-  const guestsCount = Array.isArray(event.guests) ? event.guests.length : 0;
-  const now = Date.now();
-  const startMs = event.startDate ? new Date(event.startDate).getTime() : now;
-  const hoursUntil = Math.max((startMs - now) / 36e5, 0);
-  const recencyBoost = Math.max(168 - hoursUntil, 0); // 7 day window
-  const guestBoost = guestsCount * 4;
-  const rsvpBoost = (stats.rsvps || guestsCount) * 3;
-  const viewsBoost = (stats.views || 0) * 0.1;
-  const saveBoost = (stats.saves || 0) * 0.4;
-  const shareBoost = (stats.shares || 0) * 0.8;
-  return Math.round(recencyBoost + guestBoost + rsvpBoost + viewsBoost + saveBoost + shareBoost);
+  return coreHeatScore(event);
 };
 
 const listFallbackEvents = ({ city, limit = 12, sort = "heat", host } = {}) => {
@@ -502,26 +492,10 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
     }
   }
 
-  const results = snapshot.docs
-    .map(doc => mapEventForClient(doc.data(), doc.id))
-    .filter(event => {
-      // 1. Final safety filter: Exclude past events from all public listings
-      const end = event.endDate || event.startDate;
-      if (end < nowIso) return false;
-
-      // 2. Strict content filter for public visibility
-      const title = (event.title || "").trim();
-      if (title.length < 3 || title.toLowerCase().includes("untitled") || title.toLowerCase().includes("test event")) {
-        return false;
-      }
-
-      const location = (event.location || event.venue || "").trim();
-      if (!location || location.toLowerCase() === "tbd" || location.length < 3) {
-        return false;
-      }
-
-      return true;
-    });
+  const results = filterAndSortEvents(
+    snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+    { city, sort, search, host }
+  ).map(e => mapEventForClient(e, e.id));
 
   return serialize(limit ? results.slice(0, limit) : results);
 }

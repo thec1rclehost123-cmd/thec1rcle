@@ -9,6 +9,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "dev": "cmd /c \"copy /Y .env.development .env\" && expo start",
+    "dev:staging": "cmd /c \"copy /Y .env.staging .env\" && expo start",
+    "dev:prod": "cmd /c \"copy /Y .env.production .env\" && expo start",
     "prebuild": "expo prebuild",
     "lint": "eslint . --ext .ts,.tsx",
     "doctor": "npx expo-doctor"

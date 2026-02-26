@@ -115,7 +115,7 @@ export async function getEligibleEventsForSettlement(options = {}) {
 /**
  * Internal logic to determine who gets what from an order
  */
-function calculateOrderSplits(order, event) {
+export function calculateOrderSplits(order, event) {
     const total = Number(order.totalAmount);
     if (total === 0) return [];
 
@@ -226,3 +226,64 @@ export async function processPartnerPayout(partnerId, partnerType) {
 
     return { payoutId, amount: payableBalance, reference: bankRef };
 }
+
+/**
+ * Gets the payout-ready balance for a promoter
+ */
+export async function getPromoterPayoutBalance(promoterId) {
+    const db = getAdminDb();
+
+    // Get total earned (PAYABLE ledger entries)
+    const ledgerSnapshot = await db.collection("ledger_entries")
+        .where("actorId", "==", promoterId)
+        .where("state", "==", MONEY_STATES.PAYABLE)
+        .get();
+
+    const totalEarned = ledgerSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+
+    // Get pending payouts
+    const pendingSnapshot = await db.collection("payouts")
+        .where("partnerId", "==", promoterId)
+        .where("status", "==", "pending")
+        .get();
+
+    const pending = pendingSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+
+    return {
+        available: totalEarned - pending,
+        pending,
+        totalEarned
+    };
+}
+
+/**
+ * Requests a payout for a promoter
+ */
+export async function requestPromoterPayout({ promoterId, amount, paymentMethod, paymentDetails }) {
+    const db = getAdminDb();
+
+    const balance = await getPromoterPayoutBalance(promoterId);
+    if (amount > balance.available) {
+        throw new Error(`Insufficient balance. Available: ₹${balance.available}`);
+    }
+
+    if (amount < 100) {
+        throw new Error("Minimum payout amount is ₹100");
+    }
+
+    const payoutId = `REQ-${randomUUID().substring(0, 8).toUpperCase()}`;
+    const payout = {
+        id: payoutId,
+        partnerId: promoterId,
+        partnerType: 'promoter',
+        amount,
+        paymentMethod,
+        paymentDetails,
+        status: "pending",
+        requestedAt: new Date().toISOString()
+    };
+
+    await db.collection("payouts").doc(payoutId).set(payout);
+    return payout;
+}
+

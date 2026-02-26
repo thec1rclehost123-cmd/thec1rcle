@@ -1,473 +1,87 @@
 /**
- * Venue Registers Store
- * Manages operational registers, notes, staff assignments, and incidents for venues
+ * Register Store (Refactored for API Governance)
+ * 
+ * Uses the unified C1rcleApiClient to manage daily venue operational registers.
+ * All DB access moved to API Gateway's /registers routes.
  */
 
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import { randomUUID } from "node:crypto";
+import { getApiClient } from "./apiClient";
 
-const REGISTERS_COLLECTION = "venue_registers";
-
-// Fallback storage for development
-let fallbackRegisters = [];
-
-/**
- * Get or create a register entry for a specific date
- */
-export async function getDateRegister(venueId, date) {
-    const registerId = `${venueId}_${date}`;
-
-    if (!isFirebaseConfigured()) {
-        const existing = fallbackRegisters.find(r => r.id === registerId);
-        if (existing) return existing;
-
-        const newRegister = createEmptyRegister(venueId, date, registerId);
-        fallbackRegisters.push(newRegister);
-        return newRegister;
+export async function getDateRegister(venueId, date, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.getDateRegister(venueId, date);
+    } catch (error) {
+        console.error("[RegisterStore] getDateRegister failed:", error.message);
+        return null;
     }
-
-    const db = getAdminDb();
-    const doc = await db.collection(REGISTERS_COLLECTION).doc(registerId).get();
-
-    if (!doc.exists) {
-        const newRegister = createEmptyRegister(venueId, date, registerId);
-        await db.collection(REGISTERS_COLLECTION).doc(registerId).set(newRegister);
-        return newRegister;
-    }
-
-    return { id: doc.id, ...doc.data() };
 }
 
-/**
- * Create an empty register structure
- */
-function createEmptyRegister(venueId, date, id) {
-    return {
-        id,
-        venueId,
-        date,
-        notes: {
-            internal: "", // Private notes for management
-            operational: "", // Day-of operations notes
-            promotional: "" // Marketing notes
-        },
-        expectedFootfall: 0,
-        actualFootfall: 0,
-        staffAssignments: [], // { staffId, name, role, shift, confirmed }
-        incidents: [], // { id, type, description, severity, timestamp, reportedBy, resolved }
-        inspections: [], // { id, type, passed, notes, inspector, timestamp }
-        reminders: [], // { id, text, dueTime, completed, completedBy }
-        expenses: [], // { id, category, amount, description, receiptUrl, approvedBy }
-        revenue: {
-            cover: 0,
-            drinks: 0,
-            food: 0,
-            vip: 0,
-            other: 0
-        },
-        weather: null, // { condition, temperature, impact }
-        status: "scheduled", // scheduled, in-progress, completed, cancelled
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    };
+export async function updateRegisterNotes(venueId, date, noteType, content, updatedBy, token) {
+    const client = getApiClient(token);
+    return client.updateRegister(venueId, date, { [`notes.${noteType}`]: content, lastUpdatedBy: updatedBy });
 }
 
-/**
- * Update register notes
- */
-export async function updateRegisterNotes(venueId, date, noteType, content, updatedBy) {
-    const registerId = `${venueId}_${date}`;
-    const now = new Date().toISOString();
-
-    if (!isFirebaseConfigured()) {
-        const register = await getDateRegister(venueId, date);
-        register.notes[noteType] = content;
-        register.updatedAt = now;
-        register.lastUpdatedBy = updatedBy;
-        return register;
-    }
-
-    const db = getAdminDb();
-    await db.collection(REGISTERS_COLLECTION).doc(registerId).set({
-        [`notes.${noteType}`]: content,
-        updatedAt: now,
-        lastUpdatedBy: updatedBy
-    }, { merge: true });
-
-    return await getDateRegister(venueId, date);
+export async function updateExpectedFootfall(venueId, date, count, updatedBy, token) {
+    const client = getApiClient(token);
+    return client.updateRegister(venueId, date, { expectedFootfall: count, lastUpdatedBy: updatedBy });
 }
 
-/**
- * Update expected footfall
- */
-export async function updateExpectedFootfall(venueId, date, count, updatedBy) {
-    const registerId = `${venueId}_${date}`;
-    const now = new Date().toISOString();
-
-    if (!isFirebaseConfigured()) {
-        const register = await getDateRegister(venueId, date);
-        register.expectedFootfall = count;
-        register.updatedAt = now;
-        return register;
-    }
-
-    const db = getAdminDb();
-    await db.collection(REGISTERS_COLLECTION).doc(registerId).set({
-        expectedFootfall: count,
-        updatedAt: now,
-        lastUpdatedBy: updatedBy
-    }, { merge: true });
-
-    return await getDateRegister(venueId, date);
-}
-
-/**
- * Add staff assignment
- */
-export async function addStaffAssignment(venueId, date, assignment) {
-    const registerId = `${venueId}_${date}`;
-    const now = new Date().toISOString();
-
-    const staffAssignment = {
-        id: randomUUID(),
-        staffId: assignment.staffId,
-        name: assignment.name,
-        role: assignment.role,
-        shift: assignment.shift || "evening", // morning, afternoon, evening, night, full
-        startTime: assignment.startTime || "20:00",
-        endTime: assignment.endTime || "03:00",
+export async function addStaffAssignment(venueId, date, assignment, token) {
+    const client = getApiClient(token);
+    const register = await getDateRegister(venueId, date, token);
+    const staffAssignments = [...(register?.staffAssignments || []), {
+        id: crypto.randomUUID(),
+        ...assignment,
         confirmed: false,
-        createdAt: now
-    };
-
-    if (!isFirebaseConfigured()) {
-        const register = await getDateRegister(venueId, date);
-        register.staffAssignments.push(staffAssignment);
-        register.updatedAt = now;
-        return register;
-    }
-
-    const db = getAdminDb();
-    const { FieldValue } = require("firebase-admin/firestore");
-
-    await db.collection(REGISTERS_COLLECTION).doc(registerId).set({
-        staffAssignments: FieldValue.arrayUnion(staffAssignment),
-        updatedAt: now
-    }, { merge: true });
-
-    return await getDateRegister(venueId, date);
+        createdAt: new Date().toISOString()
+    }];
+    return client.updateRegister(venueId, date, { staffAssignments });
 }
 
-/**
- * Remove staff assignment
- */
-export async function removeStaffAssignment(venueId, date, assignmentId) {
-    const register = await getDateRegister(venueId, date);
-    const now = new Date().toISOString();
-
-    const updatedAssignments = register.staffAssignments.filter(a => a.id !== assignmentId);
-
-    if (!isFirebaseConfigured()) {
-        register.staffAssignments = updatedAssignments;
-        register.updatedAt = now;
-        return register;
-    }
-
-    const db = getAdminDb();
-    const registerId = `${venueId}_${date}`;
-
-    await db.collection(REGISTERS_COLLECTION).doc(registerId).update({
-        staffAssignments: updatedAssignments,
-        updatedAt: now
-    });
-
-    return await getDateRegister(venueId, date);
-}
-
-/**
- * Log an incident
- */
-export async function logIncident(venueId, date, incident, reportedBy) {
-    const registerId = `${venueId}_${date}`;
-    const now = new Date().toISOString();
-
-    const incidentRecord = {
-        id: randomUUID(),
-        type: incident.type, // security, medical, property, complaint, other
-        description: incident.description,
-        severity: incident.severity || "low", // low, medium, high, critical
-        location: incident.location || "",
-        involvedParties: incident.involvedParties || [],
-        reportedBy: {
-            uid: reportedBy.uid,
-            name: reportedBy.name || ""
-        },
+export async function logIncident(venueId, date, incident, reportedBy, token) {
+    const client = getApiClient(token);
+    const register = await getDateRegister(venueId, date, token);
+    const incidents = [...(register?.incidents || []), {
+        id: crypto.randomUUID(),
+        ...incident,
+        reportedBy: { uid: reportedBy.uid, name: reportedBy.name || '' },
         resolved: false,
-        resolution: null,
-        timestamp: now
-    };
-
-    if (!isFirebaseConfigured()) {
-        const register = await getDateRegister(venueId, date);
-        register.incidents.push(incidentRecord);
-        register.updatedAt = now;
-        return { register, incident: incidentRecord };
-    }
-
-    const db = getAdminDb();
-    const { FieldValue } = require("firebase-admin/firestore");
-
-    await db.collection(REGISTERS_COLLECTION).doc(registerId).set({
-        incidents: FieldValue.arrayUnion(incidentRecord),
-        updatedAt: now
-    }, { merge: true });
-
-    return { register: await getDateRegister(venueId, date), incident: incidentRecord };
+        timestamp: new Date().toISOString()
+    }];
+    return client.updateRegister(venueId, date, { incidents });
 }
 
-/**
- * Resolve an incident
- */
-export async function resolveIncident(venueId, date, incidentId, resolution, resolvedBy) {
-    const register = await getDateRegister(venueId, date);
-    const now = new Date().toISOString();
-
-    const updatedIncidents = register.incidents.map(inc => {
-        if (inc.id === incidentId) {
-            return {
-                ...inc,
-                resolved: true,
-                resolution: resolution,
-                resolvedAt: now,
-                resolvedBy: {
-                    uid: resolvedBy.uid,
-                    name: resolvedBy.name || ""
-                }
-            };
-        }
-        return inc;
-    });
-
-    if (!isFirebaseConfigured()) {
-        register.incidents = updatedIncidents;
-        register.updatedAt = now;
-        return register;
-    }
-
-    const db = getAdminDb();
-    const registerId = `${venueId}_${date}`;
-
-    await db.collection(REGISTERS_COLLECTION).doc(registerId).update({
-        incidents: updatedIncidents,
-        updatedAt: now
-    });
-
-    return await getDateRegister(venueId, date);
-}
-
-/**
- * Add inspection record
- */
-export async function addInspection(venueId, date, inspection, inspector) {
-    const registerId = `${venueId}_${date}`;
-    const now = new Date().toISOString();
-
-    const inspectionRecord = {
-        id: randomUUID(),
-        type: inspection.type, // fire, safety, health, license, police
-        passed: inspection.passed,
-        notes: inspection.notes || "",
-        deficiencies: inspection.deficiencies || [],
-        followUpRequired: inspection.followUpRequired || false,
-        inspector: {
-            uid: inspector.uid,
-            name: inspector.name || "",
-            external: inspector.external || false, // external inspector like fire dept
-            organization: inspector.organization || ""
-        },
-        timestamp: now
-    };
-
-    if (!isFirebaseConfigured()) {
-        const register = await getDateRegister(venueId, date);
-        register.inspections.push(inspectionRecord);
-        register.updatedAt = now;
-        return { register, inspection: inspectionRecord };
-    }
-
-    const db = getAdminDb();
-    const { FieldValue } = require("firebase-admin/firestore");
-
-    await db.collection(REGISTERS_COLLECTION).doc(registerId).set({
-        inspections: FieldValue.arrayUnion(inspectionRecord),
-        updatedAt: now
-    }, { merge: true });
-
-    return { register: await getDateRegister(venueId, date), inspection: inspectionRecord };
-}
-
-/**
- * Add reminder
- */
-export async function addReminder(venueId, date, reminder, createdBy) {
-    const registerId = `${venueId}_${date}`;
-    const now = new Date().toISOString();
-
-    const reminderRecord = {
-        id: randomUUID(),
-        text: reminder.text,
-        dueTime: reminder.dueTime || "18:00",
-        priority: reminder.priority || "normal", // low, normal, high, urgent
-        category: reminder.category || "general", // general, supplies, staff, vendor, safety
+export async function addReminder(venueId, date, reminder, createdBy, token) {
+    const client = getApiClient(token);
+    const register = await getDateRegister(venueId, date, token);
+    const reminders = [...(register?.reminders || []), {
+        id: crypto.randomUUID(),
+        ...reminder,
         completed: false,
-        createdBy: {
-            uid: createdBy.uid,
-            name: createdBy.name || ""
-        },
-        createdAt: now
-    };
-
-    if (!isFirebaseConfigured()) {
-        const register = await getDateRegister(venueId, date);
-        register.reminders.push(reminderRecord);
-        register.updatedAt = now;
-        return { register, reminder: reminderRecord };
-    }
-
-    const db = getAdminDb();
-    const { FieldValue } = require("firebase-admin/firestore");
-
-    await db.collection(REGISTERS_COLLECTION).doc(registerId).set({
-        reminders: FieldValue.arrayUnion(reminderRecord),
-        updatedAt: now
-    }, { merge: true });
-
-    return { register: await getDateRegister(venueId, date), reminder: reminderRecord };
+        createdBy: { uid: createdBy.uid, name: createdBy.name || '' },
+        createdAt: new Date().toISOString()
+    }];
+    return client.updateRegister(venueId, date, { reminders });
 }
 
-/**
- * Complete a reminder
- */
-export async function completeReminder(venueId, date, reminderId, completedBy) {
-    const register = await getDateRegister(venueId, date);
-    const now = new Date().toISOString();
-
-    const updatedReminders = register.reminders.map(rem => {
-        if (rem.id === reminderId) {
-            return {
-                ...rem,
-                completed: true,
-                completedAt: now,
-                completedBy: {
-                    uid: completedBy.uid,
-                    name: completedBy.name || ""
-                }
-            };
-        }
-        return rem;
-    });
-
-    if (!isFirebaseConfigured()) {
-        register.reminders = updatedReminders;
-        register.updatedAt = now;
-        return register;
-    }
-
-    const db = getAdminDb();
-    const registerId = `${venueId}_${date}`;
-
-    await db.collection(REGISTERS_COLLECTION).doc(registerId).update({
-        reminders: updatedReminders,
-        updatedAt: now
-    });
-
-    return await getDateRegister(venueId, date);
-}
-
-/**
- * Update actual footfall and revenue (end of day)
- */
-export async function updateDayClose(venueId, date, closeData, closedBy) {
-    const registerId = `${venueId}_${date}`;
-    const now = new Date().toISOString();
-
-    const updateData = {
+export async function updateDayClose(venueId, date, closeData, closedBy, token) {
+    const client = getApiClient(token);
+    return client.updateRegister(venueId, date, {
         actualFootfall: closeData.actualFootfall || 0,
-        revenue: {
-            cover: closeData.revenue?.cover || 0,
-            drinks: closeData.revenue?.drinks || 0,
-            food: closeData.revenue?.food || 0,
-            vip: closeData.revenue?.vip || 0,
-            other: closeData.revenue?.other || 0
-        },
-        status: "completed",
-        closedAt: now,
-        closedBy: {
-            uid: closedBy.uid,
-            name: closedBy.name || ""
-        },
-        updatedAt: now
-    };
-
-    if (!isFirebaseConfigured()) {
-        const register = await getDateRegister(venueId, date);
-        Object.assign(register, updateData);
-        return register;
-    }
-
-    const db = getAdminDb();
-    await db.collection(REGISTERS_COLLECTION).doc(registerId).set(updateData, { merge: true });
-
-    return await getDateRegister(venueId, date);
-}
-
-/**
- * Get registers for a date range (for reports)
- */
-export async function getRegistersForRange(venueId, startDate, endDate) {
-    if (!isFirebaseConfigured()) {
-        return fallbackRegisters.filter(r =>
-            r.venueId === venueId &&
-            r.date >= startDate &&
-            r.date <= endDate
-        );
-    }
-
-    const db = getAdminDb();
-    const snapshot = await db.collection(REGISTERS_COLLECTION)
-        .where("venueId", "==", venueId)
-        .where("date", ">=", startDate)
-        .where("date", "<=", endDate)
-        .orderBy("date", "asc")
-        .get();
-
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-}
-
-/**
- * Get incident summary for reporting
- */
-export async function getIncidentSummary(venueId, startDate, endDate) {
-    const registers = await getRegistersForRange(venueId, startDate, endDate);
-
-    const summary = {
-        total: 0,
-        resolved: 0,
-        unresolved: 0,
-        bySeverity: { low: 0, medium: 0, high: 0, critical: 0 },
-        byType: {}
-    };
-
-    registers.forEach(register => {
-        (register.incidents || []).forEach(incident => {
-            summary.total++;
-            if (incident.resolved) summary.resolved++;
-            else summary.unresolved++;
-
-            summary.bySeverity[incident.severity] = (summary.bySeverity[incident.severity] || 0) + 1;
-            summary.byType[incident.type] = (summary.byType[incident.type] || 0) + 1;
-        });
+        revenue: closeData.revenue || {},
+        status: 'completed',
+        closedAt: new Date().toISOString(),
+        closedBy: { uid: closedBy.uid, name: closedBy.name || '' }
     });
+}
 
-    return summary;
+export async function getRegistersForRange(venueId, startDate, endDate, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.getRegistersForRange(venueId, startDate, endDate);
+    } catch (error) {
+        console.error("[RegisterStore] getRegistersForRange failed:", error.message);
+        return [];
+    }
 }

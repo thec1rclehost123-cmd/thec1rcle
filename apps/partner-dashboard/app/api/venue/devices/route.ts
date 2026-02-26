@@ -4,7 +4,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
 import { verifyAuth } from "@/lib/server/auth";
 import { bindDevice, getVenueDevices, revokeDevice } from "@/lib/server/staffService";
 

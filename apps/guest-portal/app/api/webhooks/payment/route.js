@@ -6,10 +6,9 @@
 
 import { NextResponse } from "next/server";
 import { createHmac } from "node:crypto";
-import { confirmOrder, getOrderById, updateOrderStatus } from "@/lib/server/orderStore";
+import { confirmOrder, getOrderById, updateOrderStatus, logWebhookProcessed, wasWebhookProcessed, updateOrderRefundStatus } from "@/lib/server/orderStore";
 import { getEvent } from "@/lib/server/eventStore";
 import { sendTicketEmail } from "@/lib/email";
-import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
 
 // Collection to track processed webhooks (idempotency)
 const WEBHOOK_LOGS_COLLECTION = "payment_webhook_logs";
@@ -29,47 +28,17 @@ function verifyWebhookSignature(body, signature, secret) {
     return expectedSignature === signature;
 }
 
-// Check if webhook was already processed (Redis + Firestore Idempotency)
-async function wasWebhookProcessed(paymentId) {
-    // 1. Check Redis first (Fast path - prevents duplicate calls within a window)
+// Check if webhook was already processed (Redis + Firestore Idempotency via orderStore)
+async function checkAndMarkWebhookProcessed(paymentId) {
+    // 1. Redis fast path
     const redis = (await import("@c1rcle/core/redis")).getRedisClient();
     const redisKey = `payment:${paymentId}:processed`;
-    const isLocked = await redis.set(redisKey, "1", "NX", "EX", 86400); // 24h safety
-
-    // If we couldn't set the key, it means it's already in Redis (processed or processing)
-    if (!isLocked) {
-        return true;
-    }
-
-    // 2. Double-check Firestore (Persistence path)
-    if (!isFirebaseConfigured()) {
-        return fallbackWebhookLogs.has(paymentId);
-    }
-
-    const db = getAdminDb();
-    const doc = await db.collection(WEBHOOK_LOGS_COLLECTION).doc(paymentId).get();
-
-    // If it exists in Firestore but not Redis (e.g. Redis restart), we're still safe
-    return doc.exists;
+    const isLocked = await redis.set(redisKey, "1", "NX", "EX", 86400);
+    if (!isLocked) return true;
+    // 2. Firestore fallback via orderStore
+    return await wasWebhookProcessed(paymentId);
 }
 
-// Log webhook processing (idempotency)
-async function logWebhookProcessed(paymentId, orderId, status) {
-    const logEntry = {
-        paymentId,
-        orderId,
-        status,
-        processedAt: new Date().toISOString()
-    };
-
-    if (!isFirebaseConfigured()) {
-        fallbackWebhookLogs.set(paymentId, logEntry);
-        return;
-    }
-
-    const db = getAdminDb();
-    await db.collection(WEBHOOK_LOGS_COLLECTION).doc(paymentId).set(logEntry);
-}
 
 export async function POST(request) {
     let rawBody;
@@ -113,8 +82,8 @@ export async function POST(request) {
 
             console.log(`[Webhook] Processing payment ${paymentId} for order ${orderId}`);
 
-            // Check idempotency - was this payment already processed?
-            if (await wasWebhookProcessed(paymentId)) {
+            // Check idempotency
+            if (await checkAndMarkWebhookProcessed(paymentId)) {
                 console.log(`[Webhook] Payment ${paymentId} already processed, skipping`);
                 return NextResponse.json({
                     status: "already_processed",
@@ -286,188 +255,23 @@ export async function POST(request) {
                 return NextResponse.json({ status: "handled", message: "Refund event acknowledged (no DB)" });
             }
 
-            const db = getAdminDb();
+            // Delegate all refund state management to orderStore
+            const refundResult = await updateOrderRefundStatus(paymentId, eventType, {
+                refundId,
+                refundAmount,
+                refundEntity,
+                now
+            });
 
-            // Find the associated order
-            const orderSnapshot = await db.collection("orders")
-                .where("payment.razorpayPaymentId", "==", paymentId)
-                .limit(1)
-                .get();
-
-            // Also check alternate field path
-            let orderId = null;
-            let orderDoc = null;
-
-            if (!orderSnapshot.empty) {
-                orderDoc = orderSnapshot.docs[0];
-                orderId = orderDoc.id;
-            } else {
-                // Try alternate payment field
-                const altSnapshot = await db.collection("orders")
-                    .where("paymentDetails.razorpayPaymentId", "==", paymentId)
-                    .limit(1)
-                    .get();
-
-                if (!altSnapshot.empty) {
-                    orderDoc = altSnapshot.docs[0];
-                    orderId = orderDoc.id;
-                }
-            }
-
-            const now = new Date().toISOString();
-
-            // ── Handle REFUND PROCESSED ──
-            if (eventType === "refund.processed" && orderId) {
-                console.log(`[Webhook] ✅ Refund ${refundId} processed for order ${orderId} — ₹${refundAmount}`);
-
-                // Update order refund status
-                await orderDoc.ref.update({
-                    refundStatus: "completed",
-                    refundCompletedAt: now,
-                    razorpayRefundId: refundId,
-                    refundAmount: refundAmount,
-                    updatedAt: now,
-                });
-
-                // Invalidate tickets
-                try {
-                    const { invalidateOrderTickets } = await import("@/lib/server/ticketShareStore");
-                    await invalidateOrderTickets(orderId, "refunded");
-                    console.log(`[Webhook] Invalidated tickets for refunded order ${orderId}`);
-                } catch (invalidateErr) {
-                    console.error(`[Webhook] Failed to invalidate tickets for ${orderId}:`, invalidateErr);
-                }
-
-                // Finalize ledger entry
-                try {
-                    const { finalizeRefund } = await import("@c1rcle/core/ledger-engine");
-                    await finalizeRefund(orderId, refundAmount, refundId);
-                    console.log(`[Webhook] Ledger refund finalized for order ${orderId}`);
-                } catch (ledgerErr) {
-                    console.error(`[Webhook] Ledger finalization failed for ${orderId}:`, ledgerErr);
-                }
-
-                // Notify user — refund successful
-                const orderData = orderDoc.data();
-                if (orderData.userId) {
-                    try {
-                        const notifRef = db.collection("notifications").doc();
-                        await notifRef.set({
-                            id: notifRef.id,
-                            userId: orderData.userId,
-                            type: "refund_completed",
-                            title: "Refund Processed",
-                            body: `Your refund of ₹${refundAmount.toLocaleString("en-IN")} has been processed and will reflect in your account within 5-7 business days.`,
-                            data: {
-                                orderId,
-                                refundId,
-                                refundAmount,
-                                paymentId,
-                            },
-                            read: false,
-                            createdAt: now,
-                        });
-                    } catch (notifErr) {
-                        console.error(`[Webhook] Failed to notify user about refund:`, notifErr);
-                    }
-                }
-
-                // Update event-level cancellation summary if exists
-                if (orderData.eventId) {
-                    try {
-                        const eventRef = db.collection("events").doc(orderData.eventId);
-                        const eventDoc = await eventRef.get();
-                        if (eventDoc.exists && eventDoc.data().cancellationSummary) {
-                            const summary = eventDoc.data().cancellationSummary;
-                            await eventRef.update({
-                                "cancellationSummary.refundsCompleted": (summary.refundsCompleted || 0) + 1,
-                                "cancellationSummary.totalRefundedAmount": (summary.totalRefundedAmount || 0) + refundAmount,
-                                updatedAt: now,
-                            });
-                        }
-                    } catch (e) {
-                        // Non-critical
-                    }
-                }
-
-                return NextResponse.json({
-                    status: "success",
-                    message: `Refund ${refundId} processed for order ${orderId}`,
-                });
-            }
-
-            // ── Handle REFUND FAILED ──
-            if (eventType === "refund.failed" && orderId) {
-                console.error(`[Webhook] ❌ Refund ${refundId} FAILED for order ${orderId}`);
-
-                await orderDoc.ref.update({
-                    refundStatus: "failed",
-                    refundFailedAt: now,
-                    refundFailureReason: refundEntity.error?.description || "Unknown failure",
-                    updatedAt: now,
-                });
-
-                // Notify user — refund failed
-                const orderData = orderDoc.data();
-                if (orderData.userId) {
-                    try {
-                        const notifRef = db.collection("notifications").doc();
-                        await notifRef.set({
-                            id: notifRef.id,
-                            userId: orderData.userId,
-                            type: "refund_failed",
-                            title: "Refund Issue",
-                            body: `We encountered an issue processing your refund of ₹${refundAmount.toLocaleString("en-IN")}. Our support team has been notified and will resolve this shortly.`,
-                            data: {
-                                orderId,
-                                refundId,
-                                refundAmount,
-                            },
-                            read: false,
-                            createdAt: now,
-                        });
-                    } catch (notifErr) {
-                        console.error(`[Webhook] Failed to notify user about failed refund:`, notifErr);
-                    }
-                }
-
-                // TODO: Alert support team (Slack/email) about failed refund
-
-                return NextResponse.json({
-                    status: "handled",
-                    message: `Refund failure recorded for order ${orderId}`,
-                });
-            }
-
-            // ── Handle REFUND SPEED CHANGED ──
-            if (eventType === "refund.speed_changed" && orderId) {
-                const newSpeed = refundEntity.speed_processed || refundEntity.speed_requested;
-                console.log(`[Webhook] ⚡ Refund speed changed for order ${orderId}: ${newSpeed}`);
-
-                await orderDoc.ref.update({
-                    refundSpeed: newSpeed,
-                    updatedAt: now,
-                });
-
-                return NextResponse.json({
-                    status: "handled",
-                    message: `Refund speed change recorded for order ${orderId}`,
-                });
-            }
-
-            // Generic refund event (refund.created)
-            if (orderId) {
-                await orderDoc.ref.update({
-                    refundStatus: "initiated",
-                    razorpayRefundId: refundId,
-                    updatedAt: now,
-                });
+            if (!refundResult) {
+                return NextResponse.json({ status: "handled", message: "Refund event acknowledged (order not found)" });
             }
 
             return NextResponse.json({
-                status: "handled",
-                message: "Refund event processed",
+                status: refundResult.status,
+                message: refundResult.message || `Refund event ${eventType} processed`,
             });
+
         }
 
         // Unhandled event type

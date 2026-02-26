@@ -1,30 +1,19 @@
+/**
+ * THE C1RCLE - Entitlement QR API (BFF Proxy)
+ * Delegates to API Gateway for QR code generation
+ */
 import { verifyAuth } from "@/lib/server/auth";
-import { getAdminDb } from "@/lib/firebase/admin";
 import { generateEntitlementQR } from "@c1rcle/core/entitlement-engine";
 
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
+
 export async function GET(request, { params }) {
+    if (!GATEWAY_URL) return Response.json({ error: "Service unavailable" }, { status: 503 });
     const user = await verifyAuth(request);
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const entitlementId = params.id;
-    const db = getAdminDb();
-    const entDoc = await db.collection("entitlements").doc(entitlementId).get();
-
-    if (!entDoc.exists) return Response.json({ error: "Not Found" }, { status: 404 });
-    const entitlement = entDoc.data();
-
-    // Only owner can get the rotating QR
-    if (entitlement.ownerUserId !== user.uid) {
-        return Response.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const qr = generateEntitlementQR(entitlementId);
-
-    // Convert to JSON string for the client to scan
-    const rawData = JSON.stringify(qr);
-
-    return Response.json({
-        ...qr,
-        rawData
+    const res = await fetch(`${GATEWAY_URL}/api/v1/scan/entitlements/${params.id}/qr`, {
+        headers: { "Authorization": request.headers.get("Authorization") || "" }
     });
+    return Response.json(await res.json().catch(() => ({})), { status: res.status });
 }

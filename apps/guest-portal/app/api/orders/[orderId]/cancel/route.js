@@ -17,7 +17,6 @@ import { verifyAuth } from "@/lib/server/auth";
 import { getOrderById, cancelOrder } from "@/lib/server/orderStore";
 import { getEvent } from "@/lib/server/eventStore";
 import { initiateRefund } from "@/lib/server/payments/razorpay";
-import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
 
 // Cancellation policies
 const CANCELLATION_WINDOW_HOURS = 48; // Allow cancellation up to 48h before event
@@ -166,56 +165,19 @@ export async function POST(request, { params }) {
             }
         }
 
-        // ── 6. Cancel Order (restore inventory, revoke entitlements) ──
-        await cancelOrder(orderId);
-
-        // ── 7. Store cancellation metadata ──
-        if (isFirebaseConfigured()) {
-            const db = getAdminDb();
-            const orderRef = db.collection("orders").doc(orderId);
-            await orderRef.update({
-                cancellationReason: reason,
-                cancelledBy: decodedToken.uid,
-                cancelledByType: "guest",
-                cancelledAt: now.toISOString(),
-                refundPercentage,
-                refundAmountEstimate: Math.round(order.totalAmount * (refundPercentage / 100) * 100) / 100,
-                razorpayRefundId: refundResult?.id || null,
-                refundStatus: refundResult?.status === "failed"
-                    ? "failed"
-                    : refundResult?.id
-                        ? "processing"
-                        : (refundPercentage === 0 ? "not_applicable" : "pending"),
-            });
-        }
-
-        // ── 8. Create notification for user ──
-        try {
-            if (isFirebaseConfigured()) {
-                const db = getAdminDb();
-                const refundAmount = Math.round(order.totalAmount * (refundPercentage / 100) * 100) / 100;
-                const notifRef = db.collection("notifications").doc();
-                await notifRef.set({
-                    id: notifRef.id,
-                    userId: decodedToken.uid,
-                    type: "order_cancelled",
-                    title: "Order Cancelled",
-                    body: refundPercentage > 0
-                        ? `Your order for "${event?.title || 'event'}" has been cancelled. A ${refundPercentage}% refund (₹${refundAmount.toLocaleString("en-IN")}) will be processed within 5-7 business days.`
-                        : `Your order for "${event?.title || 'event'}" has been cancelled.`,
-                    data: {
-                        orderId,
-                        eventId: order.eventId,
-                        refundPercentage,
-                        refundAmount,
-                    },
-                    read: false,
-                    createdAt: now.toISOString(),
-                });
-            }
-        } catch (notifErr) {
-            console.error("[OrderCancel] Failed to create notification:", notifErr);
-        }
+        // ── 6. Cancel Order (restore inventory, revoke entitlements + persist metadata) ──
+        // cancelOrder in orderStore handles DB persistence and notification dispatch
+        await cancelOrder(orderId, {
+            cancellationReason: reason,
+            cancelledBy: decodedToken.uid,
+            cancelledByType: "guest",
+            refundPercentage,
+            razorpayRefundId: refundResult?.id || null,
+            refundStatus: refundResult?.status === "failed"
+                ? "failed"
+                : refundResult?.id ? "processing"
+                    : (refundPercentage === 0 ? "not_applicable" : "pending"),
+        });
 
         // ── Response ──
         const refundAmount = Math.round(order.totalAmount * (refundPercentage / 100) * 100) / 100;

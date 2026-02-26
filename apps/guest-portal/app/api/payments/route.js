@@ -5,7 +5,6 @@ import {
     getRazorpayClientConfig
 } from "../../../lib/server/payments/razorpay";
 import { getOrderById, confirmOrder } from "../../../lib/server/orderStore";
-import { getAdminDb, isFirebaseConfigured } from "../../../lib/firebase/admin";
 import { verifyAuth } from "../../../lib/server/auth";
 import { generateOrderQRCodes } from "../../../lib/server/qrStore";
 
@@ -89,20 +88,6 @@ export async function POST(request) {
             }
         });
 
-        // Store payment initiation
-        if (isFirebaseConfigured()) {
-            const db = getAdminDb();
-            await db.collection(PAYMENTS_COLLECTION).add({
-                orderId,
-                razorpayOrderId: razorpayOrder.id,
-                amount: order.totalAmount,
-                currency: order.currency || "INR",
-                status: "initiated",
-                userId: decodedToken.uid,
-                createdAt: new Date().toISOString()
-            });
-        }
-
         return NextResponse.json({
             razorpayOrderId: razorpayOrder.id,
             amount: order.totalAmount,
@@ -163,26 +148,7 @@ export async function PATCH(request) {
             );
         }
 
-        // Update payment record
-        if (isFirebaseConfigured()) {
-            const db = getAdminDb();
-            const paymentQuery = await db.collection(PAYMENTS_COLLECTION)
-                .where("orderId", "==", orderId)
-                .where("razorpayOrderId", "==", razorpay_order_id)
-                .limit(1)
-                .get();
-
-            if (!paymentQuery.empty) {
-                await paymentQuery.docs[0].ref.update({
-                    razorpayPaymentId: razorpay_payment_id,
-                    razorpaySignature: razorpay_signature,
-                    status: "verified",
-                    verifiedAt: new Date().toISOString()
-                });
-            }
-        }
-
-        // Confirm the order
+        // Confirm the order (orderStore handles the rest)
         const confirmedOrder = await confirmOrder(orderId, {
             paymentId: razorpay_payment_id,
             paymentMethod: "razorpay"

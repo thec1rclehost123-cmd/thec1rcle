@@ -1,0 +1,33 @@
+name: Daily Health Check
+
+on:
+  schedule:
+    # Runs at 02:00 IST (20:30 UTC) every day
+    - cron: '30 20 * * *'
+  workflow_dispatch: # Allows manual triggering from GitHub UI
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Smoke Tests
+        run: |
+          node scripts/smoke-test.js
+        env:
+          STAGING_GUEST_URL: "https://staging.thec1rcle.com"
+          STAGING_ADMIN_URL: "https://staging-admin.thec1rcle.com"
+          STAGING_API_URL: "https://api-staging.thec1rcle.com/health"
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "::error::Staging Health Check Failed! Please check the logs."
+          # Here you could add a step to send a Slack or Discord webhook

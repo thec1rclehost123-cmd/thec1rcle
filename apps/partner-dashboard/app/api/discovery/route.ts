@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
 import { discoverPartners, getConnectionStatus } from "@/lib/server/promoterConnectionStore";
 import { createRequest, approveRequest, rejectRequest, blockRequest, listConnections } from "@/lib/server/connectionService";
-import { getAdminDb } from "@/lib/firebase/admin";
 
 /**
  * GET /api/discovery
@@ -44,52 +43,11 @@ export async function GET(req: NextRequest) {
                 // Get connection status for each partner
                 const partnersWithStatus = await Promise.all(
                     otherPartners.map(async (partner) => {
-                        // Check status in both collections
-                        const db = getAdminDb();
-                        let status = null;
-                        let connectionId = null;
-
-                        // 1. Check partnerships (Host <-> Venue)
-                        if ((role === "host" && partner.type === "venue") || (role === "venue" && partner.type === "host")) {
-                            const hostId = role === "host" ? partnerId : partner.id;
-                            const venueId = role === "venue" ? partnerId : partner.id;
-                            const pSnap = await db.collection("partnerships")
-                                .where("hostId", "==", hostId)
-                                .where("venueId", "==", venueId)
-                                .limit(1).get();
-                            if (!pSnap.empty) {
-                                const data = pSnap.docs[0].data();
-                                status = data.status === "active" ? "approved" : data.status; // Normalize active to approved
-                                connectionId = pSnap.docs[0].id;
-                            }
-                        }
-
-                        // 2. Check promoter_connections
-                        if (!status) {
-                            const cSnap1 = await db.collection("promoter_connections")
-                                .where("promoterId", "==", partnerId)
-                                .where("targetId", "==", partner.id)
-                                .limit(1).get();
-
-                            if (!cSnap1.empty) {
-                                status = cSnap1.docs[0].data().status;
-                                connectionId = cSnap1.docs[0].id;
-                            } else {
-                                const cSnap2 = await db.collection("promoter_connections")
-                                    .where("promoterId", "==", partner.id)
-                                    .where("targetId", "==", partnerId)
-                                    .limit(1).get();
-                                if (!cSnap2.empty) {
-                                    status = cSnap2.docs[0].data().status;
-                                    connectionId = cSnap2.docs[0].id;
-                                }
-                            }
-                        }
-
+                        const statusResult = await getConnectionStatus(partnerId, partner.id, role as string);
                         return {
                             ...partner,
-                            connectionStatus: status || null,
-                            connectionId: connectionId || null
+                            connectionStatus: statusResult?.status || null,
+                            connectionId: statusResult?.connectionId || null
                         };
                     })
                 );

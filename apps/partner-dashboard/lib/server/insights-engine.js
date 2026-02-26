@@ -1,4 +1,4 @@
-import { getAdminDb } from "../firebase/admin";
+// Insights Engine - Pure logic module. No direct DB access.
 
 /**
  * THE C1RCLE Insights Engine (v1)

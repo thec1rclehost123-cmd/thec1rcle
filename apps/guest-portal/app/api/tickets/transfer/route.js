@@ -12,7 +12,6 @@ import {
     getPendingTransfers,
     getShareBundleByToken
 } from "@/lib/server/ticketShareStore";
-import { getAdminDb } from "@/lib/firebase/admin";
 
 /**
  * GET /api/tickets/transfer?code=[token]
@@ -27,34 +26,13 @@ export async function GET(request) {
             return NextResponse.json({ error: "Code is required" }, { status: 400 });
         }
 
-        const db = getAdminDb();
-        const snapshot = await db.collection("transfers")
-            .where("token", "==", code)
-            .limit(1)
-            .get();
+        const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
+        if (!GATEWAY_URL) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-        if (snapshot.empty) {
-            return NextResponse.json({ error: "Transfer not found or expired" }, { status: 404 });
-        }
-
-        const transfer = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
-
-        // Fetch event details for the preview
-        const eventDoc = await db.collection("events").doc(transfer.eventId).get();
-        const event = eventDoc.exists ? { id: eventDoc.id, ...eventDoc.data() } : null;
-
-        return NextResponse.json({
-            success: true,
-            transfer: {
-                ...transfer,
-                event: {
-                    title: event?.title,
-                    date: event?.startDate || event?.date,
-                    venue: event?.venue || event?.location,
-                    posterUrl: event?.image || event?.posterUrl
-                }
-            }
+        const res = await fetch(`${GATEWAY_URL}/api/v1/transfer?code=${encodeURIComponent(code)}`, {
+            headers: { "Authorization": request.headers.get("Authorization") || "" }
         });
+        return NextResponse.json(await res.json().catch(() => ({})), { status: res.status });
     } catch (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }

@@ -85,7 +85,8 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     const handleApplyPromoCode = async (code) => {
         try {
             const token = user ? await user.getIdToken() : null;
-            const res = await fetch(`/api/checkout/promo`, {
+            const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "";
+            const res = await fetch(`${gatewayUrl}/api/v1/checkout/promo`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -189,7 +190,8 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
 
             // 2. Step 1: Reserve Inventory (if not already done)
             setProcessingState("reserving");
-            const reserveRes = await fetch("/api/checkout/reserve", {
+            const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "";
+            const reserveRes = await fetch(`${gatewayUrl}/api/v1/checkout/reserve`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -209,7 +211,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
 
             // 3. Step 2 & 3: Initiate Checkout (Pricing + Draft Order)
             setProcessingState("initiating");
-            const initiateRes = await fetch("/api/checkout/initiate", {
+            const initiateRes = await fetch(`${gatewayUrl}/api/v1/checkout/initiate`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -279,7 +281,8 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             handler: async function (response) {
                 try {
                     setProcessingState("verifying");
-                    const verifyRes = await fetch("/api/payments", {
+                    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "";
+                    const verifyRes = await fetch(`${gatewayUrl}/api/v1/payments/verify`, {
                         method: "PATCH",
                         headers: {
                             "Content-Type": "application/json",
@@ -316,7 +319,8 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
 
                     // Automatically release inventory if user actively cancels
                     try {
-                        await fetch("/api/checkout/cancel", {
+                        const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "";
+                        await fetch(`${gatewayUrl}/api/v1/checkout/cancel`, {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json",

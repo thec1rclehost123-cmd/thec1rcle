@@ -1,26 +1,13 @@
 import { NextResponse } from "next/server";
-import { getAdminDb } from "@/lib/firebase/admin";
+import { adminStore } from "@/lib/server/adminStore";
 import { withAdminAuth } from "@/lib/server/adminMiddleware";
 
 export const dynamic = 'force-dynamic';
 
 const ALLOWED_COLLECTIONS = [
-    'users',
-    'venues',
-    'hosts',
-    'promoters',
-    'admins',
-    'events',
-    'orders',
-    'onboarding_requests',
-    'host_applications',
-    'admin_audit_logs',
-    'proposed_actions',
-    'support_tickets',
-    'platform_config',
-    'safety_reports',
-    'failed_webhooks',
-    'retry_jobs'
+    'users', 'venues', 'hosts', 'promoters', 'admins', 'events', 'orders',
+    'onboarding_requests', 'host_applications', 'admin_audit_logs', 'proposed_actions',
+    'support_tickets', 'platform_config', 'safety_reports', 'failed_webhooks', 'retry_jobs'
 ];
 
 async function handler(req) {
@@ -52,42 +39,7 @@ async function handler(req) {
     }
 
     try {
-        const db = getAdminDb();
-        let query = db.collection(collection);
-
-        // Filters
-        if (status) {
-            query = query.where('status', '==', status);
-        }
-
-        // Enforce consistent ordering
-        if (collection === 'admin_audit_logs') {
-            query = query.orderBy('timestamp', 'desc');
-        } else if (collection === 'events') {
-            query = query.orderBy('startTime', 'desc');
-        } else if (collection === 'onboarding_requests') {
-            query = query.orderBy('submittedAt', 'desc');
-        } else if (['proposed_actions', 'users', 'admins', 'orders', 'venues', 'hosts', 'promoters'].includes(collection)) {
-            query = query.orderBy('createdAt', 'desc');
-        } else if (collection === 'retry_jobs') {
-            query = query.orderBy('createdAt', 'desc');
-        }
-
-        const snapshot = await query.limit(limit).get();
-        let results = snapshot.docs.map(doc => {
-            const docData = doc.data();
-            const base = {
-                id: doc.id,
-                ...docData,
-                // Unified timestamp normalization
-                timestamp: docData.timestamp?.toDate?.()?.toISOString() || docData.ts?.toDate?.()?.toISOString(),
-                createdAt: docData.createdAt?.toDate?.()?.toISOString() || docData.createdAt,
-                updatedAt: docData.updatedAt?.toDate?.()?.toISOString() || docData.updatedAt,
-                submittedAt: docData.submittedAt?.toDate?.()?.toISOString(),
-                ts: docData.ts?.toDate?.()?.toISOString() || docData.ts
-            };
-            return base;
-        });
+        let results = await adminStore.listCollection(collection, { status, limit, adminRole });
 
         // Specialized Mapping for Events
         if (collection === 'events') {
@@ -95,7 +47,6 @@ async function handler(req) {
             results = results.map(r => mapEventForClient(r, r.id));
         }
 
-        // Maintain compatibility with frontend expectations
         return NextResponse.json({ data: results, results });
     } catch (error) {
         console.error(`[SECURITY] List API Error [${collection}]:`, error.message);
