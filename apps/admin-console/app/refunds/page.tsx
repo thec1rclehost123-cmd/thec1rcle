@@ -426,7 +426,7 @@ export default function RefundsPage() {
                                                     <div className="space-y-4">
                                                         <p className="text-[10px] text-zinc-600 uppercase font-bold tracking-widest">Request Context</p>
                                                         <div className="space-y-1">
-                                                            <p className="text-sm text-zinc-400 font-medium">"{request.reason}"</p>
+                                                            <p className="text-sm text-zinc-400 font-medium">&quot;{request.reason}&quot;</p>
                                                             <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mt-2 flex items-center gap-1.5">
                                                                 <Clock className="w-3 h-3" /> Received: {formatDate(request.createdAt)}
                                                             </p>

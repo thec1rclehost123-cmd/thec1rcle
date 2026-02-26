@@ -240,7 +240,7 @@ export default function AdminLogs() {
                                     <div className="p-5 rounded-xl bg-white/[0.02] border border-[#ffffff05] space-y-6">
                                         <div>
                                             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">Admin Reason</p>
-                                            <p className="text-sm font-medium text-zinc-400 italic leading-relaxed">"{cleanJargon((selectedLog.reason || selectedLog.details?.reason) || 'Authenticated administrative action.')}"</p>
+                                            <p className="text-sm font-medium text-zinc-400 italic leading-relaxed">&quot;{cleanJargon((selectedLog.reason || selectedLog.details?.reason) || 'Authenticated administrative action.')}&quot;</p>
                                         </div>
 
                                         {(selectedLog.before || selectedLog.after) && (

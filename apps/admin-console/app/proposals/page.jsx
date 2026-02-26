@@ -171,12 +171,12 @@ export default function AdminProposals() {
                                         </td>
                                         <td className="px-8 py-7">
                                             <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded border ${p.status === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
-                                                    p.status === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' :
-                                                        'bg-zinc-800 border-white/5 text-zinc-500'
+                                                p.status === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' :
+                                                    'bg-zinc-800 border-white/5 text-zinc-500'
                                                 }`}>
                                                 <div className={`h-1 w-1 rounded-full ${p.status === 'pending' ? 'bg-amber-500' :
-                                                        p.status === 'approved' ? 'bg-emerald-500' :
-                                                            'bg-zinc-500'
+                                                    p.status === 'approved' ? 'bg-emerald-500' :
+                                                        'bg-zinc-500'
                                                     }`} />
                                                 <span className="text-[9px] font-bold uppercase tracking-widest">{p.status}</span>
                                             </div>
@@ -212,7 +212,7 @@ export default function AdminProposals() {
                                         </div>
                                     </div>
                                     <h3 className="text-2xl font-semibold tracking-tight text-white uppercase">{selectedProp.action?.replace(/_/g, ' ')}</h3>
-                                    <p className="text-sm font-medium text-zinc-500 leading-relaxed italic">"{selectedProp.reason || 'No reason provided.'}"</p>
+                                    <p className="text-sm font-medium text-zinc-500 leading-relaxed italic">&quot;{selectedProp.reason || 'No reason provided.'}&quot;</p>
                                 </div>
 
                                 <div className="space-y-6">

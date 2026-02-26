@@ -337,7 +337,7 @@ export default function AdminCuration() {
                                             </div>
                                         );
                                     }) : (
-                                        <p className="text-[10px] text-zinc-700 italic px-1">Pin events to the "Selects" grid.</p>
+                                        <p className="text-[10px] text-zinc-700 italic px-1">Pin events to the &quot;Selects&quot; grid.</p>
                                     )}
                                 </div>
                             </div>

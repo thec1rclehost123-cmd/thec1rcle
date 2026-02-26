@@ -252,7 +252,7 @@ export default function AdminsManagement() {
                                                 <span className="text-[9px] font-bold uppercase tracking-widest">Enforced</span>
                                             </div>
                                         </div>
-                                        <p className="text-[11px] font-medium text-zinc-400 italic leading-relaxed">"Authorized access to {selectedAdmin.admin_role || 'readonly'} modules and specific operational endpoints."</p>
+                                        <p className="text-[11px] font-medium text-zinc-400 italic leading-relaxed">&quot;Authorized access to {selectedAdmin.admin_role || 'readonly'} modules and specific operational endpoints.&quot;</p>
                                     </div>
 
                                     <div className="space-y-4 pt-2">
