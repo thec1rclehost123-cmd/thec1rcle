@@ -43,4 +43,3 @@ export function EmptyState({ icon, title, description, action, className = "" }:
 }
 
 export default EmptyState;
-Line 41: 
