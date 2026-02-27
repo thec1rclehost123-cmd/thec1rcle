@@ -9,6 +9,9 @@ import { createRazorpayOrder } from "@/lib/server/payments/razorpay";
 import { createOrder } from "@/lib/server/orderStore";
 import { getEvent } from "@/lib/server/eventStore";
 import { verifyAuth } from "@/lib/server/auth";
+
+export const dynamic = 'force-dynamic';
+
 import { withRateLimit } from "@/lib/server/rateLimit";
 
 async function handler(request) {

@@ -85,3 +85,84 @@ export async function getRegistersForRange(venueId, startDate, endDate, token) {
         return [];
     }
 }
+export async function removeStaffAssignment(venueId, date, assignmentId, token) {
+    const client = getApiClient(token);
+    const register = await getDateRegister(venueId, date, token);
+    const staffAssignments = (register?.staffAssignments || []).filter(a => a.id !== assignmentId);
+    return client.updateRegister(venueId, date, { staffAssignments });
+}
+
+export async function resolveIncident(venueId, date, incidentId, resolution, user, token) {
+    const client = getApiClient(token);
+    const register = await getDateRegister(venueId, date, token);
+    const incidents = (register?.incidents || []).map(inc => {
+        if (inc.id === incidentId) {
+            return {
+                ...inc,
+                resolved: true,
+                resolution,
+                resolvedBy: { uid: user.uid, name: user.name || '' },
+                resolvedAt: new Date().toISOString()
+            };
+        }
+        return inc;
+    });
+    return client.updateRegister(venueId, date, { incidents });
+}
+
+export async function completeReminder(venueId, date, reminderId, user, token) {
+    const client = getApiClient(token);
+    const register = await getDateRegister(venueId, date, token);
+    const reminders = (register?.reminders || []).map(rem => {
+        if (rem.id === reminderId) {
+            return {
+                ...rem,
+                completed: true,
+                completedBy: { uid: user.uid, name: user.name || '' },
+                completedAt: new Date().toISOString()
+            };
+        }
+        return rem;
+    });
+    return client.updateRegister(venueId, date, { reminders });
+}
+
+export async function addInspection(venueId, date, inspection, user, token) {
+    const client = getApiClient(token);
+    const register = await getDateRegister(venueId, date, token);
+    const inspections = [...(register?.inspections || []), {
+        id: crypto.randomUUID(),
+        ...inspection,
+        inspector: { uid: user.uid, name: user.name || '' },
+        createdAt: new Date().toISOString()
+    }];
+    return client.updateRegister(venueId, date, { inspections });
+}
+
+export async function getIncidentSummary(venueId, startDate, endDate, token) {
+    const registers = await getRegistersForRange(venueId, startDate, endDate, token);
+    const allIncidents = registers.flatMap(r => (r.incidents || []).map(i => ({ ...i, date: r.date })));
+
+    return {
+        total: allIncidents.length,
+        resolved: allIncidents.filter(i => i.resolved).length,
+        pending: allIncidents.filter(i => !i.resolved).length,
+        incidents: allIncidents
+    };
+}
+
+export default {
+    getDateRegister,
+    updateRegisterNotes,
+    updateExpectedFootfall,
+    addStaffAssignment,
+    removeStaffAssignment,
+    logIncident,
+    resolveIncident,
+    addInspection,
+    addReminder,
+    completeReminder,
+    updateDayClose,
+    getRegistersForRange,
+    getIncidentSummary
+};

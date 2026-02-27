@@ -12,12 +12,51 @@ export async function createSlotRequest(data, token) {
     return client.requestSlot(data);
 }
 
-export async function respondToSlotRequest(id, action, responseData = {}, token) {
+export async function listSlotRequests(partnerId, role, status = null, token) {
     const client = getApiClient(token);
-    return client.respondToSlot(id, action, responseData);
+    try {
+        const params = new URLSearchParams({ partnerId, role });
+        if (status) params.append('status', status);
+        return await client.request(`/calendar/slots?${params}`);
+    } catch (error) {
+        console.error("[SlotStore] listSlotRequests failed:", error.message);
+        return [];
+    }
+}
+
+export async function rejectSlotRequest(id, actor, reason = "", token) {
+    const client = getApiClient(token);
+    return client.respondToSlot(id, 'reject', { reason });
+}
+
+export async function counterProposeSlot(id, actor, suggestion, token) {
+    const client = getApiClient(token);
+    return client.respondToSlot(id, 'counter', { suggestion });
+}
+
+export async function getSlotRequest(id, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.request(`/calendar/slots/${id}`);
+    } catch (error) {
+        console.error("[SlotStore] getSlotRequest failed:", error.message);
+        return null;
+    }
+}
+
+export async function approveSlotRequest(id, actor, data = {}, token) {
+    const client = getApiClient(token);
+    return client.respondToSlot(id, 'approve', data);
 }
 
 export default {
     createSlotRequest,
-    respondToSlotRequest
+    respondToSlotRequest,
+    listSlotRequests,
+    rejectSlotRequest,
+    counterProposeSlot,
+    getSlotRequest,
+    approveSlotRequest
 };
+
+

@@ -46,3 +46,18 @@ export async function releaseTable(bookingId, eventId, token) {
     const client = getApiClient(token);
     return client.releaseTable(bookingId, eventId);
 }
+export async function getEventTableStatus(eventId, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.getEventAssignments(eventId);
+    } catch (error) {
+        console.error("[TableStore] getEventTableStatus failed:", error.message);
+        return [];
+    }
+}
+
+export async function updateTableStatus(eventId, tableId, status, notes, token) {
+    const client = getApiClient(token);
+    // Map to assignTable which handles status updates
+    return client.assignTable(eventId, tableId, null, status);
+}

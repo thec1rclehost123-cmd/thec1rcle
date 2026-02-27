@@ -6,7 +6,86 @@ on:
       - main
 
 jobs:
-  deploy:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Validation (Lint, Typecheck, Test)
+        run: |
+          npm run lint
+          npx turbo build
+          npm test
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Snyk Security Scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --all-projects --severity-threshold=high
+
+  deploy-web:
+    needs: [validate, security-scan]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [admin-console, guest-portal, partner-dashboard]
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Set Project IDs
+        id: vars
+        run: |
+          if [ "${{ matrix.app }}" == "admin-console" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN }}" >> $GITHUB_OUTPUT; fi
+          if [ "${{ matrix.app }}" == "guest-portal" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST }}" >> $GITHUB_OUTPUT; fi
+          if [ "${{ matrix.app }}" == "partner-dashboard" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER }}" >> $GITHUB_OUTPUT; fi
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ steps.vars.outputs.pid }}
+          working-directory: apps/${{ matrix.app }}
+          vercel-args: '--prod'
+
+  deploy-services:
+    needs: [validate, security-scan]
     runs-on: ubuntu-latest
     env:
       GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
@@ -23,60 +102,13 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      # Proper CI: Validation Checks
-      - name: Run Linting
-        run: npm run lint
-
-      - name: Run Type Checking
-        run: npx turbo build
-
-      - name: Run Automated Tests
-        run: npm test
-
-      # Security Scanning (Snyk)
-      - name: Run Snyk Security Scan
-        uses: snyk/actions/node@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --all-projects --severity-threshold=high
-
-      # Deployment Steps...
-      - name: Deploy Admin Console to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_ADMIN }}
-          working-directory: apps/admin-console
-          vercel-args: '--prod'
-
-      - name: Deploy Guest Portal to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_GUEST }}
-          working-directory: apps/guest-portal
-          vercel-args: '--prod'
-
-      - name: Deploy Partner Dashboard to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_PARTNER }}
-          working-directory: apps/partner-dashboard
-          vercel-args: '--prod'
-
-      # 2. Deploy Firebase Functions
       - name: Deploy Firebase Functions
-        run: npx firebase-tools deploy --only functions --project production --token ${{ secrets.FIREBASE_TOKEN }}
+        run: npx firebase-tools deploy --only functions --project production --token ${{ secrets.FIREBASE_TOKEN }} --non-interactive
 
-      # 3. Deploy API Gateway (Example for Cloud Run)
       - name: Build and Push API Gateway Image
         if: env.GCP_SA_KEY != ''
         run: |
           echo "${{ secrets.GCP_SA_KEY }}" | docker login -u _json_key --password-stdin https://gcr.io
           docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID_PROD }}/api-gateway:latest -f apps/api-gateway/Dockerfile .
           docker push gcr.io/${{ secrets.GCP_PROJECT_ID_PROD }}/api-gateway:latest
+

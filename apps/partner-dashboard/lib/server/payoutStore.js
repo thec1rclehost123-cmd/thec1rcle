@@ -36,8 +36,43 @@ export async function listPromoterPayouts(promoterId, token) {
     return client.listPromoterPayouts(promoterId);
 }
 
+/**
+ * Get payout by ID
+ */
+export async function getPayoutById(id, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.request(`/payouts/${id}`);
+    } catch (error) {
+        console.error("[PayoutStore] getPayoutById failed:", error.message);
+        return null;
+    }
+}
+
+/**
+ * Cancel a pending payout
+ */
+export async function cancelPayout(id, reason = "", actor = {}, token) {
+    const client = getApiClient(token);
+    return client.request(`/payouts/${id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ reason, actor })
+    });
+}
+
+export const PAYOUT_STATUS = {
+    PENDING: "pending",
+    PROCESSING: "processing",
+    PAID: "paid",
+    FAILED: "failed",
+    CANCELLED: "cancelled"
+};
+
 export default {
     getPromoterBalance,
     requestPayout,
-    listPromoterPayouts
+    listPromoterPayouts,
+    getPayoutById,
+    cancelPayout
 };
+

@@ -78,10 +78,57 @@ export async function getProfileStats(profileId, type, token) {
     }
 }
 
+/**
+ * Create a new post for a profile
+ */
+export async function createPost(profileId, type, data, token) {
+    const client = getApiClient(token);
+    return client.request(`/profiles/${type}/${profileId}/posts`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+    });
+}
+
+/**
+ * Create a new highlight for a profile
+ */
+export async function createHighlight(profileId, type, data, token) {
+    const client = getApiClient(token);
+    return client.request(`/profiles/${type}/${profileId}/highlights`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+    });
+}
+
+/**
+ * Delete a post
+ */
+export async function deletePost(postId, token) {
+    const client = getApiClient(token);
+    return client.request(`/profiles/posts/${postId}`, {
+        method: 'DELETE'
+    });
+}
+
+/**
+ * Delete a highlight
+ */
+export async function deleteHighlight(highlightId, token) {
+    const client = getApiClient(token);
+    return client.request(`/profiles/highlights/${highlightId}`, {
+        method: 'DELETE'
+    });
+}
+
 export default {
     getProfile,
     updateProfile,
     getProfilePosts,
     getProfileHighlights,
-    getProfileStats
+    getProfileStats,
+    createPost,
+    createHighlight,
+    deletePost,
+    deleteHighlight
 };
+

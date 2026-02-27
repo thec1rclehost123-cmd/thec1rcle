@@ -86,6 +86,53 @@ export async function discoverPartners({ type = "host", city = "", search = "", 
     }
 }
 
+export async function revokeConnection(id, actor, token) {
+    const client = getApiClient(token);
+    return client.request(`/promoter-connections/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'revoke' })
+    });
+}
+
+export async function isConnected(promoterId, targetId, token) {
+    const client = getApiClient(token);
+    try {
+        const result = await client.request(`/promoter-connections/status?promoterId=${promoterId}&targetId=${targetId}`);
+        return !!result?.isConnected;
+    } catch (error) {
+        console.error("[PromoterConnectionStore] isConnected failed:", error.message);
+        return false;
+    }
+}
+
+export async function getPromoterConnectionStats(promoterId, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.request(`/promoter-connections/promoter/${promoterId}/stats`);
+    } catch (error) {
+        console.error("[PromoterConnectionStore] getPromoterConnectionStats failed:", error.message);
+        return { total: 0, pending: 0, active: 0 };
+    }
+}
+
+export async function getConnectionStatus(promoterId, targetId, targetType, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.request(`/promoter-connections/status?promoterId=${promoterId}&targetId=${targetId}&targetType=${targetType}`);
+    } catch (error) {
+        console.error("[PromoterConnectionStore] getConnectionStatus failed:", error.message);
+        return null;
+    }
+}
+
+export async function cancelConnectionRequest(id, promoterId, token) {
+    const client = getApiClient(token);
+    return client.request(`/promoter-connections/${id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ promoterId })
+    });
+}
+
 export default {
     createConnectionRequest,
     listPromoterConnections,
@@ -93,5 +140,13 @@ export default {
     approveConnectionRequest,
     rejectConnectionRequest,
     blockConnectionRequest,
-    discoverPartners
+    discoverPartners,
+    revokeConnection,
+    isConnected,
+    getPromoterConnectionStats,
+    getConnectionStatus,
+    cancelConnectionRequest
 };
+
+
+

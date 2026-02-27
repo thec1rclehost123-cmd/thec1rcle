@@ -7,6 +7,9 @@ import { NextResponse } from "next/server";
 import { validateAndCalculatePromoDiscount } from "@/lib/server/checkoutService";
 import { verifyAuth } from "@/lib/server/auth";
 
+export const dynamic = 'force-dynamic';
+
+
 export async function POST(request) {
     try {
         const user = await verifyAuth(request);

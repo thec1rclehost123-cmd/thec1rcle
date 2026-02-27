@@ -82,9 +82,16 @@ const assertAdminConfig = () => {
 export function getAdminApp() {
   if (adminApp) return adminApp;
 
+  // Hardened Singleton: Check global scope to bridge module resolution gaps
+  if (typeof global !== 'undefined' && global._adminApp) {
+    adminApp = global._adminApp;
+    return adminApp;
+  }
+
   const existingApps = getApps();
   if (existingApps.length) {
     adminApp = getApp();
+    if (typeof global !== 'undefined') global._adminApp = adminApp;
     return adminApp;
   }
 
@@ -103,12 +110,20 @@ export function getAdminApp() {
       }),
       storageBucket: credentials.storageBucket
     });
+    if (typeof global !== 'undefined') global._adminApp = adminApp;
   } catch (err) {
+    // Definitive Duplicate Check: If someone else beat us to it
+    if (err.code === 'app/duplicate-app') {
+      adminApp = getApp();
+      if (typeof global !== 'undefined') global._adminApp = adminApp;
+      return adminApp;
+    }
     console.error("FATAL: Failed to initialize Firebase Admin:", err);
     throw err;
   }
   return adminApp;
 }
+
 
 export function getAdminDb() {
   if (!adminDb) {

@@ -6,6 +6,9 @@
 import { NextResponse } from "next/server";
 import { createCartReservation } from "@/lib/server/checkoutService";
 import { verifyAuth } from "@/lib/server/auth";
+
+export const dynamic = 'force-dynamic';
+
 import { withRateLimit } from "@/lib/server/rateLimit";
 import { getSurgeStatus, recordMetric } from "@/lib/server/surgeStore";
 import { validateAdmission } from "@/lib/server/queueStore";

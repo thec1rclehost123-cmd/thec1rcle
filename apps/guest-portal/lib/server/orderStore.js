@@ -1053,3 +1053,66 @@ export async function cleanupStaleOrders(userId = null) {
 
     return { cleaned };
 }
+/**
+ * Check if a webhook was already processed
+ */
+export async function wasWebhookProcessed(paymentId) {
+    if (!isFirebaseConfigured()) {
+        // Assume fallbackWebhookLogs is defined at module level
+        return typeof fallbackWebhookLogs !== 'undefined' && fallbackWebhookLogs.has(paymentId);
+    }
+    const db = getAdminDb();
+    const doc = await db.collection("payment_webhook_logs").doc(paymentId).get();
+    return doc.exists;
+}
+
+/**
+ * Log a processed webhook for idempotency
+ */
+export async function logWebhookProcessed(paymentId, orderId, status) {
+    const logEntry = {
+        paymentId,
+        orderId,
+        status,
+        processedAt: new Date().toISOString()
+    };
+
+    if (!isFirebaseConfigured()) {
+        if (typeof fallbackWebhookLogs !== 'undefined') {
+            fallbackWebhookLogs.set(paymentId, logEntry);
+        }
+        return;
+    }
+
+    const db = getAdminDb();
+    await db.collection("payment_webhook_logs").doc(paymentId).set(logEntry);
+}
+
+/**
+ * Update order refund status from webhook
+ */
+export async function updateOrderRefundStatus(paymentId, eventType, data) {
+    if (!isFirebaseConfigured()) return { status: "success", message: "Handled in fallback" };
+
+    const db = getAdminDb();
+    // Search for the order containing this payment ID
+    const snapshot = await db.collection(ORDERS_COLLECTION)
+        .where("paymentDetails.razorpayPaymentId", "==", paymentId)
+        .limit(1)
+        .get();
+
+    if (snapshot.empty) {
+        console.warn(`[OrderStore] Order for payment ${paymentId} not found during refund update`);
+        return null;
+    }
+
+    const orderId = snapshot.docs[0].id;
+    const updates = {
+        refundStatus: eventType,
+        refundDetails: data,
+        updatedAt: new Date().toISOString()
+    };
+
+    await db.collection(ORDERS_COLLECTION).doc(orderId).update(updates);
+    return { status: "success", message: `Refund ${eventType} recorded for order ${orderId}` };
+}

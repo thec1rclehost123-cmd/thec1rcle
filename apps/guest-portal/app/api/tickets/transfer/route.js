@@ -13,6 +13,9 @@ import {
     getShareBundleByToken
 } from "@/lib/server/ticketShareStore";
 
+export const dynamic = 'force-dynamic';
+
+
 /**
  * GET /api/tickets/transfer?code=[token]
  * Fetch transfer details for preview

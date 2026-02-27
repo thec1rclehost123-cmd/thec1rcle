@@ -56,11 +56,37 @@ export async function deactivateLink(linkId, token) {
     return client.deactivatePromoterLink(linkId);
 }
 
+export async function recordLinkClick(code, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.request(`/promoter-links/click/${code}`, {
+            method: 'POST'
+        });
+    } catch (error) {
+        console.error("[PromoterLinkStore] recordLinkClick failed:", error.message);
+        return null;
+    }
+}
+
+export async function listPromoterCommissions(promoterId, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.request(`/promoter-links/commissions/${promoterId}`);
+    } catch (error) {
+        console.error("[PromoterLinkStore] listPromoterCommissions failed:", error.message);
+        return [];
+    }
+}
+
 export default {
     createPromoterLink,
     getPromoterLinkByCode,
     listPromoterLinks,
     getPromoterStats,
     getEventPromoterSummary,
-    deactivateLink
+    deactivateLink,
+    recordLinkClick,
+    listPromoterCommissions
 };
+
+

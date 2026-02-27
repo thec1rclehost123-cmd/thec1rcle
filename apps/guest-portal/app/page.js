@@ -8,7 +8,10 @@ import InterviewSection from "../components/InterviewSection";
 import SectionReveal from "../components/SectionReveal";
 import { heroVideoSrc, getHomepageContent } from "../lib/homepageData";
 
+export const dynamic = 'force-dynamic';
+
 export default async function HomePage() {
+
   const { heroCards, categoryFilters, eventGrid, selects, interviews } = await getHomepageContent();
   return (
     <>

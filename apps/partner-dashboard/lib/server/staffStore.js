@@ -56,6 +56,42 @@ export async function getStaffPermissions(venueId, token) {
 }
 
 /**
+ * Role Presets (Permissions mapping)
+ */
+export const rolePresets = {
+    security: {
+        viewEvents: true,
+        scanTickets: true
+    },
+    floor_manager: {
+        viewEvents: true,
+        editEvents: true,
+        scanTickets: true
+    },
+    ops: {
+        viewEvents: true,
+        editEvents: true,
+        viewAnalytics: true
+    },
+    finance: {
+        viewEvents: true,
+        viewFinance: true,
+        viewAnalytics: true
+    },
+    viewer: {
+        viewEvents: true
+    }
+};
+
+/**
+ * Verify a staff member (set isVerified = true)
+ */
+export async function verifyStaffMember(staffId, verifier, token) {
+    const client = getApiClient(token);
+    return client.updateStaff(staffId, verifier.venueId, { isVerified: true });
+}
+
+/**
  * Check if a user has a specific permission at a club
  */
 export async function hasPermission(venueId, permission, token) {
@@ -63,11 +99,14 @@ export async function hasPermission(venueId, permission, token) {
     return permissions?.[permission] === true;
 }
 
+
 export default {
     addStaffMember,
     listVenueStaff,
     updateStaffMember,
     removeStaffMember,
+    verifyStaffMember,
     getStaffPermissions,
-    hasPermission
+    hasPermission,
+    rolePresets
 };

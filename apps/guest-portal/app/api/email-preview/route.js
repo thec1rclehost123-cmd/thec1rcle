@@ -7,8 +7,9 @@
  */
 
 import { NextResponse } from "next/server";
-import { renderToStaticMarkup } from "react-dom/server";
 import { TicketEmail } from "@/components/emails/TicketEmail";
+
+
 
 export async function GET(request) {
     // Only allow in development
@@ -45,6 +46,7 @@ export async function GET(request) {
     };
 
     try {
+        const { renderToStaticMarkup } = require("react-dom/server");
         const html = renderToStaticMarkup(TicketEmail(mockData));
 
         return new NextResponse(`<!DOCTYPE html>${html}`, {

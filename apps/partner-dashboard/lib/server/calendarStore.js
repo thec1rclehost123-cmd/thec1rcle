@@ -55,10 +55,76 @@ export async function respondToSlotRequest(id, action, responseData = {}, token)
     return client.respondToSlot(id, action, responseData);
 }
 
+/**
+ * Get venue availability for a specific range (consumer/host view)
+ */
+export async function getVenueCalendar(venueId, startDate, endDate, hostId, token) {
+    const client = getApiClient(token);
+    try {
+        // hostId can be used for host-specific logic if needed in the future
+        return await client.getVenueAvailability(venueId, startDate, endDate);
+    } catch (error) {
+        console.error("[CalendarStore] getVenueCalendar failed:", error.message);
+        return [];
+    }
+}
+
+/**
+ * Get availability for a specific single date
+ */
+export async function getDateAvailability(venueId, date, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.getVenueAvailability(venueId, date, date);
+    } catch (error) {
+        console.error("[CalendarStore] getDateAvailability failed:", error.message);
+        return null;
+    }
+}
+
+/**
+ * Get unified venue calendar (combines operating slots and blocks)
+ */
+export async function getUnifiedVenueCalendar(venueId, startDate, endDate, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.getVenueAvailability(venueId, startDate, endDate);
+    } catch (error) {
+        console.error("[CalendarStore] getUnifiedVenueCalendar failed:", error.message);
+        return [];
+    }
+}
+
+/**
+ * Check if a slot is available
+ */
+export async function isSlotAvailable(venueId, date, startTime, endTime, token) {
+    const client = getApiClient(token);
+    try {
+        const slots = await client.getVenueAvailability(venueId, date, date);
+        // Basic check: find a slot that contains the requested range and is available
+        return (slots || []).some(slot =>
+            slot.isAvailable &&
+            slot.startTime <= startTime &&
+            slot.endTime >= endTime
+        );
+    } catch (error) {
+        console.error("[CalendarStore] isSlotAvailable failed:", error.message);
+        return false;
+    }
+}
+
 export default {
     getOperatingCalendar,
+    getVenueCalendar,
+    getUnifiedVenueCalendar,
+    getDateAvailability,
+    isSlotAvailable,
     blockDate,
     unblockDate,
     requestSlot,
     respondToSlotRequest
 };
+
+
+
