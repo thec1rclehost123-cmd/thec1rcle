@@ -29,11 +29,14 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Run Validation (Lint, Typecheck, Test)
-        run: |
-          npm run lint
-          npx turbo build
-          npm test
+      - name: Run Linting
+        run: npm run lint -- --cache
+
+      - name: Run Type Checking & Build
+        run: npx turbo build
+
+      - name: Run Unit Tests
+        run: npm test
 
   sonar-analysis:
     runs-on: ubuntu-latest
