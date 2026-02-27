@@ -55,6 +55,16 @@
             "cache": false,
             "persistent": true
         },
+        "type-check": {
+            "inputs": [
+                "src/**/*.{ts,tsx,js,jsx}",
+                "app/**/*.{ts,tsx,js,jsx}",
+                "components/**/*.{ts,tsx,js,jsx}",
+                "lib/**/*.{ts,tsx,js,jsx}",
+                "tsconfig.json"
+            ],
+            "outputs": []
+        },
         "dev": {
             "cache": false,
             "persistent": true

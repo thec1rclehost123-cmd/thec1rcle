@@ -15,6 +15,7 @@
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:3005/api/inngest",
     "build": "turbo build",
     "lint": "turbo lint",
+    "type-check": "turbo type-check",
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
     "install:all": "npm install"

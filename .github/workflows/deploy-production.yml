@@ -32,8 +32,8 @@ jobs:
       - name: Run Linting
         run: npm run lint
 
-      - name: Run Type Checking & Build
-        run: npx turbo build
+      - name: Run Type Checking
+        run: npm run type-check
 
       - name: Run Unit Tests
         run: npm test

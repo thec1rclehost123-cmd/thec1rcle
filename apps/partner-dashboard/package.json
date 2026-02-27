@@ -8,7 +8,8 @@
     "dev:prod": "cmd /c \"copy /Y .env.production .env.local\" && next dev -p 3001",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@c1rcle/core": "*",
