@@ -29,10 +29,27 @@
             ]
         },
         "lint": {
+            "inputs": [
+                "src/**/*.{ts,tsx,js,jsx}",
+                "app/**/*.{ts,tsx,js,jsx}",
+                "components/**/*.{ts,tsx,js,jsx}",
+                "lib/**/*.{ts,tsx,js,jsx}",
+                "styles/**/*.css",
+                ".eslintrc.*"
+            ],
             "outputs": []
         },
         "test": {
-            "outputs": []
+            "inputs": [
+                "src/**/*.{ts,tsx,js,jsx}",
+                "app/**/*.{ts,tsx,js,jsx}",
+                "components/**/*.{ts,tsx,js,jsx}",
+                "lib/**/*.{ts,tsx,js,jsx}",
+                "**/*.test.{ts,tsx,js,jsx}"
+            ],
+            "outputs": [
+                "coverage/**"
+            ]
         },
         "test:watch": {
             "cache": false,
