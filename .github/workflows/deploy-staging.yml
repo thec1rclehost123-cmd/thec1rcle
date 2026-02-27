@@ -22,17 +22,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          key: ${{ runner.os }}-turbo-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-turbo-
-
-      - name: Cache npm
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
 
       - name: Install Dependencies
         run: npm ci
@@ -61,7 +53,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   deploy-web:
-    needs: [validate, sonar-analysis]
+    needs: [validate]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -96,7 +88,7 @@ jobs:
           alias-domains: ${{ steps.vars.outputs.domain }}
 
   deploy-services:
-    needs: [validate, sonar-analysis]
+    needs: [validate]
     runs-on: ubuntu-latest
     env:
       GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
