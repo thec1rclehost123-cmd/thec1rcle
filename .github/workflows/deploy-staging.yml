@@ -26,8 +26,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-
 
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run Linting
         run: npm run lint
@@ -36,7 +44,7 @@ jobs:
         run: npm run type-check
 
       - name: Run Unit Tests
-        run: npm test
+        run: npx turbo run test --filter=@c1rcle/core
 
   sonar-analysis:
     runs-on: ubuntu-latest
@@ -69,7 +77,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Set Project IDs
         id: vars
@@ -103,7 +111,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Deploy Firebase Functions
         run: npx firebase-tools deploy --only functions --project staging --token ${{ secrets.FIREBASE_TOKEN }} --non-interactive
@@ -114,4 +122,3 @@ jobs:
           echo "${{ secrets.GCP_SA_KEY }}" | docker login -u _json_key --password-stdin https://gcr.io
           docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID_STAGING }}/api-gateway:latest -f apps/api-gateway/Dockerfile .
           docker push gcr.io/${{ secrets.GCP_PROJECT_ID_STAGING }}/api-gateway:latest
-
