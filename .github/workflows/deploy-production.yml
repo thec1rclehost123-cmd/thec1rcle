@@ -30,7 +30,7 @@ jobs:
         run: npm install
 
       - name: Run Linting
-        run: npm run lint -- --cache
+        run: npm run lint
 
       - name: Run Type Checking & Build
         run: npx turbo build
