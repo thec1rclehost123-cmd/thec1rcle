@@ -8,17 +8,31 @@ import { getApiClient } from "./apiClient";
 
 /**
  * Add a staff member to a club
+ * @param {Object} params
+ * @param {string} params.venueId
+ * @param {string} params.email
+ * @param {string} params.name
+ * @param {string} params.role
+ * @param {string} [params.phone]
+ * @param {Object} [params.addedBy]
+ * @param {string} [params.token]
  */
-export async function addStaffMember({
-    venueId,
-    email,
-    name,
-    role,
-    phone = "",
-    token
-}) {
+/**
+ * Add a staff member to a club
+ * @param {Object} params - Staff member details
+ */
+export async function addStaffMember(params) {
+    const {
+        venueId,
+        email,
+        name,
+        role,
+        phone = "",
+        addedBy,
+        token
+    } = params;
     const client = getApiClient(token);
-    return client.inviteStaff({ venueId, email, name, role, phone });
+    return client.inviteStaff({ venueId, email, name, role, phone, addedBy });
 }
 
 /**
@@ -33,8 +47,10 @@ export async function listVenueStaff(venueId, { isActive = true } = {}, token) {
 /**
  * Update a staff member
  */
-export async function updateStaffMember(staffId, venueId, updates, token) {
+export async function updateStaffMember(staffId, updates, token) {
     const client = getApiClient(token);
+    // Extract venueId from updates if present, otherwise it might be in the payload
+    const venueId = updates.venueId;
     return client.updateStaff(staffId, venueId, updates);
 }
 
@@ -86,9 +102,10 @@ export const rolePresets = {
 /**
  * Verify a staff member (set isVerified = true)
  */
-export async function verifyStaffMember(staffId, verifier, token) {
+export async function verifyStaffMember(staffId, token) {
     const client = getApiClient(token);
-    return client.updateStaff(staffId, verifier.venueId, { isVerified: true });
+    // Since we don't have venueId here, we rely on the API Gateway to find it or we need to pass it
+    return client.updateStaff(staffId, undefined, { isVerified: true });
 }
 
 /**

@@ -35,7 +35,8 @@
                 "components/**/*.{ts,tsx,js,jsx}",
                 "lib/**/*.{ts,tsx,js,jsx}",
                 "styles/**/*.css",
-                ".eslintrc.*"
+                ".eslintrc.*",
+                "!**/node_modules/**"
             ],
             "outputs": []
         },

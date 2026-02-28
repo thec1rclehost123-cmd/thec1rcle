@@ -88,6 +88,30 @@ export async function getEventGuestlist(eventId, limit = 50, token) {
   return data || [];
 }
 
+/**
+ * List events enabled for promoters
+ */
+export async function listEventsForPromoter({ promoterId, city, limit = 20 }, token) {
+  const client = getApiClient(token);
+  try {
+    const params = {
+      promotersEnabled: "true",
+      limit: String(limit)
+    };
+    if (city) params.city = city;
+
+    // We pass promoterId to the gateway to ensure it only returns events 
+    // from hosts the promoter is connected to (logic handled centraly)
+    if (promoterId) params.promoterId = promoterId;
+
+    const data = await client.getEvents(params);
+    return data.events || [];
+  } catch (error) {
+    console.error("[EventStore] listEventsForPromoter failed:", error.message);
+    return [];
+  }
+}
+
 export default {
   listEvents,
   getEvent,
@@ -96,5 +120,6 @@ export default {
   deleteEvent,
   updateEventLifecycle,
   getEventInterested,
-  getEventGuestlist
+  getEventGuestlist,
+  listEventsForPromoter
 };

@@ -133,6 +133,14 @@ export async function cancelConnectionRequest(id, promoterId, token) {
     });
 }
 
+/**
+ * Get IDs of hosts/venues the promoter is officially connected to
+ */
+export async function getApprovedPartnerIds(promoterId, token) {
+    const connections = await listPromoterConnections(promoterId, 'approved', token);
+    return (connections || []).map(conn => conn.targetId);
+}
+
 export default {
     createConnectionRequest,
     listPromoterConnections,
@@ -145,7 +153,8 @@ export default {
     isConnected,
     getPromoterConnectionStats,
     getConnectionStatus,
-    cancelConnectionRequest
+    cancelConnectionRequest,
+    getApprovedPartnerIds
 };
 
 

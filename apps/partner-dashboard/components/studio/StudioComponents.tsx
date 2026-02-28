@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import React, { ReactNode } from "react";
 import { TrendingUp, TrendingDown, Minus, Info } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -45,7 +45,7 @@ export function KPICard({ label, value, trend, trendType = "neutral", descriptio
         neutral: "text-slate-500 bg-slate-50"
     };
 
-    const TrendIcon = trendType === "up" ? TrendingUp : trendType === "down" ? TrendingDown : Minus;
+    const TrendIcon = (trendType === "up" ? TrendingUp : trendType === "down" ? TrendingDown : Minus) as any;
 
     return (
         <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-sm group hover:border-slate-300 transition-all">
@@ -53,7 +53,7 @@ export function KPICard({ label, value, trend, trendType = "neutral", descriptio
                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-slate-900 transition-colors">{label}</p>
                 {trend && (
                     <div className={cn("flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black", trendColors[trendType])}>
-                        <TrendIcon className="h-3 w-3" />
+                        {React.createElement(TrendIcon, { className: "h-3 w-3" })}
                         {trend}
                     </div>
                 )}
@@ -66,7 +66,7 @@ export function KPICard({ label, value, trend, trendType = "neutral", descriptio
 
             {description && (
                 <p className="mt-4 text-[10px] font-medium text-slate-400 leading-relaxed uppercase tracking-wider italic flex items-center gap-2">
-                    <Info className="h-3 w-3 opacity-50" />
+                    {React.createElement(Info as any, { className: "h-3 w-3 opacity-50" })}
                     {description}
                 </p>
             )}

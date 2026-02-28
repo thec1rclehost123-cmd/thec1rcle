@@ -51,7 +51,6 @@ export async function approveSlotRequest(id, actor, data = {}, token) {
 
 export default {
     createSlotRequest,
-    respondToSlotRequest,
     listSlotRequests,
     rejectSlotRequest,
     counterProposeSlot,

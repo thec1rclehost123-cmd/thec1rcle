@@ -54,6 +54,7 @@ export async function PATCH(
             );
         }
 
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         let result;
 
         switch (action) {
@@ -64,14 +65,14 @@ export async function PATCH(
                     if (!venueId) return NextResponse.json({ error: "venueId is required for authorization" }, { status: 400 });
                     const hasAccess = await verifyPartnerAccess(req, venueId);
                     if (!hasAccess) return NextResponse.json({ error: "Unauthorized access to this venue" }, { status: 403 });
-                    result = await approveSlotRequest(params.id, actor, notes, { venueId });
+                    result = await approveSlotRequest(params.id, actor, { notes, venueId }, token);
                 } else {
-                    result = await approveSlotRequest(params.id, actor, notes);
+                    result = await approveSlotRequest(params.id, actor, { notes }, token);
                 }
                 break;
 
             case "reject":
-                result = await rejectSlotRequest(params.id, actor, notes);
+                result = await rejectSlotRequest(params.id, actor, notes, token);
                 break;
 
             case "counter":
@@ -82,7 +83,8 @@ export async function PATCH(
                         { status: 400 }
                     );
                 }
-                result = await counterProposeSlot(params.id, body.venueId || actor.partnerId, actor, alternativeDate, alternativeStartTime, alternativeEndTime, notes);
+                const suggestion = { alternativeDate, alternativeStartTime, alternativeEndTime, notes };
+                result = await counterProposeSlot(params.id, actor, suggestion, token);
                 break;
 
             default:

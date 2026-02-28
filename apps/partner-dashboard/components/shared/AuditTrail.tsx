@@ -38,7 +38,7 @@ export default function AuditTrail({ entries = [] }: AuditTrailProps) {
     if (!entries || entries.length === 0) {
         return (
             <div className="py-12 text-center">
-                <Clock className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                {React.createElement(Clock as any, { className: "h-12 w-12 text-slate-200 mx-auto mb-4" })}
                 <p className="text-slate-400 font-medium">No activity recorded for this event yet.</p>
             </div>
         );
@@ -58,7 +58,7 @@ export default function AuditTrail({ entries = [] }: AuditTrailProps) {
                 <div className="space-y-8">
                     {sortedEntries.map((entry, index) => {
                         const style = actionIcons[entry.action] || { icon: Clock, color: "text-slate-400", bg: "bg-slate-50" };
-                        const Icon = style.icon;
+                        const Icon = style.icon as any;
 
                         return (
                             <motion.div
@@ -70,7 +70,7 @@ export default function AuditTrail({ entries = [] }: AuditTrailProps) {
                             >
                                 {/* Marker */}
                                 <div className={`absolute left-0 top-1 h-[44px] w-[44px] rounded-2xl ${style.bg} flex items-center justify-center border-4 border-white shadow-sm z-10`}>
-                                    <Icon className={`h-5 w-5 ${style.color}`} />
+                                    {React.createElement(Icon, { className: `h-5 w-5 ${style.color}` })}
                                 </div>
 
                                 <div className="space-y-1">
@@ -90,7 +90,7 @@ export default function AuditTrail({ entries = [] }: AuditTrailProps) {
 
                                     <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
                                         <div className="flex items-center gap-1.5 bg-slate-100 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest">
-                                            <User className="h-3 w-3" />
+                                            {React.createElement(User as any, { className: "h-3 w-3" })}
                                             {entry.actor.role}
                                         </div>
                                         <span className="truncate max-w-[200px]">

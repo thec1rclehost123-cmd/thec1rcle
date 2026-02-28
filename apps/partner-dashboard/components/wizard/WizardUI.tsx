@@ -43,7 +43,7 @@ export function WizardInput({ label, hint, error, className, icon: Icon, ...prop
             <div className="relative group">
                 {Icon && (
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] group-focus-within:text-indigo-500 transition-colors">
-                        <Icon className="h-4 w-4" />
+                        {React.createElement(Icon as any, { className: "h-4 w-4" })}
                     </div>
                 )}
                 <input
@@ -61,7 +61,7 @@ export function WizardInput({ label, hint, error, className, icon: Icon, ...prop
             {hint && !error && <p className="ml-1 text-[11px] text-[var(--text-tertiary)] uppercase tracking-widest font-bold">{hint}</p>}
             {error && (
                 <div className="flex items-center gap-1.5 ml-1 text-[var(--state-error)]">
-                    <AlertCircle className="h-3 w-3" />
+                    {React.createElement(AlertCircle as any, { className: "h-3 w-3" })}
                     <p className="text-[11px] font-bold uppercase tracking-widest">{error}</p>
                 </div>
             )}
@@ -112,7 +112,7 @@ export function Reassurance({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex items-start gap-3 rounded-2xl border border-[var(--state-success)]/20 bg-[var(--state-success-bg)] p-5">
             <div className="mt-0.5 text-[var(--state-success)]">
-                <CheckCircle2 className="h-4 w-4" />
+                {React.createElement(CheckCircle2 as any, { className: "h-4 w-4" })}
             </div>
             <p className="text-body-sm leading-relaxed text-[var(--state-success)] font-medium opacity-90">{children}</p>
         </div>

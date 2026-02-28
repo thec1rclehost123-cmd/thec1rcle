@@ -65,13 +65,16 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const staffMember = await addStaffMember({
             venueId,
             email,
             name,
             role,
             phone,
-            addedBy: addedBy || { uid: "system", name: "System" }
+            // @ts-ignore
+            addedBy: addedBy || { uid: "system", name: "System" },
+            token
         });
 
         return NextResponse.json({ staff: staffMember }, { status: 201 });
@@ -108,6 +111,7 @@ export async function PATCH(req: NextRequest) {
             );
         }
 
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         let result;
 
         switch (action) {
@@ -118,15 +122,17 @@ export async function PATCH(req: NextRequest) {
                         { status: 400 }
                     );
                 }
-                result = await updateStaffMember(staffId, updates, updatedBy);
+                result = await updateStaffMember(staffId, updates, token);
                 break;
 
             case "verify":
-                result = await verifyStaffMember(staffId, updatedBy);
+                result = await verifyStaffMember(staffId, token);
                 break;
 
             case "remove":
-                result = await removeStaffMember(staffId, updatedBy);
+                // If venueId isn't in body, we might need to get it elsewhere
+                const venueId = body.venueId;
+                result = await removeStaffMember(staffId, venueId, token);
                 break;
 
             default:

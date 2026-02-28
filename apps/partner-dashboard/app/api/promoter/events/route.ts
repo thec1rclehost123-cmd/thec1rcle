@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listEvents } from "@/lib/server/eventStore";
-import { getApprovedPartnerIds } from "@/lib/server/promoterConnectionStore";
+import { listEventsForPromoter } from "@/lib/server/eventStore";
 
 /**
  * GET /api/promoter/events
@@ -18,7 +17,6 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "promoterId is required" }, { status: 400 });
         }
 
-        const { listEventsForPromoter } = await import("@/lib/server/eventStore");
         const events = await listEventsForPromoter({
             promoterId,
             city,

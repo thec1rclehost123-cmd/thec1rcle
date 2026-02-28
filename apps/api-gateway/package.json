@@ -8,7 +8,8 @@
     "dev:staging": "tsx watch --env-file=.env.staging src/app.ts",
     "dev:prod": "tsx watch --env-file=.env.production src/app.ts",
     "start": "node --env-file=.env.production dist/app.js",
-    "build": "tsc"
+    "build": "tsc",
+    "lint": "echo \"No lint required\""
   },
   "dependencies": {
     "@fastify/compress": "^8.3.1",

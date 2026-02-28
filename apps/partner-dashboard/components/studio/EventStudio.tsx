@@ -39,7 +39,7 @@ export function EventTimeline({ data = [], events = [] }) {
     if (!data || data.length === 0) {
         return (
             <div className="h-64 flex flex-col items-center justify-center bg-slate-50 rounded-[2.5rem] border border-dashed border-slate-200">
-                <Clock className="h-8 w-8 text-slate-300 mb-3" />
+                {React.createElement(Clock as any, { className: "h-8 w-8 text-slate-300 mb-3" })}
                 <p className="text-slate-400 font-bold text-sm">No timeline data available for this window.</p>
             </div>
         );
@@ -94,7 +94,7 @@ export function EventTimeline({ data = [], events = [] }) {
                         style={{ left: `${evt.percent}%` }}
                     >
                         <div className="absolute -top-2 bg-rose-500 text-white p-1 rounded-full group-hover:scale-125 transition-transform z-10">
-                            {evt.type === 'incident' ? <ShieldAlert className="h-3 w-3" /> : <Zap className="h-3 w-3" />}
+                            {evt.type === 'incident' ? React.createElement(ShieldAlert as any, { className: "h-3 w-3" }) : React.createElement(Zap as any, { className: "h-3 w-3" })}
                         </div>
                         <div className="opacity-0 group-hover:opacity-100 absolute -top-12 bg-slate-900 text-white text-[10px] font-black px-3 py-2 rounded-xl whitespace-nowrap pointer-events-none transition-all z-20 shadow-2xl">
                             {evt.label} @ {evt.time}
@@ -151,7 +151,7 @@ export function InsightsPanel({ insights = [] }) {
                         <div className="flex items-start justify-between mb-6">
                             <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${insight.severity === 'critical' ? 'bg-rose-500 text-white' : 'bg-slate-900 text-white'
                                 }`}>
-                                {insight.severity === 'critical' ? <ShieldAlert className="h-6 w-6" /> : <Zap className="h-6 w-6" />}
+                                {insight.severity === 'critical' ? React.createElement(ShieldAlert as any, { className: "h-6 w-6" }) : React.createElement(Zap as any, { className: "h-6 w-6" })}
                             </div>
                             <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${insight.severity === 'critical' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-600'
                                 }`}>
@@ -165,13 +165,13 @@ export function InsightsPanel({ insights = [] }) {
                         <div className="pt-6 border-t border-slate-900/10 flex flex-col gap-4">
                             <div className="flex items-center justify-between">
                                 <button className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 group text-slate-400 hover:text-slate-900 transition-colors">
-                                    View Data Point <ArrowUpRight className="h-3 w-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                    View Data Point {React.createElement(ArrowUpRight as any, { className: "h-3 w-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" })}
                                 </button>
                             </div>
 
                             {insight.suggestedAction && (
                                 <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100/50">
-                                    <TrendingUp className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                                    {React.createElement(TrendingUp as any, { className: "h-4 w-4 text-emerald-500 mt-0.5 shrink-0" })}
                                     <p className="text-[11px] font-bold text-slate-600 leading-relaxed">
                                         <span className="text-slate-900 uppercase tracking-wider text-[9px] mr-2">Suggested:</span>
                                         {insight.suggestedAction.text}
