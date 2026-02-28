@@ -14,7 +14,7 @@
     "dev:admin": "npm run dev -w apps/admin-console",
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:3005/api/inngest",
     "build": "turbo build",
-    "lint": "turbo lint",
+    "lint": "turbo lint --cache-dir=.turbo",
     "type-check": "turbo type-check",
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
