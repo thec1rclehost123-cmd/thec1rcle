@@ -13,7 +13,7 @@
     "dev:staging": "cmd /c \"copy /Y .env.staging .env\" && expo start",
     "dev:prod": "cmd /c \"copy /Y .env.production .env\" && expo start",
     "prebuild": "expo prebuild",
-    "lint": "eslint app components lib hooks store functions --ext .ts,.tsx",
+    "lint": "eslint app components lib hooks store functions --ext .ts,.tsx --cache --cache-location .eslintcache",
     "doctor": "npx expo-doctor"
   },
   "dependencies": {

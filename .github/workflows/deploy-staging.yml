@@ -30,7 +30,7 @@ jobs:
         run: npm ci
 
       - name: Run Linting
-        run: npm run lint
+        run: NODE_OPTIONS="--max-old-space-size=4096" npm run lint
 
       - name: Run Type Checking
         run: npm run type-check

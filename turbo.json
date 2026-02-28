@@ -30,13 +30,15 @@
         },
         "lint": {
             "inputs": [
-                "src/**/*.{ts,tsx,js,jsx}",
-                "app/**/*.{ts,tsx,js,jsx}",
-                "components/**/*.{ts,tsx,js,jsx}",
-                "lib/**/*.{ts,tsx,js,jsx}",
+                "src/**/*",
+                "app/**/*",
+                "components/**/*",
+                "lib/**/*",
+                "hooks/**/*",
+                "store/**/*",
+                "functions/**/*",
                 "styles/**/*.css",
-                ".eslintrc.*",
-                "!**/node_modules/**"
+                ".eslintrc.*"
             ],
             "outputs": []
         },
@@ -58,10 +60,10 @@
         },
         "type-check": {
             "inputs": [
-                "src/**/*.{ts,tsx,js,jsx}",
-                "app/**/*.{ts,tsx,js,jsx}",
-                "components/**/*.{ts,tsx,js,jsx}",
-                "lib/**/*.{ts,tsx,js,jsx}",
+                "src/**/*",
+                "app/**/*",
+                "components/**/*",
+                "lib/**/*",
                 "tsconfig.json"
             ],
             "outputs": []
