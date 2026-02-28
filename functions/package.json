@@ -18,8 +18,7 @@
         "firebase-admin": "^11.5.0",
         "firebase-functions": "^4.3.1",
         "qrcode": "^1.5.3",
-        "razorpay": "^2.9.2",
-        "@c1rcle/core": "*"
+        "razorpay": "^2.9.2"
     },
     "devDependencies": {
         "firebase-functions-test": "^3.1.0",
