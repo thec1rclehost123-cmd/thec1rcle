@@ -84,7 +84,6 @@ jobs:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ steps.vars.outputs.pid }}
-          working-directory: apps/${{ matrix.app }}
           alias-domains: ${{ steps.vars.outputs.domain }}
 
   deploy-services:
