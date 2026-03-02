@@ -5,7 +5,12 @@ export default async function eventRoutes(fastify) {
      */
     fastify.get('/events', async (request, reply) => {
         try {
+            const cacheKey = JSON.stringify(request.query || {});
+            const cached = await fastify.cache.get('events:list', cacheKey);
+            if (cached)
+                return cached;
             const result = await fastify.eventService.listEvents(request.query);
+            await fastify.cache.set('events:list', cacheKey, result, 60); // 60s TTL
             return result;
         }
         catch (error) {
@@ -21,7 +26,12 @@ export default async function eventRoutes(fastify) {
         if (!lat || !lng)
             return reply.status(400).send({ error: "lat and lng are required" });
         try {
+            const cacheKey = JSON.stringify({ lat, lng, radius, limit });
+            const cached = await fastify.cache.get('events:nearby', cacheKey);
+            if (cached)
+                return cached;
             const events = await fastify.eventService.listNearby(Number(lat), Number(lng), Number(radius), Number(limit));
+            await fastify.cache.set('events:nearby', cacheKey, events, 60); // 60s TTL
             return events;
         }
         catch (error) {
@@ -36,9 +46,13 @@ export default async function eventRoutes(fastify) {
     fastify.get('/events/:id', async (request, reply) => {
         const { id } = request.params;
         try {
+            const cached = await fastify.cache.get('events:detail', id);
+            if (cached)
+                return cached;
             const event = await fastify.eventService.getEventByIdOrSlug(id);
             if (!event)
                 return reply.status(404).send({ error: "Event not found" });
+            await fastify.cache.set('events:detail', id, event, 120); // 120s TTL
             return event;
         }
         catch (error) {
@@ -56,6 +70,9 @@ export default async function eventRoutes(fastify) {
             return reply.status(401).send({ error: "Unauthorized" });
         try {
             const event = await fastify.eventService.createEvent(request.body, userId);
+            // Invalidate event lists when a new event is created
+            await fastify.cache.invalidateNamespace('events:list');
+            await fastify.cache.invalidateNamespace('events:nearby');
             return { success: true, id: event.id };
         }
         catch (error) {
@@ -75,6 +92,12 @@ export default async function eventRoutes(fastify) {
             const event = await fastify.eventService.updateEvent(id, request.body, userId);
             if (!event)
                 return reply.status(404).send({ error: "Event not found" });
+            // Invalidate the specific event detail and all lists
+            await fastify.cache.delete('events:detail', id);
+            if (event.slug)
+                await fastify.cache.delete('events:detail', event.slug);
+            await fastify.cache.invalidateNamespace('events:list');
+            await fastify.cache.invalidateNamespace('events:nearby');
             return { success: true, id: event.id };
         }
         catch (error) {
@@ -92,6 +115,10 @@ export default async function eventRoutes(fastify) {
             return reply.status(401).send({ error: "Unauthorized" });
         try {
             await fastify.eventService.deleteEvent(id, userId);
+            // Invalidate cache
+            await fastify.cache.delete('events:detail', id);
+            await fastify.cache.invalidateNamespace('events:list');
+            await fastify.cache.invalidateNamespace('events:nearby');
             return { success: true, message: "Event deleted" };
         }
         catch (error) {

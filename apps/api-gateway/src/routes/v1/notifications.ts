@@ -1,4 +1,30 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+
+const VenueQuery = z.object({
+    venueId: z.string()
+}).strict();
+
+const ReadBody = z.object({
+    venueId: z.string(),
+    notificationId: z.string().optional(),
+    notificationType: z.string().optional(),
+    markAllRead: z.boolean().optional()
+}).strict();
+
+const ActionBody = z.object({
+    notificationId: z.string(),
+    notificationType: z.string(),
+    action: z.string(),
+    venueId: z.string().optional()
+}).strict();
+
+const SendBody = z.object({
+    venueId: z.string(),
+    title: z.string(),
+    message: z.string(),
+    data: z.any().optional()
+}).strict();
 
 /**
  * Venue Notifications Gateway Routes
@@ -10,7 +36,9 @@ export default async function notificationsRoutes(fastify: FastifyInstance) {
      * GET /api/v1/notifications?venueId=XXX
      * Aggregate notifications for a venue from multiple sources
      */
-    fastify.get('/', async (request: any, reply) => {
+    fastify.get('/', {
+        preHandler: [fastify.validate({ querystring: VenueQuery })]
+    }, async (request: any, reply) => {
         const { venueId } = request.query;
         if (!venueId) return reply.status(400).send({ error: 'venueId required' });
 
@@ -27,7 +55,9 @@ export default async function notificationsRoutes(fastify: FastifyInstance) {
      * PATCH /api/v1/notifications/read
      * Mark notification(s) as read
      */
-    fastify.patch('/read', async (request: any, reply) => {
+    fastify.patch('/read', {
+        preHandler: [fastify.validate({ body: ReadBody })]
+    }, async (request: any, reply) => {
         const { venueId, notificationId, notificationType, markAllRead } = request.body as any;
         if (!venueId) return reply.status(400).send({ error: 'venueId required' });
 
@@ -44,7 +74,9 @@ export default async function notificationsRoutes(fastify: FastifyInstance) {
      * POST /api/v1/notifications/action
      * Perform a quick action on a notification (approve/reject connection, slot, etc.)
      */
-    fastify.post('/action', async (request: any, reply) => {
+    fastify.post('/action', {
+        preHandler: [fastify.validate({ body: ActionBody })]
+    }, async (request: any, reply) => {
         const { notificationId, notificationType, action, venueId } = request.body as any;
         if (!notificationId || !notificationType || !action) return reply.status(400).send({ error: 'Missing required fields' });
 
@@ -61,7 +93,9 @@ export default async function notificationsRoutes(fastify: FastifyInstance) {
      * POST /api/v1/notifications/send
      * Send a push notification to all followers of a venue
      */
-    fastify.post('/send', async (request: any, reply) => {
+    fastify.post('/send', {
+        preHandler: [fastify.validate({ body: SendBody })]
+    }, async (request: any, reply) => {
         const { venueId, title, message, data } = request.body as any;
         if (!venueId || !title || !message) return reply.status(400).send({ error: 'venueId, title, and message required' });
 

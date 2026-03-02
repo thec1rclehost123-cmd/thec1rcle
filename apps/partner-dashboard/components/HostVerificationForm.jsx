@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "./providers/AuthProvider";
-import { getFirebaseDb, getFirebaseStorage } from "../lib/firebase/client";
-import { doc, updateDoc, setDoc, collection } from "firebase/firestore";
+import { getFirebaseStorage } from "../lib/firebase/client";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export default function HostVerificationForm({ onClose }) {
@@ -41,38 +40,28 @@ export default function HostVerificationForm({ onClose }) {
 
         try {
             const storage = getFirebaseStorage();
-            const db = getFirebaseDb();
-            const timestamp = Date.now();
-
-            // Upload ID
-            let idUrl = "";
-            if (files.idDocument) {
-                const idRef = ref(storage, `hosts/${user.uid}/id_${timestamp}_${files.idDocument.name}`);
-                await uploadBytes(idRef, files.idDocument);
-                idUrl = await getDownloadURL(idRef);
-            }
-
-            // Upload Insta SS
-            let instaUrl = "";
-            if (files.instaScreenshot) {
-                const instaRef = ref(storage, `hosts/${user.uid}/insta_${timestamp}_${files.instaScreenshot.name}`);
-                await uploadBytes(instaRef, files.instaScreenshot);
-                instaUrl = await getDownloadURL(instaRef);
-            }
-
-            // Save Application
-            const applicationRef = doc(collection(db, "host_applications"));
-            await setDoc(applicationRef, {
-                uid: user.uid,
-                email: user.email,
-                ...formData,
-                idUrl,
-                instaUrl,
-                status: "pending",
-                createdAt: new Date().toISOString(),
+            // Save Application via API Proxy
+            const token = await user.getIdToken();
+            const res = await fetch("/api/auth/host-verification", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    legalName: formData.legalName,
+                    instagramHandle: formData.instagramHandle,
+                    idUrl,
+                    instaUrl,
+                })
             });
 
-            // Update User Profile
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || "Failed to submit application");
+            }
+
+            // Also update local ui context immediately if needed
             await updateUserProfile({
                 hostStatus: "pending",
             });

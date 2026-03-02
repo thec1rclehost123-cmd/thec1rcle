@@ -5,8 +5,6 @@ import { motion, useScroll, useTransform, useMotionValue, useSpring, useMotionTe
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { X, Heart, Download, Apple, PlayCircle, ChevronRight, QrCode } from 'lucide-react';
-import { addDoc, collection } from "firebase/firestore";
-import { getFirebaseDb } from "../../lib/firebase/client";
 import { trackEvent } from '../../lib/utils/analytics';
 
 import { useTheme } from 'next-themes';
@@ -468,12 +466,14 @@ export default function AppPage() {
     if (email) {
       setLoading(true);
       try {
-        const db = getFirebaseDb();
-        await addDoc(collection(db, "waitlist"), {
-          email,
-          joinedAt: new Date().toISOString(),
-          source: "app_page"
+        const res = await fetch('/api/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, eventId: "app_launch", source: "app_page" })
         });
+
+        if (!res.ok) throw new Error("Failed to join");
+
         setJoined(true);
         setEmail('');
         setTimeout(() => setJoined(false), 5000);

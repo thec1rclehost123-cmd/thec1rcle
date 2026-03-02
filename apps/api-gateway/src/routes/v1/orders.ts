@@ -1,11 +1,22 @@
 import { FastifyInstance } from 'fastify';
 import { hasStaffPermission } from '@c1rcle/core/staff-engine';
+import { z } from 'zod';
+
+const OrderEventParam = z.object({
+    eventId: z.string()
+}).strict();
+
+const OrderEventQuery = z.object({
+    limit: z.string().optional()
+}).strict();
 
 export default async function orderRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/orders/event/:eventId
      */
-    fastify.get('/event/:eventId', async (request: any, reply) => {
+    fastify.get('/event/:eventId', {
+        preHandler: [fastify.validate({ params: OrderEventParam, querystring: OrderEventQuery })]
+    }, async (request: any, reply) => {
         const { eventId } = request.params;
         const { limit = 100 } = request.query as any;
         const actorId = request.user?.uid;
@@ -39,7 +50,12 @@ export default async function orderRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/orders/stats/:eventId
      */
-    fastify.get('/stats/:eventId', async (request: any, reply) => {
+    fastify.get('/stats/:eventId', {
+        preHandler: [
+            fastify.validate({ params: OrderEventParam }),
+            fastify.requireRoles(['admin', 'partner', 'host'])
+        ]
+    }, async (request: any, reply) => {
         const { eventId } = request.params;
         const actorId = request.user?.uid;
 

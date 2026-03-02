@@ -60,6 +60,30 @@ class HybridCache {
             await this.fastify.redis.del(key);
         this.memoryStore.delete(key);
     }
+    async invalidateNamespace(namespace) {
+        // 1. Clear Memory
+        for (const [k] of this.memoryStore) {
+            if (k.startsWith(`${namespace}:`)) {
+                this.memoryStore.delete(k);
+            }
+        }
+        // 2. Clear Redis (SCAN and DEL)
+        if (this.fastify.redis && this.fastify.redis.status === 'ready') {
+            try {
+                let cursor = '0';
+                do {
+                    const [newCursor, keys] = await this.fastify.redis.scan(cursor, 'MATCH', `${namespace}:*`, 'COUNT', 100);
+                    cursor = newCursor;
+                    if (keys.length > 0) {
+                        await this.fastify.redis.del(...keys);
+                    }
+                } while (cursor !== '0');
+            }
+            catch (err) {
+                this.fastify.log.warn(`Cache Invalidate Error (Redis): ${err}`);
+            }
+        }
+    }
 }
 export default fp(async (fastify) => {
     const cache = new HybridCache(fastify);

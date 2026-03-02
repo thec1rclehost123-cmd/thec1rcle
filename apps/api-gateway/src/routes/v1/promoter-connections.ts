@@ -1,5 +1,42 @@
 import { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
+
+const RequestBody = z.object({
+    promoterId: z.string(),
+    promoterName: z.string().optional(),
+    promoterEmail: z.string().email().optional(),
+    targetId: z.string(),
+    targetType: z.string(),
+    targetName: z.string().optional(),
+    message: z.string().optional()
+}).strict();
+
+const PromoterIdParam = z.object({ promoterId: z.string() }).strict();
+const ConnectionIdParam = z.object({ id: z.string() }).strict();
+const StatusQuery = z.object({ status: z.string().optional() }).strict();
+const IncomingQuery = z.object({ targetId: z.string(), role: z.string().optional(), status: z.string().optional() }).strict();
+const DiscoverQuery = z.object({ type: z.string().optional(), city: z.string().optional(), search: z.string().optional(), limit: z.string().optional() }).strict();
+
+const ActionBody = z.object({
+    action: z.enum(['approve', 'reject', 'block']),
+    reason: z.string().optional()
+}).strict();
+
+const InvitesBody = z.object({
+    id: z.string(),
+    hostId: z.string(),
+    email: z.string().email(),
+    name: z.string().optional(),
+    type: z.string().optional(),
+    status: z.string().optional(),
+    expiresAt: z.string().optional()
+}).strict();
+
+const LinkClickBody = z.object({
+    linkId: z.string(),
+    promoterId: z.string().optional()
+}).strict();
 
 export default async function promoterConnectionsRoutes(fastify: FastifyInstance) {
     const COL = 'promoter_connections';
@@ -7,7 +44,9 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
     /**
      * POST /api/v1/promoter-connections/request
      */
-    fastify.post('/request', async (request: any, reply) => {
+    fastify.post('/request', {
+        preHandler: [fastify.validate({ body: RequestBody })]
+    }, async (request: any, reply) => {
         const { promoterId, promoterName, promoterEmail, targetId, targetType, targetName, message = '' } = request.body;
 
         const existing = await fastify.db.collection(COL)
@@ -27,7 +66,9 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
     /**
      * GET /api/v1/promoter-connections/promoter/:promoterId
      */
-    fastify.get('/promoter/:promoterId', async (request: any, reply) => {
+    fastify.get('/promoter/:promoterId', {
+        preHandler: [fastify.validate({ params: PromoterIdParam, querystring: StatusQuery })]
+    }, async (request: any, reply) => {
         const { promoterId } = request.params;
         const { status } = request.query;
         let q: any = fastify.db.collection(COL).where('promoterId', '==', promoterId);
@@ -39,7 +80,9 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
     /**
      * GET /api/v1/promoter-connections/incoming
      */
-    fastify.get('/incoming', async (request: any, reply) => {
+    fastify.get('/incoming', {
+        preHandler: [fastify.validate({ querystring: IncomingQuery })]
+    }, async (request: any, reply) => {
         const { targetId, role, status } = request.query;
         let q: any = fastify.db.collection(COL).where('targetId', '==', targetId);
         if (role) q = q.where('targetType', '==', role);
@@ -52,7 +95,9 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
      * GET /api/v1/promoter-connections/discover
      * Search for approved partners (hosts, venues, promoters) for discovery
      */
-    fastify.get('/discover', async (request: any, reply) => {
+    fastify.get('/discover', {
+        preHandler: [fastify.validate({ querystring: DiscoverQuery })]
+    }, async (request: any, reply) => {
         const { type = 'host', city, search, limit = 20 } = request.query;
         const collectionMap: Record<string, string> = { host: 'hosts', venue: 'venues', promoter: 'promoters' };
         const col = collectionMap[type] || type;
@@ -92,7 +137,9 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
     /**
      * PATCH /api/v1/promoter-connections/:id
      */
-    fastify.patch('/:id', async (request: any, reply) => {
+    fastify.patch('/:id', {
+        preHandler: [fastify.validate({ params: ConnectionIdParam, body: ActionBody })]
+    }, async (request: any, reply) => {
         const { id } = request.params;
         const { action, reason } = request.body;
         const statusMap: Record<string, string> = { approve: 'active', reject: 'rejected', block: 'blocked' };
@@ -106,7 +153,9 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
      * POST /api/v1/promoter-connections/invites
      * Create a promoter invite link (called by partner-dashboard host/invite route)
      */
-    fastify.post('/invites', async (request: any, reply) => {
+    fastify.post('/invites', {
+        preHandler: [fastify.validate({ body: InvitesBody })]
+    }, async (request: any, reply) => {
         const { id, hostId, email, name, type, status, expiresAt } = request.body as any;
 
         if (!id || !hostId || !email) {
@@ -134,7 +183,9 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
      * POST /api/v1/promoter-connections/links/click
      * Increment click count for a promoter link
      */
-    fastify.post('/links/click', async (request: any, reply) => {
+    fastify.post('/links/click', {
+        preHandler: [fastify.validate({ body: LinkClickBody })]
+    }, async (request: any, reply) => {
         const { linkId, promoterId } = request.body as any;
         if (!linkId) return reply.status(400).send({ error: 'linkId is required' });
         const linkRef = fastify.db.collection('promoter_links').doc(linkId);

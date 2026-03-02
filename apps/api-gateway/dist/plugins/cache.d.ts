@@ -13,6 +13,7 @@ declare class HybridCache {
     set(namespace: string, rawKey: string, value: any, ttlSeconds?: number): Promise<void>;
     get(namespace: string, rawKey: string): Promise<any>;
     delete(namespace: string, rawKey: string): Promise<void>;
+    invalidateNamespace(namespace: string): Promise<void>;
 }
 declare const _default: (fastify: FastifyInstance) => Promise<void>;
 export default _default;

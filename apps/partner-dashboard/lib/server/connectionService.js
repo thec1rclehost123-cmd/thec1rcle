@@ -92,6 +92,7 @@ export async function listConnections(partnerId, role, status = null, token) {
     ]);
 
     const normalizedPartnerships = partnerships.map(p => ({
+        ...p,
         id: p.id,
         type: "partnership",
         otherId: role === "host" ? p.venueId : p.hostId,
@@ -103,6 +104,7 @@ export async function listConnections(partnerId, role, status = null, token) {
     }));
 
     const normalizedPromoters = promoterConnections.map(c => ({
+        ...c,
         id: c.id,
         type: "promoter_connection",
         otherId: role === "promoter" ? c.targetId : c.promoterId,

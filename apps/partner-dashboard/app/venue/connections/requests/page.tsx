@@ -24,8 +24,7 @@ import {
     ShieldAlert
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { getFirebaseDb } from "@/lib/firebase/client";
-import { collection, query, where, getDocs } from "firebase/firestore";
+
 import { DiscoveryView } from "@/components/discovery/DiscoveryView";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -62,60 +61,56 @@ export default function VenueConnectionsPage() {
     const venueId = profile?.activeMembership?.partnerId;
     const venueName = profile?.displayName;
 
-    // Real-time listener for promoter connection requests
+    // Fetch connections from the internal API
     useEffect(() => {
-        if (!venueId) return;
+        if (!venueId || !user) return;
         setLoading(true);
-
-        const db = getFirebaseDb();
-
-        const connectionsQuery = query(
-            collection(db, "promoter_connections"),
-            where("targetId", "==", venueId),
-            where("targetType", "==", "venue")
-        );
 
         const fetchConnections = async () => {
             try {
-                const snapshot = await getDocs(connectionsQuery);
-                const requests = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as PromoterRequest[];
-                setPromoterRequests(requests);
+                const token = await user.getIdToken();
+                const res = await fetch(`/api/discovery?action=list&partnerId=${venueId}&role=venue`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!res.ok) throw new Error("Failed to fetch connections");
+
+                const data = await res.json();
+                const allConnections = data.connections || [];
+
+                // Map API normalized formats back to what the UI expects
+                const promoters = allConnections
+                    .filter((c: any) => c.type === "promoter_connection")
+                    .map((c: any) => ({
+                        id: c.id,
+                        promoterId: c.otherId,
+                        promoterName: c.otherName,
+                        ...c,
+                        status: c.status,
+                        createdAt: c.createdAt
+                    }));
+
+                const hosts = allConnections
+                    .filter((c: any) => c.type === "partnership")
+                    .map((c: any) => ({
+                        id: c.id,
+                        hostId: c.otherId,
+                        hostName: c.otherName,
+                        ...c,
+                        status: c.status,
+                        createdAt: c.createdAt
+                    }));
+
+                setPromoterRequests(promoters);
+                setHostPartnerships(hosts);
             } catch (error) {
-                console.error("[Venue Connections] Firestore error:", error);
+                console.error("[Venue Connections] Fetch error:", error);
             } finally {
                 setLoading(false);
             }
         };
         fetchConnections();
-    }, [venueId]);
-
-    // Real-time listener for host connection requests (Partnerships)
-    useEffect(() => {
-        if (!venueId) return;
-
-        const db = getFirebaseDb();
-        const partnershipsQuery = query(
-            collection(db, "partnerships"),
-            where("venueId", "==", venueId)
-        );
-
-        const fetchPartnerships = async () => {
-            try {
-                const snapshot = await getDocs(partnershipsQuery);
-                const partnerships = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as HostPartnership[];
-                setHostPartnerships(partnerships);
-            } catch (error) {
-                console.error("[Venue Connections] Host snapshot error:", error);
-            }
-        };
-        fetchPartnerships();
-    }, [venueId]);
+    }, [venueId, user]);
 
     const handleAction = async (connectionId: string, action: 'approve' | 'reject' | 'block', type: 'host' | 'promoter') => {
         setProcessingRequest(connectionId);

@@ -11,8 +11,7 @@ import {
     createUserWithEmailAndPassword,
     updateProfile as updateFirebaseProfile
 } from "firebase/auth";
-import { doc, getDoc, setDoc, collection, query, where, getDocs, limit, onSnapshot } from "firebase/firestore";
-import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/client";
+import { getFirebaseAuth } from "@/lib/firebase/client";
 import { DashboardProfile, PartnerMembership, PartnerType, StaffRole } from "@/lib/rbac/types";
 
 interface AuthContextValue {
@@ -58,19 +57,27 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (!user) return;
 
-        const db = getFirebaseDb();
-        setLoading(true);
-
-        const unsubscribeUser = onSnapshot(doc(db, "users", user.uid), async (userDoc) => {
-            if (!userDoc.exists()) {
-                setLoading(false);
-                return;
-            }
-
+        const fetchUserData = async () => {
             try {
-                const userData = userDoc.data();
-                const token = await user.getIdTokenResult(true);
-                const claims = token.claims;
+                const token = await user.getIdToken();
+                const res = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
+
+                if (!res.ok) {
+                    setLoading(false);
+                    return;
+                }
+
+                const data = await res.json();
+                const userData = data.user;
+                const onboardingRequest = data.onboardingRequest;
+
+                if (!userData) {
+                    setLoading(false);
+                    return;
+                }
+
+                const tokenResult = await user.getIdTokenResult(true);
+                const claims = tokenResult.claims;
 
                 const approvedByDoc = userData.isApproved || false;
                 const approvedByClaims = !!claims.partnerId;
@@ -79,14 +86,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 setIsApproved(approvedState);
 
                 if (!approvedState) {
-                    const onboardingQuery = query(
-                        collection(db, "onboarding_requests"),
-                        where("uid", "==", user.uid),
-                        limit(1)
-                    );
-                    const onboardingDocs = await getDocs(onboardingQuery);
-                    if (!onboardingDocs.empty) {
-                        setOnboardingStatus(onboardingDocs.docs[0].data().status);
+                    if (onboardingRequest) {
+                        setOnboardingStatus(onboardingRequest.status);
                     }
                 } else {
                     setOnboardingStatus(null);
@@ -104,45 +105,22 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                         joinedAt: 0,
                         isActive: true
                     };
-                } else {
-                    const membershipQuery = query(
-                        collection(db, "partner_memberships"),
-                        where("uid", "==", user.uid),
-                        where("isActive", "==", true),
-                        limit(1)
-                    );
-                    const membershipDocs = await getDocs(membershipQuery);
-
-                    if (!membershipDocs.empty) {
-                        const mDoc = membershipDocs.docs[0].data();
-                        activeMembership = {
-                            uid: user.uid,
-                            partnerId: mDoc.partnerId,
-                            partnerType: mDoc.partnerType === 'club' ? 'venue' : mDoc.partnerType,
-                            role: mDoc.role,
-                            joinedAt: mDoc.joinedAt,
-                            isActive: mDoc.isActive
-                        };
-                    }
+                } else if (userData.activeMembership) { // Assuming activeMembership is now part of userData from /api/auth/me
+                    activeMembership = {
+                        uid: user.uid,
+                        partnerId: userData.activeMembership.partnerId,
+                        partnerType: userData.activeMembership.partnerType === 'club' ? 'venue' : userData.activeMembership.partnerType,
+                        role: userData.activeMembership.role,
+                        joinedAt: userData.activeMembership.joinedAt,
+                        isActive: userData.activeMembership.isActive,
+                        partnerName: userData.activeMembership.partnerName // Assuming partnerName is also returned
+                    };
                 }
 
                 if (approvedState && activeMembership) {
-                    // Standardize terminology: club -> venue
-                    const partnerType = activeMembership.partnerType;
-                    const entityCollection = partnerType === 'venue' ? 'venues' : (partnerType === 'host' ? 'hosts' : 'promoters');
-
-                    const entityDoc = await getDoc(doc(db, entityCollection, activeMembership.partnerId));
-                    if (entityDoc.exists()) {
-                        const entityData = entityDoc.data();
-                        plan = entityData.subscriptionPlan || entityData.tier || 'basic';
-                        setSubscriptionPlan(plan);
-
-                        // Update local membership type if it was club
-                        activeMembership.partnerType = partnerType as PartnerType;
-
-                        // Add partner name to membership
-                        activeMembership.partnerName = entityData.name || entityData.displayName || (partnerType === 'venue' ? "Venue" : "Host");
-                    }
+                    // Subscription plan should also come from the API now
+                    plan = userData.subscriptionPlan || userData.tier || 'basic';
+                    setSubscriptionPlan(plan);
                 }
 
                 setProfile({
@@ -151,23 +129,11 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                     displayName: userData.displayName || userData.username || "User",
                     activeMembership
                 });
-            } catch (error) {
-                console.error("Error fetching dashboard profile:", error);
+            } catch (err) {
+                console.error("Error fetching user data in auth provider:", err);
+                setLoading(false);
             } finally {
                 setLoading(false);
-            }
-        }, (error) => {
-            console.error("User document snapshot error:", error);
-            setLoading(false);
-        });
-
-        return () => {
-            if (unsubscribeUser) {
-                try {
-                    unsubscribeUser();
-                } catch (e) {
-                    console.warn("Firestore unsubscribe error suppressed:", e);
-                }
             }
         };
     }, [user]);
@@ -183,18 +149,26 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
 
         await updateFirebaseProfile(credential.user, { displayName });
 
-        const db = getFirebaseDb();
-        const profileRef = doc(db, "users", credential.user.uid);
+        await updateFirebaseProfile(credential.user, { displayName });
+
+        const token = await credential.user.getIdToken();
         const now = new Date().toISOString();
 
-        await setDoc(profileRef, {
-            uid: credential.user.uid,
-            email: credential.user.email || "",
-            displayName: displayName,
-            photoURL: credential.user.photoURL || "",
-            createdAt: now,
-            updatedAt: now,
-            isApproved: false
+        await fetch('/api/auth/profile', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                uid: credential.user.uid,
+                email: credential.user.email || "",
+                displayName: displayName,
+                photoURL: credential.user.photoURL || "",
+                createdAt: now,
+                updatedAt: now,
+                isApproved: false
+            })
         });
     };
 
@@ -203,14 +177,17 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         const provider = new GoogleAuthProvider();
         const credential = await signInWithPopup(auth, provider);
 
-        // Ensure profile document exists
-        const db = getFirebaseDb();
-        const profileRef = doc(db, "users", credential.user.uid);
-        const profileDoc = await getDoc(profileRef);
+        const token = await credential.user.getIdToken();
 
-        if (!profileDoc.exists()) {
-            const now = new Date().toISOString();
-            await setDoc(profileRef, {
+        // Use our endpoint which creates the profile if it doesn't exist
+        const now = new Date().toISOString();
+        await fetch('/api/auth/profile', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
                 uid: credential.user.uid,
                 email: credential.user.email || "",
                 displayName: credential.user.displayName || "Member",
@@ -218,8 +195,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 createdAt: now,
                 updatedAt: now,
                 isApproved: false
-            });
-        }
+            })
+        });
     };
 
     const signOut = async () => {

@@ -1,5 +1,17 @@
 import { FastifyInstance } from 'fastify';
 import * as crypto from 'node:crypto';
+import { z } from 'zod';
+
+const PaymentOrderBody = z.object({
+    orderId: z.string()
+}).strict();
+
+const PaymentVerifyBody = z.object({
+    orderId: z.string(),
+    razorpay_order_id: z.string(),
+    razorpay_payment_id: z.string(),
+    razorpay_signature: z.string()
+}).strict();
 
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
@@ -25,7 +37,9 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
      * POST /api/v1/payments/order
      * Create a Razorpay order from a pending system order
      */
-    fastify.post('/payments/order', async (request: { body: any, user: any }, reply) => {
+    fastify.post('/payments/order', {
+        preHandler: [fastify.validate({ body: PaymentOrderBody })]
+    }, async (request: { body: any, user: any }, reply) => {
         const { orderId } = request.body;
         const userId = request.user?.uid;
 
@@ -48,7 +62,9 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
      * PATCH /api/v1/payments/verify
      * Verify payment and confirm order
      */
-    fastify.patch('/payments/verify', async (request: { body: any, user: any }, reply) => {
+    fastify.patch('/payments/verify', {
+        preHandler: [fastify.validate({ body: PaymentVerifyBody })]
+    }, async (request: { body: any, user: any }, reply) => {
         const {
             orderId,
             razorpay_order_id,

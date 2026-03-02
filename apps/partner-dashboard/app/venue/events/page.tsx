@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef } from "react";
+import { VirtuosoGrid } from "react-virtuoso";
 import {
     Calendar,
     Users,
@@ -26,8 +27,7 @@ import Link from "next/link";
 import { DashboardEventCard } from "@c1rcle/ui";
 import { EventDetailsModal } from "@/components/venue-layout/EventDetailsModal";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { collection, query, where, getDocs, orderBy, or } from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase/client";
+
 import { mapEventForClient } from "@c1rcle/core/events";
 import { parseAsIST } from "@c1rcle/core/time";
 
@@ -91,32 +91,28 @@ export default function EventsManagementPage() {
     const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // Fetch events from Firestore in real-time
+    // Fetch events from API Gateway via Next.js Proxy
     useEffect(() => {
-        if (!profile?.activeMembership?.partnerId) return;
+        if (!profile?.activeMembership?.partnerId || !user) return;
 
-        const db = getFirebaseDb();
         const venueId = profile.activeMembership.partnerId;
 
-        // PRODUCTION HARDENING: Query events where venueId matches this club OR creatorId matches this club
-        // Use 'or' to ensure drafts created by the club but without a finalized venueId are still visible.
-        const q = query(
-            collection(db, "events"),
-            or(
-                where("venueId", "==", venueId),
-                where("creatorId", "==", venueId)
-            )
-        );
-
-        console.log("[Venue Events] Setting up hardened listener for venueId:", venueId);
+        console.log("[Venue Events] Fetching events for venueId:", venueId);
 
         const fetchEvents = async () => {
             try {
-                const snapshot = await getDocs(q);
-                const fetchedEvents: Event[] = snapshot.docs
-                    .map(doc => {
-                        const mapped = mapEventForClient(doc.data(), doc.id) as any;
+                const token = await user.getIdToken();
+                const res = await fetch(`/api/venue/events?venueId=${venueId}&status=all`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
 
+                if (!res.ok) throw new Error("API Route failed");
+                const { events: fetchedRawEvents } = await res.json();
+
+                const fetchedEvents: Event[] = fetchedRawEvents
+                    .map((mappedRaw: any) => {
+                        // In case the gateway doesn't apply mapEventForClient exactly as local
+                        const mapped = mapEventForClient(mappedRaw, mappedRaw.id) as any;
                         return {
                             ...mapped,
                             title: mapped.title || mapped.name || "Untitled Event",
@@ -132,33 +128,28 @@ export default function EventsManagementPage() {
                             revenue: mapped.stats?.revenue || 0,
                         };
                     })
-                    .filter(event => {
-                        // Privacy Filter:
-                        // 1. Venue's own events (creatorId or venueId match): Show always
-                        // 2. Host's events specifically submitted to this venue: Show only if NOT in draft
+                    .filter((event: any) => {
+                        // Privacy Filter
                         if (event.eventType === 'host' && event.creatorId !== venueId) {
                             return event.lifecycle !== 'draft';
                         }
                         return true;
                     })
-                    .sort((a, b) => {
+                    .sort((a: any, b: any) => {
                         const dateA = a.date?.getTime() || 0;
                         const dateB = b.date?.getTime() || 0;
                         return dateB - dateA;
                     });
                 setEvents(fetchedEvents);
             } catch (error: any) {
-                console.error("[Venue Events] Firestore error:", error);
-                if (error.message && error.message.includes("index")) {
-                    console.warn("Firestore Index Required. Check Firebase Console.");
-                }
+                console.error("[Venue Events] Fetch error:", error);
             } finally {
                 setLoading(false);
             }
         };
 
         fetchEvents();
-    }, [profile]);
+    }, [profile, user]);
 
     const handleEventUpdate = async (action: string, data?: any, overrideEventId?: string) => {
         const eventId = overrideEventId || selectedEvent?.id;
@@ -344,8 +335,18 @@ export default function EventsManagementPage() {
                         </button>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
-                        {filteredEvents.map((event, index) => {
+                    <VirtuosoGrid
+                        useWindowScroll
+                        data={filteredEvents}
+                        components={{
+                            List: forwardRef((props, ref: any) => (
+                                <div {...props} ref={ref} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10" />
+                            )),
+                            Item: forwardRef((props, ref: any) => (
+                                <div {...props} ref={ref} className="h-[450px] w-full" />
+                            ))
+                        }}
+                        itemContent={(index, event) => {
                             const effectiveStatus = getEffectiveStatus(event);
 
                             const getPrimaryAction = (e: any) => {
@@ -387,20 +388,18 @@ export default function EventsManagementPage() {
                             }
 
                             return (
-                                <div key={event.id} className="h-[450px] w-full">
-                                    <DashboardEventCard
-                                        event={event}
-                                        index={index}
-                                        role="venue"
-                                        primaryAction={getPrimaryAction(event)}
-                                        secondaryActions={secondaryActions}
-                                        showStats={true}
-                                        height="h-full"
-                                    />
-                                </div>
+                                <DashboardEventCard
+                                    event={event}
+                                    index={index}
+                                    role="venue"
+                                    primaryAction={getPrimaryAction(event)}
+                                    secondaryActions={secondaryActions}
+                                    showStats={true}
+                                    height="h-full"
+                                />
                             );
-                        })}
-                    </div>
+                        }}
+                    />
                 )}
             </div>
         </div>

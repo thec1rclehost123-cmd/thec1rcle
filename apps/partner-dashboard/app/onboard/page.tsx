@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/client";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 type OnboardingStep = "role" | "details" | "success";
@@ -113,29 +112,24 @@ function OnboardingContent() {
                 }
             }
 
-            await setDoc(doc(db, "users", uid), {
-                uid,
-                email: effectiveEmail,
-                displayName: formData.name,
-                role: 'onboarding',
-                isApproved: false,
-                updatedAt: serverTimestamp()
-            }, { merge: true });
-
-            const requestId = `req_${Date.now()}_${uid.substring(0, 5)}`;
-            await setDoc(doc(db, "onboarding_requests", requestId), {
-                id: requestId,
-                uid,
-                type: partnerType,
-                status: "pending",
-                data: {
-                    ...formData,
-                    email: effectiveEmail,
-                    password: "[REDACTED]"
+            const token = await auth.currentUser?.getIdToken();
+            const res = await fetch('/api/auth/onboard', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { 'Authorization': `Bearer ${token}` })
                 },
-                submittedAt: serverTimestamp(),
-                updatedAt: serverTimestamp()
+                body: JSON.stringify({
+                    type: partnerType,
+                    ...formData,
+                    email: effectiveEmail
+                })
             });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || "Failed to submit request.");
+            }
 
             setStep("success");
         } catch (err: any) {
@@ -179,17 +173,17 @@ function OnboardingContent() {
                     {["role", "details", "success"].map((s, i) => (
                         <div key={s} className="flex items-center gap-4">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold transition-all ${step === s
-                                    ? "bg-[var(--c1rcle-orange)] text-white"
-                                    : ["role", "details", "success"].indexOf(step) > i
-                                        ? "bg-[var(--state-success)] text-white"
-                                        : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]"
+                                ? "bg-[var(--c1rcle-orange)] text-white"
+                                : ["role", "details", "success"].indexOf(step) > i
+                                    ? "bg-[var(--state-success)] text-white"
+                                    : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]"
                                 }`}>
                                 {["role", "details", "success"].indexOf(step) > i ? "✓" : i + 1}
                             </div>
                             {i < 2 && (
                                 <div className={`w-16 sm:w-24 h-1 rounded-full transition-all ${["role", "details", "success"].indexOf(step) > i
-                                        ? "bg-[var(--state-success)]"
-                                        : "bg-[var(--surface-tertiary)]"
+                                    ? "bg-[var(--state-success)]"
+                                    : "bg-[var(--surface-tertiary)]"
                                     }`} />
                             )}
                         </div>
@@ -564,14 +558,14 @@ function RoleCard({ icon: Icon, title, description, active, onClick }: {
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
             className={`p-6 rounded-2xl border-2 text-left transition-all duration-300 group ${active
-                    ? 'bg-[var(--text-primary)] border-[var(--text-primary)] shadow-xl'
-                    : 'bg-[var(--surface-elevated)] border-[var(--border-subtle)] hover:border-[var(--border-default)]'
+                ? 'bg-[var(--text-primary)] border-[var(--text-primary)] shadow-xl'
+                : 'bg-[var(--surface-elevated)] border-[var(--border-subtle)] hover:border-[var(--border-default)]'
                 }`}
         >
             <div className="flex items-start gap-4">
                 <div className={`h-12 w-12 rounded-xl flex items-center justify-center transition-all ${active
-                        ? 'bg-white/10 text-white'
-                        : 'bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]'
+                    ? 'bg-white/10 text-white'
+                    : 'bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]'
                     }`}>
                     <Icon className="h-6 w-6" />
                 </div>
@@ -584,8 +578,8 @@ function RoleCard({ icon: Icon, title, description, active, onClick }: {
                     </p>
                 </div>
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${active
-                        ? 'border-[var(--c1rcle-orange)] bg-[var(--c1rcle-orange)]'
-                        : 'border-[var(--border-default)]'
+                    ? 'border-[var(--c1rcle-orange)] bg-[var(--c1rcle-orange)]'
+                    : 'border-[var(--border-default)]'
                     }`}>
                     {active && <div className="w-2 h-2 rounded-full bg-white" />}
                 </div>

@@ -31,7 +31,9 @@ export default async function orderRoutes(fastify) {
     /**
      * GET /api/v1/orders/stats/:eventId
      */
-    fastify.get('/stats/:eventId', async (request, reply) => {
+    fastify.get('/stats/:eventId', {
+        preHandler: [fastify.requireRoles(['admin', 'partner', 'host'])]
+    }, async (request, reply) => {
         const { eventId } = request.params;
         const actorId = request.user?.uid;
         const eventDoc = await fastify.db.collection('events').doc(eventId).get();

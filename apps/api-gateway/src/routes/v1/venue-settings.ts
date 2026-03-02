@@ -1,4 +1,29 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+
+const VenueQuery = z.object({ venueId: z.string() }).strict();
+const VenueUpdatesBody = z.object({
+    venueId: z.string(),
+    updates: z.record(z.string(), z.any())
+}).strict();
+
+const ReservationsQuery = z.object({
+    venueId: z.string(),
+    status: z.string().optional(),
+    limit: z.string().optional()
+}).strict();
+
+const ReservationIdParam = z.object({ id: z.string() }).strict();
+const ReservationStatusBody = z.object({
+    status: z.string(),
+    notes: z.string().optional()
+}).strict();
+
+const HostQuery = z.object({ hostId: z.string() }).strict();
+const HostSettingsBody = z.object({
+    hostId: z.string(),
+    settings: z.record(z.string(), z.any())
+}).strict();
 
 /**
  * Venue & Host Settings Gateway Routes
@@ -10,7 +35,9 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/venue-settings?venueId=XXX
      */
-    fastify.get('/venue', async (request: any, reply) => {
+    fastify.get('/venue', {
+        preHandler: [fastify.validate({ querystring: VenueQuery })]
+    }, async (request: any, reply) => {
         const { venueId } = request.query as any;
         if (!venueId) return reply.status(400).send({ error: 'venueId required' });
         const doc = await fastify.db.collection('venues').doc(venueId).get();
@@ -22,7 +49,9 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
      * PATCH /api/v1/venue-settings/venue
      * Update venue settings
      */
-    fastify.patch('/venue', async (request: any, reply) => {
+    fastify.patch('/venue', {
+        preHandler: [fastify.validate({ body: VenueUpdatesBody })]
+    }, async (request: any, reply) => {
         const { venueId, updates } = request.body as any;
         if (!venueId || !updates) return reply.status(400).send({ error: 'venueId and updates required' });
 
@@ -42,7 +71,9 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/venue-settings/venue/reservations?venueId=XXX
      */
-    fastify.get('/venue/reservations', async (request: any, reply) => {
+    fastify.get('/venue/reservations', {
+        preHandler: [fastify.validate({ querystring: ReservationsQuery })]
+    }, async (request: any, reply) => {
         const { venueId, status, limit = 50 } = request.query as any;
         if (!venueId) return reply.status(400).send({ error: 'venueId required' });
 
@@ -59,7 +90,9 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
      * PATCH /api/v1/venue-settings/venue/reservations/:id
      * Update reservation status
      */
-    fastify.patch('/venue/reservations/:id', async (request: any, reply) => {
+    fastify.patch('/venue/reservations/:id', {
+        preHandler: [fastify.validate({ params: ReservationIdParam, body: ReservationStatusBody })]
+    }, async (request: any, reply) => {
         const { id } = request.params as any;
         const { status, notes } = request.body as any;
         if (!status) return reply.status(400).send({ error: 'status required' });
@@ -73,7 +106,9 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/venue-settings/host?hostId=XXX
      */
-    fastify.get('/host', async (request: any, reply) => {
+    fastify.get('/host', {
+        preHandler: [fastify.validate({ querystring: HostQuery })]
+    }, async (request: any, reply) => {
         const { hostId } = request.query as any;
         if (!hostId) return reply.status(400).send({ error: 'hostId required' });
         const doc = await fastify.db.collection('hosts').doc(hostId).get();
@@ -85,7 +120,9 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
      * PATCH /api/v1/venue-settings/host
      * Update host settings
      */
-    fastify.patch('/host', async (request: any, reply) => {
+    fastify.patch('/host', {
+        preHandler: [fastify.validate({ body: HostSettingsBody })]
+    }, async (request: any, reply) => {
         const { hostId, settings } = request.body as any;
         if (!hostId) return reply.status(400).send({ error: 'hostId required' });
 
@@ -105,7 +142,9 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/venue-settings/host/overview?hostId=XXX
      */
-    fastify.get('/host/overview', async (request: any, reply) => {
+    fastify.get('/host/overview', {
+        preHandler: [fastify.validate({ querystring: HostQuery })]
+    }, async (request: any, reply) => {
         const { hostId } = request.query as any;
         if (!hostId) return reply.status(400).send({ error: 'hostId required' });
 

@@ -1,5 +1,26 @@
 import { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
+
+const RequestBody = z.object({
+    orderId: z.string(),
+    reason: z.string().optional(),
+    amount: z.number().nullable().optional(),
+    source: z.string().optional()
+}).strict();
+
+const PendingQuery = z.object({
+    limit: z.string().optional(),
+    eventId: z.string().optional()
+}).strict();
+
+const OrderIdParam = z.object({ orderId: z.string() }).strict();
+const RefundIdParam = z.object({ id: z.string() }).strict();
+
+const ActionBody = z.object({
+    action: z.enum(['approve', 'reject']),
+    reason: z.string().optional()
+}).strict();
 
 export default async function refundRoutes(fastify: FastifyInstance) {
     const REFUNDS_COL = 'refund_requests';
@@ -8,7 +29,9 @@ export default async function refundRoutes(fastify: FastifyInstance) {
     /**
      * POST /api/v1/refunds/request
      */
-    fastify.post('/request', async (request: any, reply) => {
+    fastify.post('/request', {
+        preHandler: [fastify.validate({ body: RequestBody })]
+    }, async (request: any, reply) => {
         const { orderId, reason = '', amount = null, source = 'user' } = request.body;
         const requestedBy = request.user;
         if (!requestedBy) return reply.status(401).send({ error: 'Unauthorized' });
@@ -52,7 +75,9 @@ export default async function refundRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/refunds/pending
      */
-    fastify.get('/pending', async (request: any, reply) => {
+    fastify.get('/pending', {
+        preHandler: [fastify.validate({ querystring: PendingQuery })]
+    }, async (request: any, reply) => {
         const { limit = 50, eventId } = request.query;
         let q: any = fastify.db.collection(REFUNDS_COL).where('status', '==', 'pending');
         if (eventId) q = q.where('eventId', '==', eventId);
@@ -64,7 +89,9 @@ export default async function refundRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/refunds/order/:orderId
      */
-    fastify.get('/order/:orderId', async (request: any, reply) => {
+    fastify.get('/order/:orderId', {
+        preHandler: [fastify.validate({ params: OrderIdParam })]
+    }, async (request: any, reply) => {
         const { orderId } = request.params;
         const snap = await fastify.db.collection(REFUNDS_COL).where('orderId', '==', orderId).orderBy('createdAt', 'desc').get();
         return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
@@ -73,7 +100,9 @@ export default async function refundRoutes(fastify: FastifyInstance) {
     /**
      * PATCH /api/v1/refunds/:id
      */
-    fastify.patch('/:id', async (request: any, reply) => {
+    fastify.patch('/:id', {
+        preHandler: [fastify.validate({ params: RefundIdParam, body: ActionBody })]
+    }, async (request: any, reply) => {
         const { id } = request.params;
         const { action, reason } = request.body;
         const actor = request.user;

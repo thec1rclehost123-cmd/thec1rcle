@@ -2,14 +2,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
-  arrayRemove,
-  arrayUnion,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc
-} from "firebase/firestore";
-import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -21,7 +13,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup
 } from "firebase/auth";
-import { getFirebaseAuth, getFirebaseDb } from "../../lib/firebase/client";
+import { getFirebaseAuth } from "../../lib/firebase/client";
 
 const AuthContext = createContext({
   user: null,
@@ -58,21 +50,35 @@ export function AuthProvider({ children }) {
 
   const ensureProfile = useCallback(async (firebaseUser) => {
     try {
-      const db = getFirebaseDb();
-      const profileRef = doc(db, "users", firebaseUser.uid);
-      const snapshot = await getDoc(profileRef);
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        setProfile(data);
-        return data;
-      }
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
       const payload = buildProfilePayload(firebaseUser);
-      await setDoc(profileRef, payload);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.user) {
+          setProfile(data.user);
+          return data.user;
+        }
+      }
+
+      // If missing or error fetching, create new one
+      await fetch('/api/auth/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
       setProfile(payload);
       return payload;
     } catch (profileError) {
       console.error("ensureProfile error", profileError);
-      setError("Unable to reach Firestore. Check Firebase configuration.");
+      setError("Unable to ensure profile via API.");
       return null;
     }
   }, []);
@@ -146,35 +152,48 @@ export function AuthProvider({ children }) {
       if (!user?.uid) {
         throw new Error("You must be logged in to manage events.");
       }
-      const db = getFirebaseDb();
-      const profileRef = doc(db, "users", user.uid);
-      await updateDoc(profileRef, {
-        [field]: shouldInclude ? arrayUnion(eventId) : arrayRemove(eventId),
-        updatedAt: new Date().toISOString()
+
+      const token = await user.getIdToken();
+      // Assume API handles arrays optimally. For now, pull existing from state, update and PATCH
+      const current = new Set(profile?.[field] || []);
+      if (shouldInclude) current.add(eventId);
+      else current.delete(eventId);
+      const updatedArray = Array.from(current);
+
+      await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ type: 'user', updates: { [field]: updatedArray } })
       });
+
       setProfile((prev) => {
         if (!prev) return prev;
-        const current = new Set(prev[field] || []);
-        if (shouldInclude) current.add(eventId);
-        else current.delete(eventId);
         return {
           ...prev,
-          [field]: Array.from(current)
+          [field]: updatedArray
         };
       });
     },
-    [user?.uid]
+    [user?.uid, profile]
   );
 
   const updateUserProfile = useCallback(
     async (updates) => {
       if (!user?.uid) throw new Error("Not logged in");
-      const db = getFirebaseDb();
-      const profileRef = doc(db, "users", user.uid);
-      await updateDoc(profileRef, {
-        ...updates,
-        updatedAt: new Date().toISOString()
+
+      const token = await user.getIdToken();
+      await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ type: 'user', updates })
       });
+
       setProfile((prev) => ({ ...prev, ...updates }));
     },
     [user?.uid]

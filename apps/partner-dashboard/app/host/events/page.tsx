@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, forwardRef } from "react";
+import { VirtuosoGrid } from "react-virtuoso";
 import {
     Plus,
     Search,
@@ -11,8 +12,7 @@ import {
     ArrowUpRight
 } from "lucide-react";
 import Link from "next/link";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase/client";
+
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { DashboardEventCard } from "@c1rcle/ui";
 import { mapEventForClient } from "@c1rcle/core/events";
@@ -29,20 +29,20 @@ export default function HostEventsPage() {
 
     useEffect(() => {
         if (!profile?.activeMembership?.partnerId) return;
-
-        const db = getFirebaseDb();
         const hostId = profile.activeMembership.partnerId;
-
-        const q = query(
-            collection(db, "events"),
-            where("hostId", "==", hostId),
-            orderBy("startDate", "desc")
-        );
 
         const fetchEvents = async () => {
             try {
-                const snapshot = await getDocs(q);
-                const fetched = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
+                // To fetch private events, we might need the auth token
+                const token = await (window as any).getAuthToken?.() || "";
+                const res = await fetch(`/api/host/events?hostId=${hostId}`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
+                if (!res.ok) throw new Error("Failed to fetch events");
+                const data = await res.json();
+
+                // Assuming mapping is either handled by backend or frontend
+                const fetched = (data.events || []).map((doc: any) => mapEventForClient(doc, doc.id || doc._id));
                 setEvents(fetched);
             } catch (error) {
                 console.error("Error fetching events:", error);
@@ -160,8 +160,18 @@ export default function HostEventsPage() {
                     </Link>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredEvents.map((event, index) => {
+                <VirtuosoGrid
+                    useWindowScroll
+                    data={filteredEvents}
+                    components={{
+                        List: forwardRef((props, ref: any) => (
+                            <div {...props} ref={ref} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" />
+                        )),
+                        Item: forwardRef((props, ref: any) => (
+                            <div {...props} ref={ref} className="h-full w-full" />
+                        ))
+                    }}
+                    itemContent={(index, event) => {
                         const getPrimaryAction = (e: any) => {
                             if (e.lifecycle === 'draft') return { label: "Continue Editing", href: `/host/create?id=${e.id}`, icon: <Edit3 size={16} /> };
                             if (e.lifecycle === 'submitted') return { label: "View Submission", href: `/host/events/${e.id}`, icon: <Eye size={16} /> };
@@ -171,7 +181,6 @@ export default function HostEventsPage() {
 
                         return (
                             <DashboardEventCard
-                                key={event.id}
                                 event={event}
                                 index={index}
                                 role="host"
@@ -191,8 +200,8 @@ export default function HostEventsPage() {
                                 ]}
                             />
                         );
-                    })}
-                </div>
+                    }}
+                />
             )}
         </div>
     );

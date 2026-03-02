@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useDeferredValue, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { TableVirtuoso } from "react-virtuoso";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -31,23 +32,33 @@ import AuditTrail from "@/components/shared/AuditTrail";
 import CancelEventModal from "@/components/event-detail/CancelEventModal";
 import { useCancelEvent } from "@/lib/hooks/useCancelEvent";
 
+function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value);
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+    return debouncedValue;
+}
+
 export default function EventManagementPage() {
     const { id } = useParams();
     const { profile } = useDashboardAuth();
     const role = profile?.activeMembership?.role || 'owner'; // Fallback for safety
     const router = useRouter();
 
-    const [event, setEvent] = useState<any>(null);
-    const [promoters, setPromoters] = useState<any[]>([]);
-    const [guestlist, setGuestlist] = useState<any[]>([]);
-    const [guestlistStats, setGuestlistStats] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
+
     const [activeTab, setActiveTab] = useState("overview"); // overview, guestlist, promoters, settings
     const [isUpdating, setIsUpdating] = useState(false);
     const [promoterSearch, setPromoterSearch] = useState("");
-    const deferredPromoterSearch = useDeferredValue(promoterSearch);
+    const debouncedPromoterSearch = useDebounce(promoterSearch, 300);
     const [guestSearch, setGuestSearch] = useState("");
-    const deferredGuestSearch = useDeferredValue(guestSearch);
+    const debouncedGuestSearch = useDebounce(guestSearch, 300);
     const [showCancelModal, setShowCancelModal] = useState(false);
 
     const actor = {
@@ -59,7 +70,7 @@ export default function EventManagementPage() {
 
     const { cancelEvent, isCancelling } = useCancelEvent(id as string, actor, {
         onSuccess: () => {
-            fetchEventData(); // Refresh to show cancelled state
+            queryClient.invalidateQueries({ queryKey: ["event", id] });
         },
     });
 
@@ -67,33 +78,62 @@ export default function EventManagementPage() {
         await cancelEvent(data);
     }, [cancelEvent]);
 
-    useEffect(() => {
-        if (id) fetchEventData();
-    }, [id]);
+    // Event Query
+    const { data: eventData, isLoading: isEventLoading } = useQuery({
+        queryKey: ["event", id],
+        queryFn: async () => {
+            const res = await fetch(`/api/events/${id}`);
+            if (!res.ok) throw new Error("Failed to fetch event");
+            const data = await res.json();
+            return data.event;
+        },
+        enabled: !!id,
+    });
 
-    const fetchEventData = async () => {
-        setLoading(true);
-        try {
-            const [eventRes, promoterRes, guestRes] = await Promise.all([
-                fetch(`/api/events/${id}`),
-                fetch(`/api/events/${id}/promoters`),
-                fetch(`/api/events/${id}/guestlist`)
-            ]);
+    // Promoters Query
+    const { data: promoters = [], isLoading: isPromotersLoading } = useQuery({
+        queryKey: ["event", id, "promoters"],
+        queryFn: async () => {
+            const res = await fetch(`/api/events/${id}/promoters`);
+            if (!res.ok) throw new Error("Failed to fetch promoters");
+            const data = await res.json();
+            return data.promoters || [];
+        },
+        enabled: !!id,
+    });
 
-            const eventData = await eventRes.json();
-            const promoterData = await promoterRes.json();
-            const guestData = await guestRes.json();
+    // Guestlist Query
+    const {
+        data: guestlistData,
+        isLoading: isGuestlistLoading,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage
+    } = useInfiniteQuery({
+        queryKey: ["event", id, "guestlist"],
+        initialPageParam: null as string | null,
+        queryFn: async ({ pageParam }) => {
+            let url = `/api/events/${id}/guestlist?limit=50`;
+            if (pageParam) {
+                url += `&cursor=${pageParam}`;
+            }
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("Failed to fetch guestlist");
+            return await res.json();
+        },
+        getNextPageParam: (lastPage) => lastPage.nextCursor || null,
+        enabled: !!id,
+    });
 
-            setEvent(eventData.event);
-            setPromoters(promoterData.promoters || []);
-            setGuestlist(guestData.guestlist || []);
-            setGuestlistStats(guestData.stats || null);
-        } catch (err) {
-            console.error("Failed to fetch event data", err);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const guestlist = useMemo(() => {
+        if (!guestlistData) return [];
+        return guestlistData.pages.flatMap(page => page.guestlist || []);
+    }, [guestlistData]);
+
+    const guestlistStats = guestlistData?.pages[0]?.stats || null;
+
+    const event = eventData;
+    const loading = isEventLoading || isPromotersLoading || isGuestlistLoading;
 
     const handleTogglePromoterAccess = async () => {
         setIsUpdating(true);
@@ -108,10 +148,8 @@ export default function EventManagementPage() {
                 })
             });
             if (res.ok) {
-                setEvent((prev: any) => ({
-                    ...prev,
-                    promoterSettings: { ...prev.promoterSettings, enabled: newEnabled }
-                }));
+                // Invalidate query to refetch event data
+                queryClient.invalidateQueries({ queryKey: ["event", id] });
             }
         } finally {
             setIsUpdating(false);
@@ -135,14 +173,8 @@ export default function EventManagementPage() {
                 })
             });
             if (res.ok) {
-                setEvent((prev: any) => ({
-                    ...prev,
-                    promoterSettings: { ...prev.promoterSettings, allowedPromoterIds: newIds }
-                }));
-                // Update local promoters list state
-                setPromoters(prev => prev.map(p =>
-                    p.id === promoterId ? { ...p, isSelected: !p.isSelected } : p
-                ));
+                queryClient.invalidateQueries({ queryKey: ["event", id] });
+                queryClient.invalidateQueries({ queryKey: ["event", id, "promoters"] });
             }
         } finally {
             setIsUpdating(false);
@@ -162,7 +194,7 @@ export default function EventManagementPage() {
             });
             if (res.ok) {
                 // Refresh event data to show new status
-                await fetchEventData();
+                queryClient.invalidateQueries({ queryKey: ["event", id] });
                 alert("Event approved and published!");
             } else {
                 const err = await res.json();
@@ -179,15 +211,15 @@ export default function EventManagementPage() {
     if (!event) return <div className="p-12 text-center">Event not found.</div>;
 
     const filteredPromoters = useMemo(() => {
-        return promoters.filter(p => p.name.toLowerCase().includes(deferredPromoterSearch.toLowerCase()));
-    }, [promoters, deferredPromoterSearch]);
+        return promoters.filter(p => p.name.toLowerCase().includes(debouncedPromoterSearch.toLowerCase()));
+    }, [promoters, debouncedPromoterSearch]);
 
     const filteredGuestlist = useMemo(() => {
         return guestlist.filter(g =>
-            g.name.toLowerCase().includes(deferredGuestSearch.toLowerCase()) ||
-            g.email?.toLowerCase().includes(deferredGuestSearch.toLowerCase())
+            g.name.toLowerCase().includes(debouncedGuestSearch.toLowerCase()) ||
+            g.email?.toLowerCase().includes(debouncedGuestSearch.toLowerCase())
         );
-    }, [guestlist, deferredGuestSearch]);
+    }, [guestlist, debouncedGuestSearch]);
     return (
         <div className="max-w-6xl mx-auto space-y-8 pb-20">
             {/* Cancelled Banner */}
@@ -539,6 +571,11 @@ export default function EventManagementPage() {
                                 <div className="h-[600px] -mx-8">
                                     <TableVirtuoso
                                         data={filteredGuestlist}
+                                        endReached={() => {
+                                            if (hasNextPage && !isFetchingNextPage) {
+                                                fetchNextPage();
+                                            }
+                                        }}
                                         fixedHeaderContent={() => (
                                             <tr className="border-b border-slate-100 bg-white shadow-sm relative z-10 w-full">
                                                 <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-1/4">Guest</th>

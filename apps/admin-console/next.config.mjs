@@ -1,3 +1,6 @@
+import { withSentryConfig } from "@sentry/nextjs";
+import "./lib/env.js";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@c1rcle/core', '@c1rcle/ui'],
@@ -67,4 +70,18 @@ const nextConfig = {
   }
 };
 
-export default nextConfig;
+export default withSentryConfig(
+  nextConfig,
+  {
+    silent: true,
+    org: process.env.SENTRY_ORG || "c1rcle",
+    project: process.env.SENTRY_PROJECT || "admin-console",
+  },
+  {
+    widenClientFileUpload: true,
+    transpileClientSDK: true,
+    hideSourceMaps: true,
+    disableLogger: true,
+    automaticVercelMonitors: true,
+  }
+);

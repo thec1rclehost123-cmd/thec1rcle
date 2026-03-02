@@ -7,6 +7,8 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
         const status = searchParams.get("status");
+        const limit = searchParams.get("limit") || "20";
+        const lastId = searchParams.get("lastId");
 
         if (!venueId) {
             return NextResponse.json({ error: "venueId is required" }, { status: 400 });
@@ -17,10 +19,10 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const events = await listEvents(
-            { venueId, ...(status && status !== "all" ? { status } : {}) },
-            token
-        );
+        const params: any = { venueId, limit, ...(status && status !== "all" ? { status } : {}) };
+        if (lastId) params.lastId = lastId;
+
+        const events = await listEvents(params, token);
 
         return NextResponse.json({ events });
     } catch (error: any) {

@@ -3,7 +3,9 @@ export default async function hostRoutes(fastify) {
      * GET /host/overview
      * Aggregated statistics for the host dashboard
      */
-    fastify.get('/host/overview', async (request, reply) => {
+    fastify.get('/host/overview', {
+        preHandler: [fastify.requireRoles(['admin', 'partner', 'host'])]
+    }, async (request, reply) => {
         const { hostId } = request.query;
         if (!hostId)
             return reply.status(400).send({ error: "hostId is required" });
@@ -69,7 +71,9 @@ export default async function hostRoutes(fastify) {
      * GET /host/events
      * List events owned by the host
      */
-    fastify.get('/host/events', async (request, reply) => {
+    fastify.get('/host/events', {
+        preHandler: [fastify.requireRoles(['admin', 'partner', 'host'])]
+    }, async (request, reply) => {
         const { hostId, limit = 20, lastId } = request.query;
         if (!hostId)
             return reply.status(400).send({ error: "hostId is required" });

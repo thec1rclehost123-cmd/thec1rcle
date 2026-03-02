@@ -30,7 +30,9 @@ export default async function staffRoutes(fastify) {
      * POST /api/v1/staff/invite
      * Invite a new staff member to a venue
      */
-    fastify.post('/invite', async (request, reply) => {
+    fastify.post('/invite', {
+        preHandler: [fastify.requireRoles(['admin', 'partner', 'host'])]
+    }, async (request, reply) => {
         const { venueId, email, name, role } = request.body;
         const actorId = request.user?.uid;
         // RBAC: Only manager or higher can invite
@@ -76,7 +78,9 @@ export default async function staffRoutes(fastify) {
      * PATCH /api/v1/staff/:id
      * Update staff member
      */
-    fastify.patch('/:id', async (request, reply) => {
+    fastify.patch('/:id', {
+        preHandler: [fastify.requireRoles(['admin', 'partner', 'host'])]
+    }, async (request, reply) => {
         const { id } = request.params;
         const { venueId, ...updates } = request.body;
         const actorId = request.user?.uid;
@@ -91,7 +95,9 @@ export default async function staffRoutes(fastify) {
      * DELETE /api/v1/staff/:id
      * Deactivate staff member
      */
-    fastify.delete('/:id', async (request, reply) => {
+    fastify.delete('/:id', {
+        preHandler: [fastify.requireRoles(['admin', 'partner', 'host'])]
+    }, async (request, reply) => {
         const { id } = request.params;
         const { venueId } = request.query;
         const actorId = request.user?.uid;

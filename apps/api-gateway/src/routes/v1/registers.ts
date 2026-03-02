@@ -1,5 +1,22 @@
 import { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
+
+const VenueDateParams = z.object({
+    venueId: z.string(),
+    date: z.string()
+}).strict();
+
+const RangeParams = z.object({
+    venueId: z.string()
+}).strict();
+
+const RangeQuery = z.object({
+    startDate: z.string(),
+    endDate: z.string()
+}).strict();
+
+const PatchBody = z.record(z.string(), z.any());
 
 export default async function registerRoutes(fastify: FastifyInstance) {
     const COL = 'venue_registers';
@@ -29,7 +46,9 @@ export default async function registerRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/registers/:venueId/:date
      */
-    fastify.get('/:venueId/:date', async (request: any, reply) => {
+    fastify.get('/:venueId/:date', {
+        preHandler: [fastify.validate({ params: VenueDateParams })]
+    }, async (request: any, reply) => {
         const { venueId, date } = request.params;
         return getOrCreate(fastify.db, venueId, date);
     });
@@ -37,7 +56,9 @@ export default async function registerRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/registers/:venueId/range
      */
-    fastify.get('/:venueId/range', async (request: any, reply) => {
+    fastify.get('/:venueId/range', {
+        preHandler: [fastify.validate({ params: RangeParams, querystring: RangeQuery })]
+    }, async (request: any, reply) => {
         const { venueId } = request.params;
         const { startDate, endDate } = request.query;
         const snap = await fastify.db.collection(COL)
@@ -52,7 +73,9 @@ export default async function registerRoutes(fastify: FastifyInstance) {
      * PATCH /api/v1/registers/:venueId/:date
      * Generic partial update for notes, footfall, status, dayClose, etc.
      */
-    fastify.patch('/:venueId/:date', async (request: any, reply) => {
+    fastify.patch('/:venueId/:date', {
+        preHandler: [fastify.validate({ params: VenueDateParams, body: PatchBody })]
+    }, async (request: any, reply) => {
         const { venueId, date } = request.params;
         const id = makeId(venueId, date);
         const now = new Date().toISOString();

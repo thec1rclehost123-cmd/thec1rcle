@@ -2,6 +2,8 @@ import "./globals.css";
 import { DashboardAuthProvider } from "../components/providers/DashboardAuthProvider";
 import ThemeProvider from "../components/providers/ThemeProvider";
 import { ToastProvider } from "../components/ui/Toast";
+import { QueryProvider } from "../components/providers/QueryProvider";
+import { WebVitals } from "../components/WebVitals";
 
 export const metadata = {
   title: {
@@ -22,6 +24,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
+        <WebVitals />
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
@@ -29,11 +32,13 @@ export default function RootLayout({ children }) {
           disableTransitionOnChange={false}
           storageKey="c1rcle-theme"
         >
-          <DashboardAuthProvider>
-            <ToastProvider position="top-center">
-              {children}
-            </ToastProvider>
-          </DashboardAuthProvider>
+          <QueryProvider>
+            <DashboardAuthProvider>
+              <ToastProvider position="top-center">
+                {children}
+              </ToastProvider>
+            </DashboardAuthProvider>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -1,11 +1,27 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+
+const HostOverviewQuery = z.object({
+    hostId: z.string()
+}).strict();
+
+const HostEventsQuery = z.object({
+    hostId: z.string(),
+    limit: z.string().optional(),
+    lastId: z.string().optional()
+}).strict();
 
 export default async function hostRoutes(fastify: FastifyInstance) {
     /**
      * GET /host/overview
      * Aggregated statistics for the host dashboard
      */
-    fastify.get('/host/overview', async (request: { query: any }, reply: any) => {
+    fastify.get('/host/overview', {
+        preHandler: [
+            fastify.validate({ querystring: HostOverviewQuery }),
+            fastify.requireRoles(['admin', 'partner', 'host'])
+        ]
+    }, async (request: { query: any }, reply: any) => {
         const { hostId } = request.query;
         if (!hostId) return reply.status(400).send({ error: "hostId is required" });
 
@@ -80,7 +96,12 @@ export default async function hostRoutes(fastify: FastifyInstance) {
      * GET /host/events
      * List events owned by the host
      */
-    fastify.get('/host/events', async (request: { query: any }, reply: any) => {
+    fastify.get('/host/events', {
+        preHandler: [
+            fastify.validate({ querystring: HostEventsQuery }),
+            fastify.requireRoles(['admin', 'partner', 'host'])
+        ]
+    }, async (request: { query: any }, reply: any) => {
         const { hostId, limit = 20, lastId } = request.query;
         if (!hostId) return reply.status(400).send({ error: "hostId is required" });
 

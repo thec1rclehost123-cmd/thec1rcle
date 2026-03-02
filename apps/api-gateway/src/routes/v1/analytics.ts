@@ -11,7 +11,13 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
         const { range } = request.query as { range?: string };
 
         try {
+            const cacheKey = JSON.stringify({ id, range });
+            const cached = await fastify.cache.get('analytics:venue', cacheKey);
+            if (cached) return cached;
+
             const stats = await getVenueAnalytics(id, range);
+
+            await fastify.cache.set('analytics:venue', cacheKey, stats, 120); // 120s TTL
             return stats;
         } catch (error: any) {
             reply.status(500).send({ error: error.message });
@@ -26,7 +32,12 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
         const { id } = request.params as { id: string };
 
         try {
+            const cached = await fastify.cache.get('analytics:host', id);
+            if (cached) return cached;
+
             const stats = await getHostAnalytics(id);
+
+            await fastify.cache.set('analytics:host', id, stats, 120); // 120s TTL
             return stats;
         } catch (error: any) {
             reply.status(500).send({ error: error.message });
@@ -41,7 +52,12 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
         const { id } = request.params as { id: string };
 
         try {
+            const cached = await fastify.cache.get('analytics:promoter', id);
+            if (cached) return cached;
+
             const funnel = await getPromoterFunnel(id);
+
+            await fastify.cache.set('analytics:promoter', id, funnel, 120); // 120s TTL
             return funnel;
         } catch (error: any) {
             reply.status(500).send({ error: error.message });

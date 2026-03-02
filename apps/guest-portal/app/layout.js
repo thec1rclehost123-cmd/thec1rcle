@@ -9,6 +9,8 @@ import ScrollProgressBar from "../components/ScrollProgressBar";
 import PageLoadingAnimation from "../components/PageLoadingAnimation";
 import SmoothScroll from "../components/SmoothScroll";
 import ProfileCompletionPrompt from "../components/ProfileCompletionPrompt";
+import { QueryProvider } from "../components/providers/QueryProvider";
+import { WebVitals } from "../components/WebVitals";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -83,23 +85,26 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-body antialiased`}>
-        <AppProviders>
-          <PageLoadingAnimation />
-          <ScrollProgressBar />
-          <div className="page-shell relative flex min-h-screen flex-col bg-white dark:bg-black text-black dark:text-white transition-colors duration-300 overflow-x-hidden">
-            <ProfileCompletionPrompt />
-            <div className="pointer-events-none fixed inset-0 -z-10 opacity-0 dark:opacity-90 transition-opacity duration-300">
-              <div className="absolute inset-x-0 top-0 h-[60vh] bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),transparent_55%)] blur-[120px]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,_rgba(136,69,255,0.18),transparent_55%)]" />
-              <div className="absolute inset-x-0 bottom-0 h-[50vh] bg-[radial-gradient(circle_at_bottom,_rgba(255,181,167,0.2),transparent_50%)] blur-[140px]" />
+        <WebVitals />
+        <QueryProvider>
+          <AppProviders>
+            <PageLoadingAnimation />
+            <ScrollProgressBar />
+            <div className="page-shell relative flex min-h-screen flex-col bg-white dark:bg-black text-black dark:text-white transition-colors duration-300 overflow-x-hidden">
+              <ProfileCompletionPrompt />
+              <div className="pointer-events-none fixed inset-0 -z-10 opacity-0 dark:opacity-90 transition-opacity duration-300">
+                <div className="absolute inset-x-0 top-0 h-[60vh] bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),transparent_55%)] blur-[120px]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,_rgba(136,69,255,0.18),transparent_55%)]" />
+                <div className="absolute inset-x-0 bottom-0 h-[50vh] bg-[radial-gradient(circle_at_bottom,_rgba(255,181,167,0.2),transparent_50%)] blur-[140px]" />
+              </div>
+              <Navbar />
+              <PageWrapper>{children}</PageWrapper>
+              <Footer />
+              <MobileBottomNav />
+              <SmoothScroll />
             </div>
-            <Navbar />
-            <PageWrapper>{children}</PageWrapper>
-            <Footer />
-            <MobileBottomNav />
-            <SmoothScroll />
-          </div>
-        </AppProviders>
+          </AppProviders>
+        </QueryProvider>
       </body>
     </html >
   );

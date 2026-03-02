@@ -1,6 +1,26 @@
 import { IOrderRepository, Order, Reservation, PaymentRecord } from '../repositories/order-repository.js';
 import { IEventRepository } from '../repositories/event-repository.js';
 
+async function fetchWithRetry(url: string, options: any, maxRetries = 3): Promise<Response> {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            const response = await fetch(url, options);
+            if (response.status >= 500) {
+                if (i === maxRetries - 1) return response;
+                // Exponential backoff
+                await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
+                continue;
+            }
+            return response;
+        } catch (error) {
+            if (i === maxRetries - 1) throw error;
+            await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
+        }
+    }
+    throw new Error('Max retries reached');
+}
+
+
 export class CheckoutService {
     constructor(
         private orderRepo: IOrderRepository,
@@ -160,7 +180,7 @@ export class CheckoutService {
         }
 
         const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-        const response = await fetch("https://api.razorpay.com/v1/orders", {
+        const response = await fetchWithRetry("https://api.razorpay.com/v1/orders", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

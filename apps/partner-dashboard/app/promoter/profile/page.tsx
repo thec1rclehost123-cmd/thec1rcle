@@ -14,8 +14,6 @@ import {
     Loader2
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { getFirebaseDb } from "@/lib/firebase/client";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
 
 export default function ProfilePage() {
     const { profile, user: authUser } = useDashboardAuth();
@@ -38,11 +36,11 @@ export default function ProfilePage() {
         async function fetchProfile() {
             if (!promoterId) return;
             try {
-                const db = getFirebaseDb();
-                const docRef = doc(db, "promoters", promoterId);
-                const snap = await getDoc(docRef);
-                if (snap.exists()) {
-                    const data = snap.data();
+                const res = await fetch(`/api/profile?profileId=${promoterId}&type=promoter`);
+                if (!res.ok) throw new Error("Failed to fetch");
+                const { profile: data } = await res.json();
+
+                if (data) {
                     setFormData({
                         displayName: data.displayName || data.name || "",
                         email: data.email || "",
@@ -65,15 +63,28 @@ export default function ProfilePage() {
         if (!promoterId) return;
         setSaving(true);
         try {
-            const db = getFirebaseDb();
-            await updateDoc(doc(db, "promoters", promoterId), {
-                displayName: formData.displayName,
-                phone: formData.phone,
-                instagram: formData.instagram,
-                bio: formData.bio,
-                city: formData.city,
-                updatedAt: new Date().toISOString()
+            const token = await authUser?.getIdToken();
+            const res = await fetch('/api/profile', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    profileId: promoterId,
+                    type: "promoter",
+                    action: "updateProfile",
+                    data: {
+                        displayName: formData.displayName,
+                        phone: formData.phone,
+                        instagram: formData.instagram,
+                        bio: formData.bio,
+                        city: formData.city,
+                        updatedAt: new Date().toISOString()
+                    }
+                })
             });
+            if (!res.ok) throw new Error("Update failed");
             setEditMode(false);
         } catch (err) {
             alert("Failed to save changes");
@@ -115,8 +126,8 @@ export default function ProfilePage() {
                             onClick={() => editMode ? handleSave() : setEditMode(true)}
                             disabled={saving}
                             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold transition-all ${editMode
-                                    ? "bg-[#007aff] text-white hover:bg-[#0066cc]"
-                                    : "bg-[#f5f5f7] text-[#1d1d1f] hover:bg-[#e5e5ea]"
+                                ? "bg-[#007aff] text-white hover:bg-[#0066cc]"
+                                : "bg-[#f5f5f7] text-[#1d1d1f] hover:bg-[#e5e5ea]"
                                 }`}
                         >
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editMode ? <Save className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
@@ -208,8 +219,8 @@ function ProfileItem({ icon: Icon, label, value, readOnly, editing, onChange, pl
         <div className="space-y-2">
             <label className="text-[11px] font-bold text-[#86868b] uppercase tracking-widest ml-1">{label}</label>
             <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${editing && !readOnly
-                    ? "bg-white border-[#007aff] shadow-sm"
-                    : "bg-[#f5f5f7] border-transparent"
+                ? "bg-white border-[#007aff] shadow-sm"
+                : "bg-[#f5f5f7] border-transparent"
                 }`}>
                 <Icon className={`w-4 h-4 ${editing && !readOnly ? "text-[#007aff]" : "text-[#86868b]"}`} />
                 {editing && !readOnly ? (

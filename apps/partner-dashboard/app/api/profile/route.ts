@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const profileId = searchParams.get("profileId");
-        const type = searchParams.get("type") as "venue" | "host";
+        const type = searchParams.get("type") as "venue" | "host" | "promoter";
         const includeStats = searchParams.get("stats") === "true";
 
         if (!profileId || !type) {

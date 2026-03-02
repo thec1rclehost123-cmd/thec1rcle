@@ -1,12 +1,39 @@
 import { FastifyInstance } from 'fastify';
 import { filterSafeProfileUpdates } from '@c1rcle/core/profile-engine';
+import { z } from 'zod';
+
+const ProfileIdParam = z.object({ id: z.string() }).strict();
+const ProfileTypeQuery = z.object({ type: z.string().optional() }).strict();
+const ProfilePostsQuery = z.object({ type: z.string().optional(), limit: z.string().optional() }).strict();
+
+const ProfileUpdateBody = z.object({
+    type: z.string().optional(),
+    id: z.string().optional(),
+    updates: z.record(z.string(), z.any())
+}).strict();
+
+const UserProfileCreateBody = z.object({
+    uid: z.string(),
+    email: z.string().email(),
+    displayName: z.string().optional(),
+    gender: z.string().optional(),
+    phone: z.string().optional(),
+    photoURL: z.string().optional(),
+    city: z.string().optional(),
+    instagram: z.string().optional(),
+    isVerified: z.boolean().optional(),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional()
+}).catchall(z.any());
 
 export default async function profileRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/profiles/:id
      * Fetch public profile data (User, Venue, or Host)
      */
-    fastify.get('/profiles/:id', async (request: any, reply) => {
+    fastify.get('/profiles/:id', {
+        preHandler: [fastify.validate({ params: ProfileIdParam, querystring: ProfileTypeQuery })]
+    }, async (request: any, reply) => {
         const { id } = request.params;
         const { type = 'user' } = request.query;
 
@@ -24,7 +51,9 @@ export default async function profileRoutes(fastify: FastifyInstance) {
      * PATCH /api/v1/profiles
      * Update current user's profile
      */
-    fastify.patch('/profiles', async (request: any, reply) => {
+    fastify.patch('/profiles', {
+        preHandler: [fastify.validate({ body: ProfileUpdateBody })]
+    }, async (request: any, reply) => {
         const userId = request.user?.uid;
         if (!userId) return reply.status(401).send({ error: "Unauthorized" });
 
@@ -50,7 +79,9 @@ export default async function profileRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/profiles/:id/posts
      */
-    fastify.get('/profiles/:id/posts', async (request: any, reply) => {
+    fastify.get('/profiles/:id/posts', {
+        preHandler: [fastify.validate({ params: ProfileIdParam, querystring: ProfilePostsQuery })]
+    }, async (request: any, reply) => {
         const { id } = request.params;
         const { type = 'venue', limit = 20 } = request.query;
         try {
@@ -64,7 +95,9 @@ export default async function profileRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/profiles/:id/highlights
      */
-    fastify.get('/profiles/:id/highlights', async (request: any, reply) => {
+    fastify.get('/profiles/:id/highlights', {
+        preHandler: [fastify.validate({ params: ProfileIdParam, querystring: ProfileTypeQuery })]
+    }, async (request: any, reply) => {
         const { id } = request.params;
         const { type = 'venue' } = request.query;
         try {
@@ -78,7 +111,9 @@ export default async function profileRoutes(fastify: FastifyInstance) {
     /**
      * POST /api/v1/users/profile
      */
-    fastify.post('/users/profile', async (request: any, reply) => {
+    fastify.post('/users/profile', {
+        preHandler: [fastify.validate({ body: UserProfileCreateBody })]
+    }, async (request: any, reply) => {
         const body = request.body as any;
         const { uid, email, displayName, gender, phone, photoURL, createdAt, updatedAt } = body;
 

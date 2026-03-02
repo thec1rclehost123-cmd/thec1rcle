@@ -3,12 +3,35 @@ import { FastifyInstance } from 'fastify';
 import { createHighlight, updateHighlight, addGalleryPhoto, initializeVenueFacilities } from '@c1rcle/core/cms-engine';
 // @ts-ignore
 import { hasStaffPermission } from '@c1rcle/core/staff-engine';
+import { z } from 'zod';
+
+const VenueIdParam = z.object({ venueId: z.string() }).strict();
+const HighlightIdParam = z.object({ id: z.string() }).strict();
+
+const HighlightBody = z.object({
+    venueId: z.string(),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    order: z.number().optional()
+}).catchall(z.any());
+
+const GalleryBody = z.object({
+    venueId: z.string(),
+    imageUrl: z.string().url(),
+    caption: z.string().optional()
+}).strict();
+
+const FacilitiesInitBody = z.object({
+    venueId: z.string()
+}).strict();
 
 export default async function cmsRoutes(fastify: FastifyInstance) {
     /**
      * POST /api/v1/cms/highlights
      */
-    fastify.post('/highlights', async (request: any, reply) => {
+    fastify.post('/highlights', {
+        preHandler: [fastify.validate({ body: HighlightBody })]
+    }, async (request: any, reply) => {
         const { venueId, ...data } = request.body;
         const actorId = request.user?.uid;
 
@@ -22,7 +45,9 @@ export default async function cmsRoutes(fastify: FastifyInstance) {
     /**
      * PATCH /api/v1/cms/highlights/:id
      */
-    fastify.patch('/highlights/:id', async (request: any, reply) => {
+    fastify.patch('/highlights/:id', {
+        preHandler: [fastify.validate({ params: HighlightIdParam, body: HighlightBody })]
+    }, async (request: any, reply) => {
         const { id } = request.params;
         const { venueId, ...updates } = request.body;
         const actorId = request.user?.uid;
@@ -37,7 +62,9 @@ export default async function cmsRoutes(fastify: FastifyInstance) {
     /**
      * POST /api/v1/cms/gallery
      */
-    fastify.post('/gallery', async (request: any, reply) => {
+    fastify.post('/gallery', {
+        preHandler: [fastify.validate({ body: GalleryBody })]
+    }, async (request: any, reply) => {
         const { venueId, imageUrl, caption } = request.body;
         const actorId = request.user?.uid;
 
@@ -51,7 +78,9 @@ export default async function cmsRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/cms/venue/:venueId
      */
-    fastify.get('/venue/:venueId', async (request: any, reply) => {
+    fastify.get('/venue/:venueId', {
+        preHandler: [fastify.validate({ params: VenueIdParam })]
+    }, async (request: any, reply) => {
         const { venueId } = request.params;
         const actorId = request.user?.uid;
 
@@ -82,7 +111,9 @@ export default async function cmsRoutes(fastify: FastifyInstance) {
     /**
      * POST /api/v1/cms/facilities/init
      */
-    fastify.post('/facilities/init', async (request: any, reply) => {
+    fastify.post('/facilities/init', {
+        preHandler: [fastify.validate({ body: FacilitiesInitBody })]
+    }, async (request: any, reply) => {
         const { venueId } = request.body;
         const actorId = request.user?.uid;
 

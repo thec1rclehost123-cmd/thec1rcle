@@ -1,12 +1,28 @@
 import { FastifyInstance } from 'fastify';
 import { signTicketId, generateSecureToken, validateBundle, validateTransfer } from '@c1rcle/core/ticket-engine';
+import { z } from 'zod';
+
+const TransferBody = z.object({
+    ticketId: z.string(),
+    recipientEmail: z.string().email().optional()
+}).strict();
+
+const ClaimBody = z.object({
+    transferToken: z.string()
+}).strict();
+
+const TransferQuery = z.object({
+    code: z.string()
+}).strict();
 
 export default async function ticketRoutes(fastify: FastifyInstance) {
     /**
      * POST /api/v1/tickets/transfer
      * Initiate a ticket transfer
      */
-    fastify.post('/transfer', async (request: any, reply) => {
+    fastify.post('/transfer', {
+        preHandler: [fastify.validate({ body: TransferBody })]
+    }, async (request: any, reply) => {
         const { ticketId, recipientEmail } = request.body;
         const senderId = request.user?.uid;
 
@@ -30,6 +46,12 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
         await fastify.db.collection('transfers').add(transfer);
 
+        // Notify sender their transfer is ready/pending
+        fastify.broadcast({
+            type: 'TICKET_TRANSFER_INITIATED',
+            payload: { ticketId, status: 'pending' }
+        }, `user:${senderId}`);
+
         return { success: true, transfer };
     });
 
@@ -37,7 +59,9 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
      * POST /api/v1/tickets/claim
      * Accept a ticket transfer
      */
-    fastify.post('/claim', async (request: any, reply) => {
+    fastify.post('/claim', {
+        preHandler: [fastify.validate({ body: ClaimBody })]
+    }, async (request: any, reply) => {
         const { transferToken } = request.body;
         const recipientId = request.user?.uid;
 
@@ -75,6 +99,17 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
             // or create a new assignment for the recipient.
         });
 
+        // Notify both parties of the atomic handoff success
+        fastify.broadcast({
+            type: 'TICKET_CLAIMED',
+            payload: { ticketId: transferData.ticketId, status: 'accepted' }
+        }, `user:${transferData.senderId}`);
+
+        fastify.broadcast({
+            type: 'TICKET_RECEIVED',
+            payload: { ticketId: transferData.ticketId, status: 'accepted' }
+        }, `user:${recipientId}`);
+
         return { success: true, message: "Ticket claimed successfully" };
     });
 
@@ -107,7 +142,9 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
      * GET /api/v1/transfer?code=[token]
      * Fetch transfer details + event preview for the acceptance page
      */
-    fastify.get('/transfer', async (request: any, reply) => {
+    fastify.get('/transfer', {
+        preHandler: [fastify.validate({ querystring: TransferQuery })]
+    }, async (request: any, reply) => {
         const { code } = request.query as any;
         if (!code) return reply.status(400).send({ error: 'Transfer code is required' });
 

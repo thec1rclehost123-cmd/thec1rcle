@@ -7,8 +7,13 @@ export default async function searchRoutes(fastify) {
     fastify.get('/', async (request, reply) => {
         const { q, ...filters } = request.query;
         try {
+            const cacheKey = JSON.stringify({ q, filters });
+            const cached = await fastify.cache.get('search:public', cacheKey);
+            if (cached)
+                return cached;
             // Use existing search logic from core
             const results = await searchEvents(q, filters);
+            await fastify.cache.set('search:public', cacheKey, results, 60); // 60s TTL
             return results;
         }
         catch (error) {

@@ -18,26 +18,26 @@ export default function AdminLogs() {
         let unsubscribe;
         const fetchLogsRealtime = async () => {
             try {
-                const { getFirebaseDb } = await import("@/lib/firebase/client");
-                const { collection, query, orderBy, limit, getDocs } = await import("firebase/firestore");
+                const token = await user.getIdToken();
+                const res = await fetch('/api/logs', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
 
-                const dbClient = getFirebaseDb();
-                const q = query(
-                    collection(dbClient, "admin_audit_logs"),
-                    orderBy("createdAt", "desc"),
-                    limit(50)
-                );
+                if (!res.ok) {
+                    throw new Error("Failed to fetch logs from API Gateway");
+                }
 
-                const snapshot = await getDocs(q);
-                const results = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    ts: doc.data().createdAt?.toDate() || new Date()
-                }));
-                setLogs(results);
+                const data = await res.json();
+                if (data.logs) {
+                    const results = data.logs.map(log => ({
+                        ...log,
+                        ts: new Date(log.createdAt || new Date())
+                    }));
+                    setLogs(results);
+                }
                 setLoading(false);
             } catch (err) {
-                console.error("Failed to initialize logs stream", err);
+                console.error("Failed to fetch admin logs", err);
                 setError(err.message);
                 setLoading(false);
             }

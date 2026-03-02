@@ -72,10 +72,11 @@
         "firebase-admin": "^13.6.0",
         "inngest": "^3.52.0",
         "ioredis": "^5.9.2",
-        "meilisearch": "^0.55.0"
+        "meilisearch": "^0.55.0",
+        "zod": "^4.3.6"
     },
     "devDependencies": {
-        "typescript": "^5.3.3",
-        "@types/node": "^20.11.0"
+        "@types/node": "^20.11.0",
+        "typescript": "^5.3.3"
     }
 }

@@ -1,10 +1,40 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+
+const RequestBody = z.object({
+    hostId: z.string(),
+    venueId: z.string(),
+    hostName: z.string().optional(),
+    venueName: z.string().optional()
+}).strict();
+
+const PartnershipsQuery = z.object({
+    hostId: z.string().optional(),
+    venueId: z.string().optional(),
+    status: z.string().optional()
+}).strict();
+
+const PartnershipIdParam = z.object({
+    id: z.string()
+}).strict();
+
+const UpdateActionBody = z.object({
+    action: z.enum(['approve', 'reject', 'block']),
+    reason: z.string().optional()
+}).strict();
+
+const CheckQuery = z.object({
+    hostId: z.string(),
+    venueId: z.string()
+}).strict();
 
 export default async function partnershipRoutes(fastify: FastifyInstance) {
     /**
      * POST /api/v1/partnerships/request
      */
-    fastify.post('/request', async (request: any, reply) => {
+    fastify.post('/request', {
+        preHandler: [fastify.validate({ body: RequestBody })]
+    }, async (request: any, reply) => {
         const { hostId, venueId, hostName, venueName } = request.body;
         const db = fastify.db;
         const existing = await db.collection('partnerships')
@@ -26,7 +56,9 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/partnerships
      */
-    fastify.get('/', async (request: any, reply) => {
+    fastify.get('/', {
+        preHandler: [fastify.validate({ querystring: PartnershipsQuery })]
+    }, async (request: any, reply) => {
         const { hostId, venueId, status } = request.query;
         let query: any = fastify.db.collection('partnerships');
         if (hostId) query = query.where('hostId', '==', hostId);
@@ -39,7 +71,9 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
     /**
      * PATCH /api/v1/partnerships/:id
      */
-    fastify.patch('/:id', async (request: any, reply) => {
+    fastify.patch('/:id', {
+        preHandler: [fastify.validate({ params: PartnershipIdParam, body: UpdateActionBody })]
+    }, async (request: any, reply) => {
         const { id } = request.params;
         const { action, reason } = request.body;
         const statusMap: Record<string, string> = {
@@ -60,7 +94,9 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/partnerships/check
      */
-    fastify.get('/check', async (request: any, reply) => {
+    fastify.get('/check', {
+        preHandler: [fastify.validate({ querystring: CheckQuery })]
+    }, async (request: any, reply) => {
         const { hostId, venueId } = request.query;
         const snap = await fastify.db.collection('partnerships')
             .where('hostId', '==', hostId)

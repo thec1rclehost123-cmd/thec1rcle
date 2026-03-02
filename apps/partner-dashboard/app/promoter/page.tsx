@@ -17,8 +17,7 @@ import {
     Check
 } from "lucide-react";
 import Link from "next/link";
-import { collection, query, where, getDocs, limit, orderBy } from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase/client";
+
 import { DashboardEventCard } from "@c1rcle/ui";
 import { mapEventForClient } from "@c1rcle/core/events";
 
@@ -56,23 +55,19 @@ export default function PromoterDashboardHome() {
         if (!profile?.activeMembership?.partnerId) return;
 
         const partnerId = profile.activeMembership.partnerId;
-        const db = getFirebaseDb();
-
-        // Fetch active events for promotion
-        const eventsQuery = query(
-            collection(db, "events"),
-            where("lifecycle", "in", ["scheduled", "live"]),
-            where("promoterVisibility", "==", true),
-            limit(4)
-        );
-
+        // Fetch active events for promotion via Server API
         const fetchEvents = async () => {
             try {
-                const snapshot = await getDocs(eventsQuery);
-                const events = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
+                const token = await profile?.activeMembership?.partnerId ? await (window as any).getAuthToken?.() : null;
+                const headers: any = {};
+                // Ideally we get token from user, but we can pass without auth if public or use Next.js cookies if available. Let's just use standard fetch.
+                const res = await fetch(`/api/promoter/events?promoterId=${partnerId}&limit=4`);
+                if (!res.ok) throw new Error("Failed to fetch events");
+                const data = await res.json();
+                const events = (data.events || []).map((doc: any) => mapEventForClient(doc, doc.id));
                 setActiveEvents(events);
             } catch (e) {
-                console.error(e);
+                console.error("[Promoter Dashboard] Events error:", e);
             }
         };
         fetchEvents();

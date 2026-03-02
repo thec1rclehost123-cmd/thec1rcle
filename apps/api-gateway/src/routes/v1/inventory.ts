@@ -1,12 +1,19 @@
 import { FastifyInstance } from 'fastify';
 import { calculateEffectiveInventory, validatePurchase } from '@c1rcle/core/inventory-engine';
 import { hasStaffPermission } from '@c1rcle/core/staff-engine';
+import { z } from 'zod';
+
+const EventIdParam = z.object({
+    eventId: z.string()
+}).strict();
 
 export default async function inventoryRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/inventory/:eventId/summary
      */
-    fastify.get('/:eventId/summary', async (request: any, reply) => {
+    fastify.get('/:eventId/summary', {
+        preHandler: [fastify.validate({ params: EventIdParam })]
+    }, async (request: any, reply) => {
         const { eventId } = request.params;
         const actorId = request.user?.uid;
 

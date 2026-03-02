@@ -1,5 +1,29 @@
 import { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
+
+const CreateLinkBody = z.object({
+    promoterId: z.string(),
+    promoterName: z.string().optional(),
+    eventId: z.string(),
+    eventTitle: z.string().optional(),
+    commissionRate: z.number().optional(),
+    commissionType: z.string().optional(),
+    ticketTierIds: z.array(z.string()).optional(),
+    expiresAt: z.string().nullable().optional()
+}).strict();
+
+const LinksQuery = z.object({
+    promoterId: z.string().optional(),
+    eventId: z.string().optional(),
+    isActive: z.string().optional(),
+    limit: z.string().optional()
+}).strict();
+
+const CodeParam = z.object({ code: z.string() }).strict();
+const PromoterIdParam = z.object({ promoterId: z.string() }).strict();
+const EventIdParam = z.object({ eventId: z.string() }).strict();
+const LinkIdParam = z.object({ id: z.string() }).strict();
 
 export default async function promoterLinksRoutes(fastify: FastifyInstance) {
     const LINKS_COL = 'promoter_links';
@@ -8,7 +32,9 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
     /**
      * POST /api/v1/promoter-links/create
      */
-    fastify.post('/create', async (request: any, reply) => {
+    fastify.post('/create', {
+        preHandler: [fastify.validate({ body: CreateLinkBody })]
+    }, async (request: any, reply) => {
         const body = request.body as any;
         const { promoterId, promoterName, eventId, eventTitle, commissionRate, commissionType = 'percentage', ticketTierIds = [], expiresAt = null } = body;
 
@@ -33,7 +59,9 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/promoter-links
      */
-    fastify.get('/', async (request: any, reply) => {
+    fastify.get('/', {
+        preHandler: [fastify.validate({ querystring: LinksQuery })]
+    }, async (request: any, reply) => {
         const { promoterId, eventId, isActive, limit = 50 } = request.query;
         let q: any = fastify.db.collection(LINKS_COL);
         if (promoterId) q = q.where('promoterId', '==', promoterId);
@@ -46,7 +74,9 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/promoter-links/by-code/:code
      */
-    fastify.get('/by-code/:code', async (request: any, reply) => {
+    fastify.get('/by-code/:code', {
+        preHandler: [fastify.validate({ params: CodeParam })]
+    }, async (request: any, reply) => {
         const { code } = request.params;
         const snap = await fastify.db.collection(LINKS_COL).where('code', '==', code).where('isActive', '==', true).limit(1).get();
         if (snap.empty) return reply.status(404).send({ error: 'Link not found' });
@@ -56,7 +86,9 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/promoter-links/stats/:promoterId
      */
-    fastify.get('/stats/:promoterId', async (request: any, reply) => {
+    fastify.get('/stats/:promoterId', {
+        preHandler: [fastify.validate({ params: PromoterIdParam })]
+    }, async (request: any, reply) => {
         const { promoterId } = request.params;
         const linksSnap = await fastify.db.collection(LINKS_COL).where('promoterId', '==', promoterId).get();
         const links = linksSnap.docs.map((d: any) => d.data());
@@ -79,7 +111,9 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/promoter-links/event-summary/:eventId
      */
-    fastify.get('/event-summary/:eventId', async (request: any, reply) => {
+    fastify.get('/event-summary/:eventId', {
+        preHandler: [fastify.validate({ params: EventIdParam })]
+    }, async (request: any, reply) => {
         const { eventId } = request.params;
         const snap = await fastify.db.collection(LINKS_COL).where('eventId', '==', eventId).get();
         const links = snap.docs.map((d: any) => d.data());
@@ -96,7 +130,9 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
     /**
      * PATCH /api/v1/promoter-links/:id/deactivate
      */
-    fastify.patch('/:id/deactivate', async (request: any, reply) => {
+    fastify.patch('/:id/deactivate', {
+        preHandler: [fastify.validate({ params: LinkIdParam })]
+    }, async (request: any, reply) => {
         const { id } = request.params;
         const now = new Date().toISOString();
         await fastify.db.collection(LINKS_COL).doc(id).update({ isActive: false, deactivatedAt: now, updatedAt: now });

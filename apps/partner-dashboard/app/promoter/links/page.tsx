@@ -17,8 +17,7 @@ import {
     ChevronRight,
     Wallet
 } from "lucide-react";
-import { collection, query, where, getDocs, limit } from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase/client";
+
 import Link from "next/link";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { DashboardEventCard } from "@c1rcle/ui";
@@ -35,21 +34,15 @@ export default function PromoLinksPage() {
     useEffect(() => {
         if (!promoterId) return;
 
-        const db = getFirebaseDb();
-        const q = query(
-            collection(db, "events"),
-            where("lifecycle", "in", ["scheduled", "live"]),
-            where("promoterVisibility", "==", true),
-            limit(20)
-        );
-
         const fetchCampaigns = async () => {
             try {
-                const snapshot = await getDocs(q);
-                const fetched = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
+                const res = await fetch(`/api/promoter/events?promoterId=${promoterId}&limit=20`);
+                if (!res.ok) throw new Error("Failed to fetch campaigns");
+                const data = await res.json();
+                const fetched = (data.events || []).map((doc: any) => mapEventForClient(doc, doc.id));
                 setCampaigns(fetched);
             } catch (e) {
-                console.error(e);
+                console.error("[Promoter Links] Error fetching campaigns:", e);
             } finally {
                 setLoading(false);
             }

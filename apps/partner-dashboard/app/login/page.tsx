@@ -4,8 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, AlertCircle, ChevronRight, Building2, Users, Zap, Eye, EyeOff } from "lucide-react";
-import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
-import { getFirebaseDb, getFirebaseAuth } from "@/lib/firebase/client";
+import { getFirebaseAuth } from "@/lib/firebase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -64,12 +63,24 @@ function LoginForm() {
             await signIn(email, password);
 
             const auth = getFirebaseAuth();
-            const db = getFirebaseDb();
             const currentUser = auth.currentUser;
 
             if (currentUser) {
-                const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-                const userData = userDoc.exists() ? userDoc.data() : {};
+                const token = await currentUser.getIdToken();
+                const res = await fetch('/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!res.ok) {
+                    setError("Failed to fetch user profile.");
+                    await auth.signOut();
+                    setLoading(false);
+                    return;
+                }
+
+                const data = await res.json();
+                const userData = data.user || {};
+                const onboardingRequest = data.onboardingRequest || null;
 
                 let assignedType: string | null = null;
 
@@ -77,12 +88,8 @@ function LoginForm() {
                 else if (userData.role === 'promoter') assignedType = 'promoter';
                 else if (userData.role === 'partner' || userData.venueId) assignedType = 'venue';
 
-                if (!assignedType) {
-                    const q = query(collection(db, "onboarding_requests"), where("uid", "==", currentUser.uid), limit(1));
-                    const snap = await getDocs(q);
-                    if (!snap.empty) {
-                        assignedType = snap.docs[0].data().type;
-                    }
+                if (!assignedType && onboardingRequest) {
+                    assignedType = onboardingRequest.type;
                 }
 
                 if (!assignedType) {

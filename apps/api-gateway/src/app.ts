@@ -2,11 +2,17 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import compress from '@fastify/compress';
 import websocket from '@fastify/websocket';
+import * as Sentry from '@sentry/node';
+import crypto from 'crypto';
 import { config } from './config';
 import firebasePlugin from './plugins/firebase';
 import cachePlugin from './plugins/cache';
 import redisPlugin from './plugins/redis';
 import realtimePlugin from './plugins/realtime';
+import rbacPlugin from './plugins/rbac';
+import rateLimitPlugin from './plugins/rate-limit';
+import validatePlugin from './plugins/validate';
+import featureFlagsPlugin from './plugins/feature-flags';
 import eventRoutes from './routes/v1/events';
 import checkoutRoutes from './routes/v1/checkout';
 import paymentRoutes from './routes/v1/payments';
@@ -34,10 +40,26 @@ import promoterConnectionsRoutes from './routes/v1/promoter-connections';
 import notificationsRoutes from './routes/v1/notifications';
 import venueSettingsRoutes from './routes/v1/venue-settings';
 import matchingRoutes from './routes/v1/matching';
+import authRoutes from './routes/v1/auth';
+import adminRoutes from './routes/v1/admin';
 
 const server = Fastify({
+    trustProxy: process.env.NODE_ENV === 'production',
+    genReqId: function (req) {
+        return (req.headers['x-request-id'] as string) || crypto.randomUUID();
+    },
     // ... (logger remains same)
     logger: {
+        redact: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-api-key"]'],
+        serializers: {
+            req(request) {
+                return {
+                    method: request.method,
+                    url: request.url,
+                    requestId: request.id
+                };
+            }
+        },
         transport: {
             target: 'pino-pretty',
             options: {
@@ -49,6 +71,19 @@ const server = Fastify({
 });
 
 async function main() {
+    // ⚡ Initialize Sentry
+    Sentry.init({
+        dsn: process.env.SENTRY_DSN || "",
+        tracesSampleRate: 1.0,
+        environment: process.env.NODE_ENV || "development",
+    });
+
+    // ⚡ REQUEST TRACING & SENTRY CONTEXT
+    server.addHook('onRequest', async (request, reply) => {
+        Sentry.setTag("request_id", request.id);
+        reply.header('x-request-id', request.id);
+    });
+
     // ⚡ PERFORMANCE LOGGING: Track request duration
     server.addHook('preHandler', async (request: any) => {
         request.startTime = process.hrtime();
@@ -61,7 +96,9 @@ async function main() {
 
             // Log metrics for performance auditing
             server.log.info({
+                requestId: request.id,
                 url: request.url,
+                route: request.routeOptions?.url || 'unknown_route',
                 method: request.method,
                 statusCode: reply.statusCode,
                 durationMs,
@@ -70,14 +107,42 @@ async function main() {
         }
     });
 
+    // ⚡ GLOBAL ERROR HANDLER
+    server.setErrorHandler(function (error: any, request, reply) {
+        server.log.error({
+            requestId: request.id,
+            url: request.url,
+            method: request.method,
+            error: error.message,
+            stack: error.stack
+        }, 'Unhandled Error');
+
+        const isProd = process.env.NODE_ENV === 'production';
+        const statusCode = error.statusCode || 500;
+
+        if (isProd && statusCode >= 500) {
+            reply.status(statusCode).send({ error: 'Internal Server Error', requestId: request.id });
+        } else {
+            reply.status(statusCode).send(error);
+        }
+    });
+
     // Register Core Plugins
-    await server.register(cors, { origin: true });
+    const allowedOrigins = config.FRONTEND_URLS ? config.FRONTEND_URLS.split(',') : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'];
+    await server.register(cors, {
+        origin: process.env.NODE_ENV === 'production' ? allowedOrigins : true,
+        credentials: true
+    });
     await server.register(compress);
     await server.register(websocket);
     await server.register(firebasePlugin);
     await server.register(redisPlugin);
     await server.register(cachePlugin);
     await server.register(realtimePlugin);
+    await server.register(rbacPlugin);
+    await server.register(featureFlagsPlugin);
+    await server.register(rateLimitPlugin);
+    await server.register(validatePlugin);
 
     // Register Routes
     await server.register(eventRoutes, { prefix: '/api/v1' });
@@ -96,10 +161,15 @@ async function main() {
     await server.register(searchRoutes, { prefix: '/api/v1/search' });
     await server.register(calendarRoutes, { prefix: '/api/v1/calendar' });
     await server.register(promoRoutes, { prefix: '/api/v1/promos' });
+
+    // Setup Sentry Error Handler (catches all unhandled exceptions)
+    Sentry.setupFastifyErrorHandler(server);
     await server.register(cmsRoutes, { prefix: '/api/v1/cms' });
     await server.register(inventoryRoutes, { prefix: '/api/v1/inventory' });
     await server.register(orderRoutes, { prefix: '/api/v1/orders' });
     await server.register(partnershipRoutes, { prefix: '/api/v1/partnerships' });
+    await server.register(authRoutes, { prefix: '/api/v1/auth' });
+    await server.register(adminRoutes, { prefix: '/api/v1/admin' });
     await server.register(promoterLinksRoutes, { prefix: '/api/v1/promoter-links' });
     await server.register(refundRoutes, { prefix: '/api/v1/refunds' });
     await server.register(registerRoutes, { prefix: '/api/v1/registers' });
@@ -108,10 +178,33 @@ async function main() {
     await server.register(venueSettingsRoutes, { prefix: '/api/v1/venue-settings' });
     await server.register(matchingRoutes, { prefix: '/api/v1/matching' });
 
-    // Basic Health Check
-    server.get('/health', async () => {
-        return { status: 'ok', timestamp: new Date().toISOString() };
+    // Enhanced Database-aware Health Check
+    server.get('/health', async (request, reply) => {
+        try {
+            // Validate Firestore connectivity natively
+            await server.db.collection('health_checks').doc('ping').set({ timestamp: new Date().toISOString() });
+            return { status: 'ok', database: 'connected', timestamp: new Date().toISOString() };
+        } catch (e: any) {
+            server.log.error(`Healthcheck failed: ${e.message}`);
+            return reply.status(503).send({ status: 'error', database: 'disconnected', timestamp: new Date().toISOString() });
+        }
     });
+
+    // Graceful Shutdown Handlers
+    const gracefulShutdown = async (signal: string) => {
+        server.log.info(`Received ${signal}. Shutting down Fastify server gracefully...`);
+        try {
+            await server.close();
+            server.log.info('Server successfully closed.');
+            process.exit(0);
+        } catch (err: any) {
+            server.log.error(err, 'Error during shutdown');
+            process.exit(1);
+        }
+    };
+
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
     // Start Listening
     try {

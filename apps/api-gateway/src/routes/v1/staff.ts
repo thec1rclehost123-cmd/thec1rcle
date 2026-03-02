@@ -1,12 +1,38 @@
 import { FastifyInstance } from 'fastify';
 import { ROLE_PRESETS, hasStaffPermission } from '@c1rcle/core/staff-engine';
+import { z } from 'zod';
+
+const VenueQuerySchema = z.object({
+    venueId: z.string()
+}).strict();
+
+const StaffInviteSchema = z.object({
+    venueId: z.string(),
+    email: z.string().email(),
+    name: z.string(),
+    role: z.string()
+}).strict();
+
+const StaffIdParamSchema = z.object({
+    id: z.string()
+}).strict();
+
+const StaffUpdateSchema = z.object({
+    venueId: z.string(),
+    email: z.string().email().optional(),
+    name: z.string().optional(),
+    role: z.string().optional(),
+    isActive: z.boolean().optional()
+}).strict();
 
 export default async function staffRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/staff/permissions
      * Returns staff permissions for a user at a specific venue
      */
-    fastify.get('/permissions', async (request: any, reply) => {
+    fastify.get('/permissions', {
+        preHandler: [fastify.validate({ querystring: VenueQuerySchema })]
+    }, async (request: any, reply) => {
         const { venueId } = request.query;
         const userId = request.user?.uid;
 
@@ -35,7 +61,12 @@ export default async function staffRoutes(fastify: FastifyInstance) {
      * POST /api/v1/staff/invite
      * Invite a new staff member to a venue
      */
-    fastify.post('/invite', async (request: any, reply) => {
+    fastify.post('/invite', {
+        preHandler: [
+            fastify.validate({ body: StaffInviteSchema }),
+            fastify.requireRoles(['admin', 'partner', 'host'])
+        ]
+    }, async (request: any, reply) => {
         const { venueId, email, name, role } = request.body;
         const actorId = request.user?.uid;
 
@@ -68,7 +99,9 @@ export default async function staffRoutes(fastify: FastifyInstance) {
      * GET /api/v1/staff/list
      * List all staff members for a venue
      */
-    fastify.get('/list', async (request: any, reply) => {
+    fastify.get('/list', {
+        preHandler: [fastify.validate({ querystring: VenueQuerySchema })]
+    }, async (request: any, reply) => {
         const { venueId } = request.query;
         const actorId = request.user?.uid;
 
@@ -90,7 +123,12 @@ export default async function staffRoutes(fastify: FastifyInstance) {
      * PATCH /api/v1/staff/:id
      * Update staff member
      */
-    fastify.patch('/:id', async (request: any, reply) => {
+    fastify.patch('/:id', {
+        preHandler: [
+            fastify.validate({ params: StaffIdParamSchema, body: StaffUpdateSchema }),
+            fastify.requireRoles(['admin', 'partner', 'host'])
+        ]
+    }, async (request: any, reply) => {
         const { id } = request.params;
         const { venueId, ...updates } = request.body;
         const actorId = request.user?.uid;
@@ -108,7 +146,12 @@ export default async function staffRoutes(fastify: FastifyInstance) {
      * DELETE /api/v1/staff/:id
      * Deactivate staff member
      */
-    fastify.delete('/:id', async (request: any, reply) => {
+    fastify.delete('/:id', {
+        preHandler: [
+            fastify.validate({ params: StaffIdParamSchema, querystring: VenueQuerySchema }),
+            fastify.requireRoles(['admin', 'partner', 'host'])
+        ]
+    }, async (request: any, reply) => {
         const { id } = request.params;
         const { venueId } = request.query;
         const actorId = request.user?.uid;

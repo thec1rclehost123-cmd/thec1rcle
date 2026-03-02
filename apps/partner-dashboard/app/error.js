@@ -2,10 +2,12 @@
 
 import { useEffect } from "react";
 import { motion } from "framer-motion";
+import * as Sentry from "@sentry/nextjs";
 
 export default function Error({ error, reset }) {
     useEffect(() => {
         console.error(error);
+        Sentry.captureException(error);
     }, [error]);
 
     return (

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { adminStore } from "@/lib/server/adminStore";
 import { withAdminAuth } from "@/lib/server/adminMiddleware";
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 /**
  * Platform Snapshot API - Optimized for 1M+ Users

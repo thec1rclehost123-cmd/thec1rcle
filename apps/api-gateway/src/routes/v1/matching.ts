@@ -1,11 +1,34 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+
+const MatchFeedQuery = z.object({
+    lat: z.string().optional(),
+    lng: z.string().optional(),
+    limit: z.string().optional(),
+    type: z.string().optional()
+}).strict();
+
+const SwipeBody = z.object({
+    targetId: z.string(),
+    targetType: z.string().optional(),
+    direction: z.string()
+}).strict();
+
+const ReportBody = z.object({
+    targetId: z.string(),
+    targetType: z.string().optional(),
+    reason: z.string(),
+    details: z.string().optional()
+}).strict();
 
 export default async function matchingRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/matching/feed
      * Get ranked list of potential matches (events for V1)
      */
-    fastify.get('/feed', async (request: any, reply) => {
+    fastify.get('/feed', {
+        preHandler: [fastify.validate({ querystring: MatchFeedQuery })]
+    }, async (request: any, reply) => {
         const userId = request.user?.uid;
         if (!userId) return reply.status(401).send({ error: "Unauthorized" });
 
@@ -29,7 +52,9 @@ export default async function matchingRoutes(fastify: FastifyInstance) {
      * POST /api/v1/matching/swipe
      * Submit an interaction (Like/Pass/Superlike)
      */
-    fastify.post('/swipe', async (request: any, reply) => {
+    fastify.post('/swipe', {
+        preHandler: [fastify.validate({ body: SwipeBody })]
+    }, async (request: any, reply) => {
         const userId = request.user?.uid;
         if (!userId) return reply.status(401).send({ error: "Unauthorized" });
 
@@ -59,7 +84,9 @@ export default async function matchingRoutes(fastify: FastifyInstance) {
      * POST /api/v1/matching/report
      * Report an event or profile
      */
-    fastify.post('/report', async (request: any, reply) => {
+    fastify.post('/report', {
+        preHandler: [fastify.validate({ body: ReportBody })]
+    }, async (request: any, reply) => {
         const userId = request.user?.uid;
         if (!userId) return reply.status(401).send({ error: "Unauthorized" });
 

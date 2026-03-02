@@ -1,13 +1,48 @@
 import { FastifyInstance } from 'fastify';
 // @ts-ignore
 import { validatePromoCode } from '@c1rcle/core/promo-service';
+import { z } from 'zod';
+
+const CheckoutValidateBody = z.object({
+    eventId: z.string(),
+    items: z.array(z.any()).optional()
+}).catchall(z.any());
+
+const CheckoutPromoBody = z.object({
+    eventId: z.string(),
+    code: z.string(),
+    items: z.array(z.any()).optional()
+}).strict();
+
+const CheckoutReserveBody = z.object({
+    eventId: z.string(),
+    items: z.array(z.any()),
+    deviceId: z.string().optional()
+}).strict();
+
+const CheckoutInitiateBody = z.object({
+    eventId: z.string().optional(),
+    items: z.array(z.any()).optional(),
+    reservationId: z.string().optional(),
+    promoCode: z.string().optional(),
+    deviceId: z.string().optional(),
+    guestInputs: z.any().optional(),
+    userId: z.string().optional()
+}).catchall(z.any());
+
+const CheckoutCancelBody = z.object({
+    reservationId: z.string().optional(),
+    orderId: z.string().optional()
+}).catchall(z.any());
 
 export default async function checkoutRoutes(fastify: FastifyInstance) {
     /**
      * Validate pricing for a set of items
      * POST /checkout/validate
      */
-    fastify.post('/checkout/validate', async (request: { body: any, user: any }, reply) => {
+    fastify.post('/checkout/validate', {
+        preHandler: [fastify.validate({ body: CheckoutValidateBody })]
+    }, async (request: { body: any, user: any }, reply) => {
         try {
             const result = await fastify.checkoutService.validatePricing(request.body);
             return result;
@@ -21,7 +56,9 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
      * Validate Promo Code
      * POST /checkout/promo
      */
-    fastify.post('/checkout/promo', async (request: { body: any, user: any }, reply) => {
+    fastify.post('/checkout/promo', {
+        preHandler: [fastify.validate({ body: CheckoutPromoBody })]
+    }, async (request: { body: any, user: any }, reply) => {
         const { eventId, code, items } = request.body;
         const userId = request.user?.uid || null;
 
@@ -51,7 +88,9 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
      * Reserve Inventory
      * POST /checkout/reserve
      */
-    fastify.post('/checkout/reserve', async (request: { body: any, user: any }, reply) => {
+    fastify.post('/checkout/reserve', {
+        preHandler: [fastify.validate({ body: CheckoutReserveBody })]
+    }, async (request: { body: any, user: any }, reply) => {
         const { eventId, items, deviceId } = request.body;
         const userId = request.user?.uid || deviceId || 'anonymous';
 
@@ -68,7 +107,9 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
      * Initiate Checkout (Orchestration)
      * POST /checkout/initiate
      */
-    fastify.post('/checkout/initiate', async (request: { body: any, user: any }, reply) => {
+    fastify.post('/checkout/initiate', {
+        preHandler: [fastify.validate({ body: CheckoutInitiateBody })]
+    }, async (request: { body: any, user: any }, reply) => {
         const userId = request.user?.uid;
         if (!userId) {
             return reply.status(401).send({ success: false, error: 'Authentication required' });
@@ -90,7 +131,9 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
      * Cancel Reservation
      * POST /checkout/cancel
      */
-    fastify.post('/checkout/cancel', async (request: { body: any }, reply) => {
+    fastify.post('/checkout/cancel', {
+        preHandler: [fastify.validate({ body: CheckoutCancelBody })]
+    }, async (request: { body: any }, reply) => {
         const { reservationId, orderId } = request.body;
         try {
             const result = await fastify.checkoutService.cancelCheckout(reservationId, orderId);

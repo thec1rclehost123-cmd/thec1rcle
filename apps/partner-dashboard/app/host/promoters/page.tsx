@@ -22,8 +22,7 @@ import {
     Instagram,
     PhoneCall
 } from "lucide-react";
-import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase/client";
+
 
 interface ConnectionRequest {
     id: string;
@@ -53,50 +52,46 @@ export default function PromotersPage() {
     const hostId = profile?.activeMembership?.partnerId;
     const hostName = profile?.displayName;
 
-    // Fetch promoters from Firestore
+    // Fetch network and requests from API Gateway proxy
     useEffect(() => {
-        if (!hostId) return;
-        const db = getFirebaseDb();
-        const q = query(
-            collection(db, "promoters"),
-            where("associatedHostId", "==", hostId)
-        );
-        const fetchPromoters = async () => {
+        if (!hostId || !profile) return;
+
+        const fetchNetworkAndRequests = async () => {
             try {
-                const snapshot = await getDocs(q);
-                setPromoters(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            } catch (e) {
-                console.error(e);
-            }
-        };
-        fetchPromoters();
-    }, [hostId]);
+                const token = await (window as any).getAuthToken?.();
+                const res = await fetch(`/api/discovery?action=list&partnerId=${hostId}&role=host`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
 
-    // Real-time listener for connection requests from promoters
-    useEffect(() => {
-        if (!hostId) return;
+                if (!res.ok) throw new Error("Failed to fetch connections");
 
-        const db = getFirebaseDb();
-        const q = query(
-            collection(db, "promoter_connections"),
-            where("targetId", "==", hostId),
-            where("targetType", "==", "host")
-        );
+                const data = await res.json();
+                const connections = data.connections || [];
 
-        const fetchRequests = async () => {
-            try {
-                const snapshot = await getDocs(q);
-                const requests = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as ConnectionRequest[];
-                setConnectionRequests(requests);
+                const promoterRequests = connections.filter((c: any) => c.type === "promoter_connection");
+
+                setConnectionRequests(promoterRequests);
+
+                // Active promoters are connection requests that are approved
+                const approvedPromoters = promoterRequests
+                    .filter((c: any) => c.status === "approved" || c.status === "active")
+                    .map((c: any) => ({
+                        id: c.otherId,
+                        name: c.otherName,
+                        email: c.promoterEmail,
+                        phone: c.promoterPhone,
+                        instagram: c.promoterInstagram,
+                        status: c.status,
+                        connectionId: c.id
+                    }));
+
+                setPromoters(approvedPromoters);
             } catch (error) {
-                console.error("[Host Promoters] Firestore listener error:", error);
+                console.error("[Host Promoters] Fetch error:", error);
             }
         };
-        fetchRequests();
-    }, [hostId]);
+        fetchNetworkAndRequests();
+    }, [hostId, profile]);
 
     const handleInvite = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -133,18 +128,39 @@ export default function PromotersPage() {
     const handleConnectionAction = async (connectionId: string, action: "approve" | "reject") => {
         setProcessingRequest(connectionId);
         try {
-            const db = getFirebaseDb();
-            const now = new Date().toISOString();
-
-            await updateDoc(doc(db, "promoter_connections", connectionId), {
-                status: action === "approve" ? "approved" : "rejected",
-                updatedAt: now,
-                resolvedAt: now,
-                resolvedBy: { uid: hostId, name: hostName }
+            const token = await (window as any).getAuthToken?.();
+            const res = await fetch('/api/discovery', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { 'Authorization': `Bearer ${token}` })
+                },
+                body: JSON.stringify({
+                    connectionId,
+                    action,
+                    role: "host",
+                    partnerId: hostId,
+                    partnerName: hostName
+                })
             });
 
+            if (!res.ok) throw new Error("Failed to update request");
+
             console.log(`[Host] ${action}d connection ${connectionId}`);
-            // Real-time listener will automatically update the list
+            // To simulate realtime update until full refetch, we can update local state:
+            setConnectionRequests(prev => prev.filter(r => r.id !== connectionId || action === 'approve'));
+            if (action === 'approve') {
+                const approvedItem = connectionRequests.find(r => r.id === connectionId);
+                if (approvedItem) {
+                    setPromoters(prev => [...prev, {
+                        id: approvedItem.promoterId,
+                        name: approvedItem.promoterName,
+                        email: approvedItem.promoterEmail,
+                        status: "approved",
+                        connectionId
+                    }]);
+                }
+            }
         } catch (err: any) {
             console.error(`Failed to ${action} request:`, err);
             alert(err.message || `Failed to ${action} request`);

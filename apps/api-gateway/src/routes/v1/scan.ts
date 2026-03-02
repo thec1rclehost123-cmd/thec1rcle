@@ -1,6 +1,58 @@
 import { FastifyInstance } from 'fastify';
 import { verifyScanSignature, validateScannerDevice, recordScanAttempt } from '@c1rcle/core/scan-engine';
 import { randomBytes, createHmac } from 'node:crypto';
+import { z } from 'zod';
+
+const ScanBody = z.object({
+    qrData: z.any(),
+    eventId: z.string().optional(),
+    deviceId: z.string().optional(),
+    venueId: z.string().optional(),
+    scannedBy: z.any().optional()
+}).strict();
+
+const HistoryQuery = z.object({
+    eventId: z.string(),
+    limit: z.string().optional()
+}).strict();
+
+const CodesQuery = z.object({
+    eventId: z.string()
+}).strict();
+
+const CodesBody = z.object({
+    eventId: z.string(),
+    type: z.string().optional(),
+    gate: z.string().optional(),
+    expiresAt: z.string().nullable().optional(),
+    createdBy: z.string().optional()
+}).strict();
+
+const CodeIdParam = z.object({ id: z.string() }).strict();
+const DeleteCodesBody = z.object({ revokedBy: z.string().optional() }).strict();
+
+const AuthBody = z.object({ code: z.string() }).strict();
+const StatsQuery = z.object({ code: z.string() }).strict();
+const GuestlistQuery = z.object({ eventId: z.string() }).strict();
+
+const DoorEntryBody = z.object({
+    eventCode: z.string(),
+    eventId: z.string(),
+    guestName: z.string(),
+    guestPhone: z.string().optional(),
+    tierId: z.string(),
+    tierName: z.string().optional(),
+    entryType: z.string().optional(),
+    quantity: z.number().optional(),
+    unitPrice: z.number().optional(),
+    totalAmount: z.number().optional(),
+    paymentMethod: z.string().optional(),
+    gate: z.string().optional()
+}).strict();
+
+const DoorEntryQuery = z.object({ eventId: z.string() }).strict();
+
+const EntitlementsParam = z.object({ id: z.string() }).strict();
 
 const QR_SECRET = process.env.QR_SECRET_KEY || 'c1rcle-qr-secret-2024';
 
@@ -12,7 +64,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
      * POST /api/v1/scan
      * Process a QR scan
      */
-    fastify.post('/', async (request: any, reply) => {
+    fastify.post('/', {
+        preHandler: [fastify.validate({ body: ScanBody })]
+    }, async (request: any, reply) => {
         const { qrData, eventId, deviceId, venueId, scannedBy } = request.body;
         if (!qrData) return reply.status(400).send({ error: 'QR data is required' });
 
@@ -68,7 +122,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/scan/history?eventId=XXX
      */
-    fastify.get('/history', async (request: any, reply) => {
+    fastify.get('/history', {
+        preHandler: [fastify.validate({ querystring: HistoryQuery })]
+    }, async (request: any, reply) => {
         const { eventId, limit = 100 } = request.query;
         if (!eventId) return reply.status(400).send({ error: 'eventId is required' });
         const snapshot = await fastify.db.collection('ticket_scans')
@@ -81,7 +137,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/scan/codes?eventId=XXX
      */
-    fastify.get('/codes', async (request: any, reply) => {
+    fastify.get('/codes', {
+        preHandler: [fastify.validate({ querystring: CodesQuery })]
+    }, async (request: any, reply) => {
         const { eventId } = request.query;
         if (!eventId) return reply.status(400).send({ error: 'eventId required' });
         const snap = await fastify.db.collection('event_codes')
@@ -92,7 +150,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     /**
      * POST /api/v1/scan/codes
      */
-    fastify.post('/codes', async (request: any, reply) => {
+    fastify.post('/codes', {
+        preHandler: [fastify.validate({ body: CodesBody })]
+    }, async (request: any, reply) => {
         const { eventId, type = 'full', gate, expiresAt, createdBy } = request.body;
         if (!eventId) return reply.status(400).send({ error: 'eventId required' });
         const eventDoc = await fastify.db.collection('events').doc(eventId).get();
@@ -112,7 +172,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     /**
      * DELETE /api/v1/scan/codes/:id
      */
-    fastify.delete('/codes/:id', async (request: any, reply) => {
+    fastify.delete('/codes/:id', {
+        preHandler: [fastify.validate({ params: CodeIdParam, body: DeleteCodesBody })]
+    }, async (request: any, reply) => {
         const { id } = request.params as any;
         const { revokedBy } = (request.body as any) || {};
         await fastify.db.collection('event_codes').doc(id).update({ isRevoked: true, revokedAt: new Date().toISOString(), revokedBy: revokedBy || null });
@@ -125,7 +187,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
      * POST /api/v1/scan/auth
      * Validate event code and return event context for scanner app
      */
-    fastify.post('/auth', async (request: any, reply) => {
+    fastify.post('/auth', {
+        preHandler: [fastify.validate({ body: AuthBody })]
+    }, async (request: any, reply) => {
         const { code } = request.body as any;
         if (!code) return reply.status(400).send({ valid: false, error: 'code required' });
 
@@ -166,7 +230,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/scan/auth?eventId=XXX – list codes for an event
      */
-    fastify.get('/auth', async (request: any, reply) => {
+    fastify.get('/auth', {
+        preHandler: [fastify.validate({ querystring: CodesQuery })]
+    }, async (request: any, reply) => {
         const { eventId } = request.query as any;
         if (!eventId) return reply.status(400).send({ error: 'eventId required' });
         const snap = await fastify.db.collection('event_codes').where('eventId', '==', eventId).orderBy('createdAt', 'desc').get();
@@ -178,7 +244,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/scan/stats?code=C1R-XXXXXX
      */
-    fastify.get('/stats', async (request: any, reply) => {
+    fastify.get('/stats', {
+        preHandler: [fastify.validate({ querystring: StatsQuery })]
+    }, async (request: any, reply) => {
         const { code } = request.query as any;
         if (!code) return reply.status(400).send({ error: 'code required' });
 
@@ -204,7 +272,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/scan/guestlist?eventId=XXX
      */
-    fastify.get('/guestlist', async (request: any, reply) => {
+    fastify.get('/guestlist', {
+        preHandler: [fastify.validate({ querystring: GuestlistQuery })]
+    }, async (request: any, reply) => {
         const { eventId } = request.query as any;
         if (!eventId) return reply.status(400).send({ error: 'eventId required' });
 
@@ -231,7 +301,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     /**
      * POST /api/v1/scan/door-entry
      */
-    fastify.post('/door-entry', async (request: any, reply) => {
+    fastify.post('/door-entry', {
+        preHandler: [fastify.validate({ body: DoorEntryBody })]
+    }, async (request: any, reply) => {
         const { eventCode, eventId, guestName, guestPhone, tierId, tierName, entryType, quantity = 1, unitPrice = 0, totalAmount = 0, paymentMethod = 'cash', gate } = request.body as any;
         if (!eventCode || !eventId || !guestName || !tierId) return reply.status(400).send({ success: false, error: 'Missing required fields' });
 
@@ -274,7 +346,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/scan/door-entry?eventId=XXX
      */
-    fastify.get('/door-entry', async (request: any, reply) => {
+    fastify.get('/door-entry', {
+        preHandler: [fastify.validate({ querystring: DoorEntryQuery })]
+    }, async (request: any, reply) => {
         const { eventId } = request.query as any;
         if (!eventId) return reply.status(400).send({ error: 'eventId required' });
         const snap = await fastify.db.collection('orders').where('eventId', '==', eventId).where('source', '==', 'door').get();
@@ -288,7 +362,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
      * GET /api/v1/scan/entitlements/:id/qr
      * Generate a rotating QR code for an entitlement – owner only
      */
-    fastify.get('/entitlements/:id/qr', async (request: any, reply) => {
+    fastify.get('/entitlements/:id/qr', {
+        preHandler: [fastify.validate({ params: EntitlementsParam })]
+    }, async (request: any, reply) => {
         const { id } = request.params as any;
         const userId = request.user?.uid;
 
