@@ -26,7 +26,7 @@ import Link from "next/link";
 import { DashboardEventCard } from "@c1rcle/ui";
 import { EventDetailsModal } from "@/components/venue-layout/EventDetailsModal";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { collection, query, where, onSnapshot, orderBy, or } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy, or } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/client";
 import { mapEventForClient } from "@c1rcle/core/events";
 import { parseAsIST } from "@c1rcle/core/time";
@@ -110,51 +110,54 @@ export default function EventsManagementPage() {
 
         console.log("[Venue Events] Setting up hardened listener for venueId:", venueId);
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetchedEvents: Event[] = snapshot.docs
-                .map(doc => {
-                    const mapped = mapEventForClient(doc.data(), doc.id) as any;
+        const fetchEvents = async () => {
+            try {
+                const snapshot = await getDocs(q);
+                const fetchedEvents: Event[] = snapshot.docs
+                    .map(doc => {
+                        const mapped = mapEventForClient(doc.data(), doc.id) as any;
 
-                    return {
-                        ...mapped,
-                        title: mapped.title || mapped.name || "Untitled Event",
-                        date: parseAsIST(mapped.startDate || mapped.date),
-                        hostName: mapped.hostName || mapped.host || "Unknown Host",
-                        hostId: mapped.hostId || mapped.creatorId,
-                        venueId: mapped.venueId || venueId,
-                        status: mapped.lifecycle as any,
-                        ticketsSold: mapped.stats?.ticketsSold || 0,
-                        ticketsTotal: mapped.capacity || mapped.tickets?.reduce((sum: number, t: any) => sum + (t.quantity || 0), 0) || 0,
-                        expectedCrowd: mapped.capacity || 0,
-                        promotersCount: mapped.promoterSettings?.allowedPromoterIds?.length || 0,
-                        revenue: mapped.stats?.revenue || 0,
-                    };
-                })
-                .filter(event => {
-                    // Privacy Filter:
-                    // 1. Venue's own events (creatorId or venueId match): Show always
-                    // 2. Host's events specifically submitted to this venue: Show only if NOT in draft
-                    if (event.eventType === 'host' && event.creatorId !== venueId) {
-                        return event.lifecycle !== 'draft';
-                    }
-                    return true;
-                })
-                .sort((a, b) => {
-                    const dateA = a.date?.getTime() || 0;
-                    const dateB = b.date?.getTime() || 0;
-                    return dateB - dateA;
-                });
-            setEvents(fetchedEvents);
-            setLoading(false);
-        }, (error) => {
-            console.error("[Venue Events] Firestore error:", error);
-            if (error.message.includes("index")) {
-                console.warn("Firestore Index Required. Check Firebase Console.");
+                        return {
+                            ...mapped,
+                            title: mapped.title || mapped.name || "Untitled Event",
+                            date: parseAsIST(mapped.startDate || mapped.date),
+                            hostName: mapped.hostName || mapped.host || "Unknown Host",
+                            hostId: mapped.hostId || mapped.creatorId,
+                            venueId: mapped.venueId || venueId,
+                            status: mapped.lifecycle as any,
+                            ticketsSold: mapped.stats?.ticketsSold || 0,
+                            ticketsTotal: mapped.capacity || mapped.tickets?.reduce((sum: number, t: any) => sum + (t.quantity || 0), 0) || 0,
+                            expectedCrowd: mapped.capacity || 0,
+                            promotersCount: mapped.promoterSettings?.allowedPromoterIds?.length || 0,
+                            revenue: mapped.stats?.revenue || 0,
+                        };
+                    })
+                    .filter(event => {
+                        // Privacy Filter:
+                        // 1. Venue's own events (creatorId or venueId match): Show always
+                        // 2. Host's events specifically submitted to this venue: Show only if NOT in draft
+                        if (event.eventType === 'host' && event.creatorId !== venueId) {
+                            return event.lifecycle !== 'draft';
+                        }
+                        return true;
+                    })
+                    .sort((a, b) => {
+                        const dateA = a.date?.getTime() || 0;
+                        const dateB = b.date?.getTime() || 0;
+                        return dateB - dateA;
+                    });
+                setEvents(fetchedEvents);
+            } catch (error: any) {
+                console.error("[Venue Events] Firestore error:", error);
+                if (error.message && error.message.includes("index")) {
+                    console.warn("Firestore Index Required. Check Firebase Console.");
+                }
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
-        });
+        };
 
-        return () => unsubscribe();
+        fetchEvents();
     }, [profile]);
 
     const handleEventUpdate = async (action: string, data?: any, overrideEventId?: string) => {

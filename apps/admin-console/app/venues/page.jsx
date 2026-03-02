@@ -64,12 +64,14 @@ export default function AdminVenues() {
 
             if (json.message) alert(json.message);
 
-            await fetchVenues();
             const updatedRes = await fetch('/api/list?collection=venues', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const updatedJson = await updatedRes.json();
-            const updated = updatedJson.data?.find(v => v.id === selectedVenue.id);
+            const mappedVenues = updatedJson.data || [];
+            setVenues(mappedVenues);
+
+            const updated = mappedVenues.find(v => v.id === selectedVenue.id);
             if (updated) setSelectedVenue(updated);
 
         } catch (err) {

@@ -65,13 +65,16 @@ export default function AdminEvents() {
 
             if (json.message) alert(json.message);
 
-            await fetchEvents();
+            // Fetch once and update both state and selected event
             const updatedRes = await fetch('/api/list?collection=events', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const updatedJson = await updatedRes.json();
-            const updated = updatedJson.data?.find(e => e.id === selectedEvent.id);
-            if (updated) setSelectedEvent(mapEventForClient(updated, updated.id));
+            const mapped = (updatedJson.data || []).map((e) => mapEventForClient(e, e.id));
+            setEvents(mapped);
+
+            const updated = mapped.find(e => e.id === selectedEvent.id);
+            if (updated) setSelectedEvent(updated);
 
         } catch (err) {
             alert(`Error: ${err.message}`);

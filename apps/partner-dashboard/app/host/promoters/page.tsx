@@ -22,7 +22,7 @@ import {
     Instagram,
     PhoneCall
 } from "lucide-react";
-import { collection, query, where, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/client";
 
 interface ConnectionRequest {
@@ -61,10 +61,15 @@ export default function PromotersPage() {
             collection(db, "promoters"),
             where("associatedHostId", "==", hostId)
         );
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setPromoters(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-        return () => unsubscribe();
+        const fetchPromoters = async () => {
+            try {
+                const snapshot = await getDocs(q);
+                setPromoters(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            } catch (e) {
+                console.error(e);
+            }
+        };
+        fetchPromoters();
     }, [hostId]);
 
     // Real-time listener for connection requests from promoters
@@ -78,19 +83,19 @@ export default function PromotersPage() {
             where("targetType", "==", "host")
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const requests = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            })) as ConnectionRequest[];
-
-            console.log(`[Host Promoters] Found ${requests.length} connection requests`);
-            setConnectionRequests(requests);
-        }, (error) => {
-            console.error("[Host Promoters] Firestore listener error:", error);
-        });
-
-        return () => unsubscribe();
+        const fetchRequests = async () => {
+            try {
+                const snapshot = await getDocs(q);
+                const requests = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as ConnectionRequest[];
+                setConnectionRequests(requests);
+            } catch (error) {
+                console.error("[Host Promoters] Firestore listener error:", error);
+            }
+        };
+        fetchRequests();
     }, [hostId]);
 
     const handleInvite = async (e: React.FormEvent) => {

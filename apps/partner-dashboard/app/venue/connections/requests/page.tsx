@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { getFirebaseDb } from "@/lib/firebase/client";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { DiscoveryView } from "@/components/discovery/DiscoveryView";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -75,20 +75,21 @@ export default function VenueConnectionsPage() {
             where("targetType", "==", "venue")
         );
 
-        const unsubscribe = onSnapshot(connectionsQuery, (snapshot) => {
-            const requests = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            })) as PromoterRequest[];
-
-            setPromoterRequests(requests);
-            setLoading(false);
-        }, (error) => {
-            console.error("[Venue Connections] Firestore listener error:", error);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
+        const fetchConnections = async () => {
+            try {
+                const snapshot = await getDocs(connectionsQuery);
+                const requests = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as PromoterRequest[];
+                setPromoterRequests(requests);
+            } catch (error) {
+                console.error("[Venue Connections] Firestore error:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchConnections();
     }, [venueId]);
 
     // Real-time listener for host connection requests (Partnerships)
@@ -101,18 +102,19 @@ export default function VenueConnectionsPage() {
             where("venueId", "==", venueId)
         );
 
-        const unsubscribe = onSnapshot(partnershipsQuery, (snapshot) => {
-            const partnerships = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            })) as HostPartnership[];
-
-            setHostPartnerships(partnerships);
-        }, (error) => {
-            console.error("[Venue Connections] Host snapshot error:", error);
-        });
-
-        return () => unsubscribe();
+        const fetchPartnerships = async () => {
+            try {
+                const snapshot = await getDocs(partnershipsQuery);
+                const partnerships = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as HostPartnership[];
+                setHostPartnerships(partnerships);
+            } catch (error) {
+                console.error("[Venue Connections] Host snapshot error:", error);
+            }
+        };
+        fetchPartnerships();
     }, [venueId]);
 
     const handleAction = async (connectionId: string, action: 'approve' | 'reject' | 'block', type: 'host' | 'promoter') => {

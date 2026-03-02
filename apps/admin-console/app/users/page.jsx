@@ -1,7 +1,8 @@
 "use client";
 
 import { useAuth } from "@/components/providers/AuthProvider";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useDeferredValue, useMemo } from "react";
+import { TableVirtuoso } from "react-virtuoso";
 import { Search, Shield, User as UserIcon, Calendar, Activity, Lock, Unlock, AlertCircle, TrendingUp, ShieldAlert, Ban, ChevronRight, CheckCircle, XCircle, Info, RefreshCw, X, ShieldCheck, Filter } from "lucide-react";
 import AdminConfirmModal from "@/components/admin/AdminConfirmModal";
 
@@ -12,6 +13,7 @@ export default function AdminUsers() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [modalConfig, setModalConfig] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const deferredSearchTerm = useDeferredValue(searchTerm);
 
     const fetchUsers = async () => {
         try {
@@ -94,13 +96,15 @@ export default function AdminUsers() {
         link.click();
     };
 
-    const filtered = users.filter(u => {
-        const matchesSearch = u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            u.id?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesFilter = showOnlyBanned ? u.isBanned : true;
-        return matchesSearch && matchesFilter;
-    });
+    const filtered = useMemo(() => {
+        return users.filter(u => {
+            const matchesSearch = u.displayName?.toLowerCase().includes(deferredSearchTerm.toLowerCase()) ||
+                u.email?.toLowerCase().includes(deferredSearchTerm.toLowerCase()) ||
+                u.id?.toLowerCase().includes(deferredSearchTerm.toLowerCase());
+            const matchesFilter = showOnlyBanned ? u.isBanned : true;
+            return matchesSearch && matchesFilter;
+        });
+    }, [users, deferredSearchTerm, showOnlyBanned]);
 
     return (
         <div className="space-y-12 pb-24">
@@ -150,31 +154,44 @@ export default function AdminUsers() {
                     </div>
 
                     <div className="bg-obsidian-surface rounded-xl border border-[#ffffff08] overflow-hidden shadow-sm">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-white/[0.02] border-b border-[#ffffff08]">
-                                        <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Member Status</th>
-                                        <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Date Joined</th>
-                                        <th className="px-8 py-4 text-right text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Health</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[#ffffff05]">
-                                    {loading ? (
-                                        [...Array(8)].map((_, i) => (
+                        {loading ? (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-white/[0.02] border-b border-[#ffffff08]">
+                                            <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 w-2/5">Member Status</th>
+                                            <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 w-1/5">Date Joined</th>
+                                            <th className="px-8 py-4 text-right text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 w-2/5">Health</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-[#ffffff05]">
+                                        {[...Array(8)].map((_, i) => (
                                             <tr key={i} className="animate-pulse">
                                                 <td colSpan={3} className="px-8 py-8 h-20 bg-white/[0.01]" />
                                             </tr>
-                                        ))
-                                    ) : filtered.length > 0 ? filtered.map((u) => (
-                                        <tr
-                                            key={u.id}
-                                            onClick={() => setSelectedUser(u)}
-                                            className={`hover:bg-white/[0.01] transition-colors cursor-pointer group ${selectedUser?.id === u.id ? 'bg-white/[0.05]' : ''}`}
-                                        >
-                                            <td className="px-8 py-6">
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="h-[600px] w-full">
+                                <TableVirtuoso
+                                    data={filtered}
+                                    fixedHeaderContent={() => (
+                                        <tr className="bg-white/[0.02] border-b border-[#ffffff08] w-full">
+                                            <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 w-2/5">Member Status</th>
+                                            <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 w-1/5">Date Joined</th>
+                                            <th className="px-8 py-4 text-right text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 w-2/5">Health</th>
+                                        </tr>
+                                    )}
+                                    components={{
+                                        Table: (props) => <table {...props} className="w-full text-left border-collapse divide-y divide-[#ffffff05]" />
+                                    }}
+                                    itemContent={(index, u) => (
+                                        <>
+                                            <td className="px-8 py-6 w-2/5 cursor-pointer group hover:bg-white/[0.01] transition-colors" onClick={() => setSelectedUser(u)}>
                                                 <div className="flex items-center gap-4">
-                                                    <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center font-bold text-xs text-zinc-600 group-hover:text-white transition-colors">
+                                                    <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center font-bold text-xs text-zinc-600 group-hover:text-white transition-colors shrink-0">
                                                         {u.displayName?.[0] || u.email?.[0] || 'U'}
                                                     </div>
                                                     <div className="min-w-0">
@@ -183,12 +200,12 @@ export default function AdminUsers() {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-6">
+                                            <td className="px-8 py-6 w-1/5 cursor-pointer hover:bg-white/[0.01] transition-colors" onClick={() => setSelectedUser(u)}>
                                                 <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest font-mono-numbers">
                                                     {u.createdAt ? new Date(u.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                                                 </p>
                                             </td>
-                                            <td className="px-8 py-6 text-right">
+                                            <td className="px-8 py-6 text-right w-2/5 cursor-pointer hover:bg-white/[0.01] transition-colors" onClick={() => setSelectedUser(u)}>
                                                 <div className="flex items-center justify-end gap-2.5">
                                                     <div className={`h-1.5 w-1.5 rounded-full ${u.isBanned ? 'bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'}`}></div>
                                                     <span className={`text-[10px] font-bold uppercase tracking-widest ${u.isBanned ? 'text-iris' : 'text-zinc-600'}`}>
@@ -196,19 +213,20 @@ export default function AdminUsers() {
                                                     </span>
                                                 </div>
                                             </td>
-                                        </tr>
-                                    )) : (
-                                        <tr><td colSpan={3} className="px-8 py-24 text-center">
-                                            <div className="h-16 w-16 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/5 shadow-inner">
-                                                <UserIcon className="h-8 w-8 text-zinc-800" strokeWidth={1} />
-                                            </div>
-                                            <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-white">No results found</h4>
-                                            <p className="text-[10px] text-zinc-600 mt-2 font-bold uppercase tracking-[0.2em]">Try adjusting your search terms.</p>
-                                        </td></tr>
+                                        </>
                                     )}
-                                </tbody>
-                            </table>
-                        </div>
+                                />
+                                {!loading && filtered.length === 0 && (
+                                    <div className="px-8 py-24 text-center">
+                                        <div className="h-16 w-16 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/5 shadow-inner">
+                                            <UserIcon className="h-8 w-8 text-zinc-800" strokeWidth={1} />
+                                        </div>
+                                        <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-white">No results found</h4>
+                                        <p className="text-[10px] text-zinc-600 mt-2 font-bold uppercase tracking-[0.2em]">Try adjusting your search terms.</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 

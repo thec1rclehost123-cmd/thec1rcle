@@ -8,11 +8,25 @@ import InterviewSection from "../components/InterviewSection";
 import SectionReveal from "../components/SectionReveal";
 import { heroVideoSrc, getHomepageContent } from "../lib/homepageData";
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export default async function HomePage() {
 
-  const { heroCards, categoryFilters, eventGrid, selects, interviews } = await getHomepageContent();
+  let data = {
+    heroCards: [],
+    categoryFilters: [],
+    eventGrid: [],
+    selects: [],
+    interviews: []
+  };
+
+  try {
+    data = await getHomepageContent();
+  } catch (error) {
+    console.warn("⚠️ Build Warning: Failed to fetch live homepage data (likely expected during static generation). Rendering empty shell.", error.message);
+  }
+
+  const { heroCards, categoryFilters, eventGrid, selects, interviews } = data;
   return (
     <>
       <HeroVideo src={heroVideoSrc} />

@@ -17,7 +17,7 @@ import {
     Check
 } from "lucide-react";
 import Link from "next/link";
-import { collection, query, where, onSnapshot, limit, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs, limit, orderBy } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/client";
 import { DashboardEventCard } from "@c1rcle/ui";
 import { mapEventForClient } from "@c1rcle/core/events";
@@ -66,10 +66,16 @@ export default function PromoterDashboardHome() {
             limit(4)
         );
 
-        const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
-            const events = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
-            setActiveEvents(events);
-        });
+        const fetchEvents = async () => {
+            try {
+                const snapshot = await getDocs(eventsQuery);
+                const events = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
+                setActiveEvents(events);
+            } catch (e) {
+                console.error(e);
+            }
+        };
+        fetchEvents();
 
         // Fetch Stats
         fetch(`/api/promoter/stats?promoterId=${partnerId}`)
@@ -102,7 +108,7 @@ export default function PromoterDashboardHome() {
                 }
             });
 
-        return () => unsubscribeEvents();
+        return () => { };
     }, [profile]);
 
     const copyLink = (eventId: string, slug?: string) => {

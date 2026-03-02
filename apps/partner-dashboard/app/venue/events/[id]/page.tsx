@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useDeferredValue, useMemo } from "react";
+import { TableVirtuoso } from "react-virtuoso";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Calendar,
@@ -44,7 +45,9 @@ export default function EventManagementPage() {
     const [activeTab, setActiveTab] = useState("overview"); // overview, guestlist, promoters, settings
     const [isUpdating, setIsUpdating] = useState(false);
     const [promoterSearch, setPromoterSearch] = useState("");
+    const deferredPromoterSearch = useDeferredValue(promoterSearch);
     const [guestSearch, setGuestSearch] = useState("");
+    const deferredGuestSearch = useDeferredValue(guestSearch);
     const [showCancelModal, setShowCancelModal] = useState(false);
 
     const actor = {
@@ -175,10 +178,16 @@ export default function EventManagementPage() {
     if (loading) return <div className="p-12 text-center text-slate-400">Loading management console...</div>;
     if (!event) return <div className="p-12 text-center">Event not found.</div>;
 
-    const filteredPromoters = promoters.filter(p =>
-        p.name.toLowerCase().includes(promoterSearch.toLowerCase())
-    );
+    const filteredPromoters = useMemo(() => {
+        return promoters.filter(p => p.name.toLowerCase().includes(deferredPromoterSearch.toLowerCase()));
+    }, [promoters, deferredPromoterSearch]);
 
+    const filteredGuestlist = useMemo(() => {
+        return guestlist.filter(g =>
+            g.name.toLowerCase().includes(deferredGuestSearch.toLowerCase()) ||
+            g.email?.toLowerCase().includes(deferredGuestSearch.toLowerCase())
+        );
+    }, [guestlist, deferredGuestSearch]);
     return (
         <div className="max-w-6xl mx-auto space-y-8 pb-20">
             {/* Cancelled Banner */}
@@ -527,73 +536,73 @@ export default function EventManagementPage() {
                                     </div>
                                 </div>
 
-                                <div className="overflow-x-auto -mx-8">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="border-b border-slate-100">
-                                                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Guest</th>
-                                                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Identity</th>
-                                                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                                                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Order Ref</th>
+                                <div className="h-[600px] -mx-8">
+                                    <TableVirtuoso
+                                        data={filteredGuestlist}
+                                        fixedHeaderContent={() => (
+                                            <tr className="border-b border-slate-100 bg-white shadow-sm relative z-10 w-full">
+                                                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-1/4">Guest</th>
+                                                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-1/4">Identity</th>
+                                                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-1/4 text-center">Status</th>
+                                                <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-1/4 text-right">Order Ref</th>
                                             </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                            {guestlist
-                                                .filter(g => g.name.toLowerCase().includes(guestSearch.toLowerCase()) || g.email?.toLowerCase().includes(guestSearch.toLowerCase()))
-                                                .map((guest) => (
-                                                    <tr key={guest.id} className="group hover:bg-slate-50/50 transition-colors">
-                                                        <td className="px-8 py-4">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 text-xs border border-slate-200 overflow-hidden">
-                                                                    {guest.avatar ? (
-                                                                        <img src={guest.avatar} className="w-full h-full object-cover" />
-                                                                    ) : (
-                                                                        guest.name[0]
-                                                                    )}
-                                                                </div>
-                                                                <div>
-                                                                    <div className="font-bold text-slate-900 text-sm">{guest.name}</div>
-                                                                    <div className="text-[10px] text-slate-500 font-mono">{guest.email || 'N/A'}</div>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-8 py-4">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter border ${guest.gender === 'female' ? 'bg-pink-50 text-pink-600 border-pink-100' :
-                                                                    guest.gender === 'male' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                                                                        'bg-slate-50 text-slate-500 border-slate-100'
-                                                                    }`}>
-                                                                    {guest.gender || 'Any'}
-                                                                </span>
-                                                                <span className="text-[11px] font-bold text-slate-600">{guest.type === 'rsvp' ? 'RSVP' : 'TIER-' + guest.ticketId?.slice(0, 4)}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-8 py-4">
-                                                            <div className="flex items-center gap-1.5">
-                                                                {guest.status === 'checked_in' ? (
-                                                                    <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
-                                                                        <Check className="h-3 w-3" /> Arrived
-                                                                    </span>
-                                                                ) : guest.status === 'pending' ? (
-                                                                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-500 bg-amber-50 px-2 py-1 rounded-lg">
-                                                                        Missing Claim
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">
-                                                                        Confirmed
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-8 py-4 text-right">
-                                                            <div className="text-[10px] font-mono text-slate-400 group-hover:text-slate-600 transition-colors">
-                                                                #{guest.orderId?.slice(-6).toUpperCase()}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                        </tbody>
-                                    </table>
+                                        )}
+                                        components={{
+                                            Table: (props) => <table {...props} className="w-full text-left border-collapse" />
+                                        }}
+                                        itemContent={(index, guest) => (
+                                            <>
+                                                <td className="px-8 py-4 border-b border-slate-50 w-1/4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 text-xs border border-slate-200 overflow-hidden shrink-0">
+                                                            {guest.avatar ? (
+                                                                <img src={guest.avatar} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                guest.name[0]
+                                                            )}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <div className="font-bold text-slate-900 text-sm truncate">{guest.name}</div>
+                                                            <div className="text-[10px] text-slate-500 font-mono truncate">{guest.email || 'N/A'}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-4 border-b border-slate-50 w-1/4">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter border ${guest.gender === 'female' ? 'bg-pink-50 text-pink-600 border-pink-100' :
+                                                            guest.gender === 'male' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                                                'bg-slate-50 text-slate-500 border-slate-100'
+                                                            }`}>
+                                                            {guest.gender || 'Any'}
+                                                        </span>
+                                                        <span className="text-[11px] font-bold text-slate-600">{guest.type === 'rsvp' ? 'RSVP' : 'TIER-' + guest.ticketId?.slice(0, 4)}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-4 border-b border-slate-50 w-1/4 text-center">
+                                                    <div className="flex items-center justify-center gap-1.5 inline-flex">
+                                                        {guest.status === 'checked_in' ? (
+                                                            <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
+                                                                <Check className="h-3 w-3" /> Arrived
+                                                            </span>
+                                                        ) : guest.status === 'pending' ? (
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-amber-500 bg-amber-50 px-2 py-1 rounded-lg">
+                                                                Missing Claim
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">
+                                                                Confirmed
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-4 border-b border-slate-50 w-1/4 text-right">
+                                                    <div className="text-[10px] font-mono text-slate-400 hover:text-slate-600 transition-colors">
+                                                        #{guest.orderId?.slice(-6).toUpperCase()}
+                                                    </div>
+                                                </td>
+                                            </>
+                                        )}
+                                    />
                                     {guestlist.length === 0 && (
                                         <div className="py-20 text-center">
                                             <Users className="h-12 w-12 text-slate-200 mx-auto mb-4" />

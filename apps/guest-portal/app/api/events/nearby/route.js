@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 /**
  * GET /api/events/nearby?lat=XX&lng=XX&radius=50&limit=20

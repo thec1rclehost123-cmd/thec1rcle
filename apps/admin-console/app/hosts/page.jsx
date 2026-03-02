@@ -63,12 +63,14 @@ export default function AdminHosts() {
 
             if (json.message) alert(json.message);
 
-            await fetchHosts();
             const updatedRes = await fetch('/api/list?collection=hosts', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const updatedJson = await updatedRes.json();
-            const updated = updatedJson.data?.find(h => h.id === selectedHost.id);
+            const mappedHosts = updatedJson.data || [];
+            setHosts(mappedHosts);
+
+            const updated = mappedHosts.find(h => h.id === selectedHost.id);
             if (updated) setSelectedHost(updated);
 
         } catch (err) {

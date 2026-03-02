@@ -4,13 +4,19 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 // Environment variables are loaded via the --env-file flag or Expo runtime
 export default fp(async (fastify) => {
+    console.log('Firebase Init - Project ID:', process.env.FIREBASE_PROJECT_ID);
+    console.log('Firebase Init - Client Email:', process.env.FIREBASE_CLIENT_EMAIL);
+    console.log('Firebase Init - Private Key Defined:', !!process.env.FIREBASE_PRIVATE_KEY);
     if (!getApps().length) {
+        const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+        if (!privateKey) {
+            console.error('FIREBASE_PRIVATE_KEY is missing or empty!');
+        }
         initializeApp({
             credential: cert({
                 projectId: process.env.FIREBASE_PROJECT_ID,
                 clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                // dotenv reads \n as literal — convert to real newlines
-                privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+                privateKey: privateKey,
             }),
         });
     }

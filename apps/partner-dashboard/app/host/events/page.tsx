@@ -11,7 +11,7 @@ import {
     ArrowUpRight
 } from "lucide-react";
 import Link from "next/link";
-import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/client";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { DashboardEventCard } from "@c1rcle/ui";
@@ -39,13 +39,18 @@ export default function HostEventsPage() {
             orderBy("startDate", "desc")
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetched = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
-            setEvents(fetched);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
+        const fetchEvents = async () => {
+            try {
+                const snapshot = await getDocs(q);
+                const fetched = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
+                setEvents(fetched);
+            } catch (error) {
+                console.error("Error fetching events:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchEvents();
     }, [profile]);
 
     const filteredEvents = events.filter(e => {

@@ -17,7 +17,7 @@ import {
     ChevronRight,
     Wallet
 } from "lucide-react";
-import { collection, query, where, onSnapshot, limit } from "firebase/firestore";
+import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase/client";
 import Link from "next/link";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
@@ -43,13 +43,18 @@ export default function PromoLinksPage() {
             limit(20)
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetched = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
-            setCampaigns(fetched);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
+        const fetchCampaigns = async () => {
+            try {
+                const snapshot = await getDocs(q);
+                const fetched = snapshot.docs.map(doc => mapEventForClient(doc.data(), doc.id));
+                setCampaigns(fetched);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchCampaigns();
     }, [promoterId]);
 
     const filteredCampaigns = campaigns.filter(c => {

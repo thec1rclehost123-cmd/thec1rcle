@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "next dev -p 3001",
-    "dev:staging": "cmd /c \"copy /Y .env.staging .env.local\" && next dev -p 3001",
-    "dev:prod": "cmd /c \"copy /Y .env.production .env.local\" && next dev -p 3001",
+    "dev:staging": "node -e \"require('fs').copyFileSync('.env.staging', '.env.local')\" && next dev -p 3001",
+    "dev:prod": "node -e \"require('fs').copyFileSync('.env.production', '.env.local')\" && next dev -p 3001",
     "build": "next build",
     "start": "next start",
     "lint": "next lint --dir app --dir components --dir lib",
@@ -28,6 +28,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-easy-crop": "^5.5.5",
+    "react-virtuoso": "^4.18.1",
     "resend": "^6.5.2",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.1.12"

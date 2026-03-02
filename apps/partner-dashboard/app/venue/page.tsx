@@ -56,8 +56,16 @@ export default function VenueDashboardHome() {
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
-            const eventsRes = await fetch(`/api/venue/events?venueId=${venueId}`);
+            const [eventsPromise, summaryPromise] = [
+                fetch(`/api/venue/events?venueId=${venueId}`),
+                fetch(`/api/venue/overview/summary?venueId=${venueId}`)
+            ];
+
+            const [eventsRes, summaryRes] = await Promise.all([eventsPromise, summaryPromise]);
+
             const eventsData = await eventsRes.json();
+            const summaryData = await summaryRes.json();
+
             const allEvents = eventsData.events || [];
 
             const normalizedEvents = allEvents.map((e: any) => ({
@@ -67,19 +75,17 @@ export default function VenueDashboardHome() {
             }));
 
             setEvents(normalizedEvents);
+            setSummary(summaryData);
 
             const todayStr = new Date().toISOString().split('T')[0];
             const tonightEvent = normalizedEvents.find((e: any) =>
                 e.dateStr === todayStr || e.startDateStr === todayStr
             );
 
-            const [summaryRes, tonightRes] = await Promise.all([
-                fetch(`/api/venue/overview/summary?venueId=${venueId}`),
-                tonightEvent ? fetch(`/api/venue/overview/tonight?eventId=${tonightEvent.id}`) : Promise.resolve(null)
-            ]);
-
-            setSummary(await summaryRes.json());
-            if (tonightRes) setTonight(await tonightRes.json());
+            if (tonightEvent) {
+                const tonightRes = await fetch(`/api/venue/overview/tonight?eventId=${tonightEvent.id}`);
+                setTonight(await tonightRes.json());
+            }
 
         } catch (err) {
             console.error("Dashboard Fetch Error:", err);

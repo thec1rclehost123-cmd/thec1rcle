@@ -19,7 +19,7 @@ export default function AdminLogs() {
         const fetchLogsRealtime = async () => {
             try {
                 const { getFirebaseDb } = await import("@/lib/firebase/client");
-                const { collection, query, orderBy, limit, onSnapshot } = await import("firebase/firestore");
+                const { collection, query, orderBy, limit, getDocs } = await import("firebase/firestore");
 
                 const dbClient = getFirebaseDb();
                 const q = query(
@@ -28,19 +28,14 @@ export default function AdminLogs() {
                     limit(50)
                 );
 
-                unsubscribe = onSnapshot(q, (snapshot) => {
-                    const results = snapshot.docs.map(doc => ({
-                        id: doc.id,
-                        ...doc.data(),
-                        ts: doc.data().createdAt?.toDate() || new Date()
-                    }));
-                    setLogs(results);
-                    setLoading(false);
-                }, (err) => {
-                    console.error("Real-time listener failed", err);
-                    setError(err.message);
-                    setLoading(false);
-                });
+                const snapshot = await getDocs(q);
+                const results = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    ts: doc.data().createdAt?.toDate() || new Date()
+                }));
+                setLogs(results);
+                setLoading(false);
             } catch (err) {
                 console.error("Failed to initialize logs stream", err);
                 setError(err.message);
@@ -49,7 +44,7 @@ export default function AdminLogs() {
         };
 
         fetchLogsRealtime();
-        return () => unsubscribe?.();
+        return () => { };
     }, [user]);
 
     const cleanJargon = (text) => {
