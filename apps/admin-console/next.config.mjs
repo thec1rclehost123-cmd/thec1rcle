@@ -4,7 +4,16 @@ import "./lib/env.js";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@c1rcle/core', '@c1rcle/ui'],
-  // Disabled optimizePackageImports for framer-motion due to Next.js 14.2.x bug
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "date-fns",
+      "lodash",
+      "framer-motion",
+      "react-icons"
+    ],
+  },
+  productionBrowserSourceMaps: false,
   typescript: {
     // Enforce type checking during build for production safety (Fix: Build Safety is Disabled)
     ignoreBuildErrors: false,
@@ -14,6 +23,9 @@ const nextConfig = {
     ignoreDuringBuilds: false,
   },
   images: {
+    dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     remotePatterns: [
       {
         protocol: 'https',
@@ -65,6 +77,14 @@ const nextConfig = {
         source: '/clubs/:path*',
         destination: '/venues/:path*',
         permanent: true,
+      }
+    ]
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/v1/:path*',
+        destination: 'http://localhost:4000/api/v1/:path*' // Proxy to API Gateway running on port 4000
       }
     ]
   }

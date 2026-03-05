@@ -10,11 +10,17 @@ export class EventService {
         return this.eventRepo.getBySlug(id);
     }
     async listEvents(filters) {
-        const { limit = 20 } = filters;
-        const events = await this.eventRepo.list({ ...filters, limit: limit + 1 });
-        const hasMore = events.length > limit;
-        const data = events.slice(0, limit);
-        return { events: data, hasMore };
+        try {
+            const { limit = 20 } = filters;
+            const events = await this.eventRepo.list({ ...filters, limit: limit + 1 });
+            const hasMore = events.length > limit;
+            const data = events.slice(0, limit);
+            return { events: data, hasMore };
+        }
+        catch (error) {
+            console.error('EventService.listEvents failed:', error.message);
+            return { events: [], hasMore: false };
+        }
     }
     async createEvent(payload, actorId) {
         // @ts-ignore

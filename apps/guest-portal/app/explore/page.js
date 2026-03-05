@@ -11,9 +11,9 @@ const ExploreCarouselHeader = dynamic(() => import("../../components/ExploreCaro
   ssr: true,
   loading: () => <div className="h-[50vh] bg-black/5 animate-pulse rounded-[40px] mx-12 mt-12" />
 });
-const ExploreEventGrid = dynamic(() => import("../../components/ExploreEventGrid"), { ssr: true });
-const ExploreFilterBar = dynamic(() => import("../../components/ExploreFilterBar"), { ssr: true });
-import Skeleton from "../../components/ui/Skeleton";
+import ExploreFilterBar from "../../components/ExploreFilterBar";
+import ExploreEventGrid from "../../components/ExploreEventGrid";
+import { GridSkeleton } from "@c1rcle/ui";
 // ⚡ FIX 2: Import Zustand cache store — replaces local useState+fetch below
 import { useExploreStore } from "../../store/exploreStore";
 
@@ -227,8 +227,38 @@ export default function ExplorePage() {
     }));
   }, [cityOptions]);
 
+  // ⚡ PERF FIX: Pre-compute expensive dates and string haystacks exactly once
+  const processedEvents = useMemo(() => {
+    return events.map((event) => {
+      const searchHaystack = [
+        event.title,
+        event.location,
+        event.city,
+        event.host,
+        event.description,
+        ...(event.tags || [])
+      ].join(" ").toLowerCase();
+
+      const parsedDate = toDate(event.startDateTime || event.startDate);
+      const parsedTime = parsedDate ? parsedDate.getTime() : Number.MAX_SAFE_INTEGER;
+      const startingPrice = getStartingPrice(event);
+
+      const primaryTag = Array.isArray(event.tags) ? event.tags[0] : "";
+      const eventType = slugify(primaryTag || event.eventType || event.category || "");
+
+      return {
+        ...event,
+        _searchHaystack: searchHaystack,
+        _parsedDate: parsedDate,
+        _parsedTime: parsedTime,
+        _startingPrice: startingPrice,
+        _eventType: eventType,
+      };
+    });
+  }, [events]);
+
   const filteredEvents = useMemo(() => {
-    if (!events.length) return [];
+    if (!processedEvents.length) return [];
     const typeFilter = filters.eventType || "all";
     const priceFilter = filters.price;
     const curatedFilter = filters.curatedCategory || "all";
@@ -241,7 +271,7 @@ export default function ExplorePage() {
 
     const matchesDatePreset = (event) => {
       if (filters.datePreset === "any") return true;
-      const eventDate = toDate(event.startDateTime || event.startDate);
+      const eventDate = event._parsedDate;
       if (!eventDate) return true;
       if (filters.datePreset === "today") {
         return isSameDay(eventDate, now);
@@ -259,17 +289,7 @@ export default function ExplorePage() {
 
     const matchesSearch = (event) => {
       if (!normalizedSearch) return true;
-      const haystack = [
-        event.title,
-        event.location,
-        event.city,
-        event.host,
-        event.description,
-        ...(event.tags || [])
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(normalizedSearch);
+      return event._searchHaystack.includes(normalizedSearch);
     };
 
     const matchesCity = (event) => {
@@ -278,31 +298,25 @@ export default function ExplorePage() {
     };
     const matchesType = (event) => {
       if (typeFilter === "all") return true;
-      const primaryTag = Array.isArray(event.tags) ? event.tags[0] : "";
-      const eventType = slugify(primaryTag || event.eventType || event.category || "");
-      return eventType === typeFilter;
+      return event._eventType === typeFilter;
     };
 
     const matchesCuratedCategory = (event) => {
       if (curatedFilter === "all") return true;
       const keywords = curatedCategoryMatchers[curatedFilter] || [];
-      const haystack = `${event.title || ""} ${event.description || ""} ${event.location || ""} ${(
-        event.tags || []
-      ).join(" ")}`.toLowerCase();
-      return keywords.some((keyword) => haystack.includes(keyword));
+      return keywords.some((keyword) => event._searchHaystack.includes(keyword));
     };
 
     const matchesPrice = (event) => {
       if (priceFilter === "all") return true;
-      const startingPrice = getStartingPrice(event);
-      if (priceFilter === "free") return startingPrice <= 0 || event.isFree;
-      if (priceFilter === "paid") return startingPrice > 0;
+      if (priceFilter === "free") return event._startingPrice <= 0 || event.isFree;
+      if (priceFilter === "paid") return event._startingPrice > 0;
       return true;
     };
 
     const comparator = sortComparators[activeSort] || sortComparators.Trending;
 
-    return events
+    return processedEvents
       .filter((event) => {
         // Absolute safety: remove past events regardless of filters
         const eventEnd = event.endDate || event.startDate;
@@ -318,7 +332,7 @@ export default function ExplorePage() {
         );
       })
       .sort(comparator);
-  }, [events, filters, debouncedSearch, activeSort, selectedCity, cityOptions]);
+  }, [processedEvents, filters, debouncedSearch, activeSort, selectedCity, cityOptions]);
 
   const activeCityLabel = cityOptions.find((option) => option.value === selectedCity)?.label || cityOptions[0]?.label || "your city";
   const fallbackCities = cityOptions.filter((option) => option.value !== selectedCity).slice(0, 2);
@@ -411,7 +425,7 @@ export default function ExplorePage() {
             </div>
 
             <div className="min-h-[400px]">
-              {status === "loading" && <LoadingSkeletonGrid />}
+              {status === "loading" && <GridSkeleton count={8} columns="grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5" />}
               {status === "error" && <ErrorBlock message={error || "Failed to load events."} />}
               {status === "ready" && filteredEvents.length === 0 && (
                 <EmptyState

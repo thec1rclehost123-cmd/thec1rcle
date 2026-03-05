@@ -1,11 +1,12 @@
+import { memo } from "react";
 import Image from "next/image";
 import Button from "./ui/Button";
 
-export default function TicketCard({ event }) {
+function TicketCard({ event }) {
   return (
     <div className="glass-panel rounded-[32px] p-6 lg:flex lg:gap-8">
       <div className="relative h-64 flex-1 overflow-hidden rounded-[24px]">
-        <Image src={event.image} alt={event.title} fill className="object-cover" />
+        <Image src={event.image} alt={event.title} fill sizes="(max-width: 768px) 100vw, 400px" className="object-cover" />
       </div>
       <div className="mt-6 flex flex-1 flex-col gap-4 lg:mt-0">
         <h1 className="text-3xl font-display">{event.title}</h1>
@@ -20,3 +21,5 @@ export default function TicketCard({ event }) {
     </div>
   );
 }
+
+export default memo(TicketCard);

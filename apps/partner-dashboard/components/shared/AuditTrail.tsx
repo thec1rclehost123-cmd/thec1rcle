@@ -38,7 +38,8 @@ export default function AuditTrail({ entries = [] }: AuditTrailProps) {
     if (!entries || entries.length === 0) {
         return (
             <div className="py-12 text-center">
-                {React.createElement(Clock as any, { className: "h-12 w-12 text-slate-200 mx-auto mb-4" })}
+                {/* @ts-expect-error Lucide types mismatch */}
+                <Clock className="h-12 w-12 text-slate-200 mx-auto mb-4" />
                 <p className="text-slate-400 font-medium">No activity recorded for this event yet.</p>
             </div>
         );

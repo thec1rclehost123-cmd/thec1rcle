@@ -38,11 +38,19 @@ export default async function eventRoutes(fastify: FastifyInstance) {
      */
     fastify.get('/events', async (request: any, reply) => {
         try {
-            const cacheKey = JSON.stringify(request.query || {});
+            const rawQuery = request.query || {};
+            // Firestore requires integer for .limit() — parse numeric params
+            const query = {
+                ...rawQuery,
+                ...(rawQuery.limit !== undefined && { limit: parseInt(rawQuery.limit, 10) || 12 }),
+                ...(rawQuery.page !== undefined && { page: parseInt(rawQuery.page, 10) || 1 }),
+            };
+
+            const cacheKey = JSON.stringify(query);
             const cached = await fastify.cache.get('events:list', cacheKey);
             if (cached) return cached;
 
-            const result = await fastify.eventService.listEvents(request.query);
+            const result = await fastify.eventService.listEvents(query);
 
             await fastify.cache.set('events:list', cacheKey, result, 60); // 60s TTL
             return result;

@@ -108,10 +108,12 @@ export default function EnhancedVenueEditor({
             {/* 1. HERO SECTION - Venue Poster */}
             <section className="relative w-full group">
                 <div className="relative aspect-[3/4] sm:aspect-[4/5] md:aspect-[16/10] lg:aspect-[21/9] w-full overflow-hidden">
-                    <img
+                    <Image
                         src={coverImage}
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
                         alt={venue.name}
+                        sizes="100vw"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-white dark:from-[#0A0A0A] via-transparent to-transparent opacity-90" />
                     <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent" />
@@ -133,7 +135,7 @@ export default function EnhancedVenueEditor({
                             {/* Logo */}
                             <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-2xl overflow-hidden border-4 border-white dark:border-[#0A0A0A] shadow-2xl flex-shrink-0 bg-white/10 backdrop-blur-xl">
                                 {logo ? (
-                                    <img src={logo} className="w-full h-full object-cover" alt="logo" />
+                                    <Image src={logo} fill className="object-cover" alt="logo" sizes="128px" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-white/20"><Camera className="w-8 h-8" /></div>
                                 )}
@@ -225,8 +227,8 @@ export default function EnhancedVenueEditor({
                     <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4">
                         {highlights.length > 0 ? highlights.map((h, i) => (
                             <div key={h.id || i} className="flex-shrink-0 flex flex-col items-center gap-2">
-                                <div className="w-20 h-20 rounded-full border-2 border-[#F44A22]/30 p-1 overflow-hidden">
-                                    <img src={h.coverImage || h.images?.[0]} className="w-full h-full rounded-full object-cover" alt="" />
+                                <div className="relative w-20 h-20 rounded-full border-2 border-[#F44A22]/30 p-1 overflow-hidden">
+                                    <Image src={h.coverImage || h.images?.[0]} fill className="rounded-full object-cover p-1" alt="" sizes="80px" />
                                 </div>
                                 <span className="text-[10px] font-bold uppercase text-black/60 dark:text-white/40">{h.title}</span>
                             </div>
@@ -284,7 +286,7 @@ export default function EnhancedVenueEditor({
                         {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => (
                             <div key={i} className="relative aspect-square rounded-2xl overflow-hidden bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
                                 {gallery[i] ? (
-                                    <img src={gallery[i]?.imageUrl || gallery[i]} className="w-full h-full object-cover" alt="" />
+                                    <Image src={gallery[i]?.imageUrl || gallery[i]} fill className="object-cover" alt="" sizes="(max-width: 768px) 33vw, 20vw" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center opacity-20"><Plus className="w-6 h-6" /></div>
                                 )}
@@ -363,8 +365,8 @@ export default function EnhancedVenueEditor({
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                             {pastEvents.slice(0, 5).map((e, i) => (
-                                <div key={i} className="aspect-[3/4] rounded-2xl overflow-hidden grayscale hover:grayscale-0 transition-all cursor-pointer border border-black/10 dark:border-white/10">
-                                    <img src={e.image || e.coverURL} className="w-full h-full object-cover" alt="" />
+                                <div key={i} className="relative aspect-[3/4] rounded-2xl overflow-hidden grayscale hover:grayscale-0 transition-all cursor-pointer border border-black/10 dark:border-white/10">
+                                    <Image src={e.image || e.coverURL} fill className="object-cover" alt="" sizes="(max-width: 768px) 50vw, 20vw" />
                                 </div>
                             ))}
                         </div>
@@ -430,8 +432,8 @@ export default function EnhancedVenueEditor({
                             <div className="space-y-3">
                                 {highlights.map((h, i) => (
                                     <div key={h.id || i} className="flex items-center gap-4 p-4 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-2xl">
-                                        <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 border border-[var(--border-default)]">
-                                            <img src={h.coverImage || h.images?.[0]} className="w-full h-full object-cover" alt="" />
+                                        <div className="relative w-12 h-12 rounded-full overflow-hidden shrink-0 border border-[var(--border-default)]">
+                                            <Image src={h.coverImage || h.images?.[0]} fill className="object-cover" alt="" sizes="48px" />
                                         </div>
                                         <div className="flex-1">
                                             <p className="font-bold text-sm tracking-tight text-[var(--text-primary)]">{h.title}</p>
@@ -628,7 +630,7 @@ function ImageUploadField({
                 className="relative aspect-video w-full rounded-2xl overflow-hidden border border-dashed border-[var(--border-default)] group cursor-pointer bg-[var(--surface-secondary)]"
             >
                 {value ? (
-                    <img src={value} className="w-full h-full object-cover group-hover:opacity-50 transition-opacity" alt="" />
+                    <Image src={value} fill className="object-cover group-hover:opacity-50 transition-opacity" alt="" sizes="(max-width: 768px) 100vw, 50vw" />
                 ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-tertiary)]">
                         <Upload className="w-8 h-8 mb-2" />

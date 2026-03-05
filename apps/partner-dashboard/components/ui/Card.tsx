@@ -29,7 +29,7 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 const CardComponent = forwardRef<HTMLDivElement, CardProps>(
   ({ interactive = false, padding = "md", elevated = false, glass = false, glow = false, className, children, ...rest }, ref) => {
     return (
-      <article
+      <div
         ref={ref}
         className={clsx(
           "rounded-2xl border transition-all duration-200",
@@ -48,10 +48,10 @@ const CardComponent = forwardRef<HTMLDivElement, CardProps>(
           paddingMap[padding],
           className
         )}
-        {...rest}
+        {...rest as any}
       >
         {children}
-      </article>
+      </div>
     );
   }
 );
@@ -66,7 +66,7 @@ export interface CardHeaderProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export const CardHeader = ({ title, subtitle, action, className, ...rest }: CardHeaderProps) => (
-  <div className={clsx("flex items-start justify-between mb-5", className)} {...rest}>
+  <div className={clsx("flex items-start justify-between mb-5", className)} {...rest as any}>
     <div>
       <h3 className="text-title text-[var(--text-primary)]">{title}</h3>
       {subtitle && <p className="text-caption text-[var(--text-tertiary)] mt-1">{subtitle}</p>}
@@ -103,7 +103,7 @@ export const CardMedia = ({
         aspectStyles[aspectRatio],
         className
       )}
-      {...rest}
+      {...rest as any}
     >
       <img
         src={src}
@@ -143,17 +143,17 @@ export const CardStat = ({ label, value, change }: CardStatProps) => (
 
 // Card Body
 export const CardBody = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => (
-  <div className={clsx("flex flex-col gap-4", className)} {...rest} />
+  <div className={clsx("flex flex-col gap-4", className)} {...rest as any} />
 );
 
 // Card Footer
 export const CardFooter = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => (
-  <div className={clsx("mt-auto flex flex-wrap items-center gap-3 pt-5 border-t border-[var(--border-subtle)]", className)} {...rest} />
+  <div className={clsx("mt-auto flex flex-wrap items-center gap-3 pt-5 border-t border-[var(--border-subtle)]", className)} {...rest as any} />
 );
 
 // Card Section divider
 export const CardDivider = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => (
-  <div className={clsx("h-px bg-[var(--border-subtle)] my-4 -mx-5", className)} {...rest} />
+  <div className={clsx("h-px bg-[var(--border-subtle)] my-4 -mx-5", className)} {...rest as any} />
 );
 
 // Export compound component

@@ -401,7 +401,7 @@ export default function EventRSVP({ event, host }) {
                 className="flex flex-wrap items-center gap-4 group cursor-pointer"
               >
                 <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-white/15 transition-all group-hover:border-white/40 group-hover:scale-105">
-                  <Image src={host?.avatar || "/events/holi-edit.svg"} alt={host?.name || "Host"} fill className="object-cover" />
+                  <Image src={host?.avatar || "/events/holi-edit.svg"} alt={host?.name || "Host"} fill sizes="40px" className="object-cover" />
                 </div>
                 <div>
                   <p className="text-lg font-semibold group-hover:text-iris transition-colors">{host?.name || event?.host}</p>

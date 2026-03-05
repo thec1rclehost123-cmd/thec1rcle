@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import EventCard from "../../../components/EventCard";
 import {
@@ -22,6 +23,8 @@ import {
     Camera,
     Phone
 } from "lucide-react";
+
+const dateFormatter = new Intl.DateTimeFormat('en-IN', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Kolkata' });
 
 export default function ProfileClient({ upcomingEvents, pastEvents, posts, highlights, venue }) {
     const [activeTab, setActiveTab] = useState("events");
@@ -83,7 +86,7 @@ export default function ProfileClient({ upcomingEvents, pastEvents, posts, highl
                                     style={h.color ? { backgroundColor: `${h.color}20` } : {}}
                                 >
                                     {h.imageUrl ? (
-                                        <img src={h.imageUrl} className="w-full h-full object-cover" alt="" />
+                                        <Image src={h.imageUrl} alt="" fill className="object-cover" sizes="(max-width: 768px) 100vw, 15vw" />
                                     ) : (
                                         <Camera className="h-6 w-6 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors" style={h.color ? { color: h.color } : {}} />
                                     )}
@@ -139,7 +142,7 @@ export default function ProfileClient({ upcomingEvents, pastEvents, posts, highl
                                             .filter(e => venue.pinnedEventIds.includes(e.id))
                                             .map(event => (
                                                 <div key={event.id} className="relative group cursor-pointer overflow-hidden rounded-[3rem] border border-white/10 aspect-[16/9]">
-                                                    <img src={event.image || event.coverImage} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt="" />
+                                                    <Image src={event.image || event.coverImage} fill className="object-cover transition-transform duration-1000 group-hover:scale-105" alt="" sizes="(max-width: 768px) 100vw, 50vw" />
                                                     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
                                                     <div className="absolute bottom-8 left-10 right-10 flex items-end justify-between">
                                                         <div>
@@ -187,7 +190,7 @@ export default function ProfileClient({ upcomingEvents, pastEvents, posts, highl
                                 <div key={post.id} className="p-0 rounded-[2.5rem] bg-[var(--surface-1)] border border-[var(--border-primary)] overflow-hidden hover:border-[var(--text-muted)] transition-all group shadow-sm hover:shadow-md">
                                     {post.imageUrl && (
                                         <div className="relative aspect-[4/3] w-full overflow-hidden border-b border-[var(--border-secondary)]">
-                                            <img src={post.imageUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="" />
+                                            <Image src={post.imageUrl} fill className="object-cover transition-transform duration-700 group-hover:scale-105" alt="" sizes="(max-width: 768px) 100vw, 33vw" />
                                         </div>
                                     )}
 
@@ -198,7 +201,7 @@ export default function ProfileClient({ upcomingEvents, pastEvents, posts, highl
                                                     {venue.name.charAt(0)}
                                                 </div>
                                                 <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest">
-                                                    {new Date(post.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Kolkata' })}
+                                                    {dateFormatter.format(new Date(post.createdAt))}
                                                 </span>
                                             </div>
                                         </div>
@@ -247,7 +250,7 @@ export default function ProfileClient({ upcomingEvents, pastEvents, posts, highl
                                         transition={{ delay: idx * 0.05 }}
                                         className="relative aspect-square rounded-[2rem] overflow-hidden border border-[var(--border-primary)] group"
                                     >
-                                        <img src={photo} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt="" />
+                                        <Image src={photo} fill className="object-cover transition-transform duration-1000 group-hover:scale-110" alt="" sizes="(max-width: 768px) 100vw, 33vw" />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                     </motion.div>
                                 ))}

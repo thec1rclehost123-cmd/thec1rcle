@@ -637,7 +637,7 @@ export default function CreateEventForm() {
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       {galleryImages.slice(0, 6).map((url, i) => (
                         <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-black/10 dark:border-white/10">
-                          <Image src={url} alt={`Gallery ${i + 1}`} fill className="object-cover" />
+                          <Image src={url} alt={`Gallery ${i + 1}`} fill sizes="(max-width: 768px) 100vw, 200px" className="object-cover" />
                         </div>
                       ))}
                     </div>
@@ -686,7 +686,7 @@ export default function CreateEventForm() {
               onClick={handleFlyerUploadClick}
             >
               {form.image && (
-                <Image src={form.image} alt="Flyer" fill className="object-cover" />
+                <Image src={form.image} alt="Flyer" fill sizes="(max-width: 768px) 100vw, 400px" className="object-cover" />
               )}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <span className="text-white text-xs font-bold uppercase tracking-widest">

@@ -2,26 +2,30 @@
   "name": "@c1rcle/monorepo",
   "private": true,
   "packageManager": "npm@11.6.2",
-  "type": "module",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "turbo dev",
-    "dev:guest": "npm run dev -w apps/guest-portal",
-    "dev:partner": "npm run dev -w apps/partner-dashboard",
-    "dev:admin": "npm run dev -w apps/admin-console",
+    "dev": "turbo dev --filter=!@c1rcle/mobile-app --filter=!@c1rcle/scanner-app",
+    "dev:guest": "turbo run dev --filter=@c1rcle/guest-portal",
+    "dev:partner": "turbo run dev --filter=@c1rcle/partner-dashboard",
+    "dev:admin": "turbo run dev --filter=@c1rcle/admin-console",
+    "dev:mobile": "npm run dev --workspace=apps/mobile-app",
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:3005/api/inngest",
     "build": "turbo build",
     "lint": "turbo lint --cache-dir=.turbo",
     "type-check": "turbo type-check",
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
-    "install:all": "npm install"
+    "install:all": "npx npm install"
   },
   "devDependencies": {
+    "@alloc/quick-lru": "^5.2.0",
+    "@next/swc-win32-x64-msvc": "^16.1.6",
+    "colorette": "^2.0.20",
     "expo": "^54.0.31",
+    "next": "^14.2.3",
     "turbo": "^2.7.3",
     "vitest": "^4.0.18"
   },

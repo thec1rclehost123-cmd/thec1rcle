@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
 
 /**
  * ⚡ FIX 2: Zustand Cache for Explore Page Events
@@ -23,83 +22,77 @@ import { persist, createJSONStorage } from "zustand/middleware";
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export const useExploreStore = create(
-    persist(
-        (set, get) => ({
-            // All events from the API
-            events: [],
+    (set, get) => ({
+        // All events from the API
+        events: [],
 
-            // 'idle' | 'loading' | 'ready' | 'error'
-            status: "idle",
+        // 'idle' | 'loading' | 'ready' | 'error'
+        status: "idle",
 
-            // Error message if fetch failed
-            error: "",
+        // Error message if fetch failed
+        error: "",
 
-            // Pagination Metadata
-            nextCursor: null,
-            hasMore: true,
+        // Pagination Metadata
+        nextCursor: null,
+        hasMore: true,
 
-            /**
-             * Fetch events from the API, supporting both initial load and 
-             * "load more" via cursor-based pagination.
-             */
-            fetchEvents: async (reset = false) => {
-                const { lastFetchedAt, status, nextCursor, events: existingEvents } = get();
+        /**
+         * Fetch events from the API, supporting both initial load and 
+         * "load more" via cursor-based pagination.
+         */
+        fetchEvents: async (reset = false) => {
+            const { lastFetchedAt, status, nextCursor, events: existingEvents } = get();
 
-                // ⚡ Guard: Already fetching
-                if (status === "loading") return;
+            // ⚡ Guard: Already fetching
+            if (status === "loading") return;
 
-                // ⚡ Guard: Cache fresh (only for initial load)
-                const isFresh = lastFetchedAt !== null && Date.now() - lastFetchedAt < CACHE_TTL_MS;
-                if (!reset && isFresh) return;
+            // ⚡ Guard: Cache fresh (only for initial load)
+            const isFresh = lastFetchedAt !== null && Date.now() - lastFetchedAt < CACHE_TTL_MS;
+            if (!reset && isFresh) return;
 
-                set({ status: "loading", error: "" });
+            set({ status: "loading", error: "" });
 
-                try {
-                    const cursor = reset ? "" : (nextCursor || "");
-                    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "";
+            try {
+                const cursor = reset ? "" : (nextCursor || "");
+                const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "";
 
-                    // We now pass lastId for server-side pagination
-                    let url = `${gatewayUrl}/api/v1/events?limit=12&sort=soonest`;
-                    if (cursor) url += `&lastId=${cursor}`;
+                // We now pass lastId for server-side pagination
+                let url = `${gatewayUrl}/api/v1/events?limit=12&sort=soonest`;
+                if (cursor) url += `&lastId=${cursor}`;
 
-                    const response = await fetch(url);
+                const response = await fetch(url);
 
-                    if (!response.ok) {
-                        throw new Error("Unable to fetch events");
-                    }
-
-                    const payload = await response.json();
-
-                    // payload looks like: { success: true, events: [], nextCursor: "...", hasMore: true }
-                    const newEvents = payload.events || [];
-                    const updatedEvents = reset ? newEvents : [...existingEvents, ...newEvents];
-
-                    set({
-                        events: updatedEvents,
-                        nextCursor: payload.nextCursor || null,
-                        hasMore: payload.hasMore !== undefined ? payload.hasMore : false,
-                        status: "ready",
-                        lastFetchedAt: Date.now(),
-                        error: "",
-                    });
-
-                } catch (err) {
-                    set((state) => ({
-                        status: state.events.length > 0 ? "ready" : "error",
-                        error: err.message || "Unable to fetch events",
-                    }));
+                if (!response.ok) {
+                    throw new Error("Unable to fetch events");
                 }
-            },
 
-            /**
-             * Force-invalidate the cache. Call this if the user manually refreshes
-             * or if you know the data has changed (e.g. after creating an event).
-             */
-            invalidate: () => set({ lastFetchedAt: null }),
-        }),
-        {
-            name: 'explore-cache',
-            storage: createJSONStorage(() => localStorage),
-        }
-    )
+                const payload = await response.json();
+
+                // payload looks like: { success: true, events: [], nextCursor: "...", hasMore: true }
+                const newEvents = payload.events || [];
+                const updatedEvents = reset ? newEvents : [...existingEvents, ...newEvents];
+
+                set({
+                    events: updatedEvents,
+                    nextCursor: payload.nextCursor || null,
+                    hasMore: payload.hasMore !== undefined ? payload.hasMore : false,
+                    status: "ready",
+                    lastFetchedAt: Date.now(),
+                    error: "",
+                });
+
+            } catch (err) {
+                set((state) => ({
+                    status: state.events.length > 0 ? "ready" : "error",
+                    error: err.message || "Unable to fetch events",
+                }));
+            }
+        },
+
+        /**
+         * Force-invalidate the cache. Call this if the user manually refreshes
+         * or if you know the data has changed (e.g. after creating an event).
+         */
+        invalidate: () => set({ lastFetchedAt: null }),
+    })
 );

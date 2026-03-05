@@ -4,6 +4,17 @@ import "./lib/env.js";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@c1rcle/core', '@c1rcle/ui'],
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "date-fns",
+      "lodash",
+      "framer-motion",
+      "react-icons"
+    ],
+    instrumentationHook: true,
+  },
+  productionBrowserSourceMaps: false,
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -11,6 +22,9 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
+    dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     remotePatterns: [
       { protocol: 'https', hostname: 'firebasestorage.googleapis.com', pathname: '/**' },
       { protocol: 'https', hostname: 'storage.googleapis.com', pathname: '/**' },
@@ -38,6 +52,14 @@ const nextConfig = {
   async redirects() {
     return [
       { source: '/club/:path*', destination: '/venue/:path*', permanent: true },
+    ]
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/v1/:path*',
+        destination: 'http://localhost:4000/api/v1/:path*' // Proxy to API Gateway running on port 4000
+      }
     ]
   }
 };

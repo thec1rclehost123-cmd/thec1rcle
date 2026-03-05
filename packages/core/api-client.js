@@ -5,7 +5,7 @@
 
 export class C1rcleApiClient {
     constructor(config) {
-        this.baseUrl = config.baseUrl || "http://localhost:3000/api/v1";
+        this.baseUrl = config.baseUrl || "/api/v1";
         this.getAuthToken = config.getAuthToken || (async () => null);
         this.onUnauthorized = config.onUnauthorized || (() => { });
     }

@@ -154,7 +154,7 @@ export default function VenueSocialProof({
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                     {similarVenues.slice(0, 3).map((v) => (
                                         <Link key={v.id} href={`/venue/${v.slug || v.id}`} className="group relative aspect-square rounded-2xl overflow-hidden">
-                                            <Image src={v.coverURL || v.image || "/events/neon-nights.jpg"} fill className="object-cover group-hover:scale-110 transition-transform duration-700" alt={v.name} />
+                                            <Image src={v.coverURL || v.image || "/events/neon-nights.jpg"} fill sizes="(max-width: 768px) 100vw, 300px" className="object-cover group-hover:scale-110 transition-transform duration-700" alt={v.name} />
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                                             <div className="absolute bottom-4 left-4 right-4">
                                                 <p className="text-sm font-black text-white uppercase tracking-tight">{v.name}</p>

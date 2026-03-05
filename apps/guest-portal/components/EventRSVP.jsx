@@ -6,6 +6,7 @@ import { EventPage } from "@c1rcle/ui";
 import { useAuth } from "./providers/AuthProvider";
 import { useToast } from "./providers/ToastProvider";
 import { saveIntent } from "../lib/utils/intentStore";
+import { useSocialActions } from "../hooks/useSocialActions";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 
@@ -59,6 +60,7 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
   const router = useRouter();
   const pathname = usePathname();
   const { user, profile, updateEventList } = useAuth();
+  const { toggleRSVP, isRSVPLoading } = useSocialActions(event?.id);
   const { toast } = useToast();
   const [promoterCode, setPromoterCode] = useState(null);
   const [notLiveModalOpen, setNotLiveModalOpen] = useState(() => {
@@ -137,12 +139,7 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
       case "RSVP":
         if (!ensureAuthenticated("RSVP")) return;
         const hasRSVPd = Boolean(event?.id && profile?.attendedEvents?.includes(event.id));
-        try {
-          await updateEventList("attendedEvents", event.id, !hasRSVPd);
-          toast(!hasRSVPd ? "RSVP confirmed" : "RSVP removed", "success");
-        } catch (error) {
-          toast("Unable to update RSVP status.", "error");
-        }
+        toggleRSVP(!hasRSVPd);
         break;
 
       case "LIKE":

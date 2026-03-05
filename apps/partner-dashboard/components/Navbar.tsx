@@ -8,9 +8,8 @@ import { useAuth } from "./providers/AuthProvider";
 import ThemeToggle from "./ThemeToggle";
 
 const navLinks = [
-  { label: "Explore", href: "/explore" },
+  { label: "Explore", href: "/explore", prefetchQuery: "explore" },
   { label: "Create", href: "/create" },
-  // { label: "Circle", href: "/about" },
   { label: "App", href: "/app" }
 ];
 
@@ -59,10 +58,30 @@ export default function Navbar() {
           <div className="hidden items-center gap-1 lg:flex bg-black/5 dark:bg-white/5 rounded-full p-1 border border-black/5 dark:border-white/5 backdrop-blur-md">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
+              const prefetchTimeout = useRef(null);
+
+              const handleMouseEnter = () => {
+                if (link.prefetchQuery) {
+                  prefetchTimeout.current = setTimeout(() => {
+                    // Trigger prefetch here if using custom React Query prefetch
+                    console.log(`Prefetching ${link.prefetchQuery}...`);
+                  }, 200);
+                }
+              };
+
+              const handleMouseLeave = () => {
+                if (prefetchTimeout.current) {
+                  clearTimeout(prefetchTimeout.current);
+                }
+              };
+
               return (
                 <Link
                   key={link.href}
                   href={link.href}
+                  prefetch={true}
+                  onMouseEnter={handleMouseEnter}
+                  onMouseLeave={handleMouseLeave}
                   className={`relative px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-300 ${isActive ? "text-black dark:text-white" : "text-black/60 dark:text-white/60 hover:text-gold-light"
                     }`}
                 >

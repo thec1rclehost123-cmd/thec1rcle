@@ -501,7 +501,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 {/* Vertical Summary Container */}
                 <div className="hidden md:flex flex-col h-full bg-white/[0.03] rounded-[48px] border border-white/10 backdrop-blur-3xl overflow-hidden shadow-2xl">
                     <div className="relative h-40 shrink-0">
-                        <Image src={event.image || "/events/placeholder.jpg"} alt={event.title} fill className="object-cover" />
+                        <Image src={event.image || "/events/placeholder.jpg"} alt={event.title} fill sizes="(max-width: 768px) 100vw, 600px" className="object-cover" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
                         <div className="absolute bottom-6 left-8 right-8">
                             <div className="px-2 py-0.5 bg-orange/20 border border-orange/40 rounded-full w-fit mb-2">

@@ -24,6 +24,7 @@ export default function InterviewSection({ interviews }) {
                 src={item.image}
                 alt={item.title}
                 fill
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 800px"
                 className="object-cover transition-transform duration-700 hover:scale-105"
               />
             </div>

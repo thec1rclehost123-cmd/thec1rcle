@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
 import ShimmerImage from "../ShimmerImage";
-import { Heart, ArrowRight } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, memo } from "react";
 import { formatEventDate, formatEventTime } from "@c1rcle/core/time";
 import { resolvePoster } from "@c1rcle/core/events";
 
@@ -12,14 +10,14 @@ import { resolvePoster } from "@c1rcle/core/events";
  * Shared EventCard component for THE C1RCLE.
  * Matches user website design pixel-for-pixel.
  */
-export default function EventCard({
+const EventCard = ({
     event,
     index = 0,
     height = "h-[280px] sm:h-[340px] md:h-[420px]",
     isPreview = false,
     showDemoHover = false,
     device = "desktop"
-}) {
+}) => {
     // Computed price logic
     const priceDisplay = useMemo(() => {
         if (!event.tickets || event.tickets.length === 0) {
@@ -67,15 +65,8 @@ export default function EventCard({
     };
 
     return (
-        <motion.div
-            initial={isPreview ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-                duration: 0.5,
-                delay: index * 0.1,
-                ease: [0.16, 1, 0.3, 1]
-            }}
-            className={`relative w-full ${device === 'mobile' ? 'max-w-[320px] mx-auto' : 'h-full'}`}
+        <div
+            className={`transition-all duration-300 relative w-full ${device === 'mobile' ? 'max-w-[320px] mx-auto' : 'h-full'}`}
         >
             <Wrapper {...wrapperProps} className={`group relative block h-full w-full ${isPreview ? 'cursor-default' : ''}`}>
                 <div className={`gradient-border relative ${height} w-full overflow-hidden rounded-[20px] sm:rounded-[32px] bg-white dark:bg-surface transition-all duration-500 shadow-sm dark:shadow-none ${!isPreview ? 'btn-lift' : ''} ${showDemoHover ? 'translate-y-[-4px] shadow-lg shadow-orange/40' : ''}`}>
@@ -121,10 +112,9 @@ export default function EventCard({
                                 )}
                             </div>
 
-                            {/* Heart Button (Visual only in preview) */}
                             <div className="relative">
                                 <div className="group/like flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full border border-white/18 bg-white/12 backdrop-blur-[14px] transition-all duration-300">
-                                    <Heart size={20} className="text-white" />
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
                                 </div>
                             </div>
                         </div>
@@ -158,7 +148,7 @@ export default function EventCard({
                                                         style={{ zIndex: 3 - i }}
                                                     >
                                                         <ShimmerImage
-                                                            src={`https://api.dicebear.com/9.x/notionists/svg?seed=${guest}&backgroundColor=c0aede,b6e3f4`}
+                                                            src={`https://api.dicebear.com/9.x/notionists/svg?seed=${guest}&backgroundColor=c0aede`}
                                                             alt={guest}
                                                             fill
                                                             className="h-full w-full rounded-full object-cover"
@@ -184,7 +174,7 @@ export default function EventCard({
                                         className={`flex items-center gap-2 px-6 py-3 rounded-full bg-white text-black font-black text-[10px] uppercase tracking-widest hover:bg-white/90 transition-all shadow-xl shadow-black/20 ${isPreview ? 'cursor-pointer pointer-events-auto' : ''} active:scale-95`}
                                     >
                                         {isPreview ? 'View Experience' : 'Book Tickets'}
-                                        <ArrowRight className="h-3.5 w-3.5" />
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                                     </span>
                                 </div>
                             </div>
@@ -216,6 +206,8 @@ export default function EventCard({
           transform: translateY(-4px);
         }
       `}</style>
-        </motion.div>
+        </div>
     );
-}
+};
+
+export default memo(EventCard);

@@ -14,7 +14,7 @@ export default function EventGallery({ images = [] }) {
             className="group relative aspect-video overflow-hidden rounded-3xl border border-white/10"
             onClick={() => setOpenImage(img)}
           >
-            <Image src={img} alt={`Gallery ${idx}`} fill className="object-cover transition duration-500 group-hover:scale-105" />
+            <Image src={img} alt={`Gallery ${idx}`} fill sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" className="object-cover transition duration-500 group-hover:scale-105" />
           </button>
         ))}
       </div>
@@ -22,7 +22,7 @@ export default function EventGallery({ images = [] }) {
         <div className="modal-backdrop" onClick={() => setOpenImage(null)}>
           <div className="mx-auto mt-10 max-w-3xl" onClick={(e) => e.stopPropagation()}>
             <div className="relative aspect-[4/3] overflow-hidden rounded-[32px] border border-white/20">
-              <Image src={openImage} alt="Gallery fullscreen" fill className="object-cover" />
+              <Image src={openImage} alt="Gallery fullscreen" fill sizes="100vw" className="object-cover" />
             </div>
           </div>
         </div>

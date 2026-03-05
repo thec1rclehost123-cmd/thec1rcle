@@ -314,8 +314,8 @@ function CardItem({ card, index, progress, isMobile, isTablet, onClick, cardsCou
 }
 
 function CardContent({ card, progress, index, cardsCount }) {
-    const overlayTransform = useTransform(progress, (p) => {
-        if (!progress) return { opacity: 1, y: 0, textOpacity: 1 };
+    const overlayTransform = useTransform(progress || useMotionValue(0), (p) => {
+        if (typeof p !== 'number') return { opacity: 1, y: 0, textOpacity: 1 };
         let offset = index - (p % cardsCount);
         if (offset > cardsCount / 2) offset -= cardsCount;
         if (offset < -cardsCount / 2) offset += cardsCount;

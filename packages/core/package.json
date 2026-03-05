@@ -4,11 +4,11 @@
     "type": "module",
     "types": "./types.d.ts",
     "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch",
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "type-check": "tsc --noEmit",
+        "build": "node ../../node_modules/typescript/bin/tsc",
+        "dev": "node ../../node_modules/typescript/bin/tsc --watch",
+        "test": "node ../../node_modules/vitest/vitest.mjs run",
+        "test:watch": "node ../../node_modules/vitest/vitest.mjs",
+        "type-check": "node ../../node_modules/typescript/bin/tsc --noEmit",
         "lint": "echo \"No lint required\""
     },
     "exports": {
@@ -29,13 +29,6 @@
         "./lock-service": "./lock-service.js",
         "./analytics-service": "./analytics-service.js",
         "./inngest": "./inngest-client.js",
-        "./inngest-client": "./inngest-client.js",
-        "./workflows/ticketing": "./workflows/ticketing.js",
-        "./workflows/search-sync": "./workflows/search-sync.js",
-        "./workflows/maintenance": "./workflows/maintenance.js",
-        "./workflows/cancellation": "./workflows/cancellation.js",
-        "./workflows/heat-sorting": "./workflows/heat-sorting.js",
-        "./workflows/host-analytics": "./workflows/host-analytics.js",
         "./search": "./search.js",
         "./pricing-engine": "./pricing-engine.js",
         "./inventory-engine": "./inventory-engine.js",
@@ -68,6 +61,7 @@
         "./moderation-service": "./dist/domain/services/moderation-service.js"
     },
     "dependencies": {
+        "@c1rcle/types": "*",
         "firebase": "^12.6.0",
         "firebase-admin": "^13.6.0",
         "inngest": "^3.52.0",

@@ -5,12 +5,14 @@ import Footer from "../components/Footer";
 import MobileBottomNav from "../components/MobileBottomNav";
 import PageWrapper from "../components/PageWrapper";
 import AppProviders from "../components/providers/AppProviders";
-import ScrollProgressBar from "../components/ScrollProgressBar";
-import PageLoadingAnimation from "../components/PageLoadingAnimation";
-import SmoothScroll from "../components/SmoothScroll";
-import ProfileCompletionPrompt from "../components/ProfileCompletionPrompt";
 import { QueryProvider } from "../components/providers/QueryProvider";
 import { WebVitals } from "../components/WebVitals";
+import dynamic from "next/dynamic";
+
+const SmoothScroll = dynamic(() => import("../components/SmoothScroll"), { ssr: false });
+const PageLoadingAnimation = dynamic(() => import("../components/PageLoadingAnimation"), { ssr: false });
+const ProfileCompletionPrompt = dynamic(() => import("../components/ProfileCompletionPrompt"), { ssr: false });
+const ScrollProgressBar = dynamic(() => import("../components/ScrollProgressBar"), { ssr: false });
 
 const inter = Inter({
   subsets: ["latin"],

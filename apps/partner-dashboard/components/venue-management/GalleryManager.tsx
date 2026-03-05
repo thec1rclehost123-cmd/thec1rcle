@@ -113,80 +113,84 @@ export default function GalleryManager({ venueId, photos, onRefresh }: GalleryMa
                 </div>
             </div>
 
+import { ErrorBoundary } from "@c1rcle/ui";
+
             {/* Gallery Grid */}
-            <div className="grid grid-cols-3 gap-4">
-                <Reorder.Group
-                    axis="x"
-                    values={photos}
-                    onReorder={handleReorder}
-                    className="contents"
-                >
-                    {photos.map((photo) => (
-                        <Reorder.Item
-                            key={photo.id}
-                            value={photo}
-                            className="relative aspect-square rounded-2xl overflow-hidden group cursor-grab active:cursor-grabbing bg-[var(--surface-secondary)]"
-                        >
-                            <img
-                                src={photo.imageUrl}
-                                className="w-full h-full object-cover"
-                                alt=""
-                                onClick={() => setLightboxImage(photo.imageUrl)}
+            <ErrorBoundary>
+                <div className="grid grid-cols-3 gap-4">
+                    <Reorder.Group
+                        axis="x"
+                        values={photos}
+                        onReorder={handleReorder}
+                        className="contents"
+                    >
+                        {photos.map((photo) => (
+                            <Reorder.Item
+                                key={photo.id}
+                                value={photo}
+                                className="relative aspect-square rounded-2xl overflow-hidden group cursor-grab active:cursor-grabbing bg-[var(--surface-secondary)]"
+                            >
+                                <img
+                                    src={photo.imageUrl}
+                                    className="w-full h-full object-cover"
+                                    alt=""
+                                    onClick={() => setLightboxImage(photo.imageUrl)}
+                                />
+
+                                {/* Overlay */}
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRemovePhoto(photo.id);
+                                        }}
+                                        className="p-3 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                                    >
+                                        <Trash2 className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                {/* Drag Handle */}
+                                <div className="absolute top-2 left-2 p-1.5 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <GripVertical className="w-4 h-4 text-white" />
+                                </div>
+                            </Reorder.Item>
+                        ))}
+                    </Reorder.Group>
+
+                    {/* Add Photo Slot */}
+                    {photos.length < 9 && (
+                        <label className="aspect-square rounded-2xl border-2 border-dashed border-[var(--border-subtle)] flex flex-col items-center justify-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-all">
+                            {uploading ? (
+                                <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+                            ) : (
+                                <>
+                                    <Plus className="w-8 h-8 text-[var(--text-tertiary)]" />
+                                    <span className="text-sm text-[var(--text-tertiary)] mt-2">Add Photo</span>
+                                </>
+                            )}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleUploadPhoto(file);
+                                }}
                             />
+                        </label>
+                    )}
 
-                            {/* Overlay */}
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRemovePhoto(photo.id);
-                                    }}
-                                    className="p-3 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                                >
-                                    <Trash2 className="w-5 h-5" />
-                                </button>
-                            </div>
-
-                            {/* Drag Handle */}
-                            <div className="absolute top-2 left-2 p-1.5 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                                <GripVertical className="w-4 h-4 text-white" />
-                            </div>
-                        </Reorder.Item>
-                    ))}
-                </Reorder.Group>
-
-                {/* Add Photo Slot */}
-                {photos.length < 9 && (
-                    <label className="aspect-square rounded-2xl border-2 border-dashed border-[var(--border-subtle)] flex flex-col items-center justify-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-all">
-                        {uploading ? (
-                            <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-                        ) : (
-                            <>
-                                <Plus className="w-8 h-8 text-[var(--text-tertiary)]" />
-                                <span className="text-sm text-[var(--text-tertiary)] mt-2">Add Photo</span>
-                            </>
-                        )}
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleUploadPhoto(file);
-                            }}
+                    {/* Empty Placeholders */}
+                    {Array.from({ length: Math.max(0, 9 - photos.length - 1) }).map((_, idx) => (
+                        <div
+                            key={`placeholder-${idx}`}
+                            className="aspect-square rounded-2xl bg-[var(--surface-secondary)]/30 border border-dashed border-[var(--border-subtle)]"
                         />
-                    </label>
-                )}
-
-                {/* Empty Placeholders */}
-                {Array.from({ length: Math.max(0, 9 - photos.length - 1) }).map((_, idx) => (
-                    <div
-                        key={`placeholder-${idx}`}
-                        className="aspect-square rounded-2xl bg-[var(--surface-secondary)]/30 border border-dashed border-[var(--border-subtle)]"
-                    />
-                ))}
-            </div>
+                    ))}
+                </div>
+            </ErrorBoundary>
 
             {/* Tips */}
             <div className="bg-[var(--surface-secondary)]/50 rounded-xl p-4">

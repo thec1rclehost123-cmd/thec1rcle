@@ -1,6 +1,5 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { getUserOrders } from "./orderStore";
-import { fetchEventsByIds } from "../firebase/eventsClient"; // Actually this is a client-side thing, let's use a server-side one
 import { getEvent } from "./eventStore";
 import { createHmac } from "node:crypto";
 import { getUserClaimedTickets, getOrderShareBundles, getOrderAssignments, getCoupleAssignment, getPendingTransfers } from "./ticketShareStore";

@@ -39,6 +39,7 @@ import registerRoutes from './routes/v1/registers';
 import promoterConnectionsRoutes from './routes/v1/promoter-connections';
 import notificationsRoutes from './routes/v1/notifications';
 import venueSettingsRoutes from './routes/v1/venue-settings';
+import venueRoutes from './routes/v1/venues';
 import matchingRoutes from './routes/v1/matching';
 import authRoutes from './routes/v1/auth';
 import adminRoutes from './routes/v1/admin';
@@ -176,6 +177,7 @@ async function main() {
     await server.register(promoterConnectionsRoutes, { prefix: '/api/v1/promoter-connections' });
     await server.register(notificationsRoutes, { prefix: '/api/v1/notifications' });
     await server.register(venueSettingsRoutes, { prefix: '/api/v1/venue-settings' });
+    await server.register(venueRoutes, { prefix: '/api/v1' });
     await server.register(matchingRoutes, { prefix: '/api/v1/matching' });
 
     // Enhanced Database-aware Health Check

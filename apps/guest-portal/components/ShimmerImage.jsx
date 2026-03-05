@@ -7,33 +7,7 @@ export default function ShimmerImage({ className = "", wrapperClassName = "", on
   const imgRef = useRef(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
-  const isPlaceholder = props.src === "placeholder";
-
-  useEffect(() => {
-    setLoaded(false);
-    setError(false);
-    if (props.src && String(props.src).startsWith('http')) {
-      console.log(`[ShimmerImage] Loading: ${props.alt} -> ${props.src}`);
-    }
-    const img = imgRef.current;
-    if (img && img.complete && img.naturalWidth > 0 && !isPlaceholder) {
-      setLoaded(true);
-    }
-  }, [props.src, isPlaceholder, props.alt]);
-
-  const handleLoad = (event) => {
-    setLoaded(true);
-    if (typeof onLoad === "function") {
-      onLoad(event);
-    }
-  };
-
-  const handleComplete = (img) => {
-    setLoaded(true);
-    if (typeof onLoadingComplete === "function") {
-      onLoadingComplete(img);
-    }
-  };
+  const isDiceBear = typeof props.src === "string" && props.src.includes("dicebear.com");
 
   return (
     <div className={`relative ${props.fill ? "h-full w-full" : ""} ${wrapperClassName}`}>
@@ -44,18 +18,17 @@ export default function ShimmerImage({ className = "", wrapperClassName = "", on
         <div className="absolute inset-0 -translate-x-full animate-[shimmer-block_2s_infinite] bg-gradient-to-r from-transparent via-black/10 to-transparent dark:via-white/10" />
       </div>
 
-      {!isPlaceholder && !error ? (
+      {!error ? (
         <Image
+          sizes={props.sizes || (props.fill ? defaultSizes : undefined)}
           {...props}
-          unoptimized={props.unoptimized || (props.src && String(props.src).startsWith('http'))}
+          unoptimized={isDiceBear || props.unoptimized || (props.src && String(props.src).startsWith('http'))}
           ref={imgRef}
           className={`relative z-10 ${className}`}
           onLoad={(event) => {
             handleLoad(event);
-            handleComplete(event.target);
           }}
-          onError={(e) => {
-            console.error(`[ShimmerImage] Failed to load: ${props.alt}`, props.src);
+          onError={() => {
             setError(true);
           }}
         />

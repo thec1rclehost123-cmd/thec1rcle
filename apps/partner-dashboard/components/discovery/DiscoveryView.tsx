@@ -19,6 +19,7 @@ import {
     Send,
     Loader2
 } from "lucide-react";
+import { VirtuosoGrid } from "react-virtuoso";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
@@ -190,16 +191,22 @@ export function DiscoveryView({
                     <p className="text-slate-500 font-medium mt-2 max-w-xs">We couldn't find any partners matching those filters right now.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {partners.map((partner) => (
-                        <PartnerCard
-                            key={partner.id}
-                            partner={partner}
-                            onAction={() => handleRequest(partner)}
-                            isActionLoading={sendingRequest === partner.id}
-                        />
-                    ))}
-                </div>
+                <VirtuosoGrid
+                    useWindowScroll
+                    data={partners}
+                    totalCount={partners.length}
+                    overscan={200}
+                    listClassName="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                    itemContent={(index, partner) => (
+                        <div className="p-1">
+                            <PartnerCard
+                                partner={partner}
+                                onAction={() => handleRequest(partner)}
+                                isActionLoading={sendingRequest === partner.id}
+                            />
+                        </div>
+                    )}
+                />
             )}
 
             {/* Success Modal */}

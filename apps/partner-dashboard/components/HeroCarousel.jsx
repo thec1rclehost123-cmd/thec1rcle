@@ -1,8 +1,12 @@
 "use client";
 
-import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+
+const motion = {
+  div: dynamic(() => import("framer-motion").then((mod) => mod.motion.div), { ssr: false }),
+};
 
 export default function HeroCarousel({ cards = [] }) {
   if (!cards.length) return null;

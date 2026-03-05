@@ -1,0 +1,43 @@
+GÇó Packages in scope: @c1rcle/admin-console, @c1rcle/core, @c1rcle/guest-portal, @c1rcle/partner-dashboard, @c1rcle/scanner-app, @c1rcle/types, @c1rcle/ui, api-gateway
+GÇó Running dev in 8 packages
+GÇó Remote caching disabled
+api-gateway:dev: cache bypass, force executing 7d53f2df0b6d7dc1
+@c1rcle/guest-portal:dev: cache bypass, force executing 93a958ea35849699
+@c1rcle/core:dev: cache bypass, force executing 504854d8305e118f
+@c1rcle/admin-console:dev: cache bypass, force executing 4e922e6565d2e10d
+@c1rcle/partner-dashboard:dev: cache bypass, force executing 1139309cda2aa3de
+@c1rcle/types:dev: cache bypass, force executing 05378a85ef48a5e1
+@c1rcle/core:dev: 
+@c1rcle/core:dev: > @c1rcle/core@0.1.0 dev
+@c1rcle/core:dev: > tsc --watch
+@c1rcle/core:dev: 
+@c1rcle/guest-portal:dev: npm warn config ignoring workspace config at C:\Users\Gauri\Desktop\Sagar\Circle\thec1rcle\apps\guest-portal/.npmrc
+@c1rcle/types:dev: 
+@c1rcle/types:dev: > @c1rcle/types@0.1.0 dev
+@c1rcle/types:dev: > tsc --watch
+@c1rcle/types:dev: 
+@c1rcle/guest-portal:dev: 
+@c1rcle/guest-portal:dev: > @c1rcle/guest-portal@0.1.0 dev
+@c1rcle/guest-portal:dev: > npx next dev --turbo
+@c1rcle/guest-portal:dev: 
+@c1rcle/admin-console:dev: 
+@c1rcle/admin-console:dev: > @c1rcle/admin-console@0.1.0 dev
+@c1rcle/admin-console:dev: > npx next dev -p 3002
+@c1rcle/admin-console:dev: 
+@c1rcle/core:dev: 'tsc' is not recognized as an internal or external command,
+@c1rcle/core:dev: operable program or batch file.
+@c1rcle/core:dev: npm error Lifecycle script `dev` failed with error:
+@c1rcle/core:dev: npm error code 1
+@c1rcle/core:dev: npm error path C:\Users\Gauri\Desktop\Sagar\Circle\thec1rcle\packages\core
+@c1rcle/core:dev: npm error workspace @c1rcle/core@0.1.0
+@c1rcle/core:dev: npm error location C:\Users\Gauri\Desktop\Sagar\Circle\thec1rcle\packages\core
+@c1rcle/core:dev: npm error command failed
+@c1rcle/core:dev: npm error command C:\WINDOWS\system32\cmd.exe /d /s /c tsc --watch
+@c1rcle/types:dev: 'tsc' is not recognized as an internal or external command,
+@c1rcle/types:dev: operable program or batch file.
+
+ Tasks:    0 successful, 6 total
+Cached:    0 cached, 6 total
+  Time:    4.256s 
+Failed:    @c1rcle/core#dev
+

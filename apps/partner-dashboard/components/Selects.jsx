@@ -38,6 +38,7 @@ export default function Selects({ items }) {
                 src={item.image}
                 alt={item.title}
                 fill
+                sizes="(max-width: 768px) 100vw, 400px"
                 className="object-cover transition-all duration-700 group-hover:scale-110 group-hover:brightness-75"
                 loading="lazy"
               />

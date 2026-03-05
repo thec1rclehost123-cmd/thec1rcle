@@ -2,14 +2,15 @@
   "name": "@c1rcle/partner-dashboard",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "scripts": {
     "dev": "next dev -p 3001",
     "dev:staging": "node -e \"require('fs').copyFileSync('.env.staging', '.env.local')\" && next dev -p 3001",
     "dev:prod": "node -e \"require('fs').copyFileSync('.env.production', '.env.local')\" && next dev -p 3001",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint --dir app --dir components --dir lib",
-    "type-check": "tsc --noEmit"
+    "lint": "npx next lint --dir app --dir components --dir lib",
+    "type-check": "npx tsc --noEmit"
   },
   "dependencies": {
     "@c1rcle/core": "*",

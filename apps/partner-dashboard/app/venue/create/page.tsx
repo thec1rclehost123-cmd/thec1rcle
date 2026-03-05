@@ -1,11 +1,5 @@
-"use client";
+import PageClient from './PageClient';
 
-import { CreateEventWizardV2 } from "@/components/wizard/CreateEventWizardV2";
-
-export default function VenueCreateEventPage() {
-    return (
-        <div className="pb-20">
-            <CreateEventWizardV2 role="venue" />
-        </div>
-    );
+export default function Page(props: any) {
+  return <PageClient {...props} />;
 }

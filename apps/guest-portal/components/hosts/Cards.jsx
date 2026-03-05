@@ -1,19 +1,12 @@
+import { memo } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { BadgeCheck } from "lucide-react";
 import Skeleton from "../ui/Skeleton";
 import ShimmerImage from "../ShimmerImage";
 
-export function VenueCard({ venue, onFollow }) {
+export const VenueCard = memo(function VenueCard({ venue, onFollow }) {
     const imageUrl = venue.image || venue.coverURL || venue.bannerImage || '/events/neon-nights.jpg';
-
-    // Debug log to see why images are missing
-    console.log(`[VenueCard] Rendering ${venue.name}:`, {
-        id: venue.id,
-        image: venue.image,
-        coverURL: venue.coverURL,
-        using: imageUrl
-    });
 
     return (
         <motion.div
@@ -92,9 +85,9 @@ export function VenueCard({ venue, onFollow }) {
             </Link>
         </motion.div>
     );
-}
+});
 
-export function HostCard({ host, onFollow }) {
+export const HostCard = memo(function HostCard({ host, onFollow }) {
     return (
         <motion.div
             whileHover={{ y: -5 }}
@@ -183,7 +176,7 @@ export function HostCard({ host, onFollow }) {
             </Link>
         </motion.div>
     );
-}
+});
 
 export function CardSkeleton() {
     return (

@@ -28,17 +28,18 @@ export default fp(async (fastify: FastifyInstance) => {
                 }
             } catch (error) {
                 if (error instanceof ZodError) {
+                    const zodError = error as any;
                     fastify.log.warn({
                         requestId: request.id,
                         url: request.url,
-                        validationErrors: error.errors
+                        validationErrors: zodError.errors
                     }, 'Validation Failed');
 
                     return reply.status(400).send({
                         error: 'Bad Request',
                         message: 'Validation failed',
                         requestId: request.id,
-                        details: error.errors.map(e => ({
+                        details: zodError.errors.map((e: any) => ({
                             path: e.path.join('.'),
                             message: e.message
                         }))

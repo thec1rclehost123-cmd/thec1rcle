@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const envSchema = z.object({
-    PORT: z.string().optional().default('4000').transform(Number),
+    PORT: z.string().optional().default('3001').transform(Number),
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     FIREBASE_PROJECT_ID: z.string().min(1, 'FIREBASE_PROJECT_ID is required'),
     FIREBASE_CLIENT_EMAIL: z.string().optional(),

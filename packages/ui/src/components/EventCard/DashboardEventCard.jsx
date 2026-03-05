@@ -1,20 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-    MoreVertical,
-    ArrowRight,
-    Eye,
-    Edit3,
-    CheckCircle,
-    XCircle,
-    Share2,
-    BarChart3,
-    Clock,
-    MoreHorizontal
-} from "lucide-react";
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, memo } from "react";
 import ShimmerImage from "../ShimmerImage.jsx";
 import { formatEventDate, formatEventTime } from "@c1rcle/core/time";
 import { resolvePoster } from "@c1rcle/core/events";
@@ -23,7 +10,7 @@ import { resolvePoster } from "@c1rcle/core/events";
  * Unified Dashboard EventCard for THE C1RCLE.
  * Matches guest-facing design but with role-based actions and status indicators.
  */
-export default function DashboardEventCard({
+const DashboardEventCard = ({
     event,
     index = 0,
     height = "h-[280px] sm:h-[340px] md:h-[420px]",
@@ -32,7 +19,7 @@ export default function DashboardEventCard({
     secondaryActions = [], // Array of { label, onClick, icon, color, href }
     status: statusOverride = null,
     showStats = false
-}) {
+}) => {
     const [showMenu, setShowMenu] = useState(false);
     const menuRef = useRef(null);
 
@@ -93,11 +80,8 @@ export default function DashboardEventCard({
     const poster = resolvePoster(event);
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: index * 0.05 }}
-            className="group relative w-full h-full overflow-hidden rounded-[2rem] bg-zinc-900 shadow-2xl"
+        <div
+            className="group relative w-full h-full overflow-hidden rounded-[2rem] bg-zinc-900 shadow-2xl transition-all duration-300 hover:-translate-y-1"
         >
             {/* Background Image */}
             <div className={`absolute inset-0 z-0 ${height}`}>
@@ -145,7 +129,7 @@ export default function DashboardEventCard({
                         {[1, 2, 3].map((_, i) => (
                             <div key={i} className="h-7 w-7 rounded-full border-2 border-zinc-900 bg-zinc-800 overflow-hidden">
                                 <img
-                                    src={`https://api.dicebear.com/9.x/notionists/svg?seed=user${i + index}&backgroundColor=c0aede,b6e3f4`}
+                                    src={`https://api.dicebear.com/9.x/notionists/svg?seed=user${i + index}&backgroundColor=c0aede`}
                                     alt="User"
                                     className="h-full w-full object-cover"
                                 />
@@ -156,11 +140,11 @@ export default function DashboardEventCard({
                     {showStats && event.stats && (
                         <div className="flex items-center gap-4 text-white/40 text-[10px] font-black uppercase tracking-widest">
                             <div className="flex items-center gap-1.5">
-                                <Eye size={14} className="text-white/20" />
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/20"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                                 {event.stats.views || 0}
                             </div>
                             <div className="flex items-center gap-1.5">
-                                <CheckCircle size={14} className="text-emerald-500/50" />
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500/50"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
                                 {event.stats.ticketsSold || event.stats.rsvps || 0}
                             </div>
                         </div>
@@ -176,7 +160,7 @@ export default function DashboardEventCard({
                                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-xs font-black uppercase tracking-widest text-black hover:bg-zinc-200 transition-all shadow-xl"
                             >
                                 {primaryAction.label}
-                                {primaryAction.icon || <ArrowRight size={16} />}
+                                {primaryAction.icon || <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>}
                             </Link>
                         ) : (
                             <button
@@ -187,7 +171,7 @@ export default function DashboardEventCard({
                                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-xs font-black uppercase tracking-widest text-black hover:bg-zinc-200 transition-all shadow-xl"
                             >
                                 {primaryAction.label}
-                                {primaryAction.icon || <ArrowRight size={16} />}
+                                {primaryAction.icon || <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>}
                             </button>
                         )}
                     </div>
@@ -204,53 +188,50 @@ export default function DashboardEventCard({
                         }}
                         className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/20 text-white backdrop-blur-xl transition-all hover:bg-white/10"
                     >
-                        <MoreHorizontal size={20} />
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
                     </button>
 
-                    <AnimatePresence>
-                        {showMenu && (
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                                animate={{ opacity: 1, scale: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                                className="absolute right-0 mt-3 w-56 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/90 p-1.5 backdrop-blur-2xl shadow-2xl"
-                            >
-                                {secondaryActions.map((action, i) => (
-                                    action.href ? (
-                                        <Link
-                                            key={i}
-                                            href={action.href}
-                                            className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold uppercase tracking-widest text-white/70 hover:bg-white/5 hover:text-white transition-all"
-                                            onClick={() => setShowMenu(false)}
-                                        >
-                                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5">
-                                                {action.icon}
-                                            </span>
-                                            {action.label}
-                                        </Link>
-                                    ) : (
-                                        <button
-                                            key={i}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                action.onClick?.();
-                                                setShowMenu(false);
-                                            }}
-                                            className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold uppercase tracking-widest transition-all hover:bg-white/5 ${action.color === 'red' ? 'text-red-400 hover:text-red-300' : 'text-white/70 hover:text-white'
-                                                }`}
-                                        >
-                                            <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${action.color === 'red' ? 'bg-red-500/10' : 'bg-white/5'}`}>
-                                                {action.icon}
-                                            </span>
-                                            {action.label}
-                                        </button>
-                                    )
-                                ))}
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                    {showMenu && (
+                        <div
+                            className="absolute right-0 mt-3 w-56 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/90 p-1.5 backdrop-blur-2xl shadow-2xl transition-all"
+                        >
+                            {secondaryActions.map((action, i) => (
+                                action.href ? (
+                                    <Link
+                                        key={i}
+                                        href={action.href}
+                                        className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold uppercase tracking-widest text-white/70 hover:bg-white/5 hover:text-white transition-all"
+                                        onClick={() => setShowMenu(false)}
+                                    >
+                                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5">
+                                            {action.icon}
+                                        </span>
+                                        {action.label}
+                                    </Link>
+                                ) : (
+                                    <button
+                                        key={i}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            action.onClick?.();
+                                            setShowMenu(false);
+                                        }}
+                                        className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold uppercase tracking-widest transition-all hover:bg-white/5 ${action.color === 'red' ? 'text-red-400 hover:text-red-300' : 'text-white/70 hover:text-white'
+                                            }`}
+                                    >
+                                        <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${action.color === 'red' ? 'bg-red-500/10' : 'bg-white/5'}`}>
+                                            {action.icon}
+                                        </span>
+                                        {action.label}
+                                    </button>
+                                )
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
-        </motion.div>
+        </div>
     );
-}
+};
+
+export default memo(DashboardEventCard);

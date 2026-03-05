@@ -2,12 +2,13 @@
   "name": "@c1rcle/admin-console",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "scripts": {
     "dev": "next dev -p 3002",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint --dir app --dir components --dir lib",
-    "type-check": "tsc --noEmit"
+    "lint": "npx next lint --dir app --dir components --dir lib",
+    "type-check": "npx tsc --noEmit"
   },
   "dependencies": {
     "@c1rcle/core": "*",
