@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
-import { discoverPartners, getConnectionStatus } from "@/lib/server/promoterConnectionStore";
+import { discoverPartners } from "@/lib/server/promoterConnectionStore";
 import { createRequest, approveRequest, rejectRequest, blockRequest, listConnections } from "@/lib/server/connectionService";
 
 /**
@@ -30,34 +30,44 @@ export async function GET(req: NextRequest) {
                 const search = searchParams.get("search");
                 const limit = parseInt(searchParams.get("limit") || "20");
 
-                const partners = await discoverPartners({
-                    type: type === "all" ? undefined : type,
-                    city: city || undefined,
-                    search: search || undefined,
-                    limit
-                });
+                const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
 
-                // Filter out self
-                const otherPartners = partners.filter(p => p.id !== partnerId);
+                // Fetch discovered partners + existing connections in parallel (single list call,
+                // avoids N individual /status calls against a missing API Gateway endpoint)
+                const [partners, existingConnections] = await Promise.all([
+                    discoverPartners({
+                        type: type === "all" ? undefined : type,
+                        city: city || undefined,
+                        search: search || undefined,
+                        limit
+                    }, token),
+                    listConnections(partnerId, role as string, null, token)
+                ]);
 
-                // Get connection status for each partner
-                const partnersWithStatus = await Promise.all(
-                    otherPartners.map(async (partner) => {
-                        const statusResult = await getConnectionStatus(partnerId, partner.id, role as string);
+                // Build a status lookup map keyed by the other party's ID
+                const statusMap = new Map<string, { status: string; id: string }>();
+                for (const conn of existingConnections) {
+                    statusMap.set(conn.otherId, { status: conn.status, id: conn.id });
+                }
+
+                const partnersWithStatus = partners
+                    .filter((p: any) => p.id !== partnerId)
+                    .map((partner: any) => {
+                        const existing = statusMap.get(partner.id);
                         return {
                             ...partner,
-                            connectionStatus: statusResult?.status || null,
-                            connectionId: statusResult?.connectionId || null
+                            connectionStatus: existing?.status || null,
+                            connectionId: existing?.id || null
                         };
-                    })
-                );
+                    });
 
                 return NextResponse.json({ partners: partnersWithStatus });
             }
 
             case "list": {
                 const status = searchParams.get("status");
-                const connections = await listConnections(partnerId, role, status);
+                const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
+                const connections = await listConnections(partnerId, role, status, token);
                 return NextResponse.json({ connections });
             }
 
@@ -81,6 +91,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const body = await req.json();
         const {
             requesterId,
@@ -106,7 +117,7 @@ export async function POST(req: NextRequest) {
             targetType,
             targetName,
             message
-        });
+        }, token);
 
         return NextResponse.json(result);
     } catch (error: any) {
@@ -126,19 +137,22 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const body = await req.json();
-        const { connectionId, action, role, partnerId, partnerName, reason } = body;
+        const { connectionId, action, role, partnerId, partnerName, reason, tier } = body;
+
+        const type = body.type || "promoter_connection"; // default
 
         if (!connectionId || !action) {
             return NextResponse.json({ error: "connectionId and action are required" }, { status: 400 });
         }
 
         if (action === "approve") {
-            await approveRequest(connectionId, role, partnerId, partnerName);
+            await approveRequest(connectionId, type, role, partnerId, partnerName, token, tier);
         } else if (action === "reject") {
-            await rejectRequest(connectionId, role, partnerId, partnerName, reason);
+            await rejectRequest(connectionId, type, role, partnerId, partnerName, reason, token);
         } else if (action === "block") {
-            await blockRequest(connectionId, role, partnerId, partnerName, reason);
+            await blockRequest(connectionId, type, role, partnerId, partnerName, reason, token);
         } else {
             return NextResponse.json({ error: "Invalid action" }, { status: 400 });
         }

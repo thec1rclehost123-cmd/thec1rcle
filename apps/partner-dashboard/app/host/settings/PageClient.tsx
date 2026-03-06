@@ -71,8 +71,8 @@ export default function HostSettingsPage() {
     if (isLoading) {
         return (
             <div className="py-24 flex flex-col items-center justify-center">
-                <Loader2 className="h-10 w-10 text-slate-200 animate-spin mb-4" />
-                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Loading Console...</p>
+                <Loader2 className="h-10 w-10 text-text-placeholder animate-spin mb-4" />
+                <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Loading Console...</p>
             </div>
         );
     }
@@ -80,17 +80,17 @@ export default function HostSettingsPage() {
     return (
         <div className="space-y-10 pb-20 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-10">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-default pb-10">
                 <div>
-                    <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-4 uppercase">
+                    <h1 className="text-4xl font-extrabold text-text-primary tracking-tight flex items-center gap-4 uppercase">
                         Console Prefs
                     </h1>
-                    <p className="text-slate-500 text-lg font-medium mt-3">Operational parameters, verification status, and payout anchors.</p>
+                    <p className="text-text-tertiary text-lg font-medium mt-3">Operational parameters, verification status, and payout anchors.</p>
                 </div>
                 <button
                     onClick={() => handleSave({})}
                     disabled={isSaving}
-                    className="flex items-center gap-3 px-10 py-4 bg-slate-900 text-white rounded-2xl text-sm font-bold shadow-xl shadow-slate-200 active:scale-95 transition-all"
+                    className="flex items-center gap-3 px-10 py-4 bg-surface-secondary text-text-primary rounded-2xl text-sm font-bold shadow-xl shadow-slate-200 active:scale-95 transition-all"
                 >
                     {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
                     Sync Settings
@@ -109,8 +109,8 @@ export default function HostSettingsPage() {
                 {/* Content */}
                 <div className="lg:col-span-3 space-y-12">
                     {activeSection === "profile" && (
-                        <div className="bg-white rounded-[2.5rem] border border-slate-200 p-12 shadow-sm space-y-10">
-                            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-4">
+                        <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-12 shadow-sm space-y-10">
+                            <h2 className="text-2xl font-black text-text-primary uppercase tracking-tight flex items-center gap-4">
                                 Personal Anchors
                             </h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -119,7 +119,7 @@ export default function HostSettingsPage() {
                                         type="tel"
                                         defaultValue={settings?.phone}
                                         onBlur={(e) => handleSave({ phone: e.target.value })}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-bold text-sm focus:bg-white focus:ring-4 focus:ring-slate-50 transition-all"
+                                        className="w-full bg-surface-tertiary border border-border-default rounded-2xl p-4 font-bold text-sm focus:bg-surface-elevated focus:ring-4 focus:ring-slate-50 transition-all"
                                     />
                                 </SettingsField>
                                 <SettingsField label="Support Email" icon={AtSign}>
@@ -127,7 +127,7 @@ export default function HostSettingsPage() {
                                         type="email"
                                         defaultValue={settings?.email}
                                         onBlur={(e) => handleSave({ email: e.target.value })}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-bold text-sm focus:bg-white focus:ring-4 focus:ring-slate-50 transition-all"
+                                        className="w-full bg-surface-tertiary border border-border-default rounded-2xl p-4 font-bold text-sm focus:bg-surface-elevated focus:ring-4 focus:ring-slate-50 transition-all"
                                     />
                                 </SettingsField>
                             </div>
@@ -135,17 +135,17 @@ export default function HostSettingsPage() {
                     )}
 
                     {activeSection === "security" && (
-                        <div className="bg-white rounded-[2.5rem] border border-slate-200 p-12 shadow-sm space-y-10">
-                            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Security Checkpoint</h2>
-                            <div className="p-8 bg-slate-900 rounded-3xl text-white flex items-center justify-between">
+                        <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-12 shadow-sm space-y-10">
+                            <h2 className="text-2xl font-black text-text-primary uppercase tracking-tight">Security Checkpoint</h2>
+                            <div className="p-8 bg-surface-secondary rounded-3xl text-text-primary flex items-center justify-between">
                                 <div className="flex items-center gap-6">
-                                    <Shield className="h-10 w-10 text-emerald-400" />
+                                    <Shield className="h-10 w-10 text-c1rcle-orange" />
                                     <div>
                                         <p className="font-black text-xl mb-1 uppercase tracking-tight">Enterprise Locked</p>
-                                        <p className="text-white/40 text-[10px] font-black uppercase tracking-widest">Two-Factor Authentication Active</p>
+                                        <p className="text-text-primary/40 text-[10px] font-black uppercase tracking-widest">Two-Factor Authentication Active</p>
                                     </div>
                                 </div>
-                                <button className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors mb-0 ml-0 hover:mb-0 hover:ml-0">
+                                <button className="px-6 py-3 bg-surface-elevated/10 hover:bg-surface-elevated/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors mb-0 ml-0 hover:mb-0 hover:ml-0">
                                     Adjust Policy
                                 </button>
                             </div>
@@ -153,15 +153,15 @@ export default function HostSettingsPage() {
                     )}
 
                     {activeSection === "payouts" && (
-                        <div className="bg-white rounded-[2.5rem] border border-slate-200 p-12 shadow-sm space-y-10">
-                            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Financial Routing</h2>
+                        <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-12 shadow-sm space-y-10">
+                            <h2 className="text-2xl font-black text-text-primary uppercase tracking-tight">Financial Routing</h2>
                             <div className="space-y-6">
                                 <SettingsField label="Bank Account (T+2 Layout)" icon={Building}>
                                     <input
                                         type="text"
                                         defaultValue={settings?.bankAccount}
                                         onBlur={(e) => handleSave({ bankAccount: e.target.value })}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-bold text-sm focus:bg-white focus:ring-4 focus:ring-slate-50 transition-all"
+                                        className="w-full bg-surface-tertiary border border-border-default rounded-2xl p-4 font-bold text-sm focus:bg-surface-elevated focus:ring-4 focus:ring-slate-50 transition-all"
                                         placeholder="Enter Account Number or UPI ID"
                                     />
                                 </SettingsField>
@@ -170,7 +170,7 @@ export default function HostSettingsPage() {
                                         <CheckCircle2 className="h-6 w-6 text-emerald-600" />
                                         <p className="text-xs font-black text-emerald-900 uppercase tracking-widest">Payouts Enabled: Active State</p>
                                     </div>
-                                    <ChevronRight className="h-4 w-4 text-emerald-400" />
+                                    <ChevronRight className="h-4 w-4 text-c1rcle-orange" />
                                 </div>
                             </div>
                         </div>
@@ -186,11 +186,11 @@ function NavButton({ active, icon: Icon, label, onClick }: any) {
         <button
             onClick={onClick}
             className={`w-full p-6 flex items-center gap-4 rounded-[1.5rem] transition-all group ${active
-                    ? "bg-slate-900 text-white shadow-xl shadow-slate-200"
-                    : "text-slate-400 hover:bg-slate-50 hover:text-slate-900"
+                    ? "bg-surface-secondary text-text-primary shadow-xl shadow-slate-200"
+                    : "text-text-tertiary hover:bg-surface-tertiary hover:text-text-primary"
                 }`}
         >
-            <Icon className={`h-5 w-5 ${active ? "text-emerald-400" : "group-hover:text-slate-900"}`} />
+            <Icon className={`h-5 w-5 ${active ? "text-c1rcle-orange" : "group-hover:text-text-primary"}`} />
             <span className="text-[10px] font-black uppercase tracking-[0.2em]">{label}</span>
         </button>
     );
@@ -200,8 +200,8 @@ function SettingsField({ label, icon: Icon, children }: any) {
     return (
         <div className="space-y-4">
             <div className="flex items-center gap-3 ml-1">
-                <Icon className="h-4 w-4 text-slate-400" />
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</label>
+                <Icon className="h-4 w-4 text-text-tertiary" />
+                <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">{label}</label>
             </div>
             {children}
         </div>

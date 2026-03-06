@@ -33,42 +33,43 @@ export async function GET(
             return NextResponse.json({ error: "venueId is required" }, { status: 400 });
         }
 
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         let analytics;
         switch (type) {
             case "overview":
-                analytics = await getVenueAnalytics(venueId, range);
+                analytics = await getVenueAnalytics(venueId, range, token);
                 break;
             case "audience":
-                analytics = await getVenueAudienceAnalytics(venueId, range);
+                analytics = await getVenueAudienceAnalytics(venueId, range, token);
                 break;
             case "reach":
             case "funnel":
-                analytics = await getVenueFunnelAnalytics(venueId, range);
+                analytics = await getVenueFunnelAnalytics(venueId, range, token);
                 break;
             case "engagement":
             case "ops":
-                analytics = await getVenueOpsAnalytics(venueId, range);
+                analytics = await getVenueOpsAnalytics(venueId, range, token);
                 break;
             case "revenue":
                 // Standard venue overview covers revenue totals
-                analytics = await getVenueAnalytics(venueId, range);
+                analytics = await getVenueAnalytics(venueId, range, token);
                 break;
             case "attribution":
             case "partners":
-                analytics = await getVenuePartnerAnalytics(venueId, range);
+                analytics = await getVenuePartnerAnalytics(venueId, range, token);
                 break;
             case "strategy":
-                analytics = await getVenueStrategyAnalytics(venueId, range);
+                analytics = await getVenueStrategyAnalytics(venueId, token);
                 break;
             case "timeline":
                 const eventId = searchParams.get("eventId");
                 if (!eventId) return NextResponse.json({ error: "eventId required for timeline" }, { status: 400 });
-                analytics = await getEventTimeline(eventId);
+                analytics = await getEventTimeline(eventId, token);
                 break;
             case "insights":
                 const eId = searchParams.get("eventId");
                 if (!eId) return NextResponse.json({ error: "eventId required for insights" }, { status: 400 });
-                analytics = await getEventStudioInsights(eId);
+                analytics = await getEventStudioInsights(eId, token);
                 break;
 
             default:

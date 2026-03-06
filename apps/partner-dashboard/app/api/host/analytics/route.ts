@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "hostId is required" }, { status: 400 });
         }
 
-        const analytics = await getHostAnalytics(hostId, range);
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
+        const analytics = await getHostAnalytics(hostId, range, token);
 
         return NextResponse.json(analytics);
 

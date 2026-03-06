@@ -27,7 +27,7 @@ export function ListItem({
     title,
     subtitle,
     icon,
-    iconBg = "bg-stone-100",
+    iconBg = "bg-surface-secondary",
     badge,
     rightContent,
     href,
@@ -47,23 +47,23 @@ export function ListItem({
 
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                    <p className="text-[14px] font-medium text-stone-900 truncate">{title}</p>
+                    <p className="text-[14px] font-medium text-text-primary truncate">{title}</p>
                     {badge}
                 </div>
                 {subtitle && (
-                    <p className="text-[12px] text-stone-500 truncate">{subtitle}</p>
+                    <p className="text-[12px] text-text-tertiary truncate">{subtitle}</p>
                 )}
             </div>
 
             {rightContent ? rightContent : (
-                <ArrowUpRight className="w-4 h-4 text-stone-400 flex-shrink-0" />
+                <ArrowUpRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
             )}
         </>
     );
 
     const baseStyles = clsx(
         "flex items-center gap-3 p-3 -mx-3 rounded-lg transition-colors",
-        "hover:bg-stone-50",
+        "hover:bg-surface-tertiary",
         href || onClick ? "cursor-pointer" : "",
         className
     );

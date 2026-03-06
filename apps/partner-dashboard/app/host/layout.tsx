@@ -1,3 +1,5 @@
+"use client";
+
 import { HostClientWrapper } from "@/components/layout/HostClientWrapper";
 import {
     LayoutDashboard,

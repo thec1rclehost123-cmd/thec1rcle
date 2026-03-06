@@ -1,5 +1,10 @@
-import CreateEventForm from "../../components/CreateEventForm";
+import dynamic from "next/dynamic";
 import Footer from "../../components/Footer";
+
+const CreateEventForm = dynamic(() => import("../../components/CreateEventForm"), {
+  ssr: false,
+  loading: () => <div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-[var(--c1rcle-orange)] border-t-transparent rounded-full animate-spin" /></div>
+});
 
 export default function CreatePage() {
   return (

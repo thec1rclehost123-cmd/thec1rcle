@@ -10,7 +10,7 @@ export async function GET(request) {
         const tablesOnly = searchParams.get("tablesOnly") === "true";
 
         const venues = await listVenues({ area, vibe, search, tablesOnly });
-        return NextResponse.json(venues, {
+        return NextResponse.json({ hosts: venues, hasMore: false, nextCursor: null }, {
             headers: {
                 'Cache-Control': 'no-store, max-age=0',
             }

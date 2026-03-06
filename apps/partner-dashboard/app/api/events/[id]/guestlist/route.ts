@@ -41,11 +41,14 @@ export async function GET(
 
         const buyerIds = Array.from(new Set(ordersSnapshot.docs.map(doc => doc.data().userId).filter(Boolean)));
 
-        // Fetch full profiles
-        const profiles = await Promise.all(buyerIds.map(async (uid) => {
-            const fresh = await db.collection("users").doc(uid).get();
-            return fresh.exists ? { id: fresh.id, ...fresh.data() } : null;
-        }));
+        // Fetch full profiles in a single batched RPC (max 500 docs)
+        const refs = buyerIds.map(uid => db.collection("users").doc(uid));
+        const snaps = refs.length > 0 ? await db.getAll(...refs) : [];
+        const profiles = snaps.map(snap => snap.exists ? { id: snap.id, ...snap.data() } : null);
+
+        // Count checked-in orders separately
+        const checkedInCount = ordersSnapshot.docs.filter(doc => doc.data().status === "checked_in").length;
+        const confirmedCount = ordersSnapshot.docs.filter(doc => doc.data().status === "confirmed").length;
 
         const guests = profiles.filter(Boolean).map(p => ({
             id: p?.id,
@@ -63,8 +66,8 @@ export async function GET(
             stats: {
                 total: guests.length,
                 pending: 0,
-                confirmed: guests.length,
-                checkedIn: 0
+                confirmed: confirmedCount,
+                checkedIn: checkedInCount
             }
         });
     } catch (error: any) {

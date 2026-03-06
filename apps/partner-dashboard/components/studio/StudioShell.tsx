@@ -81,13 +81,13 @@ export default function StudioShell({
     return (
         <div className="flex flex-col min-h-screen bg-[#F9FAFB]">
             {/* Studio Header */}
-            <div className="bg-white border-b border-slate-200 sticky top-0 z-30">
+            <div className="bg-surface-elevated border-b border-border-default sticky top-0 z-30">
                 <div className="px-8 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-6">
                         <div className="flex items-center gap-2">
-                            <span className="font-black text-slate-900 tracking-tighter text-xl">STATS</span>
+                            <span className="font-black text-text-primary tracking-tighter text-xl">STATS</span>
 
-                            <div className="h-4 w-[1px] bg-slate-200 mx-2" />
+                            <div className="h-4 w-[1px] bg-surface-tertiary mx-2" />
                             <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
                                 <Activity className="h-3 w-3" />
                                 <span className="text-[10px] font-black uppercase tracking-widest">Running Well</span>
@@ -99,24 +99,24 @@ export default function StudioShell({
                         <div className="relative">
                             <button
                                 onClick={() => setIsEventSelectorOpen(!isEventSelectorOpen)}
-                                className="flex items-center gap-3 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-all group"
+                                className="flex items-center gap-3 px-4 py-2 bg-surface-tertiary border border-border-default rounded-xl hover:bg-surface-secondary transition-all group"
                             >
-                                <div className="h-6 w-6 rounded-md bg-slate-900 flex items-center justify-center">
-                                    <Play className="h-3 w-3 text-white fill-white" />
+                                <div className="h-6 w-6 rounded-md bg-surface-secondary flex items-center justify-center">
+                                    <Play className="h-3 w-3 text-text-primary fill-white" />
                                 </div>
-                                <span className="text-sm font-bold text-slate-900">{currentEvent.title}</span>
-                                <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isEventSelectorOpen ? 'rotate-180' : ''}`} />
+                                <span className="text-sm font-bold text-text-primary">{currentEvent.title}</span>
+                                <ChevronDown className={`h-4 w-4 text-text-tertiary transition-transform ${isEventSelectorOpen ? 'rotate-180' : ''}`} />
                             </button>
 
                             {isEventSelectorOpen && (
-                                <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2 z-50 animate-in fade-in zoom-in duration-200">
+                                <div className="absolute top-full left-0 mt-2 w-72 bg-surface-elevated border border-border-default shadow-2xl rounded-2xl p-2 z-50 animate-in fade-in zoom-in duration-200">
                                     <div className="p-2">
                                         <div className="relative mb-2">
-                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
                                             <input
                                                 type="text"
                                                 placeholder="Search events..."
-                                                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-slate-900/5"
+                                                className="w-full pl-10 pr-4 py-2 bg-surface-tertiary border border-border-subtle rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-slate-900/5"
                                             />
                                         </div>
                                         <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar">
@@ -124,7 +124,7 @@ export default function StudioShell({
                                                 <button
                                                     key={event.id || 'global'}
                                                     onClick={() => handleEventSelect(event.id)}
-                                                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${selectedEventId === event.id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                                                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${selectedEventId === event.id ? 'bg-surface-secondary text-text-primary' : 'text-slate-600 hover:bg-surface-tertiary'}`}
                                                 >
                                                     {event.title}
                                                 </button>
@@ -137,7 +137,7 @@ export default function StudioShell({
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+                        <div className="flex bg-surface-secondary p-1 rounded-xl border border-border-default">
                             {[
                                 { id: 'tonight', label: 'Tonight' },
                                 { id: 'weekend', label: 'This Weekend' },
@@ -147,14 +147,14 @@ export default function StudioShell({
                                 <button
                                     key={r.id}
                                     onClick={() => handleRangeChange(r.id)}
-                                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${range === r.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${range === r.id ? 'bg-surface-elevated text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
                                 >
                                     {r.label}
                                 </button>
                             ))}
                         </div>
 
-                        <button className="h-10 w-10 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-lg hover:scale-105 transition-transform">
+                        <button className="h-10 w-10 bg-surface-secondary rounded-xl flex items-center justify-center text-text-primary shadow-lg hover:scale-105 transition-transform">
                             <Calendar className="h-5 w-5" />
                         </button>
                     </div>
@@ -168,11 +168,11 @@ export default function StudioShell({
                             <Link
                                 key={tab.href}
                                 href={tab.href}
-                                className={`relative py-4 text-sm font-black uppercase tracking-widest transition-colors ${active ? 'text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
+                                className={`relative py-4 text-sm font-black uppercase tracking-widest transition-colors ${active ? 'text-text-primary' : 'text-text-tertiary hover:text-slate-600'}`}
                             >
                                 {tab.label}
                                 {active && (
-                                    <div className="absolute bottom-0 left-0 w-full h-1 bg-slate-900 rounded-t-full" />
+                                    <div className="absolute bottom-0 left-0 w-full h-1 bg-surface-secondary rounded-t-full" />
                                 )}
                             </Link>
                         );
@@ -184,10 +184,10 @@ export default function StudioShell({
             <main className="flex-1 p-8">
                 <div className="max-w-7xl mx-auto space-y-8">
                     <header>
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">{title}</h1>
-                        <p className="text-slate-500 font-medium mt-1 flex items-center gap-2">
+                        <h1 className="text-3xl font-black text-text-primary tracking-tight">{title}</h1>
+                        <p className="text-text-tertiary font-medium mt-1 flex items-center gap-2">
                             {description}
-                            <Info className="h-4 w-4 text-slate-300 cursor-help" />
+                            <Info className="h-4 w-4 text-text-placeholder cursor-help" />
                         </p>
                     </header>
 

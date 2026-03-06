@@ -67,20 +67,20 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                             <TrendingUp className="w-5 h-5 text-violet-500" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-[var(--text-primary)]">Audience Insights</h3>
-                            <p className="text-sm text-[var(--text-tertiary)]">Understand your community and engagement</p>
+                            <h3 className="text-lg font-bold text-text-primary">Audience Insights</h3>
+                            <p className="text-sm text-text-tertiary">Understand your community and engagement</p>
                         </div>
                     </div>
 
                     {/* Time Range Toggle */}
-                    <div className="flex p-1 bg-[var(--surface-secondary)] rounded-xl border border-[var(--border-subtle)]">
+                    <div className="flex p-1 bg-surface-secondary rounded-xl border border-border-subtle">
                         {(["7d", "30d", "90d"] as const).map((range) => (
                             <button
                                 key={range}
                                 onClick={() => setTimeRange(range)}
                                 className={`px-4 py-2 rounded-lg text-[11px] font-bold transition-all ${timeRange === range
-                                    ? "bg-[var(--surface-primary)] text-[var(--text-primary)] shadow-sm"
-                                    : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                                    ? "bg-surface-base text-text-primary shadow-sm"
+                                    : "text-text-tertiary hover:text-text-secondary"
                                     }`}
                             >
                                 {range === "7d" ? "7 Days" : range === "30d" ? "30 Days" : "90 Days"}
@@ -107,7 +107,7 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                         positive
                         icon={UserPlus}
                         iconColor="text-emerald-500"
-                        iconBg="bg-emerald-500/10"
+                        iconBg="bg-green-500/10"
                     />
                     <StatCard
                         label="Page Views"
@@ -131,8 +131,8 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
             </section>
 
             {/* Follower Growth Chart */}
-            <section className="space-y-4 pt-8 border-t border-[var(--border-subtle)]">
-                <h4 className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Growth Trend</h4>
+            <section className="space-y-4 pt-8 border-t border-border-subtle">
+                <h4 className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Growth Trend</h4>
                 <div className="p-8 bg-gradient-to-br from-violet-900/20 to-slate-900/40 rounded-3xl border border-violet-500/10">
                     {/* Mock Chart Area */}
                     <div className="h-48 flex items-end justify-between gap-2">
@@ -146,14 +146,14 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                                     transition={{ delay: i * 0.05, duration: 0.5 }}
                                     className="flex-1 bg-gradient-to-t from-violet-500/40 to-violet-500/80 rounded-t-lg relative group cursor-pointer"
                                 >
-                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black rounded-md text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black rounded-md text-[10px] text-text-primary opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                                         +{Math.floor(Math.random() * 50 + 10)} followers
                                     </div>
                                 </motion.div>
                             );
                         })}
                     </div>
-                    <div className="flex justify-between mt-4 text-[10px] text-white/40 font-bold">
+                    <div className="flex justify-between mt-4 text-[10px] text-text-primary/40 font-bold">
                         <span>Jan</span>
                         <span>Feb</span>
                         <span>Mar</span>
@@ -171,23 +171,23 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
             </section>
 
             {/* City Breakdown & Top Followers */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-8 border-t border-[var(--border-subtle)]">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-8 border-t border-border-subtle">
                 {/* City Breakdown */}
                 <section className="space-y-4">
                     <div className="flex items-center gap-2">
-                        <Globe className="w-4 h-4 text-[var(--text-tertiary)]" />
-                        <h4 className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Audience by City</h4>
+                        <Globe className="w-4 h-4 text-text-tertiary" />
+                        <h4 className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Audience by City</h4>
                     </div>
                     <div className="space-y-3">
                         {cityBreakdown.map((city: any, idx: number) => (
                             <div key={city.city} className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-sm font-medium text-[var(--text-primary)]">{city.city}</span>
-                                    <span className="text-[11px] font-bold text-[var(--text-tertiary)]">
+                                    <span className="text-sm font-medium text-text-primary">{city.city}</span>
+                                    <span className="text-[11px] font-bold text-text-tertiary">
                                         {city.count.toLocaleString()} ({city.percentage}%)
                                     </span>
                                 </div>
-                                <div className="h-2 bg-[var(--surface-secondary)] rounded-full overflow-hidden">
+                                <div className="h-2 bg-surface-secondary rounded-full overflow-hidden">
                                     <motion.div
                                         initial={{ width: 0 }}
                                         animate={{ width: `${city.percentage}%` }}
@@ -203,18 +203,18 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                 {/* Top Followers */}
                 <section className="space-y-4">
                     <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-[var(--text-tertiary)]" />
-                        <h4 className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Top Attending Followers</h4>
+                        <Sparkles className="w-4 h-4 text-text-tertiary" />
+                        <h4 className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Top Attending Followers</h4>
                     </div>
                     <div className="space-y-3">
                         {topFollowers.map((follower: any, idx: number) => (
-                            <div key={idx} className="flex items-center gap-4 p-4 bg-[var(--surface-secondary)] rounded-2xl border border-[var(--border-subtle)]">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white font-bold text-sm">
+                            <div key={idx} className="flex items-center gap-4 p-4 bg-surface-secondary rounded-2xl border border-border-subtle">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-text-primary font-bold text-sm">
                                     {follower.name[0]}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-[var(--text-primary)] truncate">{follower.name}</p>
-                                    <p className="text-[10px] text-[var(--text-tertiary)]">{follower.events} events attended</p>
+                                    <p className="text-sm font-medium text-text-primary truncate">{follower.name}</p>
+                                    <p className="text-[10px] text-text-tertiary">{follower.events} events attended</p>
                                 </div>
                                 <div className="px-3 py-1 bg-amber-500/10 rounded-full">
                                     <span className="text-[10px] font-bold text-amber-500">VIP</span>
@@ -226,10 +226,10 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
             </div>
 
             {/* Conversion Metrics */}
-            <section className="space-y-4 pt-8 border-t border-[var(--border-subtle)]">
+            <section className="space-y-4 pt-8 border-t border-border-subtle">
                 <div className="flex items-center gap-2">
-                    <Target className="w-4 h-4 text-[var(--text-tertiary)]" />
-                    <h4 className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Follower Conversion</h4>
+                    <Target className="w-4 h-4 text-text-tertiary" />
+                    <h4 className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Follower Conversion</h4>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <ConversionCard
@@ -254,23 +254,23 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
             </section>
 
             {/* Broadcast CTA */}
-            <section className="pt-8 border-t border-[var(--border-subtle)]">
+            <section className="pt-8 border-t border-border-subtle">
                 <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-violet-700 p-8">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-surface-elevated/10 rounded-full blur-3xl" />
                     <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div>
                             <div className="flex items-center gap-2 mb-3">
-                                <Zap className="w-5 h-5 text-white" />
-                                <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Reach Your Audience</span>
+                                <Zap className="w-5 h-5 text-text-primary" />
+                                <span className="text-[10px] font-bold text-text-primary/60 uppercase tracking-widest">Reach Your Audience</span>
                             </div>
-                            <h3 className="text-2xl font-bold text-white mb-2">Send a Broadcast</h3>
-                            <p className="text-white/60 text-sm max-w-md">
+                            <h3 className="text-2xl font-bold text-text-primary mb-2">Send a Broadcast</h3>
+                            <p className="text-text-primary/60 text-sm max-w-md">
                                 Push notifications, announcements, and event drops directly to your {followerGrowth.total.toLocaleString()} followers
                             </p>
                         </div>
                         <a
                             href="#broadcast"
-                            className="flex items-center gap-2 px-8 py-4 bg-white text-violet-600 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-white/90 transition-all shadow-lg"
+                            className="flex items-center gap-2 px-8 py-4 bg-surface-elevated text-violet-600 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-surface-elevated/90 transition-all shadow-lg"
                         >
                             <Zap className="w-4 h-4" />
                             Create Broadcast
@@ -292,7 +292,7 @@ function StatCard({ label, value, change, positive, icon: Icon, iconColor, iconB
     iconBg: string;
 }) {
     return (
-        <div className="p-6 bg-[var(--surface-secondary)]/50 rounded-2xl border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-all">
+        <div className="p-6 bg-surface-secondary/50 rounded-2xl border border-border-subtle hover:border-border-strong transition-all">
             <div className="flex items-center justify-between mb-4">
                 <div className={`p-2.5 rounded-xl ${iconBg}`}>
                     <Icon className={`w-4 h-4 ${iconColor}`} />
@@ -302,8 +302,8 @@ function StatCard({ label, value, change, positive, icon: Icon, iconColor, iconB
                     {change}
                 </div>
             </div>
-            <p className="text-2xl font-bold text-[var(--text-primary)] mb-1">{value}</p>
-            <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">{label}</p>
+            <p className="text-2xl font-bold text-text-primary mb-1">{value}</p>
+            <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">{label}</p>
         </div>
     );
 }
@@ -311,19 +311,19 @@ function StatCard({ label, value, change, positive, icon: Icon, iconColor, iconB
 function ConversionCard({ label, value, total, color }: { label: string; value: number; total: number; color: "emerald" | "violet" | "amber" }) {
     const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
     const colorClasses = {
-        emerald: { bg: "bg-emerald-500/10", text: "text-emerald-500", bar: "from-emerald-500 to-emerald-400" },
+        emerald: { bg: "bg-green-500/10", text: "text-emerald-500", bar: "from-emerald-500 to-emerald-400" },
         violet: { bg: "bg-violet-500/10", text: "text-violet-500", bar: "from-violet-500 to-fuchsia-500" },
         amber: { bg: "bg-amber-500/10", text: "text-amber-500", bar: "from-amber-500 to-orange-500" },
     }[color];
 
     return (
-        <div className="p-6 bg-[var(--surface-secondary)]/50 rounded-2xl border border-[var(--border-subtle)]">
-            <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-4">{label}</p>
+        <div className="p-6 bg-surface-secondary/50 rounded-2xl border border-border-subtle">
+            <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-4">{label}</p>
             <div className="flex items-end gap-2 mb-3">
-                <p className="text-3xl font-bold text-[var(--text-primary)]">{percentage}%</p>
-                <p className="text-sm text-[var(--text-tertiary)] pb-1">({value.toLocaleString()} users)</p>
+                <p className="text-3xl font-bold text-text-primary">{percentage}%</p>
+                <p className="text-sm text-text-tertiary pb-1">({value.toLocaleString()} users)</p>
             </div>
-            <div className="h-2 bg-[var(--surface-elevated)] rounded-full overflow-hidden">
+            <div className="h-2 bg-surface-elevated rounded-full overflow-hidden">
                 <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${percentage}%` }}

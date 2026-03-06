@@ -85,8 +85,9 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ body: SlotRequestBody })]
     }, async (request, reply) => {
         const data = request.body as any;
+        const actor = (request as any).user;
         try {
-            return await createSlotRequest(data);
+            return await createSlotRequest(data, actor);
         } catch (error: any) {
             reply.status(400).send({ error: error.message });
         }

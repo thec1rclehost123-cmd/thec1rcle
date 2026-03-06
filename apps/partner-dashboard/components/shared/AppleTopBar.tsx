@@ -72,21 +72,21 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
 
     return (
         <>
-            <header className="h-16 bg-[var(--surface-base)]/80 backdrop-blur-xl border-b border-[var(--border-subtle)] sticky top-0 z-40 px-6 lg:px-8 flex items-center justify-between">
+            <header className="h-16 bg-surface-base/80 backdrop-blur-xl border-b border-border-subtle sticky top-0 z-40 px-6 lg:px-8 flex items-center justify-between">
                 {/* Left - Status & Time */}
                 <div className="flex items-center gap-4 lg:gap-6">
                     {/* System Status */}
                     <div className="live-indicator">
-                        <span className="text-[10px] font-bold text-[var(--state-success)] uppercase tracking-widest">Live</span>
+                        <span className="text-[10px] font-bold text-c1rcle-orange uppercase tracking-widest">Live</span>
                     </div>
 
                     {/* Time Display */}
                     <div className="hidden md:flex items-center gap-4">
-                        <span className="text-[14px] font-semibold text-[var(--text-primary)] tabular-nums">
+                        <span className="text-[14px] font-semibold text-text-primary tabular-nums">
                             {timeStr}
                         </span>
                         <div className="w-px h-4 bg-[var(--border-default)]" />
-                        <span className="text-[12px] font-medium text-[var(--text-tertiary)] uppercase tracking-wide">
+                        <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">
                             {dateStr}
                         </span>
                     </div>
@@ -97,15 +97,15 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
                     {/* Quick Search */}
                     <button
                         onClick={() => setSearchOpen(true)}
-                        className="flex items-center gap-3 px-4 py-2.5 bg-[var(--surface-secondary)] hover:bg-[var(--surface-tertiary)] border border-[var(--border-subtle)] rounded-xl transition-all group"
+                        className="flex items-center gap-3 px-4 py-2.5 bg-surface-secondary hover:bg-surface-tertiary border border-border-subtle rounded-xl transition-all group"
                     >
-                        <Search className="w-4 h-4 text-[var(--text-placeholder)] group-hover:text-[var(--text-tertiary)]" />
-                        <span className="hidden lg:block text-[13px] text-[var(--text-placeholder)] font-medium">
+                        <Search className="w-4 h-4 text-text-placeholder group-hover:text-text-tertiary" />
+                        <span className="hidden lg:block text-[13px] text-text-placeholder font-medium">
                             Search...
                         </span>
-                        <div className="hidden lg:flex items-center gap-1 px-1.5 py-0.5 rounded bg-[var(--surface-tertiary)] border border-[var(--border-subtle)]">
-                            <Command className="w-3 h-3 text-[var(--text-placeholder)]" />
-                            <span className="text-[10px] font-semibold text-[var(--text-placeholder)]">K</span>
+                        <div className="hidden lg:flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-tertiary border border-border-subtle">
+                            <Command className="w-3 h-3 text-text-placeholder" />
+                            <span className="text-[10px] font-semibold text-text-placeholder">K</span>
                         </div>
                     </button>
 
@@ -113,22 +113,22 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
                     <NotificationCenter />
 
                     {/* Divider */}
-                    <div className="w-px h-8 bg-[var(--border-subtle)] hidden lg:block" />
+                    <div className="w-px h-8 bg-border-subtle hidden lg:block" />
 
                     {/* Profile */}
                     <button className="flex items-center gap-3 pl-2 group">
-                        <div className="w-10 h-10 rounded-xl bg-[var(--text-primary)] flex items-center justify-center text-[var(--text-inverse)] text-[14px] font-bold shadow-sm">
+                        <div className="w-10 h-10 rounded-xl bg-text-primary flex items-center justify-center text-text-inverse text-[14px] font-bold shadow-sm">
                             {profile?.displayName?.charAt(0)?.toUpperCase() || "U"}
                         </div>
                         <div className="hidden lg:block text-left">
-                            <p className="text-[13px] font-semibold text-[var(--text-primary)] leading-tight">
+                            <p className="text-[13px] font-semibold text-text-primary leading-tight">
                                 {profile?.displayName?.split(' ')[0] || "User"}
                             </p>
-                            <p className="text-[10px] font-semibold text-[var(--c1rcle-orange)] uppercase tracking-widest">
+                            <p className="text-[10px] font-semibold text-c1rcle-orange uppercase tracking-widest">
                                 {roleContext}
                             </p>
                         </div>
-                        <ChevronDown className="hidden lg:block w-4 h-4 text-[var(--text-tertiary)]" />
+                        <ChevronDown className="hidden lg:block w-4 h-4 text-text-tertiary" />
                     </button>
                 </div>
             </header>
@@ -146,7 +146,7 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
                                 setSearchOpen(false);
                                 setSearchQuery("");
                             }}
-                            className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm z-[100]"
+                            className="fixed inset-0 bg-black/40 dark:bg-black/50 backdrop-blur-sm z-[100]"
                         />
 
                         {/* Search Panel */}
@@ -157,32 +157,32 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
                             transition={{ duration: 0.15 }}
                             className="fixed top-[15%] left-1/2 -translate-x-1/2 w-[90%] max-w-2xl z-[101]"
                         >
-                            <div className="bg-[var(--surface-elevated)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden">
+                            <div className="bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl overflow-hidden">
                                 {/* Search Input */}
-                                <div className="flex items-center gap-4 px-6 py-4 border-b border-[var(--border-subtle)]">
-                                    <Search className="w-5 h-5 text-[var(--text-tertiary)]" />
+                                <div className="flex items-center gap-4 px-6 py-4 border-b border-border-subtle">
+                                    <Search className="w-5 h-5 text-text-tertiary" />
                                     <input
                                         type="text"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder="Search events, guests, reports..."
                                         autoFocus
-                                        className="flex-1 bg-transparent text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-placeholder)] outline-none"
+                                        className="flex-1 bg-transparent text-[16px] text-text-primary placeholder:text-text-placeholder outline-none"
                                     />
                                     <button
                                         onClick={() => {
                                             setSearchOpen(false);
                                             setSearchQuery("");
                                         }}
-                                        className="p-1.5 rounded-lg hover:bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]"
+                                        className="p-1.5 rounded-lg hover:bg-surface-tertiary text-text-tertiary"
                                     >
                                         <X className="w-4 h-4" />
                                     </button>
                                 </div>
 
                                 {/* Quick Actions */}
-                                <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-                                    <p className="text-label-sm text-[var(--text-tertiary)] px-2 mb-2">Quick Actions</p>
+                                <div className="px-4 py-3 border-b border-border-subtle">
+                                    <p className="text-label-sm text-text-tertiary px-2 mb-2">Quick Actions</p>
                                     <div className="space-y-1">
                                         {[
                                             { label: "Create New Event", href: `/${roleContext.toLowerCase()}/create` },
@@ -195,9 +195,9 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
                                                     router.push(action.href);
                                                     setSearchOpen(false);
                                                 }}
-                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-[var(--surface-tertiary)] transition-colors"
+                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-surface-tertiary transition-colors"
                                             >
-                                                <span className="text-[14px] text-[var(--text-primary)]">{action.label}</span>
+                                                <span className="text-[14px] text-text-primary">{action.label}</span>
                                             </button>
                                         ))}
                                     </div>
@@ -205,23 +205,23 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
 
                                 {/* Recent Searches */}
                                 <div className="px-4 py-3">
-                                    <p className="text-label-sm text-[var(--text-tertiary)] px-2 mb-2">Recent</p>
+                                    <p className="text-label-sm text-text-tertiary px-2 mb-2">Recent</p>
                                     <div className="flex items-center justify-center py-8">
-                                        <p className="text-caption text-[var(--text-placeholder)]">
+                                        <p className="text-caption text-text-placeholder">
                                             {searchQuery ? "No results found" : "Type to search..."}
                                         </p>
                                     </div>
                                 </div>
 
                                 {/* Footer */}
-                                <div className="px-6 py-3 bg-[var(--surface-secondary)] border-t border-[var(--border-subtle)] flex items-center justify-between">
+                                <div className="px-6 py-3 bg-surface-secondary border-t border-border-subtle flex items-center justify-between">
                                     <div className="flex items-center gap-4">
-                                        <span className="text-[11px] text-[var(--text-tertiary)] flex items-center gap-1">
-                                            <kbd className="px-1.5 py-0.5 rounded bg-[var(--surface-base)] border border-[var(--border-subtle)] text-[10px] font-mono">↵</kbd>
+                                        <span className="text-[11px] text-text-tertiary flex items-center gap-1">
+                                            <kbd className="px-1.5 py-0.5 rounded bg-surface-base border border-border-subtle text-[10px] font-mono">↵</kbd>
                                             to select
                                         </span>
-                                        <span className="text-[11px] text-[var(--text-tertiary)] flex items-center gap-1">
-                                            <kbd className="px-1.5 py-0.5 rounded bg-[var(--surface-base)] border border-[var(--border-subtle)] text-[10px] font-mono">esc</kbd>
+                                        <span className="text-[11px] text-text-tertiary flex items-center gap-1">
+                                            <kbd className="px-1.5 py-0.5 rounded bg-surface-base border border-border-subtle text-[10px] font-mono">esc</kbd>
                                             to close
                                         </span>
                                     </div>

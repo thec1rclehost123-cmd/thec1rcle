@@ -26,25 +26,26 @@ export async function GET(
             return NextResponse.json({ error: "hostId is required" }, { status: 400 });
         }
 
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         let analytics;
         switch (type) {
             case "overview":
-                analytics = await getHostAnalytics(hostId, range);
+                analytics = await getHostAnalytics(hostId, range, token);
                 break;
             case "performance":
-                analytics = await getHostPerformanceAnalytics(hostId, range);
+                analytics = await getHostPerformanceAnalytics(hostId, token);
                 break;
             case "audience":
-                analytics = await getHostAudienceAnalytics(hostId, range);
+                analytics = await getHostAudienceAnalytics(hostId, token);
                 break;
             case "reliability":
-                analytics = await getHostReliabilityAnalytics(hostId, range);
+                analytics = await getHostReliabilityAnalytics(hostId, token);
                 break;
             case "partners":
-                analytics = await getHostPartnerAnalytics(hostId, range);
+                analytics = await getHostPartnerAnalytics(hostId, range, token);
                 break;
             case "strategy":
-                analytics = await getHostStrategyAnalytics(hostId, range);
+                analytics = await getHostStrategyAnalytics(hostId, token);
                 break;
             default:
                 return NextResponse.json({ error: "Invalid analytics type" }, { status: 400 });

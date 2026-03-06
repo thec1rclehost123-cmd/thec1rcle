@@ -208,7 +208,7 @@ export function VenueCalendarPreview({
             case "past":
                 return "bg-gray-50 text-gray-300 cursor-not-allowed";
             default:
-                return "bg-white text-gray-700 hover:bg-gray-50 cursor-pointer";
+                return "bg-surface-elevated text-gray-700 hover:bg-gray-50 cursor-pointer";
         }
     };
 
@@ -232,7 +232,7 @@ export function VenueCalendarPreview({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={onClose}
         >
             <motion.div
@@ -240,7 +240,7 @@ export function VenueCalendarPreview({
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                className="bg-white rounded-[2rem] w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
+                className="bg-surface-elevated rounded-[2rem] w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
@@ -334,7 +334,7 @@ export function VenueCalendarPreview({
                         {/* Legend */}
                         <div className="mt-6 flex flex-wrap gap-4 text-xs">
                             <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                                <div className="w-3 h-3 rounded-full bg-green-500" />
                                 <span className="text-gray-600">Available</span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -406,8 +406,8 @@ export function VenueCalendarPreview({
                                                             ${isUnavailable
                                                                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                                                                 : isSelected
-                                                                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-                                                                    : "bg-white text-gray-700 hover:bg-indigo-50 border border-gray-200"
+                                                                    ? "bg-indigo-600 text-text-primary shadow-lg shadow-indigo-200"
+                                                                    : "bg-surface-elevated text-gray-700 hover:bg-indigo-50 border border-gray-200"
                                                             }
                                                         `}
                                                     >
@@ -434,7 +434,7 @@ export function VenueCalendarPreview({
                                         className={`
                                             w-full py-4 rounded-xl font-bold text-sm transition-all
                                             ${selectedTimeSlot
-                                                ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200"
+                                                ? "bg-indigo-600 text-text-primary hover:bg-indigo-700 shadow-lg shadow-indigo-200"
                                                 : "bg-gray-200 text-gray-400 cursor-not-allowed"
                                             }
                                         `}

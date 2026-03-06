@@ -52,14 +52,14 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }
     return (
         <aside className="w-[280px] bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] flex flex-col h-full overflow-hidden z-50 shrink-0">
             {/* Brand Header */}
-            <div className="p-6 border-b border-[var(--border-subtle)]">
+            <div className="p-6 border-b border-border-subtle">
                 <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-xl bg-[var(--text-primary)] flex items-center justify-center text-[var(--text-inverse)] font-bold text-lg shadow-md">
+                    <div className="w-11 h-11 rounded-xl bg-text-primary flex items-center justify-center text-text-inverse font-bold text-lg shadow-md">
                         {brandLetter}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <h1 className="text-[15px] font-bold text-[var(--text-primary)] tracking-tight">THE C1RCLE</h1>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--text-tertiary)] truncate">
+                        <h1 className="text-[15px] font-bold text-text-primary tracking-tight">THE C1RCLE</h1>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-text-tertiary truncate">
                             {brandLabel} Dashboard
                         </p>
                     </div>
@@ -98,25 +98,25 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }
                                             {(active || isChildActive) && (
                                                 <motion.div
                                                     layoutId="nav-active-bg"
-                                                    className="absolute inset-0 bg-[var(--surface-tertiary)] dark:bg-white/[0.08] rounded-xl"
+                                                    className="absolute inset-0 bg-surface-tertiary dark:bg-surface-elevated/[0.08] rounded-xl"
                                                     transition={{ type: "spring", stiffness: 500, damping: 35 }}
                                                 />
                                             )}
 
                                             <div className="relative z-10 flex items-center gap-3 w-full">
                                                 <Icon className={`nav-icon ${active || isChildActive
-                                                    ? "text-[var(--c1rcle-orange)] opacity-100"
-                                                    : "text-[var(--text-tertiary)]"
+                                                    ? "text-c1rcle-orange opacity-100"
+                                                    : "text-text-tertiary"
                                                     }`} />
                                                 <span className="flex-1 text-left">{item.label}</span>
 
                                                 {hasChildren && (
-                                                    <ChevronDown className={`h-4 w-4 text-[var(--text-tertiary)] transition-transform duration-200 ${expanded ? "rotate-180" : ""
+                                                    <ChevronDown className={`h-4 w-4 text-text-tertiary transition-transform duration-200 ${expanded ? "rotate-180" : ""
                                                         }`} />
                                                 )}
 
                                                 {active && !hasChildren && (
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-[var(--c1rcle-orange)] shadow-[0_0_8px_var(--c1rcle-orange)]" />
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-c1rcle-orange shadow-[0_0_8px_var(--c1rcle-orange)]" />
                                                 )}
                                             </div>
                                         </Link>
@@ -140,13 +140,13 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }
                                                                 key={child.href}
                                                                 href={child.href}
                                                                 className={`block px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all ${childActive
-                                                                    ? "text-[var(--c1rcle-orange)] bg-[var(--c1rcle-orange-glow)]"
-                                                                    : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-tertiary)]"
+                                                                    ? "text-c1rcle-orange bg-c1rcle-orange-glow"
+                                                                    : "text-text-tertiary hover:text-text-primary hover:bg-surface-tertiary"
                                                                     }`}
                                                             >
                                                                 <span className="flex items-center gap-2">
                                                                     {childActive && (
-                                                                        <span className="w-1 h-1 rounded-full bg-[var(--c1rcle-orange)]" />
+                                                                        <span className="w-1 h-1 rounded-full bg-c1rcle-orange" />
                                                                     )}
                                                                     {child.label}
                                                                 </span>
@@ -164,7 +164,7 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }
                         {/* Section Divider */}
                         {idx < menuSections.length - 1 && (
                             <div className="pt-4">
-                                <div className="h-px bg-[var(--border-subtle)]" />
+                                <div className="h-px bg-border-subtle" />
                             </div>
                         )}
                     </div>
@@ -172,17 +172,17 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }
             </nav>
 
             {/* Account Footer */}
-            <div className="p-4 border-t border-[var(--border-subtle)] space-y-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <div className="p-4 border-t border-border-subtle space-y-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 {/* User Info Card */}
-                <div className="flex items-center gap-3 px-3 py-3 bg-[var(--surface-tertiary)] dark:bg-white/[0.04] rounded-xl border border-[var(--border-subtle)]">
-                    <div className="h-9 w-9 rounded-lg bg-[var(--text-primary)] flex items-center justify-center text-[var(--text-inverse)] text-[13px] font-bold">
+                <div className="flex items-center gap-3 px-3 py-3 bg-surface-tertiary dark:bg-surface-elevated/[0.04] rounded-xl border border-border-subtle">
+                    <div className="h-9 w-9 rounded-lg bg-text-primary flex items-center justify-center text-text-inverse text-[13px] font-bold">
                         {profile?.displayName?.charAt(0)?.toUpperCase() || "U"}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
+                        <p className="text-[13px] font-semibold text-text-primary truncate">
                             {profile?.displayName || "Operator"}
                         </p>
-                        <p className="text-[10px] text-[var(--text-tertiary)] truncate">
+                        <p className="text-[10px] text-text-tertiary truncate">
                             {profile?.email || ""}
                         </p>
                     </div>
@@ -192,9 +192,9 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }
                 {/* Sign Out */}
                 <button
                     onClick={() => signOut()}
-                    className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-[var(--text-tertiary)] hover:text-[var(--state-error)] hover:bg-[var(--state-error-bg)] transition-all group text-[14px] font-medium"
+                    className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-text-tertiary hover:text-red-500 hover:bg-red-500/10 transition-all group text-[14px] font-medium"
                 >
-                    <LogOut className="w-4 h-4 group-hover:text-[var(--state-error)]" />
+                    <LogOut className="w-4 h-4 group-hover:text-red-500" />
                     <span>Sign Out</span>
                 </button>
             </div>

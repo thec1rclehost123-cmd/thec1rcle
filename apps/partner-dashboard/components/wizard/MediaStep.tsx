@@ -69,14 +69,14 @@ function StyleCard({
             onClick={onClick}
             className={`relative flex-shrink-0 w-[130px] p-4 rounded-[1.5rem] border-2 transition-all duration-300 text-left group ${isSelected
                 ? "border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10 scale-[1.02]"
-                : "border-[var(--border-subtle)] bg-[var(--surface-base)] hover:border-indigo-500/30 hover:bg-[var(--surface-elevated)]"
+                : "border-border-subtle bg-surface-base hover:border-indigo-500/30 hover:bg-surface-elevated"
                 }`}
         >
             <div className="text-2xl mb-2">{style.emoji}</div>
-            <p className={`text-[11px] font-black tracking-wide leading-tight ${isSelected ? "text-indigo-400" : "text-[var(--text-primary)]"}`}>
+            <p className={`text-[11px] font-black tracking-wide leading-tight ${isSelected ? "text-indigo-400" : "text-text-primary"}`}>
                 {style.label}
             </p>
-            <p className="text-[9px] text-[var(--text-tertiary)] mt-1 leading-relaxed line-clamp-2">
+            <p className="text-[9px] text-text-tertiary mt-1 leading-relaxed line-clamp-2">
                 {style.description}
             </p>
 
@@ -86,7 +86,7 @@ function StyleCard({
                     animate={{ scale: 1 }}
                     className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center"
                 >
-                    <Check className="w-3 h-3 text-white" />
+                    <Check className="w-3 h-3 text-text-primary" />
                 </motion.div>
             )}
         </button>
@@ -311,17 +311,17 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
             {/* Header Area */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    <h2 className="text-headline text-[var(--text-primary)]">Asset Management</h2>
-                    <p className="text-label text-[var(--text-secondary)] mt-1.5 max-w-lg">
+                    <h2 className="text-headline text-text-primary">Asset Management</h2>
+                    <p className="text-label text-text-secondary mt-1.5 max-w-lg">
                         Define your event&apos;s visual identity through high-fidelity assets or creative AI synthesis.
                     </p>
                 </div>
 
                 {/* Apple-style Segmented Control */}
-                <div className="flex p-1 rounded-[1.25rem] bg-[var(--surface-secondary)] border border-[var(--border-subtle)] w-fit relative">
+                <div className="flex p-1 rounded-[1.25rem] bg-surface-secondary border border-border-subtle w-fit relative">
                     <div className="relative flex">
                         <motion.div
-                            className="absolute inset-y-0 bg-[var(--text-primary)] rounded-xl shadow-sm"
+                            className="absolute inset-y-0 bg-text-primary rounded-xl shadow-sm"
                             initial={false}
                             animate={{
                                 x: uploadMode === "manual" ? 0 : "100%",
@@ -332,14 +332,14 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
 
                         <button
                             onClick={() => setUploadMode("manual")}
-                            className={`relative px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-[0.1em] transition-colors duration-200 z-10 w-[140px] ${uploadMode === "manual" ? "text-[var(--text-inverse)]" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                            className={`relative px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-[0.1em] transition-colors duration-200 z-10 w-[140px] ${uploadMode === "manual" ? "text-text-inverse" : "text-text-tertiary hover:text-text-primary"
                                 }`}
                         >
                             Standard
                         </button>
                         <button
                             onClick={() => setUploadMode("ai")}
-                            className={`relative px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-[0.1em] transition-colors duration-200 z-10 w-[140px] flex items-center justify-center gap-2 ${uploadMode === "ai" ? "text-[var(--text-inverse)]" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                            className={`relative px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-[0.1em] transition-colors duration-200 z-10 w-[140px] flex items-center justify-center gap-2 ${uploadMode === "ai" ? "text-text-inverse" : "text-text-tertiary hover:text-text-primary"
                                 }`}
                         >
                             <Sparkles className="w-3.5 h-3.5" /> AI Studio
@@ -359,7 +359,7 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                 initial={{ opacity: 0, scale: 0.98 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.98 }}
-                                className="aspect-[4/5] rounded-[3rem] border-2 border-dashed border-[var(--border-default)] bg-[var(--surface-secondary)] flex flex-col items-center justify-center text-center transition-all hover:border-indigo-500/30 hover:bg-indigo-500/5 group cursor-pointer relative overflow-hidden"
+                                className="aspect-[4/5] rounded-[3rem] border-2 border-dashed border-border-default bg-surface-secondary flex flex-col items-center justify-center text-center transition-all hover:border-indigo-500/30 hover:bg-indigo-500/5 group cursor-pointer relative overflow-hidden"
                             >
                                 <input
                                     type="file"
@@ -368,20 +368,20 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                 />
 
-                                <div className="w-24 h-24 rounded-[2.5rem] bg-[var(--surface-base)] flex items-center justify-center mb-8 shadow-2xl shadow-black/5 group-hover:scale-110 transition-transform duration-700 ease-out border border-[var(--border-subtle)]">
-                                    <Upload className="w-9 h-9 text-[var(--text-tertiary)] group-hover:text-indigo-500 transition-colors duration-500" />
+                                <div className="w-24 h-24 rounded-[2.5rem] bg-surface-base flex items-center justify-center mb-8 shadow-2xl shadow-black/5 group-hover:scale-110 transition-transform duration-700 ease-out border border-border-subtle">
+                                    <Upload className="w-9 h-9 text-text-tertiary group-hover:text-indigo-500 transition-colors duration-500" />
                                 </div>
 
                                 <div className="space-y-3 px-12">
-                                    <p className="text-headline-sm tracking-tight text-[var(--text-primary)]">
+                                    <p className="text-headline-sm tracking-tight text-text-primary">
                                         Source Local Media
                                     </p>
-                                    <p className="text-body text-[var(--text-secondary)] leading-relaxed">
+                                    <p className="text-body text-text-secondary leading-relaxed">
                                         Drag your master visual here or click to interface with local files
                                     </p>
                                 </div>
 
-                                <div className="mt-12 px-10 py-3.5 bg-[var(--text-primary)] rounded-2xl text-[11px] font-black text-[var(--text-inverse)] uppercase tracking-[0.2em] shadow-xl shadow-black/10 group-hover:bg-indigo-600 transition-all duration-300">
+                                <div className="mt-12 px-10 py-3.5 bg-text-primary rounded-2xl text-[11px] font-black text-text-inverse uppercase tracking-[0.2em] shadow-xl shadow-black/10 group-hover:bg-indigo-600 transition-all duration-300">
                                     Mount Asset
                                 </div>
                             </motion.div>
@@ -391,17 +391,17 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                 initial={{ opacity: 0, scale: 0.98 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.98 }}
-                                className="rounded-[3rem] bg-[var(--surface-secondary)] border border-[var(--border-subtle)] p-8 flex flex-col space-y-8"
+                                className="rounded-[3rem] bg-surface-secondary border border-border-subtle p-8 flex flex-col space-y-8"
                             >
                                 {/* AI Header */}
                                 <div className="flex items-center gap-5">
-                                    <div className="w-14 h-14 rounded-[1.25rem] bg-indigo-600 text-white flex items-center justify-center shadow-2xl shadow-indigo-500/20 ring-8 ring-indigo-500/5">
+                                    <div className="w-14 h-14 rounded-[1.25rem] bg-indigo-600 text-text-primary flex items-center justify-center shadow-2xl shadow-indigo-500/20 ring-8 ring-indigo-500/5">
                                         <Wand2 className="w-7 h-7" />
                                     </div>
                                     <div className="space-y-1">
-                                        <p className="text-headline-sm text-[var(--text-primary)]">Ideogram V3 Studio</p>
+                                        <p className="text-headline-sm text-text-primary">Ideogram V3 Studio</p>
                                         <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                                             <p className="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-500">
                                                 Best-in-class Text Rendering
                                             </p>
@@ -410,26 +410,26 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                 </div>
 
                                 {/* Event Identity (Synced from Step 1) */}
-                                <div className="p-4 rounded-[1.25rem] bg-[var(--surface-base)] border border-[var(--border-subtle)] shadow-sm relative overflow-hidden">
+                                <div className="p-4 rounded-[1.25rem] bg-surface-base border border-border-subtle shadow-sm relative overflow-hidden">
                                     <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">
                                             Event Identity
                                         </span>
-                                        <div className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[9px] font-black tracking-widest uppercase border border-emerald-500/20 flex items-center gap-1">
-                                            <div className="w-1 h-1 rounded-full bg-emerald-500" /> Synced
+                                        <div className="px-2 py-0.5 rounded-full bg-green-500/10 text-emerald-500 text-[9px] font-black tracking-widest uppercase border border-emerald-500/20 flex items-center gap-1">
+                                            <div className="w-1 h-1 rounded-full bg-green-500" /> Synced
                                         </div>
                                     </div>
-                                    <p className={`text-body-sm font-bold truncate ${eventName ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)] italic'}`}>
+                                    <p className={`text-body-sm font-bold truncate ${eventName ? 'text-text-primary' : 'text-text-tertiary italic'}`}>
                                         {eventName || "Enter event name in Step 1"}
                                     </p>
-                                    <ImageIcon className="absolute -bottom-2 -right-2 w-14 h-14 text-[var(--text-primary)] opacity-5" />
+                                    <ImageIcon className="absolute -bottom-2 -right-2 w-14 h-14 text-text-primary opacity-5" />
                                 </div>
 
                                 {/* ─── STYLE PRESET PICKER ─── */}
                                 <div className="space-y-3">
                                     <div className="flex items-center gap-2 px-1">
                                         <Palette className="w-4 h-4 text-indigo-500" />
-                                        <p className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)]">Visual Style</p>
+                                        <p className="text-[11px] font-black uppercase tracking-widest text-text-primary">Visual Style</p>
                                     </div>
                                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-2 px-2">
                                         {STYLE_OPTIONS.map((style) => (
@@ -447,7 +447,7 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                 <div className="space-y-3">
                                     <div className="flex items-center gap-2 px-1">
                                         <Zap className="w-4 h-4 text-amber-500" />
-                                        <p className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)]">Mood</p>
+                                        <p className="text-[11px] font-black uppercase tracking-widest text-text-primary">Mood</p>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {MOOD_OPTIONS.map((mood) => (
@@ -456,7 +456,7 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                                 onClick={() => setSelectedMood(mood.id)}
                                                 className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all duration-200 flex items-center gap-1.5 ${selectedMood === mood.id
                                                     ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 shadow-sm"
-                                                    : "bg-[var(--surface-base)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:border-indigo-500/20"
+                                                    : "bg-surface-base text-text-secondary border border-border-subtle hover:border-indigo-500/20"
                                                     }`}
                                             >
                                                 <span>{mood.emoji}</span> {mood.label}
@@ -468,10 +468,10 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                 {/* ─── CREATIVE DIRECTION (Free Text) ─── */}
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between px-1">
-                                        <p className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)]">Creative Direction</p>
+                                        <p className="text-[11px] font-black uppercase tracking-widest text-text-primary">Creative Direction</p>
                                         <div className="group relative">
-                                            <Info className="w-4 h-4 text-[var(--text-tertiary)] cursor-help transition-colors hover:text-indigo-400" />
-                                            <div className="absolute bottom-full right-0 mb-4 w-72 p-4 bg-[var(--surface-elevated)] backdrop-blur-md text-[var(--text-primary)] text-[11px] rounded-[1.25rem] opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-20 shadow-2xl leading-relaxed border border-[var(--border-strong)]">
+                                            <Info className="w-4 h-4 text-text-tertiary cursor-help transition-colors hover:text-indigo-400" />
+                                            <div className="absolute bottom-full right-0 mb-4 w-72 p-4 bg-surface-elevated backdrop-blur-md text-text-primary text-[11px] rounded-[1.25rem] opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-20 shadow-2xl leading-relaxed border border-border-strong">
                                                 Describe what you want beyond the style preset. e.g. &ldquo;spotlight on a DJ silhouette&rdquo; or &ldquo;fireworks and confetti explosion&rdquo;
                                             </div>
                                         </div>
@@ -481,19 +481,19 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                             value={designPrompt}
                                             onChange={(e) => setDesignPrompt(e.target.value)}
                                             placeholder="e.g. Spotlight on DJ silhouette, massive crowd, confetti rain, laser beams cutting through fog..."
-                                            className="w-full min-h-[120px] p-5 rounded-[1.5rem] bg-[var(--surface-base)] border border-[var(--border-subtle)] text-body-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-[6px] focus:ring-indigo-500/10 focus:border-indigo-500/20 resize-none transition-all shadow-sm"
+                                            className="w-full min-h-[120px] p-5 rounded-[1.5rem] bg-surface-base border border-border-subtle text-body-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-[6px] focus:ring-indigo-500/10 focus:border-indigo-500/20 resize-none transition-all shadow-sm"
                                         />
-                                        <div className="absolute bottom-3 right-4 text-[10px] font-bold text-[var(--text-tertiary)] pointer-events-none">
+                                        <div className="absolute bottom-3 right-4 text-[10px] font-bold text-text-tertiary pointer-events-none">
                                             {designPrompt.length}/500
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* ─── ADVANCED OPTIONS ─── */}
-                                <div className="border-t border-[var(--border-subtle)] pt-6">
+                                <div className="border-t border-border-subtle pt-6">
                                     <button
                                         onClick={() => setShowAdvanced(!showAdvanced)}
-                                        className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors w-full"
+                                        className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-text-tertiary hover:text-text-primary transition-colors w-full"
                                     >
                                         <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-300 ${showAdvanced ? "rotate-90" : ""}`} />
                                         Advanced Options
@@ -510,8 +510,8 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                                 {/* Aspect Ratio */}
                                                 <div className="space-y-2">
                                                     <div className="flex items-center gap-2 px-1">
-                                                        <Maximize className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Aspect Ratio</p>
+                                                        <Maximize className="w-3.5 h-3.5 text-text-tertiary" />
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Aspect Ratio</p>
                                                     </div>
                                                     <div className="flex gap-2">
                                                         {ASPECT_RATIO_OPTIONS.map((ar) => (
@@ -520,7 +520,7 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                                                 onClick={() => setSelectedAspectRatio(ar.id)}
                                                                 className={`px-3 py-2 rounded-xl text-[10px] font-bold transition-all ${selectedAspectRatio === ar.id
                                                                     ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/30"
-                                                                    : "bg-[var(--surface-base)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]"
+                                                                    : "bg-surface-base text-text-tertiary border border-border-subtle"
                                                                     }`}
                                                             >
                                                                 {ar.label} <span className="opacity-50">{ar.ratio}</span>
@@ -532,8 +532,8 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                                 {/* Quality Tier */}
                                                 <div className="space-y-2">
                                                     <div className="flex items-center gap-2 px-1">
-                                                        <Zap className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Quality Tier</p>
+                                                        <Zap className="w-3.5 h-3.5 text-text-tertiary" />
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Quality Tier</p>
                                                     </div>
                                                     <div className="flex gap-2">
                                                         {([
@@ -546,7 +546,7 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                                                 onClick={() => setSelectedQuality(q.id)}
                                                                 className={`px-4 py-2.5 rounded-xl text-[10px] font-bold transition-all flex-1 ${selectedQuality === q.id
                                                                     ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/30"
-                                                                    : "bg-[var(--surface-base)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]"
+                                                                    : "bg-surface-base text-text-tertiary border border-border-subtle"
                                                                     }`}
                                                             >
                                                                 <div className="font-black">{q.label}</div>
@@ -557,20 +557,20 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                                 </div>
 
                                                 {/* Text on Poster Toggle */}
-                                                <div className="flex items-center justify-between p-4 rounded-[1.25rem] bg-[var(--surface-base)] border border-[var(--border-subtle)]">
+                                                <div className="flex items-center justify-between p-4 rounded-[1.25rem] bg-surface-base border border-border-subtle">
                                                     <div className="flex items-center gap-3">
-                                                        <Type className="w-4 h-4 text-[var(--text-tertiary)]" />
+                                                        <Type className="w-4 h-4 text-text-tertiary" />
                                                         <div>
-                                                            <p className="text-[11px] font-bold text-[var(--text-primary)]">Text on Poster</p>
-                                                            <p className="text-[9px] text-[var(--text-tertiary)]">AI renders event title directly</p>
+                                                            <p className="text-[11px] font-bold text-text-primary">Text on Poster</p>
+                                                            <p className="text-[9px] text-text-tertiary">AI renders event title directly</p>
                                                         </div>
                                                     </div>
                                                     <button
                                                         onClick={() => setIncludeTextOnPoster(!includeTextOnPoster)}
-                                                        className={`w-12 h-7 rounded-full transition-all duration-300 relative ${includeTextOnPoster ? "bg-indigo-600 shadow-lg shadow-indigo-500/20" : "bg-[var(--surface-tertiary)]"}`}
+                                                        className={`w-12 h-7 rounded-full transition-all duration-300 relative ${includeTextOnPoster ? "bg-indigo-600 shadow-lg shadow-indigo-500/20" : "bg-surface-tertiary"}`}
                                                     >
                                                         <motion.div
-                                                            className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-md"
+                                                            className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-surface-elevated shadow-md"
                                                             animate={{ x: includeTextOnPoster ? 20 : 0 }}
                                                             transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                                         />
@@ -578,12 +578,12 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                                 </div>
 
                                                 {/* Include Date Toggle */}
-                                                <div className="flex items-center justify-between p-4 rounded-[1.25rem] bg-[var(--surface-base)] border border-[var(--border-subtle)]">
+                                                <div className="flex items-center justify-between p-4 rounded-[1.25rem] bg-surface-base border border-border-subtle">
                                                     <div className="flex items-center gap-3">
-                                                        <Clock className="w-4 h-4 text-[var(--text-tertiary)]" />
+                                                        <Clock className="w-4 h-4 text-text-tertiary" />
                                                         <div>
-                                                            <p className="text-[11px] font-bold text-[var(--text-primary)]">Include Date</p>
-                                                            <p className="text-[9px] text-[var(--text-tertiary)]">
+                                                            <p className="text-[11px] font-bold text-text-primary">Include Date</p>
+                                                            <p className="text-[9px] text-text-tertiary">
                                                                 {eventDate || "No date set in Step 1"}
                                                             </p>
                                                         </div>
@@ -591,11 +591,11 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                                     <button
                                                         onClick={() => setIncludeDate(!includeDate)}
                                                         disabled={!eventDate}
-                                                        className={`w-12 h-7 rounded-full transition-all duration-300 relative ${includeDate && eventDate ? "bg-indigo-600 shadow-lg shadow-indigo-500/20" : "bg-[var(--surface-tertiary)]"
+                                                        className={`w-12 h-7 rounded-full transition-all duration-300 relative ${includeDate && eventDate ? "bg-indigo-600 shadow-lg shadow-indigo-500/20" : "bg-surface-tertiary"
                                                             } ${!eventDate ? "opacity-30 cursor-not-allowed" : ""}`}
                                                     >
                                                         <motion.div
-                                                            className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-md"
+                                                            className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-surface-elevated shadow-md"
                                                             animate={{ x: includeDate && eventDate ? 20 : 0 }}
                                                             transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                                         />
@@ -605,30 +605,30 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                                 {/* Color Scheme */}
                                                 <div className="space-y-2">
                                                     <div className="flex items-center gap-2 px-1">
-                                                        <Palette className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Color Scheme</p>
+                                                        <Palette className="w-3.5 h-3.5 text-text-tertiary" />
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Color Scheme</p>
                                                     </div>
                                                     <input
                                                         type="text"
                                                         value={colorScheme}
                                                         onChange={(e) => setColorScheme(e.target.value)}
                                                         placeholder="e.g. black and gold, neon pink and blue"
-                                                        className="w-full px-4 py-3 rounded-xl bg-[var(--surface-base)] border border-[var(--border-subtle)] text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/20"
+                                                        className="w-full px-4 py-3 rounded-xl bg-surface-base border border-border-subtle text-[12px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/20"
                                                     />
                                                 </div>
 
                                                 {/* Artists */}
                                                 <div className="space-y-2">
                                                     <div className="flex items-center gap-2 px-1">
-                                                        <Music className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Artist Names</p>
+                                                        <Music className="w-3.5 h-3.5 text-text-tertiary" />
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Artist Names</p>
                                                     </div>
                                                     <input
                                                         type="text"
                                                         value={artists}
                                                         onChange={(e) => setArtists(e.target.value)}
                                                         placeholder="e.g. DJ Snake, Nucleya"
-                                                        className="w-full px-4 py-3 rounded-xl bg-[var(--surface-base)] border border-[var(--border-subtle)] text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/20"
+                                                        className="w-full px-4 py-3 rounded-xl bg-surface-base border border-border-subtle text-[12px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/20"
                                                     />
                                                 </div>
                                             </motion.div>
@@ -653,12 +653,12 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                         onClick={handleGenerate}
                                         disabled={isGenerating || !canGenerate}
                                         className={`btn w-full py-5 text-[12px] font-black uppercase tracking-[0.25em] flex items-center justify-center gap-3 transition-all duration-500 scale-100 active:scale-95 ${isGenerating
-                                            ? "bg-[var(--text-primary)] text-[var(--text-inverse)] opacity-90 cursor-wait"
+                                            ? "bg-text-primary text-text-inverse opacity-90 cursor-wait"
                                             : generationState === "success"
-                                                ? "bg-emerald-600 text-white shadow-2xl shadow-emerald-500/20"
+                                                ? "bg-emerald-600 text-text-primary shadow-2xl shadow-emerald-500/20"
                                                 : canGenerate
                                                     ? "btn-primary shadow-2xl shadow-indigo-500/20"
-                                                    : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] cursor-not-allowed border-[var(--border-subtle)]"
+                                                    : "bg-surface-tertiary text-text-tertiary cursor-not-allowed border-border-subtle"
                                             }`}
                                     >
                                         {isGenerating ? (
@@ -688,10 +688,10 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
 
                                 {/* ─── GENERATION HISTORY ─── */}
                                 {generationHistory.length > 0 && (
-                                    <div className="pt-6 border-t border-[var(--border-subtle)]">
+                                    <div className="pt-6 border-t border-border-subtle">
                                         <button
                                             onClick={() => setShowHistory(!showHistory)}
-                                            className="flex items-center gap-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors mb-4 mx-1"
+                                            className="flex items-center gap-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-text-tertiary hover:text-text-primary transition-colors mb-4 mx-1"
                                         >
                                             <div className="w-2 h-2 rounded-full bg-[var(--state-info)]" />
                                             Previous Generations ({generationHistory.length})
@@ -722,7 +722,7 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                                             />
                                                             {entry.isSelected && (
                                                                 <div className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-indigo-500 flex items-center justify-center">
-                                                                    <Check className="w-2.5 h-2.5 text-white" />
+                                                                    <Check className="w-2.5 h-2.5 text-text-primary" />
                                                                 </div>
                                                             )}
                                                         </button>
@@ -740,15 +740,15 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                 {/* Right Column: Master Production Preview */}
                 <div className="space-y-6">
                     <div className="flex items-center justify-between px-1">
-                        <p className="text-label font-black uppercase tracking-widest text-[var(--text-tertiary)]">Master Asset</p>
+                        <p className="text-label font-black uppercase tracking-widest text-text-tertiary">Master Asset</p>
                         {selectedImage && (
-                            <div className="px-3 py-1 rounded-full bg-[var(--surface-tertiary)] text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active
+                            <div className="px-3 py-1 rounded-full bg-surface-tertiary text-[10px] font-black uppercase tracking-widest text-text-tertiary flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-green-500" /> Active
                             </div>
                         )}
                     </div>
 
-                    <div className="aspect-[4/5] rounded-[3.5rem] bg-[var(--surface-secondary)] border border-[var(--border-subtle)] overflow-hidden relative group shadow-2xl shadow-black/5 transition-all duration-700 hover:shadow-indigo-500/10">
+                    <div className="aspect-[4/5] rounded-[3.5rem] bg-surface-secondary border border-border-subtle overflow-hidden relative group shadow-2xl shadow-black/5 transition-all duration-700 hover:shadow-indigo-500/10">
                         {selectedImage ? (
                             <>
                                 <img
@@ -758,8 +758,8 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                 />
 
                                 {/* Overlay Interactions */}
-                                <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-5">
-                                    <label className="bg-white text-stone-900 px-10 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] cursor-pointer shadow-2xl hover:scale-105 transition-transform active:scale-95 duration-300">
+                                <div className="absolute inset-0 bg-surface-secondary/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-5">
+                                    <label className="bg-surface-elevated text-text-primary px-10 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] cursor-pointer shadow-2xl hover:scale-105 transition-transform active:scale-95 duration-300">
                                         Swap Master
                                         <input
                                             type="file"
@@ -770,20 +770,20 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                     </label>
                                     <button
                                         onClick={handleRemoveImage}
-                                        className="bg-rose-600/90 text-white px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] shadow-xl hover:bg-rose-600 transition-all duration-300"
+                                        className="bg-rose-600/90 text-text-primary px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] shadow-xl hover:bg-rose-600 transition-all duration-300"
                                     >
                                         Drop Asset
                                     </button>
                                 </div>
 
                                 {/* Status Indicators */}
-                                <div className="absolute top-8 right-8 w-14 h-14 rounded-[1.75rem] bg-emerald-500 text-white flex items-center justify-center shadow-2xl ring-[6px] ring-white/20 backdrop-blur-md">
+                                <div className="absolute top-8 right-8 w-14 h-14 rounded-[1.75rem] bg-green-500 text-text-primary flex items-center justify-center shadow-2xl ring-[6px] ring-white/20 backdrop-blur-md">
                                     <Check className="w-7 h-7" />
                                 </div>
 
                                 {currentGenerationId && (
-                                    <div className="absolute top-8 left-8 px-5 py-2.5 rounded-[1.25rem] bg-indigo-600/90 backdrop-blur-xl shadow-2xl border border-white/10">
-                                        <span className="text-[10px] text-white font-black uppercase tracking-[0.25em] flex items-center gap-2.5">
+                                    <div className="absolute top-8 left-8 px-5 py-2.5 rounded-[1.25rem] bg-indigo-600/90 backdrop-blur-xl shadow-2xl border border-border-subtle">
+                                        <span className="text-[10px] text-text-primary font-black uppercase tracking-[0.25em] flex items-center gap-2.5">
                                             <Sparkles className="w-4 h-4" /> AI Generated
                                         </span>
                                     </div>
@@ -804,21 +804,21 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                             <p className="text-headline-sm text-indigo-400 animate-pulse">
                                                 Generating...
                                             </p>
-                                            <p className="text-body-sm text-[var(--text-tertiary)] leading-relaxed max-w-[280px]">
+                                            <p className="text-body-sm text-text-tertiary leading-relaxed max-w-[280px]">
                                                 Ideogram V3 is crafting your poster with perfect typography
                                             </p>
                                         </div>
                                     </>
                                 ) : (
                                     <>
-                                        <div className="w-28 h-28 rounded-[3rem] bg-[var(--surface-base)] flex items-center justify-center shadow-2xl shadow-black/5 border border-[var(--border-subtle)]">
-                                            <ImageIcon className="w-12 h-12 text-[var(--text-tertiary)] opacity-20" />
+                                        <div className="w-28 h-28 rounded-[3rem] bg-surface-base flex items-center justify-center shadow-2xl shadow-black/5 border border-border-subtle">
+                                            <ImageIcon className="w-12 h-12 text-text-tertiary opacity-20" />
                                         </div>
                                         <div className="text-center space-y-2 px-12">
-                                            <p className="text-display-xs text-[var(--text-primary)] opacity-20">
+                                            <p className="text-display-xs text-text-primary opacity-20">
                                                 Void Buffer
                                             </p>
-                                            <p className="text-body-sm text-[var(--text-tertiary)] leading-relaxed max-w-[240px]">
+                                            <p className="text-body-sm text-text-tertiary leading-relaxed max-w-[240px]">
                                                 Your master visual will materialize here once sourced or synthesized
                                             </p>
                                         </div>
@@ -833,7 +833,7 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                         <button
                             onClick={handleRegenerate}
                             disabled={isGenerating || !canGenerate}
-                            className="group w-full py-5 rounded-[2rem] bg-[var(--surface-secondary)] border border-[var(--border-subtle)] text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)] flex items-center justify-center gap-3 hover:bg-[var(--surface-elevated)] hover:border-indigo-500/30 transition-all duration-500 shadow-sm active:scale-[0.98]"
+                            className="group w-full py-5 rounded-[2rem] bg-surface-secondary border border-border-subtle text-[11px] font-black uppercase tracking-[0.2em] text-text-primary flex items-center justify-center gap-3 hover:bg-surface-elevated hover:border-indigo-500/30 transition-all duration-500 shadow-sm active:scale-[0.98]"
                         >
                             <RefreshCw className={`w-4 h-4 group-hover:text-indigo-600 transition-colors ${isGenerating ? "animate-spin" : ""}`} />
                             {isGenerating ? "Generating New Variation..." : "Generate New Variation"}
@@ -846,50 +846,50 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
             <div className="relative group">
                 <div className="absolute inset-0 bg-indigo-500/5 blur-3xl rounded-[3rem] opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
 
-                <div className="relative flex flex-wrap items-center justify-center gap-y-6 gap-x-12 py-8 px-12 rounded-[2.5rem] border border-[var(--border-subtle)] bg-[var(--surface-secondary)] backdrop-blur-sm">
+                <div className="relative flex flex-wrap items-center justify-center gap-y-6 gap-x-12 py-8 px-12 rounded-[2.5rem] border border-border-subtle bg-surface-secondary backdrop-blur-sm">
                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-[1rem] bg-[var(--surface-base)] shadow-sm flex items-center justify-center border border-[var(--border-subtle)]">
+                        <div className="w-10 h-10 rounded-[1rem] bg-surface-base shadow-sm flex items-center justify-center border border-border-subtle">
                             <Wand2 className="w-5 h-5 text-indigo-500" />
                         </div>
                         <div className="space-y-0.5">
-                            <span className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Engine</span>
-                            <span className="block text-body-sm font-bold text-[var(--text-primary)]">Ideogram V3</span>
+                            <span className="block text-[10px] font-black uppercase tracking-widest text-text-tertiary">Engine</span>
+                            <span className="block text-body-sm font-bold text-text-primary">Ideogram V3</span>
                         </div>
                     </div>
 
-                    <div className="w-px h-10 bg-[var(--border-subtle)] hidden md:block" />
+                    <div className="w-px h-10 bg-border-subtle hidden md:block" />
 
                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-[1rem] bg-[var(--surface-base)] shadow-sm flex items-center justify-center border border-[var(--border-subtle)]">
+                        <div className="w-10 h-10 rounded-[1rem] bg-surface-base shadow-sm flex items-center justify-center border border-border-subtle">
                             <ImageIcon className="w-5 h-5 text-indigo-500" />
                         </div>
                         <div className="space-y-0.5">
-                            <span className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Output</span>
-                            <span className="block text-body-sm font-bold text-[var(--text-primary)]">HD Print-Ready</span>
+                            <span className="block text-[10px] font-black uppercase tracking-widest text-text-tertiary">Output</span>
+                            <span className="block text-body-sm font-bold text-text-primary">HD Print-Ready</span>
                         </div>
                     </div>
 
-                    <div className="w-px h-10 bg-[var(--border-subtle)] hidden md:block" />
+                    <div className="w-px h-10 bg-border-subtle hidden md:block" />
 
                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-[1rem] bg-[var(--surface-base)] shadow-sm flex items-center justify-center border border-[var(--border-subtle)]">
+                        <div className="w-10 h-10 rounded-[1rem] bg-surface-base shadow-sm flex items-center justify-center border border-border-subtle">
                             <Type className="w-5 h-5 text-emerald-500" />
                         </div>
                         <div className="space-y-0.5">
-                            <span className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Text</span>
-                            <span className="block text-body-sm font-bold text-[var(--text-primary)]">Perfect Rendering</span>
+                            <span className="block text-[10px] font-black uppercase tracking-widest text-text-tertiary">Text</span>
+                            <span className="block text-body-sm font-bold text-text-primary">Perfect Rendering</span>
                         </div>
                     </div>
 
-                    <div className="w-px h-10 bg-[var(--border-subtle)] hidden md:block" />
+                    <div className="w-px h-10 bg-border-subtle hidden md:block" />
 
                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-[1rem] bg-[var(--surface-base)] shadow-sm flex items-center justify-center border border-[var(--border-subtle)]">
+                        <div className="w-10 h-10 rounded-[1rem] bg-surface-base shadow-sm flex items-center justify-center border border-border-subtle">
                             <Check className="w-5 h-5 text-emerald-500" />
                         </div>
                         <div className="space-y-0.5">
-                            <span className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Formats</span>
-                            <span className="block text-body-sm font-bold text-[var(--text-primary)]">JPG, PNG, WebP</span>
+                            <span className="block text-[10px] font-black uppercase tracking-widest text-text-tertiary">Formats</span>
+                            <span className="block text-body-sm font-bold text-text-primary">JPG, PNG, WebP</span>
                         </div>
                     </div>
                 </div>
@@ -909,24 +909,24 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                             animate={{ scale: 1, y: 0, opacity: 1 }}
                             exit={{ scale: 0.9, y: 30, opacity: 0 }}
                             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                            className="bg-[var(--surface-base)] rounded-[3.5rem] w-full max-w-4xl overflow-hidden flex flex-col shadow-[0_0_100px_rgba(0,0,0,0.5)] border border-[var(--border-strong)]"
+                            className="bg-surface-base rounded-[3.5rem] w-full max-w-4xl overflow-hidden flex flex-col shadow-[0_0_100px_rgba(0,0,0,0.5)] border border-border-strong"
                         >
                             {/* Modal Header */}
-                            <div className="px-12 py-10 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--surface-secondary)]">
+                            <div className="px-12 py-10 border-b border-border-subtle flex items-center justify-between bg-surface-secondary">
                                 <div className="space-y-1">
-                                    <h3 className="text-display-xs tracking-tight text-[var(--text-primary)]">Refine Visual Asset</h3>
-                                    <p className="text-[11px] font-black uppercase tracking-[0.25em] text-[var(--text-tertiary)]">Standard 4:5 Master Ratio</p>
+                                    <h3 className="text-display-xs tracking-tight text-text-primary">Refine Visual Asset</h3>
+                                    <p className="text-[11px] font-black uppercase tracking-[0.25em] text-text-tertiary">Standard 4:5 Master Ratio</p>
                                 </div>
                                 <button
                                     onClick={() => setIsCropping(false)}
-                                    className="w-14 h-14 flex items-center justify-center hover:bg-[var(--surface-tertiary)] rounded-2xl transition-all duration-300"
+                                    className="w-14 h-14 flex items-center justify-center hover:bg-surface-tertiary rounded-2xl transition-all duration-300"
                                 >
-                                    <Trash2 className="w-7 h-7 text-[var(--text-tertiary)]" />
+                                    <Trash2 className="w-7 h-7 text-text-tertiary" />
                                 </button>
                             </div>
 
                             {/* Cropper Workspace */}
-                            <div className="relative h-[480px] bg-stone-900 flex items-center justify-center">
+                            <div className="relative h-[480px] bg-surface-secondary flex items-center justify-center">
                                 <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:24px_24px]" />
                                 <Cropper
                                     image={tempImage!}
@@ -940,10 +940,10 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                             </div>
 
                             {/* Interaction Area */}
-                            <div className="p-12 bg-[var(--surface-base)] space-y-10">
+                            <div className="p-12 bg-surface-base space-y-10">
                                 <div className="space-y-5">
                                     <div className="flex justify-between items-center px-1">
-                                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Optical Scaling</span>
+                                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary">Optical Scaling</span>
                                         <span className="text-indigo-500 px-4 py-1.5 rounded-full bg-indigo-500/10 text-[11px] font-black tracking-widest">{zoom.toFixed(2)}x</span>
                                     </div>
                                     <input
@@ -953,14 +953,14 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                         max={3}
                                         step={0.01}
                                         onChange={(e) => setZoom(Number(e.target.value))}
-                                        className="w-full h-1.5 bg-[var(--surface-tertiary)] rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                        className="w-full h-1.5 bg-surface-tertiary rounded-lg appearance-none cursor-pointer accent-indigo-600"
                                     />
                                 </div>
 
                                 <div className="flex gap-6">
                                     <button
                                         onClick={() => setIsCropping(false)}
-                                        className="px-10 py-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                                        className="px-10 py-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary hover:text-text-primary transition-colors"
                                     >
                                         Abort Session
                                     </button>

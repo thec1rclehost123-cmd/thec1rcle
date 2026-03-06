@@ -10,7 +10,8 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "venueId is required" }, { status: 400 });
         }
 
-        const stats = await getVenueOverviewStats(venueId);
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
+        const stats = await getVenueOverviewStats(venueId, token);
         return NextResponse.json(stats);
     } catch (error: any) {
         console.error("[Venue Summary API] Error:", error);

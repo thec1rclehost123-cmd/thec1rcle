@@ -3,7 +3,7 @@ import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { algoliasearch } from 'algoliasearch';
 import { EVENT_LIFECYCLE, PUBLIC_LIFECYCLE_STATES, normalizeCity, resolvePoster, mapEventForClient } from "@c1rcle/core/events";
 import { filterAndSortEvents, calculateHeatScore as coreHeatScore } from "@c1rcle/core/event-engine";
-import { events as seedEvents } from "../../data/events";
+import { events as seedEvents } from "../../data/events.js";
 
 /**
  * Helper to serialize data for RSC

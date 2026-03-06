@@ -29,6 +29,19 @@ export default {
           dim: "#CC3311",
         },
         // Surfaces
+        text: {
+          primary: "var(--text-primary)",
+          secondary: "var(--text-secondary)",
+          tertiary: "var(--text-tertiary)",
+          placeholder: "var(--text-placeholder)",
+          inverse: "var(--text-inverse)",
+        },
+        border: {
+          subtle: "var(--border-subtle)",
+          default: "var(--border-default)",
+          strong: "var(--border-strong)",
+          focus: "var(--border-focus)",
+        },
         obsidian: {
           base: "var(--surface-base)",
           surface: "var(--surface-secondary)",

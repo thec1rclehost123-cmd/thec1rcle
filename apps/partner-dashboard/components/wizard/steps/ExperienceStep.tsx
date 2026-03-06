@@ -49,8 +49,8 @@ function AppleInput({
         <div className="space-y-1.5">
             {label && (
                 <div className="flex items-center justify-between">
-                    <label className="text-label ml-1 text-[var(--text-secondary)]">{label}</label>
-                    {hint && <span className="text-[10px] text-[var(--text-tertiary)] font-medium uppercase tracking-widest">{hint}</span>}
+                    <label className="text-label ml-1 text-text-secondary">{label}</label>
+                    {hint && <span className="text-[10px] text-text-tertiary font-medium uppercase tracking-widest">{hint}</span>}
                 </div>
             )}
             <div className="relative group">
@@ -176,8 +176,8 @@ export function ExperienceStep({
                             type="button"
                             onClick={() => toggleGenre(genre)}
                             className={`px-3 py-1.5 rounded-full text-body-sm font-medium border transition-all ${genres.includes(genre)
-                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20'
-                                : 'bg-[var(--surface-secondary)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-indigo-500/30 hover:bg-[var(--surface-base)]'
+                                ? 'bg-indigo-600 text-text-primary border-indigo-600 shadow-lg shadow-indigo-500/20'
+                                : 'bg-surface-secondary text-text-primary border-border-subtle hover:border-indigo-500/30 hover:bg-surface-base'
                                 }`}
                         >
                             {genre}
@@ -212,11 +212,11 @@ export function ExperienceStep({
                             onClick={() => updateFormData({ dressCode: option.id })}
                             className={`p-4 rounded-xl border-2 text-left transition-all ${formData.dressCode === option.id
                                 ? 'border-amber-500 bg-amber-500/10 shadow-sm'
-                                : 'border-[var(--border-subtle)] hover:border-amber-500/30 hover:bg-[var(--surface-secondary)]'
+                                : 'border-border-subtle hover:border-amber-500/30 hover:bg-surface-secondary'
                                 }`}
                         >
-                            <p className="text-body font-semibold text-[var(--text-primary)]">{option.label}</p>
-                            <p className="text-caption text-[var(--text-tertiary)] mt-0.5">{option.desc}</p>
+                            <p className="text-body font-semibold text-text-primary">{option.label}</p>
+                            <p className="text-caption text-text-tertiary mt-0.5">{option.desc}</p>
                         </button>
                     ))}
                 </div>
@@ -254,7 +254,7 @@ export function ExperienceStep({
                                     onClick={() => updateFormData({ ageRestriction: option.value })}
                                     className={`px-4 py-2 rounded-lg border-2 text-body-sm font-medium transition-all ${formData.ageRestriction === option.value
                                         ? 'border-red-500 bg-red-500/10 text-red-500'
-                                        : 'border-[var(--border-subtle)] hover:border-red-500/30 hover:bg-[var(--surface-secondary)]'
+                                        : 'border-border-subtle hover:border-red-500/30 hover:bg-surface-secondary'
                                         }`}
                                 >
                                     {option.label}
@@ -270,12 +270,12 @@ export function ExperienceStep({
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: 'auto' }}
                                 exit={{ opacity: 0, height: 0 }}
-                                className="p-4 rounded-xl bg-[var(--state-warning-bg)] border border-[var(--state-warning)]/20 flex items-start gap-3"
+                                className="p-4 rounded-xl bg-yellow-500/10 border border-[var(--state-warning)]/20 flex items-start gap-3"
                             >
-                                <AlertCircle className="w-5 h-5 text-[var(--state-warning)] flex-shrink-0 mt-0.5" />
+                                <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
                                 <div>
-                                    <p className="text-body font-medium text-[var(--state-warning)]">ID Verification Required</p>
-                                    <p className="text-caption text-[var(--state-warning)] opacity-80 mt-1">
+                                    <p className="text-body font-medium text-yellow-500">ID Verification Required</p>
+                                    <p className="text-caption text-yellow-500 opacity-80 mt-1">
                                         Guests will be required to show valid government ID at entry.
                                         This will be displayed prominently on the event page.
                                     </p>

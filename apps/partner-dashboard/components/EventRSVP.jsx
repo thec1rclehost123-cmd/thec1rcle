@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import TicketModal from "./TicketModal";
 import GuestlistModal from "./GuestlistModal";
+import ShimmerImage from "./ShimmerImage";
 import { useAuth } from "./providers/AuthProvider";
 import { useToast } from "./providers/ToastProvider";
 import LikeButton from "./LikeButton";
@@ -186,6 +187,7 @@ export default function EventRSVP({ event, host }) {
               src={event.image}
               alt=""
               fill
+              sizes="100vw"
               className="object-cover opacity-70 blur-[60px] saturate-200"
               priority
             />
@@ -401,7 +403,7 @@ export default function EventRSVP({ event, host }) {
                 className="flex flex-wrap items-center gap-4 group cursor-pointer"
               >
                 <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-white/15 transition-all group-hover:border-white/40 group-hover:scale-105">
-                  <Image src={host?.avatar || "/events/holi-edit.svg"} alt={host?.name || "Host"} fill sizes="40px" className="object-cover" />
+                  <ShimmerImage src={host?.avatar || "/events/holi-edit.svg"} alt={host?.name || "Host"} fill sizes="64px" className="object-cover" />
                 </div>
                 <div>
                   <p className="text-lg font-semibold group-hover:text-iris transition-colors">{host?.name || event?.host}</p>

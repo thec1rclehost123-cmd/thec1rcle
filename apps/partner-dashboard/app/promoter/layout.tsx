@@ -1,3 +1,5 @@
+"use client";
+
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
@@ -41,7 +43,7 @@ const menuSections = [
     },
     {
         items: [
-            { icon: Users, label: "Connections", href: "/promoter/connections" },
+            { icon: Users, label: "Partnerships", href: "/promoter/partnerships" },
         ]
     },
     {
@@ -61,7 +63,7 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
     return (
         <ApprovalGuard>
             <RoleGuard allowedType="promoter">
-                <div className="min-h-screen bg-[var(--surface-base)]">
+                <div className="min-h-screen bg-surface-base">
                     <PromoterSidebarWrapper menuSections={menuSections} />
 
                     {/* Main Content */}

@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        const analytics = await getPromoterAnalytics(promoterId, range);
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
+        const analytics = await getPromoterAnalytics(promoterId, range, token);
 
         return NextResponse.json({ ...analytics });
     } catch (error: any) {

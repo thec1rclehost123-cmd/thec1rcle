@@ -40,7 +40,7 @@ export const Avatar = ({
   return (
     <div
       className={clsx(
-        "relative overflow-hidden flex items-center justify-center rounded-full bg-stone-100 text-stone-600 font-medium",
+        "relative overflow-hidden flex items-center justify-center rounded-full bg-surface-secondary text-stone-600 font-medium",
         sizeMap[size],
         className
       )}

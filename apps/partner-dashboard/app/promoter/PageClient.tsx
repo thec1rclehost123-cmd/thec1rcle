@@ -55,55 +55,53 @@ export default function PromoterDashboardHome() {
         if (!profile?.activeMembership?.partnerId) return;
 
         const partnerId = profile.activeMembership.partnerId;
-        // Fetch active events for promotion via Server API
-        const fetchEvents = async () => {
-            try {
-                const token = await profile?.activeMembership?.partnerId ? await (window as any).getAuthToken?.() : null;
-                const headers: any = {};
-                // Ideally we get token from user, but we can pass without auth if public or use Next.js cookies if available. Let's just use standard fetch.
-                const res = await fetch(`/api/promoter/events?promoterId=${partnerId}&limit=4`);
-                if (!res.ok) throw new Error("Failed to fetch events");
-                const data = await res.json();
-                const events = (data.events || []).map((doc: any) => mapEventForClient(doc, doc.id));
+
+        const fetchAll = async () => {
+            setLoading(true);
+
+            const [eventsResult, statsResult, commissionsResult] = await Promise.allSettled([
+                // Fetch active events
+                fetch(`/api/promoter/events?promoterId=${partnerId}&limit=4`)
+                    .then(res => res.ok ? res.json() : { events: [] }),
+                // Fetch stats
+                fetch(`/api/promoter/stats?promoterId=${partnerId}`)
+                    .then(res => res.json()),
+                // Fetch recent commissions
+                fetch(`/api/promoter/commissions?promoterId=${partnerId}&limit=5`)
+                    .then(res => res.json())
+            ]);
+
+            // Process events
+            if (eventsResult.status === 'fulfilled') {
+                const events = (eventsResult.value.events || []).map((doc: any) => mapEventForClient(doc, doc.id));
                 setActiveEvents(events);
-            } catch (e) {
-                console.error("[Promoter Dashboard] Events error:", e);
             }
+
+            // Process stats
+            if (statsResult.status === 'fulfilled' && statsResult.value.stats) {
+                const s = statsResult.value.stats;
+                const convRate = s.totalClicks > 0 ? (s.totalConversions / s.totalClicks * 100) : 0;
+                const checkRate = s.totalConversions > 0 ? (s.totalCheckIns / s.totalConversions * 100) : 0;
+                setStats({
+                    totalCommission: s.totalCommission || 0,
+                    pendingCommission: s.pendingCommission || 0,
+                    totalClicks: s.totalClicks || 0,
+                    totalConversions: s.totalConversions || 0,
+                    totalCheckIns: s.totalCheckIns || 0,
+                    conversionRate: convRate,
+                    checkInRate: checkRate
+                });
+            }
+
+            // Process commissions
+            if (commissionsResult.status === 'fulfilled' && commissionsResult.value.commissions) {
+                setRecentCommissions(commissionsResult.value.commissions);
+            }
+
+            setLoading(false);
         };
-        fetchEvents();
 
-        // Fetch Stats
-        fetch(`/api/promoter/stats?promoterId=${partnerId}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.stats) {
-                    const s = data.stats;
-                    const convRate = s.totalClicks > 0 ? (s.totalConversions / s.totalClicks * 100) : 0;
-                    const checkRate = s.totalConversions > 0 ? (s.totalCheckIns / s.totalConversions * 100) : 0;
-                    setStats({
-                        totalCommission: s.totalCommission || 0,
-                        pendingCommission: s.pendingCommission || 0,
-                        totalClicks: s.totalClicks || 0,
-                        totalConversions: s.totalConversions || 0,
-                        totalCheckIns: s.totalCheckIns || 0,
-                        conversionRate: convRate,
-                        checkInRate: checkRate
-                    });
-                }
-                setLoading(false);
-            })
-            .catch(() => setLoading(false));
-
-        // Fetch Recent Commissions
-        fetch(`/api/promoter/commissions?promoterId=${partnerId}&limit=5`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.commissions) {
-                    setRecentCommissions(data.commissions);
-                }
-            });
-
-        return () => { };
+        fetchAll().catch(() => setLoading(false));
     }, [profile]);
 
     const copyLink = (eventId: string, slug?: string) => {
@@ -121,14 +119,14 @@ export default function PromoterDashboardHome() {
             {/* Header */}
             <div className="flex flex-col md:flex-row items-start justify-between gap-6">
                 <div>
-                    <h1 className="text-3xl md:text-4xl font-extrabold text-[var(--text-primary)] tracking-tight">Console</h1>
-                    <p className="text-sm md:text-base text-[var(--text-tertiary)] mt-1">Proof of impact and performance overview.</p>
+                    <h1 className="text-3xl md:text-4xl font-extrabold text-text-primary tracking-tight">Console</h1>
+                    <p className="text-sm md:text-base text-text-tertiary mt-1">Proof of impact and performance overview.</p>
                 </div>
 
-                <div className="flex items-center gap-6 px-6 py-4 rounded-2xl bg-[var(--surface-elevated)] border border-[var(--border-subtle)] shadow-sm w-full md:w-auto justify-between md:justify-start">
+                <div className="flex items-center gap-6 px-6 py-4 rounded-2xl bg-surface-elevated border border-border-subtle shadow-sm w-full md:w-auto justify-between md:justify-start">
                     <div className="text-right">
-                        <p className="text-[10px] md:text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-[0.05em] mb-1">Available Payout</p>
-                        <p className="text-2xl md:text-3xl font-black text-[var(--text-primary)]">₹{stats.pendingCommission.toLocaleString()}</p>
+                        <p className="text-[10px] md:text-xs font-bold text-text-tertiary uppercase tracking-[0.05em] mb-1">Available Payout</p>
+                        <p className="text-2xl md:text-3xl font-black text-text-primary">₹{stats.pendingCommission.toLocaleString()}</p>
                     </div>
                     <div className="w-[1px] h-10 bg-[var(--border-default)]" />
                     <Link href="/promoter/payouts" className="btn btn-primary btn-sm rounded-xl px-5 py-3 h-auto">
@@ -172,10 +170,10 @@ export default function PromoterDashboardHome() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
                 {/* Active Distribution Links */}
                 <div className="lg:col-span-2">
-                    <div className="p-6 md:p-8 rounded-[2rem] bg-[var(--surface-elevated)] border border-[var(--border-subtle)] shadow-sm">
+                    <div className="p-6 md:p-8 rounded-[2rem] bg-surface-elevated border border-border-subtle shadow-sm">
                         <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-lg md:text-xl font-bold text-[var(--text-primary)]">Distribution Links</h2>
-                            <Link href="/promoter/links" className="text-sm font-medium text-indigo-600 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-all">
+                            <h2 className="text-lg md:text-xl font-bold text-text-primary">Distribution Links</h2>
+                            <Link href="/promoter/links" className="text-sm font-medium text-c1rcle-orange flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-surface-tertiary transition-all">
                                 All Links
                                 <ChevronRight className="w-4 h-4" />
                             </Link>
@@ -183,9 +181,9 @@ export default function PromoterDashboardHome() {
 
                         {activeEvents.length === 0 ? (
                             <div className="empty-state py-12 text-center">
-                                <Link2 className="w-8 h-8 text-[var(--text-placeholder)] mb-4 mx-auto" />
-                                <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">No active events</h3>
-                                <p className="text-sm text-[var(--text-tertiary)] max-w-xs mx-auto">
+                                <Link2 className="w-8 h-8 text-text-placeholder mb-4 mx-auto" />
+                                <h3 className="text-lg font-bold text-text-primary mb-2">No active events</h3>
+                                <p className="text-sm text-text-tertiary max-w-xs mx-auto">
                                     Connect with a host to start promoting live events and earning commission.
                                 </p>
                             </div>
@@ -207,37 +205,37 @@ export default function PromoterDashboardHome() {
                 {/* Performance Context */}
                 <div className="space-y-6">
                     {/* Insights Card */}
-                    <div className="p-6 md:p-8 rounded-[2rem] bg-stone-900 text-white shadow-xl shadow-stone-200">
-                        <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-6">Recent Earnings</h3>
+                    <div className="p-6 md:p-8 rounded-[2rem] bg-surface-secondary border border-border-subtle shadow-sm">
+                        <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-6">Recent Earnings</h3>
                         {recentCommissions.length === 0 ? (
-                            <p className="text-sm text-stone-500 py-6 text-center">No earnings data available.</p>
+                            <p className="text-sm text-text-tertiary py-6 text-center">No earnings data available.</p>
                         ) : (
                             <div className="space-y-5">
                                 {recentCommissions.map((comm, i) => (
                                     <div key={comm.id || i} className="flex items-center justify-between">
                                         <div className="min-w-0 flex-1 pr-4">
-                                            <p className="text-[14px] font-bold text-white truncate leading-tight">
+                                            <p className="text-[14px] font-bold text-text-primary truncate leading-tight">
                                                 {comm.eventTitle || "Event Contribution"}
                                             </p>
-                                            <p className="text-[11px] text-stone-500 font-medium uppercase tracking-wider mt-1">
+                                            <p className="text-[11px] text-text-tertiary font-medium uppercase tracking-wider mt-1">
                                                 {new Date(comm.createdAt).toLocaleDateString()}
                                             </p>
                                         </div>
-                                        <span className="text-[15px] font-bold text-emerald-400">
+                                        <span className="text-[15px] font-bold text-c1rcle-orange">
                                             +₹{comm.commissionAmount}
                                         </span>
                                     </div>
                                 ))}
                             </div>
                         )}
-                        <Link href="/promoter/payouts" className="btn btn-secondary w-full mt-8 bg-white/10 border-white/10 hover:bg-white/20 text-white font-bold">
+                        <Link href="/promoter/payouts" className="btn btn-secondary w-full mt-8 font-bold">
                             Financial Ledger
                         </Link>
                     </div>
 
                     {/* Quick Tools */}
-                    <div className="p-6 md:p-8 rounded-[2rem] bg-[var(--surface-elevated)] border border-[var(--border-subtle)] shadow-sm">
-                        <h3 className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-6">Tools</h3>
+                    <div className="p-6 md:p-8 rounded-[2rem] bg-surface-elevated border border-border-subtle shadow-sm">
+                        <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-6">Tools</h3>
                         <div className="space-y-2">
                             <QuickAction label="Promoter Assets" href="/promoter/assets" icon={ExternalLink} />
                             <QuickAction label="Verified Buyers" href="/promoter/guests" icon={Users} />
@@ -273,14 +271,14 @@ function MetricCard({
     };
 
     return (
-        <div className="p-6 md:p-8 rounded-[2rem] bg-[var(--surface-elevated)] border border-[var(--border-subtle)] shadow-sm hover:border-[var(--border-strong)] transition-all group">
+        <div className="p-6 md:p-8 rounded-[2rem] bg-surface-elevated border border-border-subtle shadow-sm hover:border-border-strong transition-all group">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110" style={{ backgroundColor: `${accents[accentColor]}10`, color: accents[accentColor] }}>
                 <Icon className="w-5 h-5" />
             </div>
-            <p className="text-3xl md:text-4xl font-black text-[var(--text-primary)] leading-none mb-2 tracking-tight">{value}</p>
-            <p className="text-[10px] md:text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-[0.05em] mb-1">{label}</p>
+            <p className="text-3xl md:text-4xl font-black text-text-primary leading-none mb-2 tracking-tight">{value}</p>
+            <p className="text-[10px] md:text-xs font-bold text-text-tertiary uppercase tracking-[0.05em] mb-1">{label}</p>
             {subtext && (
-                <p className="text-xs md:text-sm text-stone-400 font-medium">{subtext}</p>
+                <p className="text-xs md:text-sm text-text-tertiary font-medium">{subtext}</p>
             )}
         </div>
     );
@@ -296,9 +294,9 @@ function EventRow({
     isCopied: boolean;
 }) {
     return (
-        <div className="group flex flex-col sm:flex-row items-center gap-4 sm:gap-6 p-4 sm:p-5 rounded-[1.5rem] bg-[var(--surface-secondary)]/50 border border-[var(--border-subtle)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)] transition-all">
+        <div className="group flex flex-col sm:flex-row items-center gap-4 sm:gap-6 p-4 sm:p-5 rounded-[1.5rem] bg-surface-secondary/50 border border-border-subtle hover:bg-surface-elevated hover:border-border-strong transition-all">
             {/* Poster Thumbnail */}
-            <div className="w-full sm:w-16 h-32 sm:h-16 rounded-xl bg-stone-200 overflow-hidden flex-shrink-0 shadow-inner">
+            <div className="w-full sm:w-16 h-32 sm:h-16 rounded-xl bg-surface-tertiary overflow-hidden flex-shrink-0 shadow-inner">
                 {event.posterUrl && (
                     <img src={event.posterUrl} alt="" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
                 )}
@@ -306,11 +304,11 @@ function EventRow({
 
             {/* Event Info */}
             <div className="flex-1 min-w-0 text-center sm:text-left w-full">
-                <p className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">
+                <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-wider mb-1">
                     {new Date(event.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
                 </p>
-                <h4 className="text-[16px] font-bold text-[var(--text-primary)] truncate leading-tight">{event.title}</h4>
-                <p className="text-[13px] text-stone-500 font-medium truncate mt-0.5">
+                <h4 className="text-[16px] font-bold text-text-primary truncate leading-tight">{event.title}</h4>
+                <p className="text-[13px] text-text-tertiary font-medium truncate mt-0.5">
                     {event.venueName || 'Premium Venue'}
                 </p>
             </div>
@@ -320,8 +318,8 @@ function EventRow({
                 <button
                     onClick={onCopyLink}
                     className={`h-11 px-6 rounded-xl font-bold text-[13px] transition-all flex flex-1 sm:flex-none items-center justify-center gap-2 ${isCopied
-                        ? 'bg-[var(--state-confirmed)] text-white shadow-lg'
-                        : 'bg-white border border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--border-strong)] active:scale-95'
+                        ? 'bg-green-500 text-text-inverse shadow-lg'
+                        : 'bg-surface-elevated border border-border-subtle text-text-primary hover:border-border-strong active:scale-95'
                         }`}
                 >
                     {isCopied ? (
@@ -334,7 +332,7 @@ function EventRow({
                 <Link
                     href={`/e/${event.slug || event.id}`}
                     target="_blank"
-                    className="h-11 w-11 flex items-center justify-center rounded-xl bg-white border border-[var(--border-subtle)] text-[var(--text-tertiary)] hover:text-indigo-600 hover:border-indigo-200 transition-all active:scale-95"
+                    className="h-11 w-11 flex items-center justify-center rounded-xl bg-surface-elevated border border-border-subtle text-text-tertiary hover:text-c1rcle-orange hover:border-border-strong transition-all active:scale-95"
                 >
                     <ExternalLink className="w-4 h-4" />
                 </Link>
@@ -355,13 +353,13 @@ function QuickAction({
     return (
         <Link
             href={href}
-            className="flex items-center gap-3 p-4 rounded-xl hover:bg-white/50 border border-transparent hover:border-[var(--border-subtle)] transition-all group"
+            className="flex items-center gap-3 p-4 rounded-xl hover:bg-surface-tertiary border border-transparent hover:border-border-subtle transition-all group"
         >
-            <div className="w-9 h-9 rounded-lg bg-white border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-tertiary)] group-hover:text-indigo-600 group-hover:border-indigo-100 transition-all">
+            <div className="w-9 h-9 rounded-lg bg-surface-elevated border border-border-subtle flex items-center justify-center text-text-tertiary group-hover:text-c1rcle-orange group-hover:border-border-strong transition-all">
                 <Icon className="w-4 h-4" />
             </div>
-            <span className="text-[14px] font-bold text-[var(--text-secondary)] flex-1">{label}</span>
-            <ArrowUpRight className="w-4 h-4 text-stone-300 group-hover:text-indigo-600 transition-all" />
+            <span className="text-[14px] font-bold text-text-secondary flex-1">{label}</span>
+            <ArrowUpRight className="w-4 h-4 text-text-placeholder group-hover:text-c1rcle-orange transition-all" />
         </Link>
     );
 }

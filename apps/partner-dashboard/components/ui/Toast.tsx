@@ -121,17 +121,17 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
     const Icon = icons[toast.type];
 
     const typeStyles = {
-        success: "border-l-[var(--state-success)] bg-[var(--state-success-bg)]/50",
-        error: "border-l-[var(--state-error)] bg-[var(--state-error-bg)]/50",
-        warning: "border-l-[var(--state-warning)] bg-[var(--state-warning-bg)]/50",
-        info: "border-l-[var(--state-info)] bg-[var(--state-info-bg)]/50",
+        success: "border-l-[var(--state-success)] bg-green-500/10/50",
+        error: "border-l-[var(--state-error)] bg-red-500/10/50",
+        warning: "border-l-[var(--state-warning)] bg-yellow-500/10/50",
+        info: "border-l-[var(--state-info)] bg-blue-500/10/50",
     };
 
     const iconStyles = {
-        success: "text-[var(--state-success)]",
-        error: "text-[var(--state-error)]",
-        warning: "text-[var(--state-warning)]",
-        info: "text-[var(--state-info)]",
+        success: "text-c1rcle-orange",
+        error: "text-red-500",
+        warning: "text-yellow-500",
+        info: "text-blue-500",
     };
 
     return (
@@ -150,14 +150,14 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
                 <Icon className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-semibold text-[var(--text-primary)]">{toast.title}</p>
+                <p className="text-[14px] font-semibold text-text-primary">{toast.title}</p>
                 {toast.description && (
-                    <p className="text-[13px] text-[var(--text-secondary)] mt-0.5">{toast.description}</p>
+                    <p className="text-[13px] text-text-secondary mt-0.5">{toast.description}</p>
                 )}
                 {toast.action && (
                     <button
                         onClick={toast.action.onClick}
-                        className="text-[13px] font-semibold text-[var(--c1rcle-orange)] hover:underline mt-2"
+                        className="text-[13px] font-semibold text-c1rcle-orange hover:underline mt-2"
                     >
                         {toast.action.label}
                     </button>
@@ -165,7 +165,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
             </div>
             <button
                 onClick={onClose}
-                className="flex-shrink-0 p-1 rounded-md hover:bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                className="flex-shrink-0 p-1 rounded-md hover:bg-surface-tertiary text-text-tertiary hover:text-text-primary transition-colors"
             >
                 <X className="w-4 h-4" />
             </button>
@@ -204,10 +204,10 @@ export default function Toast({
     };
 
     const iconStyles = {
-        success: "text-[var(--state-success)]",
-        error: "text-[var(--state-error)]",
-        warning: "text-[var(--state-warning)]",
-        info: "text-[var(--state-info)]",
+        success: "text-c1rcle-orange",
+        error: "text-red-500",
+        warning: "text-yellow-500",
+        info: "text-blue-500",
     };
 
     return (
@@ -216,15 +216,15 @@ export default function Toast({
                 <Icon className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-semibold text-[var(--text-primary)]">{title}</p>
+                <p className="text-[14px] font-semibold text-text-primary">{title}</p>
                 {description && (
-                    <p className="text-[13px] text-[var(--text-secondary)] mt-0.5">{description}</p>
+                    <p className="text-[13px] text-text-secondary mt-0.5">{description}</p>
                 )}
             </div>
             {onClose && (
                 <button
                     onClick={onClose}
-                    className="flex-shrink-0 p-1 rounded-md hover:bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                    className="flex-shrink-0 p-1 rounded-md hover:bg-surface-tertiary text-text-tertiary hover:text-text-primary transition-colors"
                 >
                     <X className="w-4 h-4" />
                 </button>

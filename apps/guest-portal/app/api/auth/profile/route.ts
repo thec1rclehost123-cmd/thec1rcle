@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApiClient } from "@/lib/server/apiClient";
 import { verifyAuth } from "@/lib/server/auth";
+import { getAdminDb } from "@/lib/firebase/admin";
 
 export async function POST(req: NextRequest) {
     try {
@@ -9,17 +9,16 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-        const client = getApiClient(token);
-
         const body = await req.json();
+        const now = new Date().toISOString();
 
-        const data = await client.request("/users/profile", {
-            method: "POST",
-            body: JSON.stringify(body)
-        });
+        const db = getAdminDb();
+        await db.collection("users").doc(decodedToken.uid).set(
+            { ...body, updatedAt: now },
+            { merge: true }
+        );
 
-        return NextResponse.json(data);
+        return NextResponse.json({ success: true });
     } catch (error: any) {
         console.error("[Auth API] POST /profile Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -33,17 +32,17 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-        const client = getApiClient(token);
-
         const body = await req.json();
+        const updates = body.updates || body;
+        const now = new Date().toISOString();
 
-        const data = await client.request("/profiles", {
-            method: "PATCH",
-            body: JSON.stringify(body)
+        const db = getAdminDb();
+        await db.collection("users").doc(decodedToken.uid).update({
+            ...updates,
+            updatedAt: now
         });
 
-        return NextResponse.json(data);
+        return NextResponse.json({ success: true });
     } catch (error: any) {
         console.error("[Auth API] PATCH /profile Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });

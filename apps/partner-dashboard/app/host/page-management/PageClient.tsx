@@ -285,8 +285,8 @@ export default function HostPageManagement() {
     if (isLoading) {
         return (
             <div className="py-24 flex flex-col items-center justify-center">
-                <Loader2 className="h-8 w-8 text-[var(--text-tertiary)] animate-spin mb-4" />
-                <p className="text-[var(--text-tertiary)] font-bold uppercase tracking-widest text-[10px]">Syncing Page Presence...</p>
+                <Loader2 className="h-8 w-8 text-text-tertiary animate-spin mb-4" />
+                <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Syncing Page Presence...</p>
             </div>
         );
     }
@@ -308,30 +308,30 @@ export default function HostPageManagement() {
                             {data?.profile?.photoURL ? (
                                 <img src={data.profile.photoURL} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="" />
                             ) : (
-                                <div className="w-full h-full bg-white/10 flex items-center justify-center">
-                                    <Upload className="w-8 h-8 text-white/40" />
+                                <div className="w-full h-full bg-surface-elevated/10 flex items-center justify-center">
+                                    <Upload className="w-8 h-8 text-text-primary/40" />
                                 </div>
                             )}
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Camera className="w-6 h-6 text-white" />
+                                <Camera className="w-6 h-6 text-text-primary" />
                             </div>
                         </div>
 
                         <div className="space-y-3">
                             <div className="flex items-center gap-3">
-                                <span className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-bold text-white/60 uppercase tracking-widest">
+                                <span className="px-3 py-1 bg-surface-elevated/10 rounded-full text-[10px] font-bold text-text-primary/60 uppercase tracking-widest">
                                     {data?.profile?.role || "Host"}
                                 </span>
                                 {data?.profile?.isVerified && (
-                                    <span className="flex items-center gap-1 px-3 py-1 bg-emerald-500/20 rounded-full text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                                    <span className="flex items-center gap-1 px-3 py-1 bg-green-500/20 rounded-full text-[10px] font-bold text-c1rcle-orange uppercase tracking-widest">
                                         <CheckCircle2 className="w-3 h-3" /> Verified
                                     </span>
                                 )}
                             </div>
-                            <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight">
+                            <h1 className="text-3xl md:text-4xl font-black text-text-primary tracking-tight">
                                 {data?.profile?.displayName || data?.profile?.name || "Your Page"}
                             </h1>
-                            <p className="text-white/50 text-sm font-medium max-w-md">
+                            <p className="text-text-primary/50 text-sm font-medium max-w-md">
                                 {data?.profile?.tagline || "Curate how your public profile appears to guests and partners."}
                             </p>
                         </div>
@@ -343,7 +343,7 @@ export default function HostPageManagement() {
                                 href={`${process.env.NEXT_PUBLIC_GUEST_PORTAL_URL || ''}/host/${data.profile.slug}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-5 py-3 bg-white/10 backdrop-blur-sm text-white rounded-xl text-[11px] font-bold border border-white/10 hover:bg-white/20 transition-all group"
+                                className="flex items-center gap-2 px-5 py-3 bg-surface-elevated/10 backdrop-blur-sm text-text-primary rounded-xl text-[11px] font-bold border border-border-subtle hover:bg-surface-elevated/20 transition-all group"
                             >
                                 <Globe className="w-4 h-4" />
                                 <span>View Live</span>
@@ -352,14 +352,14 @@ export default function HostPageManagement() {
                         )}
                         <div className="flex items-center gap-2">
                             {saveStatus === "saved" && (
-                                <span className="flex items-center gap-1.5 text-emerald-400 text-[10px] font-bold uppercase tracking-widest">
+                                <span className="flex items-center gap-1.5 text-c1rcle-orange text-[10px] font-bold uppercase tracking-widest">
                                     <CheckCircle2 className="w-3 h-3" /> Saved
                                 </span>
                             )}
                             <button
                                 onClick={() => handleUpdateProfile({})}
                                 disabled={isSaving}
-                                className="flex items-center gap-2 px-6 py-3 bg-white text-slate-900 rounded-xl text-[11px] font-bold shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-50"
+                                className="flex items-center gap-2 px-6 py-3 bg-surface-elevated text-text-primary rounded-xl text-[11px] font-bold shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-50"
                             >
                                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                                 Publish
@@ -369,7 +369,7 @@ export default function HostPageManagement() {
                 </div>
 
                 {/* Quick Stats */}
-                <div className="relative mt-8 pt-8 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
+                <div className="relative mt-8 pt-8 border-t border-border-subtle grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
                     <QuickStat value={data?.stats?.followersCount || 0} label="Followers" icon={Users} />
                     <QuickStat value={data?.stats?.postsCount || 0} label="Posts" icon={FileText} />
                     <QuickStat value={data?.stats?.totalLikes || 0} label="Total Engagement" icon={Heart} />
@@ -378,7 +378,7 @@ export default function HostPageManagement() {
             </div>
 
             {/* Tab Navigation */}
-            <div className="flex p-1.5 bg-[var(--surface-secondary)] rounded-2xl border border-[var(--border-subtle)]">
+            <div className="flex p-1.5 bg-surface-secondary rounded-2xl border border-border-subtle">
                 {[
                     { id: "identity", label: "Identity", icon: Settings },
                     { id: "content", label: "Content", icon: FileText },
@@ -390,8 +390,8 @@ export default function HostPageManagement() {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`flex-1 py-3.5 flex items-center justify-center gap-2 rounded-xl text-[11px] font-bold transition-all ${activeTab === tab.id
-                            ? "bg-[var(--surface-primary)] text-[var(--text-primary)] shadow-sm"
-                            : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                            ? "bg-surface-base text-text-primary shadow-sm"
+                            : "text-text-tertiary hover:text-text-secondary"
                             }`}
                     >
                         <tab.icon className="w-4 h-4" />
@@ -401,7 +401,7 @@ export default function HostPageManagement() {
             </div>
 
             {/* Main Content Area */}
-            <div className="bg-[var(--surface-primary)] rounded-3xl border border-[var(--border-subtle)] overflow-hidden min-h-[600px] shadow-sm">
+            <div className="bg-surface-base rounded-3xl border border-border-subtle overflow-hidden min-h-[600px] shadow-sm">
                 <div className="p-8 md:p-10">
                     <AnimatePresence mode="wait">
                         {activeTab === "identity" && (
@@ -421,15 +421,15 @@ export default function HostPageManagement() {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2">
-                                            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Neighborhood</label>
+                                            <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Neighborhood</label>
                                             <FormField placeholder="e.g. Bandra West, Indiranagar" defaultValue={data?.profile?.neighborhood} onSave={(v: string) => handleUpdateProfile({ neighborhood: v })} />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Category Tag</label>
+                                            <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Category Tag</label>
                                             <select
                                                 value={data?.profile?.categoryTag || "Host"}
                                                 onChange={(e) => handleUpdateProfile({ categoryTag: e.target.value })}
-                                                className="w-full px-4 py-3 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-sm font-medium text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-slate-900/10 transition-all appearance-none"
+                                                className="w-full px-4 py-3 bg-surface-secondary border border-border-subtle rounded-xl text-sm font-medium text-text-primary focus:outline-none focus:ring-2 focus:ring-slate-900/10 transition-all appearance-none"
                                             >
                                                 {["Host", "Venue", "Brand", "Promoter", "Collective"].map(cat => (
                                                     <option key={cat} value={cat}>{cat}</option>
@@ -440,15 +440,15 @@ export default function HostPageManagement() {
                                     <FormField label="Bio / Story" placeholder="Tell your story, describe your sound, share your journey..." defaultValue={data?.profile?.bio} onSave={(v: string) => handleUpdateProfile({ bio: v })} multiline rows={5} />
 
                                     <div className="space-y-4">
-                                        <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Role / Type</label>
+                                        <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Role / Type</label>
                                         <div className="flex flex-wrap gap-2">
                                             {ROLE_OPTIONS.map((role) => (
                                                 <button
                                                     key={role}
                                                     onClick={() => handleUpdateProfile({ role })}
                                                     className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all ${data?.profile?.role === role
-                                                        ? "bg-slate-900 text-white"
-                                                        : "bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] border border-[var(--border-subtle)]"
+                                                        ? "bg-surface-secondary text-text-primary"
+                                                        : "bg-surface-secondary text-text-secondary hover:bg-surface-elevated border border-border-subtle"
                                                         }`}
                                                 >
                                                     {role}
@@ -459,7 +459,7 @@ export default function HostPageManagement() {
                                 </section>
 
                                 {/* CTA Layer - New Section */}
-                                <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
+                                <section className="space-y-6 pt-8 border-t border-border-subtle">
                                     <SectionHeader title="Action Layer" subtitle="Configure primary call-to-action buttons for your page" icon={Zap} />
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <FormField
@@ -470,11 +470,11 @@ export default function HostPageManagement() {
                                             onSave={(v: string) => handleUpdateProfile({ whatsapp: v })}
                                         />
                                         <div className="space-y-2">
-                                            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Primary CTA Type</label>
+                                            <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Primary CTA Type</label>
                                             <select
                                                 value={data?.profile?.primaryCta || "follow"}
                                                 onChange={(e) => handleUpdateProfile({ primaryCta: e.target.value })}
-                                                className="w-full px-4 py-3 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-sm font-medium text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-slate-900/10 transition-all appearance-none"
+                                                className="w-full px-4 py-3 bg-surface-secondary border border-border-subtle rounded-xl text-sm font-medium text-text-primary focus:outline-none focus:ring-2 focus:ring-slate-900/10 transition-all appearance-none"
                                             >
                                                 <option value="follow">Follow Only</option>
                                                 <option value="whatsapp">Contact via WhatsApp</option>
@@ -487,42 +487,42 @@ export default function HostPageManagement() {
                                 </section>
 
                                 {/* Visual Identity */}
-                                <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
+                                <section className="space-y-6 pt-8 border-t border-border-subtle">
                                     <SectionHeader title="Visual Identity" subtitle="Cover image for your public page" />
                                     <div
                                         onClick={() => { setPhotoModal({ field: "coverURL", currentUrl: data?.profile?.coverURL }); setPhotoInputUrl(data?.profile?.coverURL || ""); }}
-                                        className="aspect-[21/9] w-full bg-[var(--surface-secondary)] rounded-2xl border border-[var(--border-subtle)] flex flex-col items-center justify-center group hover:border-[var(--border-strong)] transition-all cursor-pointer overflow-hidden relative"
+                                        className="aspect-[21/9] w-full bg-surface-secondary rounded-2xl border border-border-subtle flex flex-col items-center justify-center group hover:border-border-strong transition-all cursor-pointer overflow-hidden relative"
                                     >
                                         {data?.profile?.coverURL ? (
                                             <img src={data.profile.coverURL} className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105" alt="" />
                                         ) : (
                                             <div className="flex flex-col items-center gap-4">
-                                                <div className="p-4 bg-[var(--surface-elevated)] rounded-2xl">
-                                                    <ImageIcon className="h-8 w-8 text-[var(--text-tertiary)]" />
+                                                <div className="p-4 bg-surface-elevated rounded-2xl">
+                                                    <ImageIcon className="h-8 w-8 text-text-tertiary" />
                                                 </div>
-                                                <p className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Upload Cover Image</p>
+                                                <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Upload Cover Image</p>
                                             </div>
                                         )}
                                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent py-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <p className="text-[11px] font-bold text-white text-center uppercase tracking-widest">Click to Change</p>
+                                            <p className="text-[11px] font-bold text-text-primary text-center uppercase tracking-widest">Click to Change</p>
                                         </div>
                                     </div>
                                 </section>
 
                                 {/* Genres & Style */}
-                                <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
+                                <section className="space-y-6 pt-8 border-t border-border-subtle">
                                     <SectionHeader title="Sound & Style" subtitle="Help guests discover you by genre and vibe" icon={Music} />
 
                                     <div className="space-y-4">
-                                        <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Genres</label>
+                                        <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Genres</label>
                                         <div className="flex flex-wrap gap-2">
                                             {GENRE_OPTIONS.map((genre) => (
                                                 <button
                                                     key={genre}
                                                     onClick={() => handleGenreToggle(genre)}
                                                     className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all ${data?.profile?.genres?.includes(genre)
-                                                        ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-sm"
-                                                        : "bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] border border-[var(--border-subtle)]"
+                                                        ? "bg-gradient-to-r from-orange-500 to-orange-600 text-text-primary shadow-sm"
+                                                        : "bg-surface-secondary text-text-secondary hover:bg-surface-elevated border border-border-subtle"
                                                         }`}
                                                 >
                                                     {genre}
@@ -532,15 +532,15 @@ export default function HostPageManagement() {
                                     </div>
 
                                     <div className="space-y-4">
-                                        <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Style Tags</label>
+                                        <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Style Tags</label>
                                         <div className="flex flex-wrap gap-2">
                                             {STYLE_TAGS.map((tag) => (
                                                 <button
                                                     key={tag}
                                                     onClick={() => handleStyleTagToggle(tag)}
                                                     className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all ${data?.profile?.styleTags?.includes(tag)
-                                                        ? "bg-slate-900 text-white"
-                                                        : "bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] border border-[var(--border-subtle)]"
+                                                        ? "bg-surface-secondary text-text-primary"
+                                                        : "bg-surface-secondary text-text-secondary hover:bg-surface-elevated border border-border-subtle"
                                                         }`}
                                                 >
                                                     {tag}
@@ -551,7 +551,7 @@ export default function HostPageManagement() {
                                 </section>
 
                                 {/* Social & Contact */}
-                                <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
+                                <section className="space-y-6 pt-8 border-t border-border-subtle">
                                     <SectionHeader title="Social & Contact" subtitle="Connect your channels and let fans find you everywhere" icon={Link2} />
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <FormField
@@ -622,7 +622,7 @@ export default function HostPageManagement() {
                                         <SectionHeader title="Timeline Updates" subtitle="Share news, announcements, and behind-the-scenes" />
                                         <button
                                             onClick={() => setIsComposerOpen(true)}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[11px] font-bold hover:bg-slate-800 transition-all"
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-surface-secondary text-text-primary rounded-xl text-[11px] font-bold hover:bg-surface-tertiary transition-all"
                                         >
                                             <Plus className="w-4 h-4" />
                                             New Post
@@ -634,21 +634,21 @@ export default function HostPageManagement() {
                                             <PostCard key={post.id} post={post} onDelete={() => handleDeletePost(post.id)} />
                                         ))}
                                         {(!data?.posts || data.posts.length === 0) && (
-                                            <div className="col-span-full py-16 text-center bg-[var(--surface-secondary)]/30 rounded-2xl border border-dashed border-[var(--border-subtle)]">
-                                                <FileText className="w-10 h-10 text-[var(--border-subtle)] mx-auto mb-4" />
-                                                <p className="text-[var(--text-tertiary)] text-sm font-medium">No posts yet. Share your first update!</p>
+                                            <div className="col-span-full py-16 text-center bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle">
+                                                <FileText className="w-10 h-10 text-border-subtle mx-auto mb-4" />
+                                                <p className="text-text-tertiary text-sm font-medium">No posts yet. Share your first update!</p>
                                             </div>
                                         )}
                                     </div>
                                 </section>
 
                                 {/* Highlights */}
-                                <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
+                                <section className="space-y-6 pt-8 border-t border-border-subtle">
                                     <div className="flex items-center justify-between">
                                         <SectionHeader title="Story Highlights" subtitle="Pin your best moments to the top of your page" icon={Camera} />
                                         <button
                                             onClick={handleCreateHighlight}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-secondary)] text-[var(--text-primary)] rounded-xl text-[11px] font-bold border border-[var(--border-subtle)] hover:bg-[var(--surface-elevated)] transition-all"
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-surface-secondary text-text-primary rounded-xl text-[11px] font-bold border border-border-subtle hover:bg-surface-elevated transition-all"
                                         >
                                             <Plus className="w-4 h-4" />
                                             Add Highlight
@@ -660,28 +660,28 @@ export default function HostPageManagement() {
                                             <HighlightCard key={h.id} highlight={h} onDelete={() => handleDeleteHighlight(h.id)} />
                                         ))}
                                         {(!data?.highlights || data.highlights.length === 0) && (
-                                            <div className="w-full py-12 text-center bg-[var(--surface-secondary)]/30 rounded-2xl border border-dashed border-[var(--border-subtle)]">
-                                                <Camera className="w-8 h-8 text-[var(--border-subtle)] mx-auto mb-3" />
-                                                <p className="text-[var(--text-tertiary)] text-sm font-medium">No highlights added yet</p>
+                                            <div className="w-full py-12 text-center bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle">
+                                                <Camera className="w-8 h-8 text-border-subtle mx-auto mb-3" />
+                                                <p className="text-text-tertiary text-sm font-medium">No highlights added yet</p>
                                             </div>
                                         )}
                                     </div>
                                 </section>
 
                                 {/* Press Snippets */}
-                                <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
+                                <section className="space-y-6 pt-8 border-t border-border-subtle">
                                     <SectionHeader title="Press & Features" subtitle="Showcase media mentions and press coverage" icon={Quote} />
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {data?.profile?.pressSnippets?.map((snippet: any, idx: number) => (
-                                            <div key={idx} className="p-6 bg-[var(--surface-secondary)]/50 rounded-2xl border border-[var(--border-subtle)]">
-                                                <Quote className="w-5 h-5 text-[var(--text-tertiary)] mb-3" />
-                                                <p className="text-[var(--text-secondary)] text-sm mb-3 italic">"{snippet.quote}"</p>
-                                                <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">{snippet.source}</p>
+                                            <div key={idx} className="p-6 bg-surface-secondary/50 rounded-2xl border border-border-subtle">
+                                                <Quote className="w-5 h-5 text-text-tertiary mb-3" />
+                                                <p className="text-text-secondary text-sm mb-3 italic">"{snippet.quote}"</p>
+                                                <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">{snippet.source}</p>
                                             </div>
                                         ))}
-                                        <button className="p-6 bg-[var(--surface-secondary)]/30 rounded-2xl border border-dashed border-[var(--border-subtle)] flex flex-col items-center justify-center gap-3 hover:bg-[var(--surface-secondary)] transition-all group">
-                                            <Plus className="w-6 h-6 text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]" />
-                                            <span className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Add Press Quote</span>
+                                        <button className="p-6 bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle flex flex-col items-center justify-center gap-3 hover:bg-surface-secondary transition-all group">
+                                            <Plus className="w-6 h-6 text-text-tertiary group-hover:text-text-secondary" />
+                                            <span className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Add Press Quote</span>
                                         </button>
                                     </div>
                                 </section>
@@ -702,7 +702,7 @@ export default function HostPageManagement() {
                                         <SectionHeader title="Photo Gallery" subtitle="Showcase your best shots from events and performances" />
                                         <button
                                             onClick={() => { setPhotoModal({ field: "photos", currentUrl: "" }); setPhotoInputUrl(""); }}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[11px] font-bold hover:bg-slate-800 transition-all"
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-surface-secondary text-text-primary rounded-xl text-[11px] font-bold hover:bg-surface-tertiary transition-all"
                                         >
                                             <Plus className="w-4 h-4" />
                                             Add Photo
@@ -711,35 +711,35 @@ export default function HostPageManagement() {
 
                                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                                         {data?.profile?.photos?.map((photo: string, idx: number) => (
-                                            <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border border-[var(--border-subtle)] group">
+                                            <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border border-border-subtle group">
                                                 <img src={photo} className="w-full h-full object-cover transition-transform group-hover:scale-105" alt="" />
                                                 <button
                                                     onClick={() => {
                                                         const newPhotos = data.profile.photos.filter((p: string) => p !== photo);
                                                         handleUpdateProfile({ photos: newPhotos });
                                                     }}
-                                                    className="absolute top-2 right-2 p-2 bg-black/40 backdrop-blur-md rounded-xl text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                                                    className="absolute top-2 right-2 p-2 bg-black/40 backdrop-blur-md rounded-xl text-text-primary opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
                                         ))}
                                         {(!data?.profile?.photos || data.profile.photos.length === 0) && (
-                                            <div className="col-span-full py-16 text-center bg-[var(--surface-secondary)]/30 rounded-2xl border border-dashed border-[var(--border-subtle)]">
-                                                <ImageIcon className="w-10 h-10 text-[var(--border-subtle)] mx-auto mb-4" />
-                                                <p className="text-[var(--text-tertiary)] text-sm font-medium">No photos uploaded yet</p>
+                                            <div className="col-span-full py-16 text-center bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle">
+                                                <ImageIcon className="w-10 h-10 text-border-subtle mx-auto mb-4" />
+                                                <p className="text-text-tertiary text-sm font-medium">No photos uploaded yet</p>
                                             </div>
                                         )}
                                     </div>
                                 </section>
 
                                 {/* Videos & Aftermovies */}
-                                <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
+                                <section className="space-y-6 pt-8 border-t border-border-subtle">
                                     <div className="flex items-center justify-between">
                                         <SectionHeader title="Videos & Aftermovies" subtitle="Share recaps, aftermovies, and performance clips" icon={Video} />
                                         <button
                                             onClick={() => setVideoModal(true)}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-secondary)] text-[var(--text-primary)] rounded-xl text-[11px] font-bold border border-[var(--border-subtle)] hover:bg-[var(--surface-elevated)] transition-all"
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-surface-secondary text-text-primary rounded-xl text-[11px] font-bold border border-border-subtle hover:bg-surface-elevated transition-all"
                                         >
                                             <Plus className="w-4 h-4" />
                                             Add Video
@@ -751,9 +751,9 @@ export default function HostPageManagement() {
                                             <VideoCard key={video.id} video={video} onDelete={() => handleRemoveVideo(video.id)} />
                                         ))}
                                         {(!data?.profile?.videos || data.profile.videos.length === 0) && (
-                                            <div className="col-span-full py-16 text-center bg-[var(--surface-secondary)]/30 rounded-2xl border border-dashed border-[var(--border-subtle)]">
-                                                <Video className="w-10 h-10 text-[var(--border-subtle)] mx-auto mb-4" />
-                                                <p className="text-[var(--text-tertiary)] text-sm font-medium">No videos added yet</p>
+                                            <div className="col-span-full py-16 text-center bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle">
+                                                <Video className="w-10 h-10 text-border-subtle mx-auto mb-4" />
+                                                <p className="text-text-tertiary text-sm font-medium">No videos added yet</p>
                                             </div>
                                         )}
                                     </div>
@@ -781,13 +781,13 @@ export default function HostPageManagement() {
                                 </section>
 
                                 {/* Coming Soon */}
-                                <section className="space-y-6 pt-8 border-t border-[var(--border-subtle)]">
+                                <section className="space-y-6 pt-8 border-t border-border-subtle">
                                     <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-12 text-center">
-                                        <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                                        <div className="w-16 h-16 bg-surface-elevated/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
                                             <Zap className="w-8 h-8 text-orange-400" />
                                         </div>
-                                        <h3 className="text-2xl font-bold text-white mb-3">Advanced Audience Insights</h3>
-                                        <p className="text-white/60 max-w-md mx-auto text-sm">
+                                        <h3 className="text-2xl font-bold text-text-primary mb-3">Advanced Audience Insights</h3>
+                                        <p className="text-text-primary/60 max-w-md mx-auto text-sm">
                                             Deep audience insights, demographic breakdowns, and engagement patterns are currently being processed.
                                         </p>
                                     </div>
@@ -829,7 +829,7 @@ export default function HostPageManagement() {
                                         </div>
 
                                         <div className="pt-6 border-t border-white/5 space-y-4">
-                                            <div className="flex items-center gap-3 text-emerald-400">
+                                            <div className="flex items-center gap-3 text-c1rcle-orange">
                                                 <Users className="w-4 h-4" />
                                                 <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Target: {data?.stats?.followersCount || 0} Followers</span>
                                             </div>
@@ -845,7 +845,7 @@ export default function HostPageManagement() {
                                                     setBroadcastMessage("");
                                                     setIsBroadcasting(false);
                                                 }}
-                                                className="w-full py-5 bg-white text-slate-900 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl hover:scale-[1.01] transition-all disabled:opacity-50"
+                                                className="w-full py-5 bg-surface-elevated text-text-primary rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl hover:scale-[1.01] transition-all disabled:opacity-50"
                                             >
                                                 {isBroadcasting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Send Broadcast Now"}
                                             </button>
@@ -853,13 +853,13 @@ export default function HostPageManagement() {
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="p-8 bg-[var(--surface-secondary)]/30 rounded-3xl border border-[var(--border-subtle)]">
-                                            <h4 className="text-xs font-bold text-white mb-2 uppercase tracking-widest">Auto-Broadcasts</h4>
-                                            <p className="text-[11px] text-[var(--text-tertiary)] leading-relaxed">Followers are automatically notified when you launch a new ticketed event.</p>
+                                        <div className="p-8 bg-surface-secondary/30 rounded-3xl border border-border-subtle">
+                                            <h4 className="text-xs font-bold text-text-primary mb-2 uppercase tracking-widest">Auto-Broadcasts</h4>
+                                            <p className="text-[11px] text-text-tertiary leading-relaxed">Followers are automatically notified when you launch a new ticketed event.</p>
                                         </div>
-                                        <div className="p-8 bg-[var(--surface-secondary)]/30 rounded-3xl border border-[var(--border-subtle)]">
-                                            <h4 className="text-xs font-bold text-white mb-2 uppercase tracking-widest">Delivery Time</h4>
-                                            <p className="text-[11px] text-[var(--text-tertiary)] leading-relaxed">Broadcasts are delivered instantly via Mobile Push and In-App Notifications.</p>
+                                        <div className="p-8 bg-surface-secondary/30 rounded-3xl border border-border-subtle">
+                                            <h4 className="text-xs font-bold text-text-primary mb-2 uppercase tracking-widest">Delivery Time</h4>
+                                            <p className="text-[11px] text-text-tertiary leading-relaxed">Broadcasts are delivered instantly via Mobile Push and In-App Notifications.</p>
                                         </div>
                                     </div>
                                 </section>
@@ -874,8 +874,8 @@ export default function HostPageManagement() {
                 {photoModal && (
                     <Modal onClose={() => setPhotoModal(null)}>
                         <div className="p-8">
-                            <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Update Image</h2>
-                            <p className="text-[var(--text-tertiary)] text-sm mb-6">
+                            <h2 className="text-xl font-bold text-text-primary mb-2">Update Image</h2>
+                            <p className="text-text-tertiary text-sm mb-6">
                                 Upload a new {photoModal.field === 'photoURL' ? 'profile photo' : photoModal.field === 'coverURL' ? 'cover image' : 'gallery photo'}
                             </p>
 
@@ -883,22 +883,22 @@ export default function HostPageManagement() {
 
                             <div
                                 onClick={() => fileInputRef.current?.click()}
-                                className="w-full aspect-video rounded-2xl bg-[var(--surface-secondary)] border-2 border-dashed border-[var(--border-subtle)] flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-[var(--surface-elevated)] transition-all group overflow-hidden relative"
+                                className="w-full aspect-video rounded-2xl bg-surface-secondary border-2 border-dashed border-border-subtle flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-surface-elevated transition-all group overflow-hidden relative"
                             >
                                 {isSaving ? (
-                                    <Loader2 className="w-8 h-8 text-[var(--text-tertiary)] animate-spin" />
+                                    <Loader2 className="w-8 h-8 text-text-tertiary animate-spin" />
                                 ) : (
                                     <>
-                                        <div className="p-4 bg-[var(--surface-elevated)] rounded-2xl group-hover:scale-110 transition-transform">
-                                            <Upload className="w-6 h-6 text-[var(--text-tertiary)]" />
+                                        <div className="p-4 bg-surface-elevated rounded-2xl group-hover:scale-110 transition-transform">
+                                            <Upload className="w-6 h-6 text-text-tertiary" />
                                         </div>
-                                        <p className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Click to Upload</p>
+                                        <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Click to Upload</p>
                                     </>
                                 )}
                             </div>
 
                             <div className="flex gap-3 mt-6">
-                                <button onClick={() => setPhotoModal(null)} className="flex-1 py-3 bg-[var(--surface-secondary)] text-[var(--text-secondary)] rounded-xl text-sm font-bold hover:bg-[var(--surface-elevated)] transition-all">
+                                <button onClick={() => setPhotoModal(null)} className="flex-1 py-3 bg-surface-secondary text-text-secondary rounded-xl text-sm font-bold hover:bg-surface-elevated transition-all">
                                     Cancel
                                 </button>
                             </div>
@@ -912,8 +912,8 @@ export default function HostPageManagement() {
                 {videoModal && (
                     <Modal onClose={() => setVideoModal(false)}>
                         <div className="p-8">
-                            <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Add Video</h2>
-                            <p className="text-[var(--text-tertiary)] text-sm mb-6">
+                            <h2 className="text-xl font-bold text-text-primary mb-2">Add Video</h2>
+                            <p className="text-text-tertiary text-sm mb-6">
                                 Add a YouTube, Vimeo, or SoundCloud link
                             </p>
 
@@ -922,15 +922,15 @@ export default function HostPageManagement() {
                                 <FormField label="Video URL" placeholder="https://youtube.com/..." value={newVideo.url} onChange={(v) => setNewVideo({ ...newVideo, url: v })} inline />
 
                                 <div className="space-y-2">
-                                    <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Type</label>
+                                    <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Type</label>
                                     <div className="flex gap-2">
                                         {["aftermovie", "recap", "promo", "live"].map((type) => (
                                             <button
                                                 key={type}
                                                 onClick={() => setNewVideo({ ...newVideo, type })}
                                                 className={`px-4 py-2 rounded-lg text-[11px] font-bold capitalize ${newVideo.type === type
-                                                    ? "bg-slate-900 text-white"
-                                                    : "bg-[var(--surface-secondary)] text-[var(--text-secondary)]"
+                                                    ? "bg-surface-secondary text-text-primary"
+                                                    : "bg-surface-secondary text-text-secondary"
                                                     }`}
                                             >
                                                 {type}
@@ -941,8 +941,8 @@ export default function HostPageManagement() {
                             </div>
 
                             <div className="flex gap-3 mt-6">
-                                <button onClick={() => setVideoModal(false)} className="flex-1 py-3 bg-[var(--surface-secondary)] text-[var(--text-secondary)] rounded-xl text-sm font-bold">Cancel</button>
-                                <button onClick={handleAddVideo} disabled={!newVideo.url || !newVideo.title} className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold disabled:opacity-50">Add Video</button>
+                                <button onClick={() => setVideoModal(false)} className="flex-1 py-3 bg-surface-secondary text-text-secondary rounded-xl text-sm font-bold">Cancel</button>
+                                <button onClick={handleAddVideo} disabled={!newVideo.url || !newVideo.title} className="flex-1 py-3 bg-surface-secondary text-text-primary rounded-xl text-sm font-bold disabled:opacity-50">Add Video</button>
                             </div>
                         </div>
                     </Modal>
@@ -954,29 +954,29 @@ export default function HostPageManagement() {
                 {isComposerOpen && (
                     <Modal onClose={() => setIsComposerOpen(false)} wide>
                         <div className="flex flex-col md:flex-row max-h-[85vh]">
-                            <div className="flex-1 p-8 border-r border-[var(--border-subtle)]">
-                                <h2 className="text-xl font-bold text-[var(--text-primary)] mb-6">New Post</h2>
+                            <div className="flex-1 p-8 border-r border-border-subtle">
+                                <h2 className="text-xl font-bold text-text-primary mb-6">New Post</h2>
 
                                 <div className="space-y-6">
                                     <div className="space-y-2">
-                                        <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Content</label>
+                                        <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Content</label>
                                         <textarea
                                             value={composerContent}
                                             onChange={(e) => setComposerContent(e.target.value)}
                                             placeholder="What's happening?"
-                                            className="w-full h-40 p-4 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                                            className="w-full h-40 p-4 bg-surface-secondary border border-border-subtle rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-900/10"
                                         />
                                     </div>
 
                                     <div className="space-y-2">
-                                        <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Image</label>
+                                        <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Image</label>
                                         <input type="file" ref={composerFileInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, "composer")} />
                                         <button
                                             onClick={() => composerFileInputRef.current?.click()}
-                                            className="w-full py-8 border-2 border-dashed border-[var(--border-subtle)] rounded-xl flex flex-col items-center justify-center gap-3 hover:bg-[var(--surface-secondary)] transition-all"
+                                            className="w-full py-8 border-2 border-dashed border-border-subtle rounded-xl flex flex-col items-center justify-center gap-3 hover:bg-surface-secondary transition-all"
                                         >
-                                            <Upload className="w-6 h-6 text-[var(--text-tertiary)]" />
-                                            <span className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
+                                            <Upload className="w-6 h-6 text-text-tertiary" />
+                                            <span className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
                                                 {composerImage ? "Change Image" : "Upload Image"}
                                             </span>
                                         </button>
@@ -986,18 +986,18 @@ export default function HostPageManagement() {
                                 <button
                                     onClick={handleCreatePost}
                                     disabled={isSaving || !composerContent}
-                                    className="w-full mt-6 py-4 bg-slate-900 text-white rounded-xl text-sm font-bold disabled:opacity-50"
+                                    className="w-full mt-6 py-4 bg-surface-secondary text-text-primary rounded-xl text-sm font-bold disabled:opacity-50"
                                 >
                                     {isSaving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Post"}
                                 </button>
                             </div>
 
-                            <div className="w-full md:w-80 bg-[var(--surface-secondary)] p-8">
-                                <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-4">Preview</p>
-                                <div className="bg-[var(--surface-primary)] rounded-2xl overflow-hidden border border-[var(--border-subtle)]">
+                            <div className="w-full md:w-80 bg-surface-secondary p-8">
+                                <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-4">Preview</p>
+                                <div className="bg-surface-base rounded-2xl overflow-hidden border border-border-subtle">
                                     {composerImage && <img src={composerImage} className="w-full aspect-video object-cover" alt="" />}
                                     <div className="p-4">
-                                        <p className="text-sm text-[var(--text-secondary)] line-clamp-4">
+                                        <p className="text-sm text-text-secondary line-clamp-4">
                                             {composerContent || "Your post content..."}
                                         </p>
                                     </div>
@@ -1015,12 +1015,12 @@ export default function HostPageManagement() {
 function QuickStat({ value, label, icon: Icon }: { value: number | string; label: string; icon: any }) {
     return (
         <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/10 rounded-xl">
-                <Icon className="w-5 h-5 text-white/60" />
+            <div className="p-3 bg-surface-elevated/10 rounded-xl">
+                <Icon className="w-5 h-5 text-text-primary/60" />
             </div>
             <div>
-                <p className="text-2xl font-bold text-white">{typeof value === 'number' ? value.toLocaleString() : value}</p>
-                <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{label}</p>
+                <p className="text-2xl font-bold text-text-primary">{typeof value === 'number' ? value.toLocaleString() : value}</p>
+                <p className="text-[10px] font-bold text-text-primary/40 uppercase tracking-widest">{label}</p>
             </div>
         </div>
     );
@@ -1030,13 +1030,13 @@ function SectionHeader({ title, subtitle, icon: Icon }: { title: string; subtitl
     return (
         <div className="flex items-start gap-4">
             {Icon && (
-                <div className="p-2.5 bg-[var(--surface-secondary)] rounded-xl">
-                    <Icon className="w-5 h-5 text-[var(--text-tertiary)]" />
+                <div className="p-2.5 bg-surface-secondary rounded-xl">
+                    <Icon className="w-5 h-5 text-text-tertiary" />
                 </div>
             )}
             <div>
-                <h3 className="text-lg font-bold text-[var(--text-primary)]">{title}</h3>
-                <p className="text-sm text-[var(--text-tertiary)]">{subtitle}</p>
+                <h3 className="text-lg font-bold text-text-primary">{title}</h3>
+                <p className="text-sm text-text-tertiary">{subtitle}</p>
             </div>
         </div>
     );
@@ -1060,13 +1060,13 @@ function FormField({ label, placeholder, defaultValue, value, onSave, onChange, 
         if (onChange) onChange(e.target.value);
     };
 
-    const inputClasses = "w-full px-4 py-3 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-sm font-medium text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-[var(--border-strong)] transition-all";
+    const inputClasses = "w-full px-4 py-3 bg-surface-secondary border border-border-subtle rounded-xl text-sm font-medium text-text-primary focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-border-strong transition-all";
 
     return (
         <div className="space-y-2">
-            <label className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">{label}</label>
+            <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">{label}</label>
             <div className="relative">
-                {Icon && <Icon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)]" />}
+                {Icon && <Icon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />}
                 {multiline ? (
                     <textarea
                         value={localValue}
@@ -1093,7 +1093,7 @@ function FormField({ label, placeholder, defaultValue, value, onSave, onChange, 
 
 function PostCard({ post, onDelete }: { post: any; onDelete: () => void }) {
     return (
-        <div className="bg-[var(--surface-secondary)]/50 rounded-2xl border border-[var(--border-subtle)] overflow-hidden group hover:border-[var(--border-strong)] transition-all">
+        <div className="bg-surface-secondary/50 rounded-2xl border border-border-subtle overflow-hidden group hover:border-border-strong transition-all">
             {post.imageUrl && (
                 <div className="aspect-video w-full overflow-hidden">
                     <img src={post.imageUrl} className="w-full h-full object-cover transition-transform group-hover:scale-105" alt="" />
@@ -1101,20 +1101,20 @@ function PostCard({ post, onDelete }: { post: any; onDelete: () => void }) {
             )}
             <div className="p-5">
                 <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
+                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">
                         {new Date(post.createdAt).toLocaleDateString()}
                     </span>
-                    <button onClick={onDelete} className="p-1.5 text-[var(--text-placeholder)] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                    <button onClick={onDelete} className="p-1.5 text-text-placeholder hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
                         <Trash2 className="h-4 w-4" />
                     </button>
                 </div>
-                <p className="text-sm text-[var(--text-secondary)] line-clamp-3 mb-4">{post.content}</p>
-                <div className="flex items-center gap-4 pt-3 border-t border-[var(--border-subtle)]">
-                    <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
+                <p className="text-sm text-text-secondary line-clamp-3 mb-4">{post.content}</p>
+                <div className="flex items-center gap-4 pt-3 border-t border-border-subtle">
+                    <div className="flex items-center gap-1.5 text-text-tertiary">
                         <Heart className="h-3.5 w-3.5" />
                         <span className="text-[11px] font-bold">{post.likes || 0}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-[var(--text-tertiary)]">
+                    <div className="flex items-center gap-1.5 text-text-tertiary">
                         <Eye className="h-3.5 w-3.5" />
                         <span className="text-[11px] font-bold">{post.views || 0}</span>
                     </div>
@@ -1127,15 +1127,15 @@ function PostCard({ post, onDelete }: { post: any; onDelete: () => void }) {
 function HighlightCard({ highlight, onDelete }: { highlight: any; onDelete: () => void }) {
     return (
         <div className="flex-shrink-0 group relative">
-            <div className="w-24 h-24 rounded-full border-2 border-[var(--border-strong)] p-1 mb-3 transition-transform group-hover:scale-105">
-                <div className="w-full h-full rounded-full bg-[var(--surface-secondary)] flex items-center justify-center" style={{ backgroundColor: `${highlight.color}15` }}>
-                    <Camera className="w-6 h-6 text-[var(--text-tertiary)]" />
+            <div className="w-24 h-24 rounded-full border-2 border-border-strong p-1 mb-3 transition-transform group-hover:scale-105">
+                <div className="w-full h-full rounded-full bg-surface-secondary flex items-center justify-center" style={{ backgroundColor: `${highlight.color}15` }}>
+                    <Camera className="w-6 h-6 text-text-tertiary" />
                 </div>
             </div>
-            <p className="text-[11px] font-bold text-[var(--text-secondary)] text-center truncate w-24">{highlight.title}</p>
+            <p className="text-[11px] font-bold text-text-secondary text-center truncate w-24">{highlight.title}</p>
             <button
                 onClick={onDelete}
-                className="absolute -top-1 -right-1 p-1.5 bg-[var(--surface-elevated)] rounded-full shadow-sm border border-[var(--border-subtle)] text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                className="absolute -top-1 -right-1 p-1.5 bg-surface-elevated rounded-full shadow-sm border border-border-subtle text-red-500 opacity-0 group-hover:opacity-100 transition-all"
             >
                 <Trash2 className="h-3 w-3" />
             </button>
@@ -1145,16 +1145,16 @@ function HighlightCard({ highlight, onDelete }: { highlight: any; onDelete: () =
 
 function VideoCard({ video, onDelete }: { video: any; onDelete: () => void }) {
     return (
-        <div className="bg-[var(--surface-secondary)]/50 rounded-2xl border border-[var(--border-subtle)] overflow-hidden group hover:border-[var(--border-strong)] transition-all">
-            <div className="aspect-video w-full bg-slate-900 flex items-center justify-center relative">
-                <Play className="w-12 h-12 text-white/60" />
-                <span className="absolute top-3 left-3 px-2 py-1 bg-black/60 rounded-lg text-[10px] font-bold text-white uppercase tracking-widest">
+        <div className="bg-surface-secondary/50 rounded-2xl border border-border-subtle overflow-hidden group hover:border-border-strong transition-all">
+            <div className="aspect-video w-full bg-surface-secondary flex items-center justify-center relative">
+                <Play className="w-12 h-12 text-text-primary/60" />
+                <span className="absolute top-3 left-3 px-2 py-1 bg-black/50 rounded-lg text-[10px] font-bold text-text-primary uppercase tracking-widest">
                     {video.type}
                 </span>
             </div>
             <div className="p-4 flex items-center justify-between">
-                <p className="text-sm font-medium text-[var(--text-primary)] truncate">{video.title}</p>
-                <button onClick={onDelete} className="p-1.5 text-[var(--text-placeholder)] hover:text-red-500">
+                <p className="text-sm font-medium text-text-primary truncate">{video.title}</p>
+                <button onClick={onDelete} className="p-1.5 text-text-placeholder hover:text-red-500">
                     <Trash2 className="h-4 w-4" />
                 </button>
             </div>
@@ -1164,9 +1164,9 @@ function VideoCard({ video, onDelete }: { video: any; onDelete: () => void }) {
 
 function EngagementStat({ label, value, change, positive }: { label: string; value: number | string; change: string; positive: boolean }) {
     return (
-        <div className="p-6 bg-[var(--surface-secondary)]/50 rounded-2xl border border-[var(--border-subtle)]">
-            <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-2">{label}</p>
-            <p className="text-3xl font-bold text-[var(--text-primary)] mb-1">{typeof value === 'number' ? value.toLocaleString() : value}</p>
+        <div className="p-6 bg-surface-secondary/50 rounded-2xl border border-border-subtle">
+            <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-2">{label}</p>
+            <p className="text-3xl font-bold text-text-primary mb-1">{typeof value === 'number' ? value.toLocaleString() : value}</p>
             <span className={`text-[11px] font-bold ${positive ? "text-emerald-500" : "text-red-500"}`}>{change}</span>
         </div>
     );
@@ -1186,10 +1186,10 @@ function Modal({ children, onClose, wide }: { children: React.ReactNode; onClose
                 initial={{ opacity: 0, scale: 0.95, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                className={`relative bg-[var(--surface-primary)] rounded-3xl shadow-2xl border border-[var(--border-subtle)] overflow-hidden ${wide ? "w-full max-w-3xl" : "w-full max-w-md"}`}
+                className={`relative bg-surface-base rounded-3xl shadow-2xl border border-border-subtle overflow-hidden ${wide ? "w-full max-w-3xl" : "w-full max-w-md"}`}
             >
-                <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-[var(--surface-secondary)] rounded-xl z-10">
-                    <X className="w-5 h-5 text-[var(--text-tertiary)]" />
+                <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-surface-secondary rounded-xl z-10">
+                    <X className="w-5 h-5 text-text-tertiary" />
                 </button>
                 {children}
             </motion.div>

@@ -161,50 +161,50 @@ export default function VenueConnectionsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    <div className="flex items-center gap-3 mb-2 text-[var(--c1rcle-orange)]">
-                        <div className="p-2 bg-[var(--c1rcle-orange-glow)] rounded-xl">
+                    <div className="flex items-center gap-3 mb-2 text-c1rcle-orange">
+                        <div className="p-2 bg-c1rcle-orange-glow rounded-xl">
                             <Users className="w-5 h-5" />
                         </div>
                         <span className="text-label">NETWORK</span>
                     </div>
-                    <h1 className="text-display-sm text-[var(--text-primary)]">Connections</h1>
-                    <p className="text-body text-[var(--text-tertiary)] mt-2 max-w-xl">
+                    <h1 className="text-display-sm text-text-primary">Connections</h1>
+                    <p className="text-body text-text-tertiary mt-2 max-w-xl">
                         Manage your verified host partnerships and sales network.
                     </p>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex items-center p-1.5 bg-[var(--surface-secondary)] backdrop-blur-sm rounded-2xl w-fit border border-[var(--border-subtle)]">
+                <div className="flex items-center p-1.5 bg-surface-secondary backdrop-blur-sm rounded-2xl w-fit border border-border-subtle">
                     <button
                         onClick={() => setActiveTab('promoters')}
-                        className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2.5 ${activeTab === 'promoters' ? 'bg-[var(--surface-elevated)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                        className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2.5 ${activeTab === 'promoters' ? 'bg-surface-elevated text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'
                             }`}
                     >
-                        <Zap className={`w-4 h-4 ${activeTab === 'promoters' ? 'text-[var(--c1rcle-orange)]' : ''}`} />
+                        <Zap className={`w-4 h-4 ${activeTab === 'promoters' ? 'text-c1rcle-orange' : ''}`} />
                         Promoters
                         {pendingPromoterRequests.length > 0 && (
-                            <span className="ml-1 px-1.5 py-0.5 bg-[var(--c1rcle-orange)] text-white rounded-md text-[10px] font-bold">
+                            <span className="ml-1 px-1.5 py-0.5 bg-c1rcle-orange text-text-primary rounded-md text-[10px] font-bold">
                                 {pendingPromoterRequests.length}
                             </span>
                         )}
                     </button>
                     <button
                         onClick={() => setActiveTab('hosts')}
-                        className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2.5 ${activeTab === 'hosts' ? 'bg-[var(--surface-elevated)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                        className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2.5 ${activeTab === 'hosts' ? 'bg-surface-elevated text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'
                             }`}
                     >
                         <UserCircle className={`w-4 h-4 ${activeTab === 'hosts' ? 'text-indigo-500' : ''}`} />
                         Hosts
                         {pendingHostRequests.length > 0 && (
-                            <span className="ml-1 px-1.5 py-0.5 bg-indigo-500 text-white rounded-md text-[10px] font-bold">
+                            <span className="ml-1 px-1.5 py-0.5 bg-indigo-500 text-text-primary rounded-md text-[10px] font-bold">
                                 {pendingHostRequests.length}
                             </span>
                         )}
                     </button>
-                    <div className="w-px h-4 bg-[var(--border-subtle)] mx-1" />
+                    <div className="w-px h-4 bg-border-subtle mx-1" />
                     <button
                         onClick={() => setActiveTab('discover')}
-                        className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2.5 ${activeTab === 'discover' ? 'bg-[var(--surface-elevated)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                        className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2.5 ${activeTab === 'discover' ? 'bg-surface-elevated text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'
                             }`}
                     >
                         <Search className="w-4 h-4" />
@@ -226,29 +226,29 @@ export default function VenueConnectionsPage() {
                         {/* Requests Column */}
                         <div className="space-y-6">
                             <div className="flex items-center justify-between px-2">
-                                <h3 className="text-body-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                                    <Clock className="w-4 h-4 text-[var(--text-tertiary)]" />
+                                <h3 className="text-body-sm font-semibold text-text-primary flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-text-tertiary" />
                                     {activeTab === 'promoters' ? 'Promoter Requests' : 'Host Requests'}
                                 </h3>
-                                <span className="text-label text-[var(--text-tertiary)] bg-[var(--surface-secondary)] px-2 py-1 rounded-md">
+                                <span className="text-label text-text-tertiary bg-surface-secondary px-2 py-1 rounded-md">
                                     {activeTab === 'promoters' ? pendingPromoterRequests.length : pendingHostRequests.length} Incoming
                                 </span>
                             </div>
 
                             <AnimatePresence mode="popLayout">
                                 {loading ? (
-                                    <div className="p-20 flex justify-center"><Loader2 className="w-8 h-8 text-[var(--text-placeholder)] animate-spin" /></div>
+                                    <div className="p-20 flex justify-center"><Loader2 className="w-8 h-8 text-text-placeholder animate-spin" /></div>
                                 ) : (activeTab === 'promoters' ? pendingPromoterRequests : pendingHostRequests).length === 0 ? (
                                     <motion.div
                                         initial={{ opacity: 0 }}
                                         animate={{ opacity: 1 }}
-                                        className="py-16 card border-2 border-dashed border-[var(--border-default)] flex flex-col items-center text-center px-10"
+                                        className="py-16 card border-2 border-dashed border-border-default flex flex-col items-center text-center px-10"
                                     >
-                                        <div className="w-14 h-14 rounded-2xl bg-[var(--c1rcle-orange-glow)] flex items-center justify-center mb-4">
-                                            <Clock className="w-7 h-7 text-[var(--c1rcle-orange)]" />
+                                        <div className="w-14 h-14 rounded-2xl bg-c1rcle-orange-glow flex items-center justify-center mb-4">
+                                            <Clock className="w-7 h-7 text-c1rcle-orange" />
                                         </div>
-                                        <h4 className="text-title text-[var(--text-primary)] font-semibold">Quiet for now</h4>
-                                        <p className="text-body-sm text-[var(--text-secondary)] mt-2">Pending connection requests will appear here.</p>
+                                        <h4 className="text-title text-text-primary font-semibold">Quiet for now</h4>
+                                        <p className="text-body-sm text-text-secondary mt-2">Pending connection requests will appear here.</p>
                                     </motion.div>
                                 ) : (activeTab === 'promoters' ? pendingPromoterRequests : pendingHostRequests).map((request: any) => (
                                     <motion.div
@@ -261,19 +261,19 @@ export default function VenueConnectionsPage() {
                                     >
                                         <div className="flex items-start justify-between gap-4">
                                             <div className="flex items-start gap-4">
-                                                <div className="h-14 w-14 rounded-2xl bg-[var(--surface-tertiary)] flex items-center justify-center text-xl font-bold text-[var(--text-tertiary)] shrink-0">
+                                                <div className="h-14 w-14 rounded-2xl bg-surface-tertiary flex items-center justify-center text-xl font-bold text-text-tertiary shrink-0">
                                                     {(activeTab === 'promoters' ? (request.promoterName?.[0] || 'P') : (request.hostName?.[0] || 'H'))}
                                                 </div>
                                                 <div className="pt-0.5">
-                                                    <h4 className="text-title text-[var(--text-primary)] group-hover:text-[var(--c1rcle-orange)] transition-colors">
+                                                    <h4 className="text-title text-text-primary group-hover:text-c1rcle-orange transition-colors">
                                                         {activeTab === 'promoters' ? request.promoterName : request.hostName}
                                                     </h4>
                                                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                                                        <span className="text-caption text-[var(--text-tertiary)] flex items-center gap-1.5">
+                                                        <span className="text-caption text-text-tertiary flex items-center gap-1.5">
                                                             <Clock className="w-3.5 h-3.5" /> {formatDate(request.createdAt)}
                                                         </span>
                                                         {(activeTab === 'promoters' ? request.promoterEmail : request.hostEmail) && (
-                                                            <span className="text-caption text-[var(--text-tertiary)] flex items-center gap-1.5">
+                                                            <span className="text-caption text-text-tertiary flex items-center gap-1.5">
                                                                 <Mail className="w-3.5 h-3.5" /> {activeTab === 'promoters' ? request.promoterEmail : request.hostEmail}
                                                             </span>
                                                         )}
@@ -292,7 +292,7 @@ export default function VenueConnectionsPage() {
                                                 <button
                                                     onClick={() => handleAction(request.id, 'reject', activeTab === 'promoters' ? 'promoter' : 'host')}
                                                     disabled={!!processingRequest}
-                                                    className="h-10 w-10 rounded-xl bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] flex items-center justify-center hover:bg-[var(--state-error-bg)] hover:text-[var(--state-error)] transition-all active:scale-95 disabled:opacity-50"
+                                                    className="h-10 w-10 rounded-xl bg-surface-tertiary text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-500 transition-all active:scale-95 disabled:opacity-50"
                                                     title="Reject"
                                                 >
                                                     <X className="w-5 h-5" />
@@ -303,7 +303,7 @@ export default function VenueConnectionsPage() {
                                                         if (reason !== null) handleAction(request.id, 'block', activeTab === 'promoters' ? 'promoter' : 'host');
                                                     }}
                                                     disabled={!!processingRequest}
-                                                    className="h-10 w-10 rounded-xl bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] flex items-center justify-center hover:bg-[var(--text-primary)] hover:text-[var(--text-inverse)] transition-all active:scale-95 disabled:opacity-50"
+                                                    className="h-10 w-10 rounded-xl bg-surface-tertiary text-text-tertiary flex items-center justify-center hover:bg-text-primary hover:text-text-inverse transition-all active:scale-95 disabled:opacity-50"
                                                     title="Block"
                                                 >
                                                     <ShieldAlert className="w-5 h-5" />
@@ -311,8 +311,8 @@ export default function VenueConnectionsPage() {
                                             </div>
                                         </div>
                                         {request.message && (
-                                            <div className="mt-5 p-4 bg-[var(--surface-secondary)] rounded-2xl border border-[var(--border-subtle)]">
-                                                <p className="text-body-sm text-[var(--text-secondary)] italic">"{request.message}"</p>
+                                            <div className="mt-5 p-4 bg-surface-secondary rounded-2xl border border-border-subtle">
+                                                <p className="text-body-sm text-text-secondary italic">"{request.message}"</p>
                                             </div>
                                         )}
                                     </motion.div>
@@ -324,23 +324,23 @@ export default function VenueConnectionsPage() {
                         {/* Approved Column */}
                         <div className="space-y-6">
                             <div className="flex items-center justify-between px-2">
-                                <h3 className="text-body-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4 text-[var(--state-success)]" />
+                                <h3 className="text-body-sm font-semibold text-text-primary flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-c1rcle-orange" />
                                     {activeTab === 'promoters' ? 'Partnered Promoters' : 'Verified Hosts'}
                                 </h3>
-                                <span className="text-label text-[var(--state-success)] bg-[var(--state-success-bg)] px-2 py-1 rounded-md">
+                                <span className="text-label text-c1rcle-orange bg-green-500/10 px-2 py-1 rounded-md">
                                     {activeTab === 'promoters' ? approvedPromoterConnections.length : approvedHostPartnerships.length} Active
                                 </span>
                             </div>
 
                             <div className="space-y-3">
                                 {(activeTab === 'promoters' ? approvedPromoterConnections : approvedHostPartnerships).length === 0 ? (
-                                    <div className="py-16 card border-2 border-dashed border-[var(--border-default)] flex flex-col items-center text-center px-10">
-                                        <div className="w-14 h-14 rounded-2xl bg-[var(--state-success-bg)] flex items-center justify-center mb-4">
-                                            <CheckCircle2 className="w-7 h-7 text-[var(--state-success)]" />
+                                    <div className="py-16 card border-2 border-dashed border-border-default flex flex-col items-center text-center px-10">
+                                        <div className="w-14 h-14 rounded-2xl bg-green-500/10 flex items-center justify-center mb-4">
+                                            <CheckCircle2 className="w-7 h-7 text-c1rcle-orange" />
                                         </div>
-                                        <h4 className="text-title text-[var(--text-primary)] font-semibold">No active network</h4>
-                                        <p className="text-body-sm text-[var(--text-secondary)] mt-2">Once approved, partners will appear here.</p>
+                                        <h4 className="text-title text-text-primary font-semibold">No active network</h4>
+                                        <p className="text-body-sm text-text-secondary mt-2">Once approved, partners will appear here.</p>
                                     </div>
                                 ) : (activeTab === 'promoters' ? approvedPromoterConnections : approvedHostPartnerships).map((conn: any) => (
                                     <motion.div
@@ -350,21 +350,21 @@ export default function VenueConnectionsPage() {
                                         className="card p-5 flex items-center justify-between hover:shadow-md transition-all group"
                                     >
                                         <div className="flex items-center gap-4">
-                                            <div className="h-12 w-12 rounded-2xl bg-[var(--surface-tertiary)] flex items-center justify-center text-lg font-bold text-[var(--text-tertiary)]">
+                                            <div className="h-12 w-12 rounded-2xl bg-surface-tertiary flex items-center justify-center text-lg font-bold text-text-tertiary">
                                                 {(activeTab === 'promoters' ? (conn.promoterName?.[0] || 'P') : (conn.hostName?.[0] || 'H'))}
                                             </div>
                                             <div>
-                                                <h4 className="font-semibold text-[var(--text-primary)] group-hover:text-[var(--c1rcle-orange)] transition-colors">
+                                                <h4 className="font-semibold text-text-primary group-hover:text-c1rcle-orange transition-colors">
                                                     {activeTab === 'promoters' ? conn.promoterName : conn.hostName}
                                                 </h4>
                                                 <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className="text-caption text-[var(--text-tertiary)]">Since {formatDate(conn.updatedAt || conn.createdAt)}</span>
-                                                    <span className="h-1 w-1 rounded-full bg-[var(--state-success)]" />
-                                                    <span className="text-caption font-semibold text-[var(--state-success)]">Active</span>
+                                                    <span className="text-caption text-text-tertiary">Since {formatDate(conn.updatedAt || conn.createdAt)}</span>
+                                                    <span className="h-1 w-1 rounded-full bg-green-500" />
+                                                    <span className="text-caption font-semibold text-c1rcle-orange">Active</span>
                                                 </div>
                                             </div>
                                         </div>
-                                        <button className="h-10 w-10 bg-[var(--surface-tertiary)] rounded-xl flex items-center justify-center text-[var(--text-tertiary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)] transition-all active:scale-95">
+                                        <button className="h-10 w-10 bg-surface-tertiary rounded-xl flex items-center justify-center text-text-tertiary hover:bg-surface-elevated hover:text-text-primary transition-all active:scale-95">
                                             <ChevronRight className="w-5 h-5" />
                                         </button>
                                     </motion.div>

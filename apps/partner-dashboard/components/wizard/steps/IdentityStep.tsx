@@ -30,8 +30,8 @@ function AppleInput({
         <div className="space-y-1.5">
             {label && (
                 <div className="flex items-center justify-between">
-                    <label className="text-label ml-1 text-[var(--text-secondary)]">{label}</label>
-                    {hint && <span className="text-[10px] text-[var(--text-tertiary)] font-medium uppercase tracking-widest">{hint}</span>}
+                    <label className="text-label ml-1 text-text-secondary">{label}</label>
+                    {hint && <span className="text-[10px] text-text-tertiary font-medium uppercase tracking-widest">{hint}</span>}
                 </div>
             )}
             <div className="relative group">
@@ -66,8 +66,8 @@ function AppleTextArea({
         <div className="space-y-1.5">
             {label && (
                 <div className="flex items-center justify-between">
-                    <label className="text-label ml-1 text-[var(--text-secondary)]">{label}</label>
-                    {hint && <span className="text-[10px] text-[var(--text-tertiary)] font-medium uppercase tracking-widest">{hint}</span>}
+                    <label className="text-label ml-1 text-text-secondary">{label}</label>
+                    {hint && <span className="text-[10px] text-text-tertiary font-medium uppercase tracking-widest">{hint}</span>}
                 </div>
             )}
             <textarea
@@ -187,16 +187,16 @@ export function IdentityStep({
                     </div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)]">
+                <div className="p-4 rounded-xl bg-surface-secondary border border-border-subtle">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-text-primary font-bold text-lg">
                             {(profile?.activeMembership?.partnerName || profile?.displayName || "H")[0]}
                         </div>
                         <div>
-                            <p className="text-body font-semibold text-[var(--text-primary)]">
+                            <p className="text-body font-semibold text-text-primary">
                                 {profile?.activeMembership?.partnerName || profile?.displayName || "Your Organization"}
                             </p>
-                            <p className="text-caption text-[var(--text-tertiary)]">Event Host</p>
+                            <p className="text-caption text-text-tertiary">Event Host</p>
                         </div>
                     </div>
                 </div>
@@ -215,27 +215,27 @@ export function IdentityStep({
                         </div>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)]">
+                    <div className="p-4 rounded-xl bg-surface-secondary border border-border-subtle">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-[var(--surface-base)] border border-[var(--border-subtle)] flex items-center justify-center">
+                            <div className="w-12 h-12 rounded-xl bg-surface-base border border-border-subtle flex items-center justify-center">
                                 <Building2 className="w-6 h-6 text-indigo-500" />
                             </div>
                             <div>
-                                <p className="text-body font-semibold text-[var(--text-primary)]">
+                                <p className="text-body font-semibold text-text-primary">
                                     {profile?.activeMembership?.partnerName || "Your Venue"}
                                 </p>
-                                <p className="text-caption text-[var(--text-tertiary)]">
+                                <p className="text-caption text-text-tertiary">
                                     {profile?.activeMembership?.city || formData.city || "Primary Facility"}
                                 </p>
                             </div>
                             <div className="ml-auto">
-                                <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest text-emerald-600">
+                                <div className="px-3 py-1 rounded-full bg-green-500/10 border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest text-emerald-600">
                                     Pre-selected
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <p className="text-[11px] text-[var(--text-tertiary)] ml-1">
+                    <p className="text-[11px] text-text-tertiary ml-1">
                         As a venue operator, your facility is automatically linked to this event.
                     </p>
                 </div>
@@ -271,22 +271,22 @@ export function IdentityStep({
                                     })}
                                     className={`p-4 rounded-xl border-2 text-left transition-all ${formData.venueId === venue.venueId
                                         ? 'border-indigo-500 bg-indigo-500/5 shadow-sm'
-                                        : 'border-[var(--border-subtle)] hover:border-indigo-500/30 hover:bg-[var(--surface-secondary)]'
+                                        : 'border-border-subtle hover:border-indigo-500/30 hover:bg-surface-secondary'
                                         }`}
                                 >
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-lg bg-[var(--surface-base)] border border-[var(--border-subtle)] flex items-center justify-center">
-                                                <Building2 className="w-5 h-5 text-[var(--text-tertiary)]" />
+                                            <div className="w-10 h-10 rounded-lg bg-surface-base border border-border-subtle flex items-center justify-center">
+                                                <Building2 className="w-5 h-5 text-text-tertiary" />
                                             </div>
                                             <div>
-                                                <p className="text-body font-semibold text-[var(--text-primary)]">{venue.venueName}</p>
-                                                <p className="text-caption text-[var(--text-tertiary)]">{venue.city || 'Location TBD'}</p>
+                                                <p className="text-body font-semibold text-text-primary">{venue.venueName}</p>
+                                                <p className="text-caption text-text-tertiary">{venue.city || 'Location TBD'}</p>
                                             </div>
                                         </div>
                                         {formData.venueId === venue.venueId && (
                                             <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center">
-                                                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <svg className="w-3.5 h-3.5 text-text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                                 </svg>
                                             </div>

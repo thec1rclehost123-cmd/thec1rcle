@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -47,6 +47,8 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const profileRef = useRef(profile);
+  useEffect(() => { profileRef.current = profile; }, [profile]);
 
   const ensureProfile = useCallback(async (firebaseUser) => {
     try {
@@ -153,13 +155,20 @@ export function AuthProvider({ children }) {
         throw new Error("You must be logged in to manage events.");
       }
 
-      const token = await user.getIdToken();
-      // Assume API handles arrays optimally. For now, pull existing from state, update and PATCH
-      const current = new Set(profile?.[field] || []);
+      // Read latest profile via ref — avoids adding `profile` to deps
+      // which would recreate this callback (and invalidate context) on every profile update
+      const current = new Set(profileRef.current?.[field] || []);
       if (shouldInclude) current.add(eventId);
       else current.delete(eventId);
       const updatedArray = Array.from(current);
 
+      // Optimistic update before awaiting the token/network
+      setProfile((prev) => {
+        if (!prev) return prev;
+        return { ...prev, [field]: updatedArray };
+      });
+
+      const token = await user.getIdToken();
       await fetch('/api/auth/profile', {
         method: 'PATCH',
         headers: {
@@ -168,16 +177,8 @@ export function AuthProvider({ children }) {
         },
         body: JSON.stringify({ type: 'user', updates: { [field]: updatedArray } })
       });
-
-      setProfile((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          [field]: updatedArray
-        };
-      });
     },
-    [user?.uid, profile]
+    [user?.uid] // profile removed from deps — read via ref instead
   );
 
   const updateUserProfile = useCallback(

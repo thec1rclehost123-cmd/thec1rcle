@@ -6,7 +6,7 @@ import { C1rcleApiClient } from "@c1rcle/core/api-client";
  */
 export function getApiClient(token) {
     return new C1rcleApiClient({
-        baseUrl: process.env.PUBLIC_API_URL || "http://localhost:4000/api/v1",
+        baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || process.env.PUBLIC_API_URL || "http://localhost:4000/api/v1",
         getAuthToken: async () => token
     });
 }
@@ -17,7 +17,7 @@ export function getApiClient(token) {
  */
 export function getSystemApiClient() {
     return new C1rcleApiClient({
-        baseUrl: process.env.PUBLIC_API_URL || "http://localhost:4000/api/v1",
+        baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || process.env.PUBLIC_API_URL || "http://localhost:4000/api/v1",
         getAuthToken: async () => process.env.INTERNAL_API_KEY
     });
 }

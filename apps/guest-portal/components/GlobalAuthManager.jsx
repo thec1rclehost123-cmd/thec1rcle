@@ -70,6 +70,8 @@ export default function GlobalAuthManager() {
         }
     }, [user, loading, handleReplayIntent]);
 
+    if (!isModalOpen) return null;
+
     return (
         <AuthModal
             isOpen={isModalOpen}

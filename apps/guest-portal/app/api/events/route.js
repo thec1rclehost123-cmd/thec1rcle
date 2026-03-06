@@ -20,7 +20,7 @@ export async function GET(request) {
   try {
     const { city, limit, sort, search, host } = getQueryParams(request);
     const events = await listEvents({ city, limit, sort, search, host });
-    return NextResponse.json(events);
+    return NextResponse.json({ events, hasMore: false, nextCursor: null });
   } catch (error) {
     console.error("GET /api/events error", error);
     return NextResponse.json({ error: "Failed to load events." }, { status: 500 });

@@ -38,9 +38,8 @@ export default function AuditTrail({ entries = [] }: AuditTrailProps) {
     if (!entries || entries.length === 0) {
         return (
             <div className="py-12 text-center">
-                {/* @ts-expect-error Lucide types mismatch */}
-                <Clock className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                <p className="text-slate-400 font-medium">No activity recorded for this event yet.</p>
+                <Clock className="h-12 w-12 text-text-placeholder mx-auto mb-4" />
+                <p className="text-text-tertiary font-medium">No activity recorded for this event yet.</p>
             </div>
         );
     }
@@ -54,11 +53,11 @@ export default function AuditTrail({ entries = [] }: AuditTrailProps) {
         <div className="space-y-6">
             <div className="relative">
                 {/* Vertical Line */}
-                <div className="absolute left-[21px] top-2 bottom-0 w-0.5 bg-slate-100" />
+                <div className="absolute left-[21px] top-2 bottom-0 w-0.5 bg-surface-secondary" />
 
                 <div className="space-y-8">
                     {sortedEntries.map((entry, index) => {
-                        const style = actionIcons[entry.action] || { icon: Clock, color: "text-slate-400", bg: "bg-slate-50" };
+                        const style = actionIcons[entry.action] || { icon: Clock, color: "text-text-tertiary", bg: "bg-surface-tertiary" };
                         const Icon = style.icon as any;
 
                         return (
@@ -76,10 +75,10 @@ export default function AuditTrail({ entries = [] }: AuditTrailProps) {
 
                                 <div className="space-y-1">
                                     <div className="flex items-center gap-3">
-                                        <span className="text-sm font-black text-slate-900 uppercase tracking-tight">
+                                        <span className="text-sm font-black text-text-primary uppercase tracking-tight">
                                             {entry.action.replace('transitioned_to_', '').replace('_', ' ')}
                                         </span>
-                                        <span className="text-[10px] font-bold text-slate-400">
+                                        <span className="text-[10px] font-bold text-text-tertiary">
                                             {new Date(entry.timestamp).toLocaleString([], {
                                                 month: 'short',
                                                 day: 'numeric',
@@ -89,8 +88,8 @@ export default function AuditTrail({ entries = [] }: AuditTrailProps) {
                                         </span>
                                     </div>
 
-                                    <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                                        <div className="flex items-center gap-1.5 bg-slate-100 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                                    <div className="flex items-center gap-2 text-xs text-text-tertiary font-medium">
+                                        <div className="flex items-center gap-1.5 bg-surface-secondary px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest">
                                             {React.createElement(User as any, { className: "h-3 w-3" })}
                                             {entry.actor.role}
                                         </div>
@@ -100,17 +99,17 @@ export default function AuditTrail({ entries = [] }: AuditTrailProps) {
                                     </div>
 
                                     {entry.notes && (
-                                        <p className="mt-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 italic">
+                                        <p className="mt-2 text-xs text-slate-600 bg-surface-tertiary p-3 rounded-xl border border-border-subtle italic">
                                             "{entry.notes}"
                                         </p>
                                     )}
 
                                     {entry.details && Object.keys(entry.details).length > 0 && (
                                         <details className="mt-2">
-                                            <summary className="text-[10px] font-black uppercase tracking-widest text-slate-400 cursor-pointer hover:text-indigo-600 transition-colors">
+                                            <summary className="text-[10px] font-black uppercase tracking-widest text-text-tertiary cursor-pointer hover:text-indigo-600 transition-colors">
                                                 Technical Details
                                             </summary>
-                                            <pre className="mt-2 text-[10px] font-mono bg-slate-900 text-slate-300 p-3 rounded-xl overflow-x-auto shadow-inner">
+                                            <pre className="mt-2 text-[10px] font-mono bg-surface-secondary text-text-placeholder p-3 rounded-xl overflow-x-auto shadow-inner">
                                                 {JSON.stringify(entry.details, null, 2)}
                                             </pre>
                                         </details>

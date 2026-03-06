@@ -9,7 +9,7 @@ import CacheWarmer from "../CacheWarmer";
 
 export default function AppProviders({ children }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" disableTransitionOnChange={false}>
+    <ThemeProvider attribute="class" defaultTheme="dark" disableTransitionOnChange>
       <AuthProvider>
         <ToastProvider>
           <GlobalAuthManager />

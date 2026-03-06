@@ -29,7 +29,7 @@ const MONTHS = [
 // State configuration - Canonical colors only
 const STATE_CONFIG = {
     CONFIRMED: {
-        dot: "bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]",
+        dot: "bg-green-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]",
         label: "Confirmed",
         textColor: "text-emerald-600"
     },
@@ -217,7 +217,7 @@ export function OperatingCalendar() {
             <header className="px-4 py-8 flex flex-col md:flex-row items-center justify-between border-b border-[rgba(0,0,0,0.06)] bg-transparent">
                 <div className="flex items-center gap-10">
                     <div>
-                        <h1 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight uppercase">
+                        <h1 className="text-3xl font-bold text-text-primary tracking-tight uppercase">
                             {cleanJargon(role === 'venue' ? 'management' : 'operating_calendar')}
                         </h1>
                         <p className="text-[11px] font-black text-rose-500 uppercase tracking-[0.3em] mt-1">
@@ -228,24 +228,24 @@ export function OperatingCalendar() {
                     {/* Quick Stats */}
                     <div className="hidden lg:flex items-center gap-8 pl-10 border-l border-[rgba(255,255,255,0.06)]">
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-1">{cleanJargon('confirmed')}</span>
+                            <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-1">{cleanJargon('confirmed')}</span>
                             <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10B981]" />
-                                <span className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{stats.confirmed}</span>
+                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_#10B981]" />
+                                <span className="text-lg font-bold text-text-primary tabular-nums">{stats.confirmed}</span>
                             </div>
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-1">{cleanJargon('pending')}</span>
+                            <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-1">{cleanJargon('pending')}</span>
                             <div className="flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_#F44A22]" />
-                                <span className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{stats.pending}</span>
+                                <span className="text-lg font-bold text-text-primary tabular-nums">{stats.pending}</span>
                             </div>
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-1">Grid Availability</span>
+                            <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-1">Grid Availability</span>
                             <div className="flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                                <span className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{stats.open}</span>
+                                <span className="text-lg font-bold text-text-primary tabular-nums">{stats.open}</span>
                             </div>
                         </div>
                     </div>
@@ -253,22 +253,22 @@ export function OperatingCalendar() {
 
                 <div className="flex items-center gap-6">
                     {/* Month Navigation */}
-                    <div className="flex items-center gap-1 bg-[var(--surface-secondary)] border border-[rgba(255,255,255,0.08)] rounded-lg p-1">
+                    <div className="flex items-center gap-1 bg-surface-secondary border border-[rgba(255,255,255,0.08)] rounded-lg p-1">
                         <button
                             onClick={() => navigateMonth(-1)}
-                            className="p-2 hover:bg-[var(--surface-elevated)] rounded transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                            className="p-2 hover:bg-surface-elevated rounded transition-all text-text-tertiary hover:text-text-primary"
                         >
                             <ChevronLeft className="h-4 w-4" />
                         </button>
                         <button
                             onClick={() => setCurrentDate(parseAsIST(null))}
-                            className="px-4 py-1.5 text-[10px] font-black text-[var(--text-tertiary)] hover:text-[var(--text-primary)] uppercase tracking-widest transition-all"
+                            className="px-4 py-1.5 text-[10px] font-black text-text-tertiary hover:text-text-primary uppercase tracking-widest transition-all"
                         >
                             SYNC TODAY
                         </button>
                         <button
                             onClick={() => navigateMonth(1)}
-                            className="p-2 hover:bg-[var(--surface-elevated)] rounded transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                            className="p-2 hover:bg-surface-elevated rounded transition-all text-text-tertiary hover:text-text-primary"
                         >
                             <ChevronRight className="h-4 w-4" />
                         </button>
@@ -278,7 +278,7 @@ export function OperatingCalendar() {
                     {role === 'venue' && (
                         <Link
                             href="/venue/create"
-                            className="bg-white text-black px-6 py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-white/90 transition-all font-black text-[11px] uppercase tracking-widest shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+                            className="bg-surface-elevated text-text-primary px-6 py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-surface-elevated/90 transition-all font-black text-[11px] uppercase tracking-widest shadow-[0_0_20px_rgba(255,255,255,0.1)]"
                         >
                             <Plus className="h-4 w-4" />
                             Schedule
@@ -292,10 +292,10 @@ export function OperatingCalendar() {
 
                 {/* Left: Calendar Ledger (8 Cols) */}
                 <div className="lg:col-span-8 space-y-6">
-                    <div className="glass-panel overflow-hidden border border-[var(--border-strong)] shadow-sm rounded-[32px]">
-                        <div className="grid grid-cols-7 border-b border-[var(--border-subtle)] bg-[var(--surface-secondary)]">
+                    <div className="glass-panel overflow-hidden border border-border-strong shadow-sm rounded-[32px]">
+                        <div className="grid grid-cols-7 border-b border-border-subtle bg-surface-secondary">
                             {DAYS.map(d => (
-                                <div key={d} className="py-4 text-center text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.2em]">
+                                <div key={d} className="py-4 text-center text-[10px] font-black text-text-tertiary uppercase tracking-[0.2em]">
                                     {d}
                                 </div>
                             ))}
@@ -316,10 +316,10 @@ export function OperatingCalendar() {
                                     <button
                                         key={cell.dateStr}
                                         onClick={() => setSelectedDateStr(cell.dateStr)}
-                                        className={`relative aspect-[1.15/1] p-3 text-left border-r border-b border-[var(--border-subtle)] transition-all group overflow-hidden ${isSelected ? 'bg-rose-500/10' : 'hover:bg-[var(--surface-secondary)]'}`}
+                                        className={`relative aspect-[1.15/1] p-3 text-left border-r border-b border-border-subtle transition-all group overflow-hidden ${isSelected ? 'bg-rose-500/10' : 'hover:bg-surface-secondary'}`}
                                     >
                                         <div className="flex items-center justify-between relative z-10">
-                                            <span className={`text-[13px] font-black tabular-nums ${isToday ? 'text-rose-500 animate-pulse' : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'}`}>
+                                            <span className={`text-[13px] font-black tabular-nums ${isToday ? 'text-rose-500 animate-pulse' : 'text-text-tertiary group-hover:text-text-primary'}`}>
                                                 {cell.day}
                                             </span>
                                             {isToday && <div className="w-1 h-1 rounded-full bg-iris shadow-[0_0_5px_#F44A22]" />}
@@ -337,7 +337,7 @@ export function OperatingCalendar() {
                                                         <div
                                                             key={e.id}
                                                             className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tight truncate border ${isConfirmed
-                                                                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                                                                ? 'bg-green-500/10 border-emerald-500/20 text-emerald-600'
                                                                 : isPending
                                                                     ? 'bg-orange-500/10 border-orange-500/20 text-orange-600'
                                                                     : 'bg-[#F2F2F7] border-[rgba(0,0,0,0.06)] text-[#86868B]'
@@ -382,15 +382,15 @@ export function OperatingCalendar() {
                     <div className="flex items-center gap-8 px-2">
                         <div className="flex items-center gap-2">
                             <div className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_5px_#F44A22]" />
-                            <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Pending Review</span>
+                            <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest">Pending Review</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_#10B981]" />
-                            <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Confirmed Night</span>
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_#10B981]" />
+                            <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest">Confirmed Night</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                            <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Open Slot</span>
+                            <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest">Open Slot</span>
                         </div>
                     </div>
                 </div>
@@ -553,14 +553,14 @@ function SidePanel({
     return (
         <div className="h-full flex flex-col bg-transparent select-none">
             {/* Header */}
-            <div className="px-8 py-6 border-b border-[var(--border-subtle)] flex items-start justify-between bg-[var(--surface-secondary)]">
+            <div className="px-8 py-6 border-b border-border-subtle flex items-start justify-between bg-surface-secondary">
                 <div>
-                    <h2 className="text-xl font-bold text-[var(--text-primary)] uppercase tracking-tight">{dayName}</h2>
-                    <p className="text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest mt-1">{formattedDate} — SYSTEM_READY</p>
+                    <h2 className="text-xl font-bold text-text-primary uppercase tracking-tight">{dayName}</h2>
+                    <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest mt-1">{formattedDate} — SYSTEM_READY</p>
                 </div>
                 <button
                     onClick={onClose}
-                    className="p-2 hover:bg-[var(--surface-tertiary)] rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
+                    className="p-2 hover:bg-surface-tertiary rounded-lg text-text-tertiary hover:text-text-primary transition-all"
                 >
                     <X className="h-5 w-5" />
                 </button>
@@ -570,7 +570,7 @@ function SidePanel({
                 {/* Timeline Section */}
                 <div className="p-8">
                     <div className="flex items-center justify-between mb-8">
-                        <p className="text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.2em]">Operational Timeline</p>
+                        <p className="text-[10px] font-black text-text-tertiary uppercase tracking-[0.2em]">Operational Timeline</p>
                         {isBlockingMode && (
                             <span className="text-[9px] font-black text-rose-500 animate-pulse uppercase tracking-widest">Awaiting Range Selection</span>
                         )}
@@ -580,7 +580,7 @@ function SidePanel({
                         {/* Time Labels */}
                         <div className="w-16 flex flex-col justify-between pr-4 py-0">
                             {hours.map((h, i) => (
-                                <span key={i} className="text-[9px] font-bold text-[var(--text-tertiary)] opacity-40 uppercase tracking-widest h-0 flex items-center justify-end tabular-nums">{h.label}</span>
+                                <span key={i} className="text-[9px] font-bold text-text-tertiary opacity-40 uppercase tracking-widest h-0 flex items-center justify-end tabular-nums">{h.label}</span>
                             ))}
                         </div>
 
@@ -618,33 +618,33 @@ function SidePanel({
                                             className={`absolute inset-x-0 mr-4 rounded-xl p-5 flex flex-col border transition-all hover:translate-x-1 ${isAnonymized
                                                 ? 'bg-[#F2F2F7] border-[rgba(0,0,0,0.06)] text-[#86868B]'
                                                 : isConfirmed
-                                                    ? 'bg-emerald-500/5 border-emerald-500/20 text-[#1D1D1F] shadow-[0_0_20px_rgba(16,185,129,0.05)]'
+                                                    ? 'bg-green-500/5 border-emerald-500/20 text-[#1D1D1F] shadow-[0_0_20px_rgba(16,185,129,0.05)]'
                                                     : 'bg-[#FAFAFB] border-[rgba(0,0,0,0.08)] text-[#424245]'
                                                 }`}
                                         >
                                             <div className="flex gap-4 h-full pointer-events-auto">
                                                 {e.posterUrl && !isAnonymized && (
-                                                    <div className="w-16 h-16 rounded-lg overflow-hidden border border-white/10 shadow-lg flex-shrink-0">
+                                                    <div className="w-16 h-16 rounded-lg overflow-hidden border border-border-subtle shadow-lg flex-shrink-0">
                                                         <img src={e.posterUrl} alt="" className="w-full h-full object-cover" />
                                                     </div>
                                                 )}
                                                 <div className="flex-1 min-w-0 flex flex-col">
                                                     <div className="flex items-center justify-between mb-2">
-                                                        <span className={`text-[10px] font-black uppercase tracking-widest tabular-nums ${isConfirmed ? 'text-emerald-500/80' : 'text-[var(--text-tertiary)]'}`}>
+                                                        <span className={`text-[10px] font-black uppercase tracking-widest tabular-nums ${isConfirmed ? 'text-emerald-500/80' : 'text-text-tertiary'}`}>
                                                             {e.startTime} <span className="mx-1 opacity-50">/</span> {e.endTime}
                                                         </span>
-                                                        {isConfirmed && !isAnonymized && <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.4)]" />}
-                                                        {isAnonymized && <Lock className="h-3 w-3 opacity-30 text-[var(--text-tertiary)]" />}
+                                                        {isConfirmed && !isAnonymized && <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_rgba(16,185,129,0.4)]" />}
+                                                        {isAnonymized && <Lock className="h-3 w-3 opacity-30 text-text-tertiary" />}
                                                     </div>
-                                                    <h3 className="text-sm font-bold truncate leading-tight mb-2 text-[var(--text-primary)]">
+                                                    <h3 className="text-sm font-bold truncate leading-tight mb-2 text-text-primary">
                                                         {isAnonymized ? 'RESERVED' : (e.title?.toUpperCase() || 'UNTITLED')}
                                                     </h3>
                                                     {!isAnonymized && (
                                                         <div className="flex items-center gap-2 mt-auto">
-                                                            <div className="w-5 h-5 rounded-full bg-white/5 border border-[var(--border-subtle)] flex items-center justify-center">
-                                                                <User className="h-2.5 w-2.5 text-[var(--text-tertiary)]" />
+                                                            <div className="w-5 h-5 rounded-full bg-surface-elevated/5 border border-border-subtle flex items-center justify-center">
+                                                                <User className="h-2.5 w-2.5 text-text-tertiary" />
                                                             </div>
-                                                            <span className="text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest truncate">{e.host || 'Booking'}</span>
+                                                            <span className="text-[10px] font-black text-text-tertiary uppercase tracking-widest truncate">{e.host || 'Booking'}</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -668,7 +668,7 @@ function SidePanel({
                                             <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 tabular-nums">{s.startTime} / {s.endTime}</span>
                                             <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-[9px] font-black text-rose-500 uppercase tracking-widest border border-rose-500/20">PENDING REQUEST</span>
                                         </div>
-                                        <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-tight truncate">{s.host}</h3>
+                                        <h3 className="text-sm font-black text-text-primary uppercase tracking-tight truncate">{s.host}</h3>
                                         <p className="text-[9px] text-rose-500 font-black uppercase tracking-[0.2em] mt-auto animate-pulse">ACTION_REQUIRED</p>
                                     </div>
                                 ))}
@@ -680,11 +680,11 @@ function SidePanel({
                                             top: `${getTop(isBlockingMode ? startTime : data?.block?.startTime || "16:00")}%`,
                                             height: `${getHeight(isBlockingMode ? startTime : data?.block?.startTime || "16:00", isBlockingMode ? endTime : data?.block?.endTime || "04:00")}%`,
                                         }}
-                                        className={`absolute inset-x-0 mr-4 rounded-xl border border-white/10 flex items-center justify-center backdrop-blur-sm z-10 transition-all ${isBlockingMode ? 'bg-white/5 border-dashed' : 'bg-black/40'}`}
+                                        className={`absolute inset-x-0 mr-4 rounded-xl border border-border-subtle flex items-center justify-center backdrop-blur-sm z-10 transition-all ${isBlockingMode ? 'bg-surface-elevated/5 border-dashed' : 'bg-black/40'}`}
                                     >
-                                        <div className="text-center p-6 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl">
-                                            <Lock className={`h-6 w-6 mx-auto mb-3 ${isBlockingMode ? 'text-white' : 'text-white/30'}`} />
-                                            <h4 className="text-[10px] font-black text-white uppercase tracking-[0.2em] mb-1">
+                                        <div className="text-center p-6 bg-surface-elevated/5 backdrop-blur-md rounded-2xl border border-border-subtle shadow-2xl">
+                                            <Lock className={`h-6 w-6 mx-auto mb-3 ${isBlockingMode ? 'text-text-primary' : 'text-text-primary/30'}`} />
+                                            <h4 className="text-[10px] font-black text-text-primary uppercase tracking-[0.2em] mb-1">
                                                 {isBlockingMode ? 'BLOCK_PENDING' : 'MANUAL_BLOCK_ACTIVE'}
                                             </h4>
                                             {isBlockingMode && (
@@ -708,21 +708,21 @@ function SidePanel({
                                             <CalendarIcon className="h-6 w-6 text-rose-500" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h4 className="text-base font-bold text-[var(--text-primary)] uppercase tracking-tight">{s.host} Submission</h4>
-                                            <p className="text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest mt-1 tabular-nums">{s.startTime} — {s.endTime}</p>
+                                            <h4 className="text-base font-bold text-text-primary uppercase tracking-tight">{s.host} Submission</h4>
+                                            <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest mt-1 tabular-nums">{s.startTime} — {s.endTime}</p>
                                         </div>
                                     </div>
                                     {role === 'venue' && (
                                         <div className="flex gap-4">
                                             <button
                                                 onClick={() => onSlotAction(s.id, 'approve')}
-                                                className="flex-1 bg-[var(--text-primary)] text-[var(--text-inverse)] py-3 rounded-xl font-black text-[11px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg"
+                                                className="flex-1 bg-text-primary text-text-inverse py-3 rounded-xl font-black text-[11px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg"
                                             >
                                                 Confirm slot
                                             </button>
                                             <button
                                                 onClick={() => onSlotAction(s.id, 'reject')}
-                                                className="px-6 py-3 border border-[var(--border-default)] text-[var(--text-tertiary)] rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-[var(--text-primary)] hover:bg-[var(--surface-tertiary)] transition-all"
+                                                className="px-6 py-3 border border-border-default text-text-tertiary rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-text-primary hover:bg-surface-tertiary transition-all"
                                             >
                                                 Abort
                                             </button>
@@ -737,23 +737,23 @@ function SidePanel({
 
             {/* Block Details Panel (Venue only) */}
             {role === 'venue' && isBlockingMode && (
-                <div className="px-8 py-8 border-t border-[var(--border-subtle)] bg-[var(--surface-secondary)] space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+                <div className="px-8 py-8 border-t border-border-subtle bg-surface-secondary space-y-6 animate-in slide-in-from-bottom-4 duration-300">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-[10px] font-black text-[var(--text-primary)] uppercase tracking-[0.2em]">Manual Block Settings</h3>
-                        <span className="text-[11px] font-black text-[var(--text-primary)] px-3 py-1 bg-[var(--surface-base)] border border-[var(--border-default)] rounded-lg tabular-nums shadow-sm">
+                        <h3 className="text-[10px] font-black text-text-primary uppercase tracking-[0.2em]">Manual Block Settings</h3>
+                        <span className="text-[11px] font-black text-text-primary px-3 py-1 bg-surface-base border border-border-default rounded-lg tabular-nums shadow-sm">
                             {startTime} — {endTime}
                         </span>
                     </div>
 
                     <div className="space-y-6">
                         <div className="space-y-1.5 text-left">
-                            <label className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest ml-1">Reason</label>
+                            <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest ml-1">Reason</label>
                             <input
                                 type="text"
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
                                 placeholder="E.G. PRIVATE_PRODUCTION_UNIT_MAINT"
-                                className="w-full bg-[var(--surface-base)] border border-[var(--border-default)] rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] focus:border-rose-500 outline-none transition-all shadow-inner"
+                                className="w-full bg-surface-base border border-border-default rounded-xl px-4 py-3 text-sm text-text-primary focus:border-rose-500 outline-none transition-all shadow-inner"
                             />
                         </div>
 
@@ -771,21 +771,21 @@ function SidePanel({
             )}
 
             {/* Footer Actions */}
-            <div className="p-8 border-t border-[var(--border-subtle)] bg-[var(--surface-secondary)] flex gap-4">
+            <div className="p-8 border-t border-border-subtle bg-surface-secondary flex gap-4">
                 {role === 'venue' ? (
                     <>
                         {isBlockingMode ? (
                             <>
                                 <button
                                     onClick={() => setIsBlockingMode(false)}
-                                    className="flex-1 py-4 border border-[var(--border-default)] text-[var(--text-tertiary)] rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-[var(--text-primary)] hover:bg-[var(--surface-tertiary)] transition-all"
+                                    className="flex-1 py-4 border border-border-default text-text-tertiary rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-text-primary hover:bg-surface-tertiary transition-all"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleAction}
                                     disabled={isPending}
-                                    className="flex-[1.5] py-4 bg-[var(--text-primary)] text-[var(--text-inverse)] rounded-xl font-black text-[11px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg"
+                                    className="flex-[1.5] py-4 bg-text-primary text-text-inverse rounded-xl font-black text-[11px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg"
                                 >
                                     {isPending ? "SAVING..." : "Confirm Block"}
                                 </button>
@@ -793,7 +793,7 @@ function SidePanel({
                         ) : (
                             <button
                                 onClick={() => setIsBlockingMode(true)}
-                                className="flex-1 py-4 bg-[var(--surface-base)] border border-[var(--border-default)] text-[var(--text-primary)] rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-[var(--surface-secondary)] transition-all flex items-center justify-center gap-3 shadow-sm"
+                                className="flex-1 py-4 bg-surface-base border border-border-default text-text-primary rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-surface-secondary transition-all flex items-center justify-center gap-3 shadow-sm"
                             >
                                 <Lock className="h-4 w-4" />
                                 {data?.state === 'BLOCKED' ? 'Edit Manual Block' : 'Add Manual Block'}
@@ -803,7 +803,7 @@ function SidePanel({
                 ) : (
                     <Link
                         href="/host/events"
-                        className="flex-1 py-4 bg-[var(--surface-base)] border border-[var(--border-default)] text-[var(--text-primary)] rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-[var(--surface-secondary)] transition-all text-center flex items-center justify-center shadow-sm"
+                        className="flex-1 py-4 bg-surface-base border border-border-default text-text-primary rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-surface-secondary transition-all text-center flex items-center justify-center shadow-sm"
                     >
                         Management view
                     </Link>
@@ -811,7 +811,7 @@ function SidePanel({
                 {!isBlockingMode && (
                     <button
                         onClick={onClose}
-                        className="flex-1 py-4 border border-[var(--border-default)] text-[var(--text-tertiary)] rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-[var(--text-primary)] hover:bg-[var(--surface-tertiary)] transition-all"
+                        className="flex-1 py-4 border border-border-default text-text-tertiary rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-text-primary hover:bg-surface-tertiary transition-all"
                     >
                         Close
                     </button>

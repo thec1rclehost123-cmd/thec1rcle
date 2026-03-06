@@ -29,28 +29,28 @@ export interface StatCardProps {
 
 const stateStyles: Record<StatState, { icon: string; card: string }> = {
     default: {
-        icon: "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]",
+        icon: "bg-surface-tertiary text-text-tertiary",
         card: ""
     },
     success: {
-        icon: "bg-[var(--state-success-bg)] text-[var(--state-success)]",
+        icon: "bg-green-500/10 text-c1rcle-orange",
         card: "border-[var(--state-success)]/10"
     },
     warning: {
-        icon: "bg-[var(--state-warning-bg)] text-[var(--state-warning)]",
+        icon: "bg-yellow-500/10 text-yellow-500",
         card: "border-[var(--state-warning)]/10"
     },
     error: {
-        icon: "bg-[var(--state-error-bg)] text-[var(--state-error)]",
+        icon: "bg-red-500/10 text-red-500",
         card: "border-[var(--state-error)]/10"
     },
     info: {
-        icon: "bg-[var(--state-info-bg)] text-[var(--state-info)]",
+        icon: "bg-blue-500/10 text-blue-500",
         card: "border-[var(--state-info)]/10"
     },
     accent: {
-        icon: "bg-[var(--c1rcle-orange-glow)] text-[var(--c1rcle-orange)]",
-        card: "border-[var(--c1rcle-orange)]/10"
+        icon: "bg-c1rcle-orange-glow text-c1rcle-orange",
+        card: "border-c1rcle-orange/10"
     },
 };
 
@@ -71,7 +71,7 @@ export function StatCard({
 
     return (
         <div className={clsx(
-            "bg-[var(--surface-elevated)] rounded-2xl border border-[var(--border-subtle)] transition-all hover:border-[var(--border-default)] hover:shadow-md",
+            "bg-surface-elevated rounded-2xl border border-border-subtle transition-all hover:border-border-default hover:shadow-md",
             compact ? "p-4" : "p-6",
             styles.card,
             className
@@ -86,11 +86,11 @@ export function StatCard({
                 </div>
             )}
 
-            <p className="text-label text-[var(--text-tertiary)] mb-2">{label}</p>
+            <p className="text-label text-text-tertiary mb-2">{label}</p>
 
             <div className="flex items-baseline gap-3 flex-wrap">
                 <p className={clsx(
-                    "font-semibold text-[var(--text-primary)] leading-none tracking-tight",
+                    "font-semibold text-text-primary leading-none tracking-tight",
                     compact ? "text-[24px]" : "text-[32px]"
                 )}>
                     {value}
@@ -99,7 +99,7 @@ export function StatCard({
                     <span className={clsx(
                         "text-[11px] font-semibold flex items-center gap-1 px-2 py-1 rounded-full",
                         change.direction === "neutral"
-                            ? "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]"
+                            ? "bg-surface-tertiary text-text-tertiary"
                             : changeIsPositive
                                 ? "bg-[var(--trend-up-bg)] text-[var(--trend-up)]"
                                 : "bg-[var(--trend-down-bg)] text-[var(--trend-down)]"
@@ -112,7 +112,7 @@ export function StatCard({
             </div>
 
             {subtext && (
-                <p className="text-[12px] text-[var(--text-placeholder)] mt-2">{subtext}</p>
+                <p className="text-[12px] text-text-placeholder mt-2">{subtext}</p>
             )}
         </div>
     );

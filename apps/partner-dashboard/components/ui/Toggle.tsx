@@ -52,19 +52,19 @@ export default function Toggle({
                 className={clsx(
                     "relative inline-flex items-center rounded-full transition-colors duration-150",
                     s.track,
-                    value ? "bg-emerald-500" : "bg-stone-200"
+                    value ? "bg-green-500" : "bg-surface-tertiary"
                 )}
             >
                 <span
                     className={clsx(
-                        "absolute left-0.5 inline-block rounded-full bg-white shadow-sm transition-transform duration-150",
+                        "absolute left-0.5 inline-block rounded-full bg-surface-elevated shadow-sm transition-transform duration-150",
                         s.knob,
                         value && s.translate
                     )}
                 />
             </span>
             {label && (
-                <span className="text-[14px] text-stone-700">{label}</span>
+                <span className="text-[14px] text-text-secondary">{label}</span>
             )}
         </button>
     );

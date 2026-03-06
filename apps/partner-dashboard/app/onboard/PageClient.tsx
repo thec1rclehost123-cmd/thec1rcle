@@ -33,7 +33,7 @@ type PartnerType = "venue" | "host" | "promoter";
 function OnboardingContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { user: authUser } = useDashboardAuth();
+    const { user: authUser, signOut } = useDashboardAuth();
     const [step, setStep] = useState<OnboardingStep>("role");
     const [partnerType, setPartnerType] = useState<PartnerType>("venue");
     const [loading, setLoading] = useState(false);
@@ -152,7 +152,16 @@ function OnboardingContent() {
             <header className="sticky top-0 z-50 bg-[var(--surface-base)]/80 backdrop-blur-xl border-b border-[var(--border-subtle)]">
                 <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
                     <button
-                        onClick={() => step === "role" ? router.push('/login') : setStep("role")}
+                        onClick={async () => {
+                            if (step === "role") {
+                                if (authUser) {
+                                    await signOut();
+                                }
+                                router.push('/login');
+                            } else {
+                                setStep("role");
+                            }
+                        }}
                         className="flex items-center gap-2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors text-[11px] font-semibold uppercase tracking-wider"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -515,7 +524,12 @@ function OnboardingContent() {
                             </div>
 
                             <button
-                                onClick={() => router.push('/login')}
+                                onClick={async () => {
+                                    if (authUser) {
+                                        await signOut();
+                                    }
+                                    router.push('/login');
+                                }}
                                 className="inline-flex items-center gap-2 text-[var(--c1rcle-orange)] font-semibold text-[14px] hover:underline"
                             >
                                 Return to Login

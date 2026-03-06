@@ -8,7 +8,7 @@ import { useTicketsStore } from "../store/ticketsStore";
 
 /**
  * ⚡ CacheWarmer: Proactive Background Data Loading
- * 
+ *
  * This component runs once at the root layout (under providers).
  * It "pre-warms" the global Zustand caches for high-traffic pages
  * so that when the user clicks 'Explore' or 'Hosts', the data is
@@ -23,21 +23,39 @@ export default function CacheWarmer() {
     const loadTickets = useTicketsStore((s) => s.loadTickets);
 
     useEffect(() => {
-        // 1. Pre-warm Explore (Events)
-        // This is the most common landing page logic
-        fetchEvents().catch(err => console.error("CacheWarmer: Failed to pre-warm Explore", err));
+        // Defer until the browser is idle so we don't compete with the first render / LCP.
+        // timeout:3000 ensures it still runs even on busy devices within 3 s.
+        const ric = typeof requestIdleCallback !== "undefined" ? requestIdleCallback : (cb) => setTimeout(cb, 200);
+        const cancel = typeof cancelIdleCallback !== "undefined" ? cancelIdleCallback : clearTimeout;
 
-        // 2. Pre-warm Hosts (Venues default tab)
-        fetchHosts({ activeTab: "venues" }).catch(err => console.error("CacheWarmer: Failed to pre-warm Hosts", err));
+        const id = ric(
+            () => {
+                // 1. Pre-warm Explore (Events)
+                fetchEvents().catch(err => console.error("CacheWarmer: Failed to pre-warm Explore", err));
+
+                // 2. Pre-warm Hosts (Venues default tab)
+                fetchHosts({ activeTab: "venues" }).catch(err => console.error("CacheWarmer: Failed to pre-warm Hosts", err));
+            },
+            { timeout: 3000 }
+        );
+
+        return () => cancel(id);
     }, [fetchEvents, fetchHosts]);
 
     useEffect(() => {
         // 3. Pre-warm Tickets (only if user is logged in)
         if (user && !authLoading) {
-            loadTickets(user.uid).catch(err => console.error("CacheWarmer: Failed to pre-warm Tickets", err));
+            const ric = typeof requestIdleCallback !== "undefined" ? requestIdleCallback : (cb) => setTimeout(cb, 200);
+            const cancel = typeof cancelIdleCallback !== "undefined" ? cancelIdleCallback : clearTimeout;
+
+            const id = ric(
+                () => loadTickets(user.uid).catch(err => console.error("CacheWarmer: Failed to pre-warm Tickets", err)),
+                { timeout: 3000 }
+            );
+
+            return () => cancel(id);
         }
     }, [user, authLoading, loadTickets]);
 
-    // This component renders nothing, it just manages side effects
     return null;
 }

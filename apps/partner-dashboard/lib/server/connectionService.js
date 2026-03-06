@@ -57,11 +57,11 @@ export async function createRequest({
     throw new Error(`Unsupported connection type: ${requesterType} to ${targetType}`);
 }
 
-export async function approveRequest(connectionId, type, role, partnerId, partnerName, token) {
+export async function approveRequest(connectionId, type, role, partnerId, partnerName, token, tier) {
     if (type === "partnership") {
-        return partnershipStore.approvePartnership(connectionId, token);
+        return partnershipStore.approvePartnership(connectionId, token, tier);
     }
-    return promoterConnectionStore.approveConnectionRequest(connectionId, { uid: partnerId, name: partnerName, role }, token);
+    return promoterConnectionStore.approveConnectionRequest(connectionId, { uid: partnerId, name: partnerName, role }, token, tier);
 }
 
 export async function rejectRequest(connectionId, type, role, partnerId, partnerName, reason = "", token) {

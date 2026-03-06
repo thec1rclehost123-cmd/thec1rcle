@@ -44,13 +44,13 @@ const Spinner = ({ size = "md" }: { size?: ButtonSize }) => {
 };
 
 const variantStyles: Record<ButtonVariant, string> = {
-  primary: "bg-[var(--c1rcle-orange)] text-white hover:bg-[var(--c1rcle-orange-dim)] shadow-sm hover:shadow-md active:shadow-sm",
-  secondary: "bg-transparent text-[var(--text-primary)] border border-[var(--border-default)] hover:bg-[var(--surface-secondary)] hover:border-[var(--border-strong)]",
-  ghost: "bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)] hover:text-[var(--text-primary)]",
-  dark: "bg-[var(--text-primary)] text-[var(--text-inverse)] hover:opacity-90",
-  success: "bg-[var(--state-success)] text-white hover:brightness-110",
-  danger: "bg-[var(--state-error)] text-white hover:brightness-110",
-  accent: "bg-[var(--c1rcle-orange-glow)] text-[var(--c1rcle-orange)] border border-[var(--c1rcle-orange)]/30 hover:bg-[var(--c1rcle-orange)]/20",
+  primary: "bg-c1rcle-orange text-text-primary hover:bg-[var(--c1rcle-orange-dim)] shadow-sm hover:shadow-md active:shadow-sm",
+  secondary: "bg-transparent text-text-primary border border-border-default hover:bg-surface-secondary hover:border-border-strong",
+  ghost: "bg-transparent text-text-secondary hover:bg-surface-secondary hover:text-text-primary",
+  dark: "bg-text-primary text-text-inverse hover:opacity-90",
+  success: "bg-green-500 text-text-primary hover:brightness-110",
+  danger: "bg-[var(--state-error)] text-text-primary hover:brightness-110",
+  accent: "bg-c1rcle-orange-glow text-c1rcle-orange border border-c1rcle-orange/30 hover:bg-c1rcle-orange/20",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {

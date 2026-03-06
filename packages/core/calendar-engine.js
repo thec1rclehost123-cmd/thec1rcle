@@ -60,13 +60,83 @@ export async function unblockDate(venueId, date) {
 }
 
 /**
- * Creates a slot request (Host to Venue)
+ * Creates a slot request (Host to Venue).
+ *
+ * Tier 1 (Trusted) bypass: if the requesting host holds an active "trusted"
+ * partnership with the venue, the slot is auto-confirmed immediately — no
+ * manual Venue approval required. The calendar entry goes straight to "booked".
+ *
+ * Tier 2 (Standard) / no partnership: normal pending flow.
+ *
+ * @param {object} data   - Request payload (must include hostId and venueId)
+ * @param {object} [actor] - Decoded Firebase user from req.user (for audit trail)
  */
-export async function createSlotRequest(data) {
+export async function createSlotRequest(data, actor) {
     const db = getAdminDb();
     const id = `slot_${randomUUID().substring(0, 8)}`;
     const now = new Date().toISOString();
 
+    // --- Tier 1 check: does this host have a "trusted" partnership with the venue? ---
+    let isTrusted = false;
+    if (data.hostId && data.venueId) {
+        const partnershipSnap = await db.collection("partnerships")
+            .where("hostId", "==", data.hostId)
+            .where("venueId", "==", data.venueId)
+            .where("status", "==", "active")
+            .limit(1)
+            .get();
+
+        if (!partnershipSnap.empty) {
+            const partnershipData = partnershipSnap.docs[0].data();
+            isTrusted = partnershipData.tier === "trusted";
+        }
+    }
+
+    if (isTrusted) {
+        // ── Tier 1 (Trusted): bypass pending — auto-confirm immediately ──────────
+        const request = {
+            ...data,
+            id,
+            status: "confirmed",
+            autoApproved: true,
+            autoApprovedAt: now,
+            approvedBy: { uid: "system", role: "tier1_bypass" },
+            createdAt: now,
+            updatedAt: now
+        };
+
+        await db.collection(SLOTS_COLLECTION).doc(id).set(request);
+
+        // Mark calendar slot as booked immediately (same state as manual approval)
+        const calendarId = `${data.venueId}_${data.requestedDate}`;
+        await db.collection(CALENDAR_COLLECTION).doc(calendarId).set({
+            venueId: data.venueId,
+            date: data.requestedDate,
+            status: "booked",
+            slotRequestId: id,
+            // Preserve host context for the venue's calendar view
+            hostId: data.hostId,
+            hostName: data.hostName || "",
+            autoApproved: true
+        }, { merge: true });
+
+        // Optional: write a notification document for the venue
+        await db.collection("notifications").add({
+            type: "auto_published",
+            venueId: data.venueId,
+            hostId: data.hostId,
+            hostName: data.hostName || "A Trusted Partner",
+            slotRequestId: id,
+            date: data.requestedDate,
+            message: `Trusted Partner ${data.hostName || data.hostId} auto-published an event on ${data.requestedDate}.`,
+            read: false,
+            createdAt: now
+        });
+
+        return request;
+    }
+
+    // ── Tier 2 (Standard) / no partnership: normal pending flow ─────────────────
     const request = {
         ...data,
         id,
@@ -77,7 +147,7 @@ export async function createSlotRequest(data) {
 
     await db.collection(SLOTS_COLLECTION).doc(id).set(request);
 
-    // Update calendar as tentative
+    // Update calendar as tentative until venue manually approves
     const calendarId = `${data.venueId}_${data.requestedDate}`;
     await db.collection(CALENDAR_COLLECTION).doc(calendarId).set({
         venueId: data.venueId,

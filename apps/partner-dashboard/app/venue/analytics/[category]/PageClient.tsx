@@ -106,8 +106,8 @@ export default function VenueAnalyticsPage() {
     if (isLoading) {
         return (
             <div className="py-24 flex flex-col items-center justify-center">
-                <Loader2 className="h-12 w-12 text-slate-200 animate-spin mb-4" />
-                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Processing Data...</p>
+                <Loader2 className="h-12 w-12 text-text-placeholder animate-spin mb-4" />
+                <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Processing Data...</p>
             </div>
         );
     }
@@ -115,11 +115,11 @@ export default function VenueAnalyticsPage() {
     if (!stats || !stats.dataReady) {
         return (
             <div className="py-24 flex flex-col items-center text-center">
-                <div className="h-24 w-24 bg-[var(--surface-tertiary)] rounded-3xl flex items-center justify-center mb-8 border border-[var(--border-subtle)]">
-                    <BarChart3 className="h-12 w-12 text-[var(--text-placeholder)]" />
+                <div className="h-24 w-24 bg-surface-tertiary rounded-3xl flex items-center justify-center mb-8 border border-border-subtle">
+                    <BarChart3 className="h-12 w-12 text-text-placeholder" />
                 </div>
-                <h3 className="text-headline text-[var(--text-primary)] mb-3">No Data Yet</h3>
-                <p className="text-body text-[var(--text-tertiary)] mb-10 max-w-sm mx-auto">
+                <h3 className="text-headline text-text-primary mb-3">No Data Yet</h3>
+                <p className="text-body text-text-tertiary mb-10 max-w-sm mx-auto">
                     Complete your first event to see {categoryLabels[category].toLowerCase()} analytics and performance insights.
                 </p>
                 <Link href="/venue/create" className="btn btn-primary">
@@ -200,15 +200,15 @@ function OverviewView({ stats }: { stats: any }) {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <StudioCard title="Revenue Timeline" className="lg:col-span-2">
-                    <div className="h-[300px] w-full bg-slate-50/50 rounded-3xl border border-dashed border-slate-200 flex items-center justify-center p-8">
+                    <div className="h-[300px] w-full bg-surface-tertiary/50 rounded-3xl border border-dashed border-border-default flex items-center justify-center p-8">
                         <div className="w-full flex items-end justify-between h-48 px-4 gap-2">
                             {stats.revenueTimeline?.map((item: any, i: number) => (
                                 <div
                                     key={i}
                                     style={{ height: `${Math.min(100, (item.revenue / (stats.totalRevenue / stats.eventCount)) * 50)}%` }}
-                                    className="flex-1 bg-slate-900 rounded-t-lg hover:bg-emerald-500 transition-all group relative"
+                                    className="flex-1 bg-surface-secondary rounded-t-lg hover:bg-green-500 transition-all group relative"
                                 >
-                                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-white shadow-xl border border-slate-100 px-3 py-1 rounded-lg text-[10px] font-black opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 text-slate-900">
+                                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-surface-elevated shadow-xl border border-border-subtle px-3 py-1 rounded-lg text-[10px] font-black opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 text-text-primary">
                                         ₹{item.revenue.toLocaleString()}
                                     </div>
                                 </div>
@@ -217,26 +217,26 @@ function OverviewView({ stats }: { stats: any }) {
                     </div>
                 </StudioCard>
 
-                <div className="bg-slate-900 rounded-[2.5rem] p-10 shadow-2xl shadow-slate-200 text-white">
+                <div className="bg-surface-secondary rounded-[2.5rem] p-10 shadow-2xl shadow-slate-200 text-text-primary">
                     <div className="flex items-center justify-between mb-8">
                         <h3 className="text-xl font-black uppercase tracking-tight opacity-60">Top Events</h3>
-                        <PieChart className="h-6 w-6 text-white/20" />
+                        <PieChart className="h-6 w-6 text-text-primary/20" />
                     </div>
                     <div className="space-y-6">
                         {stats.topEvents?.map((event: any, i: number) => (
-                            <div key={event.id} className="flex items-center justify-between p-2 hover:bg-white/5 rounded-2xl transition-all group">
+                            <div key={event.id} className="flex items-center justify-between p-2 hover:bg-surface-elevated/5 rounded-2xl transition-all group">
                                 <div className="flex items-center gap-4">
-                                    <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center font-black text-xs">
+                                    <div className="h-10 w-10 rounded-xl bg-surface-elevated/10 flex items-center justify-center font-black text-xs">
                                         #{i + 1}
                                     </div>
                                     <div>
                                         <p className="text-sm font-bold truncate max-w-[120px]">{event.title}</p>
-                                        <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{event.issued} Issued</p>
+                                        <p className="text-[10px] font-bold text-text-primary/40 uppercase tracking-widest">{event.issued} Issued</p>
                                     </div>
                                 </div>
                                 <div className="text-right">
                                     <p className="text-sm font-black tracking-tight">₹{(event.revenue / 1000).toFixed(1)}K</p>
-                                    <ArrowUpRight className="h-3 w-3 text-emerald-400 ml-auto group-hover:scale-125 transition-transform" />
+                                    <ArrowUpRight className="h-3 w-3 text-c1rcle-orange ml-auto group-hover:scale-125 transition-transform" />
                                 </div>
                             </div>
                         ))}
@@ -292,10 +292,10 @@ function AudienceView({ stats }: { stats: any }) {
                             return (
                                 <div key={band}>
                                     <div className="flex justify-between text-xs font-black uppercase tracking-widest mb-2">
-                                        <span className="text-slate-500">{band}</span>
-                                        <span className="text-slate-900">{count} guests ({percent.toFixed(1)}%)</span>
+                                        <span className="text-text-tertiary">{band}</span>
+                                        <span className="text-text-primary">{count} guests ({percent.toFixed(1)}%)</span>
                                     </div>
-                                    <div className="h-3 w-full bg-slate-50 rounded-full overflow-hidden">
+                                    <div className="h-3 w-full bg-surface-tertiary rounded-full overflow-hidden">
                                         <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${percent}%` }} />
                                     </div>
                                 </div>
@@ -312,8 +312,8 @@ function AudienceView({ stats }: { stats: any }) {
                             if (percent === 0) return null;
                             return (
                                 <div key={gender} className="text-center group">
-                                    <div className="text-3xl font-black text-slate-900 mb-1">{percent.toFixed(0)}%</div>
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-500 transition-colors">{gender}</div>
+                                    <div className="text-3xl font-black text-text-primary mb-1">{percent.toFixed(0)}%</div>
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-text-tertiary group-hover:text-indigo-500 transition-colors">{gender}</div>
                                 </div>
                             );
                         })}
@@ -367,7 +367,7 @@ function ReachView({ stats }: { stats: any }) {
                         return (
                             <div key={step.stage} className="relative flex items-center justify-center h-20 group">
                                 <div
-                                    className="absolute h-full bg-slate-900 rounded-2xl flex items-center justify-center text-white transition-all hover:bg-emerald-600 shadow-lg"
+                                    className="absolute h-full bg-surface-secondary rounded-2xl flex items-center justify-center text-text-primary transition-all hover:bg-emerald-600 shadow-lg"
                                     style={{ width: `${maxWidth}%` }}
                                 >
                                     <div className="text-center">
@@ -381,15 +381,15 @@ function ReachView({ stats }: { stats: any }) {
                 </div>
             </StudioCard>
 
-            <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 shadow-sm">
+            <div className="bg-surface-secondary text-text-primary rounded-[2.5rem] p-10 shadow-sm">
                 <h3 className="text-xl font-black uppercase tracking-tight mb-8">Highest Demand Events</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {stats.topEventsByCTR?.map((event: any, i: number) => (
-                        <div key={event.id} className="bg-white/5 border border-white/10 p-6 rounded-3xl hover:bg-white/10 transition-all">
+                        <div key={event.id} className="bg-surface-elevated/5 border border-border-subtle p-6 rounded-3xl hover:bg-surface-elevated/10 transition-all">
                             <h4 className="font-bold mb-2 truncate">{event.title}</h4>
                             <div className="flex items-baseline gap-2">
-                                <span className="text-3xl font-black text-emerald-400">{event.ctr.toFixed(1)}%</span>
-                                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Click-to-RSVP</span>
+                                <span className="text-3xl font-black text-c1rcle-orange">{event.ctr.toFixed(1)}%</span>
+                                <span className="text-[10px] font-bold text-text-primary/40 uppercase tracking-widest">Click-to-RSVP</span>
                             </div>
                         </div>
                     ))}
@@ -425,8 +425,8 @@ function OpsView({ stats }: { stats: any }) {
             </StudioKPIGrid>
 
 
-            <div className="bg-white rounded-[2.5rem] border border-slate-200 p-10 shadow-sm">
-                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-10">Entry Velocity Curve</h3>
+            <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm">
+                <h3 className="text-xl font-black text-text-primary uppercase tracking-tight mb-10">Entry Velocity Curve</h3>
                 <div className="h-[300px] w-full flex items-end justify-between px-4 group">
                     {Array.from({ length: 24 }).map((_, h) => {
                         const count = stats.entryCurve?.find((c: any) => c.hour === h)?.count || 0;
@@ -435,9 +435,9 @@ function OpsView({ stats }: { stats: any }) {
                             <div key={h} className="flex-1 flex flex-col items-center gap-2">
                                 <div
                                     style={{ height: `${(count / maxCount) * 100}%` }}
-                                    className={`w-full rounded-t-mg transition-all ${count > 0 ? "bg-rose-500 opacity-80 hover:opacity-100" : "bg-slate-50"}`}
+                                    className={`w-full rounded-t-mg transition-all ${count > 0 ? "bg-rose-500 opacity-80 hover:opacity-100" : "bg-surface-tertiary"}`}
                                 />
-                                <span className="text-[8px] font-black text-slate-300">{h}h</span>
+                                <span className="text-[8px] font-black text-text-placeholder">{h}h</span>
                             </div>
                         );
                     })}
@@ -487,14 +487,14 @@ function AttributionView({ stats }: { stats: any }) {
                         {stats.topHosts?.map((host: any, i: number) => (
                             <div key={host.name} className="flex items-center justify-between group">
                                 <div className="flex items-center gap-4">
-                                    <span className="text-xs font-black text-slate-300 italic">0{i + 1}</span>
+                                    <span className="text-xs font-black text-text-placeholder italic">0{i + 1}</span>
                                     <div>
-                                        <p className="font-bold text-slate-900">{host.name}</p>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{host.events} Events</p>
+                                        <p className="font-bold text-text-primary">{host.name}</p>
+                                        <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">{host.events} Events</p>
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="font-black text-slate-900">₹{(host.revenue / 1000).toFixed(1)}K</p>
+                                    <p className="font-black text-text-primary">₹{(host.revenue / 1000).toFixed(1)}K</p>
                                     <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">{host.tickets} Sold</p>
                                 </div>
                             </div>
@@ -507,15 +507,15 @@ function AttributionView({ stats }: { stats: any }) {
                         {stats.topPromoters?.map((promoter: any, i: number) => (
                             <div key={promoter.name} className="flex items-center justify-between group">
                                 <div className="flex items-center gap-4">
-                                    <span className="text-xs font-black text-slate-300 italic">0{i + 1}</span>
+                                    <span className="text-xs font-black text-text-placeholder italic">0{i + 1}</span>
                                     <div>
-                                        <p className="font-bold text-slate-900">{promoter.name}</p>
+                                        <p className="font-bold text-text-primary">{promoter.name}</p>
                                         <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">{promoter.tickets} Tickets</p>
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="font-black text-slate-900">₹{(promoter.revenue / 1000).toFixed(1)}K</p>
-                                    <ArrowUpRight className="h-3 w-3 text-slate-200 ml-auto group-hover:text-emerald-500 transition-colors" />
+                                    <p className="font-black text-text-primary">₹{(promoter.revenue / 1000).toFixed(1)}K</p>
+                                    <ArrowUpRight className="h-3 w-3 text-text-placeholder ml-auto group-hover:text-emerald-500 transition-colors" />
                                 </div>
                             </div>
                         ))}
@@ -531,8 +531,8 @@ function StrategyView({ stats }: { stats: any }) {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {stats.recommendations?.map((rec: any, i: number) => (
-                <div key={i} className="bg-white rounded-[2.5rem] border border-slate-200 p-10 shadow-sm hover:border-emerald-200 transition-all group">
-                    <div className="h-14 w-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-8 border border-slate-100 group-hover:bg-emerald-50 transition-colors">
+                <div key={i} className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm hover:border-emerald-200 transition-all group">
+                    <div className="h-14 w-14 rounded-2xl bg-surface-tertiary flex items-center justify-center mb-8 border border-border-subtle group-hover:bg-emerald-50 transition-colors">
                         {rec.impact === "High" ? <Zap className="h-6 w-6 text-amber-500" /> : <Target className="h-6 w-6 text-emerald-500" />}
                     </div>
                     <div className="flex items-center gap-3 mb-3">
@@ -540,9 +540,9 @@ function StrategyView({ stats }: { stats: any }) {
                             {rec.impact} Impact
                         </span>
                     </div>
-                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-3">{rec.title}</h3>
-                    <p className="text-slate-500 text-sm font-medium leading-relaxed">{rec.desc}</p>
-                    <button className="mt-10 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-900 group-hover:text-emerald-600 transition-colors">
+                    <h3 className="text-xl font-black text-text-primary uppercase tracking-tight mb-3">{rec.title}</h3>
+                    <p className="text-text-tertiary text-sm font-medium leading-relaxed">{rec.desc}</p>
+                    <button className="mt-10 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-text-primary group-hover:text-emerald-600 transition-colors">
                         Apply Strategy <ChevronRight className="h-4 w-4" />
                     </button>
                 </div>
@@ -625,13 +625,13 @@ function RevenueView({ stats }: { stats: any }) {
                 <StudioCard title="Recent Payouts">
                     <div className="space-y-4">
                         {[1, 2, 3].map(i => (
-                            <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                            <div key={i} className="flex items-center justify-between p-4 bg-surface-tertiary rounded-2xl border border-border-subtle">
                                 <div>
-                                    <p className="text-sm font-bold text-slate-900">Payout #PY-2024-{100 + i}</p>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Jan {i + 5}, 2025</p>
+                                    <p className="text-sm font-bold text-text-primary">Payout #PY-2024-{100 + i}</p>
+                                    <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Jan {i + 5}, 2025</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-sm font-black text-slate-900">₹24,500</p>
+                                    <p className="text-sm font-black text-text-primary">₹24,500</p>
                                     <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-emerald-100 text-emerald-600 rounded">Success</span>
                                 </div>
                             </div>
@@ -656,7 +656,7 @@ function TimelineView({ stats }: { stats: any }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <StudioCard title="Timeline Narrative">
-                    <p className="text-slate-500 text-sm leading-relaxed font-medium">
+                    <p className="text-text-tertiary text-sm leading-relaxed font-medium">
                         The event maintained high demand pressure for 4 hours starting at 9 PM.
                         Most conversions happened within 15 minutes of queue joins, indicating healthy inventory availability.
                     </p>
@@ -664,12 +664,12 @@ function TimelineView({ stats }: { stats: any }) {
                 <StudioCard title="Peak Intervals">
                     <div className="space-y-4">
                         <div className="flex justify-between items-center text-sm font-bold">
-                            <span className="text-slate-400">Peak Entry</span>
-                            <span className="text-slate-900">{stats.summary?.peakEntriesAt || '--'}</span>
+                            <span className="text-text-tertiary">Peak Entry</span>
+                            <span className="text-text-primary">{stats.summary?.peakEntriesAt || '--'}</span>
                         </div>
                         <div className="flex justify-between items-center text-sm font-bold">
-                            <span className="text-slate-400">Peak Demand</span>
-                            <span className="text-slate-900">{stats.summary?.peakDemandAt || '--'}</span>
+                            <span className="text-text-tertiary">Peak Demand</span>
+                            <span className="text-text-primary">{stats.summary?.peakDemandAt || '--'}</span>
                         </div>
                     </div>
                 </StudioCard>

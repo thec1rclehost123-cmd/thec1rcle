@@ -355,7 +355,11 @@ function ComposerUI() {
       <div className="relative w-full max-w-md mx-auto bg-black border border-white/10 rounded-3xl p-6 shadow-2xl">
         {/* Header Image */}
         <div className="h-32 w-full bg-white/10 rounded-xl mb-6 relative overflow-hidden group">
-          <Image src="/events/lofi-house.svg" alt="Event" fill className="object-cover opacity-60 group-hover:scale-105 transition-transform duration-700" />
+          <img
+            src="/events/lofi-house.svg"
+            alt="Event"
+            className="absolute inset-0 h-full w-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-700"
+          />
           <div className="absolute top-2 right-2 bg-black/50 backdrop-blur px-2 py-1 rounded text-[10px] uppercase font-bold">Cover</div>
         </div>
 
@@ -394,7 +398,13 @@ function ComposerUI() {
 function GrowthUI() {
   return (
     <div className="absolute inset-0 overflow-hidden">
-      <Image src="/events/rave.jpg" alt="Crowd" fill className="object-cover opacity-40" />
+      <Image
+        src="/events/rave.jpg"
+        alt="Crowd"
+        fill
+        className="object-cover opacity-40"
+        sizes="(max-width: 768px) 100vw, 50vw"
+      />
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
 
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 p-6">
@@ -720,12 +730,21 @@ function UseCasesSection() {
             whileInView={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.1 }}
           >
-            <Image
-              src={useCase.image}
-              alt={useCase.title}
-              fill
-              className="object-cover transition-transform duration-700 group-hover:scale-110"
-            />
+            {useCase.image.endsWith('.svg') ? (
+              <img
+                src={useCase.image}
+                alt={useCase.title}
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+              />
+            ) : (
+              <Image
+                src={useCase.image}
+                alt={useCase.title}
+                fill
+                className="object-cover transition-transform duration-700 group-hover:scale-110"
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              />
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-80" />
             <div className="absolute bottom-0 left-0 p-8">
               <div className="flex items-center gap-2 text-orange-400 mb-2">

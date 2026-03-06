@@ -19,7 +19,7 @@ export default function ScrollReveal({ children, className = "", delay = 0 }) {
             animate={isInView ? "visible" : "hidden"}
             variants={variants}
             transition={{ duration: 0.8, ease: [0.2, 0.65, 0.3, 0.9], delay }}
-            className={className}
+            className={`relative ${className}`}
         >
             {children}
         </motion.div>

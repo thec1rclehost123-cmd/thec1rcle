@@ -30,17 +30,17 @@ export function EmptyState({
             className
         )}>
             {icon && (
-                <div className="w-14 h-14 rounded-xl bg-stone-100 flex items-center justify-center mb-4">
-                    <div className="text-stone-400">
+                <div className="w-14 h-14 rounded-xl bg-surface-secondary flex items-center justify-center mb-4">
+                    <div className="text-text-tertiary">
                         {icon}
                     </div>
                 </div>
             )}
 
-            <h3 className="text-[16px] font-semibold text-stone-900 mb-1">{title}</h3>
+            <h3 className="text-[16px] font-semibold text-text-primary mb-1">{title}</h3>
 
             {description && (
-                <p className="text-[14px] text-stone-500 max-w-sm">{description}</p>
+                <p className="text-[14px] text-text-tertiary max-w-sm">{description}</p>
             )}
 
             {action && (

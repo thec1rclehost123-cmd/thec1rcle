@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
         const status = searchParams.get("status");
         const limit = searchParams.get("limit") || "20";
         const lastId = searchParams.get("lastId");
+        const date = searchParams.get("date"); // "today" or "YYYY-MM-DD"
 
         if (!venueId) {
             return NextResponse.json({ error: "venueId is required" }, { status: 400 });
@@ -22,7 +23,16 @@ export async function GET(req: NextRequest) {
         const params: any = { venueId, limit, ...(status && status !== "all" ? { status } : {}) };
         if (lastId) params.lastId = lastId;
 
-        const events = await listEvents(params, token);
+        let events = await listEvents(params, token);
+
+        // Server-side date filtering
+        if (date) {
+            const targetDate = date === "today" ? new Date().toISOString().split('T')[0] : date;
+            events = (events || []).filter((e: any) => {
+                const eventDate = (e.date || e.startDate || "").split('T')[0];
+                return eventDate === targetDate;
+            });
+        }
 
         return NextResponse.json({ events });
     } catch (error: any) {

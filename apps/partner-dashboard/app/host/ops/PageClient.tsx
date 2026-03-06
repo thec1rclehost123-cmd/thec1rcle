@@ -46,8 +46,8 @@ export default function HostOpsPage() {
     if (isLoading && !data) {
         return (
             <div className="py-24 flex flex-col items-center justify-center">
-                <Loader2 className="h-12 w-12 text-slate-200 animate-spin mb-4" />
-                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Connecting to Entry Grid...</p>
+                <Loader2 className="h-12 w-12 text-text-placeholder animate-spin mb-4" />
+                <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Connecting to Entry Grid...</p>
             </div>
         );
     }
@@ -55,11 +55,11 @@ export default function HostOpsPage() {
     if (!data?.event) {
         return (
             <div className="py-24 flex flex-col items-center text-center">
-                <div className="h-24 w-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-8 border border-slate-100">
-                    <Monitor className="h-12 w-12 text-slate-200" />
+                <div className="h-24 w-24 bg-surface-tertiary rounded-[2.5rem] flex items-center justify-center mb-8 border border-border-subtle">
+                    <Monitor className="h-12 w-12 text-text-placeholder" />
                 </div>
-                <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">No Active Entry Stream</h3>
-                <p className="text-slate-500 text-sm font-medium mb-10 max-w-xs mx-auto">Live scanning stats will appear here when your production goes live.</p>
+                <h3 className="text-2xl font-black text-text-primary mb-2 uppercase tracking-tight">No Active Entry Stream</h3>
+                <p className="text-text-tertiary text-sm font-medium mb-10 max-w-xs mx-auto">Live scanning stats will appear here when your production goes live.</p>
             </div>
         );
     }
@@ -71,22 +71,22 @@ export default function HostOpsPage() {
     return (
         <div className="space-y-10 pb-20 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-10">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-default pb-10">
                 <div>
                     <div className="flex items-center gap-3 text-emerald-500 mb-3 uppercase tracking-widest font-black text-[10px]">
                         <span className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                         </span>
                         Live Stream Active
                     </div>
-                    <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight uppercase">
+                    <h1 className="text-4xl font-extrabold text-text-primary tracking-tight uppercase">
                         {data.event.title}
                     </h1>
-                    <p className="text-slate-500 text-lg font-medium mt-2">{data.event.venue} • Entry Monitor</p>
+                    <p className="text-text-tertiary text-lg font-medium mt-2">{data.event.venue} • Entry Monitor</p>
                 </div>
-                <div className="flex items-center gap-4 bg-slate-900 px-8 py-4 rounded-2xl text-white shadow-xl shadow-slate-200">
-                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                <div className="flex items-center gap-4 bg-surface-secondary px-8 py-4 rounded-2xl text-text-primary shadow-xl shadow-slate-200">
+                    <ShieldCheck className="w-5 h-5 text-c1rcle-orange" />
                     <span className="text-sm font-bold">Venue Staff Sync Verified</span>
                 </div>
             </div>
@@ -115,20 +115,20 @@ export default function HostOpsPage() {
             </div>
 
             {/* Activity Chart Placeholder */}
-            <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-12 overflow-hidden relative">
+            <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default shadow-sm p-12 overflow-hidden relative">
                 <div className="flex items-center justify-between mb-12">
-                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-4">
+                    <h3 className="text-xl font-black text-text-primary uppercase tracking-tight flex items-center gap-4">
                         <Activity className="h-6 w-6 text-indigo-500" />
                         Scanning Frequency
                     </h3>
                     <div className="flex items-center gap-6">
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Guestlist</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Guestlist</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-slate-200"></div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Walk-ins</span>
+                            <div className="w-3 h-3 rounded-full bg-surface-tertiary"></div>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Walk-ins</span>
                         </div>
                     </div>
                 </div>
@@ -138,15 +138,15 @@ export default function HostOpsPage() {
                         <div
                             key={i}
                             style={{ height: `${v}%` }}
-                            className="flex-1 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-900 transition-all group relative cursor-help"
+                            className="flex-1 bg-surface-tertiary border border-border-subtle rounded-xl hover:bg-surface-secondary transition-all group relative cursor-help"
                         >
-                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1 bg-slate-900 text-white text-[10px] font-black rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1 bg-surface-secondary text-text-primary text-[10px] font-black rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
                                 {v} Scans
                             </div>
                         </div>
                     ))}
                 </div>
-                <div className="mt-8 pt-8 border-t border-slate-50 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">
+                <div className="mt-8 pt-8 border-t border-slate-50 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.2em] text-text-placeholder">
                     <span>20:00</span>
                     <span>21:00</span>
                     <span>22:00</span>
@@ -157,17 +157,17 @@ export default function HostOpsPage() {
             </div>
 
             {/* Warnings / Alerts Section */}
-            <div className="bg-slate-50 rounded-[2.5rem] p-10 flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="bg-surface-tertiary rounded-[2.5rem] p-10 flex flex-col md:flex-row items-center justify-between gap-8">
                 <div className="flex items-center gap-6">
-                    <div className="h-16 w-16 rounded-[1.5rem] bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                    <div className="h-16 w-16 rounded-[1.5rem] bg-indigo-600 flex items-center justify-center text-text-primary shadow-lg shadow-indigo-100">
                         <Zap className="h-8 w-8" />
                     </div>
                     <div>
-                        <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight">Performance Mode</h4>
-                        <p className="text-slate-500 text-sm font-medium mt-1">Automated reports will be generated after the event concludes.</p>
+                        <h4 className="text-lg font-black text-text-primary uppercase tracking-tight">Performance Mode</h4>
+                        <p className="text-text-tertiary text-sm font-medium mt-1">Automated reports will be generated after the event concludes.</p>
                     </div>
                 </div>
-                <button className="px-10 py-4 bg-white border border-slate-200 text-slate-900 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-100 transition-all">
+                <button className="px-10 py-4 bg-surface-elevated border border-border-default text-text-primary rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-surface-secondary transition-all">
                     Full Analytics Log
                 </button>
             </div>
@@ -178,20 +178,20 @@ export default function HostOpsPage() {
 function MetricBox({ label, value, subValue, progress, color }: any) {
     const colors: any = {
         indigo: "bg-indigo-600",
-        emerald: "bg-emerald-500",
+        emerald: "bg-green-500",
         amber: "bg-amber-500"
     };
 
     return (
-        <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm relative overflow-hidden group hover:scale-[1.02] transition-all">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">{label}</p>
+        <div className="bg-surface-elevated p-10 rounded-[2.5rem] border border-border-default shadow-sm relative overflow-hidden group hover:scale-[1.02] transition-all">
+            <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-4">{label}</p>
             <div className="flex items-baseline gap-4 mb-2">
-                <span className="text-5xl font-black text-slate-900 tracking-tighter leading-none">{value}</span>
+                <span className="text-5xl font-black text-text-primary tracking-tighter leading-none">{value}</span>
             </div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{subValue}</p>
+            <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest">{subValue}</p>
 
             {progress !== undefined && (
-                <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-slate-50">
+                <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-surface-tertiary">
                     <div
                         className={`h-full ${colors[color]} transition-all duration-1000`}
                         style={{ width: `${progress}%` }}

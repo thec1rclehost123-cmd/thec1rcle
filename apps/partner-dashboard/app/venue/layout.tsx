@@ -1,3 +1,5 @@
+"use client";
+
 import { VenueClientWrapper } from "@/components/layout/VenueClientWrapper";
 import {
     LayoutDashboard,
@@ -41,7 +43,7 @@ const menuSections = [
     },
     {
         items: [
-            { icon: Users, label: "Connections", href: "/venue/connections" },
+            { icon: Users, label: "Partnerships", href: "/venue/partnerships" },
             { icon: Shield, label: "Staff", href: "/venue/staff" },
             { icon: FileText, label: "Registers", href: "/venue/registers" },
         ]

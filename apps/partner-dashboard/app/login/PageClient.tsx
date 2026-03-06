@@ -32,7 +32,7 @@ const roleConfig = {
 };
 
 function LoginForm() {
-    const { signIn, user, loading: authLoading } = useDashboardAuth();
+    const { signIn, signOut, user, isApproved, onboardingStatus, loading: authLoading } = useDashboardAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -45,14 +45,20 @@ function LoginForm() {
 
     useEffect(() => {
         if (!authLoading && user) {
-            const callback = searchParams.get("callbackUrl");
-            if (callback) {
-                router.replace(callback);
-            } else {
-                router.replace(`/${userType}`);
+            // Only auto-redirect if they are fully approved or already have an ongoing onboarding request
+            if (isApproved) {
+                const callback = searchParams.get("callbackUrl");
+                if (callback) {
+                    router.replace(callback);
+                } else {
+                    router.replace(`/${userType}`);
+                }
+            } else if (onboardingStatus) {
+                router.replace('/onboard');
             }
+            // If they are logged in but have neither (meaning they never applied), let them stay on the login page or handle it manually.
         }
-    }, [user, authLoading, router, userType, searchParams]);
+    }, [user, authLoading, isApproved, onboardingStatus, router, userType, searchParams]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();

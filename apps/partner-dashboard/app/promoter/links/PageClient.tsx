@@ -24,12 +24,12 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { DashboardEventCard } from "@c1rcle/ui";
 import { mapEventForClient } from "@c1rcle/core/events";
 
-const GridContainer = forwardRef((props, ref: any) => (
+const GridContainer = forwardRef<HTMLDivElement>((props, ref) => (
     <div {...props} ref={ref} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" />
 ));
 GridContainer.displayName = "GridContainer";
 
-const ItemContainer = forwardRef((props, ref: any) => (
+const ItemContainer = forwardRef<HTMLDivElement>((props, ref) => (
     <div {...props} ref={ref} className="h-full w-full" />
 ));
 ItemContainer.displayName = "ItemContainer";
@@ -113,12 +113,12 @@ export default function PromoLinksPage() {
     return (
         <div className="space-y-10 pb-20 animate-in fade-in duration-500">
             {/* Page Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-10">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-default pb-10">
                 <div className="max-w-2xl">
-                    <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">
+                    <h1 className="text-4xl font-extrabold text-text-primary tracking-tight">
                         Sales Arsenal
                     </h1>
-                    <p className="text-slate-500 text-lg font-medium mt-3 leading-relaxed">
+                    <p className="text-text-tertiary text-lg font-medium mt-3 leading-relaxed">
                         Access your unique tracking links and promo codes. Every sale generated through these tools is automatically credited to your account.
                     </p>
                 </div>
@@ -135,30 +135,30 @@ export default function PromoLinksPage() {
             {/* Campaign Management */}
             <div className="space-y-8">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Active Campaigns</h2>
+                    <h2 className="text-2xl font-extrabold text-text-primary tracking-tight">Active Campaigns</h2>
                     <div className="relative group">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary group-focus-within:text-text-primary transition-colors" />
                         <input
                             type="text"
                             placeholder="Find specific event..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="bg-white border border-slate-200 rounded-2xl pl-12 pr-6 py-3 text-sm text-slate-900 focus:outline-none focus:border-slate-400 w-80 transition-all font-medium shadow-sm"
+                            className="bg-surface-elevated border border-border-default rounded-2xl pl-12 pr-6 py-3 text-sm text-text-primary focus:outline-none focus:border-border-strong w-80 transition-all font-medium shadow-sm"
                         />
                     </div>
                 </div>
 
                 {loading ? (
                     <div className="space-y-6">
-                        {[1, 2, 3].map(i => <div key={i} className="h-40 bg-white rounded-3xl border border-slate-100 animate-pulse shadow-sm" />)}
+                        {[1, 2, 3].map(i => <div key={i} className="h-40 bg-surface-elevated rounded-3xl border border-border-subtle animate-pulse shadow-sm" />)}
                     </div>
                 ) : filteredCampaigns.length === 0 ? (
-                    <div className="py-24 flex flex-col items-center text-center bg-white rounded-[3rem] border border-slate-200 border-dashed">
-                        <div className="h-20 w-20 bg-slate-50 rounded-2xl flex items-center justify-center mb-6">
-                            <Ticket className="h-10 w-10 text-slate-300" />
+                    <div className="py-24 flex flex-col items-center text-center bg-surface-elevated rounded-[3rem] border border-border-default border-dashed">
+                        <div className="h-20 w-20 bg-surface-tertiary rounded-2xl flex items-center justify-center mb-6">
+                            <Ticket className="h-10 w-10 text-text-placeholder" />
                         </div>
-                        <h3 className="text-xl font-bold text-slate-900 mb-2">No Campaigns Ready</h3>
-                        <p className="text-slate-500 text-sm font-medium">You haven't been assigned to any live events yet.</p>
+                        <h3 className="text-xl font-bold text-text-primary mb-2">No Campaigns Ready</h3>
+                        <p className="text-text-tertiary text-sm font-medium">You haven't been assigned to any live events yet.</p>
                     </div>
                 ) : (
                     <VirtuosoGrid
@@ -192,13 +192,13 @@ function QuickToolItem({ label, icon: Icon, info, color }: any) {
         rose: "bg-rose-50 text-rose-600 border-rose-100"
     };
     return (
-        <button className="flex items-center gap-5 p-6 bg-white border border-slate-200 rounded-3xl hover:border-slate-400 hover:shadow-lg hover:shadow-slate-50 transition-all text-left shadow-sm">
+        <button className="flex items-center gap-5 p-6 bg-surface-elevated border border-border-default rounded-3xl hover:border-border-strong hover:shadow-lg hover:shadow-slate-50 transition-all text-left shadow-sm">
             <div className={`h-14 w-14 rounded-2xl flex items-center justify-center shadow-sm ${colors[color]}`}>
                 <Icon className="h-7 w-7" />
             </div>
             <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{info}</p>
-                <p className="text-base font-extrabold text-slate-900 mt-0.5">{label}</p>
+                <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest">{info}</p>
+                <p className="text-base font-extrabold text-text-primary mt-0.5">{label}</p>
             </div>
         </button>
     );

@@ -583,7 +583,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
     if (isLoadingDraft) {
         return (
-            <div className="min-h-screen bg-[var(--surface-base)] flex items-center justify-center">
+            <div className="min-h-screen bg-surface-base flex items-center justify-center">
                 <div className="text-center">
                     <Loader2 className="h-10 w-10 text-indigo-600 animate-spin mx-auto mb-4" />
                     <p className="text-body text-muted">Loading your draft...</p>
@@ -594,7 +594,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
     if (loadError) {
         return (
-            <div className="min-h-screen bg-[var(--surface-base)] flex items-center justify-center p-6">
+            <div className="min-h-screen bg-surface-base flex items-center justify-center p-6">
                 <div className="text-center max-w-sm">
                     <div className="bg-red-50 text-red-600 p-4 rounded-2xl mb-6">
                         <AlertCircle className="h-8 w-8 mx-auto mb-2" />
@@ -614,35 +614,35 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
     if (isSuccess) {
         return (
-            <div className="min-h-screen bg-[var(--surface-base)] flex items-center justify-center p-6">
+            <div className="min-h-screen bg-surface-base flex items-center justify-center p-6">
                 <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className="max-w-md w-full text-center"
                 >
                     <div className="mb-8 relative inline-block">
-                        <div className="absolute inset-0 bg-[var(--state-success-bg)] rounded-full scale-150 blur-2xl opacity-50" />
-                        <div className="relative bg-[var(--state-success)] rounded-full p-6 shadow-xl">
-                            <CheckCircle2 className="h-12 w-12 text-white" />
+                        <div className="absolute inset-0 bg-green-500/10 rounded-full scale-150 blur-2xl opacity-50" />
+                        <div className="relative bg-green-500 rounded-full p-6 shadow-xl">
+                            <CheckCircle2 className="h-12 w-12 text-text-primary" />
                         </div>
                     </div>
-                    <h1 className="text-headline text-[var(--text-primary)] mb-4">
+                    <h1 className="text-headline text-text-primary mb-4">
                         {role === 'venue' ? 'Event Published!' : 'Slot Request Submitted!'}
                     </h1>
-                    <p className="text-body text-[var(--text-tertiary)] mb-8">
+                    <p className="text-body text-text-tertiary mb-8">
                         {role === 'venue'
                             ? "Your event is now live and ready for guests to discover."
                             : "Your slot request has been sent to the venue. You'll be notified once they respond."}
                     </p>
                     {role === 'host' && (
-                        <div className="p-4 rounded-xl bg-[var(--surface-secondary)] mb-8">
+                        <div className="p-4 rounded-xl bg-surface-secondary mb-8">
                             <div className="flex items-center gap-3 text-left">
                                 <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
                                     <MapPin className="w-5 h-5 text-indigo-600" />
                                 </div>
                                 <div>
-                                    <p className="text-sm font-semibold text-[var(--text-primary)]">{formData.venueName || 'Venue'}</p>
-                                    <p className="text-xs text-[var(--text-tertiary)]">
+                                    <p className="text-sm font-semibold text-text-primary">{formData.venueName || 'Venue'}</p>
+                                    <p className="text-xs text-text-tertiary">
                                         {formData.startDate} • {formData.startTime} - {formData.endTime}
                                     </p>
                                 </div>
@@ -670,12 +670,12 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
     return (
         <>
-            <div className="min-h-screen bg-[var(--surface-base)]">
+            <div className="min-h-screen bg-surface-base">
                 <div className="max-w-6xl mx-auto px-6 py-8">
                     <div className="flex items-center justify-between mb-8">
                         <div>
-                            <h1 className="text-headline text-[var(--text-primary)]">Create Event</h1>
-                            <p className="text-body-sm text-[var(--text-tertiary)]">Build something extraordinary</p>
+                            <h1 className="text-headline text-text-primary">Create Event</h1>
+                            <p className="text-body-sm text-text-tertiary">Build something extraordinary</p>
                         </div>
                         <SaveStatus status={saveState} />
                     </div>
@@ -697,8 +697,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-[24px] bg-indigo-50 text-indigo-600 mb-4 shadow-sm">
                                     <Sparkles className="w-8 h-8" />
                                 </div>
-                                <h2 className="text-[32px] font-black tracking-tight text-[var(--text-primary)] uppercase">Draft Sessions</h2>
-                                <p className="text-[var(--text-tertiary)] text-sm font-medium tracking-wide uppercase opacity-60">Resume your creative sequence</p>
+                                <h2 className="text-[32px] font-black tracking-tight text-text-primary uppercase">Draft Sessions</h2>
+                                <p className="text-text-tertiary text-sm font-medium tracking-wide uppercase opacity-60">Resume your creative sequence</p>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -710,14 +710,14 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                             params.set('id', draft.id);
                                             router.push(`${window.location.pathname}?${params.toString()}`);
                                         }}
-                                        className="group relative overflow-hidden rounded-[32px] bg-[var(--surface-elevated)] border border-[var(--border-subtle)] p-8 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-2xl hover:border-indigo-500/30 active:scale-[0.98]"
+                                        className="group relative overflow-hidden rounded-[32px] bg-surface-elevated border border-border-subtle p-8 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-2xl hover:border-indigo-500/30 active:scale-[0.98]"
                                     >
                                         <div className="flex flex-col h-full gap-6">
                                             <div className="flex items-start justify-between">
-                                                <div className="w-14 h-14 rounded-2xl bg-[var(--surface-secondary)] flex items-center justify-center overflow-hidden border border-[var(--border-subtle)]">
+                                                <div className="w-14 h-14 rounded-2xl bg-surface-secondary flex items-center justify-center overflow-hidden border border-border-subtle">
                                                     {draft.poster || draft.image ? (
                                                         <img src={draft.poster || draft.image} className="w-full h-full object-cover" />
-                                                    ) : <Music className="w-6 h-6 text-[var(--text-tertiary)]" />}
+                                                    ) : <Music className="w-6 h-6 text-text-tertiary" />}
                                                 </div>
                                                 <span className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-500 text-[10px] font-bold uppercase tracking-wider border border-indigo-500/20">
                                                     Draft
@@ -725,10 +725,10 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                             </div>
 
                                             <div>
-                                                <h3 className="text-xl font-bold text-[var(--text-primary)] leading-tight group-hover:text-indigo-600 transition-colors mb-2">
+                                                <h3 className="text-xl font-bold text-text-primary leading-tight group-hover:text-indigo-600 transition-colors mb-2">
                                                     {draft.title || "Untitled Sequence"}
                                                 </h3>
-                                                <div className="flex items-center gap-2 text-[var(--text-tertiary)] opacity-60">
+                                                <div className="flex items-center gap-2 text-text-tertiary opacity-60">
                                                     <Loader2 className="w-3 h-3" />
                                                     <p className="text-[11px] font-bold uppercase tracking-widest">
                                                         Edited {draft.updatedAt ? new Date(draft.updatedAt).toLocaleDateString() : 'Just now'}
@@ -736,7 +736,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                                 </div>
                                             </div>
 
-                                            <div className="pt-4 mt-auto border-t border-[var(--border-subtle)] flex items-center justify-between text-indigo-500">
+                                            <div className="pt-4 mt-auto border-t border-border-subtle flex items-center justify-between text-indigo-500">
                                                 <span className="text-[xs] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Resume Project</span>
                                                 <ChevronRight className="w-5 h-5 translate-x-[-8px] group-hover:translate-x-0 transition-transform" />
                                             </div>
@@ -750,14 +750,14 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                         params.set('id', 'new');
                                         router.push(`${window.location.pathname}?${params.toString()}`);
                                     }}
-                                    className="group flex flex-col items-center justify-center gap-4 rounded-[32px] border-2 border-dashed border-[var(--border-strong)] p-12 cursor-pointer transition-all hover:bg-[var(--surface-secondary)] hover:border-indigo-500/50 hover:scale-[1.02] active:scale-[0.98]"
+                                    className="group flex flex-col items-center justify-center gap-4 rounded-[32px] border-2 border-dashed border-border-strong p-12 cursor-pointer transition-all hover:bg-surface-secondary hover:border-indigo-500/50 hover:scale-[1.02] active:scale-[0.98]"
                                 >
-                                    <div className="w-16 h-16 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                    <div className="w-16 h-16 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-text-primary transition-all">
                                         <Plus className="w-8 h-8" />
                                     </div>
                                     <div className="text-center">
-                                        <p className="font-bold text-[var(--text-primary)] group-hover:text-indigo-500 transition-colors uppercase tracking-widest text-xs">Initialize New</p>
-                                        <p className="text-[10px] text-[var(--text-tertiary)] font-medium uppercase mt-1">From scratch</p>
+                                        <p className="font-bold text-text-primary group-hover:text-indigo-500 transition-colors uppercase tracking-widest text-xs">Initialize New</p>
+                                        <p className="text-[10px] text-text-tertiary font-medium uppercase mt-1">From scratch</p>
                                     </div>
                                 </div>
                             </div>
@@ -784,13 +784,13 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                                     className="overflow-hidden"
                                                 >
                                                     <div className="mb-8 p-1 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-[24px] shadow-2xl shadow-indigo-500/20">
-                                                        <div className="bg-[var(--surface-base)] rounded-[20px] p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+                                                        <div className="bg-surface-base rounded-[20px] p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
                                                             <div className="flex items-center gap-5">
                                                                 <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
                                                                     <Sparkles className="w-6 h-6 text-indigo-500 animate-pulse" />
                                                                 </div>
                                                                 <div>
-                                                                    <p className="text-[13px] font-black uppercase tracking-wider text-[var(--text-primary)]">Sequence Recovery Available</p>
+                                                                    <p className="text-[13px] font-black uppercase tracking-wider text-text-primary">Sequence Recovery Available</p>
                                                                     <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mt-1 opacity-60">High-fidelity session state detected</p>
                                                                 </div>
                                                             </div>
@@ -802,13 +802,13 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                                                             setShowRecoveryBanner(false);
                                                                         }
                                                                     }}
-                                                                    className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-indigo-500/30"
+                                                                    className="px-8 py-3 bg-indigo-600 text-text-primary rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-indigo-500/30"
                                                                 >
                                                                     Restore Snapshot
                                                                 </button>
                                                                 <button
                                                                     onClick={() => setShowRecoveryBanner(false)}
-                                                                    className="px-6 py-3 bg-[var(--surface-secondary)] text-[var(--text-tertiary)] rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-[var(--surface-tertiary)] transition-all"
+                                                                    className="px-6 py-3 bg-surface-secondary text-text-tertiary rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-surface-tertiary transition-all"
                                                                 >
                                                                     Ignore
                                                                 </button>
@@ -886,7 +886,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                         )}
 
                                         {/* Navigation Footer */}
-                                        <div className="flex items-center justify-between mt-12 pt-8 border-t border-[var(--border-subtle)]">
+                                        <div className="flex items-center justify-between mt-12 pt-8 border-t border-border-subtle">
                                             <div className="flex items-center gap-4">
                                                 <button
                                                     onClick={prevStep}
@@ -896,7 +896,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                                 </button>
                                                 <button
                                                     onClick={() => handleSubmit(true)}
-                                                    className="text-[15px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors font-medium"
+                                                    className="text-[15px] text-text-tertiary hover:text-text-primary transition-colors font-medium"
                                                 >
                                                     Save Draft
                                                 </button>
@@ -946,13 +946,13 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
                                 {/* Quick Stats */}
                                 <div className="px-2 space-y-3">
-                                    <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
-                                        <span className="text-caption text-[var(--text-tertiary)]">Inventory Value</span>
-                                        <span className="text-body font-bold text-[var(--text-primary)]">{formatCurrency(grandTotal.value)}</span>
+                                    <div className="flex items-center justify-between py-2 border-b border-border-subtle">
+                                        <span className="text-caption text-text-tertiary">Inventory Value</span>
+                                        <span className="text-body font-bold text-text-primary">{formatCurrency(grandTotal.value)}</span>
                                     </div>
-                                    <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)]">
-                                        <span className="text-caption text-[var(--text-tertiary)]">Total Capacity</span>
-                                        <span className="text-body font-bold text-[var(--text-primary)]">{grandTotal.quantity}</span>
+                                    <div className="flex items-center justify-between py-2 border-b border-border-subtle">
+                                        <span className="text-caption text-text-tertiary">Total Capacity</span>
+                                        <span className="text-body font-bold text-text-primary">{grandTotal.quantity}</span>
                                     </div>
                                     <div className="flex items-center justify-between py-2">
                                         <span className="text-caption">Ticket Tiers</span>
@@ -975,15 +975,15 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                         className="fixed inset-0 z-[100] bg-black"
                     >
                         <div className="flex flex-col h-full">
-                            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-zinc-900">
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-zinc-900">
                                 <button
                                     onClick={() => setIsFullPagePreviewOpen(false)}
-                                    className="flex items-center gap-2 text-white hover:text-stone-300"
+                                    className="flex items-center gap-2 text-text-primary hover:text-text-placeholder"
                                 >
                                     <ChevronLeft className="w-5 h-5" />
                                     <span className="text-[11px] font-bold uppercase">Back to Wizard</span>
                                 </button>
-                                <span className="text-[11px] font-bold uppercase text-white/40">Preview Mode</span>
+                                <span className="text-[11px] font-bold uppercase text-text-primary/40">Preview Mode</span>
                             </div>
                             <div className="flex-1 overflow-y-auto">
                                 <EventPage

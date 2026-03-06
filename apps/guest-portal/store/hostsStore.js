@@ -87,8 +87,7 @@ export const useHostsStore = create(
                 set({ status: "loading", error: null });
 
                 try {
-                    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "";
-                    const endpoint = activeTab === "venues" ? "/api/v1/venues" : "/api/v1/hosts";
+                    const endpoint = activeTab === "venues" ? "/api/venues" : "/api/hosts";
                     const queryParams = new URLSearchParams();
 
                     if (search) queryParams.append("search", search);
@@ -105,7 +104,7 @@ export const useHostsStore = create(
                         if (activeStatus) queryParams.append("status", activeStatus);
                     }
 
-                    const res = await fetch(`${gatewayUrl}${endpoint}?${queryParams.toString()}`);
+                    const res = await fetch(`${endpoint}?${queryParams.toString()}`);
                     if (!res.ok) throw new Error(`Failed to load ${activeTab}`);
 
                     const payload = await res.json();

@@ -94,10 +94,10 @@ export default function FacilitiesManager({ venueId, facilities, onRefresh }: Fa
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="text-lg font-bold text-[var(--text-primary)]">Venue Facilities</h3>
-                    <p className="text-sm text-[var(--text-tertiary)]">Show guests what amenities your venue offers</p>
+                    <h3 className="text-lg font-bold text-text-primary">Venue Facilities</h3>
+                    <p className="text-sm text-text-tertiary">Show guests what amenities your venue offers</p>
                 </div>
-                <button onClick={() => setIsAdding(true)} className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl text-sm font-medium">
+                <button onClick={() => setIsAdding(true)} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-text-primary rounded-xl text-sm font-medium">
                     <Plus className="w-4 h-4" /> Add Custom
                 </button>
             </div>
@@ -105,16 +105,16 @@ export default function FacilitiesManager({ venueId, facilities, onRefresh }: Fa
             <AnimatePresence>
                 {isAdding && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
-                        <div className="p-4 bg-[var(--surface-secondary)] rounded-xl border border-[var(--border-subtle)] space-y-4">
-                            <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Facility name" className="w-full px-4 py-2 bg-[var(--surface-primary)] border border-[var(--border-subtle)] rounded-lg text-sm" />
+                        <div className="p-4 bg-surface-secondary rounded-xl border border-border-subtle space-y-4">
+                            <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Facility name" className="w-full px-4 py-2 bg-surface-base border border-border-subtle rounded-lg text-sm" />
                             <div className="flex flex-wrap gap-2">
                                 {FACILITY_ICONS.map((icon) => (
-                                    <button key={icon.id} onClick={() => setNewIcon(icon.id)} className={`p-2 rounded-lg text-xl ${newIcon === icon.id ? "bg-emerald-500/20 ring-2 ring-emerald-500" : "bg-[var(--surface-primary)]"}`}>{icon.emoji}</button>
+                                    <button key={icon.id} onClick={() => setNewIcon(icon.id)} className={`p-2 rounded-lg text-xl ${newIcon === icon.id ? "bg-green-500/20 ring-2 ring-emerald-500" : "bg-surface-base"}`}>{icon.emoji}</button>
                                 ))}
                             </div>
                             <div className="flex justify-end gap-2">
                                 <button onClick={() => setIsAdding(false)} className="px-4 py-2 text-sm">Cancel</button>
-                                <button onClick={handleAddFacility} disabled={!newName.trim() || saving} className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                                <button onClick={handleAddFacility} disabled={!newName.trim() || saving} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-text-primary rounded-lg text-sm font-medium disabled:opacity-50">
                                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Add
                                 </button>
                             </div>
@@ -126,35 +126,35 @@ export default function FacilitiesManager({ venueId, facilities, onRefresh }: Fa
             {facilities.length > 0 ? (
                 <Reorder.Group axis="y" values={facilities} onReorder={handleReorder} className="space-y-2">
                     {facilities.map((f) => (
-                        <Reorder.Item key={f.id} value={f} className={`flex items-center gap-4 p-4 rounded-xl cursor-grab ${f.isEnabled ? "bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200" : "bg-[var(--surface-secondary)] border border-[var(--border-subtle)]"}`}>
-                            <GripVertical className="w-5 h-5 text-[var(--text-tertiary)]" />
+                        <Reorder.Item key={f.id} value={f} className={`flex items-center gap-4 p-4 rounded-xl cursor-grab ${f.isEnabled ? "bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200" : "bg-surface-secondary border border-border-subtle"}`}>
+                            <GripVertical className="w-5 h-5 text-text-tertiary" />
                             <span className="text-2xl">{getEmoji(f.icon)}</span>
                             {editingId === f.id ? (
-                                <input autoFocus defaultValue={f.name} onBlur={(e) => handleUpdate(f.id, { name: e.target.value })} className="flex-1 px-2 py-1 bg-white dark:bg-slate-800 border rounded text-sm" />
+                                <input autoFocus defaultValue={f.name} onBlur={(e) => handleUpdate(f.id, { name: e.target.value })} className="flex-1 px-2 py-1 bg-surface-elevated dark:bg-surface-tertiary border rounded text-sm" />
                             ) : (
-                                <span className={`flex-1 font-medium ${f.isEnabled ? "" : "text-[var(--text-tertiary)]"}`}>{f.name}</span>
+                                <span className={`flex-1 font-medium ${f.isEnabled ? "" : "text-text-tertiary"}`}>{f.name}</span>
                             )}
                             <button onClick={() => setEditingId(editingId === f.id ? null : f.id)} className="p-2"><Edit3 className="w-4 h-4" /></button>
                             <button onClick={() => handleDelete(f.id)} className="p-2 text-red-500"><Trash2 className="w-4 h-4" /></button>
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" checked={f.isEnabled} onChange={(e) => handleToggle(f.id, e.target.checked)} className="sr-only peer" />
-                                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500" />
+                                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-elevated after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500" />
                             </label>
                         </Reorder.Item>
                     ))}
                 </Reorder.Group>
             ) : (
-                <div className="py-12 text-center bg-[var(--surface-secondary)]/30 rounded-2xl border border-dashed">
-                    <p className="text-[var(--text-tertiary)]">No facilities configured</p>
+                <div className="py-12 text-center bg-surface-secondary/30 rounded-2xl border border-dashed">
+                    <p className="text-text-tertiary">No facilities configured</p>
                 </div>
             )}
 
             {enabledCount > 0 && (
-                <div className="p-4 bg-[var(--surface-secondary)]/50 rounded-xl">
-                    <p className="text-xs text-[var(--text-tertiary)] uppercase mb-3 font-bold">Preview</p>
+                <div className="p-4 bg-surface-secondary/50 rounded-xl">
+                    <p className="text-xs text-text-tertiary uppercase mb-3 font-bold">Preview</p>
                     <div className="flex flex-wrap gap-3">
                         {facilities.filter(f => f.isEnabled).map((f) => (
-                            <div key={f.id} className="flex items-center gap-2 px-3 py-2 bg-[var(--surface-primary)] rounded-full text-sm">
+                            <div key={f.id} className="flex items-center gap-2 px-3 py-2 bg-surface-base rounded-full text-sm">
                                 <span>{getEmoji(f.icon)}</span>
                                 <span className="font-medium">{f.name}</span>
                             </div>

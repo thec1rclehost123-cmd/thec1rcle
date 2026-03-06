@@ -95,13 +95,13 @@ function AppleInput({
     return (
         <div className={`space-y-1.5 ${className}`}>
             {label && (
-                <label className="block text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
+                <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
                     {label}
                 </label>
             )}
             <div className="relative">
                 {prefix && (
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] font-bold">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary font-bold">
                         {prefix}
                     </span>
                 )}
@@ -110,7 +110,7 @@ function AppleInput({
                     value={value}
                     onChange={onChange}
                     placeholder={placeholder}
-                    className={`w-full px-3 py-2.5 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)] text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/50 focus:outline-none focus:border-indigo-500/50 focus:bg-[var(--surface-base)] transition-all ${prefix ? "pl-7" : ""}`}
+                    className={`w-full px-3 py-2.5 rounded-xl bg-surface-secondary border border-border-subtle text-[15px] text-text-primary placeholder:text-text-tertiary/50 focus:outline-none focus:border-indigo-500/50 focus:bg-surface-base transition-all ${prefix ? "pl-7" : ""}`}
                     {...rest}
                 />
             </div>
@@ -196,7 +196,7 @@ function TicketTierCard({
         >
             {/* Header */}
             <div className="p-6 flex items-center gap-5">
-                <div className="w-14 h-14 rounded-2xl bg-indigo-600 shadow-xl shadow-indigo-600/20 flex items-center justify-center text-white ring-4 ring-indigo-500/10">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-600 shadow-xl shadow-indigo-600/20 flex items-center justify-center text-text-primary ring-4 ring-indigo-500/10">
                     <EntryIcon className="w-7 h-7" />
                 </div>
 
@@ -221,7 +221,7 @@ function TicketTierCard({
                 </div>
 
                 <div className="text-right mr-2">
-                    <p className={`text-stat-sm font-black ${isRSVP ? "text-indigo-500" : "text-[var(--text-primary)]"}`}>
+                    <p className={`text-stat-sm font-black ${isRSVP ? "text-indigo-500" : "text-text-primary"}`}>
                         {isRSVP ? "FREE RSVP" : (tier.price === 0 ? "Free" : `₹${tier.price}`)}
                     </p>
                 </div>
@@ -256,12 +256,12 @@ function TicketTierCard({
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="border-t border-[var(--border-default)]"
+                        className="border-t border-border-default"
                     >
                         <div className="p-4 space-y-4">
                             {/* Entry Type Selection */}
                             <div>
-                                <label className="block text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-2">
+                                <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest mb-2">
                                     Entry Type
                                 </label>
                                 <div className="grid grid-cols-3 gap-2">
@@ -281,11 +281,11 @@ function TicketTierCard({
                                                 }}
                                                 className={`p-3 rounded-xl border text-left transition-all ${isSelected
                                                     ? "border-indigo-500 bg-indigo-500/10"
-                                                    : "border-[var(--border-subtle)] hover:border-indigo-500/30 hover:bg-[var(--surface-secondary)]"
+                                                    : "border-border-subtle hover:border-indigo-500/30 hover:bg-surface-secondary"
                                                     }`}
                                             >
-                                                <Icon className={`w-4 h-4 mb-1 ${isSelected ? "text-indigo-500" : "text-[var(--text-tertiary)]"}`} />
-                                                <p className={`text-[13px] font-bold uppercase tracking-wider ${isSelected ? "text-indigo-500" : "text-[var(--text-primary)]"}`}>
+                                                <Icon className={`w-4 h-4 mb-1 ${isSelected ? "text-indigo-500" : "text-text-tertiary"}`} />
+                                                <p className={`text-[13px] font-bold uppercase tracking-wider ${isSelected ? "text-indigo-500" : "text-text-primary"}`}>
                                                     {type.label}
                                                 </p>
                                             </button>
@@ -307,16 +307,16 @@ function TicketTierCard({
                                             min="0"
                                         />
                                         {tier.price === 0 && (
-                                            <p className="text-[10px] text-[var(--state-success)] font-medium flex items-center gap-1">
+                                            <p className="text-[10px] text-c1rcle-orange font-medium flex items-center gap-1">
                                                 <span>✓ Checkout Logic:</span>
-                                                <span className="bg-[var(--state-success-bg)] px-1 rounded">RSVP Mode</span>
+                                                <span className="bg-green-500/10 px-1 rounded">RSVP Mode</span>
                                                 <span>(No Gateway)</span>
                                             </p>
                                         )}
                                     </div>
                                 ) : (
                                     <div className="space-y-1.5">
-                                        <label className="block text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
+                                        <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
                                             Pricing
                                         </label>
                                         <div className="px-3 py-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[14px] font-black text-indigo-500 flex items-center justify-center uppercase tracking-widest">
@@ -338,7 +338,7 @@ function TicketTierCard({
                             {Number(tier.price) > 0 && scheduledPricingEnabled && (
                                 <div className={`rounded-xl overflow-hidden transition-all ${tier.overrideScheduledPricing
                                     ? "bg-gradient-to-br from-[#ff6b35]/5 to-[#f7931e]/5 border border-[#ff6b35]/20"
-                                    : "bg-[var(--surface-tertiary)]"
+                                    : "bg-surface-tertiary"
                                     }`}>
                                     {/* Scheduled Pricing Header - Clickable */}
                                     <button
@@ -364,16 +364,16 @@ function TicketTierCard({
                                                 Scheduled Pricing
                                             </span>
                                             {tier.overrideScheduledPricing ? (
-                                                <span className="text-[9px] bg-orange-500 text-white px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest">
+                                                <span className="text-[9px] bg-orange-500 text-text-primary px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest">
                                                     CUSTOM
                                                 </span>
                                             ) : (
-                                                <span className="text-[9px] bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest border border-[var(--border-subtle)]">
+                                                <span className="text-[9px] bg-surface-tertiary text-text-tertiary px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest border border-border-subtle">
                                                     DEFAULT
                                                 </span>
                                             )}
                                         </div>
-                                        <span className="text-[11px] text-[var(--text-tertiary)] font-bold uppercase tracking-widest">
+                                        <span className="text-[11px] text-text-tertiary font-bold uppercase tracking-widest">
                                             {tier.overrideScheduledPricing
                                                 ? `${(tier.scheduledPrices || []).length} custom`
                                                 : `${(defaultScheduledPrices || []).length} default`
@@ -405,7 +405,7 @@ function TicketTierCard({
                                     value={tier.description || ""}
                                     onChange={(e) => onUpdate({ description: e.target.value })}
                                     placeholder="e.g. Includes one free drink"
-                                    className="w-full px-3 py-2.5 rounded-xl bg-[#f5f5f7] border border-transparent text-[14px] text-[#1d1d1f] placeholder:text-[#86868b]/50 focus:outline-none focus:border-[#007aff] focus:bg-white transition-all min-h-[60px] resize-none"
+                                    className="w-full px-3 py-2.5 rounded-xl bg-[#f5f5f7] border border-transparent text-[14px] text-[#1d1d1f] placeholder:text-[#86868b]/50 focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all min-h-[60px] resize-none"
                                     autoCapitalize="sentences"
                                 />
                                 <p className="text-[10px] text-[#86868b]">
@@ -419,24 +419,24 @@ function TicketTierCard({
                             {promotersEnabled && (
                                 <div className="space-y-4">
                                     {/* Per-tier enable toggle */}
-                                    <div className="p-3 rounded-xl bg-[var(--surface-tertiary)] flex items-center justify-between">
+                                    <div className="p-3 rounded-xl bg-surface-tertiary flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <Percent className="w-4 h-4 text-[var(--text-tertiary)]" />
+                                            <Percent className="w-4 h-4 text-text-tertiary" />
                                             <div>
-                                                <p className="text-[13px] font-medium text-[var(--text-primary)]">
+                                                <p className="text-[13px] font-medium text-text-primary">
                                                     Promoter Sales
                                                 </p>
-                                                <p className="text-[11px] text-[var(--text-tertiary)]">
+                                                <p className="text-[11px] text-text-tertiary">
                                                     Allow promoters to sell this tier
                                                 </p>
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => onUpdate({ promoterEnabled: !tier.promoterEnabled })}
-                                            className={`w-12 h-7 rounded-full relative transition-colors ${tier.promoterEnabled ? "bg-[#34c759]" : "bg-[var(--surface-elevated)]"
+                                            className={`w-12 h-7 rounded-full relative transition-colors ${tier.promoterEnabled ? "bg-[#34c759]" : "bg-surface-elevated"
                                                 }`}
                                         >
-                                            <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-sm transition-transform ${tier.promoterEnabled ? "translate-x-[22px]" : "translate-x-0.5"
+                                            <div className={`absolute top-0.5 w-6 h-6 bg-surface-elevated rounded-full shadow-sm transition-transform ${tier.promoterEnabled ? "translate-x-[22px]" : "translate-x-0.5"
                                                 }`} />
                                         </button>
                                     </div>
@@ -446,7 +446,7 @@ function TicketTierCard({
                                             {/* ─── Commission ─── */}
                                             <div className={`rounded-xl overflow-hidden transition-all ${tier.overrideCommission
                                                 ? "bg-[#F44A22]/5 border border-[#F44A22]/20"
-                                                : "bg-[var(--surface-tertiary)]"
+                                                : "bg-surface-tertiary"
                                                 }`}>
                                                 {/* Commission Header - Always Clickable */}
                                                 <button
@@ -462,7 +462,7 @@ function TicketTierCard({
                                                             Commission
                                                         </span>
                                                         {tier.overrideCommission ? (
-                                                            <span className="text-[9px] bg-[#F44A22] text-white px-1.5 py-0.5 rounded-full font-semibold">
+                                                            <span className="text-[9px] bg-[#F44A22] text-text-primary px-1.5 py-0.5 rounded-full font-semibold">
                                                                 CUSTOM
                                                             </span>
                                                         ) : (
@@ -471,7 +471,7 @@ function TicketTierCard({
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <span className={`text-[13px] font-semibold ${tier.overrideCommission ? "text-[#F44A22]" : "text-[var(--text-primary)]"}`}>
+                                                    <span className={`text-[13px] font-semibold ${tier.overrideCommission ? "text-[#F44A22]" : "text-text-primary"}`}>
                                                         {tier.overrideCommission
                                                             ? `${tier.promoterCommission || 0}${(tier.promoterCommissionType || "percent") === "percent" ? "%" : "₹"}`
                                                             : `${eventDefaultCommission || 15}${(eventDefaultCommissionType || "percent") === "percent" ? "%" : "₹"}`
@@ -483,11 +483,11 @@ function TicketTierCard({
                                                 {tier.overrideCommission && (
                                                     <div className="px-3 pb-3 space-y-2">
                                                         <div className="flex gap-2">
-                                                            <div className="flex p-0.5 bg-white rounded-lg border border-[#F44A22]/20">
+                                                            <div className="flex p-0.5 bg-surface-elevated rounded-lg border border-[#F44A22]/20">
                                                                 <button
                                                                     onClick={() => onUpdate({ promoterCommissionType: "percent" })}
                                                                     className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${(tier.promoterCommissionType || "percent") === "percent"
-                                                                        ? "bg-[#F44A22] text-white"
+                                                                        ? "bg-[#F44A22] text-text-primary"
                                                                         : "text-[#86868b]"
                                                                         }`}
                                                                 >
@@ -496,7 +496,7 @@ function TicketTierCard({
                                                                 <button
                                                                     onClick={() => onUpdate({ promoterCommissionType: "amount" })}
                                                                     className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${tier.promoterCommissionType === "amount"
-                                                                        ? "bg-[#1d1d1f] text-white"
+                                                                        ? "bg-[#1d1d1f] text-text-primary"
                                                                         : "text-[#86868b]"
                                                                         }`}
                                                                 >
@@ -508,7 +508,7 @@ function TicketTierCard({
                                                                 value={tier.promoterCommission}
                                                                 onChange={(e) => onUpdate({ promoterCommission: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
                                                                 placeholder="15"
-                                                                className="flex-1 px-3 py-1.5 rounded-lg bg-white border border-[#F44A22]/20 text-[14px] font-bold text-[#1d1d1f] focus:outline-none focus:border-[#F44A22]"
+                                                                className="flex-1 px-3 py-1.5 rounded-lg bg-surface-elevated border border-[#F44A22]/20 text-[14px] font-bold text-[#1d1d1f] focus:outline-none focus:border-[#F44A22]"
                                                             />
                                                         </div>
                                                         <p className="text-[10px] text-[#86868b]">
@@ -522,7 +522,7 @@ function TicketTierCard({
                                             {!isRSVP && buyerDiscountsEnabled && (
                                                 <div className={`rounded-xl overflow-hidden transition-all ${tier.overrideDiscount
                                                     ? "bg-[#34c759]/5 border border-[#34c759]/20"
-                                                    : "bg-[var(--surface-tertiary)]"
+                                                    : "bg-surface-tertiary"
                                                     }`}>
                                                     {/* Discount Header - Always Clickable */}
                                                     <button
@@ -538,7 +538,7 @@ function TicketTierCard({
                                                                 Buyer Discount
                                                             </span>
                                                             {tier.overrideDiscount ? (
-                                                                <span className="text-[9px] bg-[#34c759] text-white px-1.5 py-0.5 rounded-full font-semibold">
+                                                                <span className="text-[9px] bg-[#34c759] text-text-primary px-1.5 py-0.5 rounded-full font-semibold">
                                                                     CUSTOM
                                                                 </span>
                                                             ) : (
@@ -547,7 +547,7 @@ function TicketTierCard({
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <span className={`text-[13px] font-semibold ${tier.overrideDiscount ? "text-[#34c759]" : "text-[var(--text-primary)]"}`}>
+                                                        <span className={`text-[13px] font-semibold ${tier.overrideDiscount ? "text-[#34c759]" : "text-text-primary"}`}>
                                                             {tier.overrideDiscount
                                                                 ? `${tier.promoterDiscount || 0}${(tier.promoterDiscountType || "percent") === "percent" ? "%" : "₹"} off`
                                                                 : `${eventDefaultDiscount || 10}${(eventDefaultDiscountType || "percent") === "percent" ? "%" : "₹"} off`
@@ -559,11 +559,11 @@ function TicketTierCard({
                                                     {tier.overrideDiscount && (
                                                         <div className="px-3 pb-3 space-y-2">
                                                             <div className="flex gap-2">
-                                                                <div className="flex p-0.5 bg-white rounded-lg border border-[#34c759]/20">
+                                                                <div className="flex p-0.5 bg-surface-elevated rounded-lg border border-[#34c759]/20">
                                                                     <button
                                                                         onClick={() => onUpdate({ promoterDiscountType: "percent" })}
                                                                         className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${(tier.promoterDiscountType || "percent") === "percent"
-                                                                            ? "bg-[#34c759] text-white"
+                                                                            ? "bg-[#34c759] text-text-primary"
                                                                             : "text-[#86868b]"
                                                                             }`}
                                                                     >
@@ -572,7 +572,7 @@ function TicketTierCard({
                                                                     <button
                                                                         onClick={() => onUpdate({ promoterDiscountType: "amount" })}
                                                                         className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${tier.promoterDiscountType === "amount"
-                                                                            ? "bg-[#1d1d1f] text-white"
+                                                                            ? "bg-[#1d1d1f] text-text-primary"
                                                                             : "text-[#86868b]"
                                                                             }`}
                                                                     >
@@ -584,7 +584,7 @@ function TicketTierCard({
                                                                     value={tier.promoterDiscount}
                                                                     onChange={(e) => onUpdate({ promoterDiscount: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
                                                                     placeholder="10"
-                                                                    className="flex-1 px-3 py-1.5 rounded-lg bg-white border border-[#34c759]/20 text-[14px] font-bold text-[#1d1d1f] focus:outline-none focus:border-[#34c759]"
+                                                                    className="flex-1 px-3 py-1.5 rounded-lg bg-surface-elevated border border-[#34c759]/20 text-[14px] font-bold text-[#1d1d1f] focus:outline-none focus:border-[#34c759]"
                                                                 />
                                                             </div>
                                                             <p className="text-[10px] text-[#86868b]">
@@ -646,18 +646,18 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
 
 
             {/* ─── RSVP Toggle ─── */}
-            <div className="p-6 rounded-[2rem] border border-[var(--border-default)] bg-[var(--surface-secondary)] backdrop-blur-sm shadow-sm transition-all hover:shadow-md group">
+            <div className="p-6 rounded-[2rem] border border-border-default bg-surface-secondary backdrop-blur-sm shadow-sm transition-all hover:shadow-md group">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors duration-500 ${formData.isRSVP
-                            ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-indigo-900/30"
-                            : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]"
+                            ? "bg-indigo-600 text-text-primary shadow-lg shadow-indigo-100 dark:shadow-indigo-900/30"
+                            : "bg-surface-tertiary text-text-tertiary"
                             }`}>
                             <Users className="w-6 h-6" />
                         </div>
                         <div>
-                            <p className="text-[15px] font-bold text-[var(--text-primary)]">RSVP Mode</p>
-                            <p className="text-[12px] text-[var(--text-secondary)]">Enable for guestlists and free registrations</p>
+                            <p className="text-[15px] font-bold text-text-primary">RSVP Mode</p>
+                            <p className="text-[12px] text-text-secondary">Enable for guestlists and free registrations</p>
                         </div>
                     </div>
                     <button
@@ -679,10 +679,10 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                             }
                             updateFormData(updates);
                         }}
-                        className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.isRSVP ? "bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/30" : "bg-[var(--surface-tertiary)] border-[var(--border-default)]"}`}
+                        className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.isRSVP ? "bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/30" : "bg-surface-tertiary border-border-default"}`}
                     >
                         <motion.div
-                            className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-sm"
+                            className="absolute top-1 left-1 w-6 h-6 bg-surface-elevated rounded-full shadow-sm"
                             animate={{ x: formData.isRSVP ? 24 : 0 }}
                             transition={{ type: "spring", stiffness: 500, damping: 30 }}
                         />
@@ -692,27 +692,27 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
 
 
             {/* Promoter Sales Settings */}
-            <div className="p-8 rounded-[2.5rem] border border-[var(--border-default)] bg-[var(--surface-secondary)] shadow-sm space-y-8">
+            <div className="p-8 rounded-[2.5rem] border border-border-default bg-surface-secondary shadow-sm space-y-8">
                 {/* Master Toggle: Promoter Sales */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors duration-500 ${formData.promotersEnabled
-                            ? "bg-[#F44A22] text-white shadow-lg shadow-orange-100 dark:shadow-orange-900/30"
-                            : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]"
+                            ? "bg-[#F44A22] text-text-primary shadow-lg shadow-orange-100 dark:shadow-orange-900/30"
+                            : "bg-surface-tertiary text-text-tertiary"
                             }`}>
                             <Percent className="w-6 h-6" />
                         </div>
                         <div>
-                            <p className="text-[15px] font-bold text-[var(--text-primary)]">Promoter Sales</p>
-                            <p className="text-[12px] text-[var(--text-secondary)]">Allow ambassadors and promoters to sell your tickets</p>
+                            <p className="text-[15px] font-bold text-text-primary">Promoter Sales</p>
+                            <p className="text-[12px] text-text-secondary">Allow ambassadors and promoters to sell your tickets</p>
                         </div>
                     </div>
                     <button
                         onClick={() => updateFormData({ promotersEnabled: !formData.promotersEnabled })}
-                        className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.promotersEnabled ? "bg-emerald-500 border-emerald-500 shadow-lg shadow-emerald-100 dark:shadow-emerald-900/30" : "bg-[var(--surface-tertiary)] border-[var(--border-default)]"}`}
+                        className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.promotersEnabled ? "bg-green-500 border-emerald-500 shadow-lg shadow-emerald-100 dark:shadow-emerald-900/30" : "bg-surface-tertiary border-border-default"}`}
                     >
                         <motion.div
-                            className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-sm"
+                            className="absolute top-1 left-1 w-6 h-6 bg-surface-elevated rounded-full shadow-sm"
                             animate={{ x: formData.promotersEnabled ? 24 : 0 }}
                             transition={{ type: "spring", stiffness: 500, damping: 30 }}
                         />
@@ -724,7 +724,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                     <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
-                        className="pt-8 border-t border-[var(--border-default)] space-y-8"
+                        className="pt-8 border-t border-border-default space-y-8"
                     >
                         {/* ─── Commission Section ─── */}
                         <div className="space-y-6">
@@ -736,10 +736,10 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                             </div>
 
                             {/* Sub-Toggle: Use Default Commission */}
-                            <div className="flex items-center justify-between p-5 rounded-[1.5rem] bg-[var(--surface-tertiary)] border border-[var(--border-default)]">
+                            <div className="flex items-center justify-between p-5 rounded-[1.5rem] bg-surface-tertiary border border-border-default">
                                 <div className="space-y-0.5">
-                                    <p className="text-body-sm font-bold text-[var(--text-primary)]">Standardize Promoter Commission</p>
-                                    <p className="text-[10px] text-[var(--text-tertiary)] font-black uppercase tracking-widest">
+                                    <p className="text-body-sm font-bold text-text-primary">Standardize Promoter Commission</p>
+                                    <p className="text-[10px] text-text-tertiary font-black uppercase tracking-widest">
                                         {formData.useDefaultCommission !== false
                                             ? "Same rate for all tickets"
                                             : "Custom rates per ticket tier"
@@ -748,10 +748,10 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                 </div>
                                 <button
                                     onClick={() => updateFormData({ useDefaultCommission: formData.useDefaultCommission === false })}
-                                    className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.useDefaultCommission !== false ? "bg-[#F44A22] border-[#F44A22] shadow-lg shadow-orange-100 dark:shadow-orange-900/30" : "bg-[var(--surface-tertiary)] border-[var(--border-default)]"}`}
+                                    className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.useDefaultCommission !== false ? "bg-[#F44A22] border-[#F44A22] shadow-lg shadow-orange-100 dark:shadow-orange-900/30" : "bg-surface-tertiary border-border-default"}`}
                                 >
                                     <motion.div
-                                        className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-sm"
+                                        className="absolute top-1 left-1 w-6 h-6 bg-surface-elevated rounded-full shadow-sm"
                                         animate={{ x: formData.useDefaultCommission !== false ? 24 : 0 }}
                                         transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                     />
@@ -760,18 +760,18 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
 
                             {/* Default Commission Rate Input */}
                             {formData.useDefaultCommission !== false && (
-                                <div className="p-6 rounded-[2rem] bg-[var(--surface-tertiary)] border border-[var(--border-default)] flex items-center justify-between gap-6">
+                                <div className="p-6 rounded-[2rem] bg-surface-tertiary border border-border-default flex items-center justify-between gap-6">
                                     <div className="space-y-1">
-                                        <p className="text-body-sm font-bold text-[var(--text-primary)]">Default Promoter Commission</p>
-                                        <p className="text-[10px] text-[var(--text-tertiary)] font-black uppercase tracking-widest">Applied to all new entries</p>
+                                        <p className="text-body-sm font-bold text-text-primary">Default Promoter Commission</p>
+                                        <p className="text-[10px] text-text-tertiary font-black uppercase tracking-widest">Applied to all new entries</p>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <div className="flex p-1 bg-[var(--surface-secondary)] rounded-xl border border-[var(--border-default)] shadow-sm">
+                                        <div className="flex p-1 bg-surface-secondary rounded-xl border border-border-default shadow-sm">
                                             <button
                                                 onClick={() => updateFormData({ commissionType: "percent" })}
                                                 className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${(formData.commissionType || "percent") === "percent"
-                                                    ? "bg-[#F44A22] text-white shadow-md"
-                                                    : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                                                    ? "bg-[#F44A22] text-text-primary shadow-md"
+                                                    : "text-text-tertiary hover:text-text-primary"
                                                     }`}
                                             >
                                                 %
@@ -779,8 +779,8 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                             <button
                                                 onClick={() => updateFormData({ commissionType: "amount" })}
                                                 className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${formData.commissionType === "amount"
-                                                    ? "bg-[var(--text-primary)] text-[var(--text-inverse)] shadow-md"
-                                                    : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                                                    ? "bg-text-primary text-text-inverse shadow-md"
+                                                    : "text-text-tertiary hover:text-text-primary"
                                                     }`}
                                             >
                                                 ₹
@@ -791,7 +791,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                                 type="number"
                                                 value={formData.commission}
                                                 onChange={(e) => updateFormData({ commission: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
-                                                className="w-full h-12 bg-[var(--surface-secondary)] border border-[var(--border-default)] rounded-xl px-4 text-center font-bold text-[var(--text-primary)] focus:outline-none focus:ring-4 focus:ring-orange-50 dark:focus:ring-orange-900/30"
+                                                className="w-full h-12 bg-surface-secondary border border-border-default rounded-xl px-4 text-center font-bold text-text-primary focus:outline-none focus:ring-4 focus:ring-orange-50 dark:focus:ring-orange-900/30"
                                             />
                                         </div>
                                     </div>
@@ -799,7 +799,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                             )}
 
                             {formData.useDefaultCommission === false && (
-                                <div className="flex items-center gap-3 p-4 rounded-2xl bg-[var(--surface-tertiary)] border border-[var(--border-default)] text-[11px] text-[var(--text-secondary)] font-medium">
+                                <div className="flex items-center gap-3 p-4 rounded-2xl bg-surface-tertiary border border-border-default text-[11px] text-text-secondary font-medium">
                                     <Sparkles className="w-4 h-4 text-[#F44A22]" />
                                     Define granular payouts within each ticket matrix entry below.
                                 </div>
@@ -811,23 +811,23 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between px-1">
                                     <p className="text-label font-black uppercase tracking-widest text-[#34c759]">Buyer Discounts</p>
-                                    <div className="px-3 py-1 rounded-full bg-emerald-500/10 text-[#34c759] text-[9px] font-black tracking-widest uppercase border border-emerald-500/20">
+                                    <div className="px-3 py-1 rounded-full bg-green-500/10 text-[#34c759] text-[9px] font-black tracking-widest uppercase border border-emerald-500/20">
                                         Promoter Benefits
                                     </div>
                                 </div>
 
                                 {/* Master Toggle: Buyer Discounts */}
-                                <div className="flex items-center justify-between p-5 rounded-[1.5rem] bg-[var(--surface-tertiary)] border border-[var(--border-default)]">
+                                <div className="flex items-center justify-between p-5 rounded-[1.5rem] bg-surface-tertiary border border-border-default">
                                     <div className="space-y-0.5">
-                                        <p className="text-body-sm font-bold text-[var(--text-primary)]">Incentivize Buyer Sales</p>
-                                        <p className="text-[10px] text-[var(--text-tertiary)] font-black uppercase tracking-widest">Offer discounts on promoter links</p>
+                                        <p className="text-body-sm font-bold text-text-primary">Incentivize Buyer Sales</p>
+                                        <p className="text-[10px] text-text-tertiary font-black uppercase tracking-widest">Offer discounts on promoter links</p>
                                     </div>
                                     <button
                                         onClick={() => updateFormData({ buyerDiscountsEnabled: !formData.buyerDiscountsEnabled })}
-                                        className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.buyerDiscountsEnabled ? "bg-[#34c759] border-[#34c759] shadow-lg shadow-emerald-100 dark:shadow-emerald-900/30" : "bg-[var(--surface-tertiary)] border-[var(--border-default)]"}`}
+                                        className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.buyerDiscountsEnabled ? "bg-[#34c759] border-[#34c759] shadow-lg shadow-emerald-100 dark:shadow-emerald-900/30" : "bg-surface-tertiary border-border-default"}`}
                                     >
                                         <motion.div
-                                            className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-sm"
+                                            className="absolute top-1 left-1 w-6 h-6 bg-surface-elevated rounded-full shadow-sm"
                                             animate={{ x: formData.buyerDiscountsEnabled ? 24 : 0 }}
                                             transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                         />
@@ -841,10 +841,10 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                         className="space-y-6"
                                     >
                                         {/* Sub-Toggle: Use Default Discount */}
-                                        <div className="flex items-center justify-between p-5 rounded-[1.5rem] bg-[var(--surface-tertiary)] border border-[var(--border-default)]">
+                                        <div className="flex items-center justify-between p-5 rounded-[1.5rem] bg-surface-tertiary border border-border-default">
                                             <div className="space-y-0.5">
-                                                <p className="text-body-sm font-bold text-[var(--text-primary)]">Standardize Buyer Discounts</p>
-                                                <p className="text-[10px] text-[var(--text-tertiary)] font-black uppercase tracking-widest">
+                                                <p className="text-body-sm font-bold text-text-primary">Standardize Buyer Discounts</p>
+                                                <p className="text-[10px] text-text-tertiary font-black uppercase tracking-widest">
                                                     {formData.useDefaultDiscount !== false
                                                         ? "Universal discount rate"
                                                         : "Tier-specific discounts"
@@ -853,10 +853,10 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                             </div>
                                             <button
                                                 onClick={() => updateFormData({ useDefaultDiscount: formData.useDefaultDiscount === false })}
-                                                className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.useDefaultDiscount !== false ? "bg-[#34c759] border-[#34c759] shadow-lg shadow-emerald-100 dark:shadow-emerald-900/30" : "bg-[var(--surface-tertiary)] border-[var(--border-default)]"}`}
+                                                className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.useDefaultDiscount !== false ? "bg-[#34c759] border-[#34c759] shadow-lg shadow-emerald-100 dark:shadow-emerald-900/30" : "bg-surface-tertiary border-border-default"}`}
                                             >
                                                 <motion.div
-                                                    className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-sm"
+                                                    className="absolute top-1 left-1 w-6 h-6 bg-surface-elevated rounded-full shadow-sm"
                                                     animate={{ x: formData.useDefaultDiscount !== false ? 24 : 0 }}
                                                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                                 />
@@ -865,18 +865,18 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
 
                                         {/* Default Discount Rate Input */}
                                         {formData.useDefaultDiscount !== false && (
-                                            <div className="p-6 rounded-[2rem] bg-[var(--surface-tertiary)] border border-[var(--border-default)] flex items-center justify-between gap-6">
+                                            <div className="p-6 rounded-[2rem] bg-surface-tertiary border border-border-default flex items-center justify-between gap-6">
                                                 <div className="space-y-1">
-                                                    <p className="text-body-sm font-bold text-[var(--text-primary)]">Default Buyer Discount</p>
-                                                    <p className="text-[10px] text-[var(--text-tertiary)] font-black uppercase tracking-widest">Applied to all tiers</p>
+                                                    <p className="text-body-sm font-bold text-text-primary">Default Buyer Discount</p>
+                                                    <p className="text-[10px] text-text-tertiary font-black uppercase tracking-widest">Applied to all tiers</p>
                                                 </div>
                                                 <div className="flex items-center gap-3">
-                                                    <div className="flex p-1 bg-[var(--surface-secondary)] rounded-xl border border-[var(--border-default)] shadow-sm">
+                                                    <div className="flex p-1 bg-surface-secondary rounded-xl border border-border-default shadow-sm">
                                                         <button
                                                             onClick={() => updateFormData({ discountType: "percent" })}
                                                             className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${(formData.discountType || "percent") === "percent"
-                                                                ? "bg-[#34c759] text-white shadow-md"
-                                                                : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                                                                ? "bg-[#34c759] text-text-primary shadow-md"
+                                                                : "text-text-tertiary hover:text-text-primary"
                                                                 }`}
                                                         >
                                                             %
@@ -884,8 +884,8 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                                         <button
                                                             onClick={() => updateFormData({ discountType: "amount" })}
                                                             className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all ${formData.discountType === "amount"
-                                                                ? "bg-[var(--text-primary)] text-[var(--text-inverse)] shadow-md"
-                                                                : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                                                                ? "bg-text-primary text-text-inverse shadow-md"
+                                                                : "text-text-tertiary hover:text-text-primary"
                                                                 }`}
                                                         >
                                                             ₹
@@ -896,7 +896,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                                             type="number"
                                                             value={formData.discount}
                                                             onChange={(e) => updateFormData({ discount: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
-                                                            className="w-full h-12 bg-[var(--surface-secondary)] border border-[var(--border-default)] rounded-xl px-4 text-center font-bold text-[var(--text-primary)] focus:outline-none focus:ring-4 focus:ring-emerald-50 dark:focus:ring-emerald-900/30"
+                                                            className="w-full h-12 bg-surface-secondary border border-border-default rounded-xl px-4 text-center font-bold text-text-primary focus:outline-none focus:ring-4 focus:ring-emerald-50 dark:focus:ring-emerald-900/30"
                                                         />
                                                     </div>
                                                 </div>
@@ -913,27 +913,27 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
             {!formData.isRSVP && (
                 <>
                     {/* Event-Level Scheduled Pricing */}
-                    <div className="p-5 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-secondary)] shadow-sm space-y-4">
+                    <div className="p-5 rounded-2xl border border-border-default bg-surface-secondary shadow-sm space-y-4">
                         {/* Master Toggle: Scheduled Pricing */}
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 ${formData.scheduledPricingEnabled
-                                    ? "bg-gradient-to-br from-[#ff6b35] to-[#f7931e] text-white shadow-xl shadow-orange-100 dark:shadow-orange-900/30 ring-4 ring-orange-50 dark:ring-orange-900/20"
-                                    : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]"
+                                    ? "bg-gradient-to-br from-[#ff6b35] to-[#f7931e] text-text-primary shadow-xl shadow-orange-100 dark:shadow-orange-900/30 ring-4 ring-orange-50 dark:ring-orange-900/20"
+                                    : "bg-surface-tertiary text-text-tertiary"
                                     }`}>
                                     <Clock className="w-6 h-6" />
                                 </div>
                                 <div className="space-y-0.5">
-                                    <p className="text-[15px] font-bold text-[var(--text-primary)]">Dynamic Pricing</p>
-                                    <p className="text-[12px] text-[var(--text-secondary)] font-medium">Early Bird & Last Call scheduling</p>
+                                    <p className="text-[15px] font-bold text-text-primary">Dynamic Pricing</p>
+                                    <p className="text-[12px] text-text-secondary font-medium">Early Bird & Last Call scheduling</p>
                                 </div>
                             </div>
                             <button
                                 onClick={() => updateFormData({ scheduledPricingEnabled: !formData.scheduledPricingEnabled })}
-                                className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.scheduledPricingEnabled ? "bg-emerald-500 border-emerald-500 shadow-lg shadow-emerald-100 dark:shadow-emerald-900/30" : "bg-[var(--surface-tertiary)] border-[var(--border-default)]"}`}
+                                className={`w-14 h-8 rounded-full relative transition-all duration-300 border ${formData.scheduledPricingEnabled ? "bg-green-500 border-emerald-500 shadow-lg shadow-emerald-100 dark:shadow-emerald-900/30" : "bg-surface-tertiary border-border-default"}`}
                             >
                                 <motion.div
-                                    className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-sm"
+                                    className="absolute top-1 left-1 w-6 h-6 bg-surface-elevated rounded-full shadow-sm"
                                     animate={{ x: formData.scheduledPricingEnabled ? 24 : 0 }}
                                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                 />
@@ -942,7 +942,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
 
                         {/* If Scheduled Pricing ON, show the settings */}
                         {formData.scheduledPricingEnabled && (
-                            <div className="pt-4 border-t border-[var(--border-default)] space-y-4">
+                            <div className="pt-4 border-t border-border-default space-y-4">
                                 {/* Quick Presets */}
                                 <div className="flex gap-2">
                                     <button
@@ -1028,7 +1028,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                             </div>
 
                                             <div className="flex items-center gap-3">
-                                                <div className="flex p-0.5 bg-white rounded-lg border border-[rgba(0,0,0,0.06)]">
+                                                <div className="flex p-0.5 bg-surface-elevated rounded-lg border border-[rgba(0,0,0,0.06)]">
                                                     <button
                                                         onClick={() => {
                                                             const updated = formData.defaultScheduledPrices.map((s: DefaultScheduledPrice) =>
@@ -1036,7 +1036,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                                             );
                                                             updateFormData({ defaultScheduledPrices: updated });
                                                         }}
-                                                        className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${schedule.type === "discount" ? "bg-[#34c759] text-white" : "text-[#86868b]"
+                                                        className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${schedule.type === "discount" ? "bg-[#34c759] text-text-primary" : "text-[#86868b]"
                                                             }`}
                                                     >
                                                         DISCOUNT
@@ -1048,7 +1048,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                                             );
                                                             updateFormData({ defaultScheduledPrices: updated });
                                                         }}
-                                                        className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${schedule.type === "markup" ? "bg-[#ff3b30] text-white" : "text-[#86868b]"
+                                                        className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${schedule.type === "markup" ? "bg-[#ff3b30] text-text-primary" : "text-[#86868b]"
                                                             }`}
                                                     >
                                                         MARKUP
@@ -1064,7 +1064,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                                             );
                                                             updateFormData({ defaultScheduledPrices: updated });
                                                         }}
-                                                        className="w-full px-3 py-1.5 rounded-lg bg-white border border-[rgba(0,0,0,0.06)] text-[14px] font-bold text-[#1d1d1f] focus:outline-none"
+                                                        className="w-full px-3 py-1.5 rounded-lg bg-surface-elevated border border-[rgba(0,0,0,0.06)] text-[14px] font-bold text-[#1d1d1f] focus:outline-none"
                                                     />
                                                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-bold text-[#86868b]">%</span>
                                                 </div>
@@ -1082,7 +1082,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                                             );
                                                             updateFormData({ defaultScheduledPrices: updated });
                                                         }}
-                                                        className="w-full px-2 py-1.5 rounded-lg bg-white border border-[rgba(0,0,0,0.06)] text-[11px] text-[#1d1d1f] focus:outline-none"
+                                                        className="w-full px-2 py-1.5 rounded-lg bg-surface-elevated border border-[rgba(0,0,0,0.06)] text-[11px] text-[#1d1d1f] focus:outline-none"
                                                     />
                                                 </div>
                                                 <div className="space-y-1">
@@ -1096,7 +1096,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                                             );
                                                             updateFormData({ defaultScheduledPrices: updated });
                                                         }}
-                                                        className="w-full px-2 py-1.5 rounded-lg bg-white border border-[rgba(0,0,0,0.06)] text-[12px] text-[#1d1d1f] focus:outline-none"
+                                                        className="w-full px-2 py-1.5 rounded-lg bg-surface-elevated border border-[rgba(0,0,0,0.06)] text-[12px] text-[#1d1d1f] focus:outline-none"
                                                     />
                                                 </div>
                                             </div>
@@ -1121,7 +1121,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                                                 );
                                                                 updateFormData({ defaultScheduledPrices: updated });
                                                             }}
-                                                            className="w-full px-2 py-1 rounded-lg bg-white border border-[rgba(0,0,0,0.06)] text-[12px] font-bold text-[#1d1d1f] focus:outline-none text-right"
+                                                            className="w-full px-2 py-1 rounded-lg bg-surface-elevated border border-[rgba(0,0,0,0.06)] text-[12px] font-bold text-[#1d1d1f] focus:outline-none text-right"
                                                         />
                                                     </div>
                                                 </div>
@@ -1148,9 +1148,9 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
 
                     {/* Centralized Order Limits */}
                     {!formData.isRSVP && (
-                        <div className="p-5 rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white shadow-sm space-y-4">
+                        <div className="p-5 rounded-2xl border border-[rgba(0,0,0,0.06)] bg-surface-elevated shadow-sm space-y-4">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-black/5 flex items-center justify-center text-black/40">
+                                <div className="w-10 h-10 rounded-xl bg-black/5 flex items-center justify-center text-text-primary/40">
                                     <Users className="w-5 h-5" />
                                 </div>
                                 <div className="flex-1">
@@ -1212,7 +1212,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                         </div>
 
                         {/* Progress Bar */}
-                        < div className="h-2 bg-white rounded-full overflow-hidden" >
+                        < div className="h-2 bg-surface-elevated rounded-full overflow-hidden" >
                             <motion.div
                                 className={`h-full rounded-full ${capacityUsage > 100 ? "bg-[#ff3b30]" :
                                     capacityUsage > 80 ? "bg-[#ff9500]" : "bg-[#34c759]"
@@ -1272,10 +1272,10 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
             {/* Add Tier Button */}
             <button
                 onClick={addTicket}
-                className="group relative w-full py-6 rounded-[2rem] border-2 border-dashed border-stone-200 text-stone-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/30 transition-all duration-300 overflow-hidden"
+                className="group relative w-full py-6 rounded-[2rem] border-2 border-dashed border-border-default text-text-tertiary hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/30 transition-all duration-300 overflow-hidden"
             >
                 <div className="relative flex items-center justify-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-white border border-stone-100 flex items-center justify-center group-hover:scale-110 group-hover:shadow-lg transition-all">
+                    <div className="w-10 h-10 rounded-2xl bg-surface-elevated border border-border-subtle flex items-center justify-center group-hover:scale-110 group-hover:shadow-lg transition-all">
                         <Plus className="w-5 h-5" />
                     </div>
                     <span className="text-[15px] font-black uppercase tracking-widest">Add Ticket Tier</span>
@@ -1285,7 +1285,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
             {!formData.isRSVP && (
                 <>
                     {/* Promo Codes Section */}
-                    <div className="p-5 rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white shadow-sm">
+                    <div className="p-5 rounded-2xl border border-[rgba(0,0,0,0.06)] bg-surface-elevated shadow-sm">
                         <PromoCodeManager
                             promoCodes={formData.promoCodes || []}
                             onChange={(codes) => updateFormData({ promoCodes: codes })}

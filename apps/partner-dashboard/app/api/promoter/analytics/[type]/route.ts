@@ -26,25 +26,26 @@ export async function GET(
             return NextResponse.json({ error: "promoterId is required" }, { status: 400 });
         }
 
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         let analytics;
         switch (type) {
             case "overview":
-                analytics = await getPromoterAnalytics(promoterId, range);
+                analytics = await getPromoterAnalytics(promoterId, range, token);
                 break;
             case "performance":
-                analytics = await getPromoterEventPerformance(promoterId, range);
+                analytics = await getPromoterEventPerformance(promoterId, range, token);
                 break;
             case "audience":
-                analytics = await getPromoterAudienceAnalytics(promoterId, range);
+                analytics = await getPromoterAudienceAnalytics(promoterId, range, token);
                 break;
             case "funnel":
-                analytics = await getPromoterFunnelAnalytics(promoterId, range);
+                analytics = await getPromoterFunnelAnalytics(promoterId, range, token);
                 break;
             case "trust":
-                analytics = await getPromoterTrustAnalytics(promoterId, range);
+                analytics = await getPromoterTrustAnalytics(promoterId, token);
                 break;
             case "strategy":
-                analytics = await getPromoterStrategyAnalytics(promoterId, range);
+                analytics = await getPromoterStrategyAnalytics(promoterId, range, token);
                 break;
             default:
                 return NextResponse.json({ error: "Invalid analytics type" }, { status: 400 });

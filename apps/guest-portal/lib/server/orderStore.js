@@ -353,9 +353,10 @@ export async function createOrder(payload) {
     // If Firebase is not configured, use fallback
     if (!isFirebaseConfigured()) {
         // Update fallback event tickets
-        const eventIndex = require("../../data/events").events.findIndex(e => e.id === eventId);
+        const { events: fallbackEvents } = await import("../../data/events.js");
+        const eventIndex = (fallbackEvents || []).findIndex(e => e.id === eventId);
         if (eventIndex >= 0) {
-            const events = require("../../data/events").events;
+            const events = fallbackEvents;
             ticketUpdates.forEach(update => {
                 const ticket = events[eventIndex].tickets?.find(t => t.id === update.ticketId);
                 if (ticket) {

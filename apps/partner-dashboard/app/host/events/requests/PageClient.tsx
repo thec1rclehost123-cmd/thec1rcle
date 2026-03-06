@@ -141,20 +141,20 @@ export default function HostSlotRequestsPage() {
                 <div>
                     <Link
                         href="/host/partnerships"
-                        className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 mb-4"
+                        className="inline-flex items-center gap-2 text-sm text-text-tertiary hover:text-text-secondary mb-4"
                     >
                         <ArrowLeft className="w-4 h-4" />
                         Back to Venues
                     </Link>
-                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Slot Requests</h1>
-                    <p className="text-slate-500 text-base font-medium mt-2">
+                    <h1 className="text-3xl font-extrabold text-text-primary tracking-tight">Slot Requests</h1>
+                    <p className="text-text-tertiary text-base font-medium mt-2">
                         Track your event slot requests across all partner venues
                     </p>
                 </div>
                 <button
                     onClick={handleRefresh}
                     disabled={refreshing}
-                    className="flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-sm font-semibold rounded-xl transition-all"
+                    className="flex items-center gap-2 px-5 py-3 bg-surface-elevated border border-border-default hover:border-border-strong text-text-secondary text-sm font-semibold rounded-xl transition-all"
                 >
                     <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
                     Refresh
@@ -163,10 +163,10 @@ export default function HostSlotRequestsPage() {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white border border-slate-200 rounded-2xl p-6">
+                <div className="bg-surface-elevated border border-border-default rounded-2xl p-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Pending</p>
+                            <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest">Pending</p>
                             <p className="text-3xl font-black text-amber-600 mt-1">{pendingCount}</p>
                         </div>
                         <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
@@ -174,10 +174,10 @@ export default function HostSlotRequestsPage() {
                         </div>
                     </div>
                 </div>
-                <div className="bg-white border border-slate-200 rounded-2xl p-6">
+                <div className="bg-surface-elevated border border-border-default rounded-2xl p-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Approved</p>
+                            <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest">Approved</p>
                             <p className="text-3xl font-black text-emerald-600 mt-1">{approvedCount}</p>
                         </div>
                         <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
@@ -185,10 +185,10 @@ export default function HostSlotRequestsPage() {
                         </div>
                     </div>
                 </div>
-                <div className="bg-white border border-slate-200 rounded-2xl p-6">
+                <div className="bg-surface-elevated border border-border-default rounded-2xl p-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Needs Action</p>
+                            <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest">Needs Action</p>
                             <p className="text-3xl font-black text-rose-600 mt-1">{rejectedCount}</p>
                         </div>
                         <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center">
@@ -199,7 +199,7 @@ export default function HostSlotRequestsPage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl w-fit overflow-x-auto max-w-full scrollbar-hide">
+            <div className="flex items-center gap-2 p-1 bg-surface-secondary rounded-xl w-fit overflow-x-auto max-w-full scrollbar-hide">
                 {[
                     { id: "pending", label: "Pending" },
                     { id: "approved", label: "Approved" },
@@ -210,8 +210,8 @@ export default function HostSlotRequestsPage() {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-all ${activeTab === tab.id
-                            ? "bg-white text-slate-900 shadow-sm"
-                            : "text-slate-500 hover:text-slate-700"
+                            ? "bg-surface-elevated text-text-primary shadow-sm"
+                            : "text-text-tertiary hover:text-text-secondary"
                             }`}
                     >
                         {tab.label}
@@ -225,12 +225,12 @@ export default function HostSlotRequestsPage() {
                     <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
                 </div>
             ) : requests.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center">
-                    <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                        <Calendar className="w-8 h-8 text-slate-400" />
+                <div className="bg-surface-elevated border border-border-default rounded-3xl p-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-surface-secondary flex items-center justify-center mx-auto mb-4">
+                        <Calendar className="w-8 h-8 text-text-tertiary" />
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900 mb-2">No {activeTab !== "all" ? activeTab : ""} requests</h3>
-                    <p className="text-slate-500 text-sm max-w-xs mx-auto">
+                    <h3 className="text-lg font-bold text-text-primary mb-2">No {activeTab !== "all" ? activeTab : ""} requests</h3>
+                    <p className="text-text-tertiary text-sm max-w-xs mx-auto">
                         {activeTab === "pending"
                             ? "You don't have any pending slot requests."
                             : activeTab === "approved"
@@ -241,7 +241,7 @@ export default function HostSlotRequestsPage() {
                     </p>
                     <Link
                         href="/host/partnerships"
-                        className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors"
+                        className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-text-primary rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors"
                     >
                         <Building2 className="w-4 h-4" />
                         View Partner Venues
@@ -259,11 +259,11 @@ export default function HostSlotRequestsPage() {
                                 layout
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-lg hover:shadow-slate-100 transition-all"
+                                className="bg-surface-elevated border border-border-default rounded-2xl p-6 hover:shadow-lg hover:shadow-slate-100 transition-all"
                             >
                                 <div className="flex items-start gap-4">
                                     {/* Event Poster */}
-                                    <div className="w-20 h-20 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0">
+                                    <div className="w-20 h-20 rounded-xl bg-surface-secondary overflow-hidden flex-shrink-0">
                                         {request.event?.poster ? (
                                             <img
                                                 src={request.event.poster}
@@ -272,7 +272,7 @@ export default function HostSlotRequestsPage() {
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center">
-                                                <Calendar className="w-8 h-8 text-slate-300" />
+                                                <Calendar className="w-8 h-8 text-text-placeholder" />
                                             </div>
                                         )}
                                     </div>
@@ -281,10 +281,10 @@ export default function HostSlotRequestsPage() {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-start justify-between mb-2">
                                             <div>
-                                                <h3 className="text-lg font-bold text-slate-900">
+                                                <h3 className="text-lg font-bold text-text-primary">
                                                     {request.event?.title || "Untitled Event"}
                                                 </h3>
-                                                <p className="text-sm text-slate-500 flex items-center gap-2">
+                                                <p className="text-sm text-text-tertiary flex items-center gap-2">
                                                     <Building2 className="w-3.5 h-3.5" />
                                                     {request.venueName}
                                                 </p>
@@ -296,9 +296,9 @@ export default function HostSlotRequestsPage() {
                                         </div>
 
                                         {/* Date/Time */}
-                                        <div className="flex items-center gap-6 mt-3 text-sm text-slate-600">
+                                        <div className="flex items-center gap-6 mt-3 text-sm text-text-secondary">
                                             <div className="flex items-center gap-2">
-                                                <Calendar className="w-4 h-4 text-slate-400" />
+                                                <Calendar className="w-4 h-4 text-text-tertiary" />
                                                 {new Date(request.requestedDate).toLocaleDateString("en-IN", {
                                                     weekday: "short",
                                                     day: "numeric",
@@ -307,16 +307,16 @@ export default function HostSlotRequestsPage() {
                                                 })}
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <Clock className="w-4 h-4 text-slate-400" />
+                                                <Clock className="w-4 h-4 text-text-tertiary" />
                                                 {request.requestedStartTime} - {request.requestedEndTime}
                                             </div>
                                         </div>
 
                                         {/* Venue Response */}
                                         {request.clubResponse && (
-                                            <div className="mt-4 p-3 rounded-xl bg-slate-50 border-l-4 border-slate-300">
-                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Venue Response</p>
-                                                <p className="text-sm text-slate-600">{request.clubResponse}</p>
+                                            <div className="mt-4 p-3 rounded-xl bg-surface-tertiary border-l-4 border-border-strong">
+                                                <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-1">Venue Response</p>
+                                                <p className="text-sm text-text-secondary">{request.clubResponse}</p>
                                             </div>
                                         )}
 
@@ -331,10 +331,10 @@ export default function HostSlotRequestsPage() {
                                                     <span>{request.alternativeStartTime} - {request.alternativeEndTime}</span>
                                                 </div>
                                                 <div className="flex gap-2 mt-3">
-                                                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors">
+                                                    <button className="px-4 py-2 bg-blue-600 text-text-primary rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors">
                                                         Accept Alternative
                                                     </button>
-                                                    <button className="px-4 py-2 bg-white border border-blue-200 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-50 transition-colors">
+                                                    <button className="px-4 py-2 bg-surface-elevated border border-blue-200 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-50 transition-colors">
                                                         Decline
                                                     </button>
                                                 </div>
@@ -346,7 +346,7 @@ export default function HostSlotRequestsPage() {
                                     <div className="flex flex-col gap-2">
                                         <Link
                                             href={`/host/events/${request.eventId}`}
-                                            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors"
+                                            className="px-4 py-2 bg-surface-secondary hover:bg-surface-tertiary text-text-secondary rounded-lg text-xs font-bold flex items-center gap-2 transition-colors"
                                         >
                                             <Eye className="w-3.5 h-3.5" />
                                             View Event
@@ -354,7 +354,7 @@ export default function HostSlotRequestsPage() {
                                         {(request.status === "rejected" || request.status === "needs_changes") && (
                                             <Link
                                                 href={`/host/create?id=${request.eventId}`}
-                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 transition-colors"
+                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-text-primary rounded-lg text-xs font-bold flex items-center gap-2 transition-colors"
                                             >
                                                 <Edit3 className="w-3.5 h-3.5" />
                                                 Edit & Resubmit
@@ -364,7 +364,7 @@ export default function HostSlotRequestsPage() {
                                 </div>
 
                                 {/* Timeline Footer */}
-                                <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                                <div className="mt-4 pt-4 border-t border-border-subtle flex items-center justify-between text-xs text-text-tertiary">
                                     <span>
                                         Submitted {new Date(request.createdAt).toLocaleDateString("en-IN", {
                                             day: "numeric",

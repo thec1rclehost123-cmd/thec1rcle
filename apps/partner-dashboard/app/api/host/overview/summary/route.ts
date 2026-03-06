@@ -10,7 +10,8 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "hostId is required" }, { status: 400 });
         }
 
-        const stats = await getHostOverviewStats(hostId);
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
+        const stats = await getHostOverviewStats(hostId, token);
         return NextResponse.json(stats);
     } catch (error: any) {
         console.error("[Host Summary API] Error:", error);

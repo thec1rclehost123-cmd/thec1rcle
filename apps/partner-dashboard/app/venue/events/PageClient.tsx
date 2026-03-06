@@ -60,7 +60,7 @@ interface Event {
 }
 
 const STATUS_BADGES: Record<string, string> = {
-    draft: "bg-slate-100 text-slate-600 border-slate-200",
+    draft: "bg-surface-secondary text-text-secondary border-border-default",
     pending: "bg-amber-100 text-amber-700 border-amber-200",
     submitted: "bg-amber-100 text-amber-700 border-amber-200",
     approved: "bg-blue-100 text-blue-700 border-blue-200",
@@ -83,12 +83,12 @@ const STATUS_LABELS: Record<string, string> = {
     paused: "Paused",
 };
 
-const GridList = forwardRef((props, ref: any) => (
+const GridList = forwardRef<HTMLDivElement>((props, ref) => (
     <div {...props} ref={ref} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10" />
 ));
 GridList.displayName = "GridList";
 
-const GridItem = forwardRef((props, ref: any) => (
+const GridItem = forwardRef<HTMLDivElement>((props, ref) => (
     <div {...props} ref={ref} className="h-[450px] w-full" />
 ));
 GridItem.displayName = "GridItem";
@@ -314,10 +314,10 @@ export default function EventsManagementPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-headline text-[var(--text-primary)]">
+                    <h1 className="text-headline text-text-primary">
                         Events Management
                     </h1>
-                    <p className="text-body-sm text-[var(--text-tertiary)] mt-1">
+                    <p className="text-body-sm text-text-tertiary mt-1">
                         Full lifecycle control from draft to post-event review
                     </p>
                 </div>
@@ -330,21 +330,21 @@ export default function EventsManagementPage() {
             {/* Stats Overview */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 {[
-                    { label: "Live Now", value: liveEvents, icon: Play, color: "text-[var(--state-success)]", bg: "bg-[var(--state-success-bg)]" },
-                    { label: "Requests", value: pendingApprovals, icon: AlertCircle, color: "text-[var(--state-warning)]", bg: "bg-[var(--state-warning-bg)]" },
-                    { label: "Published", value: publishedEvents, icon: CheckCircle2, color: "text-[var(--state-info)]", bg: "bg-[var(--state-info-bg)]" },
-                    { label: "Your Drafts", value: draftEvents, icon: Edit, color: "text-[var(--text-tertiary)]", bg: "bg-[var(--surface-tertiary)]" },
+                    { label: "Live Now", value: liveEvents, icon: Play, color: "text-c1rcle-orange", bg: "bg-green-500/10" },
+                    { label: "Requests", value: pendingApprovals, icon: AlertCircle, color: "text-yellow-500", bg: "bg-yellow-500/10" },
+                    { label: "Published", value: publishedEvents, icon: CheckCircle2, color: "text-blue-500", bg: "bg-blue-500/10" },
+                    { label: "Your Drafts", value: draftEvents, icon: Edit, color: "text-text-tertiary", bg: "bg-surface-tertiary" },
                     { label: "Past Events", value: completedThisMonth, icon: Calendar, color: "text-purple-500", bg: "bg-purple-500/10" },
-                    { label: "Revenue", value: `₹${(events.reduce((sum, e) => sum + (e.revenue || 0), 0) / 100000).toFixed(1)}L`, icon: DollarSign, color: "text-[var(--c1rcle-orange)]", bg: "bg-[var(--c1rcle-orange-glow)]" },
+                    { label: "Revenue", value: `₹${(events.reduce((sum, e) => sum + (e.revenue || 0), 0) / 100000).toFixed(1)}L`, icon: DollarSign, color: "text-c1rcle-orange", bg: "bg-c1rcle-orange-glow" },
                 ].map((stat, i) => (
                     <div key={i} className="card p-5 transition-all hover:shadow-md group">
                         <div className={`w-10 h-10 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center mb-3 transition-transform group-hover:scale-110`}>
                             <stat.icon className="h-5 w-5" />
                         </div>
-                        <p className="text-label text-[var(--text-tertiary)] mb-1">
+                        <p className="text-label text-text-tertiary mb-1">
                             {stat.label}
                         </p>
-                        <p className="text-stat-sm text-[var(--text-primary)]">
+                        <p className="text-stat-sm text-text-primary">
                             {stat.value}
                         </p>
                     </div>
@@ -355,7 +355,7 @@ export default function EventsManagementPage() {
             <div className="card p-4">
                 <div className="flex flex-col md:flex-row gap-4">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-placeholder)]" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-placeholder" />
                         <input
                             type="text"
                             placeholder="Search by event name or host..."
@@ -383,21 +383,21 @@ export default function EventsManagementPage() {
             <div className="space-y-4">
                 {loading ? (
                     <div className="card p-20 text-center">
-                        <Loader2 className="h-10 w-10 text-[var(--c1rcle-orange)] mx-auto mb-4 animate-spin" />
-                        <p className="text-label text-[var(--text-tertiary)]">Synchronizing Events...</p>
+                        <Loader2 className="h-10 w-10 text-c1rcle-orange mx-auto mb-4 animate-spin" />
+                        <p className="text-label text-text-tertiary">Synchronizing Events...</p>
                     </div>
                 ) : filteredEvents.length === 0 ? (
                     <div className="card p-20 text-center">
-                        <div className="h-20 w-20 bg-[var(--surface-tertiary)] rounded-full flex items-center justify-center mx-auto mb-6">
-                            <Calendar className="h-10 w-10 text-[var(--text-placeholder)]" />
+                        <div className="h-20 w-20 bg-surface-tertiary rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Calendar className="h-10 w-10 text-text-placeholder" />
                         </div>
-                        <h3 className="text-title text-[var(--text-primary)] mb-2">No events found</h3>
-                        <p className="text-body-sm text-[var(--text-tertiary)] max-w-xs mx-auto">
+                        <h3 className="text-title text-text-primary mb-2">No events found</h3>
+                        <p className="text-body-sm text-text-tertiary max-w-xs mx-auto">
                             Try adjusting your filters or search terms to find what you're looking for.
                         </p>
                         <button
                             onClick={() => { setFilter("all"); setSearchQuery(""); }}
-                            className="mt-6 text-[var(--c1rcle-orange)] font-semibold text-sm hover:underline"
+                            className="mt-6 text-c1rcle-orange font-semibold text-sm hover:underline"
                         >
                             Reset all filters
                         </button>

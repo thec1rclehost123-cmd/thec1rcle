@@ -14,12 +14,12 @@ type BadgeTone = "success" | "warning" | "error" | "info" | "accent" | "neutral"
 type BadgeSize = "sm" | "md" | "lg";
 
 const toneStyles: Record<BadgeTone, string> = {
-  success: "bg-[var(--state-success-bg)] text-[var(--state-success)] border-[var(--state-success)]/20",
-  warning: "bg-[var(--state-warning-bg)] text-[var(--state-warning)] border-[var(--state-warning)]/20",
-  error: "bg-[var(--state-error-bg)] text-[var(--state-error)] border-[var(--state-error)]/20",
-  info: "bg-[var(--state-info-bg)] text-[var(--state-info)] border-[var(--state-info)]/20",
-  accent: "bg-[var(--c1rcle-orange-glow)] text-[var(--c1rcle-orange)] border-[var(--c1rcle-orange)]/20",
-  neutral: "bg-[var(--surface-tertiary)] text-[var(--text-secondary)] border-[var(--border-subtle)]",
+  success: "bg-green-500/10 text-c1rcle-orange border-[var(--state-success)]/20",
+  warning: "bg-yellow-500/10 text-yellow-500 border-[var(--state-warning)]/20",
+  error: "bg-red-500/10 text-red-500 border-[var(--state-error)]/20",
+  info: "bg-blue-500/10 text-blue-500 border-[var(--state-info)]/20",
+  accent: "bg-c1rcle-orange-glow text-c1rcle-orange border-c1rcle-orange/20",
+  neutral: "bg-surface-tertiary text-text-secondary border-border-subtle",
 };
 
 const sizeStyles: Record<BadgeSize, string> = {
@@ -59,11 +59,11 @@ export const Badge = ({
       {dot && (
         <span className={clsx(
           "w-1.5 h-1.5 rounded-full flex-shrink-0",
-          tone === "success" && "bg-[var(--state-success)]",
+          tone === "success" && "bg-green-500",
           tone === "warning" && "bg-[var(--state-warning)]",
           tone === "error" && "bg-[var(--state-error)]",
           tone === "info" && "bg-[var(--state-info)]",
-          tone === "accent" && "bg-[var(--c1rcle-orange)]",
+          tone === "accent" && "bg-c1rcle-orange",
           tone === "neutral" && "bg-[var(--text-tertiary)]",
           pulse && "animate-pulse"
         )} />

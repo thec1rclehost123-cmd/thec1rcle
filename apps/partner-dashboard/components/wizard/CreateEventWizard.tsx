@@ -188,7 +188,7 @@ function DeviceFrame({ children, device }: { children: React.ReactNode; device: 
             <div className="relative mx-auto w-[320px] h-[640px] bg-[#1d1d1f] rounded-[50px] border-[8px] border-[#1d1d1f] shadow-[0_0_0_2px_rgba(255,255,255,0.1),0_40px_100px_rgba(0,0,0,0.4)] overflow-hidden scale-[0.85] origin-top">
                 {/* Dynamic Island Placeholder */}
                 <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-6 bg-black rounded-full z-50" />
-                <div className="h-full w-full bg-white dark:bg-black overflow-y-auto no-scrollbar">
+                <div className="h-full w-full bg-surface-elevated dark:bg-black overflow-y-auto no-scrollbar">
                     {children}
                 </div>
             </div>
@@ -235,14 +235,14 @@ function PreviewCard({ formData, device, showDemoHover, previewAs, onExpand }: {
 
     return (
         <DeviceFrame device="mobile">
-            <div className="p-0 bg-[#0f0f0f] text-white h-full relative">
+            <div className="p-0 bg-[#0f0f0f] text-text-primary h-full relative">
                 {/* Phone Preview Content - Matches Apple Design */}
                 <div className="h-[280px] w-full relative">
                     {formData.poster || formData.images?.[0] ? (
                         <img src={formData.poster || formData.images[0]} alt="" className="w-full h-full object-cover" />
                     ) : (
-                        <div className="w-full h-full bg-stone-900 flex items-center justify-center">
-                            <ImageIcon className="w-10 h-10 text-stone-700" />
+                        <div className="w-full h-full bg-surface-secondary flex items-center justify-center">
+                            <ImageIcon className="w-10 h-10 text-text-secondary" />
                         </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f0f] via-transparent to-transparent" />
@@ -251,10 +251,10 @@ function PreviewCard({ formData, device, showDemoHover, previewAs, onExpand }: {
                 <div className="px-6 -mt-12 relative z-10 space-y-6">
                     <div className="space-y-2">
                         <div className="flex gap-2">
-                            <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-widest text-[#f44a22]">
+                            <span className="px-2 py-0.5 rounded-full bg-surface-elevated/10 border border-border-subtle text-[9px] font-black uppercase tracking-widest text-[#f44a22]">
                                 {formData.category || "Music"}
                             </span>
-                            <span className="px-2 py-0.5 rounded-full bg-orange/40 text-white text-[9px] font-black uppercase tracking-widest">
+                            <span className="px-2 py-0.5 rounded-full bg-orange/40 text-text-primary text-[9px] font-black uppercase tracking-widest">
                                 Trending
                             </span>
                         </div>
@@ -265,24 +265,24 @@ function PreviewCard({ formData, device, showDemoHover, previewAs, onExpand }: {
                     </div>
 
                     <div className="flex items-center gap-3 py-4 border-t border-white/5">
-                        <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-surface-elevated/5 border border-border-subtle flex items-center justify-center">
                             <Building2 className="w-5 h-5 text-stone-600" />
                         </div>
                         <div>
-                            <p className="text-[9px] font-bold uppercase tracking-widest text-white/40">Hosted at</p>
-                            <p className="text-[13px] font-black uppercase text-white leading-tight">{formData.venueName || "Venue Unspecified"}</p>
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-text-primary/40">Hosted at</p>
+                            <p className="text-[13px] font-black uppercase text-text-primary leading-tight">{formData.venueName || "Venue Unspecified"}</p>
                         </div>
                     </div>
 
-                    <p className="text-[12px] font-medium text-stone-400 leading-relaxed line-clamp-3">
+                    <p className="text-[12px] font-medium text-text-tertiary leading-relaxed line-clamp-3">
                         {formData.description || "The event narrative is being synthesized..."}
                     </p>
 
                     <div className="pt-4 space-y-3">
-                        <button className="w-full py-4 rounded-full bg-white text-black text-[12px] font-black uppercase tracking-widest shadow-xl shadow-white/10">
+                        <button className="w-full py-4 rounded-full bg-surface-elevated text-text-primary text-[12px] font-black uppercase tracking-widest shadow-xl shadow-white/10">
                             Book Tickets →
                         </button>
-                        <p className="text-[9px] font-bold text-center text-stone-500 uppercase tracking-widest">
+                        <p className="text-[9px] font-bold text-center text-text-tertiary uppercase tracking-widest">
                             Secure Verification • Web3 Integrated
                         </p>
                     </div>
@@ -318,7 +318,7 @@ function DraftCard({ draft, onResume, onDelete }: { draft: any, onResume: (id: s
             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
                 <button
                     onClick={() => onDelete(draft.id)}
-                    className="p-2 text-stone-400 hover:text-red-500 transition-colors"
+                    className="p-2 text-text-tertiary hover:text-red-500 transition-colors"
                 >
                     <X className="w-4 h-4" />
                 </button>
@@ -372,10 +372,10 @@ function DraftsLanding({ drafts, onResume, onStartFresh, onDelete }: { drafts: a
                     <h2 className="text-label pl-1">New Deployment</h2>
                     <div
                         onClick={onStartFresh}
-                        className="h-[216px] card-elevated border-2 border-dashed border-stone-200 hover:border-indigo-400 hover:bg-stone-50/50 transition-all cursor-pointer flex flex-col items-center justify-center group"
+                        className="h-[216px] card-elevated border-2 border-dashed border-border-default hover:border-indigo-400 hover:bg-surface-tertiary/50 transition-all cursor-pointer flex flex-col items-center justify-center group"
                     >
                         <div className="w-14 h-14 rounded-full surface-secondary group-hover:bg-indigo-50 flex items-center justify-center transition-colors mb-4 border border-default">
-                            <Plus className="w-7 h-7 text-stone-400 group-hover:text-indigo-600" />
+                            <Plus className="w-7 h-7 text-text-tertiary group-hover:text-indigo-600" />
                         </div>
                         <p className="text-headline-sm">Initialize Fresh</p>
                         <p className="text-body-sm text-muted">Create a new event from scratch</p>
@@ -887,7 +887,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                     </div>
                     <button
                         onClick={() => window.location.href = role === 'venue' ? '/venue/events' : '/host/events'}
-                        className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all"
+                        className="w-full py-4 bg-surface-secondary text-text-primary rounded-2xl font-bold hover:bg-surface-tertiary transition-all"
                     >
                         Back to Events
                     </button>
@@ -896,7 +896,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                             setLoadError(null);
                             // This will trigger the fetch effect again
                         }}
-                        className="w-full py-4 bg-white text-slate-600 rounded-2xl font-bold hover:bg-slate-50 transition-all mt-2"
+                        className="w-full py-4 bg-surface-elevated text-slate-600 rounded-2xl font-bold hover:bg-surface-tertiary transition-all mt-2"
                     >
                         Try Again
                     </button>
@@ -945,7 +945,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
 
     if (isSuccess) {
         return (
-            <div className="min-h-screen bg-white flex items-center justify-center p-6">
+            <div className="min-h-screen bg-surface-elevated flex items-center justify-center p-6">
                 <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -954,7 +954,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                     <div className="mb-8 relative inline-block">
                         <div className="absolute inset-0 bg-indigo-100 rounded-full scale-150 blur-2xl opacity-50" />
                         <div className="relative bg-indigo-600 rounded-full p-6 shadow-xl shadow-indigo-200">
-                            <CheckCircle2 className="h-12 w-12 text-white" />
+                            <CheckCircle2 className="h-12 w-12 text-text-primary" />
                         </div>
                     </div>
 
@@ -968,13 +968,13 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                     <div className="space-y-4">
                         <button
                             onClick={() => router.push(role === 'venue' ? '/venue/events' : '/host/events')}
-                            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                            className="w-full py-4 bg-indigo-600 text-text-primary rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
                         >
                             Go to Dashboard
                         </button>
                         <button
                             onClick={() => window.open(role === 'venue' ? `/venue/events` : `/host/events`, '_self')}
-                            className="w-full py-4 bg-white text-slate-600 rounded-2xl font-bold hover:bg-slate-50 transition-all"
+                            className="w-full py-4 bg-surface-elevated text-slate-600 rounded-2xl font-bold hover:bg-surface-tertiary transition-all"
                         >
                             Finish
                         </button>
@@ -986,7 +986,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
 
     return (
         <>
-            <div className="min-h-screen bg-white">
+            <div className="min-h-screen bg-surface-elevated">
                 {/* Content */}
                 <div className="max-w-6xl mx-auto px-6 py-12">
 
@@ -1019,7 +1019,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                     </div>
 
                     {/* Step Indicator — Design System Integration */}
-                    <div className="flex items-center justify-between gap-4 mb-20 px-8 py-6 bg-white/50 backdrop-blur-md rounded-[32px] border border-[rgba(0,0,0,0.04)] overflow-x-auto scrollbar-hide shadow-sm active:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between gap-4 mb-20 px-8 py-6 bg-surface-elevated/50 backdrop-blur-md rounded-[32px] border border-[rgba(0,0,0,0.04)] overflow-x-auto scrollbar-hide shadow-sm active:shadow-md transition-shadow">
                         {STEPS.map((step, index) => {
                             const Icon = step.icon;
                             const isActive = index === currentStepIndex;
@@ -1033,10 +1033,10 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                     className={`flex flex-col items-center gap-3 min-w-[80px] transition-all duration-500 group relative ${isActive ? 'scale-110' : 'hover:scale-105 active:scale-95'}`}
                                 >
                                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 relative z-10 ${isActive
-                                        ? 'bg-gradient-to-br from-[#6366f1] to-[#4f46e5] text-white shadow-[0_8px_20px_-6px_rgba(79,70,229,0.5)] ring-4 ring-indigo-50'
+                                        ? 'bg-gradient-to-br from-[#6366f1] to-[#4f46e5] text-text-primary shadow-[0_8px_20px_-6px_rgba(79,70,229,0.5)] ring-4 ring-indigo-50'
                                         : isComplete
                                             ? 'bg-emerald-50 text-emerald-600 shadow-sm'
-                                            : 'bg-[#fafafa] text-stone-300 border border-[rgba(0,0,0,0.04)] group-hover:bg-white group-hover:text-stone-400'
+                                            : 'bg-[#fafafa] text-text-placeholder border border-[rgba(0,0,0,0.04)] group-hover:bg-surface-elevated group-hover:text-text-tertiary'
                                         }`}>
                                         <Icon className={`transition-transform duration-500 ${isActive ? 'w-7 h-7' : 'w-6 h-6'} ${isActive ? 'animate-in zoom-in-75 duration-500' : ''}`} />
                                     </div>
@@ -1100,13 +1100,13 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                                                     setShowRecoveryBanner(false);
                                                                 }
                                                             }}
-                                                            className="flex-1 sm:flex-none px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[12px] font-bold hover:bg-indigo-700 transition-all"
+                                                            className="flex-1 sm:flex-none px-3 py-1.5 bg-indigo-600 text-text-primary rounded-lg text-[12px] font-bold hover:bg-indigo-700 transition-all"
                                                         >
                                                             Recover Changes
                                                         </button>
                                                         <button
                                                             onClick={() => setShowRecoveryBanner(false)}
-                                                            className="px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-lg text-[12px] font-bold hover:bg-slate-50 transition-all"
+                                                            className="px-3 py-1.5 bg-surface-elevated text-slate-600 border border-border-default rounded-lg text-[12px] font-bold hover:bg-surface-tertiary transition-all"
                                                         >
                                                             Dismiss
                                                         </button>
@@ -1272,7 +1272,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                                 </div>
 
                                                 {/* Recurring Event Options */}
-                                                <div className="pt-6 border-t border-stone-100">
+                                                <div className="pt-6 border-t border-border-subtle">
                                                     <div className="flex items-start md:items-center justify-between gap-4 mb-4">
                                                         <div className="space-y-1 flex-1">
                                                             <div className="flex items-center gap-2">
@@ -1299,7 +1299,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                                             className={`w-12 h-7 rounded-full transition-colors relative flex-shrink-0 ${formData.recurring?.enabled ? 'bg-[#34c759]' : 'bg-[#e5e5e7]'}`}
                                                         >
                                                             <motion.div
-                                                                className={`absolute top-1 left-1 w-5 h-5 rounded-full shadow-sm bg-white`}
+                                                                className={`absolute top-1 left-1 w-5 h-5 rounded-full shadow-sm bg-surface-elevated`}
                                                                 animate={{ x: formData.recurring?.enabled ? 20 : 0 }}
                                                                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                                             />
@@ -1314,12 +1314,12 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                                                 exit={{ height: 0, opacity: 0 }}
                                                                 className="overflow-hidden"
                                                             >
-                                                                <div className="p-5 bg-stone-50 rounded-2xl space-y-4 border border-stone-100">
+                                                                <div className="p-5 bg-surface-tertiary rounded-2xl space-y-4 border border-border-subtle">
                                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                                         <div className="space-y-1.5">
                                                                             <label className="text-label ml-1">Frequency</label>
                                                                             <select
-                                                                                className="input appearance-none bg-white font-bold text-sm"
+                                                                                className="input appearance-none bg-surface-elevated font-bold text-sm"
                                                                                 value={formData.recurring?.frequency}
                                                                                 onChange={(e) => updateFormData({
                                                                                     recurring: { ...formData.recurring, frequency: e.target.value }
@@ -1332,7 +1332,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                                                         </div>
                                                                         <div className="space-y-1.5">
                                                                             <label className="text-label ml-1">On Day</label>
-                                                                            <div className="input flex items-center bg-stone-100 text-stone-500 font-bold text-sm cursor-not-allowed">
+                                                                            <div className="input flex items-center bg-surface-secondary text-text-tertiary font-bold text-sm cursor-not-allowed">
                                                                                 {formData.startDate ? new Date(formData.startDate).toLocaleDateString('en-US', { weekday: 'long' }) : 'Select Date First'}
                                                                             </div>
                                                                         </div>
@@ -1366,7 +1366,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                                                 exit={{ opacity: 0, height: 0 }}
                                                                 className="p-4 rounded-xl state-confirmed-bg border border-emerald-100 flex items-center gap-3"
                                                             >
-                                                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                                                                 <p className="text-body-sm text-emerald-800 font-medium">
                                                                     Event takes place {formData.startDate ? `on ${formatEventDate(formData.startDate)}` : 'soon'}
                                                                     {formData.startTime && ` from ${formData.startTime}`}
@@ -1550,7 +1550,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                     )}
                                     {saveState === 'saved' && (
                                         <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-50/50">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                                             <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600">Live</span>
                                         </div>
                                     )}
@@ -1581,7 +1581,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                             {/* Full Page Preview Button */}
                             <button
                                 onClick={() => setIsFullPagePreviewOpen(true)}
-                                className="w-full py-4 rounded-xl bg-[#1d1d1f] text-white font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
+                                className="w-full py-4 rounded-xl bg-[#1d1d1f] text-text-primary font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
                             >
                                 <Maximize2 className="w-4 h-4" />
                                 Full Page Preview
@@ -1611,10 +1611,10 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                 </div>
                                 <button
                                     onClick={() => setShowGuestlist(!showGuestlist)}
-                                    className={`w-11 h-6 rounded-full transition-colors relative ${showGuestlist ? 'bg-white shadow-inner border border-gray-200' : 'bg-[#e5e5e7]'}`}
+                                    className={`w-11 h-6 rounded-full transition-colors relative ${showGuestlist ? 'bg-surface-elevated shadow-inner border border-gray-200' : 'bg-[#e5e5e7]'}`}
                                 >
                                     <motion.div
-                                        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full shadow-sm ${showGuestlist ? 'bg-black' : 'bg-white'}`}
+                                        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full shadow-sm ${showGuestlist ? 'bg-black' : 'bg-surface-elevated'}`}
                                         animate={{ x: showGuestlist ? 20 : 0 }}
                                         transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                     />
@@ -1629,7 +1629,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                 <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
                     <button
                         onClick={() => setIsMobilePreviewOpen(true)}
-                        className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#1d1d1f] text-white font-bold text-[14px] shadow-[0_20px_40px_rgba(0,0,0,0.3)] hover:scale-105 transition-transform"
+                        className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#1d1d1f] text-text-primary font-bold text-[14px] shadow-[0_20px_40px_rgba(0,0,0,0.3)] hover:scale-105 transition-transform"
                     >
                         <ImageIcon className="w-4 h-4" />
                         Preview Card
@@ -1645,7 +1645,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
                                 onClick={() => setIsMobilePreviewOpen(false)}
-                                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] lg:hidden"
+                                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] lg:hidden"
                             />
                             <motion.div
                                 initial={{ y: '100%' }}
@@ -1660,7 +1660,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                         <h3 className="text-[17px] font-bold text-[#1d1d1f]">Event Preview</h3>
                                         <button
                                             onClick={() => setIsMobilePreviewOpen(false)}
-                                            className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm"
+                                            className="w-8 h-8 rounded-full bg-surface-elevated flex items-center justify-center shadow-sm"
                                         >
                                             <X className="w-4 h-4 text-[#86868b]" />
                                         </button>
@@ -1682,7 +1682,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
 
                                     <button
                                         onClick={() => setIsMobilePreviewOpen(false)}
-                                        className="w-full py-4 rounded-2xl bg-[#1d1d1f] text-white font-bold"
+                                        className="w-full py-4 rounded-2xl bg-[#1d1d1f] text-text-primary font-bold"
                                     >
                                         Dismiss
                                     </button>
@@ -1703,27 +1703,27 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                         >
                             <div className="flex flex-col h-full">
                                 {/* Header */}
-                                <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-zinc-900 shadow-xl">
+                                <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-zinc-900 shadow-xl">
                                     <div className="flex items-center gap-6">
                                         <button
                                             onClick={() => setIsFullPagePreviewOpen(false)}
-                                            className="flex items-center gap-2 text-white hover:text-stone-300 transition-colors group"
+                                            className="flex items-center gap-2 text-text-primary hover:text-text-placeholder transition-colors group"
                                         >
                                             <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
                                             <span className="text-[11px] font-black uppercase tracking-tighter">Back to Wizard</span>
                                         </button>
-                                        <div className="h-4 w-px bg-white/10" />
+                                        <div className="h-4 w-px bg-surface-elevated/10" />
                                         <div className="flex items-center gap-4">
                                             <div className="flex gap-1.5">
                                                 <div className="w-2.5 h-2.5 rounded-full bg-red-500/30" />
                                                 <div className="w-2.5 h-2.5 rounded-full bg-amber-500/30" />
-                                                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/30" />
+                                                <div className="w-2.5 h-2.5 rounded-full bg-green-500/30" />
                                             </div>
-                                            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white">Live Production Preview</span>
+                                            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-text-primary">Live Production Preview</span>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">State: Draft Sync</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-widest text-text-primary/40">State: Draft Sync</span>
                                     </div>
                                 </div>
 
@@ -1751,7 +1751,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
 
                                 {/* Footer */}
                                 <div className="p-4 bg-zinc-900/80 border-t border-white/5 text-center">
-                                    <p className="text-[10px] font-medium text-white/40 uppercase tracking-[0.2em]">
+                                    <p className="text-[10px] font-medium text-text-primary/40 uppercase tracking-[0.2em]">
                                         This is a preview • Actions are disabled
                                     </p>
                                 </div>

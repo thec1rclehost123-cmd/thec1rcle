@@ -22,6 +22,7 @@ export default function ShimmerImage({
     src,
     alt,
     unoptimized: unoptimizedProp,
+    sizes = "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw",
     ...props
 }) {
     const [loaded, setLoaded] = useState(false);
@@ -63,9 +64,8 @@ export default function ShimmerImage({
         <div className={wrapperStyles}>
             {/* Shimmer overlay — fades out once image is loaded */}
             <div
-                className={`absolute inset-0 z-0 bg-white/5 transition-opacity duration-700 ${
-                    loaded ? "opacity-0 invisible" : "opacity-100 visible"
-                }`}
+                className={`absolute inset-0 z-0 bg-white/5 transition-opacity duration-700 ${loaded ? "opacity-0 invisible" : "opacity-100 visible"
+                    }`}
             >
                 <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
             </div>
@@ -88,6 +88,7 @@ export default function ShimmerImage({
                         fill={fill}
                         unoptimized={shouldUnoptimize}
                         className={imgClassName}
+                        sizes={sizes}
                         onLoad={handleLoad}
                         onError={handleError}
                     />
@@ -95,9 +96,8 @@ export default function ShimmerImage({
             ) : (
                 // Fallback placeholder
                 <div
-                    className={`relative z-10 flex flex-col items-center justify-center bg-zinc-900 border border-white/5 ${
-                        fill ? "absolute inset-0" : "h-full w-full"
-                    } ${className}`}
+                    className={`relative z-10 flex flex-col items-center justify-center bg-zinc-900 border border-white/5 ${fill ? "absolute inset-0" : "h-full w-full"
+                        } ${className}`}
                 >
                     <div className="text-[10px] font-black uppercase text-white/10 tracking-[0.2em] text-center px-4">
                         {alt || "No Image"}

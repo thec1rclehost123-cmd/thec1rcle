@@ -104,12 +104,12 @@ export default function ProfilePage() {
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-700">
             {/* Header / ID Card */}
-            <div className="relative overflow-hidden bg-white rounded-[2rem] border border-[rgba(0,0,0,0.06)] shadow-sm">
+            <div className="relative overflow-hidden bg-surface-elevated rounded-[2rem] border border-[rgba(0,0,0,0.06)] shadow-sm">
                 <div className="h-32 bg-gradient-to-r from-[#007aff] to-[#5856d6]" />
                 <div className="px-8 pb-8">
                     <div className="relative flex items-end justify-between -mt-12 mb-6">
                         <div className="flex items-end gap-6">
-                            <div className="w-24 h-24 rounded-3xl bg-white border-4 border-white shadow-xl overflow-hidden">
+                            <div className="w-24 h-24 rounded-3xl bg-surface-elevated border-4 border-white shadow-xl overflow-hidden">
                                 <div className="w-full h-full bg-[#f5f5f7] flex items-center justify-center font-black text-2xl text-[#007aff]">
                                     {formData.displayName?.[0] || "P"}
                                 </div>
@@ -126,7 +126,7 @@ export default function ProfilePage() {
                             onClick={() => editMode ? handleSave() : setEditMode(true)}
                             disabled={saving}
                             className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold transition-all ${editMode
-                                ? "bg-[#007aff] text-white hover:bg-[#0066cc]"
+                                ? "bg-[#007aff] text-text-primary hover:bg-[#0066cc]"
                                 : "bg-[#f5f5f7] text-[#1d1d1f] hover:bg-[#e5e5ea]"
                                 }`}
                         >
@@ -178,7 +178,7 @@ export default function ProfilePage() {
                             <div className="p-6 rounded-2xl bg-[#f5f5f7] border border-[rgba(0,0,0,0.02)]">
                                 {editMode ? (
                                     <textarea
-                                        className="w-full bg-white border-0 rounded-xl p-4 text-sm font-medium focus:ring-2 focus:ring-[#007aff] outline-none min-h-[120px]"
+                                        className="w-full bg-surface-elevated border-0 rounded-xl p-4 text-sm font-medium focus:ring-2 focus:ring-[#007aff] outline-none min-h-[120px]"
                                         value={formData.bio}
                                         onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                                         placeholder="Briefly describe your reach and experience..."
@@ -219,7 +219,7 @@ function ProfileItem({ icon: Icon, label, value, readOnly, editing, onChange, pl
         <div className="space-y-2">
             <label className="text-[11px] font-bold text-[#86868b] uppercase tracking-widest ml-1">{label}</label>
             <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${editing && !readOnly
-                ? "bg-white border-[#007aff] shadow-sm"
+                ? "bg-surface-elevated border-[#007aff] shadow-sm"
                 : "bg-[#f5f5f7] border-transparent"
                 }`}>
                 <Icon className={`w-4 h-4 ${editing && !readOnly ? "text-[#007aff]" : "text-[#86868b]"}`} />

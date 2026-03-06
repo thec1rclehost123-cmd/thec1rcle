@@ -219,7 +219,7 @@ export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
             >
                 <div className="glass-panel rounded-[32px] border border-white/10 bg-black/60 overflow-hidden sticky top-32">
                     <div className="relative h-48 w-full">
-                        <Image src={event.image} alt={event.title} fill sizes="120px" className="object-cover opacity-60" />
+                        <Image src={event.image} alt={event.title} fill sizes="(max-width: 1024px) 100vw, 600px" className="object-cover opacity-60" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
                         <div className="absolute bottom-4 left-6 right-6">
                             <h2 className="text-2xl font-display uppercase tracking-wider text-white">{event.title}</h2>

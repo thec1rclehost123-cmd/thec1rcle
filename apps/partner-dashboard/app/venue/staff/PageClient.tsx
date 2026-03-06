@@ -42,12 +42,12 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-    manager: "text-[var(--c1rcle-orange)] bg-[var(--c1rcle-orange-glow)] border-[var(--c1rcle-orange)]/20",
+    manager: "text-c1rcle-orange bg-c1rcle-orange-glow border-c1rcle-orange/20",
     floor_manager: "text-blue-500 bg-blue-500/10 border-blue-500/20",
     security: "text-amber-500 bg-amber-500/10 border-amber-500/20",
-    ops: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
+    ops: "text-emerald-500 bg-green-500/10 border-emerald-500/20",
     finance: "text-rose-500 bg-rose-500/10 border-rose-500/20",
-    viewer: "text-[var(--text-secondary)] bg-[var(--surface-tertiary)] border-[var(--border-subtle)]"
+    viewer: "text-text-secondary bg-surface-tertiary border-border-subtle"
 };
 
 export default function VenueStaffPage() {
@@ -137,10 +137,10 @@ export default function VenueStaffPage() {
     return (
         <div className="space-y-10 pb-20">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-[var(--border-subtle)]">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-border-subtle">
                 <div>
-                    <h1 className="text-display-sm text-[var(--text-primary)]">{cleanJargon("management")}</h1>
-                    <p className="text-label text-[var(--text-tertiary)] mt-1">Staff List & Permissions</p>
+                    <h1 className="text-display-sm text-text-primary">{cleanJargon("management")}</h1>
+                    <p className="text-label text-text-tertiary mt-1">Staff List & Permissions</p>
                 </div>
                 <button
                     onClick={() => setShowAddModal(true)}
@@ -157,23 +157,23 @@ export default function VenueStaffPage() {
                 {/* Left: Staff Ledger (8 Cols) */}
                 <div className="lg:col-span-8 space-y-8">
                     <div className="card overflow-hidden">
-                        <div className="px-6 py-4 bg-[var(--surface-secondary)] border-b border-[var(--border-subtle)] flex items-center justify-between">
-                            <h2 className="text-label text-[var(--text-tertiary)]">Staff Registry</h2>
-                            <span className="text-caption text-[var(--text-placeholder)] tabular-nums">{activeStaff.length} TOTAL</span>
+                        <div className="px-6 py-4 bg-surface-secondary border-b border-border-subtle flex items-center justify-between">
+                            <h2 className="text-label text-text-tertiary">Staff Registry</h2>
+                            <span className="text-caption text-text-placeholder tabular-nums">{activeStaff.length} TOTAL</span>
                         </div>
 
                         {loading ? (
                             <div className="p-20 text-center">
                                 <div className="flex flex-col items-center gap-4">
-                                    <div className="w-8 h-8 border-2 border-[var(--c1rcle-orange)]/20 border-t-[var(--c1rcle-orange)] rounded-full animate-spin" />
-                                    <span className="text-label text-[var(--text-placeholder)]">Loading...</span>
+                                    <div className="w-8 h-8 border-2 border-c1rcle-orange/20 border-t-[var(--c1rcle-orange)] rounded-full animate-spin" />
+                                    <span className="text-label text-text-placeholder">Loading...</span>
                                 </div>
                             </div>
                         ) : activeStaff.length === 0 ? (
                             <div className="p-20 text-center">
-                                <Users className="w-12 h-12 text-[var(--text-placeholder)] mx-auto mb-4" />
-                                <h3 className="text-title text-[var(--text-primary)] mb-1">Registry Empty</h3>
-                                <p className="text-label text-[var(--text-tertiary)]">No members found in the database.</p>
+                                <Users className="w-12 h-12 text-text-placeholder mx-auto mb-4" />
+                                <h3 className="text-title text-text-primary mb-1">Registry Empty</h3>
+                                <p className="text-label text-text-tertiary">No members found in the database.</p>
                             </div>
                         ) : (
                             <div className="divide-y divide-[var(--border-subtle)]">
@@ -194,8 +194,8 @@ export default function VenueStaffPage() {
                     {/* Inactive Section */}
                     {inactiveStaff.length > 0 && (
                         <div className="card opacity-60">
-                            <div className="px-6 py-3 bg-[var(--surface-secondary)] border-b border-[var(--border-subtle)]">
-                                <h2 className="text-label text-[var(--text-tertiary)]">Inactive</h2>
+                            <div className="px-6 py-3 bg-surface-secondary border-b border-border-subtle">
+                                <h2 className="text-label text-text-tertiary">Inactive</h2>
                             </div>
                             <div className="divide-y divide-[var(--border-subtle)]">
                                 {inactiveStaff.map(member => (
@@ -210,17 +210,17 @@ export default function VenueStaffPage() {
                 <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-28">
                     <div className="card p-6 space-y-8">
                         <div>
-                            <h3 className="text-label text-[var(--text-tertiary)] mb-6">Staff Summary</h3>
+                            <h3 className="text-label text-text-tertiary mb-6">Staff Summary</h3>
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="p-4 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl">
-                                    <p className="text-stat-sm text-[var(--text-primary)] mb-1">{activeStaff.length}</p>
-                                    <p className="text-caption text-[var(--text-tertiary)]">Total Active</p>
+                                <div className="p-4 bg-surface-secondary border border-border-subtle rounded-xl">
+                                    <p className="text-stat-sm text-text-primary mb-1">{activeStaff.length}</p>
+                                    <p className="text-caption text-text-tertiary">Total Active</p>
                                 </div>
-                                <div className="p-4 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl">
-                                    <p className="text-stat-sm text-[var(--state-success)] mb-1">
+                                <div className="p-4 bg-surface-secondary border border-border-subtle rounded-xl">
+                                    <p className="text-stat-sm text-c1rcle-orange mb-1">
                                         {activeStaff.filter(s => s.isVerified).length}
                                     </p>
-                                    <p className="text-caption text-[var(--text-tertiary)]">Verified</p>
+                                    <p className="text-caption text-text-tertiary">Verified</p>
                                 </div>
                             </div>
                         </div>
@@ -228,35 +228,35 @@ export default function VenueStaffPage() {
                         {selectedStaff ? (
                             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl bg-[var(--surface-tertiary)] border border-[var(--border-subtle)] flex items-center justify-center text-lg font-bold text-[var(--text-primary)]">
+                                    <div className="w-12 h-12 rounded-xl bg-surface-tertiary border border-border-subtle flex items-center justify-center text-lg font-bold text-text-primary">
                                         {selectedStaff.name.charAt(0)}
                                     </div>
                                     <div>
-                                        <h4 className="text-title-sm text-[var(--text-primary)]">{selectedStaff.name}</h4>
-                                        <p className="text-label text-[var(--c1rcle-orange)] mt-0.5">{ROLE_LABELS[selectedStaff.role] || selectedStaff.role}</p>
+                                        <h4 className="text-title-sm text-text-primary">{selectedStaff.name}</h4>
+                                        <p className="text-label text-c1rcle-orange mt-0.5">{ROLE_LABELS[selectedStaff.role] || selectedStaff.role}</p>
                                     </div>
                                 </div>
 
                                 <div className="space-y-4">
-                                    <div className="p-3 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl flex items-center gap-3">
-                                        <Mail className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
-                                        <span className="text-body-sm text-[var(--text-secondary)] truncate">{selectedStaff.email}</span>
+                                    <div className="p-3 bg-surface-secondary border border-border-subtle rounded-xl flex items-center gap-3">
+                                        <Mail className="w-3.5 h-3.5 text-text-tertiary" />
+                                        <span className="text-body-sm text-text-secondary truncate">{selectedStaff.email}</span>
                                     </div>
                                     {selectedStaff.phone && (
-                                        <div className="p-3 bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl flex items-center gap-3">
-                                            <Phone className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
-                                            <span className="text-body-sm text-[var(--text-secondary)]">{selectedStaff.phone}</span>
+                                        <div className="p-3 bg-surface-secondary border border-border-subtle rounded-xl flex items-center gap-3">
+                                            <Phone className="w-3.5 h-3.5 text-text-tertiary" />
+                                            <span className="text-body-sm text-text-secondary">{selectedStaff.phone}</span>
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="pt-4 border-t border-[var(--border-subtle)]">
-                                    <p className="text-label text-[var(--text-tertiary)] mb-4">Permissions</p>
+                                <div className="pt-4 border-t border-border-subtle">
+                                    <p className="text-label text-text-tertiary mb-4">Permissions</p>
                                     <div className="grid grid-cols-2 gap-2">
                                         {Object.entries(selectedStaff.permissions || {}).map(([key, val]) => (
                                             <div key={key} className="flex items-center gap-2">
-                                                <div className={`w-1.5 h-1.5 rounded-full ${val ? 'bg-[var(--state-success)] shadow-[0_0_5px_var(--state-success)]' : 'bg-[var(--surface-tertiary)]'}`} />
-                                                <span className={`text-caption ${val ? 'text-[var(--text-secondary)]' : 'text-[var(--text-placeholder)]'}`}>
+                                                <div className={`w-1.5 h-1.5 rounded-full ${val ? 'bg-green-500 shadow-[0_0_5px_var(--state-success)]' : 'bg-surface-tertiary'}`} />
+                                                <span className={`text-caption ${val ? 'text-text-secondary' : 'text-text-placeholder'}`}>
                                                     {key.split('_').join(' ')}
                                                 </span>
                                             </div>
@@ -266,15 +266,15 @@ export default function VenueStaffPage() {
 
                                 <button
                                     onClick={() => setSelectedStaff(null)}
-                                    className="w-full py-2.5 text-label text-[var(--text-placeholder)] hover:text-[var(--text-primary)] transition-colors"
+                                    className="w-full py-2.5 text-label text-text-placeholder hover:text-text-primary transition-colors"
                                 >
                                     Close Details
                                 </button>
                             </div>
                         ) : (
                             <div className="py-12 text-center">
-                                <Shield className="w-8 h-8 text-[var(--text-placeholder)] mx-auto mb-3" />
-                                <p className="text-label text-[var(--text-placeholder)]">Select a member to view details</p>
+                                <Shield className="w-8 h-8 text-text-placeholder mx-auto mb-3" />
+                                <p className="text-label text-text-placeholder">Select a member to view details</p>
                             </div>
                         )}
                     </div>
@@ -313,22 +313,22 @@ function StaffRow({
     return (
         <div
             onClick={onSelect}
-            className={`px-6 py-4 flex items-center justify-between cursor-pointer transition-colors ${isSelected ? "bg-[var(--surface-secondary)]" : "hover:bg-[var(--surface-secondary)]/50"} ${inactive ? "opacity-50" : ""}`}
+            className={`px-6 py-4 flex items-center justify-between cursor-pointer transition-colors ${isSelected ? "bg-surface-secondary" : "hover:bg-surface-secondary/50"} ${inactive ? "opacity-50" : ""}`}
         >
             <div className="flex items-center gap-4">
-                <div className="h-10 w-10 rounded-xl bg-[var(--surface-tertiary)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)] font-bold text-sm">
+                <div className="h-10 w-10 rounded-xl bg-surface-tertiary border border-border-subtle flex items-center justify-center text-text-primary font-bold text-sm">
                     {member.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
                 </div>
                 <div>
                     <div className="flex items-center gap-2">
-                        <h4 className="text-body-sm font-semibold text-[var(--text-primary)]">{member.name}</h4>
+                        <h4 className="text-body-sm font-semibold text-text-primary">{member.name}</h4>
                         {member.isVerified ? (
-                            <ShieldCheck className="w-3.5 h-3.5 text-[var(--state-success)]" />
+                            <ShieldCheck className="w-3.5 h-3.5 text-c1rcle-orange" />
                         ) : (
                             <div className="w-1.5 h-1.5 rounded-full bg-[var(--state-warning)] animate-pulse" title="Pending Verification" />
                         )}
                     </div>
-                    <p className="text-caption text-[var(--text-tertiary)]">{member.email}</p>
+                    <p className="text-caption text-text-tertiary">{member.email}</p>
                 </div>
             </div>
 
@@ -341,24 +341,24 @@ function StaffRow({
                     <div className="relative">
                         <button
                             onClick={(e) => { e.stopPropagation(); setShowActions(!showActions); }}
-                            className="p-1.5 hover:bg-[var(--surface-tertiary)] rounded-lg transition-colors"
+                            className="p-1.5 hover:bg-surface-tertiary rounded-lg transition-colors"
                         >
-                            <MoreHorizontal className="w-4 h-4 text-[var(--text-tertiary)]" />
+                            <MoreHorizontal className="w-4 h-4 text-text-tertiary" />
                         </button>
 
                         {showActions && (
-                            <div className="absolute right-0 top-full mt-2 bg-[var(--surface-elevated)] border border-[var(--border-subtle)] rounded-xl shadow-2xl py-1 z-50 min-w-[180px] animate-in fade-in slide-in-from-top-2">
+                            <div className="absolute right-0 top-full mt-2 bg-surface-elevated border border-border-subtle rounded-xl shadow-2xl py-1 z-50 min-w-[180px] animate-in fade-in slide-in-from-top-2">
                                 {!member.isVerified && onVerify && (
                                     <button
                                         onClick={(e) => { e.stopPropagation(); onVerify(); setShowActions(false); }}
-                                        className="w-full px-4 py-2.5 text-left text-body-sm text-[var(--state-success)] hover:bg-[var(--state-success-bg)] flex items-center gap-2"
+                                        className="w-full px-4 py-2.5 text-left text-body-sm text-c1rcle-orange hover:bg-green-500/10 flex items-center gap-2"
                                     >
                                         <ShieldCheck className="w-3.5 h-3.5" /> Verify User
                                     </button>
                                 )}
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onRemove && onRemove(); setShowActions(false); }}
-                                    className="w-full px-4 py-2.5 text-left text-body-sm text-[var(--state-error)] hover:bg-[var(--state-error-bg)] flex items-center gap-2"
+                                    className="w-full px-4 py-2.5 text-left text-body-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" /> Remove User
                                 </button>
@@ -394,14 +394,14 @@ function AddStaffModal({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
             <div className="card max-w-md w-full p-8 space-y-8 animate-in zoom-in-95 duration-200">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h3 className="text-headline-sm text-[var(--text-primary)]">Add Member</h3>
-                        <p className="text-label text-[var(--text-tertiary)] mt-1">Add a new staff member</p>
+                        <h3 className="text-headline-sm text-text-primary">Add Member</h3>
+                        <p className="text-label text-text-tertiary mt-1">Add a new staff member</p>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-[var(--surface-tertiary)] rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
+                    <button onClick={onClose} className="p-2 hover:bg-surface-tertiary rounded-lg text-text-tertiary hover:text-text-primary transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
@@ -456,9 +456,9 @@ function AddStaffModal({
                         </div>
                     </div>
 
-                    <div className="bg-[var(--state-info-bg)] border border-[var(--state-info)]/20 rounded-xl p-4 flex gap-3">
-                        <AlertCircle className="w-5 h-5 text-[var(--state-info)] shrink-0" />
-                        <p className="text-body-sm text-[var(--text-tertiary)]">
+                    <div className="bg-blue-500/10 border border-[var(--state-info)]/20 rounded-xl p-4 flex gap-3">
+                        <AlertCircle className="w-5 h-5 text-blue-500 shrink-0" />
+                        <p className="text-body-sm text-text-tertiary">
                             A verification link will be sent to their email. They will be active after they verify their account.
                         </p>
                     </div>

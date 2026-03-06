@@ -76,7 +76,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                     return;
                 }
 
-                const tokenResult = await user.getIdTokenResult(true);
+                const tokenResult = await user.getIdTokenResult();
                 const claims = tokenResult.claims;
 
                 const approvedByDoc = userData.isApproved || false;
@@ -136,6 +136,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 setLoading(false);
             }
         };
+
+        fetchUserData();
     }, [user]);
 
     const signIn = async (email: string, password: string) => {
@@ -146,8 +148,6 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     const signUp = async (email: string, password: string, displayName: string) => {
         const auth = getFirebaseAuth();
         const credential = await createUserWithEmailAndPassword(auth, email, password);
-
-        await updateFirebaseProfile(credential.user, { displayName });
 
         await updateFirebaseProfile(credential.user, { displayName });
 

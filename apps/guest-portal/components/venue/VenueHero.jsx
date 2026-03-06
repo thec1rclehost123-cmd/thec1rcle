@@ -32,6 +32,7 @@ export default function VenueHero({
                     alt={venue.name}
                     fill
                     priority
+                    sizes="100vw"
                     className={`object-cover transition-all duration-700 ${imageLoaded ? 'scale-100 blur-0' : 'scale-105 blur-sm'}`}
                     onLoad={() => setImageLoaded(true)}
                 />

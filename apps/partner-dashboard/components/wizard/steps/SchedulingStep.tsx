@@ -32,8 +32,8 @@ function AppleInput({
         <div className="space-y-1.5">
             {label && (
                 <div className="flex items-center justify-between">
-                    <label className="text-label ml-1 text-[var(--text-secondary)]">{label}</label>
-                    {hint && <span className="text-[10px] text-[var(--text-tertiary)] font-medium uppercase tracking-widest">{hint}</span>}
+                    <label className="text-label ml-1 text-text-secondary">{label}</label>
+                    {hint && <span className="text-[10px] text-text-tertiary font-medium uppercase tracking-widest">{hint}</span>}
                 </div>
             )}
             <div className="relative group">
@@ -112,10 +112,10 @@ export function SchedulingStep({
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'blocked': return 'bg-[var(--state-error-bg)] text-[var(--state-error)] border-[var(--state-error)]/20';
-            case 'tentative': return 'bg-[var(--state-warning-bg)] text-[var(--state-warning)] border-[var(--state-warning)]/20';
-            case 'booked': return 'bg-[var(--state-info-bg)] text-[var(--state-info)] border-[var(--state-info)]/20';
-            default: return 'bg-[var(--state-success-bg)] text-[var(--state-success)] border-[var(--state-success)]/20';
+            case 'blocked': return 'bg-red-500/10 text-red-500 border-[var(--state-error)]/20';
+            case 'tentative': return 'bg-yellow-500/10 text-yellow-500 border-[var(--state-warning)]/20';
+            case 'booked': return 'bg-blue-500/10 text-blue-500 border-[var(--state-info)]/20';
+            default: return 'bg-green-500/10 text-c1rcle-orange border-[var(--state-success)]/20';
         }
     };
 
@@ -152,12 +152,12 @@ export function SchedulingStep({
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="p-4 rounded-xl bg-[var(--state-error-bg)] border border-[var(--state-error)]/20 flex items-start gap-3"
+                            className="p-4 rounded-xl bg-red-500/10 border border-[var(--state-error)]/20 flex items-start gap-3"
                         >
-                            <AlertCircle className="w-5 h-5 text-[var(--state-error)] flex-shrink-0 mt-0.5" />
+                            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                             <div>
-                                <p className="text-body font-semibold text-[var(--state-error)]">Date Conflict Detected</p>
-                                <p className="text-caption text-[var(--state-error)] opacity-80 mt-1">
+                                <p className="text-body font-semibold text-red-500">Date Conflict Detected</p>
+                                <p className="text-caption text-red-500 opacity-80 mt-1">
                                     This date is blocked on the venue calendar. Please select a different date or contact the venue.
                                 </p>
                             </div>
@@ -183,7 +183,7 @@ export function SchedulingStep({
                                     initial={{ opacity: 0, height: 0 }}
                                     animate={{ opacity: 1, height: 'auto' }}
                                     exit={{ opacity: 0, height: 0 }}
-                                    className="mt-4 p-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)]"
+                                    className="mt-4 p-4 rounded-xl bg-surface-secondary border border-border-subtle"
                                 >
                                     {isLoadingCalendar ? (
                                         <p className="text-caption text-center py-4">Loading calendar...</p>
@@ -202,18 +202,18 @@ export function SchedulingStep({
                                                     </div>
                                                 ))}
                                             </div>
-                                            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-[var(--border-subtle)]">
+                                            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-border-subtle">
                                                 <div className="flex items-center gap-1.5">
-                                                    <div className="w-2 h-2 rounded-full bg-[var(--state-success)]" />
-                                                    <span className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider font-bold">Available</span>
+                                                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                                                    <span className="text-[10px] text-text-tertiary uppercase tracking-wider font-bold">Available</span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5">
                                                     <div className="w-2 h-2 rounded-full bg-[var(--state-warning)]" />
-                                                    <span className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider font-bold">Tentative</span>
+                                                    <span className="text-[10px] text-text-tertiary uppercase tracking-wider font-bold">Tentative</span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5">
                                                     <div className="w-2 h-2 rounded-full bg-[var(--state-error)]" />
-                                                    <span className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider font-bold">Blocked</span>
+                                                    <span className="text-[10px] text-text-tertiary uppercase tracking-wider font-bold">Blocked</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -282,14 +282,14 @@ export function SchedulingStep({
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="p-4 rounded-xl bg-[var(--state-success-bg)] border border-[var(--state-success)]/20 flex items-center gap-3"
+                            className="p-4 rounded-xl bg-green-500/10 border border-[var(--state-success)]/20 flex items-center gap-3"
                         >
-                            <Check className="w-5 h-5 text-[var(--state-success)]" />
+                            <Check className="w-5 h-5 text-c1rcle-orange" />
                             <div>
-                                <p className="text-body font-medium text-[var(--state-success)]">
+                                <p className="text-body font-medium text-c1rcle-orange">
                                     {formData.startDate ? formatEventDate(formData.startDate) : 'Date TBD'}
                                 </p>
-                                <p className="text-caption text-[var(--state-success)] opacity-70">
+                                <p className="text-caption text-c1rcle-orange opacity-70">
                                     {formData.doorsOpen && `Doors: ${formData.doorsOpen} • `}
                                     {formData.startTime && `Start: ${formData.startTime}`}
                                     {formData.endTime && ` • End: ${formData.endTime}`}

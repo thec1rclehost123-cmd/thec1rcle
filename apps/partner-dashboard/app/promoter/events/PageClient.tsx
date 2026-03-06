@@ -50,12 +50,12 @@ interface PromoterLink {
     isActive: boolean;
 }
 
-const GridContainer = forwardRef((props, ref: any) => (
+const GridContainer = forwardRef<HTMLDivElement>((props, ref) => (
     <div {...props} ref={ref} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" />
 ));
 GridContainer.displayName = "GridContainer";
 
-const ItemContainer = forwardRef((props, ref: any) => (
+const ItemContainer = forwardRef<HTMLDivElement>((props, ref) => (
     <div {...props} ref={ref} className="h-full w-full" />
 ));
 ItemContainer.displayName = "ItemContainer";
@@ -86,13 +86,13 @@ const MemoizedPromoterEventCard = memo(({ event, myLinks, generateLink, generati
                 )}
 
                 {/* Commission Badge */}
-                <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-[#34c759] text-white text-[13px] font-semibold shadow-lg">
+                <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-[#34c759] text-text-primary text-[13px] font-semibold shadow-lg">
                     {event.commissionRate}% Commission
                 </div>
 
                 {/* Active Link Indicator */}
                 {hasExistingLink && (
-                    <div className="absolute top-3 left-3 px-3 py-1.5 rounded-full bg-[#007aff] text-white text-[11px] font-semibold shadow-lg flex items-center gap-1">
+                    <div className="absolute top-3 left-3 px-3 py-1.5 rounded-full bg-[#007aff] text-text-primary text-[11px] font-semibold shadow-lg flex items-center gap-1">
                         <Check className="w-3 h-3" /> Active Link
                     </div>
                 )}
@@ -152,7 +152,7 @@ const MemoizedPromoterEventCard = memo(({ event, myLinks, generateLink, generati
                             </span>
                             <button
                                 onClick={() => copyLink(eventLink.code)}
-                                className="p-1.5 rounded-md hover:bg-white text-[#86868b] hover:text-[#007aff] transition-colors"
+                                className="p-1.5 rounded-md hover:bg-surface-elevated text-[#86868b] hover:text-[#007aff] transition-colors"
                             >
                                 {copiedCode === eventLink.code ? (
                                     <Check className="w-4 h-4 text-[#34c759]" />
@@ -311,7 +311,7 @@ export default function PromoterEventsPage() {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search events..."
-                        className="w-full pl-11 pr-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] focus:outline-none focus:border-[#007aff] focus:bg-white transition-all"
+                        className="w-full pl-11 pr-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all"
                     />
                 </div>
                 <select
@@ -320,7 +320,7 @@ export default function PromoterEventsPage() {
                         setSelectedCity(e.target.value);
                         fetchEvents();
                     }}
-                    className="px-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] focus:outline-none focus:border-[#007aff] focus:bg-white transition-all appearance-none cursor-pointer"
+                    className="px-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all appearance-none cursor-pointer"
                 >
                     <option value="">All Cities</option>
                     <option value="Pune">Pune</option>

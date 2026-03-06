@@ -90,8 +90,8 @@ const PLAN_HIERARCHY: Record<string, number> = {
 };
 
 const PLAN_COLORS: Record<string, { bg: string; text: string; glow: string }> = {
-    'basic': { bg: 'bg-slate-500/10', text: 'text-slate-500', glow: '' },
-    'silver': { bg: 'bg-slate-400/10', text: 'text-slate-400', glow: 'shadow-[0_0_10px_rgba(148,163,184,0.3)]' },
+    'basic': { bg: 'bg-surface-tertiary0/10', text: 'text-text-tertiary', glow: '' },
+    'silver': { bg: 'bg-slate-400/10', text: 'text-text-tertiary', glow: 'shadow-[0_0_10px_rgba(148,163,184,0.3)]' },
     'gold': { bg: 'bg-amber-500/10', text: 'text-amber-500', glow: 'shadow-[0_0_10px_rgba(245,158,11,0.3)]' },
     'diamond': { bg: 'bg-violet-500/10', text: 'text-violet-500', glow: 'shadow-[0_0_10px_rgba(139,92,246,0.4)]' }
 };
@@ -126,16 +126,16 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                     {/* Glowing Logo Container */}
                     <div className="relative">
                         <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 rounded-xl blur-lg" />
-                        <div className="relative h-11 w-11 rounded-xl bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] flex items-center justify-center border border-white/10 shadow-lg">
+                        <div className="relative h-11 w-11 rounded-xl bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] flex items-center justify-center border border-border-subtle shadow-lg">
                             <span className="text-lg font-black bg-gradient-to-br from-white to-white/60 bg-clip-text text-transparent">C</span>
                         </div>
                     </div>
                     <div className="min-w-0 flex-1">
-                        <h1 className="font-semibold text-white text-sm truncate leading-tight">
+                        <h1 className="font-semibold text-text-primary text-sm truncate leading-tight">
                             {profile?.activeMembership?.partnerName || "THE C1RCLE"}
                         </h1>
                         <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] text-white/40 uppercase tracking-wider font-medium">Venue Dashboard</span>
+                            <span className="text-[10px] text-text-primary/40 uppercase tracking-wider font-medium">Venue Dashboard</span>
                         </div>
                     </div>
                     {/* Plan Badge */}
@@ -167,7 +167,7 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                                 <button
                                     onClick={() => toggleSection(group.label)}
                                     className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 group
-                                        ${hasActiveItem ? 'text-white/90' : 'text-white/40 hover:text-white/60 hover:bg-white/[0.02]'}`}
+                                        ${hasActiveItem ? 'text-text-primary/90' : 'text-text-primary/40 hover:text-text-primary/60 hover:bg-surface-elevated/[0.02]'}`}
                                 >
                                     <div className="flex items-center gap-2.5">
                                         <GroupIcon className="h-3.5 w-3.5" />
@@ -181,7 +181,7 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                                     </motion.div>
                                 </button>
                             ) : (
-                                <div className="flex items-center gap-2.5 px-3 py-2 text-white/40">
+                                <div className="flex items-center gap-2.5 px-3 py-2 text-text-primary/40">
                                     <GroupIcon className="h-3.5 w-3.5" />
                                     <span className="text-[11px] font-semibold uppercase tracking-wider">{group.label}</span>
                                 </div>
@@ -207,8 +207,8 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                                                         href={item.href}
                                                         className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group
                                                             ${active
-                                                                ? "text-white bg-white/[0.08]"
-                                                                : "text-white/50 hover:text-white/80 hover:bg-white/[0.04]"
+                                                                ? "text-text-primary bg-surface-elevated/[0.08]"
+                                                                : "text-text-primary/50 hover:text-text-primary/80 hover:bg-surface-elevated/[0.04]"
                                                             }`}
                                                     >
                                                         {/* Active Indicator Line */}
@@ -224,7 +224,7 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                                                         <div className={`relative flex items-center justify-center w-7 h-7 rounded-md transition-all duration-200
                                                             ${active
                                                                 ? "bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20"
-                                                                : "bg-white/[0.03] group-hover:bg-white/[0.06]"
+                                                                : "bg-surface-elevated/[0.03] group-hover:bg-surface-elevated/[0.06]"
                                                             }`}
                                                         >
                                                             <Icon className={`h-3.5 w-3.5 transition-all ${active ? "text-violet-400" : ""}`} />
@@ -264,12 +264,12 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                         <div className="relative">
                             <div className="flex items-center gap-2 mb-2">
                                 <Sparkles className="h-4 w-4 text-violet-400" />
-                                <span className="text-xs font-bold text-white/90">C1RCLE PRO</span>
+                                <span className="text-xs font-bold text-text-primary/90">C1RCLE PRO</span>
                             </div>
-                            <p className="text-[11px] text-white/50 leading-relaxed mb-3">
+                            <p className="text-[11px] text-text-primary/50 leading-relaxed mb-3">
                                 Unlock advanced analytics, host management & more
                             </p>
-                            <button className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-xs font-semibold hover:from-violet-400 hover:to-fuchsia-400 transition-all shadow-lg shadow-violet-500/20">
+                            <button className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 text-text-primary text-xs font-semibold hover:from-violet-400 hover:to-fuchsia-400 transition-all shadow-lg shadow-violet-500/20">
                                 Upgrade Now
                             </button>
                         </div>
@@ -279,30 +279,30 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
 
             {/* Footer / User Profile */}
             <div className="p-3 border-t border-white/[0.06]">
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] transition-all cursor-pointer group">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-elevated/[0.02] hover:bg-surface-elevated/[0.04] transition-all cursor-pointer group">
                     {/* Avatar with Status */}
                     <div className="relative">
-                        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 flex items-center justify-center font-semibold text-white text-sm border border-white/10">
+                        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 flex items-center justify-center font-semibold text-text-primary text-sm border border-border-subtle">
                             {profile?.displayName?.[0]?.toUpperCase() || 'A'}
                         </div>
                         {/* Online indicator */}
-                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-[#0D0D0F]" />
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#0D0D0F]" />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white/90 truncate">
+                        <p className="text-sm font-medium text-text-primary/90 truncate">
                             {profile?.displayName || 'Administrator'}
                         </p>
-                        <p className="text-[10px] text-white/40 truncate">
+                        <p className="text-[10px] text-text-primary/40 truncate">
                             {profile?.email || 'admin@venue.com'}
                         </p>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-white/20 group-hover:text-white/40 transition-colors" />
+                    <ChevronRight className="h-4 w-4 text-text-primary/20 group-hover:text-text-primary/40 transition-colors" />
                 </div>
 
                 {/* Sign Out Button */}
                 <button
                     onClick={() => signOut()}
-                    className="mt-2 flex items-center justify-center gap-2 w-full py-2.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-all text-xs font-medium"
+                    className="mt-2 flex items-center justify-center gap-2 w-full py-2.5 rounded-lg text-text-primary/40 hover:text-red-400 hover:bg-red-500/10 transition-all text-xs font-medium"
                 >
                     <LogOut className="h-3.5 w-3.5" />
                     Sign Out

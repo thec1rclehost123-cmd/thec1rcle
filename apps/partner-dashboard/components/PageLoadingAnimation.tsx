@@ -94,14 +94,14 @@ export default function PageLoadingAnimation() {
                         </div>
 
                         {/* Progress Bar */}
-                        <div className="w-64 h-1 bg-white/10 rounded-full mt-8 overflow-hidden relative">
+                        <div className="w-64 h-1 bg-surface-elevated/10 rounded-full mt-8 overflow-hidden relative">
                             <motion.div
                                 className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-400 to-purple-500"
                                 style={{ width: `${progress}%` }}
                                 layoutId="progress"
                             />
                         </div>
-                        <div className="flex justify-between w-64 mt-2 text-[9px] font-mono text-white/40">
+                        <div className="flex justify-between w-64 mt-2 text-[9px] font-mono text-text-primary/40">
                             <span>INITIALIZING...</span>
                             <span>{Math.round(progress)}%</span>
                         </div>

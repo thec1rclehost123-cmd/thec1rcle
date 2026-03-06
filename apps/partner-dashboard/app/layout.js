@@ -29,7 +29,7 @@ export default function RootLayout({ children }) {
           attribute="class"
           defaultTheme="light"
           enableSystem={false}
-          disableTransitionOnChange={false}
+          disableTransitionOnChange={true}
           storageKey="c1rcle-theme"
         >
           <QueryProvider>

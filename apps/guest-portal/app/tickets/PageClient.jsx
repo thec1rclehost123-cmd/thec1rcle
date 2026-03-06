@@ -146,7 +146,7 @@ const TransferAction = ({ action, onAccept, onDecline }) => {
         <div className="relative group overflow-hidden bg-white dark:bg-zinc-900 border border-black/5 dark:border-white/5 rounded-[32px] p-6 mb-8 transition-all hover:shadow-2xl">
             <div className="flex gap-6 items-center">
                 <div className="relative w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0">
-                    <Image src={action.posterUrl || "/events/placeholder.svg"} fill sizes="(max-width: 768px) 100vw, 200px" className="object-cover" alt="" />
+                    <ShimmerImage src={action.posterUrl || "/events/placeholder.svg"} fill sizes="(max-width: 768px) 100vw, 200px" className="object-cover" alt="" />
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">

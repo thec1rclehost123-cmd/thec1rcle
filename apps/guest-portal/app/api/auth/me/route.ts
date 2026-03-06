@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApiClient } from "@/lib/server/apiClient";
 import { verifyAuth } from "@/lib/server/auth";
+import { getAdminDb } from "@/lib/firebase/admin";
 
 export async function GET(req: NextRequest) {
     try {
@@ -9,12 +9,11 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-        const client = getApiClient(token);
+        const db = getAdminDb();
+        const doc = await db.collection("users").doc(decodedToken.uid).get();
+        const user = doc.exists ? { uid: doc.id, ...doc.data() } : null;
 
-        const data = await client.request("/auth/me");
-
-        return NextResponse.json(data);
+        return NextResponse.json({ user });
     } catch (error: any) {
         console.error("[Auth API] GET /me Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });

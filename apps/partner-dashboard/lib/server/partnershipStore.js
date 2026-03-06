@@ -12,9 +12,14 @@ export async function requestPartnership(hostId, venueId, hostName, venueName, t
     return client.requestPartnership(hostId, venueId, hostName, venueName);
 }
 
-export async function approvePartnership(partnershipId, token) {
+export async function approvePartnership(partnershipId, token, tier) {
     const client = getApiClient(token);
-    return client.respondToPartnership(partnershipId, 'approve');
+    const body = { action: 'approve' };
+    if (tier) body.tier = tier;
+    return client.request(`/partnerships/${partnershipId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body)
+    });
 }
 
 export async function rejectPartnership(partnershipId, reason = "", token) {

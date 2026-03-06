@@ -155,7 +155,7 @@ export async function listVenues({ area, vibe, search, tablesOnly } = {}) {
 
     if (area) query = query.where("area", "==", area);
 
-    const snapshot = await query.get();
+    const snapshot = await query.limit(50).get();
     let venues = snapshot.docs.map(doc => {
         const serialized = serializeDoc(doc);
         return {

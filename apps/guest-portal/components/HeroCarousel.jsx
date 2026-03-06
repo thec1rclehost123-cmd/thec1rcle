@@ -235,7 +235,10 @@ export default function HeroCarousel({ cards = [] }) {
 function CardItem({ card, index, progress, isMobile, isTablet, onClick, cardsCount }) {
     // We use useTransform to calculate the position based on the progress motion value
     const transform = useTransform(progress, (p) => {
-        let offset = index - (p % cardsCount);
+        // Sanity check for NaN
+        const safeProgress = Number.isFinite(p) ? p : 0;
+
+        let offset = index - (safeProgress % cardsCount);
         if (offset > cardsCount / 2) offset -= cardsCount;
         if (offset < -cardsCount / 2) offset += cardsCount;
 
@@ -252,7 +255,7 @@ function CardItem({ card, index, progress, isMobile, isTablet, onClick, cardsCou
         const opacity = Math.max(0, 1 - (absOffset - 1.8) * 0.6);
         const zIndex = Math.round(1000 - absOffset * 100);
 
-        return { x, z, rotateY, scale, opacity, zIndex, absOffset };
+        return { x, z, rotateY, scale, opacity: Number.isFinite(opacity) ? opacity : 0, zIndex, absOffset };
     });
 
     // Derived values for animations that don't need to be in the main physics loop
@@ -315,8 +318,10 @@ function CardItem({ card, index, progress, isMobile, isTablet, onClick, cardsCou
 
 function CardContent({ card, progress, index, cardsCount }) {
     const overlayTransform = useTransform(progress || useMotionValue(0), (p) => {
-        if (typeof p !== 'number') return { opacity: 1, y: 0, textOpacity: 1 };
-        let offset = index - (p % cardsCount);
+        // Sanity check for NaN
+        const safeProgress = Number.isFinite(p) ? p : 0;
+
+        let offset = index - (safeProgress % cardsCount);
         if (offset > cardsCount / 2) offset -= cardsCount;
         if (offset < -cardsCount / 2) offset += cardsCount;
         const absOffset = Math.abs(offset);
@@ -326,7 +331,11 @@ function CardContent({ card, progress, index, cardsCount }) {
         const y = absOffset * 20;
         const textOpacity = Math.max(0, 1 - absOffset * 1.5);
 
-        return { opacity, y, textOpacity };
+        return {
+            opacity: Number.isFinite(opacity) ? opacity : 0,
+            y: Number.isFinite(y) ? y : 0,
+            textOpacity: Number.isFinite(textOpacity) ? textOpacity : 0
+        };
     });
 
     const opacity = useTransform(overlayTransform, (t) => t.opacity);
@@ -344,7 +353,7 @@ function CardContent({ card, progress, index, cardsCount }) {
                     alt={card.title}
                     fill
                     className="object-cover transition-transform duration-1000 group-hover:scale-110"
-                    sizes="(max-width: 768px) 400px, 500px"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                 />
             </motion.div>
 

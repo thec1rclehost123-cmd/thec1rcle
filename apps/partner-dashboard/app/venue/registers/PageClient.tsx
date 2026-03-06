@@ -221,26 +221,26 @@ export default function RegistersPage() {
     return (
         <div className="space-y-10 pb-20 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-10">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-default pb-10">
                 <div>
-                    <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-4">
+                    <h1 className="text-4xl font-extrabold text-text-primary tracking-tight flex items-center gap-4">
                         Ops Registers
                     </h1>
-                    <p className="text-slate-500 text-lg font-medium mt-3">Duty logs, incident reports, and floor handovers for the date.</p>
+                    <p className="text-text-tertiary text-lg font-medium mt-3">Duty logs, incident reports, and floor handovers for the date.</p>
                 </div>
                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl p-1 shadow-sm">
+                    <div className="flex items-center gap-2 bg-surface-elevated border border-border-default rounded-2xl p-1 shadow-sm">
                         <button
                             onClick={() => {
                                 const d = new Date(selectedDate);
                                 d.setDate(d.getDate() - 1);
                                 setSelectedDate(d.toISOString().split('T')[0]);
                             }}
-                            className="p-3 hover:bg-slate-50 rounded-xl transition-colors"
+                            className="p-3 hover:bg-surface-tertiary rounded-xl transition-colors"
                         >
-                            <ChevronLeft className="h-5 w-5 text-slate-600" />
+                            <ChevronLeft className="h-5 w-5 text-text-secondary" />
                         </button>
-                        <div className="px-4 font-bold text-slate-900 flex items-center gap-2">
+                        <div className="px-4 font-bold text-text-primary flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-emerald-600" />
                             {new Date(selectedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                         </div>
@@ -250,9 +250,9 @@ export default function RegistersPage() {
                                 d.setDate(d.getDate() + 1);
                                 setSelectedDate(d.toISOString().split('T')[0]);
                             }}
-                            className="p-3 hover:bg-slate-50 rounded-xl transition-colors"
+                            className="p-3 hover:bg-surface-tertiary rounded-xl transition-colors"
                         >
-                            <ChevronRight className="h-5 w-5 text-slate-600" />
+                            <ChevronRight className="h-5 w-5 text-text-secondary" />
                         </button>
                     </div>
                     <button
@@ -260,7 +260,7 @@ export default function RegistersPage() {
                             setActionType("incident");
                             setIsActionModalOpen(true);
                         }}
-                        className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl text-sm font-bold shadow-xl shadow-slate-200 hover:bg-slate-800 transition-all active:scale-95"
+                        className="flex items-center gap-3 px-8 py-4 bg-surface-secondary text-text-primary rounded-2xl text-sm font-bold shadow-xl shadow-slate-200 hover:bg-surface-tertiary transition-all active:scale-95"
                     >
                         <Plus className="h-5 w-5" />
                         New Log Entry
@@ -277,16 +277,16 @@ export default function RegistersPage() {
             </div>
 
             {/* Main Content */}
-            <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-8 border-b border-slate-50 bg-slate-50/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default shadow-sm overflow-hidden">
+                <div className="p-8 border-b border-slate-50 bg-surface-tertiary/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
                         {TABS.map((tab) => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
-                                    ? "bg-slate-900 text-white shadow-lg shadow-slate-200"
-                                    : "text-slate-500 hover:bg-slate-100"
+                                    ? "bg-surface-secondary text-text-primary shadow-lg shadow-slate-200"
+                                    : "text-text-tertiary hover:bg-surface-secondary"
                                     }`}
                             >
                                 {tab.label}
@@ -295,13 +295,13 @@ export default function RegistersPage() {
                     </div>
 
                     <div className="relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
                         <input
                             type="text"
                             placeholder="Search descriptions, authors..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-11 pr-6 py-3.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-slate-50 w-full md:w-80 font-medium transition-all"
+                            className="pl-11 pr-6 py-3.5 bg-surface-elevated border border-border-default rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-slate-50 w-full md:w-80 font-medium transition-all"
                         />
                     </div>
                 </div>
@@ -309,13 +309,13 @@ export default function RegistersPage() {
                 <div className="p-0">
                     {isLoading ? (
                         <div className="py-24 flex flex-col items-center justify-center">
-                            <Loader2 className="h-12 w-12 text-slate-200 animate-spin mb-4" />
-                            <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Syncing Registry...</p>
+                            <Loader2 className="h-12 w-12 text-text-placeholder animate-spin mb-4" />
+                            <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Syncing Registry...</p>
                         </div>
                     ) : filteredLogs.length > 0 ? (
                         <div className="divide-y divide-slate-50">
                             {filteredLogs.map((log) => (
-                                <div key={log.id} className="p-8 hover:bg-slate-50/50 transition-colors group">
+                                <div key={log.id} className="p-8 hover:bg-surface-tertiary/50 transition-colors group">
                                     <div className="flex items-start justify-between gap-6">
                                         <div className="flex gap-6">
                                             <div className={`mt-1 h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 border ${getIconColor(log.type)}`}>
@@ -323,7 +323,7 @@ export default function RegistersPage() {
                                             </div>
                                             <div className="space-y-2">
                                                 <div className="flex items-center gap-3">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">
                                                         {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
                                                     {log.severity && (
@@ -337,15 +337,15 @@ export default function RegistersPage() {
                                                         </span>
                                                     )}
                                                 </div>
-                                                <h4 className="text-lg font-bold text-slate-900 leading-snug">
+                                                <h4 className="text-lg font-bold text-text-primary leading-snug">
                                                     {log.description}
                                                 </h4>
                                                 <div className="flex items-center gap-4">
                                                     <div className="flex items-center gap-2">
-                                                        <div className="h-5 w-5 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
-                                                            <Briefcase className="h-3 w-3 text-slate-400" />
+                                                        <div className="h-5 w-5 rounded-full bg-surface-secondary flex items-center justify-center border border-border-default">
+                                                            <Briefcase className="h-3 w-3 text-text-tertiary" />
                                                         </div>
-                                                        <span className="text-sm font-bold text-slate-500">{log.author}</span>
+                                                        <span className="text-sm font-bold text-text-tertiary">{log.author}</span>
                                                     </div>
                                                 </div>
                                                 {log.resolution && (
@@ -362,7 +362,7 @@ export default function RegistersPage() {
                                             {log.type === "incident" && log.status !== "resolved" && (
                                                 <button
                                                     onClick={() => resolveIncident(log.id)}
-                                                    className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-100"
+                                                    className="px-4 py-2 bg-emerald-600 text-text-primary rounded-xl text-xs font-bold shadow-lg shadow-emerald-100"
                                                 >
                                                     Resolve
                                                 </button>
@@ -374,17 +374,17 @@ export default function RegistersPage() {
                         </div>
                     ) : (
                         <div className="py-24 flex flex-col items-center text-center">
-                            <div className="h-24 w-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-8 border border-slate-100">
-                                <ClipboardList className="h-12 w-12 text-slate-200" />
+                            <div className="h-24 w-24 bg-surface-tertiary rounded-[2.5rem] flex items-center justify-center mb-8 border border-border-subtle">
+                                <ClipboardList className="h-12 w-12 text-text-placeholder" />
                             </div>
-                            <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">Nothing to report</h3>
-                            <p className="text-slate-500 text-sm font-medium mb-10 max-w-xs mx-auto">The registry is empty for this date. Good news or just starting?</p>
+                            <h3 className="text-2xl font-black text-text-primary mb-2 uppercase tracking-tight">Nothing to report</h3>
+                            <p className="text-text-tertiary text-sm font-medium mb-10 max-w-xs mx-auto">The registry is empty for this date. Good news or just starting?</p>
                             <button
                                 onClick={() => {
                                     setActionType("incident");
                                     setIsActionModalOpen(true);
                                 }}
-                                className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-bold text-sm shadow-xl hover:bg-slate-800 transition-all"
+                                className="px-10 py-4 bg-surface-secondary text-text-primary rounded-2xl font-bold text-sm shadow-xl hover:bg-surface-tertiary transition-all"
                             >
                                 Create First Entry
                             </button>
@@ -396,23 +396,23 @@ export default function RegistersPage() {
             {/* Modal for new Entry */}
             {isActionModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsActionModalOpen(false)} />
-                    <div className="relative bg-white rounded-[3rem] shadow-2xl w-full max-w-md p-10">
-                        <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-8">New Incident Report</h3>
+                    <div className="absolute inset-0 bg-surface-secondary/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsActionModalOpen(false)} />
+                    <div className="relative bg-surface-elevated rounded-[3rem] shadow-2xl w-full max-w-md p-10">
+                        <h3 className="text-2xl font-black text-text-primary uppercase tracking-tight mb-8">New Incident Report</h3>
                         <div className="space-y-6">
                             <div>
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 ml-2">Description</label>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-3 ml-2">Description</label>
                                 <textarea
                                     id="logDescription"
-                                    className="w-full p-6 bg-slate-50 border border-slate-100 rounded-[2rem] text-sm focus:outline-none focus:ring-4 focus:ring-slate-50 min-h-[150px] font-medium"
+                                    className="w-full p-6 bg-surface-tertiary border border-border-subtle rounded-[2rem] text-sm focus:outline-none focus:ring-4 focus:ring-slate-50 min-h-[150px] font-medium"
                                     placeholder="What happened? Be specific..."
                                 />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 ml-2">Severity</label>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-3 ml-2">Severity</label>
                                 <select
                                     id="logSeverity"
-                                    className="w-full p-6 bg-slate-50 border border-slate-100 rounded-[2rem] text-sm focus:outline-none focus:ring-4 focus:ring-slate-50 font-bold appearance-none cursor-pointer"
+                                    className="w-full p-6 bg-surface-tertiary border border-border-subtle rounded-[2rem] text-sm focus:outline-none focus:ring-4 focus:ring-slate-50 font-bold appearance-none cursor-pointer"
                                 >
                                     <option value="low">Low - Minor issue</option>
                                     <option value="medium">Medium - Action needed</option>
@@ -423,7 +423,7 @@ export default function RegistersPage() {
                         <div className="flex gap-4 mt-12">
                             <button
                                 onClick={() => setIsActionModalOpen(false)}
-                                className="flex-1 py-5 bg-slate-50 text-slate-500 rounded-3xl font-bold text-sm hover:bg-slate-100 transition-all"
+                                className="flex-1 py-5 bg-surface-tertiary text-text-tertiary rounded-3xl font-bold text-sm hover:bg-surface-secondary transition-all"
                             >
                                 Cancel
                             </button>
@@ -434,7 +434,7 @@ export default function RegistersPage() {
                                     const sev = (document.getElementById('logSeverity') as HTMLSelectElement).value;
                                     handleLogAction({ description: desc, severity: sev });
                                 }}
-                                className="flex-1 py-5 bg-slate-900 text-white rounded-3xl font-bold text-sm shadow-xl shadow-slate-200 active:scale-95 transition-all flex items-center justify-center"
+                                className="flex-1 py-5 bg-surface-secondary text-text-primary rounded-3xl font-bold text-sm shadow-xl shadow-slate-200 active:scale-95 transition-all flex items-center justify-center"
                             >
                                 {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Save Entry"}
                             </button>
@@ -451,7 +451,7 @@ function StatCard({ label, value, subtext, color }: { label: string, value: stri
         rose: "bg-rose-50 text-rose-600 border-rose-100",
         indigo: "bg-indigo-50 text-indigo-600 border-indigo-100",
         amber: "bg-amber-50 text-amber-600 border-amber-100",
-        slate: "bg-slate-50 text-slate-600 border-slate-100"
+        slate: "bg-surface-tertiary text-text-secondary border-border-subtle"
     };
 
     return (
@@ -485,7 +485,7 @@ function getIconColor(type: string) {
         case "lost-found": return "bg-amber-50 text-amber-600 border-amber-100";
         case "inspection": return "bg-emerald-50 text-emerald-600 border-emerald-100";
         case "reminder": return "bg-purple-50 text-purple-600 border-purple-100";
-        default: return "bg-slate-50 text-slate-600 border-slate-100";
+        default: return "bg-surface-tertiary text-text-secondary border-border-subtle";
     }
 }
 
@@ -494,6 +494,6 @@ function getSeverityColor(severity: string) {
         case "high": return "bg-rose-50 text-rose-600 border-rose-200";
         case "medium": return "bg-amber-50 text-amber-600 border-amber-200";
         case "low": return "bg-blue-50 text-blue-600 border-blue-200";
-        default: return "bg-slate-50 text-slate-400 border-slate-200";
+        default: return "bg-surface-tertiary text-text-tertiary border-border-default";
     }
 }

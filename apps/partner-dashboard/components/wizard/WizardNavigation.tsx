@@ -43,10 +43,10 @@ export function WizardNavigation({
             {/* Progress Bar */}
             <div className="mb-6">
                 <div className="flex items-center justify-between mb-2">
-                    <span className="text-label text-[var(--text-tertiary)] uppercase tracking-widest font-bold">Progress</span>
-                    <span className="text-label text-[var(--text-tertiary)] font-bold">{currentStepIndex + 1} of {steps.length}</span>
+                    <span className="text-label text-text-tertiary uppercase tracking-widest font-bold">Progress</span>
+                    <span className="text-label text-text-tertiary font-bold">{currentStepIndex + 1} of {steps.length}</span>
                 </div>
-                <div className="h-1.5 bg-[var(--surface-tertiary)] rounded-full overflow-hidden">
+                <div className="h-1.5 bg-surface-tertiary rounded-full overflow-hidden">
                     <motion.div
                         className="h-full bg-gradient-to-r from-indigo-600 to-indigo-400"
                         initial={{ width: 0 }}
@@ -74,17 +74,17 @@ export function WizardNavigation({
                             className={`
                                 flex items-center gap-2 px-4 py-2.5 rounded-full whitespace-nowrap transition-all
                                 ${isActive
-                                    ? 'bg-[var(--text-primary)] text-[var(--surface-base)] shadow-xl shadow-indigo-500/10'
+                                    ? 'bg-text-primary text-[var(--surface-base)] shadow-xl shadow-indigo-500/10'
                                     : isComplete
-                                        ? 'bg-[var(--state-success-bg)] text-[var(--state-success)] border border-[var(--state-success)]/20 shadow-sm'
+                                        ? 'bg-green-500/10 text-c1rcle-orange border border-[var(--state-success)]/20 shadow-sm'
                                         : hasIssues
-                                            ? 'bg-[var(--state-warning-bg)] text-[var(--state-warning)] border border-[var(--state-warning)]/20 shadow-sm'
-                                            : 'bg-[var(--surface-secondary)] text-[var(--text-tertiary)] hover:bg-[var(--surface-tertiary)] border border-[var(--border-subtle)]'
+                                            ? 'bg-yellow-500/10 text-yellow-500 border border-[var(--state-warning)]/20 shadow-sm'
+                                            : 'bg-surface-secondary text-text-tertiary hover:bg-surface-tertiary border border-border-subtle'
                                 }
                                 ${!canClick ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                             `}
                         >
-                            <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isActive ? 'bg-[var(--surface-base)]/20' : isComplete ? 'bg-[var(--state-success)]/20' : 'bg-[var(--surface-tertiary)]'
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isActive ? 'bg-surface-base/20' : isComplete ? 'bg-green-500/20' : 'bg-surface-tertiary'
                                 }`}>
                                 {isComplete ? (
                                     <Check className="w-3 h-3" />
@@ -104,7 +104,7 @@ export function WizardNavigation({
             <div className="mt-8 mb-6">
                 <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stepValidation[currentStep]?.isValid === false
-                        ? 'bg-[var(--state-warning-bg)] text-[var(--state-warning)]'
+                        ? 'bg-yellow-500/10 text-yellow-500'
                         : 'bg-indigo-500/10 text-indigo-500'
                         }`}>
                         {(() => {
@@ -127,12 +127,12 @@ export function WizardNavigation({
                     className="p-4 rounded-xl bg-amber-50 border border-amber-100 mb-6"
                 >
                     <div className="flex items-start gap-3">
-                        <AlertCircle className="w-5 h-5 text-[var(--state-warning)] flex-shrink-0 mt-0.5" />
+                        <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
                         <div>
-                            <p className="text-body font-bold text-[var(--state-warning)] uppercase tracking-wider">Please complete the following:</p>
+                            <p className="text-body font-bold text-yellow-500 uppercase tracking-wider">Please complete the following:</p>
                             <ul className="mt-2 space-y-1">
                                 {stepValidation[currentStep].issues.map((issue, i) => (
-                                    <li key={i} className="text-body-sm text-[var(--state-warning)] opacity-80 font-medium">• {issue}</li>
+                                    <li key={i} className="text-body-sm text-yellow-500 opacity-80 font-medium">• {issue}</li>
                                 ))}
                             </ul>
                         </div>
@@ -151,23 +151,23 @@ interface SaveStatusProps {
 export function SaveStatus({ status }: SaveStatusProps) {
     return (
         <div className={`
-            flex items-center gap-2 px-4 py-2 rounded-xl transition-all border border-[var(--border-subtle)]
-            ${status === 'saving' ? 'bg-[var(--surface-secondary)]' : status === 'saved' ? 'bg-[var(--state-success-bg)]' : 'bg-[var(--state-error-bg)]'}
+            flex items-center gap-2 px-4 py-2 rounded-xl transition-all border border-border-subtle
+            ${status === 'saving' ? 'bg-surface-secondary' : status === 'saved' ? 'bg-green-500/10' : 'bg-red-500/10'}
         `}>
             {status === 'saving' ? (
                 <>
                     <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-                    <span className="text-[12px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Saving...</span>
+                    <span className="text-[12px] font-bold text-text-tertiary uppercase tracking-widest">Saving...</span>
                 </>
             ) : status === 'saved' ? (
                 <>
-                    <Check className="w-3.5 h-3.5 text-[var(--state-success)]" />
-                    <span className="text-[12px] font-bold text-[var(--state-success)] uppercase tracking-widest">Saved</span>
+                    <Check className="w-3.5 h-3.5 text-c1rcle-orange" />
+                    <span className="text-[12px] font-bold text-c1rcle-orange uppercase tracking-widest">Saved</span>
                 </>
             ) : (
                 <>
-                    <AlertCircle className="w-3.5 h-3.5 text-[var(--state-error)]" />
-                    <span className="text-[12px] font-bold text-[var(--state-error)] uppercase tracking-widest">Save Failed</span>
+                    <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                    <span className="text-[12px] font-bold text-red-500 uppercase tracking-widest">Save Failed</span>
                 </>
             )}
         </div>

@@ -54,6 +54,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
             src={activeEvent.image}
             alt=""
             fill
+            sizes="100vw"
             className="object-cover"
             priority
           />
@@ -183,6 +184,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
                 src={activeEvent.image}
                 alt={activeEvent.title}
                 fill
+                sizes="(max-width: 1024px) 100vw, 500px"
                 className="object-cover transition-transform duration-700 group-hover:scale-110"
                 priority
               />

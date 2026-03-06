@@ -21,7 +21,7 @@ export default function SectionReveal({ children, className, variant = "fadeInUp
   return (
     <motion.div
       ref={ref}
-      className={clsx("will-change-transform", className)}
+      className={clsx("relative will-change-transform", className)}
       variants={preset}
       initial="hidden"
       animate={controls}

@@ -15,7 +15,7 @@ export async function GET(request) {
         };
 
         const hosts = await listHosts(filters);
-        return NextResponse.json(hosts);
+        return NextResponse.json({ hosts, hasMore: false, nextCursor: null });
     } catch (error) {
         console.error("GET /api/hosts error", error);
         return NextResponse.json({ error: "Failed to load hosts" }, { status: 500 });

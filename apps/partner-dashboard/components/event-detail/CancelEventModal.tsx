@@ -189,17 +189,17 @@ export default function CancelEventModal({
                         animate={{ scale: 1, y: 0, opacity: 1 }}
                         exit={{ scale: 0.92, y: 40, opacity: 0 }}
                         transition={{ type: "spring", damping: 28, stiffness: 350 }}
-                        className="relative w-full max-w-2xl bg-[var(--surface-base)] rounded-[2.5rem] overflow-hidden shadow-[0_60px_120px_rgba(0,0,0,0.5)] border border-[var(--border-strong)]"
+                        className="relative w-full max-w-2xl bg-surface-base rounded-[2.5rem] overflow-hidden shadow-[0_60px_120px_rgba(0,0,0,0.5)] border border-border-strong"
                     >
                         {/* ── Header ── */}
-                        <div className="relative px-10 pt-10 pb-6 bg-gradient-to-b from-rose-500/5 to-transparent border-b border-[var(--border-subtle)]">
+                        <div className="relative px-10 pt-10 pb-6 bg-gradient-to-b from-rose-500/5 to-transparent border-b border-border-subtle">
                             <div className="flex items-start justify-between">
                                 <div className="flex items-center gap-4">
                                     <div className="w-14 h-14 rounded-[1.5rem] bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
                                         <AlertTriangle className="w-7 h-7 text-rose-500" />
                                     </div>
                                     <div>
-                                        <h2 className="text-xl font-black tracking-tight text-[var(--text-primary)]">
+                                        <h2 className="text-xl font-black tracking-tight text-text-primary">
                                             Cancel Event
                                         </h2>
                                         <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-rose-500 mt-0.5">
@@ -210,33 +210,33 @@ export default function CancelEventModal({
                                 <button
                                     onClick={onClose}
                                     disabled={isProcessing}
-                                    className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-[var(--surface-tertiary)] transition-colors"
+                                    className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-surface-tertiary transition-colors"
                                 >
-                                    <X className="w-5 h-5 text-[var(--text-tertiary)]" />
+                                    <X className="w-5 h-5 text-text-tertiary" />
                                 </button>
                             </div>
 
                             {/* Event Info Bar */}
-                            <div className="mt-5 p-4 rounded-[1.25rem] bg-[var(--surface-secondary)] border border-[var(--border-subtle)] flex items-center justify-between">
+                            <div className="mt-5 p-4 rounded-[1.25rem] bg-surface-secondary border border-border-subtle flex items-center justify-between">
                                 <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Event</p>
-                                    <p className="text-sm font-bold text-[var(--text-primary)] mt-0.5 truncate max-w-[300px]">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Event</p>
+                                    <p className="text-sm font-bold text-text-primary mt-0.5 truncate max-w-[300px]">
                                         {event.title}
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-6">
                                     <div className="text-right">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Tickets Sold</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Tickets Sold</p>
                                         <div className="flex items-center gap-1.5 justify-end mt-0.5">
-                                            <Users className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
-                                            <span className="text-sm font-bold text-[var(--text-primary)]">{ticketsSold}</span>
+                                            <Users className="w-3.5 h-3.5 text-text-secondary" />
+                                            <span className="text-sm font-bold text-text-primary">{ticketsSold}</span>
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Revenue</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Revenue</p>
                                         <div className="flex items-center gap-1.5 justify-end mt-0.5">
-                                            <CreditCard className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
-                                            <span className="text-sm font-bold text-[var(--text-primary)]">₹{totalRevenue.toLocaleString("en-IN")}</span>
+                                            <CreditCard className="w-3.5 h-3.5 text-text-secondary" />
+                                            <span className="text-sm font-bold text-text-primary">₹{totalRevenue.toLocaleString("en-IN")}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -249,7 +249,7 @@ export default function CancelEventModal({
                                         key={s}
                                         className={`flex-1 h-1 rounded-full transition-all duration-500 ${i <= ["reason", "policy", "confirm"].indexOf(step)
                                             ? "bg-rose-500"
-                                            : "bg-[var(--surface-tertiary)]"
+                                            : "bg-surface-tertiary"
                                             }`}
                                     />
                                 ))}
@@ -269,10 +269,10 @@ export default function CancelEventModal({
                                         className="space-y-5"
                                     >
                                         <div>
-                                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]">
+                                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-text-primary">
                                                 Why are you cancelling?
                                             </p>
-                                            <p className="text-[12px] text-[var(--text-secondary)] mt-1">
+                                            <p className="text-[12px] text-text-secondary mt-1">
                                                 This reason will be shared with ticket holders in the cancellation notice.
                                             </p>
                                         </div>
@@ -284,11 +284,11 @@ export default function CancelEventModal({
                                                     onClick={() => setSelectedReason(r.id)}
                                                     className={`flex items-center gap-3 p-3.5 rounded-[1.25rem] border-2 text-left transition-all duration-200 ${selectedReason === r.id
                                                         ? "border-rose-500 bg-rose-500/5 shadow-sm"
-                                                        : "border-[var(--border-subtle)] bg-[var(--surface-secondary)] hover:border-rose-500/20"
+                                                        : "border-border-subtle bg-surface-secondary hover:border-rose-500/20"
                                                         }`}
                                                 >
                                                     <span className="text-lg">{r.icon}</span>
-                                                    <span className={`text-[11px] font-bold ${selectedReason === r.id ? "text-rose-500" : "text-[var(--text-secondary)]"}`}>
+                                                    <span className={`text-[11px] font-bold ${selectedReason === r.id ? "text-rose-500" : "text-text-secondary"}`}>
                                                         {r.label}
                                                     </span>
                                                 </button>
@@ -305,7 +305,7 @@ export default function CancelEventModal({
                                                     value={customReason}
                                                     onChange={(e) => setCustomReason(e.target.value)}
                                                     placeholder="Describe the reason for cancellation..."
-                                                    className="w-full p-4 rounded-[1.25rem] bg-[var(--surface-secondary)] border border-[var(--border-subtle)] text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500/20 resize-none min-h-[80px]"
+                                                    className="w-full p-4 rounded-[1.25rem] bg-surface-secondary border border-border-subtle text-[12px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500/20 resize-none min-h-[80px]"
                                                 />
                                             </motion.div>
                                         )}
@@ -322,10 +322,10 @@ export default function CancelEventModal({
                                         className="space-y-5"
                                     >
                                         <div>
-                                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]">
+                                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-text-primary">
                                                 Refund Policy
                                             </p>
-                                            <p className="text-[12px] text-[var(--text-secondary)] mt-1">
+                                            <p className="text-[12px] text-text-secondary mt-1">
                                                 Choose how ticket holders will be refunded. Full refund is recommended.
                                             </p>
                                         </div>
@@ -339,29 +339,29 @@ export default function CancelEventModal({
                                                         onClick={() => setRefundPolicy(policy.id)}
                                                         className={`w-full flex items-start gap-4 p-5 rounded-[1.5rem] border-2 text-left transition-all duration-200 ${refundPolicy === policy.id
                                                             ? "border-rose-500 bg-rose-500/5"
-                                                            : "border-[var(--border-subtle)] bg-[var(--surface-secondary)] hover:border-rose-500/20"
+                                                            : "border-border-subtle bg-surface-secondary hover:border-rose-500/20"
                                                             }`}
                                                     >
                                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${refundPolicy === policy.id
                                                             ? "bg-rose-500/15 text-rose-500"
-                                                            : "bg-[var(--surface-base)] text-[var(--text-tertiary)]"
+                                                            : "bg-surface-base text-text-tertiary"
                                                             }`}>
                                                             <Icon className="w-5 h-5" />
                                                         </div>
                                                         <div className="flex-1 min-w-0">
-                                                            <p className={`text-[12px] font-bold ${refundPolicy === policy.id ? "text-rose-500" : "text-[var(--text-primary)]"}`}>
+                                                            <p className={`text-[12px] font-bold ${refundPolicy === policy.id ? "text-rose-500" : "text-text-primary"}`}>
                                                                 {policy.label}
                                                             </p>
-                                                            <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5 leading-relaxed">
+                                                            <p className="text-[11px] text-text-tertiary mt-0.5 leading-relaxed">
                                                                 {policy.description}
                                                             </p>
                                                         </div>
                                                         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${refundPolicy === policy.id
                                                             ? "border-rose-500 bg-rose-500"
-                                                            : "border-[var(--border-default)]"
+                                                            : "border-border-default"
                                                             }`}>
                                                             {refundPolicy === policy.id && (
-                                                                <Check className="w-3 h-3 text-white" />
+                                                                <Check className="w-3 h-3 text-text-primary" />
                                                             )}
                                                         </div>
                                                     </button>
@@ -376,9 +376,9 @@ export default function CancelEventModal({
                                                 animate={{ opacity: 1, height: "auto" }}
                                                 className="overflow-hidden"
                                             >
-                                                <div className="p-5 rounded-[1.5rem] bg-[var(--surface-secondary)] border border-[var(--border-subtle)] space-y-3">
+                                                <div className="p-5 rounded-[1.5rem] bg-surface-secondary border border-border-subtle space-y-3">
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-[11px] font-bold text-[var(--text-primary)]">Refund Percentage</span>
+                                                        <span className="text-[11px] font-bold text-text-primary">Refund Percentage</span>
                                                         <span className="text-lg font-black text-rose-500">{partialPercent}%</span>
                                                     </div>
                                                     <input
@@ -388,9 +388,9 @@ export default function CancelEventModal({
                                                         step={5}
                                                         value={partialPercent}
                                                         onChange={(e) => setPartialPercent(Number(e.target.value))}
-                                                        className="w-full h-2 bg-[var(--surface-tertiary)] rounded-full appearance-none cursor-pointer accent-rose-500"
+                                                        className="w-full h-2 bg-surface-tertiary rounded-full appearance-none cursor-pointer accent-rose-500"
                                                     />
-                                                    <div className="flex justify-between text-[9px] font-bold text-[var(--text-tertiary)]">
+                                                    <div className="flex justify-between text-[9px] font-bold text-text-tertiary">
                                                         <span>10%</span>
                                                         <span>Est. refund: ₹{Math.round(totalRevenue * partialPercent / 100).toLocaleString("en-IN")}</span>
                                                         <span>90%</span>
@@ -402,8 +402,8 @@ export default function CancelEventModal({
                                         {/* Internal Notes */}
                                         <div className="space-y-2">
                                             <div className="flex items-center gap-2 px-1">
-                                                <MessageSquare className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">
+                                                <MessageSquare className="w-3.5 h-3.5 text-text-tertiary" />
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">
                                                     Internal Notes (Optional)
                                                 </p>
                                             </div>
@@ -411,7 +411,7 @@ export default function CancelEventModal({
                                                 value={notes}
                                                 onChange={(e) => setNotes(e.target.value)}
                                                 placeholder="Add internal notes for your team..."
-                                                className="w-full p-4 rounded-[1.25rem] bg-[var(--surface-secondary)] border border-[var(--border-subtle)] text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500/20 resize-none min-h-[60px]"
+                                                className="w-full p-4 rounded-[1.25rem] bg-surface-secondary border border-border-subtle text-[12px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500/20 resize-none min-h-[60px]"
                                             />
                                         </div>
                                     </motion.div>
@@ -437,25 +437,25 @@ export default function CancelEventModal({
 
                                             <div className="space-y-2.5 text-[12px]">
                                                 <div className="flex justify-between items-center py-2 border-b border-rose-500/10">
-                                                    <span className="text-[var(--text-secondary)]">Reason</span>
-                                                    <span className="font-bold text-[var(--text-primary)] text-right max-w-[250px] truncate">
+                                                    <span className="text-text-secondary">Reason</span>
+                                                    <span className="font-bold text-text-primary text-right max-w-[250px] truncate">
                                                         {displayReason}
                                                     </span>
                                                 </div>
                                                 <div className="flex justify-between items-center py-2 border-b border-rose-500/10">
-                                                    <span className="text-[var(--text-secondary)]">Tickets Affected</span>
-                                                    <span className="font-bold text-[var(--text-primary)]">{ticketsSold} tickets</span>
+                                                    <span className="text-text-secondary">Tickets Affected</span>
+                                                    <span className="font-bold text-text-primary">{ticketsSold} tickets</span>
                                                 </div>
                                                 <div className="flex justify-between items-center py-2 border-b border-rose-500/10">
-                                                    <span className="text-[var(--text-secondary)]">Refund Policy</span>
-                                                    <span className="font-bold text-[var(--text-primary)]">
+                                                    <span className="text-text-secondary">Refund Policy</span>
+                                                    <span className="font-bold text-text-primary">
                                                         {refundPolicy === "full" ? "Full Refund (100%)" :
                                                             refundPolicy === "partial" ? `Partial Refund (${partialPercent}%)` :
                                                                 "No Automatic Refund"}
                                                     </span>
                                                 </div>
                                                 <div className="flex justify-between items-center py-2">
-                                                    <span className="text-[var(--text-secondary)]">Est. Refund Amount</span>
+                                                    <span className="text-text-secondary">Est. Refund Amount</span>
                                                     <span className="font-black text-rose-500 text-base">
                                                         ₹{(refundPolicy === "full"
                                                             ? totalRevenue
@@ -470,11 +470,11 @@ export default function CancelEventModal({
 
                                         {/* Confirmation Input */}
                                         <div className="space-y-3">
-                                            <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
+                                            <p className="text-[12px] text-text-secondary leading-relaxed">
                                                 This action is <strong className="text-rose-500">irreversible</strong>. All ticket holders will be notified,
                                                 QR codes will be invalidated, and promoter links will be deactivated.
                                             </p>
-                                            <p className="text-[11px] font-bold text-[var(--text-primary)]">
+                                            <p className="text-[11px] font-bold text-text-primary">
                                                 Type <span className="text-rose-500 font-black tracking-[0.1em]">{confirmRequired}</span> to confirm:
                                             </p>
                                             <input
@@ -483,9 +483,9 @@ export default function CancelEventModal({
                                                 value={confirmText}
                                                 onChange={(e) => setConfirmText(e.target.value)}
                                                 placeholder={confirmRequired}
-                                                className={`w-full px-5 py-4 rounded-[1.25rem] bg-[var(--surface-secondary)] border-2 text-[14px] font-black tracking-[0.15em] uppercase text-center placeholder:text-[var(--text-tertiary)] focus:outline-none transition-all ${isConfirmValid
+                                                className={`w-full px-5 py-4 rounded-[1.25rem] bg-surface-secondary border-2 text-[14px] font-black tracking-[0.15em] uppercase text-center placeholder:text-text-tertiary focus:outline-none transition-all ${isConfirmValid
                                                     ? "border-rose-500 text-rose-500 focus:ring-4 focus:ring-rose-500/15"
-                                                    : "border-[var(--border-subtle)] text-[var(--text-primary)] focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500/20"
+                                                    : "border-border-subtle text-text-primary focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500/20"
                                                     }`}
                                             />
                                         </div>
@@ -506,7 +506,7 @@ export default function CancelEventModal({
                         </div>
 
                         {/* ── Footer ── */}
-                        <div className="px-10 py-6 border-t border-[var(--border-subtle)] bg-[var(--surface-secondary)] flex items-center justify-between">
+                        <div className="px-10 py-6 border-t border-border-subtle bg-surface-secondary flex items-center justify-between">
                             {/* Back button */}
                             <button
                                 onClick={() => {
@@ -515,7 +515,7 @@ export default function CancelEventModal({
                                     else onClose();
                                 }}
                                 disabled={isProcessing}
-                                className="px-6 py-3 rounded-xl text-[11px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                                className="px-6 py-3 rounded-xl text-[11px] font-bold text-text-secondary hover:text-text-primary transition-colors"
                             >
                                 {step === "reason" ? "Close" : "← Back"}
                             </button>
@@ -529,8 +529,8 @@ export default function CancelEventModal({
                                     }}
                                     disabled={!canProceedFromReason && step === "reason"}
                                     className={`px-8 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-[0.15em] transition-all ${canProceedFromReason || step === "policy"
-                                        ? "bg-[var(--text-primary)] text-[var(--text-inverse)] hover:opacity-90 active:scale-95"
-                                        : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] cursor-not-allowed"
+                                        ? "bg-text-primary text-text-inverse hover:opacity-90 active:scale-95"
+                                        : "bg-surface-tertiary text-text-tertiary cursor-not-allowed"
                                         }`}
                                 >
                                     Continue →
@@ -540,8 +540,8 @@ export default function CancelEventModal({
                                     onClick={handleConfirm}
                                     disabled={!isConfirmValid || isProcessing}
                                     className={`px-8 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-[0.15em] flex items-center gap-2.5 transition-all ${isConfirmValid && !isProcessing
-                                        ? "bg-rose-600 text-white hover:bg-rose-700 active:scale-95 shadow-xl shadow-rose-500/20"
-                                        : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] cursor-not-allowed"
+                                        ? "bg-rose-600 text-text-primary hover:bg-rose-700 active:scale-95 shadow-xl shadow-rose-500/20"
+                                        : "bg-surface-tertiary text-text-tertiary cursor-not-allowed"
                                         }`}
                                 >
                                     {isProcessing ? (

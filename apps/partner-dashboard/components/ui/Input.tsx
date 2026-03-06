@@ -49,23 +49,23 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
         <div className="relative group">
           {icon && iconPosition === "left" && (
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-placeholder)] group-focus-within:text-[var(--c1rcle-orange)] transition-colors">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-text-placeholder group-focus-within:text-c1rcle-orange transition-colors">
               {icon}
             </div>
           )}
           <input
             ref={ref}
             className={clsx(
-              "w-full bg-[var(--surface-secondary)] border text-[var(--text-primary)] placeholder:text-[var(--text-placeholder)] transition-all duration-200 outline-none",
+              "w-full bg-surface-secondary border text-text-primary placeholder:text-text-placeholder transition-all duration-200 outline-none",
               sizeStyles[inputSize],
               // Hover state
-              "hover:bg-[var(--surface-tertiary)] hover:border-[var(--border-default)]",
+              "hover:bg-surface-tertiary hover:border-border-default",
               // Focus state
-              "focus:bg-[var(--surface-base)] focus:border-[var(--c1rcle-orange)] focus:ring-3 focus:ring-[var(--c1rcle-orange-glow)]",
+              "focus:bg-surface-base focus:border-c1rcle-orange focus:ring-3 focus:ring-[var(--c1rcle-orange-glow)]",
               // Error state
               hasError
                 ? "border-[var(--state-error)] focus:border-[var(--state-error)] focus:ring-[var(--state-error-bg)]"
-                : "border-[var(--border-subtle)]",
+                : "border-border-subtle",
               // Icon padding
               icon && iconPosition === "left" && iconPadding[inputSize].left,
               icon && iconPosition === "right" && iconPadding[inputSize].right,
@@ -74,7 +74,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {...rest}
           />
           {icon && iconPosition === "right" && (
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-placeholder)] group-focus-within:text-[var(--c1rcle-orange)] transition-colors">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-text-placeholder group-focus-within:text-c1rcle-orange transition-colors">
               {icon}
             </div>
           )}
@@ -82,7 +82,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {(error || hint) && (
           <p className={clsx(
             "mt-2 text-[12px] font-medium",
-            hasError ? "text-[var(--state-error)]" : "text-[var(--text-tertiary)]"
+            hasError ? "text-red-500" : "text-text-tertiary"
           )}>
             {error || hint}
           </p>

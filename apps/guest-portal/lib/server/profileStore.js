@@ -47,7 +47,7 @@ export async function findUserByEmail(email) {
 export async function getUserEvents(profileUserId, viewerUserId) {
     if (!profileUserId) return { upcoming: [], attended: [] };
     if (!isFirebaseConfigured()) {
-        const { events } = require("../../data/events");
+        const { events } = await import("../../data/events.js");
         const mockEvents = (events || []).slice(0, 4).map((event, i) => ({
             eventId: event.id,
             title: event.title,
@@ -218,7 +218,7 @@ export async function getUserTickets(userId) {
     const userEmail = userProfile?.email;
 
     if (!isFirebaseConfigured()) {
-        const { events } = require("../../data/events");
+        const { events } = await import("../../data/events.js");
         const mockTickets = (events || []).slice(0, 4).map((event, i) => {
             const isRSVP = i % 2 !== 0;
             const isPast = i >= 2;

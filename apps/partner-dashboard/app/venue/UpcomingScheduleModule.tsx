@@ -22,10 +22,10 @@ export default function UpcomingScheduleModule() {
     return (
         <div className="card p-8 min-h-[400px]">
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-headline-sm text-[var(--text-primary)]">Upcoming Schedule</h2>
+                <h2 className="text-headline-sm text-text-primary">Upcoming Schedule</h2>
                 <Link
                     href="/venue/calendar"
-                    className="text-label text-[var(--c1rcle-orange)] hover:underline flex items-center gap-1"
+                    className="text-label text-c1rcle-orange hover:underline flex items-center gap-1"
                 >
                     View Calendar
                     <ArrowUpRight className="w-3 h-3" />
@@ -39,14 +39,14 @@ export default function UpcomingScheduleModule() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.05 }}
-                        className="p-5 rounded-2xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)] hover:border-[var(--border-default)] transition-all cursor-pointer group"
+                        className="p-5 rounded-2xl bg-surface-secondary border border-border-subtle hover:border-border-default transition-all cursor-pointer group"
                     >
-                        <p className="text-label-sm text-[var(--text-tertiary)] mb-2">
+                        <p className="text-label-sm text-text-tertiary mb-2">
                             {event.startDate ? new Date(event.startDate).toLocaleDateString('en-IN', {
                                 weekday: 'short', day: 'numeric', month: 'short'
                             }) : 'No Date'}
                         </p>
-                        <h4 className="text-title-sm text-[var(--text-primary)] line-clamp-1 mb-3 group-hover:text-[var(--c1rcle-orange)] transition-colors">
+                        <h4 className="text-title-sm text-text-primary line-clamp-1 mb-3 group-hover:text-c1rcle-orange transition-colors">
                             {event.title}
                         </h4>
                         <div className="flex items-center gap-2">
@@ -59,8 +59,8 @@ export default function UpcomingScheduleModule() {
 
             {events.length === 0 && (
                 <div className="py-12 text-center">
-                    <Calendar className="mx-auto mb-3 text-[var(--text-placeholder)]" size={32} />
-                    <p className="text-body-sm text-[var(--text-tertiary)]">No upcoming events scheduled</p>
+                    <Calendar className="mx-auto mb-3 text-text-placeholder" size={32} />
+                    <p className="text-body-sm text-text-tertiary">No upcoming events scheduled</p>
                 </div>
             )}
         </div>

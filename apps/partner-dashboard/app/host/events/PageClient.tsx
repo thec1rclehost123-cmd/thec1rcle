@@ -166,10 +166,10 @@ export default function HostEventsPage() {
                     useWindowScroll
                     data={filteredEvents}
                     components={{
-                        List: forwardRef((props, ref: any) => (
+                        List: forwardRef<HTMLDivElement>((props, ref) => (
                             <div {...props} ref={ref} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" />
                         )),
-                        Item: forwardRef((props, ref: any) => (
+                        Item: forwardRef<HTMLDivElement>((props, ref) => (
                             <div {...props} ref={ref} className="h-full w-full" />
                         ))
                     }}
@@ -219,7 +219,7 @@ function TabButton({ active, onClick, label, count }: {
         <button
             onClick={onClick}
             className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-all flex items-center gap-2 ${active
-                ? "bg-white text-[#1d1d1f] shadow-sm"
+                ? "bg-surface-elevated text-[#1d1d1f] shadow-sm"
                 : "text-[#86868b] hover:text-[#1d1d1f]"
                 }`}
         >

@@ -13,7 +13,7 @@ export default function VenueConnectionsPage() {
 
     return (
         <div className="flex items-center justify-center min-h-[50vh]">
-            <div className="text-slate-400">Redirecting...</div>
+            <div className="text-text-tertiary">Redirecting...</div>
         </div>
     );
 }

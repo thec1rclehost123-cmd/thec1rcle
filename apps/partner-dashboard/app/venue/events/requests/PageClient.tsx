@@ -230,7 +230,7 @@ export default function VenueEventRequestsPage() {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-all ${activeTab === tab.id
-                            ? "bg-white text-[#1d1d1f] shadow-sm"
+                            ? "bg-surface-elevated text-[#1d1d1f] shadow-sm"
                             : "text-[#86868b] hover:text-[#1d1d1f]"
                             }`}
                     >
@@ -387,7 +387,7 @@ export default function VenueEventRequestsPage() {
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl"
+                            className="bg-surface-elevated rounded-2xl p-6 max-w-md w-full shadow-xl"
                             onClick={e => e.stopPropagation()}
                         >
                             <h3 className="text-title mb-2">
@@ -417,7 +417,7 @@ export default function VenueEventRequestsPage() {
                                         : "Provide a reason or suggestion..."
                                 }
                                 rows={3}
-                                className="w-full px-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] resize-none focus:outline-none focus:border-[#007aff] focus:bg-white transition-all mb-4"
+                                className="w-full px-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] resize-none focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all mb-4"
                             />
 
                             <div className="flex gap-3">
@@ -436,7 +436,7 @@ export default function VenueEventRequestsPage() {
                                     className={`flex-1 btn ${actionModal.type === "approve"
                                         ? "btn-primary"
                                         : actionModal.type === "reject"
-                                            ? "bg-[#ff3b30] text-white hover:bg-[#ff3b30]/90"
+                                            ? "bg-[#ff3b30] text-text-primary hover:bg-[#ff3b30]/90"
                                             : "btn-primary"
                                         }`}
                                 >

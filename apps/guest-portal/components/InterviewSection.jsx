@@ -20,12 +20,21 @@ export default function InterviewSection({ interviews }) {
           <article key={item.slug} className={`flex flex-col gap-8 lg:items-center lg:gap-16 ${index % 2 === 1 ? "lg:flex-row-reverse" : "lg:flex-row"
             }`}>
             <div className="relative aspect-[4/3] flex-1 overflow-hidden rounded-[32px] border border-black/10 dark:border-white/10 bg-black/5 dark:bg-surface lg:aspect-[16/10]">
-              <Image
-                src={item.image}
-                alt={item.title}
-                fill
-                className="object-cover transition-transform duration-700 hover:scale-105"
-              />
+              {item.image.endsWith('.svg') ? (
+                <img
+                  src={item.image}
+                  alt={item.title}
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 hover:scale-105"
+                />
+              ) : (
+                <Image
+                  src={item.image}
+                  alt={item.title}
+                  fill
+                  className="object-cover transition-transform duration-700 hover:scale-105"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                />
+              )}
             </div>
 
             <div className="flex-1 space-y-6">

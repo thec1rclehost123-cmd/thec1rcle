@@ -29,11 +29,11 @@ export default function PayoutsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-4">
+                    <h1 className="text-4xl font-black text-text-primary tracking-tight flex items-center gap-4">
                         <Banknote className="w-10 h-10" />
                         Payouts & Revenue
                     </h1>
-                    <p className="text-slate-400 text-sm font-medium mt-2 uppercase tracking-widest">Tracking your earnings and bank transfers</p>
+                    <p className="text-text-tertiary text-sm font-medium mt-2 uppercase tracking-widest">Tracking your earnings and bank transfers</p>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -49,47 +49,47 @@ export default function PayoutsPage() {
 
             {/* Financial Overview */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white">
+                <div className="bg-surface-secondary p-8 rounded-[2.5rem] text-text-primary">
                     <p className="text-[10px] font-bold opacity-40 uppercase tracking-[0.2em] mb-4">Current Balance</p>
                     <div className="flex items-baseline gap-2">
                         <h2 className="text-4xl font-black tracking-tight">₹48,200</h2>
-                        <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Settling in 2d</span>
+                        <span className="text-[10px] font-black text-c1rcle-orange uppercase tracking-widest">Settling in 2d</span>
                     </div>
                 </div>
 
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Total Settled (Jan)</p>
+                <div className="bg-surface-elevated p-8 rounded-[2.5rem] border border-border-subtle shadow-sm">
+                    <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-[0.2em] mb-4">Total Settled (Jan)</p>
                     <div className="flex items-baseline gap-2">
-                        <h2 className="text-4xl font-black text-slate-900 tracking-tight">₹2,35,500</h2>
+                        <h2 className="text-4xl font-black text-text-primary tracking-tight">₹2,35,500</h2>
                         <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">+12% vs Dec</span>
                     </div>
                 </div>
 
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Active Bank Account</p>
+                <div className="bg-surface-elevated p-8 rounded-[2.5rem] border border-border-subtle shadow-sm">
+                    <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-[0.2em] mb-4">Active Bank Account</p>
                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center">
-                            <CreditCard className="w-5 h-5 text-slate-400" />
+                        <div className="w-10 h-10 bg-surface-tertiary rounded-xl flex items-center justify-center">
+                            <CreditCard className="w-5 h-5 text-text-tertiary" />
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-slate-900">HDFC BANK LTD</p>
-                            <p className="text-[10px] font-medium text-slate-400">•••• 8821</p>
+                            <p className="text-sm font-bold text-text-primary">HDFC BANK LTD</p>
+                            <p className="text-[10px] font-medium text-text-tertiary">•••• 8821</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Payout History */}
-            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="bg-surface-elevated rounded-[2.5rem] border border-border-subtle shadow-sm overflow-hidden">
                 <div className="p-8 border-b border-slate-50 flex items-center justify-between">
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                        <History className="w-4 h-4 text-slate-300" />
+                    <h3 className="text-sm font-black text-text-primary uppercase tracking-widest flex items-center gap-2">
+                        <History className="w-4 h-4 text-text-placeholder" />
                         Transfer History
                     </h3>
                     <div className="flex items-center gap-2">
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
-                            <input type="text" placeholder="Search by ID..." className="pl-9 pr-4 py-2 bg-slate-50 border-none rounded-xl text-[11px] font-medium w-48 focus:ring-1 focus:ring-indigo-100 outline-none" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-placeholder" />
+                            <input type="text" placeholder="Search by ID..." className="pl-9 pr-4 py-2 bg-surface-tertiary border-none rounded-xl text-[11px] font-medium w-48 focus:ring-1 focus:ring-indigo-100 outline-none" />
                         </div>
                     </div>
                 </div>
@@ -97,32 +97,32 @@ export default function PayoutsPage() {
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
-                            <tr className="bg-slate-50/50 text-left">
-                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Payout ID</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Destination</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Invoice</th>
+                            <tr className="bg-surface-tertiary/50 text-left">
+                                <th className="px-8 py-5 text-[10px] font-black text-text-tertiary uppercase tracking-widest">Payout ID</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-text-tertiary uppercase tracking-widest">Date</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-text-tertiary uppercase tracking-widest">Amount</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-text-tertiary uppercase tracking-widest">Destination</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-text-tertiary uppercase tracking-widest">Status</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-text-tertiary uppercase tracking-widest text-right">Invoice</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {payouts.map((p) => (
-                                <tr key={p.id} className="group hover:bg-slate-50/50 transition-all">
+                                <tr key={p.id} className="group hover:bg-surface-tertiary/50 transition-all">
                                     <td className="px-8 py-6">
-                                        <span className="text-xs font-bold text-slate-900">#{p.id}</span>
+                                        <span className="text-xs font-bold text-text-primary">#{p.id}</span>
                                     </td>
                                     <td className="px-8 py-6">
-                                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                                        <div className="flex items-center gap-2 text-xs font-bold text-text-tertiary">
                                             <Clock className="w-3.5 h-3.5" />
                                             {p.date}
                                         </div>
                                     </td>
                                     <td className="px-8 py-6">
-                                        <span className="text-sm font-black text-slate-900">₹{p.amount.toLocaleString()}</span>
+                                        <span className="text-sm font-black text-text-primary">₹{p.amount.toLocaleString()}</span>
                                     </td>
                                     <td className="px-8 py-6">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded">{p.account}</span>
+                                        <span className="text-[10px] font-black text-text-tertiary uppercase tracking-widest bg-surface-tertiary px-2 py-1 rounded">{p.account}</span>
                                     </td>
                                     <td className="px-8 py-6">
                                         <div className="flex items-center gap-2">
@@ -140,7 +140,7 @@ export default function PayoutsPage() {
                                         </div>
                                     </td>
                                     <td className="px-8 py-6 text-right">
-                                        <button className="p-2 text-slate-300 hover:text-indigo-500 transition-colors">
+                                        <button className="p-2 text-text-placeholder hover:text-indigo-500 transition-colors">
                                             <Download className="w-4 h-4" />
                                         </button>
                                     </td>

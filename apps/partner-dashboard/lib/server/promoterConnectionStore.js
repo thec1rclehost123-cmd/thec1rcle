@@ -46,11 +46,13 @@ export async function listIncomingRequests(targetId, role, status = null, token)
     }
 }
 
-export async function approveConnectionRequest(id, approver, token) {
+export async function approveConnectionRequest(id, approver, token, tier) {
     const client = getApiClient(token);
+    const body = { action: 'approve' };
+    if (tier) body.tier = tier;
     return client.request(`/promoter-connections/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ action: 'approve' })
+        body: JSON.stringify(body)
     });
 }
 

@@ -324,6 +324,7 @@ export default function EditProfileModal({ open, onClose }) {
                                                                     src={imagePreview || formData.photoURL}
                                                                     alt="Profile preview"
                                                                     fill
+                                                                    sizes="112px"
                                                                     className="object-cover transition-transform duration-500 hover:scale-110"
                                                                 />
                                                             ) : (

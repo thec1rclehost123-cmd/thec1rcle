@@ -72,8 +72,8 @@ export default function HostEventDetailPage() {
     if (isLoading) {
         return (
             <div className="py-24 flex flex-col items-center justify-center">
-                <Loader2 className="h-10 w-10 text-slate-200 animate-spin mb-4" />
-                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Assembling Records...</p>
+                <Loader2 className="h-10 w-10 text-text-placeholder animate-spin mb-4" />
+                <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Assembling Records...</p>
             </div>
         );
     }
@@ -97,17 +97,17 @@ export default function HostEventDetailPage() {
                 <div className="flex items-center gap-6">
                     <button
                         onClick={() => router.back()}
-                        className="p-4 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-all shadow-sm"
+                        className="p-4 bg-surface-elevated border border-border-default rounded-2xl hover:bg-surface-tertiary transition-all shadow-sm"
                     >
                         <ChevronLeft className="h-5 w-5" />
                     </button>
                     <div>
                         <div className="flex items-center gap-3 mb-2">
                             <EventBadge lifecycle={event.lifecycle} />
-                            <span className="text-slate-300">•</span>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{event.date}</span>
+                            <span className="text-text-placeholder">•</span>
+                            <span className="text-[10px] font-black text-text-tertiary uppercase tracking-widest">{event.date}</span>
                         </div>
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase leading-none">{event.title || event.name}</h1>
+                        <h1 className="text-3xl font-black text-text-primary tracking-tight uppercase leading-none">{event.title || event.name}</h1>
                     </div>
                 </div>
 
@@ -115,24 +115,24 @@ export default function HostEventDetailPage() {
                     {!isLocked ? (
                         <Link
                             href={`/host/create?id=${id}`}
-                            className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl text-sm font-bold shadow-xl hover:bg-slate-800 transition-all"
+                            className="flex items-center gap-3 px-8 py-4 bg-surface-secondary text-text-primary rounded-2xl text-sm font-bold shadow-xl hover:bg-surface-tertiary transition-all"
                         >
                             <Edit className="h-5 w-5" />
                             Continue Setup
                         </Link>
                     ) : (
-                        <div className="flex items-center gap-3 px-8 py-4 bg-slate-50 border border-slate-200 text-slate-400 rounded-2xl text-sm font-bold cursor-not-allowed">
+                        <div className="flex items-center gap-3 px-8 py-4 bg-surface-tertiary border border-border-default text-text-tertiary rounded-2xl text-sm font-bold cursor-not-allowed">
                             <Lock className="h-5 w-5" />
                             Editing Locked
                         </div>
                     )}
-                    <button className="p-4 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-all shadow-sm">
-                        <Share2 className="h-5 w-5 text-slate-400" />
+                    <button className="p-4 bg-surface-elevated border border-border-default rounded-2xl hover:bg-surface-tertiary transition-all shadow-sm">
+                        <Share2 className="h-5 w-5 text-text-tertiary" />
                     </button>
                     <a
                         href={`https://thec1rcle.in/e/${id}`}
                         target="_blank"
-                        className="p-4 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-all shadow-sm text-slate-400"
+                        className="p-4 bg-surface-elevated border border-border-default rounded-2xl hover:bg-surface-tertiary transition-all shadow-sm text-text-tertiary"
                     >
                         <ArrowUpRight className="h-5 w-5" />
                     </a>
@@ -142,7 +142,7 @@ export default function HostEventDetailPage() {
             {/* Rejection Alert */}
             {isRejected && (
                 <div className="bg-rose-50 border border-rose-100 rounded-[2.5rem] p-10 flex flex-col md:flex-row items-center gap-8 animate-in slide-in-from-top-4 duration-500">
-                    <div className="h-16 w-16 bg-rose-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-rose-100">
+                    <div className="h-16 w-16 bg-rose-600 rounded-2xl flex items-center justify-center text-text-primary shadow-xl shadow-rose-100">
                         <ShieldAlert className="h-8 w-8" />
                     </div>
                     <div className="flex-1">
@@ -153,7 +153,7 @@ export default function HostEventDetailPage() {
                     </div>
                     <Link
                         href={`/host/create?id=${id}`}
-                        className="px-8 py-4 bg-rose-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-rose-900/20"
+                        className="px-8 py-4 bg-rose-900 text-text-primary rounded-2xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-rose-900/20"
                     >
                         Resolve & Resubmit
                     </Link>
@@ -164,12 +164,12 @@ export default function HostEventDetailPage() {
             <SurgeMonitor eventId={id} />
 
             {/* Status Panel */}
-            <div className="bg-white rounded-[2.5rem] border border-slate-200 p-10 shadow-sm overflow-hidden relative">
+            <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm overflow-hidden relative">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-10">
                     <div className="flex-1 space-y-8">
                         <div>
-                            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">Production Status</h3>
-                            <p className="text-slate-500 text-sm font-medium">Tracking the lifecycle of your event from draft to performance.</p>
+                            <h3 className="text-xl font-black text-text-primary uppercase tracking-tight mb-2">Production Status</h3>
+                            <p className="text-text-tertiary text-sm font-medium">Tracking the lifecycle of your event from draft to performance.</p>
                         </div>
                         <div className="flex flex-col md:flex-row gap-8">
                             <Metric value={stats?.total || 0} label="Tickets Authorized" icon={Ticket} color="indigo" />
@@ -178,8 +178,8 @@ export default function HostEventDetailPage() {
                         </div>
                     </div>
 
-                    <div className="w-full md:w-80 bg-slate-50 rounded-3xl p-8 border border-slate-100">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+                    <div className="w-full md:w-80 bg-surface-tertiary rounded-3xl p-8 border border-border-subtle">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-6 flex items-center gap-2">
                             <Clock className="w-4 h-4" /> Logistics Snapshot
                         </h4>
                         <div className="space-y-6">
@@ -192,11 +192,11 @@ export default function HostEventDetailPage() {
             </div>
 
             {/* Quick Insights List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-white">
-                <div className="bg-slate-900 rounded-[2.5rem] p-10 shadow-2xl shadow-slate-200 flex flex-col justify-between">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-text-primary">
+                <div className="bg-surface-secondary rounded-[2.5rem] p-10 shadow-2xl shadow-slate-200 flex flex-col justify-between">
                     <div>
                         <h3 className="text-xl font-black uppercase tracking-tight opacity-60 mb-6">Promoter Pulse</h3>
-                        <p className="text-white/40 text-sm leading-relaxed mb-8 font-medium italic">
+                        <p className="text-text-primary/40 text-sm leading-relaxed mb-8 font-medium italic">
                             "Current demand is high among your connected promoter network. Expect peak scan velocity 2 hours into doors."
                         </p>
                     </div>
@@ -208,7 +208,7 @@ export default function HostEventDetailPage() {
                 <div className="bg-indigo-600 rounded-[2.5rem] p-10 shadow-2xl shadow-indigo-100 flex flex-col justify-between">
                     <div>
                         <h3 className="text-xl font-black uppercase tracking-tight opacity-60 mb-6">Financial Audit</h3>
-                        <p className="text-white/60 text-sm font-medium leading-relaxed mb-8">
+                        <p className="text-text-primary/60 text-sm font-medium leading-relaxed mb-8">
                             Reports are synchronized with the primary ledger. Final settlement will trigger post-event audit.
                         </p>
                     </div>
@@ -219,14 +219,14 @@ export default function HostEventDetailPage() {
             </div>
 
             {/* Audit Trail Section */}
-            <div className="bg-white rounded-[2.5rem] border border-slate-200 p-10 shadow-sm">
+            <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm">
                 <div className="flex items-center gap-3 mb-8">
                     <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-600">
                         <HistoryIcon className="h-5 w-5" />
                     </div>
                     <div>
-                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Event Activity Log</h3>
-                        <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Chronological Immutable Audit Trail</p>
+                        <h3 className="text-xl font-black text-text-primary uppercase tracking-tight">Event Activity Log</h3>
+                        <p className="text-text-tertiary text-[10px] font-black uppercase tracking-widest">Chronological Immutable Audit Trail</p>
                     </div>
                 </div>
                 <AuditTrail entries={event.auditTrail} />
@@ -241,7 +241,7 @@ function EventBadge({ lifecycle }: { lifecycle: string }) {
         scheduled: { bg: "bg-indigo-50", text: "text-indigo-600", dot: "bg-indigo-400" },
         approved: { bg: "bg-indigo-50", text: "text-indigo-600", dot: "bg-indigo-400" },
         submitted: { bg: "bg-amber-50", text: "text-amber-600", dot: "bg-amber-400" },
-        draft: { bg: "bg-slate-50", text: "text-slate-400", dot: "bg-slate-200" },
+        draft: { bg: "bg-surface-tertiary", text: "text-text-tertiary", dot: "bg-surface-tertiary" },
         rejected: { bg: "bg-rose-50", text: "text-rose-600", dot: "bg-rose-400" },
         needs_changes: { bg: "bg-rose-50", text: "text-rose-600", dot: "bg-rose-400" }
     };
@@ -264,12 +264,12 @@ function Metric({ value, label, icon: Icon, color }: any) {
     };
 
     return (
-        <div className="flex-1 p-6 rounded-3xl border border-slate-50 hover:border-slate-100 transition-all group">
+        <div className="flex-1 p-6 rounded-3xl border border-slate-50 hover:border-border-subtle transition-all group">
             <div className={`h-10 w-10 rounded-xl ${colors[color]} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                 <Icon className="h-5 w-5" />
             </div>
-            <p className="text-3xl font-black text-slate-900 tracking-tighter mb-1">{value}</p>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight">{label}</p>
+            <p className="text-3xl font-black text-text-primary tracking-tighter mb-1">{value}</p>
+            <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest leading-tight">{label}</p>
         </div>
     );
 }
@@ -277,8 +277,8 @@ function Metric({ value, label, icon: Icon, color }: any) {
 function LogItem({ label, value }: { label: string; value: string }) {
     return (
         <div className="flex items-center justify-between gap-4">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
-            <p className="text-xs font-bold text-slate-900 text-right truncate">{value}</p>
+            <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest">{label}</p>
+            <p className="text-xs font-bold text-text-primary text-right truncate">{value}</p>
         </div>
     );
 }
