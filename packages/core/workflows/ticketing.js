@@ -3,6 +3,30 @@ import { getAdminDb } from "../admin.js";
 import { generateEntitlementQR, issueEntitlements } from "../entitlement-engine.js";
 
 /**
+ * Dead-letter handler: called after a ticketing workflow exhausts all retries.
+ * Writes a record to `fulfillment_failures` so ops can observe and reprocess.
+ */
+export const handleTicketFulfillmentFailure = inngest.createFunction(
+    { id: "ticket-fulfillment-on-failure" },
+    { event: "inngest/function.failed" },
+    async ({ event }) => {
+        if (event.data.function_id !== "ticket-fulfillment-pipeline") return;
+        const db = getAdminDb();
+        const { orderId, eventId, userId } = event.data.event?.data || {};
+        await db.collection("fulfillment_failures").add({
+            functionId: event.data.function_id,
+            runId: event.data.run_id,
+            orderId: orderId ?? null,
+            eventId: eventId ?? null,
+            userId: userId ?? null,
+            error: event.data.error?.message ?? "unknown",
+            failedAt: new Date().toISOString(),
+            status: "pending_review"
+        });
+    }
+);
+
+/**
  * PRODUCTION WORKFLOW: Ticket Fulfillment Pipeline
  * 
  * Triggered after payment confirmation. Handles all post-purchase work:

@@ -47,11 +47,27 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function EventManagementPage() {
     const { id } = useParams();
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
     const role = profile?.activeMembership?.role || 'owner'; // Fallback for safety
     const router = useRouter();
 
     const queryClient = useQueryClient();
+
+    // Helper for authenticated API calls
+    const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+        if (!user) {
+            console.error("[EventManagement] authedFetch called without user");
+            throw new Error("Not authenticated");
+        }
+        const token = await user.getIdToken(true);
+        return fetch(url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                "Authorization": `Bearer ${token}`,
+            },
+        });
+    }, [user]);
 
     const [activeTab, setActiveTab] = useState("overview"); // overview, guestlist, promoters, settings
     const [isUpdating, setIsUpdating] = useState(false);
@@ -82,24 +98,24 @@ export default function EventManagementPage() {
     const { data: eventData, isLoading: isEventLoading } = useQuery({
         queryKey: ["event", id],
         queryFn: async () => {
-            const res = await fetch(`/api/events/${id}`);
+            const res = await authedFetch(`/api/events/${id}`);
             if (!res.ok) throw new Error("Failed to fetch event");
             const data = await res.json();
             return data.event;
         },
-        enabled: !!id,
+        enabled: !!id && !!user,
     });
 
     // Promoters Query
     const { data: promoters = [], isLoading: isPromotersLoading } = useQuery({
         queryKey: ["event", id, "promoters"],
         queryFn: async () => {
-            const res = await fetch(`/api/events/${id}/promoters`);
+            const res = await authedFetch(`/api/events/${id}/promoters`);
             if (!res.ok) throw new Error("Failed to fetch promoters");
             const data = await res.json();
             return data.promoters || [];
         },
-        enabled: !!id,
+        enabled: !!id && !!user,
     });
 
     // Guestlist Query
@@ -117,12 +133,12 @@ export default function EventManagementPage() {
             if (pageParam) {
                 url += `&cursor=${pageParam}`;
             }
-            const res = await fetch(url);
+            const res = await authedFetch(url);
             if (!res.ok) throw new Error("Failed to fetch guestlist");
             return await res.json();
         },
         getNextPageParam: (lastPage) => lastPage.nextCursor || null,
-        enabled: !!id,
+        enabled: !!id && !!user,
     });
 
     const guestlist = useMemo(() => {

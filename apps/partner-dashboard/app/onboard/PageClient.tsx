@@ -182,7 +182,7 @@ function OnboardingContent() {
                     {["role", "details", "success"].map((s, i) => (
                         <div key={s} className="flex items-center gap-4">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold transition-all ${step === s
-                                ? "bg-[var(--c1rcle-orange)] text-white"
+                                ? "bg-[var(--accent-primary)] text-white"
                                 : ["role", "details", "success"].indexOf(step) > i
                                     ? "bg-[var(--state-success)] text-white"
                                     : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]"
@@ -211,7 +211,7 @@ function OnboardingContent() {
                             transition={{ duration: 0.3 }}
                         >
                             <div className="mb-10">
-                                <p className="text-label text-[var(--c1rcle-orange)] mb-2">STEP 01 — SELECT ROLE</p>
+                                <p className="text-label text-[var(--accent-primary)] mb-2">STEP 01 — SELECT ROLE</p>
                                 <h1 className="text-display-sm text-[var(--text-primary)] mb-3">Join the Network</h1>
                                 <p className="text-body text-[var(--text-secondary)]">
                                     Select your operational role to begin the onboarding process.
@@ -244,7 +244,7 @@ function OnboardingContent() {
 
                             <button
                                 onClick={() => setStep("details")}
-                                className="w-full bg-[var(--c1rcle-orange)] text-white h-14 rounded-2xl font-semibold text-[14px] hover:brightness-110 transition-all flex items-center justify-center gap-3 shadow-lg shadow-[var(--c1rcle-orange)]/20"
+                                className="w-full bg-[var(--accent-primary)] text-white h-14 rounded-2xl font-semibold text-[14px] hover:brightness-110 transition-all flex items-center justify-center gap-3 shadow-lg shadow-[var(--accent-primary)]/20"
                             >
                                 Continue to Details
                                 <ChevronRight className="h-5 w-5" />
@@ -261,7 +261,7 @@ function OnboardingContent() {
                             transition={{ duration: 0.3 }}
                         >
                             <div className="mb-10">
-                                <p className="text-label text-[var(--c1rcle-orange)] mb-2">STEP 02 — YOUR DETAILS</p>
+                                <p className="text-label text-[var(--accent-primary)] mb-2">STEP 02 — YOUR DETAILS</p>
                                 <h1 className="text-display-sm text-[var(--text-primary)] mb-3">
                                     {partnerType === 'venue' ? 'Venue Registration' :
                                         partnerType === 'host' ? 'Host Profile' : 'Promoter Enrollment'}
@@ -461,7 +461,7 @@ function OnboardingContent() {
                                                     value={formData.bio}
                                                     onChange={handleInputChange}
                                                     placeholder="Tell us about your reach, experience, and what you're looking for..."
-                                                    className="w-full bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-placeholder)] focus:bg-[var(--surface-base)] focus:border-[var(--c1rcle-orange)] focus:ring-3 focus:ring-[var(--c1rcle-orange-glow)] transition-all outline-none min-h-[120px] resize-none"
+                                                    className="w-full bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-placeholder)] focus:bg-[var(--surface-base)] focus:border-[var(--accent-primary)] focus:ring-3 focus:ring-[var(--accent-glow)] transition-all outline-none min-h-[120px] resize-none"
                                                     required
                                                 />
                                             </div>
@@ -472,7 +472,7 @@ function OnboardingContent() {
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="w-full bg-[var(--c1rcle-orange)] text-white h-14 rounded-2xl font-semibold text-[14px] hover:brightness-110 transition-all flex items-center justify-center gap-3 shadow-lg shadow-[var(--c1rcle-orange)]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full bg-[var(--accent-primary)] text-white h-14 rounded-2xl font-semibold text-[14px] hover:brightness-110 transition-all flex items-center justify-center gap-3 shadow-lg shadow-[var(--accent-primary)]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {loading ? (
                                         <>
@@ -514,7 +514,7 @@ function OnboardingContent() {
                             </p>
 
                             <div className="p-6 rounded-2xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)] mb-10 flex items-start gap-4 text-left">
-                                <ShieldCheck className="h-6 w-6 text-[var(--c1rcle-orange)] flex-shrink-0" />
+                                <ShieldCheck className="h-6 w-6 text-[var(--accent-primary)] flex-shrink-0" />
                                 <div>
                                     <p className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">What Happens Next?</p>
                                     <p className="text-[13px] text-[var(--text-tertiary)] leading-relaxed">
@@ -530,7 +530,7 @@ function OnboardingContent() {
                                     }
                                     router.push('/login');
                                 }}
-                                className="inline-flex items-center gap-2 text-[var(--c1rcle-orange)] font-semibold text-[14px] hover:underline"
+                                className="inline-flex items-center gap-2 text-[var(--accent-primary)] font-semibold text-[14px] hover:underline"
                             >
                                 Return to Login
                                 <ChevronRight className="h-4 w-4" />
@@ -548,7 +548,7 @@ export default function OnboardingPage() {
         <Suspense fallback={
             <div className="min-h-screen flex items-center justify-center bg-[var(--surface-base)]">
                 <div className="flex flex-col items-center gap-4">
-                    <div className="h-10 w-10 border-3 border-[var(--c1rcle-orange)]/30 border-t-[var(--c1rcle-orange)] rounded-full animate-spin" />
+                    <div className="h-10 w-10 border-3 border-[var(--accent-primary)]/30 border-t-[var(--accent-primary)] rounded-full animate-spin" />
                     <p className="text-[14px] font-medium text-[var(--text-tertiary)]">Loading...</p>
                 </div>
             </div>
@@ -592,7 +592,7 @@ function RoleCard({ icon: Icon, title, description, active, onClick }: {
                     </p>
                 </div>
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${active
-                    ? 'border-[var(--c1rcle-orange)] bg-[var(--c1rcle-orange)]'
+                    ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]'
                     : 'border-[var(--border-default)]'
                     }`}>
                     {active && <div className="w-2 h-2 rounded-full bg-white" />}
@@ -609,11 +609,11 @@ function FormInput({ label, icon: Icon, ...props }: any) {
             <label className="input-label">{label}</label>
             <div className="relative group">
                 {Icon && (
-                    <Icon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-placeholder)] group-focus-within:text-[var(--c1rcle-orange)] transition-colors" />
+                    <Icon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-placeholder)] group-focus-within:text-[var(--accent-primary)] transition-colors" />
                 )}
                 <input
                     className={`w-full bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-placeholder)] transition-all outline-none ${Icon ? 'pl-12 pr-4' : 'px-4'
-                        } py-3.5 hover:border-[var(--border-default)] focus:bg-[var(--surface-base)] focus:border-[var(--c1rcle-orange)] focus:ring-3 focus:ring-[var(--c1rcle-orange-glow)]`}
+                        } py-3.5 hover:border-[var(--border-default)] focus:bg-[var(--surface-base)] focus:border-[var(--accent-primary)] focus:ring-3 focus:ring-[var(--accent-glow)]`}
                     {...props}
                 />
             </div>
@@ -628,7 +628,7 @@ function FormSelect({ label, options, ...props }: any) {
             <label className="input-label">{label}</label>
             <div className="relative">
                 <select
-                    className="w-full bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3.5 text-[14px] text-[var(--text-primary)] appearance-none cursor-pointer transition-all outline-none hover:border-[var(--border-default)] focus:bg-[var(--surface-base)] focus:border-[var(--c1rcle-orange)] focus:ring-3 focus:ring-[var(--c1rcle-orange-glow)]"
+                    className="w-full bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3.5 text-[14px] text-[var(--text-primary)] appearance-none cursor-pointer transition-all outline-none hover:border-[var(--border-default)] focus:bg-[var(--surface-base)] focus:border-[var(--accent-primary)] focus:ring-3 focus:ring-[var(--accent-glow)]"
                     {...props}
                 >
                     {options.map((opt: { value: string; label: string }) => (

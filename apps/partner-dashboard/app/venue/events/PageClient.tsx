@@ -330,12 +330,12 @@ export default function EventsManagementPage() {
             {/* Stats Overview */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 {[
-                    { label: "Live Now", value: liveEvents, icon: Play, color: "text-c1rcle-orange", bg: "bg-green-500/10" },
+                    { label: "Live Now", value: liveEvents, icon: Play, color: "text-accent-primary", bg: "bg-green-500/10" },
                     { label: "Requests", value: pendingApprovals, icon: AlertCircle, color: "text-yellow-500", bg: "bg-yellow-500/10" },
                     { label: "Published", value: publishedEvents, icon: CheckCircle2, color: "text-blue-500", bg: "bg-blue-500/10" },
                     { label: "Your Drafts", value: draftEvents, icon: Edit, color: "text-text-tertiary", bg: "bg-surface-tertiary" },
                     { label: "Past Events", value: completedThisMonth, icon: Calendar, color: "text-purple-500", bg: "bg-purple-500/10" },
-                    { label: "Revenue", value: `₹${(events.reduce((sum, e) => sum + (e.revenue || 0), 0) / 100000).toFixed(1)}L`, icon: DollarSign, color: "text-c1rcle-orange", bg: "bg-c1rcle-orange-glow" },
+                    { label: "Revenue", value: `₹${(events.reduce((sum, e) => sum + (e.revenue || 0), 0) / 100000).toFixed(1)}L`, icon: DollarSign, color: "text-accent-primary", bg: "bg-accent-glow" },
                 ].map((stat, i) => (
                     <div key={i} className="card p-5 transition-all hover:shadow-md group">
                         <div className={`w-10 h-10 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center mb-3 transition-transform group-hover:scale-110`}>
@@ -383,7 +383,7 @@ export default function EventsManagementPage() {
             <div className="space-y-4">
                 {loading ? (
                     <div className="card p-20 text-center">
-                        <Loader2 className="h-10 w-10 text-c1rcle-orange mx-auto mb-4 animate-spin" />
+                        <Loader2 className="h-10 w-10 text-accent-primary mx-auto mb-4 animate-spin" />
                         <p className="text-label text-text-tertiary">Synchronizing Events...</p>
                     </div>
                 ) : filteredEvents.length === 0 ? (
@@ -397,7 +397,7 @@ export default function EventsManagementPage() {
                         </p>
                         <button
                             onClick={() => { setFilter("all"); setSearchQuery(""); }}
-                            className="mt-6 text-c1rcle-orange font-semibold text-sm hover:underline"
+                            className="mt-6 text-accent-primary font-semibold text-sm hover:underline"
                         >
                             Reset all filters
                         </button>

@@ -149,10 +149,28 @@ export async function createRSVPOrder(payload) {
         // MONEY LEDGER INTEGRATION (₹0 RSVP) - ATOMIC
         await recordOrderCaptured(rsvpOrder, "INTERNAL_RSVP", transaction);
         await holdOrderRevenue(rsvpOrder, transaction);
-
-        // ENTITLEMENT ENGINE INTEGRATION (TRUTH)
-        await issueEntitlements(rsvpOrder, rsvpOrder.tickets, transaction);
     });
+
+    // Issue entitlements after transaction commits (keeps transaction boundary small)
+    try {
+        await issueEntitlements(rsvpOrder, rsvpOrder.tickets);
+    } catch (err) {
+        console.error("[OrderStore] Failed to issue entitlements for RSVP:", err);
+        try {
+            await db.collection("entitlement_outbox").add({
+                orderId: rsvpOrder.id,
+                userId: rsvpOrder.userId,
+                eventId: rsvpOrder.eventId,
+                tickets: rsvpOrder.tickets,
+                status: "pending",
+                error: err.message,
+                retryCount: 0,
+                createdAt: new Date().toISOString()
+            });
+        } catch (outboxErr) {
+            console.error("[OrderStore] Failed to write entitlement outbox:", outboxErr);
+        }
+    }
 
     // Record promoter conversion for RSVP
     if (promoterLinkId) {
@@ -395,9 +413,6 @@ export async function createOrder(payload) {
                 // Free tickets/Auto-confirmed
                 await recordOrderCaptured(order, "INTERNAL_FREE", transaction);
                 await holdOrderRevenue(order, transaction);
-
-                // ENTITLEMENT ENGINE INTEGRATION (TRUTH)
-                await issueEntitlements(order, order.tickets, transaction);
             } else {
                 // Paid tickets awaiting payment
                 await recordOrderAuthorized(order, null, transaction);
@@ -405,6 +420,29 @@ export async function createOrder(payload) {
         });
 
         console.log(`Order created successfully: ${orderId}`);
+
+        // Issue entitlements after transaction commits (keeps transaction boundary small)
+        if (order.status === "confirmed") {
+            try {
+                await issueEntitlements(order, order.tickets);
+            } catch (err) {
+                console.error("[OrderStore] Failed to issue entitlements for free order:", err);
+                try {
+                    await db.collection("entitlement_outbox").add({
+                        orderId,
+                        userId: order.userId,
+                        eventId: order.eventId,
+                        tickets: order.tickets,
+                        status: "pending",
+                        error: err.message,
+                        retryCount: 0,
+                        createdAt: new Date().toISOString()
+                    });
+                } catch (outboxErr) {
+                    console.error("[OrderStore] Failed to write entitlement outbox:", outboxErr);
+                }
+            }
+        }
 
 
         // If the order is confirmed (e.g., free tickets), record the promoter conversion and promo redemptions immediately
@@ -417,6 +455,16 @@ export async function createOrder(payload) {
                     console.log(`[OrderStore] Promoter conversion recorded for order ${order.id}`);
                 } catch (err) {
                     console.error("[OrderStore] Failed to record promoter conversion:", err);
+                    try {
+                        await db.collection("promoter_conversion_outbox").add({
+                            orderId: order.id, userId: order.userId, eventId: order.eventId,
+                            promoterLinkId, totalAmount: order.totalAmount,
+                            status: "pending", error: err.message, retryCount: 0,
+                            createdAt: new Date().toISOString()
+                        });
+                    } catch (outboxErr) {
+                        console.error("[OrderStore] Failed to write promoter_conversion_outbox:", outboxErr);
+                    }
                 }
             }
 
@@ -429,6 +477,16 @@ export async function createOrder(payload) {
                     console.log(`[OrderStore] Promo redemption recorded for order ${order.id}`);
                 } catch (err) {
                     console.error("[OrderStore] Failed to record promo redemption:", err);
+                    try {
+                        await db.collection("promo_redemption_outbox").add({
+                            orderId: order.id, userId: order.userId, eventId: order.eventId,
+                            promoCodeId: order.promoCodeId, discountAmount: order.discountAmount,
+                            status: "pending", error: err.message, retryCount: 0,
+                            createdAt: new Date().toISOString()
+                        });
+                    } catch (outboxErr) {
+                        console.error("[OrderStore] Failed to write promo_redemption_outbox:", outboxErr);
+                    }
                 }
             }
 
@@ -455,6 +513,20 @@ export async function createOrder(payload) {
                 console.log(`[OrderStore] Auto-created share bundles for confirmed order ${order.id}`);
             } catch (err) {
                 console.error("[OrderStore] Failed to auto-create share bundles:", err);
+                try {
+                    await getAdminDb().collection("share_bundle_outbox").add({
+                        orderId: order.id,
+                        userId: order.userId,
+                        eventId: order.eventId,
+                        tickets: order.tickets,
+                        status: "pending",
+                        error: err.message,
+                        retryCount: 0,
+                        createdAt: new Date().toISOString()
+                    });
+                } catch (outboxErr) {
+                    console.error("[OrderStore] Failed to write share bundle outbox:", outboxErr);
+                }
             }
         }
 
@@ -945,12 +1017,30 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
         const paymentId = paymentDetails.razorpayPaymentId || paymentDetails.id || "UNKNOWN";
         await recordOrderCaptured({ ...order, ...updates }, paymentId, transaction);
         await holdOrderRevenue({ ...order, ...updates }, transaction);
-
-        // ENTITLEMENT ENGINE INTEGRATION (TRUTH)
-        await issueEntitlements({ ...order, ...updates }, order.tickets, transaction);
     });
 
     console.log(`[OrderStore] Money ledger and order status updated for confirmed order ${orderId}`);
+
+    // Issue entitlements after transaction commits (keeps transaction boundary small)
+    try {
+        await issueEntitlements({ ...order, ...updates }, order.tickets);
+    } catch (err) {
+        console.error("[OrderStore] Failed to issue entitlements for paid order:", err);
+        try {
+            await db.collection("entitlement_outbox").add({
+                orderId,
+                userId: order.userId,
+                eventId: order.eventId,
+                tickets: order.tickets,
+                status: "pending",
+                error: err.message,
+                retryCount: 0,
+                createdAt: new Date().toISOString()
+            });
+        } catch (outboxErr) {
+            console.error("[OrderStore] Failed to write entitlement outbox:", outboxErr);
+        }
+    }
 
 
     // Handle promoter conversion
@@ -960,6 +1050,16 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
             await recordConversion(order.promoterLinkId, orderId, order.totalAmount, firstTicket.ticketId);
         } catch (err) {
             console.error("[OrderStore] Failed to record promoter conversion:", err);
+            try {
+                await db.collection("promoter_conversion_outbox").add({
+                    orderId, userId: order.userId, eventId: order.eventId,
+                    promoterLinkId: order.promoterLinkId, totalAmount: order.totalAmount,
+                    status: "pending", error: err.message, retryCount: 0,
+                    createdAt: new Date().toISOString()
+                });
+            } catch (outboxErr) {
+                console.error("[OrderStore] Failed to write promoter_conversion_outbox:", outboxErr);
+            }
         }
     }
 
@@ -972,6 +1072,20 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
         console.log(`[OrderStore] Auto-created share bundles for confirmed order ${orderId}`);
     } catch (err) {
         console.error("[OrderStore] Failed to auto-create share bundles:", err);
+        try {
+            await getAdminDb().collection("share_bundle_outbox").add({
+                orderId,
+                userId: order.userId,
+                eventId: order.eventId,
+                tickets: order.tickets,
+                status: "pending",
+                error: err.message,
+                retryCount: 0,
+                createdAt: new Date().toISOString()
+            });
+        } catch (outboxErr) {
+            console.error("[OrderStore] Failed to write share bundle outbox:", outboxErr);
+        }
     }
 
     // Send ticket notification (async, don't await)

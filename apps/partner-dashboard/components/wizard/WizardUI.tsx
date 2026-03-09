@@ -111,10 +111,10 @@ export function WizardSelect({ label, options, hint, className, ...props }: Wiza
 export function Reassurance({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex items-start gap-3 rounded-2xl border border-[var(--state-success)]/20 bg-green-500/10 p-5">
-            <div className="mt-0.5 text-c1rcle-orange">
+            <div className="mt-0.5 text-accent-primary">
                 {React.createElement(CheckCircle2 as any, { className: "h-4 w-4" })}
             </div>
-            <p className="text-body-sm leading-relaxed text-c1rcle-orange font-medium opacity-90">{children}</p>
+            <p className="text-body-sm leading-relaxed text-accent-primary font-medium opacity-90">{children}</p>
         </div>
     );
 }

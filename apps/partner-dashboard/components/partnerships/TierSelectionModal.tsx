@@ -104,7 +104,7 @@ export function TierSelectionModal({
                             className={`w-full text-left rounded-2xl border-2 p-6 transition-all ${
                                 selected === tier.id
                                     ? tier.id === "trusted"
-                                        ? "border-c1rcle-orange bg-c1rcle-orange-glow"
+                                        ? "border-accent-primary bg-accent-glow"
                                         : "border-border-strong bg-surface-tertiary"
                                     : "border-border-default hover:border-border-strong bg-surface-secondary"
                             }`}
@@ -112,7 +112,7 @@ export function TierSelectionModal({
                             <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-3">
                                     {tier.id === "trusted" ? (
-                                        <Star className="w-5 h-5 text-c1rcle-orange" />
+                                        <Star className="w-5 h-5 text-accent-primary" />
                                     ) : (
                                         <ShieldCheck className="w-5 h-5 text-text-secondary" />
                                     )}
@@ -123,7 +123,7 @@ export function TierSelectionModal({
                                 <span
                                     className={`text-label px-2.5 py-1 rounded-lg font-bold ${
                                         tier.id === "trusted"
-                                            ? "bg-c1rcle-orange-glow text-c1rcle-orange"
+                                            ? "bg-accent-glow text-accent-primary"
                                             : "bg-surface-base text-text-tertiary border border-border-default"
                                     }`}
                                 >
@@ -140,7 +140,7 @@ export function TierSelectionModal({
                                         <span
                                             className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                                                 tier.id === "trusted"
-                                                    ? "bg-c1rcle-orange"
+                                                    ? "bg-accent-primary"
                                                     : "bg-text-tertiary"
                                             }`}
                                         />
@@ -163,7 +163,7 @@ export function TierSelectionModal({
                     <button
                         onClick={handleConfirm}
                         disabled={!selected || loading}
-                        className="flex-1 py-3.5 rounded-xl bg-c1rcle-orange text-text-inverse text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex-1 py-3.5 rounded-xl bg-accent-primary text-text-inverse text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         {loading ? (
                             <Loader2 className="w-4 h-4 animate-spin" />

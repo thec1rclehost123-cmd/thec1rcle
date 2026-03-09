@@ -44,13 +44,13 @@ const Spinner = ({ size = "md" }: { size?: ButtonSize }) => {
 };
 
 const variantStyles: Record<ButtonVariant, string> = {
-  primary: "bg-c1rcle-orange text-text-primary hover:bg-[var(--c1rcle-orange-dim)] shadow-sm hover:shadow-md active:shadow-sm",
+  primary: "bg-accent-primary text-text-primary hover:bg-[var(--accent-primary-dim)] shadow-sm hover:shadow-md active:shadow-sm",
   secondary: "bg-transparent text-text-primary border border-border-default hover:bg-surface-secondary hover:border-border-strong",
   ghost: "bg-transparent text-text-secondary hover:bg-surface-secondary hover:text-text-primary",
   dark: "bg-text-primary text-text-inverse hover:opacity-90",
   success: "bg-green-500 text-text-primary hover:brightness-110",
   danger: "bg-[var(--state-error)] text-text-primary hover:brightness-110",
-  accent: "bg-c1rcle-orange-glow text-c1rcle-orange border border-c1rcle-orange/30 hover:bg-c1rcle-orange/20",
+  accent: "bg-accent-glow text-accent-primary border border-accent-primary/30 hover:bg-accent-primary/20",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
@@ -82,7 +82,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={clsx(
           "inline-flex items-center justify-center font-semibold tracking-tight",
           "transition-all duration-150 ease-out outline-none",
-          "focus-visible:ring-2 focus-visible:ring-[var(--c1rcle-orange)]/30 focus-visible:ring-offset-2",
+          "focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/30 focus-visible:ring-offset-2",
           "disabled:cursor-not-allowed disabled:opacity-50",
           "active:scale-[0.98]",
           variantStyles[variant],
@@ -134,7 +134,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         className={clsx(
           "inline-flex items-center justify-center",
           "transition-all duration-150 ease-out outline-none",
-          "focus-visible:ring-2 focus-visible:ring-[var(--c1rcle-orange)]/30 focus-visible:ring-offset-2",
+          "focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/30 focus-visible:ring-offset-2",
           "disabled:cursor-not-allowed disabled:opacity-50",
           "active:scale-[0.95]",
           variantStyles[variant],

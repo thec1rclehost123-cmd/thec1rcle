@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+import { trackedGet } from "./firestoreMetrics";
 import { algoliasearch } from 'algoliasearch';
 import { EVENT_LIFECYCLE, PUBLIC_LIFECYCLE_STATES, normalizeCity, resolvePoster, mapEventForClient } from "@c1rcle/core/events";
 import { filterAndSortEvents, calculateHeatScore as coreHeatScore } from "@c1rcle/core/event-engine";
@@ -402,13 +403,14 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
   if (algoliaClient) {
     try {
       const cityKey = city ? normalizeCity(city) : null;
+      const algoliaLifecycleFilter = PUBLIC_LIFECYCLE_STATES.map(s => `lifecycle:${s}`).join(' OR ');
       const { results: algoliaResults } = await algoliaClient.search({
         requests: [
           {
             indexName: 'events',
             query: search || '',
             params: {
-              filters: `(lifecycle:approved OR lifecycle:scheduled OR lifecycle:live)${cityKey ? ` AND cityKey:${cityKey}` : ''}`,
+              filters: `(${algoliaLifecycleFilter})${cityKey ? ` AND cityKey:${cityKey}` : ''}`,
               hitsPerPage: limit || 50
             }
           }
@@ -474,7 +476,7 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
   const baseLimit = Math.max(limit || 12, 12);
   let snapshot;
   try {
-    snapshot = await query.limit(baseLimit).get();
+    snapshot = await trackedGet(query.limit(baseLimit), "eventStore.listEvents");
   } catch (e) {
     try {
       // Silent fallback to avoid crash if index is missing
@@ -534,15 +536,14 @@ export async function getEvent(identifier) {
   const db = getAdminDb();
   // Fix: Removed ensureSeedEvents() call from read path
 
-  const directDoc = await db.collection(EVENT_COLLECTION).doc(identifier).get();
+  const directDoc = await trackedGet(db.collection(EVENT_COLLECTION).doc(identifier), "eventStore.getEvent.byId");
   if (directDoc.exists) {
     return serialize(mapEventDocument(directDoc));
   }
-  const slugSnapshot = await db
-    .collection(EVENT_COLLECTION)
-    .where("slug", "==", identifier)
-    .limit(1)
-    .get();
+  const slugSnapshot = await trackedGet(
+    db.collection(EVENT_COLLECTION).where("slug", "==", identifier).limit(1),
+    "eventStore.getEvent.bySlug"
+  );
   if (!slugSnapshot.empty) {
     return serialize(mapEventDocument(slugSnapshot.docs[0]));
   }
@@ -568,33 +569,11 @@ export async function getEventInterested(eventId, limit = 20) {
   const eventData = eventDoc.exists ? eventDoc.data() : {};
   const count = eventData.stats?.saves || 0;
 
-  let likesSnapshot;
-  try {
-    likesSnapshot = await db.collection("likes")
-      .where("eventId", "==", eventId)
-      .orderBy("createdAt", "desc")
-      .limit(limit)
-      .get();
-  } catch (e) {
-    if (e.message.includes("FAILED_PRECONDITION")) {
-      console.warn("Index missing for event likes. Falling back to in-memory filter.");
-      // Fallback: Just filter by eventId, then sort in memory
-      likesSnapshot = await db.collection("likes")
-        .where("eventId", "==", eventId)
-        .limit(limit * 2) // Get a bit more to allow for sorting
-        .get();
-
-      const docs = likesSnapshot.docs.sort((a, b) => {
-        const timeA = a.data().createdAt?.seconds || 0;
-        const timeB = b.data().createdAt?.seconds || 0;
-        return timeB - timeA;
-      }).slice(0, limit);
-
-      likesSnapshot = { docs };
-    } else {
-      throw e;
-    }
-  }
+  const likesSnapshot = await db.collection("likes")
+    .where("eventId", "==", eventId)
+    .orderBy("createdAt", "desc")
+    .limit(limit)
+    .get();
 
   const userIds = likesSnapshot.docs.map(doc => doc.data().userId);
   if (userIds.length === 0) return { count, users: [] };
@@ -630,26 +609,11 @@ export async function getEventGuestlist(eventId, limit = 50) {
   const db = getAdminDb();
 
   // 1. Get Ticket Buyers (Orders)
-  let ordersSnapshot;
-  try {
-    ordersSnapshot = await db.collection("orders")
-      .where("eventId", "==", eventId)
-      .where("status", "==", "confirmed")
-      .limit(limit)
-      .get();
-  } catch (e) {
-    if (e.message.includes("FAILED_PRECONDITION")) {
-      console.warn("Index missing for event orders. Falling back to in-memory filter.");
-      ordersSnapshot = await db.collection("orders")
-        .where("eventId", "==", eventId)
-        .limit(limit)
-        .get();
-      const docs = ordersSnapshot.docs.filter(doc => doc.data().status === "confirmed");
-      ordersSnapshot = { docs };
-    } else {
-      throw e;
-    }
-  }
+  const ordersSnapshot = await db.collection("orders")
+    .where("eventId", "==", eventId)
+    .where("status", "==", "confirmed")
+    .limit(limit)
+    .get();
 
   const buyerIds = Array.from(new Set(ordersSnapshot.docs.map(doc => doc.data().userId).filter(Boolean)));
 

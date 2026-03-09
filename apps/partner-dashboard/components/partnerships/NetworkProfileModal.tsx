@@ -73,7 +73,7 @@ export function NetworkProfileModal({
             >
                 {/* Cover */}
                 <div className="relative h-36 bg-gradient-to-br from-surface-tertiary to-surface-secondary rounded-t-[2.5rem] overflow-hidden shrink-0">
-                    <div className="absolute inset-0 bg-gradient-to-br from-c1rcle-orange/10 to-border-subtle/20" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-accent-primary/10 to-border-subtle/20" />
                     <button
                         onClick={onClose}
                         className="absolute top-4 right-4 p-2.5 bg-surface-elevated/80 backdrop-blur-md rounded-xl text-text-primary border border-border-subtle hover:bg-surface-elevated transition-all"
@@ -121,7 +121,7 @@ export function NetworkProfileModal({
                                     href={`https://instagram.com/${profile.instagram.replace("@", "")}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="flex items-center gap-1.5 text-body-sm text-text-tertiary hover:text-c1rcle-orange transition-colors"
+                                    className="flex items-center gap-1.5 text-body-sm text-text-tertiary hover:text-accent-primary transition-colors"
                                 >
                                     <Instagram className="w-4 h-4" /> {profile.instagram}
                                 </a>
@@ -204,7 +204,7 @@ export function NetworkProfileModal({
                                         value={`${profile.noShowRate}%`}
                                         valueClass={
                                             profile.noShowRate <= 10
-                                                ? "text-c1rcle-orange"
+                                                ? "text-accent-primary"
                                                 : "text-red-500"
                                         }
                                     />
@@ -242,7 +242,7 @@ export function NetworkProfileModal({
                                 <button
                                     onClick={() => onRequestPartnership(profile.id)}
                                     disabled={isRequestLoading}
-                                    className="w-full py-4 bg-c1rcle-orange text-text-inverse rounded-2xl text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.99] disabled:opacity-40"
+                                    className="w-full py-4 bg-accent-primary text-text-inverse rounded-2xl text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.99] disabled:opacity-40"
                                 >
                                     {isRequestLoading ? (
                                         <Loader2 className="w-4 h-4 animate-spin" />

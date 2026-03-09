@@ -173,7 +173,7 @@ export default function PromoterDashboardHome() {
                     <div className="p-6 md:p-8 rounded-[2rem] bg-surface-elevated border border-border-subtle shadow-sm">
                         <div className="flex items-center justify-between mb-8">
                             <h2 className="text-lg md:text-xl font-bold text-text-primary">Distribution Links</h2>
-                            <Link href="/promoter/links" className="text-sm font-medium text-c1rcle-orange flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-surface-tertiary transition-all">
+                            <Link href="/promoter/links" className="text-sm font-medium text-accent-primary flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-surface-tertiary transition-all">
                                 All Links
                                 <ChevronRight className="w-4 h-4" />
                             </Link>
@@ -221,7 +221,7 @@ export default function PromoterDashboardHome() {
                                                 {new Date(comm.createdAt).toLocaleDateString()}
                                             </p>
                                         </div>
-                                        <span className="text-[15px] font-bold text-c1rcle-orange">
+                                        <span className="text-[15px] font-bold text-accent-primary">
                                             +₹{comm.commissionAmount}
                                         </span>
                                     </div>
@@ -332,7 +332,7 @@ function EventRow({
                 <Link
                     href={`/e/${event.slug || event.id}`}
                     target="_blank"
-                    className="h-11 w-11 flex items-center justify-center rounded-xl bg-surface-elevated border border-border-subtle text-text-tertiary hover:text-c1rcle-orange hover:border-border-strong transition-all active:scale-95"
+                    className="h-11 w-11 flex items-center justify-center rounded-xl bg-surface-elevated border border-border-subtle text-text-tertiary hover:text-accent-primary hover:border-border-strong transition-all active:scale-95"
                 >
                     <ExternalLink className="w-4 h-4" />
                 </Link>
@@ -355,11 +355,11 @@ function QuickAction({
             href={href}
             className="flex items-center gap-3 p-4 rounded-xl hover:bg-surface-tertiary border border-transparent hover:border-border-subtle transition-all group"
         >
-            <div className="w-9 h-9 rounded-lg bg-surface-elevated border border-border-subtle flex items-center justify-center text-text-tertiary group-hover:text-c1rcle-orange group-hover:border-border-strong transition-all">
+            <div className="w-9 h-9 rounded-lg bg-surface-elevated border border-border-subtle flex items-center justify-center text-text-tertiary group-hover:text-accent-primary group-hover:border-border-strong transition-all">
                 <Icon className="w-4 h-4" />
             </div>
             <span className="text-[14px] font-bold text-text-secondary flex-1">{label}</span>
-            <ArrowUpRight className="w-4 h-4 text-text-placeholder group-hover:text-c1rcle-orange transition-all" />
+            <ArrowUpRight className="w-4 h-4 text-text-placeholder group-hover:text-accent-primary transition-all" />
         </Link>
     );
 }

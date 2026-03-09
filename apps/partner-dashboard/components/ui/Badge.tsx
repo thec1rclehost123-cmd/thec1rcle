@@ -14,11 +14,11 @@ type BadgeTone = "success" | "warning" | "error" | "info" | "accent" | "neutral"
 type BadgeSize = "sm" | "md" | "lg";
 
 const toneStyles: Record<BadgeTone, string> = {
-  success: "bg-green-500/10 text-c1rcle-orange border-[var(--state-success)]/20",
+  success: "bg-green-500/10 text-accent-primary border-[var(--state-success)]/20",
   warning: "bg-yellow-500/10 text-yellow-500 border-[var(--state-warning)]/20",
   error: "bg-red-500/10 text-red-500 border-[var(--state-error)]/20",
   info: "bg-blue-500/10 text-blue-500 border-[var(--state-info)]/20",
-  accent: "bg-c1rcle-orange-glow text-c1rcle-orange border-c1rcle-orange/20",
+  accent: "bg-accent-glow text-accent-primary border-accent-primary/20",
   neutral: "bg-surface-tertiary text-text-secondary border-border-subtle",
 };
 
@@ -63,7 +63,7 @@ export const Badge = ({
           tone === "warning" && "bg-[var(--state-warning)]",
           tone === "error" && "bg-[var(--state-error)]",
           tone === "info" && "bg-[var(--state-info)]",
-          tone === "accent" && "bg-c1rcle-orange",
+          tone === "accent" && "bg-accent-primary",
           tone === "neutral" && "bg-[var(--text-tertiary)]",
           pulse && "animate-pulse"
         )} />

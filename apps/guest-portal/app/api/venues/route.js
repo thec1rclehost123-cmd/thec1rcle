@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { listVenues } from "../../../lib/server/venueStore";
 
+export const revalidate = 300; // 5-minute ISR — venue data changes on a scale of days
+
 export async function GET(request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -10,11 +12,10 @@ export async function GET(request) {
         const tablesOnly = searchParams.get("tablesOnly") === "true";
 
         const venues = await listVenues({ area, vibe, search, tablesOnly });
-        return NextResponse.json({ hosts: venues, hasMore: false, nextCursor: null }, {
-            headers: {
-                'Cache-Control': 'no-store, max-age=0',
-            }
-        });
+        return NextResponse.json(
+            { hosts: venues, hasMore: false, nextCursor: null },
+            { headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=600" } }
+        );
     } catch (error) {
         console.error("GET /api/venues error", error);
         return NextResponse.json({ error: "Failed to load venues" }, { status: 500 });

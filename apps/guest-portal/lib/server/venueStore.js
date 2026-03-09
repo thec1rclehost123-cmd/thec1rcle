@@ -1,4 +1,5 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+import { trackedGet } from "./firestoreMetrics";
 
 const fallbackVenues = [
     {
@@ -155,7 +156,7 @@ export async function listVenues({ area, vibe, search, tablesOnly } = {}) {
 
     if (area) query = query.where("area", "==", area);
 
-    const snapshot = await query.limit(50).get();
+    const snapshot = await trackedGet(query.limit(50), "venueStore.listVenues");
     let venues = snapshot.docs.map(doc => {
         const serialized = serializeDoc(doc);
         return {
@@ -193,7 +194,7 @@ export async function getVenueBySlug(slug) {
     }
 
     const db = getAdminDb();
-    const snapshot = await db.collection(VENUES_COLLECTION).where("slug", "==", slug).limit(1).get();
+    const snapshot = await trackedGet(db.collection(VENUES_COLLECTION).where("slug", "==", slug).limit(1), "venueStore.getVenueBySlug");
 
     if (!snapshot.empty) {
         const serialized = serializeDoc(snapshot.docs[0]);

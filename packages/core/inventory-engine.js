@@ -163,6 +163,20 @@ export async function createReservation(event, customerId, deviceId, items, opti
     if (!acquiredLock) throw new Error("System busy, please retry in 1s");
 
     try {
+        // 0. Per-user reservation cap: one active reservation per user per event
+        if (customerId && customerId !== 'anonymous') {
+            const userResKey = `res:user:${customerId}:event:${event.id}`;
+            const existingResIds = await redis.smembers(userResKey);
+            for (const existingId of existingResIds) {
+                const existingData = await redis.get(`${REDIS_RES_PREFIX}${existingId}`);
+                if (existingData) {
+                    throw new Error("You already have an active reservation for this event. Please complete or cancel your existing checkout first.");
+                }
+                // Stale entry from an expired reservation — remove it
+                await redis.srem(userResKey, existingId);
+            }
+        }
+
         // 1. Double-check availability under lock
         const validation = await validatePurchase(event, items);
         if (!validation.success) {
@@ -186,6 +200,12 @@ export async function createReservation(event, customerId, deviceId, items, opti
         multi.set(`${REDIS_RES_PREFIX}${reservationId}`, JSON.stringify(reservation), "EX", ttlSeconds);
         for (const item of items) {
             multi.sadd(`${REDIS_TIER_RES_PREFIX}${event.id}:tier:${item.tierId}`, reservationId);
+        }
+        // Track per-user active reservation for this event (same TTL as reservation)
+        if (customerId && customerId !== 'anonymous') {
+            const userResKey = `res:user:${customerId}:event:${event.id}`;
+            multi.sadd(userResKey, reservationId);
+            multi.expire(userResKey, ttlSeconds);
         }
         await multi.exec();
 
@@ -211,6 +231,10 @@ export async function releaseReservation(reservationId) {
     multi.del(resKey);
     for (const item of reservation.items) {
         multi.srem(`${REDIS_TIER_RES_PREFIX}${reservation.eventId}:tier:${item.tierId}`, reservationId);
+    }
+    // Clean up per-user reservation tracking
+    if (reservation.customerId && reservation.customerId !== 'anonymous') {
+        multi.srem(`res:user:${reservation.customerId}:event:${reservation.eventId}`, reservationId);
     }
     await multi.exec();
     return { success: true };

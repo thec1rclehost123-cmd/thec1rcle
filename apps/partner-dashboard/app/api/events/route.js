@@ -22,12 +22,15 @@ export async function GET(request) {
   if (gatewayUrl) {
     try {
       const { searchParams } = new URL(request.url);
-      const hostId = searchParams.get("host") || searchParams.get("creatorId");
       const authHeader = request.headers.get("Authorization");
 
-      // Use the host-specific events endpoint if host filter is present
-      const endpoint = hostId ? `/api/v1/host/events?hostId=${hostId}` : "/api/v1/events";
-      const response = await fetch(`${gatewayUrl}${endpoint}`, {
+      // Build the query string dynamically
+      let endpoint = "/api/v1/events?";
+      searchParams.forEach((value, key) => {
+        endpoint += `${key}=${encodeURIComponent(value)}&`;
+      });
+
+      const response = await fetch(`${gatewayUrl}${endpoint.slice(0, -1)}`, {
         headers: {
           'Authorization': authHeader || '',
         }

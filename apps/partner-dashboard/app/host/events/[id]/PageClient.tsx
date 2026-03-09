@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
     Calendar,
@@ -30,21 +30,36 @@ import SurgeMonitor from "@/components/events/SurgeMonitor";
 export default function HostEventDetailPage() {
     const { id } = useParams();
     const router = useRouter();
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
     const [event, setEvent] = useState<any>(null);
     const [stats, setStats] = useState<any>(null);
     const [finance, setFinance] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+        if (!user) {
+            console.error("[HostEventDetail] authedFetch called without user");
+            throw new Error("Not authenticated");
+        }
+        const token = await user.getIdToken(true);
+        return fetch(url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                "Authorization": `Bearer ${token}`,
+            },
+        });
+    }, [user]);
+
     useEffect(() => {
         const fetchEventDetail = async () => {
-            if (!id) return;
+            if (!id || !user) return;
             setIsLoading(true);
             try {
                 const [eventRes, statsRes, financeRes] = await Promise.all([
-                    fetch(`/api/events/${id}`),
-                    fetch(`/api/events/${id}/guestlist`),
-                    fetch(`/api/finance/breakdown?eventId=${id}`)
+                    authedFetch(`/api/events/${id}`),
+                    authedFetch(`/api/events/${id}/guestlist`),
+                    authedFetch(`/api/finance/breakdown?eventId=${id}`)
                 ]);
 
                 if (eventRes.ok) {
@@ -67,7 +82,7 @@ export default function HostEventDetailPage() {
         };
 
         fetchEventDetail();
-    }, [id]);
+    }, [id, user, authedFetch]);
 
     if (isLoading) {
         return (

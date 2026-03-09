@@ -16,16 +16,19 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "eventId is required" }, { status: 400 });
         }
 
-        const event = await getEvent(eventId);
+        const authHeader = req.headers.get("authorization");
+        const token = authHeader?.split("Bearer ")[1] || "";
+
+        const event = await getEvent(eventId, token);
         if (!event) {
             return NextResponse.json({ error: "Event not found" }, { status: 404 });
         }
 
         // Fetch parallel stats
         const [guestlist, promoterSummary, salesStats] = await Promise.all([
-            getEventGuestlist(eventId),
-            getEventPromoterSummary(eventId),
-            getEventSalesStats(eventId)
+            getEventGuestlist(eventId, 100, token),
+            getEventPromoterSummary(eventId, token),
+            getEventSalesStats(eventId, token)
         ]);
 
         return NextResponse.json({

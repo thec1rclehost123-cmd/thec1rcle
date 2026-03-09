@@ -63,13 +63,13 @@ export default function TonightOpsModule() {
                     <div className="space-y-4">
                         <Link
                             href={`/venue/events/${tonight.id}`}
-                            className="group flex items-center justify-between p-4 rounded-2xl bg-surface-secondary border border-border-subtle hover:border-c1rcle-orange hover:bg-c1rcle-orange-glow transition-all"
+                            className="group flex items-center justify-between p-4 rounded-2xl bg-surface-secondary border border-border-subtle hover:border-accent-primary hover:bg-accent-glow transition-all"
                         >
                             <div>
                                 <p className="text-label-sm text-text-tertiary mb-0.5">Control Panel</p>
                                 <p className="text-title-sm text-text-primary">Guest Entry</p>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-text-tertiary group-hover:text-c1rcle-orange group-hover:translate-x-1 transition-all" />
+                            <ChevronRight className="w-5 h-5 text-text-tertiary group-hover:text-accent-primary group-hover:translate-x-1 transition-all" />
                         </Link>
                     </div>
                 </div>

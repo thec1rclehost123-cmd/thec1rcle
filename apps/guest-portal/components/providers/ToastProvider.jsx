@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback } from "react";
-import { AnimatePresence } from "framer-motion";
 import Toast from "../ui/Toast";
 
 const ToastContext = createContext({
@@ -32,11 +31,9 @@ export default function ToastProvider({ children }) {
         <ToastContext.Provider value={{ toast }}>
             {children}
             <div className="pointer-events-none fixed bottom-4 right-4 z-[100] flex flex-col gap-2 sm:bottom-8 sm:right-8">
-                <AnimatePresence mode="popLayout">
-                    {toasts.map((t) => (
-                        <Toast key={t.id} {...t} onRemove={removeToast} />
-                    ))}
-                </AnimatePresence>
+                {toasts.map((t) => (
+                    <Toast key={t.id} {...t} onRemove={removeToast} />
+                ))}
             </div>
         </ToastContext.Provider>
     );

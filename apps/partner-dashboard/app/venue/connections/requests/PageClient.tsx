@@ -161,8 +161,8 @@ export default function VenueConnectionsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    <div className="flex items-center gap-3 mb-2 text-c1rcle-orange">
-                        <div className="p-2 bg-c1rcle-orange-glow rounded-xl">
+                    <div className="flex items-center gap-3 mb-2 text-accent-primary">
+                        <div className="p-2 bg-accent-glow rounded-xl">
                             <Users className="w-5 h-5" />
                         </div>
                         <span className="text-label">NETWORK</span>
@@ -180,10 +180,10 @@ export default function VenueConnectionsPage() {
                         className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2.5 ${activeTab === 'promoters' ? 'bg-surface-elevated text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'
                             }`}
                     >
-                        <Zap className={`w-4 h-4 ${activeTab === 'promoters' ? 'text-c1rcle-orange' : ''}`} />
+                        <Zap className={`w-4 h-4 ${activeTab === 'promoters' ? 'text-accent-primary' : ''}`} />
                         Promoters
                         {pendingPromoterRequests.length > 0 && (
-                            <span className="ml-1 px-1.5 py-0.5 bg-c1rcle-orange text-text-primary rounded-md text-[10px] font-bold">
+                            <span className="ml-1 px-1.5 py-0.5 bg-accent-primary text-text-primary rounded-md text-[10px] font-bold">
                                 {pendingPromoterRequests.length}
                             </span>
                         )}
@@ -244,8 +244,8 @@ export default function VenueConnectionsPage() {
                                         animate={{ opacity: 1 }}
                                         className="py-16 card border-2 border-dashed border-border-default flex flex-col items-center text-center px-10"
                                     >
-                                        <div className="w-14 h-14 rounded-2xl bg-c1rcle-orange-glow flex items-center justify-center mb-4">
-                                            <Clock className="w-7 h-7 text-c1rcle-orange" />
+                                        <div className="w-14 h-14 rounded-2xl bg-accent-glow flex items-center justify-center mb-4">
+                                            <Clock className="w-7 h-7 text-accent-primary" />
                                         </div>
                                         <h4 className="text-title text-text-primary font-semibold">Quiet for now</h4>
                                         <p className="text-body-sm text-text-secondary mt-2">Pending connection requests will appear here.</p>
@@ -265,7 +265,7 @@ export default function VenueConnectionsPage() {
                                                     {(activeTab === 'promoters' ? (request.promoterName?.[0] || 'P') : (request.hostName?.[0] || 'H'))}
                                                 </div>
                                                 <div className="pt-0.5">
-                                                    <h4 className="text-title text-text-primary group-hover:text-c1rcle-orange transition-colors">
+                                                    <h4 className="text-title text-text-primary group-hover:text-accent-primary transition-colors">
                                                         {activeTab === 'promoters' ? request.promoterName : request.hostName}
                                                     </h4>
                                                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
@@ -325,10 +325,10 @@ export default function VenueConnectionsPage() {
                         <div className="space-y-6">
                             <div className="flex items-center justify-between px-2">
                                 <h3 className="text-body-sm font-semibold text-text-primary flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4 text-c1rcle-orange" />
+                                    <CheckCircle2 className="w-4 h-4 text-accent-primary" />
                                     {activeTab === 'promoters' ? 'Partnered Promoters' : 'Verified Hosts'}
                                 </h3>
-                                <span className="text-label text-c1rcle-orange bg-green-500/10 px-2 py-1 rounded-md">
+                                <span className="text-label text-accent-primary bg-green-500/10 px-2 py-1 rounded-md">
                                     {activeTab === 'promoters' ? approvedPromoterConnections.length : approvedHostPartnerships.length} Active
                                 </span>
                             </div>
@@ -337,7 +337,7 @@ export default function VenueConnectionsPage() {
                                 {(activeTab === 'promoters' ? approvedPromoterConnections : approvedHostPartnerships).length === 0 ? (
                                     <div className="py-16 card border-2 border-dashed border-border-default flex flex-col items-center text-center px-10">
                                         <div className="w-14 h-14 rounded-2xl bg-green-500/10 flex items-center justify-center mb-4">
-                                            <CheckCircle2 className="w-7 h-7 text-c1rcle-orange" />
+                                            <CheckCircle2 className="w-7 h-7 text-accent-primary" />
                                         </div>
                                         <h4 className="text-title text-text-primary font-semibold">No active network</h4>
                                         <p className="text-body-sm text-text-secondary mt-2">Once approved, partners will appear here.</p>
@@ -354,13 +354,13 @@ export default function VenueConnectionsPage() {
                                                 {(activeTab === 'promoters' ? (conn.promoterName?.[0] || 'P') : (conn.hostName?.[0] || 'H'))}
                                             </div>
                                             <div>
-                                                <h4 className="font-semibold text-text-primary group-hover:text-c1rcle-orange transition-colors">
+                                                <h4 className="font-semibold text-text-primary group-hover:text-accent-primary transition-colors">
                                                     {activeTab === 'promoters' ? conn.promoterName : conn.hostName}
                                                 </h4>
                                                 <div className="flex items-center gap-2 mt-0.5">
                                                     <span className="text-caption text-text-tertiary">Since {formatDate(conn.updatedAt || conn.createdAt)}</span>
                                                     <span className="h-1 w-1 rounded-full bg-green-500" />
-                                                    <span className="text-caption font-semibold text-c1rcle-orange">Active</span>
+                                                    <span className="text-caption font-semibold text-accent-primary">Active</span>
                                                 </div>
                                             </div>
                                         </div>

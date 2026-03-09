@@ -41,7 +41,8 @@ export async function generateMetadata({ params }) {
 }
 
 import Link from "next/link";
-import { headers } from "next/headers";
+
+export const revalidate = 120; // 2-minute ISR — view tracking moved to client-side useEffect in EventRSVP
 
 const AuroraBackground = () => (
   <div className="fixed inset-0 -z-10 overflow-hidden bg-[var(--bg-color)]">
@@ -53,21 +54,6 @@ const AuroraBackground = () => (
 export default async function EventDetailPage({ params }) {
   const identifier = decodeURIComponent(params.eventId);
   const event = await getEvent(identifier);
-
-  // TRACK LIVE VIEW (Redis)
-  if (event) {
-    try {
-      const h = headers();
-      const ip = h.get("x-forwarded-for") || "127.0.0.1";
-      const userAgent = h.get("user-agent") || "unknown";
-      const viewerId = Buffer.from(`${ip}-${userAgent}`).toString('base64');
-
-      const { trackEventView } = await import("@c1rcle/core/analytics-service");
-      await trackEventView(event.id, viewerId);
-    } catch (err) {
-      console.error("[EventPage] Failed to track live view:", err);
-    }
-  }
 
   if (!event) {
     return (
@@ -104,17 +90,24 @@ export default async function EventDetailPage({ params }) {
   }
 
   // Determine the primary host profile
+  // Q1: Use denormalized data embedded in the event document if available (eliminates 1-2 Firestore reads).
+  // Falls back to separate collection queries for events created before the denormalization write path is deployed.
   let hostProfile = null;
 
-  // 1. Try to fetch real host profile
-  if (event.host) {
+  if (event.hostData) {
+    // Embedded at write time — no extra Firestore read needed
+    hostProfile = { ...event.hostData, type: event.hostData.type || "host" };
+  } else if (event.host) {
+    // Legacy path: separate collection read
     hostProfile = await getHostByHandle(event.host);
     if (hostProfile) hostProfile.type = "host";
   }
 
-  // 2. If no host profile, try to fetch venue profile if venue exists
-  if (!hostProfile && event.venue) {
-    // Assuming venue slug is a kebab-case version of name if not provided
+  if (!hostProfile && event.venueData) {
+    // Embedded at write time — no extra Firestore read needed
+    hostProfile = { ...event.venueData, type: "venue", avatar: event.venueData.photoURL || event.venueData.image };
+  } else if (!hostProfile && event.venue) {
+    // Legacy path: separate collection read
     const venueSlug = event.venueSlug || event.venue.toLowerCase().replace(/\s+/g, '-');
     const venueProfile = await getVenueBySlug(venueSlug);
     if (venueProfile) {

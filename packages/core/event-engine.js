@@ -85,7 +85,7 @@ export function buildEvent(payload = {}) {
         category: payload.category?.trim() || "Trending",
         tags,
         host: (payload.host || "C1RCLE Partner").trim(),
-        hostId: payload.hostId || "",
+        hostId: payload.hostId || (payload.creatorRole === 'host' ? payload.creatorId : "") || "",
         location: (payload.location || payload.venueName || "").trim(),
         venue: (payload.venue || payload.venueName || "").trim(),
         venueId: payload.venueId || "",

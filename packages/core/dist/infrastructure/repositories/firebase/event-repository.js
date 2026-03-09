@@ -46,12 +46,86 @@ export class FirebaseEventRepository {
         const snapshot = await q.get();
         return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     }
+    /**
+     * Q1 Denormalization: Embed host and venue snapshots at write time so
+     * event detail pages can skip separate host/venue Firestore reads.
+     * Falls back silently if profiles are not found.
+     */
+    async embedHostVenueData(event) {
+        const enriched = { ...event };
+        // Embed host snapshot
+        const hostId = event.hostId;
+        const hostHandle = event.host;
+        if (hostId || hostHandle) {
+            try {
+                let hostSnap = null;
+                if (hostId) {
+                    hostSnap = await this.db.collection('hosts').doc(hostId).get();
+                }
+                if ((!hostSnap || !hostSnap.exists) && hostHandle) {
+                    const normalized = hostHandle.startsWith('@') ? hostHandle : `@${hostHandle}`;
+                    const q = await this.db.collection('hosts').where('handle', '==', normalized).limit(1).get();
+                    if (!q.empty)
+                        hostSnap = q.docs[0];
+                }
+                if (hostSnap && hostSnap.exists) {
+                    const d = hostSnap.data();
+                    enriched.hostData = {
+                        id: hostSnap.id,
+                        handle: d.handle || hostHandle || '',
+                        name: d.name || d.displayName || '',
+                        avatar: d.avatar || d.photoURL || '',
+                        slug: d.slug || hostSnap.id,
+                        type: 'host',
+                    };
+                }
+            }
+            catch {
+                // Non-fatal — legacy event detail path will handle the fallback read
+            }
+        }
+        // Embed venue snapshot
+        const venueId = event.venueId;
+        const venueName = event.venue;
+        if (venueId || venueName) {
+            try {
+                let venueSnap = null;
+                if (venueId) {
+                    venueSnap = await this.db.collection('venues').doc(venueId).get();
+                }
+                if ((!venueSnap || !venueSnap.exists) && venueName) {
+                    const slug = venueName.toLowerCase().replace(/\s+/g, '-');
+                    const q = await this.db.collection('venues').where('slug', '==', slug).limit(1).get();
+                    if (!q.empty)
+                        venueSnap = q.docs[0];
+                }
+                if (venueSnap && venueSnap.exists) {
+                    const d = venueSnap.data();
+                    enriched.venueData = {
+                        id: venueSnap.id,
+                        name: d.name || venueName || '',
+                        slug: d.slug || venueSnap.id,
+                        photoURL: d.photoURL || d.image || '',
+                        image: d.image || d.photoURL || '',
+                        area: d.area || '',
+                        type: 'venue',
+                    };
+                }
+            }
+            catch {
+                // Non-fatal — legacy event detail path will handle the fallback read
+            }
+        }
+        return enriched;
+    }
     async create(event) {
-        await this.db.collection('events').doc(event.id).set(event);
+        const enriched = await this.embedHostVenueData(event);
+        await this.db.collection('events').doc(event.id).set(enriched);
     }
     async update(id, updates) {
+        const enriched = await this.embedHostVenueData(updates);
         await this.db.collection('events').doc(id).update({
-            ...updates,
+            ...enriched,
             updatedAt: new Date().toISOString()
         });
     }

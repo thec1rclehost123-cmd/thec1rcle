@@ -145,7 +145,11 @@ export function subscribeToGroupChat(
         limit(messageLimit)
     );
 
-    return onSnapshot(messagesQuery, (snapshot) => {
+    // Q4: Use a mutable ref so the composite unsubscribe can clean up both the
+    // primary listener and the fallback listener if the primary query fails.
+    let fallbackUnsub: (() => void) | null = null;
+
+    const primaryUnsub = onSnapshot(messagesQuery, (snapshot) => {
         const messages: GroupMessage[] = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
@@ -163,7 +167,7 @@ export function subscribeToGroupChat(
             limit(messageLimit)
         );
 
-        onSnapshot(fallbackQuery, (snapshot) => {
+        fallbackUnsub = onSnapshot(fallbackQuery, (snapshot) => {
             const messages: GroupMessage[] = snapshot.docs
                 .filter(doc => !doc.data().isDeleted)
                 .map(doc => ({
@@ -174,6 +178,11 @@ export function subscribeToGroupChat(
             onMessages(messages.reverse());
         });
     });
+
+    return () => {
+        primaryUnsub();
+        fallbackUnsub?.();
+    };
 }
 
 // Delete message (moderators only)

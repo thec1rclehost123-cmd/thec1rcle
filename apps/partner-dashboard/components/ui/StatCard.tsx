@@ -33,7 +33,7 @@ const stateStyles: Record<StatState, { icon: string; card: string }> = {
         card: ""
     },
     success: {
-        icon: "bg-green-500/10 text-c1rcle-orange",
+        icon: "bg-green-500/10 text-accent-primary",
         card: "border-[var(--state-success)]/10"
     },
     warning: {
@@ -49,8 +49,8 @@ const stateStyles: Record<StatState, { icon: string; card: string }> = {
         card: "border-[var(--state-info)]/10"
     },
     accent: {
-        icon: "bg-c1rcle-orange-glow text-c1rcle-orange",
-        card: "border-c1rcle-orange/10"
+        icon: "bg-accent-glow text-accent-primary",
+        card: "border-accent-primary/10"
     },
 };
 

@@ -11,7 +11,9 @@ export async function GET(
     { params }: { params: { id: string } }
 ) {
     try {
-        const event = await getEvent(params.id);
+        const authHeader = req.headers.get("authorization");
+        const token = authHeader?.split("Bearer ")[1] || "";
+        const event = await getEvent(params.id, token);
 
         if (!event) {
             return NextResponse.json(
@@ -42,6 +44,9 @@ export async function PATCH(
         const body = await req.json();
         const { action, actor, notes, updates } = body;
 
+        const authHeader = req.headers.get("authorization");
+        const token = authHeader?.split("Bearer ")[1] || "";
+
         if (!actor || !actor.uid || !actor.role) {
             return NextResponse.json(
                 { error: "Actor information required" },
@@ -61,7 +66,7 @@ export async function PATCH(
                 creatorId: actor.uid,
                 creatorRole: actor.role,
                 partnerId: actor.partnerId
-            });
+            }, token);
         }
 
         // Handle lifecycle transitions
@@ -106,7 +111,7 @@ export async function PATCH(
 
             // Verify management access for approve/reject/publish
             if (["approve", "reject", "deny", "publish", "request_changes"].includes(action) && actor.role !== 'admin') {
-                const event = await getEvent(params.id);
+                const event = await getEvent(params.id, token);
                 if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
                 const venueId = event.venueId;
@@ -116,7 +121,7 @@ export async function PATCH(
                 if (!hasAccess) return NextResponse.json({ error: "Unauthorized access to this venue" }, { status: 403 });
             }
 
-            const result = await updateEventLifecycle(params.id, newStatus, actor, notes);
+            const result = await updateEventLifecycle(params.id, newStatus, { ...actor, token }, notes);
             return NextResponse.json({ success: true, result, event: latestEvent });
         }
 
@@ -146,6 +151,8 @@ export async function DELETE(
     { params }: { params: { id: string } }
 ) {
     try {
+        const authHeader = req.headers.get("authorization");
+        const token = authHeader?.split("Bearer ")[1] || "";
         const body = await req.json();
         const { actor } = body;
 
@@ -157,7 +164,7 @@ export async function DELETE(
         }
 
         const { deleteEvent } = await import("@/lib/server/eventStore");
-        const result = await deleteEvent(params.id, actor);
+        const result = await deleteEvent(params.id, token);
 
         return NextResponse.json({ success: true, result });
     } catch (error: any) {

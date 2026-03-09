@@ -27,9 +27,9 @@ const EventCreateBody = z.object({
     tags: z.array(z.string()).optional(),
     isPrivate: z.boolean().optional(),
     capacity: z.number().optional()
-}).strict();
+}).passthrough();
 
-const EventUpdateBody = EventCreateBody.partial();
+const EventUpdateBody = EventCreateBody.partial().passthrough();
 
 export default async function eventRoutes(fastify: FastifyInstance) {
     /**
@@ -117,8 +117,20 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         const userId = request.user?.uid;
         if (!userId) return reply.status(401).send({ error: "Unauthorized" });
 
+        let actorId = userId;
+
+        // If a venue/host is creating the event on behalf of their entity, preserve their creatorId
+        if (request.body.creatorId && request.body.creatorId !== userId) {
+            try {
+                await fastify.verifyPartnerAccess(request, request.body.creatorId);
+                actorId = request.body.creatorId;
+            } catch (error) {
+                return reply.status(403).send({ error: "Forbidden: Cannot create an event for this entity." });
+            }
+        }
+
         try {
-            const event = await fastify.eventService.createEvent(request.body, userId);
+            const event = await fastify.eventService.createEvent(request.body, actorId);
 
             // Invalidate event lists when a new event is created
             await fastify.cache.invalidateNamespace('events:list');

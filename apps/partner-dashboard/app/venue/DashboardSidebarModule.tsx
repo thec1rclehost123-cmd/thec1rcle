@@ -59,8 +59,8 @@ export default function DashboardSidebarModule() {
 
 function QuickLink({ icon: Icon, label, href }: { icon: any; label: string; href: string }) {
     return (
-        <Link href={href} className="flex flex-col items-center justify-center p-5 rounded-2xl bg-surface-elevated border border-border-subtle hover:border-c1rcle-orange transition-all group">
-            <Icon className="w-5 h-5 mb-2 text-text-tertiary group-hover:text-c1rcle-orange" />
+        <Link href={href} className="flex flex-col items-center justify-center p-5 rounded-2xl bg-surface-elevated border border-border-subtle hover:border-accent-primary transition-all group">
+            <Icon className="w-5 h-5 mb-2 text-text-tertiary group-hover:text-accent-primary" />
             <span className="text-label text-text-tertiary group-hover:text-text-primary">{label}</span>
         </Link>
     );

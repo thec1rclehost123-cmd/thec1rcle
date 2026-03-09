@@ -86,7 +86,7 @@ export default function HostOpsPage() {
                     <p className="text-text-tertiary text-lg font-medium mt-2">{data.event.venue} • Entry Monitor</p>
                 </div>
                 <div className="flex items-center gap-4 bg-surface-secondary px-8 py-4 rounded-2xl text-text-primary shadow-xl shadow-slate-200">
-                    <ShieldCheck className="w-5 h-5 text-c1rcle-orange" />
+                    <ShieldCheck className="w-5 h-5 text-accent-primary" />
                     <span className="text-sm font-bold">Venue Staff Sync Verified</span>
                 </div>
             </div>

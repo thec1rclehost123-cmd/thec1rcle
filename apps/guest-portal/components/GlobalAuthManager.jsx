@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import AuthModal from "./AuthModal";
+import dynamic from "next/dynamic";
 import { useAuth } from "./providers/AuthProvider";
 import { getIntent, clearIntent } from "../lib/utils/intentStore";
 import { useRouter } from "next/navigation";
 import { trackEvent } from "../lib/utils/analytics";
 import { useToast } from "./providers/ToastProvider";
+
+const AuthModal = dynamic(() => import("./AuthModal"), { ssr: false });
 
 export default function GlobalAuthManager() {
     const [isModalOpen, setIsModalOpen] = useState(false);

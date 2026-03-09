@@ -323,7 +323,7 @@ export default function HostPageManagement() {
                                     {data?.profile?.role || "Host"}
                                 </span>
                                 {data?.profile?.isVerified && (
-                                    <span className="flex items-center gap-1 px-3 py-1 bg-green-500/20 rounded-full text-[10px] font-bold text-c1rcle-orange uppercase tracking-widest">
+                                    <span className="flex items-center gap-1 px-3 py-1 bg-green-500/20 rounded-full text-[10px] font-bold text-accent-primary uppercase tracking-widest">
                                         <CheckCircle2 className="w-3 h-3" /> Verified
                                     </span>
                                 )}
@@ -352,7 +352,7 @@ export default function HostPageManagement() {
                         )}
                         <div className="flex items-center gap-2">
                             {saveStatus === "saved" && (
-                                <span className="flex items-center gap-1.5 text-c1rcle-orange text-[10px] font-bold uppercase tracking-widest">
+                                <span className="flex items-center gap-1.5 text-accent-primary text-[10px] font-bold uppercase tracking-widest">
                                     <CheckCircle2 className="w-3 h-3" /> Saved
                                 </span>
                             )}
@@ -829,7 +829,7 @@ export default function HostPageManagement() {
                                         </div>
 
                                         <div className="pt-6 border-t border-white/5 space-y-4">
-                                            <div className="flex items-center gap-3 text-c1rcle-orange">
+                                            <div className="flex items-center gap-3 text-accent-primary">
                                                 <Users className="w-4 h-4" />
                                                 <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Target: {data?.stats?.followersCount || 0} Followers</span>
                                             </div>

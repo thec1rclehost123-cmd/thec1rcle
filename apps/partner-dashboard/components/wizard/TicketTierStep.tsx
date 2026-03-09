@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, forwardRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Ticket,
@@ -118,26 +118,7 @@ function AppleInput({
     );
 }
 
-function TicketTierCard({
-    tier,
-    index,
-    onUpdate,
-    onRemove,
-    canRemove,
-    capacity,
-    eventDefaultCommission,
-    eventDefaultCommissionType,
-    promotersEnabled,
-    useDefaultCommission,
-    buyerDiscountsEnabled,
-    useDefaultDiscount,
-    eventDefaultDiscount,
-    eventDefaultDiscountType,
-    eventStartDate,
-    scheduledPricingEnabled,
-    defaultScheduledPrices,
-    isRSVP
-}: {
+const TicketTierCard = forwardRef<HTMLDivElement, {
     tier: TicketTier;
     index: number;
     onUpdate: (updates: Partial<TicketTier>) => void;
@@ -156,7 +137,26 @@ function TicketTierCard({
     scheduledPricingEnabled?: boolean;
     defaultScheduledPrices?: DefaultScheduledPrice[];
     isRSVP?: boolean;
-}) {
+}>(({
+    tier,
+    index,
+    onUpdate,
+    onRemove,
+    canRemove,
+    capacity,
+    eventDefaultCommission,
+    eventDefaultCommissionType,
+    promotersEnabled,
+    useDefaultCommission,
+    buyerDiscountsEnabled,
+    useDefaultDiscount,
+    eventDefaultDiscount,
+    eventDefaultDiscountType,
+    eventStartDate,
+    scheduledPricingEnabled,
+    defaultScheduledPrices,
+    isRSVP
+}, ref) => {
     const [expanded, setExpanded] = useState(false);
 
     const selectedEntryType = ENTRY_TYPES.find(t => t.id === tier.entryType) || ENTRY_TYPES[0];
@@ -188,6 +188,7 @@ function TicketTierCard({
 
     return (
         <motion.div
+            ref={ref}
             layout
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -307,7 +308,7 @@ function TicketTierCard({
                                             min="0"
                                         />
                                         {tier.price === 0 && (
-                                            <p className="text-[10px] text-c1rcle-orange font-medium flex items-center gap-1">
+                                            <p className="text-[10px] text-accent-primary font-medium flex items-center gap-1">
                                                 <span>✓ Checkout Logic:</span>
                                                 <span className="bg-green-500/10 px-1 rounded">RSVP Mode</span>
                                                 <span>(No Gateway)</span>
@@ -604,7 +605,9 @@ function TicketTierCard({
             </AnimatePresence>
         </motion.div>
     );
-}
+});
+
+TicketTierCard.displayName = "TicketTierCard";
 
 export function TicketTierStep({ formData, updateFormData, validationErrors }: TicketTierStepProps) {
     const tickets: TicketTier[] = formData.tickets || [];

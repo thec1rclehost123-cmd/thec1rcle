@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 // @ts-ignore
 import { validatePromoCode } from '@c1rcle/core/promo-service';
 import { z } from 'zod';
+import * as Sentry from '@sentry/node';
 
 const CheckoutValidateBody = z.object({
     eventId: z.string(),
@@ -92,7 +93,10 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ body: CheckoutReserveBody })]
     }, async (request: { body: any, user: any }, reply) => {
         const { eventId, items, deviceId } = request.body;
-        const userId = request.user?.uid || deviceId || 'anonymous';
+        const userId = request.user?.uid;
+        if (!userId) {
+            return reply.status(401).send({ success: false, error: 'Authentication required to reserve tickets' });
+        }
 
         try {
             const result = await fastify.checkoutService.reserveItems(eventId, userId, deviceId || null, items);
@@ -122,6 +126,23 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             });
             return result;
         } catch (error: any) {
+            const isContention = error.code === 10 || error.code === 'ABORTED' ||
+                (error.message || '').toUpperCase().includes('ABORTED');
+
+            if (isContention) {
+                fastify.log.warn(`Firestore transaction contention on checkout initiate: ${error.message}`);
+                Sentry.captureException(error, {
+                    level: 'warning',
+                    tags: { type: 'firestore_contention', route: 'checkout_initiate' },
+                    extra: {
+                        userId,
+                        reservationId: request.body?.reservationId,
+                        eventId: request.body?.eventId
+                    }
+                });
+                return reply.status(409).send({ success: false, error: 'Checkout temporarily unavailable, please retry.' });
+            }
+
             fastify.log.error(`Initiate checkout failed: ${error.message}`);
             return reply.status(500).send({ success: false, error: error.message || 'Internal Server Error' });
         }

@@ -178,7 +178,7 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                                         <span className={`
                       px-2 py-0.5 rounded-full text-xs font-medium
                       ${code.type === "full"
-                                                ? "bg-green-500/20 text-c1rcle-orange"
+                                                ? "bg-green-500/20 text-accent-primary"
                                                 : "bg-amber-500/20 text-amber-400"
                                             }
                     `}>
@@ -210,7 +210,7 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                                             title="Copy code"
                                         >
                                             {copiedCode === code.code ? (
-                                                <Check className="w-4 h-4 text-c1rcle-orange" />
+                                                <Check className="w-4 h-4 text-accent-primary" />
                                             ) : (
                                                 <Copy className="w-4 h-4 text-text-tertiary" />
                                             )}
@@ -241,7 +241,7 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                                             {code.stats.doorEntriesCount} door entries
                                         </span>
                                     </div>
-                                    <div className="text-sm text-c1rcle-orange font-medium">
+                                    <div className="text-sm text-accent-primary font-medium">
                                         ₹{code.stats.doorRevenue.toLocaleString()} collected
                                     </div>
                                 </div>

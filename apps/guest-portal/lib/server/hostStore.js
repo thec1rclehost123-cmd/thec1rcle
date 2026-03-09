@@ -1,4 +1,5 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+import { trackedGet } from "./firestoreMetrics";
 
 // Extended fallback data for the premium experience
 const fallbackHosts = [
@@ -170,7 +171,7 @@ export async function listHosts({ search, role, vibe, status, time, sort } = {})
     if (role) query = query.where("role", "==", role);
     if (status === "Verified") query = query.where("verified", "==", true);
 
-    const snapshot = await query.get();
+    const snapshot = await trackedGet(query, "hostStore.listHosts");
     let hosts = snapshot.docs.map(doc => {
         const serialized = serializeDoc(doc);
         return {
@@ -220,7 +221,7 @@ export async function getHostByHandle(handle) {
     }
 
     const db = getAdminDb();
-    const snapshot = await db.collection(HOSTS_COLLECTION).where("handle", "==", normalizedHandle).limit(1).get();
+    const snapshot = await trackedGet(db.collection(HOSTS_COLLECTION).where("handle", "==", normalizedHandle).limit(1), "hostStore.getHostByHandle");
 
     if (!snapshot.empty) {
         return serializeDoc(snapshot.docs[0]);

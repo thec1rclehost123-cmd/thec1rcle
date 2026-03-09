@@ -254,7 +254,7 @@ function HostAudienceView({ stats }: { stats: any }) {
                         if (percent === 0) return null;
                         return (
                             <div key={g} className="text-center group">
-                                <div className="text-4xl font-black mb-1 group-hover:text-c1rcle-orange transition-colors">{Math.round(percent)}%</div>
+                                <div className="text-4xl font-black mb-1 group-hover:text-accent-primary transition-colors">{Math.round(percent)}%</div>
                                 <div className="text-[10px] font-black uppercase tracking-widest opacity-40">{g}</div>
                             </div>
                         );
@@ -270,7 +270,7 @@ function HostReliabilityView({ stats }: { stats: any }) {
         <div className="space-y-10">
             <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm text-center">
                 <div className="h-20 w-20 bg-surface-secondary rounded-3xl flex items-center justify-center mx-auto mb-8 animate-pulse text-text-primary">
-                    <ShieldCheck className="h-10 w-10 text-c1rcle-orange" />
+                    <ShieldCheck className="h-10 w-10 text-accent-primary" />
                 </div>
                 <h3 className="text-5xl font-black text-text-primary tracking-tighter mb-2">{stats.reliabilityScore}</h3>
                 <div className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-8">Professional Trust Score</div>

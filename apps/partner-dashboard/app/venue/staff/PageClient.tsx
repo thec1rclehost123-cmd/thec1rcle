@@ -42,7 +42,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-    manager: "text-c1rcle-orange bg-c1rcle-orange-glow border-c1rcle-orange/20",
+    manager: "text-accent-primary bg-accent-glow border-accent-primary/20",
     floor_manager: "text-blue-500 bg-blue-500/10 border-blue-500/20",
     security: "text-amber-500 bg-amber-500/10 border-amber-500/20",
     ops: "text-emerald-500 bg-green-500/10 border-emerald-500/20",
@@ -165,7 +165,7 @@ export default function VenueStaffPage() {
                         {loading ? (
                             <div className="p-20 text-center">
                                 <div className="flex flex-col items-center gap-4">
-                                    <div className="w-8 h-8 border-2 border-c1rcle-orange/20 border-t-[var(--c1rcle-orange)] rounded-full animate-spin" />
+                                    <div className="w-8 h-8 border-2 border-accent-primary/20 border-t-[var(--accent-primary)] rounded-full animate-spin" />
                                     <span className="text-label text-text-placeholder">Loading...</span>
                                 </div>
                             </div>
@@ -217,7 +217,7 @@ export default function VenueStaffPage() {
                                     <p className="text-caption text-text-tertiary">Total Active</p>
                                 </div>
                                 <div className="p-4 bg-surface-secondary border border-border-subtle rounded-xl">
-                                    <p className="text-stat-sm text-c1rcle-orange mb-1">
+                                    <p className="text-stat-sm text-accent-primary mb-1">
                                         {activeStaff.filter(s => s.isVerified).length}
                                     </p>
                                     <p className="text-caption text-text-tertiary">Verified</p>
@@ -233,7 +233,7 @@ export default function VenueStaffPage() {
                                     </div>
                                     <div>
                                         <h4 className="text-title-sm text-text-primary">{selectedStaff.name}</h4>
-                                        <p className="text-label text-c1rcle-orange mt-0.5">{ROLE_LABELS[selectedStaff.role] || selectedStaff.role}</p>
+                                        <p className="text-label text-accent-primary mt-0.5">{ROLE_LABELS[selectedStaff.role] || selectedStaff.role}</p>
                                     </div>
                                 </div>
 
@@ -323,7 +323,7 @@ function StaffRow({
                     <div className="flex items-center gap-2">
                         <h4 className="text-body-sm font-semibold text-text-primary">{member.name}</h4>
                         {member.isVerified ? (
-                            <ShieldCheck className="w-3.5 h-3.5 text-c1rcle-orange" />
+                            <ShieldCheck className="w-3.5 h-3.5 text-accent-primary" />
                         ) : (
                             <div className="w-1.5 h-1.5 rounded-full bg-[var(--state-warning)] animate-pulse" title="Pending Verification" />
                         )}
@@ -351,7 +351,7 @@ function StaffRow({
                                 {!member.isVerified && onVerify && (
                                     <button
                                         onClick={(e) => { e.stopPropagation(); onVerify(); setShowActions(false); }}
-                                        className="w-full px-4 py-2.5 text-left text-body-sm text-c1rcle-orange hover:bg-green-500/10 flex items-center gap-2"
+                                        className="w-full px-4 py-2.5 text-left text-body-sm text-accent-primary hover:bg-green-500/10 flex items-center gap-2"
                                     >
                                         <ShieldCheck className="w-3.5 h-3.5" /> Verify User
                                     </button>

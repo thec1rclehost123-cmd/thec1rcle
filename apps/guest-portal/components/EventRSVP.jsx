@@ -85,6 +85,15 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
     }
   }, []);
 
+  // Track event view client-side so the server component can use ISR caching.
+  // Fire-and-forget: never blocks render, never surfaces errors to the user.
+  useEffect(() => {
+    if (event?.id) {
+      fetch(`/api/events/${event.id}/view`, { method: "POST" })
+        .catch(() => { /* non-critical */ });
+    }
+  }, [event?.id]);
+
   const ensureAuthenticated = (type) => {
     if (user) return true;
     saveIntent(type, event?.id);

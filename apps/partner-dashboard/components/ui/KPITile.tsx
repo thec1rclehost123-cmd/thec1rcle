@@ -44,7 +44,7 @@ const stateStyles: Record<KPIState, { icon: string; border: string }> = {
         border: "border-border-subtle"
     },
     success: {
-        icon: "bg-green-500/10 text-c1rcle-orange",
+        icon: "bg-green-500/10 text-accent-primary",
         border: "border-emerald-500/20"
     },
     warning: {
@@ -60,7 +60,7 @@ const stateStyles: Record<KPIState, { icon: string; border: string }> = {
         border: "border-indigo-500/20"
     },
     accent: {
-        icon: "bg-c1rcle-orange-glow text-c1rcle-orange",
+        icon: "bg-accent-glow text-accent-primary",
         border: "border-orange-500/20"
     },
 };
@@ -314,7 +314,7 @@ export function ProgressStat({
     const percentage = Math.min((value / max) * 100, 100);
 
     const colorClasses = {
-        accent: "bg-c1rcle-orange",
+        accent: "bg-accent-primary",
         success: "bg-green-500",
         warning: "bg-[var(--state-warning)]",
         info: "bg-[var(--state-info)]",

@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 
 const EnhancedVenueEditor = dynamic(
     () => import("@/components/venue-management/EnhancedVenueEditor"),
-    { ssr: false, loading: () => <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4"><Loader2 className="w-10 h-10 animate-spin text-c1rcle-orange" /><p className="text-sm font-bold uppercase tracking-widest text-text-tertiary">Initializing Editor Engine...</p></div> }
+    { ssr: false, loading: () => <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4"><Loader2 className="w-10 h-10 animate-spin text-accent-primary" /><p className="text-sm font-bold uppercase tracking-widest text-text-tertiary">Initializing Editor Engine...</p></div> }
 );
 
 interface PageData {
@@ -120,7 +120,7 @@ export default function VenuePageManagement() {
     if (authLoading || isLoading) {
         return (
             <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
-                <Loader2 className="w-10 h-10 animate-spin text-c1rcle-orange" />
+                <Loader2 className="w-10 h-10 animate-spin text-accent-primary" />
                 <p className="text-sm font-bold uppercase tracking-widest text-text-tertiary">Loading Venue Editor...</p>
             </div>
         );

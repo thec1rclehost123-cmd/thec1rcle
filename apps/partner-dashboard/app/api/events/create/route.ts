@@ -11,11 +11,14 @@ export async function POST(req: NextRequest) {
             if (body.creatorRole === 'host') {
                 body.lifecycle = 'submitted';
             } else if (body.creatorRole === 'venue' || body.creatorRole === 'club') {
-                body.lifecycle = 'approved';
+                body.lifecycle = 'scheduled';
             }
         }
 
-        const event = await createEvent(body);
+        const authHeader = req.headers.get("authorization");
+        const token = authHeader?.split("Bearer ")[1] || "";
+
+        const event = await createEvent(body, token);
 
         // If it's a host event, also create a slot request
         if (body.creatorRole === 'host' && body.venueId) {
@@ -30,7 +33,7 @@ export async function POST(req: NextRequest) {
                     requestedStartTime: body.startTime,
                     requestedEndTime: body.endTime,
                     notes: `Event creation request: ${body.title}`
-                });
+                }, token);
             } catch (slotError) {
                 console.error("Failed to create slot request:", slotError);
                 // We don't fail the whole event creation, but we log it

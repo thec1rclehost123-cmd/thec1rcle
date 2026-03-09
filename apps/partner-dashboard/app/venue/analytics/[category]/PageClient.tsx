@@ -236,7 +236,7 @@ function OverviewView({ stats }: { stats: any }) {
                                 </div>
                                 <div className="text-right">
                                     <p className="text-sm font-black tracking-tight">₹{(event.revenue / 1000).toFixed(1)}K</p>
-                                    <ArrowUpRight className="h-3 w-3 text-c1rcle-orange ml-auto group-hover:scale-125 transition-transform" />
+                                    <ArrowUpRight className="h-3 w-3 text-accent-primary ml-auto group-hover:scale-125 transition-transform" />
                                 </div>
                             </div>
                         ))}
@@ -388,7 +388,7 @@ function ReachView({ stats }: { stats: any }) {
                         <div key={event.id} className="bg-surface-elevated/5 border border-border-subtle p-6 rounded-3xl hover:bg-surface-elevated/10 transition-all">
                             <h4 className="font-bold mb-2 truncate">{event.title}</h4>
                             <div className="flex items-baseline gap-2">
-                                <span className="text-3xl font-black text-c1rcle-orange">{event.ctr.toFixed(1)}%</span>
+                                <span className="text-3xl font-black text-accent-primary">{event.ctr.toFixed(1)}%</span>
                                 <span className="text-[10px] font-bold text-text-primary/40 uppercase tracking-widest">Click-to-RSVP</span>
                             </div>
                         </div>

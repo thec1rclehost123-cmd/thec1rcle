@@ -1,18 +1,14 @@
 "use client";
 
+// P2-C: firebase/auth is NOT statically imported here.
+// It is dynamically imported inside useEffect and auth callbacks so the ~100KB
+// SDK module is excluded from the initial bundle for anonymous users.
+// Trade-off: auth state resolution takes ~100-300ms longer on first load as
+// the chunk downloads. The loading:true state persists until the chunk resolves.
+// Do NOT deploy this without running the full auth regression suite:
+//   email/password login, Google popup, register, logout, session persistence.
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import {
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-  updateProfile as updateFirebaseProfile,
-  setPersistence,
-  browserLocalPersistence,
-  browserSessionPersistence,
-  GoogleAuthProvider,
-  signInWithPopup
-} from "firebase/auth";
 import { getFirebaseAuth } from "../../lib/firebase/client";
 
 const AuthContext = createContext({
@@ -67,7 +63,6 @@ export function AuthProvider({ children }) {
         }
       }
 
-      // If missing or error fetching, create new one
       await fetch('/api/auth/profile', {
         method: 'POST',
         headers: {
@@ -87,62 +82,81 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let unsubscribe;
-    try {
-      const auth = getFirebaseAuth();
-      unsubscribe = onAuthStateChanged(auth, async (authUser) => {
-        setUser(authUser);
-        if (authUser) {
-          try {
-            await ensureProfile(authUser);
-          } catch (profileError) {
-            console.error("Failed to load user profile", profileError);
+    let mounted = true;
+
+    import("firebase/auth").then(async ({ onAuthStateChanged }) => {
+      if (!mounted) return;
+      try {
+        const auth = await getFirebaseAuth();
+        unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+          if (!mounted) return;
+          setUser(authUser);
+          if (authUser) {
+            try {
+              await ensureProfile(authUser);
+            } catch (profileError) {
+              console.error("Failed to load user profile", profileError);
+            }
+          } else {
+            setProfile(null);
           }
-        } else {
-          setProfile(null);
-        }
+          setLoading(false);
+        });
+      } catch (authError) {
+        console.error("Firebase auth unavailable", authError);
+        setError("Firebase is not configured. Check NEXT_PUBLIC_FIREBASE_* env vars.");
         setLoading(false);
-      });
-    } catch (authError) {
-      console.error("Firebase auth unavailable", authError);
-      setError("Firebase is not configured. Check NEXT_PUBLIC_FIREBASE_* env vars.");
+      }
+    }).catch((importError) => {
+      console.error("Failed to load Firebase Auth module", importError);
       setLoading(false);
-    }
-    return () => unsubscribe?.();
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribe?.();
+    };
   }, [ensureProfile]);
 
   const login = useCallback(async (email, password, rememberMe = true) => {
-    const auth = getFirebaseAuth();
+    const {
+      signInWithEmailAndPassword,
+      setPersistence,
+      browserLocalPersistence,
+      browserSessionPersistence
+    } = await import("firebase/auth");
+    const auth = await getFirebaseAuth();
     await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
     const credential = await signInWithEmailAndPassword(auth, email, password);
     await ensureProfile(credential.user);
     return credential.user;
   }, [ensureProfile]);
 
-  const register = useCallback(
-    async (email, password, displayName) => {
-      const auth = getFirebaseAuth();
-      const credential = await createUserWithEmailAndPassword(auth, email, password);
-      if (displayName) {
-        await updateFirebaseProfile(credential.user, { displayName });
-      }
-      await ensureProfile({
-        ...credential.user,
-        displayName: displayName || credential.user.displayName
-      });
-      return credential.user;
-    },
-    [ensureProfile]
-  );
+  const register = useCallback(async (email, password, displayName) => {
+    const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth");
+    const auth = await getFirebaseAuth();
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    if (displayName) {
+      await updateProfile(credential.user, { displayName });
+    }
+    await ensureProfile({
+      ...credential.user,
+      displayName: displayName || credential.user.displayName
+    });
+    return credential.user;
+  }, [ensureProfile]);
 
   const logout = useCallback(async () => {
-    const auth = getFirebaseAuth();
+    const { signOut } = await import("firebase/auth");
+    const auth = await getFirebaseAuth();
     await signOut(auth);
     setProfile(null);
     setUser(null);
   }, []);
 
   const loginWithGoogle = useCallback(async () => {
-    const auth = getFirebaseAuth();
+    const { GoogleAuthProvider, signInWithPopup } = await import("firebase/auth");
+    const auth = await getFirebaseAuth();
     const provider = new GoogleAuthProvider();
     const credential = await signInWithPopup(auth, provider);
     await ensureProfile(credential.user);
@@ -155,14 +169,11 @@ export function AuthProvider({ children }) {
         throw new Error("You must be logged in to manage events.");
       }
 
-      // Read latest profile via ref — avoids adding `profile` to deps
-      // which would recreate this callback (and invalidate context) on every profile update
       const current = new Set(profileRef.current?.[field] || []);
       if (shouldInclude) current.add(eventId);
       else current.delete(eventId);
       const updatedArray = Array.from(current);
 
-      // Optimistic update before awaiting the token/network
       setProfile((prev) => {
         if (!prev) return prev;
         return { ...prev, [field]: updatedArray };
@@ -178,7 +189,7 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({ type: 'user', updates: { [field]: updatedArray } })
       });
     },
-    [user?.uid] // profile removed from deps — read via ref instead
+    [user?.uid]
   );
 
   const updateUserProfile = useCallback(

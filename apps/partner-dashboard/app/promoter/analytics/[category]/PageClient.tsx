@@ -162,7 +162,7 @@ function PromoterOverviewView({ stats }: { stats: any }) {
                                 <p className="text-2xl font-black">{stats.totalClicks.toLocaleString()}</p>
                             </div>
                             <div className="h-10 w-10 bg-surface-elevated/10 rounded-xl flex items-center justify-center">
-                                <MousePointer2 className="h-5 w-5 text-c1rcle-orange" />
+                                <MousePointer2 className="h-5 w-5 text-accent-primary" />
                             </div>
                         </div>
                         <div className="flex justify-between items-center">
@@ -243,7 +243,7 @@ function PromoterAudienceView({ stats }: { stats: any }) {
                         if (percent === 0 && count === 0) return null;
                         return (
                             <div key={g} className="text-center group">
-                                <div className="text-4xl font-black mb-1 group-hover:text-c1rcle-orange transition-colors">{Math.round(percent)}%</div>
+                                <div className="text-4xl font-black mb-1 group-hover:text-accent-primary transition-colors">{Math.round(percent)}%</div>
                                 <div className="text-[10px] font-black uppercase tracking-widest opacity-40">{g}</div>
                             </div>
                         );

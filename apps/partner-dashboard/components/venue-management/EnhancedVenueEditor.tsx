@@ -191,7 +191,7 @@ export default function EnhancedVenueEditor({
                     ))}
                 </div>
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-surface-elevated/40 dark:bg-black/40 backdrop-blur-[2px]">
-                    <button onClick={() => setIsEditing('contact')} className="bg-c1rcle-orange text-text-primary px-6 py-2 rounded-xl flex items-center gap-2 font-bold shadow-lg">
+                    <button onClick={() => setIsEditing('contact')} className="bg-accent-primary text-text-primary px-6 py-2 rounded-xl flex items-center gap-2 font-bold shadow-lg">
                         <Edit3 className="w-4 h-4" /> Edit Links & Contact
                     </button>
                 </div>
@@ -278,7 +278,7 @@ export default function EnhancedVenueEditor({
                             <span className="text-[10px] font-black uppercase tracking-[0.5em] text-[#F44A22] block mb-2">The Vibe</span>
                             <h2 className="text-4xl font-bold uppercase tracking-tighter text-text-primary dark:text-text-primary">Gallery</h2>
                         </div>
-                        <button onClick={() => setIsEditing('gallery')} className="opacity-0 group-hover:opacity-100 transition-opacity bg-c1rcle-orange text-text-primary px-6 py-2 rounded-xl font-bold shadow-lg flex items-center gap-2">
+                        <button onClick={() => setIsEditing('gallery')} className="opacity-0 group-hover:opacity-100 transition-opacity bg-accent-primary text-text-primary px-6 py-2 rounded-xl font-bold shadow-lg flex items-center gap-2">
                             <ImageIcon className="w-4 h-4" /> Manage Grid
                         </button>
                     </div>
@@ -416,7 +416,7 @@ export default function EnhancedVenueEditor({
                                 <textarea
                                     value={localVenue.bio || localVenue.description || ""}
                                     onChange={(e) => setLocalVenue({ ...localVenue, bio: e.target.value })}
-                                    className="w-full bg-surface-secondary border border-border-default p-4 rounded-2xl text-sm font-medium text-text-primary outline-none focus:border-c1rcle-orange transition-colors resize-none"
+                                    className="w-full bg-surface-secondary border border-border-default p-4 rounded-2xl text-sm font-medium text-text-primary outline-none focus:border-accent-primary transition-colors resize-none"
                                     rows={4}
                                     placeholder="Tell your guests what makes your venue unique..."
                                 />
@@ -530,7 +530,7 @@ function EditModal({ title, children, onClose, onSave }: { title: string, childr
                 </div>
                 <div className="p-8 border-t border-border-subtle bg-surface-secondary flex gap-3">
                     <button onClick={onClose} className="flex-1 py-4 px-6 rounded-2xl font-bold uppercase tracking-widest text-text-tertiary hover:bg-surface-elevated/5 transition-all">Cancel</button>
-                    <button onClick={onSave} className="flex-1 py-4 px-6 rounded-2xl bg-c1rcle-orange text-text-primary font-bold uppercase tracking-widest shadow-xl shadow-orange-500/20 hover:scale-[1.02] transition-all">Save Changes</button>
+                    <button onClick={onSave} className="flex-1 py-4 px-6 rounded-2xl bg-accent-primary text-text-primary font-bold uppercase tracking-widest shadow-xl shadow-orange-500/20 hover:scale-[1.02] transition-all">Save Changes</button>
                 </div>
             </motion.div>
         </div>
@@ -547,7 +547,7 @@ function InputField({ label, icon: Icon, value, onChange, multiline }: { label: 
                     <textarea
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
-                        className="w-full bg-surface-secondary border border-border-default p-4 pl-12 rounded-2xl text-sm font-bold text-text-primary outline-none focus:border-c1rcle-orange transition-colors resize-none"
+                        className="w-full bg-surface-secondary border border-border-default p-4 pl-12 rounded-2xl text-sm font-bold text-text-primary outline-none focus:border-accent-primary transition-colors resize-none"
                         rows={3}
                     />
                 ) : (
@@ -555,7 +555,7 @@ function InputField({ label, icon: Icon, value, onChange, multiline }: { label: 
                         type="text"
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
-                        className="w-full bg-surface-secondary border border-border-default p-4 pl-12 rounded-2xl text-sm font-bold text-text-primary outline-none focus:border-c1rcle-orange transition-colors"
+                        className="w-full bg-surface-secondary border border-border-default p-4 pl-12 rounded-2xl text-sm font-bold text-text-primary outline-none focus:border-accent-primary transition-colors"
                     />
                 )}
             </div>

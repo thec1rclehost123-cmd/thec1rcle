@@ -298,7 +298,7 @@ function DirectoryCard({
             className="group bg-surface-elevated border border-border-default rounded-[2rem] overflow-hidden hover:border-border-strong hover:shadow-sm transition-all duration-300 flex flex-col"
         >
             {/* Card header strip */}
-            <div className="h-2 bg-gradient-to-r from-c1rcle-orange-glow to-transparent" />
+            <div className="h-2 bg-gradient-to-r from-accent-glow to-transparent" />
 
             <div className="p-6 flex-1 flex flex-col">
                 <div className="flex items-start justify-between mb-4">

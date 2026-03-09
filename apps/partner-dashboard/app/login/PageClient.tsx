@@ -139,7 +139,7 @@ function LoginForm() {
                 </div>
 
                 {/* Gradient Orb */}
-                <div className="absolute -bottom-1/2 -right-1/4 w-[800px] h-[800px] rounded-full bg-gradient-radial from-[var(--c1rcle-orange)]/20 via-transparent to-transparent blur-3xl" />
+                <div className="absolute -bottom-1/2 -right-1/4 w-[800px] h-[800px] rounded-full bg-gradient-radial from-[var(--accent-primary)]/20 via-transparent to-transparent blur-3xl" />
                 <div className="absolute -top-1/4 -left-1/4 w-[600px] h-[600px] rounded-full bg-gradient-radial from-indigo-500/10 via-transparent to-transparent blur-3xl" />
 
                 {/* Top - Logo & Theme Toggle */}
@@ -163,10 +163,10 @@ function LoginForm() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.6 }}
                     >
-                        <p className="text-label-sm text-[var(--c1rcle-orange)] mb-4">ENTERPRISE PLATFORM</p>
+                        <p className="text-label-sm text-[var(--accent-primary)] mb-4">ENTERPRISE PLATFORM</p>
                         <h2 className="text-display text-[var(--text-primary)] mb-6 leading-tight">
                             Command Your<br />
-                            <span className="text-[var(--c1rcle-orange)]">Nightlife Empire</span>
+                            <span className="text-[var(--accent-primary)]">Nightlife Empire</span>
                         </h2>
                         <p className="text-body-lg text-[var(--text-secondary)] leading-relaxed max-w-md">
                             Real-time analytics, seamless operations, and complete control over your venue, events, and promoter network—all in one powerful platform.
@@ -250,20 +250,20 @@ function LoginForm() {
                                             type="button"
                                             onClick={() => setUserType(type)}
                                             className={`relative p-4 rounded-2xl border-2 transition-all duration-200 text-center group ${isActive
-                                                ? "border-[var(--c1rcle-orange)] bg-[var(--c1rcle-orange-glow)]"
+                                                ? "border-[var(--accent-primary)] bg-[var(--accent-glow)]"
                                                 : "border-[var(--border-subtle)] bg-[var(--surface-secondary)] hover:border-[var(--border-default)]"
                                                 }`}
                                         >
-                                            <Icon className={`h-5 w-5 mx-auto mb-2 transition-colors ${isActive ? "text-[var(--c1rcle-orange)]" : "text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]"
+                                            <Icon className={`h-5 w-5 mx-auto mb-2 transition-colors ${isActive ? "text-[var(--accent-primary)]" : "text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]"
                                                 }`} />
-                                            <p className={`text-[13px] font-semibold transition-colors ${isActive ? "text-[var(--c1rcle-orange)]" : "text-[var(--text-secondary)]"
+                                            <p className={`text-[13px] font-semibold transition-colors ${isActive ? "text-[var(--accent-primary)]" : "text-[var(--text-secondary)]"
                                                 }`}>
                                                 {config.label}
                                             </p>
                                             {isActive && (
                                                 <motion.div
                                                     layoutId="workspace-indicator"
-                                                    className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--c1rcle-orange)]"
+                                                    className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--accent-primary)]"
                                                 />
                                             )}
                                         </button>
@@ -276,7 +276,7 @@ function LoginForm() {
                         <div className="space-y-2">
                             <label className="input-label">Email Address</label>
                             <div className="relative group">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-placeholder)] group-focus-within:text-[var(--c1rcle-orange)] transition-colors" />
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-placeholder)] group-focus-within:text-[var(--accent-primary)] transition-colors" />
                                 <input
                                     type="email"
                                     value={email}
@@ -295,13 +295,13 @@ function LoginForm() {
                                 <button
                                     type="button"
                                     onClick={() => router.push('/forgot-password')}
-                                    className="text-[12px] font-medium text-[var(--c1rcle-orange)] hover:underline"
+                                    className="text-[12px] font-medium text-[var(--accent-primary)] hover:underline"
                                 >
                                     Forgot password?
                                 </button>
                             </div>
                             <div className="relative group">
-                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-placeholder)] group-focus-within:text-[var(--c1rcle-orange)] transition-colors" />
+                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-placeholder)] group-focus-within:text-[var(--accent-primary)] transition-colors" />
                                 <input
                                     type={showPassword ? "text" : "password"}
                                     value={password}

@@ -154,8 +154,8 @@ export default function VenuePartnershipsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-default pb-8">
                 <div>
-                    <div className="flex items-center gap-3 mb-3 text-c1rcle-orange">
-                        <div className="p-2 bg-c1rcle-orange-glow rounded-xl">
+                    <div className="flex items-center gap-3 mb-3 text-accent-primary">
+                        <div className="p-2 bg-accent-glow rounded-xl">
                             <Users className="w-5 h-5" />
                         </div>
                         <span className="text-label font-black uppercase tracking-widest">Network</span>
@@ -175,7 +175,7 @@ export default function VenuePartnershipsPage() {
                         <p className="text-label text-text-tertiary mt-0.5">Active</p>
                     </div>
                     <div className="px-5 py-3 bg-surface-elevated border border-border-default rounded-2xl text-center">
-                        <p className="text-stat-xs font-bold text-c1rcle-orange">{pending.length}</p>
+                        <p className="text-stat-xs font-bold text-accent-primary">{pending.length}</p>
                         <p className="text-label text-text-tertiary mt-0.5">Pending</p>
                     </div>
                 </div>
@@ -198,7 +198,7 @@ export default function VenuePartnershipsPage() {
                             <span
                                 className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
                                     activeTab === tab.id
-                                        ? "bg-c1rcle-orange text-text-inverse"
+                                        ? "bg-accent-primary text-text-inverse"
                                         : "bg-surface-tertiary text-text-tertiary"
                                 }`}
                             >
@@ -343,7 +343,7 @@ function ActiveRoster({
                                 {conn.otherName[0]}
                             </div>
                             <div>
-                                <h3 className="text-title font-bold text-text-primary group-hover:text-c1rcle-orange transition-colors">
+                                <h3 className="text-title font-bold text-text-primary group-hover:text-accent-primary transition-colors">
                                     {conn.otherName}
                                 </h3>
                                 <span className="flex items-center gap-1 text-caption text-text-tertiary capitalize mt-0.5">
@@ -360,7 +360,7 @@ function ActiveRoster({
                             <span
                                 className={`text-label px-2.5 py-1 rounded-lg font-bold ${
                                     conn.tier === "trusted"
-                                        ? "bg-c1rcle-orange-glow text-c1rcle-orange"
+                                        ? "bg-accent-glow text-accent-primary"
                                         : "bg-surface-tertiary text-text-tertiary border border-border-default"
                                 }`}
                             >
@@ -375,7 +375,7 @@ function ActiveRoster({
                             Since {formatDate(conn.updatedAt || conn.createdAt)}
                         </span>
                         <span className="flex items-center gap-1 font-semibold text-text-secondary">
-                            <span className="w-2 h-2 rounded-full bg-c1rcle-orange" /> Active
+                            <span className="w-2 h-2 rounded-full bg-accent-primary" /> Active
                         </span>
                     </div>
 
@@ -436,7 +436,7 @@ function PendingRequests({
                         initial={{ opacity: 0, x: -8 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, scale: 0.97 }}
-                        className="group bg-surface-elevated border border-border-default rounded-[2rem] p-6 border-l-4 border-l-c1rcle-orange hover:shadow-sm transition-all"
+                        className="group bg-surface-elevated border border-border-default rounded-[2rem] p-6 border-l-4 border-l-accent-primary hover:shadow-sm transition-all"
                     >
                         <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-4">
@@ -444,7 +444,7 @@ function PendingRequests({
                                     {req.otherName[0]}
                                 </div>
                                 <div>
-                                    <h4 className="text-title font-bold text-text-primary group-hover:text-c1rcle-orange transition-colors">
+                                    <h4 className="text-title font-bold text-text-primary group-hover:text-accent-primary transition-colors">
                                         {req.otherName}
                                     </h4>
                                     <div className="flex items-center gap-3 mt-0.5">

@@ -150,7 +150,7 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
                                             {venue?.venueType || "Venue"}
                                         </span>
                                         {venue?.isVerified && (
-                                            <span className="flex items-center gap-1 px-3 py-1 bg-green-500/20 rounded-full text-[10px] font-bold text-c1rcle-orange">
+                                            <span className="flex items-center gap-1 px-3 py-1 bg-green-500/20 rounded-full text-[10px] font-bold text-accent-primary">
                                                 <CheckCircle2 className="w-3 h-3" /> Verified
                                             </span>
                                         )}

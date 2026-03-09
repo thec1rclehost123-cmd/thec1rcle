@@ -34,7 +34,9 @@ export async function GET(req: NextRequest) {
         const targetId = partnerId;
 
         if (view === "operating") {
-            const data = await getOperatingCalendar(targetId, role, startDate, endDate);
+            const authHeader = req.headers.get("authorization");
+            const token = authHeader?.split("Bearer ")[1] || "";
+            const data = await getOperatingCalendar(targetId, role, startDate, endDate, token);
             return NextResponse.json(data);
         }
 

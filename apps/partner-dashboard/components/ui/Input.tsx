@@ -49,7 +49,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
         <div className="relative group">
           {icon && iconPosition === "left" && (
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-text-placeholder group-focus-within:text-c1rcle-orange transition-colors">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-text-placeholder group-focus-within:text-accent-primary transition-colors">
               {icon}
             </div>
           )}
@@ -61,7 +61,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               // Hover state
               "hover:bg-surface-tertiary hover:border-border-default",
               // Focus state
-              "focus:bg-surface-base focus:border-c1rcle-orange focus:ring-3 focus:ring-[var(--c1rcle-orange-glow)]",
+              "focus:bg-surface-base focus:border-accent-primary focus:ring-3 focus:ring-[var(--accent-glow)]",
               // Error state
               hasError
                 ? "border-[var(--state-error)] focus:border-[var(--state-error)] focus:ring-[var(--state-error-bg)]"
@@ -74,7 +74,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {...rest}
           />
           {icon && iconPosition === "right" && (
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-text-placeholder group-focus-within:text-c1rcle-orange transition-colors">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-text-placeholder group-focus-within:text-accent-primary transition-colors">
               {icon}
             </div>
           )}

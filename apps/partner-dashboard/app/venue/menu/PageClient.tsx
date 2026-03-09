@@ -74,7 +74,7 @@ export default function VenueMenuManagement() {
                                         }`}
                                 >
                                     <div className="flex items-center gap-3">
-                                        <section.icon className={`w-4 h-4 ${activeSection === section.id ? "text-c1rcle-orange" : "text-text-tertiary"}`} />
+                                        <section.icon className={`w-4 h-4 ${activeSection === section.id ? "text-accent-primary" : "text-text-tertiary"}`} />
                                         <span className="text-sm font-bold">{section.label}</span>
                                     </div>
                                     <span className={`text-[10px] font-bold ${activeSection === section.id ? "text-text-primary/40" : "text-text-placeholder"}`}>

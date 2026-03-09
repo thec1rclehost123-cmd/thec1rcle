@@ -300,7 +300,7 @@ export default function ReservationsPage() {
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <Utensils className="w-4 h-4 text-c1rcle-orange" />
+                                                        <Utensils className="w-4 h-4 text-accent-primary" />
                                                         <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Restaurant</p>
                                                     </>
                                                 )}

@@ -39,7 +39,7 @@ const CardComponent = forwardRef<HTMLDivElement, CardProps>(
             : "bg-surface-elevated",
           // Border styles
           glow
-            ? "border-c1rcle-orange shadow-glow"
+            ? "border-accent-primary shadow-glow"
             : "border-border-subtle",
           // Elevation
           elevated && "shadow-md",

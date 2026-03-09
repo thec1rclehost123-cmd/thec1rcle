@@ -95,8 +95,8 @@ export default function PromoterPartnershipsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-default pb-8">
                 <div>
-                    <div className="flex items-center gap-3 mb-3 text-c1rcle-orange">
-                        <div className="p-2 bg-c1rcle-orange-glow rounded-xl">
+                    <div className="flex items-center gap-3 mb-3 text-accent-primary">
+                        <div className="p-2 bg-accent-glow rounded-xl">
                             <Users className="w-5 h-5" />
                         </div>
                         <span className="text-label font-black uppercase tracking-widest">
@@ -118,7 +118,7 @@ export default function PromoterPartnershipsPage() {
                         <p className="text-label text-text-tertiary mt-0.5">Active</p>
                     </div>
                     <div className="px-5 py-3 bg-surface-elevated border border-border-default rounded-2xl text-center">
-                        <p className="text-stat-xs font-bold text-c1rcle-orange">{pending.length}</p>
+                        <p className="text-stat-xs font-bold text-accent-primary">{pending.length}</p>
                         <p className="text-label text-text-tertiary mt-0.5">Pending</p>
                     </div>
                 </div>
@@ -136,16 +136,16 @@ export default function PromoterPartnershipsPage() {
                                 : "text-text-tertiary hover:text-text-secondary"
                         }`}
                     >
-                        {tab.id === "discover" && <Search className={`w-4 h-4 ${activeTab === tab.id ? "text-c1rcle-orange" : ""}`} />}
-                        {tab.id === "pending" && <Clock className={`w-4 h-4 ${activeTab === tab.id ? "text-c1rcle-orange" : ""}`} />}
-                        {tab.id === "active" && <CheckCircle2 className={`w-4 h-4 ${activeTab === tab.id ? "text-c1rcle-orange" : ""}`} />}
+                        {tab.id === "discover" && <Search className={`w-4 h-4 ${activeTab === tab.id ? "text-accent-primary" : ""}`} />}
+                        {tab.id === "pending" && <Clock className={`w-4 h-4 ${activeTab === tab.id ? "text-accent-primary" : ""}`} />}
+                        {tab.id === "active" && <CheckCircle2 className={`w-4 h-4 ${activeTab === tab.id ? "text-accent-primary" : ""}`} />}
                         {tab.id === "declined" && <XCircle className={`w-4 h-4 ${activeTab === tab.id ? "" : ""}`} />}
                         {tab.label}
                         {tab.count !== undefined && tab.count > 0 && (
                             <span
                                 className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
                                     activeTab === tab.id
-                                        ? "bg-c1rcle-orange text-text-inverse"
+                                        ? "bg-accent-primary text-text-inverse"
                                         : "bg-surface-tertiary text-text-tertiary"
                                 }`}
                             >
@@ -239,7 +239,7 @@ function PartnershipCard({
     const isDeclined = partnership.status === "rejected";
 
     const statusConfig = isActive
-        ? { label: "Active", dotClass: "bg-c1rcle-orange", textClass: "text-text-secondary" }
+        ? { label: "Active", dotClass: "bg-accent-primary", textClass: "text-text-secondary" }
         : isPending
         ? { label: "Pending", dotClass: "bg-text-placeholder", textClass: "text-text-tertiary" }
         : { label: "Declined", dotClass: "bg-border-strong", textClass: "text-text-placeholder" };
@@ -257,7 +257,7 @@ function PartnershipCard({
                         {partnership.otherName[0]}
                     </div>
                     <div>
-                        <h3 className="text-title font-bold text-text-primary group-hover:text-c1rcle-orange transition-colors">
+                        <h3 className="text-title font-bold text-text-primary group-hover:text-accent-primary transition-colors">
                             {partnership.otherName}
                         </h3>
                         <span className="flex items-center gap-1 text-caption text-text-tertiary capitalize mt-0.5">
@@ -274,7 +274,7 @@ function PartnershipCard({
                     <span
                         className={`text-label px-2.5 py-1 rounded-lg font-bold ${
                             partnership.tier === "trusted"
-                                ? "bg-c1rcle-orange-glow text-c1rcle-orange"
+                                ? "bg-accent-glow text-accent-primary"
                                 : "bg-surface-tertiary text-text-tertiary border border-border-default"
                         }`}
                     >

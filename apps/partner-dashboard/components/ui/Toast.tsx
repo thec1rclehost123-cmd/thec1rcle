@@ -128,7 +128,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
     };
 
     const iconStyles = {
-        success: "text-c1rcle-orange",
+        success: "text-accent-primary",
         error: "text-red-500",
         warning: "text-yellow-500",
         info: "text-blue-500",
@@ -157,7 +157,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
                 {toast.action && (
                     <button
                         onClick={toast.action.onClick}
-                        className="text-[13px] font-semibold text-c1rcle-orange hover:underline mt-2"
+                        className="text-[13px] font-semibold text-accent-primary hover:underline mt-2"
                     >
                         {toast.action.label}
                     </button>
@@ -204,7 +204,7 @@ export default function Toast({
     };
 
     const iconStyles = {
-        success: "text-c1rcle-orange",
+        success: "text-accent-primary",
         error: "text-red-500",
         warning: "text-yellow-500",
         info: "text-blue-500",

@@ -126,7 +126,7 @@ export default function EditProfileModal({ open, onClose }) {
             const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels);
 
             // Upload to Firebase Storage
-            const storage = getFirebaseStorage();
+            const storage = await getFirebaseStorage();
             const fileName = `${profile?.uid || Date.now()}-${Date.now()}.jpg`;
             const storageRef = ref(storage, `profile-pictures/${fileName}`);
 

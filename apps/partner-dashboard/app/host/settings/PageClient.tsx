@@ -139,7 +139,7 @@ export default function HostSettingsPage() {
                             <h2 className="text-2xl font-black text-text-primary uppercase tracking-tight">Security Checkpoint</h2>
                             <div className="p-8 bg-surface-secondary rounded-3xl text-text-primary flex items-center justify-between">
                                 <div className="flex items-center gap-6">
-                                    <Shield className="h-10 w-10 text-c1rcle-orange" />
+                                    <Shield className="h-10 w-10 text-accent-primary" />
                                     <div>
                                         <p className="font-black text-xl mb-1 uppercase tracking-tight">Enterprise Locked</p>
                                         <p className="text-text-primary/40 text-[10px] font-black uppercase tracking-widest">Two-Factor Authentication Active</p>
@@ -170,7 +170,7 @@ export default function HostSettingsPage() {
                                         <CheckCircle2 className="h-6 w-6 text-emerald-600" />
                                         <p className="text-xs font-black text-emerald-900 uppercase tracking-widest">Payouts Enabled: Active State</p>
                                     </div>
-                                    <ChevronRight className="h-4 w-4 text-c1rcle-orange" />
+                                    <ChevronRight className="h-4 w-4 text-accent-primary" />
                                 </div>
                             </div>
                         </div>
@@ -190,7 +190,7 @@ function NavButton({ active, icon: Icon, label, onClick }: any) {
                     : "text-text-tertiary hover:bg-surface-tertiary hover:text-text-primary"
                 }`}
         >
-            <Icon className={`h-5 w-5 ${active ? "text-c1rcle-orange" : "group-hover:text-text-primary"}`} />
+            <Icon className={`h-5 w-5 ${active ? "text-accent-primary" : "group-hover:text-text-primary"}`} />
             <span className="text-[10px] font-black uppercase tracking-[0.2em]">{label}</span>
         </button>
     );

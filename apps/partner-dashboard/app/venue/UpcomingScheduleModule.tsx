@@ -25,7 +25,7 @@ export default function UpcomingScheduleModule() {
                 <h2 className="text-headline-sm text-text-primary">Upcoming Schedule</h2>
                 <Link
                     href="/venue/calendar"
-                    className="text-label text-c1rcle-orange hover:underline flex items-center gap-1"
+                    className="text-label text-accent-primary hover:underline flex items-center gap-1"
                 >
                     View Calendar
                     <ArrowUpRight className="w-3 h-3" />
@@ -46,7 +46,7 @@ export default function UpcomingScheduleModule() {
                                 weekday: 'short', day: 'numeric', month: 'short'
                             }) : 'No Date'}
                         </p>
-                        <h4 className="text-title-sm text-text-primary line-clamp-1 mb-3 group-hover:text-c1rcle-orange transition-colors">
+                        <h4 className="text-title-sm text-text-primary line-clamp-1 mb-3 group-hover:text-accent-primary transition-colors">
                             {event.title}
                         </h4>
                         <div className="flex items-center gap-2">

@@ -76,7 +76,7 @@ export function WizardNavigation({
                                 ${isActive
                                     ? 'bg-text-primary text-[var(--surface-base)] shadow-xl shadow-indigo-500/10'
                                     : isComplete
-                                        ? 'bg-green-500/10 text-c1rcle-orange border border-[var(--state-success)]/20 shadow-sm'
+                                        ? 'bg-green-500/10 text-accent-primary border border-[var(--state-success)]/20 shadow-sm'
                                         : hasIssues
                                             ? 'bg-yellow-500/10 text-yellow-500 border border-[var(--state-warning)]/20 shadow-sm'
                                             : 'bg-surface-secondary text-text-tertiary hover:bg-surface-tertiary border border-border-subtle'
@@ -161,8 +161,8 @@ export function SaveStatus({ status }: SaveStatusProps) {
                 </>
             ) : status === 'saved' ? (
                 <>
-                    <Check className="w-3.5 h-3.5 text-c1rcle-orange" />
-                    <span className="text-[12px] font-bold text-c1rcle-orange uppercase tracking-widest">Saved</span>
+                    <Check className="w-3.5 h-3.5 text-accent-primary" />
+                    <span className="text-[12px] font-bold text-accent-primary uppercase tracking-widest">Saved</span>
                 </>
             ) : (
                 <>

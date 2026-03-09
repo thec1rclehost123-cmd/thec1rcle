@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "./providers/AuthProvider";
 import { useExploreStore } from "../store/exploreStore";
 import { useHostsStore } from "../store/hostsStore";
@@ -16,6 +17,7 @@ import { useTicketsStore } from "../store/ticketsStore";
  */
 export default function CacheWarmer() {
     const { user, loading: authLoading } = useAuth();
+    const pathname = usePathname();
 
     // Store Actions
     const fetchEvents = useExploreStore((s) => s.fetchEvents);
@@ -23,6 +25,18 @@ export default function CacheWarmer() {
     const loadTickets = useTicketsStore((s) => s.loadTickets);
 
     useEffect(() => {
+        // Skip pre-warming on pages that already self-fetch this data to avoid duplicate Firestore reads:
+        // - '/' (home): ISR-served HTML already includes event data
+        // - '/explore': ExploreStore.fetchEvents() fires on mount
+        // - '/hosts': HostsStore.fetchData() fires on mount
+        // Also skip entirely on /checkout/* — user is mid-funnel, don't compete with payment
+        if (pathname.startsWith("/checkout")) return;
+
+        const skipEvents = pathname === "/" || pathname === "/explore";
+        const skipHosts = pathname === "/hosts";
+
+        if (skipEvents && skipHosts) return;
+
         // Defer until the browser is idle so we don't compete with the first render / LCP.
         // timeout:3000 ensures it still runs even on busy devices within 3 s.
         const ric = typeof requestIdleCallback !== "undefined" ? requestIdleCallback : (cb) => setTimeout(cb, 200);
@@ -31,16 +45,20 @@ export default function CacheWarmer() {
         const id = ric(
             () => {
                 // 1. Pre-warm Explore (Events)
-                fetchEvents().catch(err => console.error("CacheWarmer: Failed to pre-warm Explore", err));
+                if (!skipEvents) {
+                    fetchEvents().catch(err => console.error("CacheWarmer: Failed to pre-warm Explore", err));
+                }
 
                 // 2. Pre-warm Hosts (Venues default tab)
-                fetchHosts({ activeTab: "venues" }).catch(err => console.error("CacheWarmer: Failed to pre-warm Hosts", err));
+                if (!skipHosts) {
+                    fetchHosts({ activeTab: "venues" }).catch(err => console.error("CacheWarmer: Failed to pre-warm Hosts", err));
+                }
             },
             { timeout: 3000 }
         );
 
         return () => cancel(id);
-    }, [fetchEvents, fetchHosts]);
+    }, [fetchEvents, fetchHosts, pathname]);
 
     useEffect(() => {
         // 3. Pre-warm Tickets (only if user is logged in)

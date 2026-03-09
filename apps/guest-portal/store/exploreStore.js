@@ -97,6 +97,7 @@ export const useExploreStore = create(
                 nextCursor: state.nextCursor,
                 hasMore: state.hasMore,
             }),
+            version: 1,
         }
     )
 );

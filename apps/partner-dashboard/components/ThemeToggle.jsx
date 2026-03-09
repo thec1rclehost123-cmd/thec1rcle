@@ -46,7 +46,7 @@ export default function ThemeToggle({ variant = "switch" }) {
                                 exit={{ rotate: 90, opacity: 0 }}
                                 transition={{ duration: 0.2 }}
                             >
-                                <Moon className="h-4 w-4 text-[var(--c1rcle-orange)]" />
+                                <Moon className="h-4 w-4 text-[var(--accent-primary)]" />
                             </motion.div>
                         ) : (
                             <motion.div
@@ -154,14 +154,14 @@ export default function ThemeToggle({ variant = "switch" }) {
                                                 setOpen(false);
                                             }}
                                             className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${isActive
-                                                ? "bg-[var(--c1rcle-orange-glow)] text-[var(--c1rcle-orange)]"
+                                                ? "bg-[var(--accent-glow)] text-[var(--accent-primary)]"
                                                 : "text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)] hover:text-[var(--text-primary)]"
                                                 }`}
                                         >
                                             <Icon className="h-4 w-4" />
                                             {option.label}
                                             {isActive && (
-                                                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[var(--c1rcle-orange)]" />
+                                                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[var(--accent-primary)]" />
                                             )}
                                         </button>
                                     );

@@ -20,8 +20,7 @@ const PartnershipIdParam = z.object({
 
 const UpdateActionBody = z.object({
     action: z.enum(['approve', 'reject', 'block']),
-    reason: z.string().optional(),
-    tier: z.enum(['trusted', 'standard']).optional()
+    reason: z.string().optional()
 }).strict();
 
 const CheckQuery = z.object({
@@ -76,7 +75,7 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ params: PartnershipIdParam, body: UpdateActionBody })]
     }, async (request: any, reply) => {
         const { id } = request.params;
-        const { action, reason, tier } = request.body;
+        const { action, reason } = request.body;
         const statusMap: Record<string, string> = {
             approve: 'active',
             reject: 'rejected',
@@ -87,8 +86,6 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
         await fastify.db.collection('partnerships').doc(id).update({
             status: newStatus,
             ...(reason ? { rejectReason: reason } : {}),
-            // Persist tier when approving — required for Tier 1 calendar bypass
-            ...(action === 'approve' && tier ? { tier } : {}),
             updatedAt: new Date().toISOString()
         });
         return { success: true };

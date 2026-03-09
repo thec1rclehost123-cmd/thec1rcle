@@ -96,6 +96,15 @@ export default fp(async (fastify) => {
         if (!authHeader?.startsWith('Bearer ')) return;
 
         const token = authHeader.split(' ')[1];
+
+        // Validate internal system-to-system key before attempting Firebase verification
+        const internalKey = process.env.INTERNAL_API_KEY;
+        if (internalKey && token === internalKey) {
+            // @ts-ignore
+            request.user = { uid: 'system', role: 'system', isSystem: true };
+            return;
+        }
+
         try {
             const user = await authService.verifyToken(token);
             if (user) {

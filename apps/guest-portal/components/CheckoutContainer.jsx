@@ -50,6 +50,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     const [appliedPromoCode, setAppliedPromoCode] = useState(null);
     const [promoDiscount, setPromoDiscount] = useState(0);
     const [promoterDiscount, setPromoterDiscount] = useState(0);
+    const [pricingResult, setPricingResult] = useState(null);
 
     useEffect(() => {
         setMounted(true);
@@ -59,6 +60,21 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             if (ref) {
                 setPromoterCode(ref);
                 console.log("[Checkout] Promoter code detected:", ref);
+            }
+
+            // Recover any active reservation from a previous session
+            try {
+                const saved = localStorage.getItem("c1rcle_reservation");
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.eventId === event?.id && new Date(parsed.expiresAt) > new Date()) {
+                        setCartReservation(parsed);
+                    } else {
+                        localStorage.removeItem("c1rcle_reservation");
+                    }
+                }
+            } catch (_) {
+                localStorage.removeItem("c1rcle_reservation");
             }
         }
     }, []);
@@ -73,6 +89,26 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
         }
     }, [user, profile]);
 
+    // Fetch authoritative server-side pricing when user reaches payment step
+    useEffect(() => {
+        if (step !== 3 || selectedTickets.length === 0) return;
+        let cancelled = false;
+        fetch('/api/checkout/calculate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                eventId: event.id,
+                items: selectedTickets.map(t => ({ tierId: t.id, quantity: t.quantity })),
+                promoCode: appliedPromoCode,
+                promoterCode
+            })
+        })
+            .then(r => r.json())
+            .then(data => { if (!cancelled && data.success) setPricingResult(data.pricing); })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [step, appliedPromoCode]);
+
     // Calculate totals with discounts
     const subtotal = useMemo(() => {
         return selectedTickets.reduce((sum, t) => sum + (t.price * t.quantity), 0);
@@ -80,6 +116,9 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
 
     const totalDiscount = promoDiscount + promoterDiscount;
     const totalAmount = Math.max(0, subtotal - totalDiscount);
+    const displayTotal = pricingResult?.grandTotal ?? totalAmount;
+    const displayFees = pricingResult?.fees?.total ?? 0;
+    const isFreeOrder = pricingResult ? pricingResult.isFree : totalAmount === 0;
 
     // Handle promo code application
     const handleApplyPromoCode = async (code) => {
@@ -208,6 +247,13 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             if (!reserveRes.ok) throw new Error(reserveData.error || "Failed to reserve tickets");
 
             setCartReservation(reserveData);
+            try {
+                localStorage.setItem("c1rcle_reservation", JSON.stringify({
+                    reservationId: reserveData.reservationId,
+                    eventId: event.id,
+                    expiresAt: reserveData.expiresAt
+                }));
+            } catch (_) {}
 
             // 3. Step 2 & 3: Initiate Checkout (Pricing + Draft Order)
             setProcessingState("initiating");
@@ -236,6 +282,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 await handlePayBranch(initiateData, token);
             } else {
                 // Branch B & C: Free-Paid or RSVP
+                try { localStorage.removeItem("c1rcle_reservation"); } catch (_) {}
                 setProcessingState("issuing");
                 setIsSuccess(true);
                 setTimeout(() => {
@@ -299,6 +346,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                     const verifyData = await verifyRes.json();
                     if (!verifyRes.ok) throw new Error(verifyData.error || "Verification failed");
 
+                    try { localStorage.removeItem("c1rcle_reservation"); } catch (_) {}
                     setProcessingState("issuing");
                     setIsSuccess(true);
                     setTimeout(() => {
@@ -313,6 +361,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             },
             modal: {
                 ondismiss: async function () {
+                    try { localStorage.removeItem("c1rcle_reservation"); } catch (_) {}
                     setIsProcessing(false);
                     setProcessingState("");
                     setError("Payment cancelled by user");
@@ -442,7 +491,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     </div>
                                     <h1 className="text-4xl font-black uppercase tracking-tight text-white leading-[0.9]">Payment & <br />Checkout</h1>
                                 </div>
-                                {totalAmount > 0 && (
+                                {!isFreeOrder && (
                                     <div className="space-y-8 flex-1 flex flex-col justify-center">
                                         <div className="grid grid-cols-3 gap-3">
                                             {[
@@ -466,7 +515,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     </div>
                                 )}
 
-                                {totalAmount === 0 && (
+                                {isFreeOrder && (
                                     <div className="flex-1 flex flex-col items-center justify-center space-y-6">
                                         <div className="h-20 w-20 rounded-full bg-orange/10 flex items-center justify-center border border-orange/20">
                                             <CheckCircle2 className="h-10 w-10 text-orange" />
@@ -488,7 +537,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                         </div>
                                     ) : (
                                         <>
-                                            {event.isRSVP ? "Confirm Registration" : totalAmount === 0 ? "Finalize Free Pass" : "Confirm Order"}
+                                            {event.isRSVP ? "Confirm Registration" : isFreeOrder ? "Finalize Free Pass" : "Confirm Order"}
                                             <Lock className="ml-3 h-4 w-4" />
                                         </>
                                     )}
@@ -556,11 +605,19 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                 </div>
                             )}
 
+                            {/* Platform Fees (shown once backend pricing is loaded) */}
+                            {displayFees > 0 && (
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Fees & GST</span>
+                                    <span className="text-[12px] font-bold text-white/60">+₹{displayFees.toLocaleString('en-IN')}</span>
+                                </div>
+                            )}
+
                             {/* Total */}
                             <div className="flex justify-between items-center pt-3 border-t border-white/10">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Total</span>
                                 <div className="text-right">
-                                    <p className="text-3xl font-black text-white tracking-tighter">₹{totalAmount.toLocaleString('en-IN')}</p>
+                                    <p className="text-3xl font-black text-white tracking-tighter">₹{displayTotal.toLocaleString('en-IN')}</p>
                                     <p className="text-[7px] font-black text-white/20 uppercase tracking-[0.4em]">Grand Total</p>
                                 </div>
                             </div>

@@ -29,7 +29,7 @@ export default function ForgotPasswordPage() {
         setSuccess(false);
 
         try {
-            const auth = getFirebaseAuth();
+            const auth = await getFirebaseAuth();
             await sendPasswordResetEmail(auth, email);
             setSuccess(true);
         } catch (err) {

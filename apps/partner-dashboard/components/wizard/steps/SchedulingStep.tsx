@@ -115,7 +115,7 @@ export function SchedulingStep({
             case 'blocked': return 'bg-red-500/10 text-red-500 border-[var(--state-error)]/20';
             case 'tentative': return 'bg-yellow-500/10 text-yellow-500 border-[var(--state-warning)]/20';
             case 'booked': return 'bg-blue-500/10 text-blue-500 border-[var(--state-info)]/20';
-            default: return 'bg-green-500/10 text-c1rcle-orange border-[var(--state-success)]/20';
+            default: return 'bg-green-500/10 text-accent-primary border-[var(--state-success)]/20';
         }
     };
 
@@ -284,12 +284,12 @@ export function SchedulingStep({
                             exit={{ opacity: 0, height: 0 }}
                             className="p-4 rounded-xl bg-green-500/10 border border-[var(--state-success)]/20 flex items-center gap-3"
                         >
-                            <Check className="w-5 h-5 text-c1rcle-orange" />
+                            <Check className="w-5 h-5 text-accent-primary" />
                             <div>
-                                <p className="text-body font-medium text-c1rcle-orange">
+                                <p className="text-body font-medium text-accent-primary">
                                     {formData.startDate ? formatEventDate(formData.startDate) : 'Date TBD'}
                                 </p>
-                                <p className="text-caption text-c1rcle-orange opacity-70">
+                                <p className="text-caption text-accent-primary opacity-70">
                                     {formData.doorsOpen && `Doors: ${formData.doorsOpen} • `}
                                     {formData.startTime && `Start: ${formData.startTime}`}
                                     {formData.endTime && ` • End: ${formData.endTime}`}

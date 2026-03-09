@@ -212,7 +212,7 @@ export default function GateSecurityPage() {
                                             <div className="text-5xl font-mono font-black text-text-primary tracking-[0.3em] mb-2 drop-shadow-2xl">
                                                 {selectedEvent.syncCode}
                                             </div>
-                                            <div className="flex items-center justify-center gap-2 text-c1rcle-orange text-[10px] font-black uppercase tracking-widest bg-emerald-400/10 py-2 px-4 rounded-full w-fit mx-auto border border-emerald-400/20">
+                                            <div className="flex items-center justify-center gap-2 text-accent-primary text-[10px] font-black uppercase tracking-widest bg-emerald-400/10 py-2 px-4 rounded-full w-fit mx-auto border border-emerald-400/20">
                                                 <span className="relative flex h-2 w-2">
                                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>

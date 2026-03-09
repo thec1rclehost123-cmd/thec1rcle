@@ -81,11 +81,15 @@ export async function PATCH(req: NextRequest) {
             role = "venue";
         }
 
+        const authHeader = req.headers.get("authorization");
+        const token = authHeader?.split("Bearer ")[1] || "";
+
         // Internal context for eventStore
         const context = {
             uid: decodedToken.uid,
             role: role,
-            requestId: `API_${Date.now()}`
+            requestId: `API_${Date.now()}`,
+            token: token
         };
 
         const result = await updateEventLifecycle(

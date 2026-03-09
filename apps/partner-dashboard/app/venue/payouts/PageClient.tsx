@@ -53,7 +53,7 @@ export default function PayoutsPage() {
                     <p className="text-[10px] font-bold opacity-40 uppercase tracking-[0.2em] mb-4">Current Balance</p>
                     <div className="flex items-baseline gap-2">
                         <h2 className="text-4xl font-black tracking-tight">₹48,200</h2>
-                        <span className="text-[10px] font-black text-c1rcle-orange uppercase tracking-widest">Settling in 2d</span>
+                        <span className="text-[10px] font-black text-accent-primary uppercase tracking-widest">Settling in 2d</span>
                     </div>
                 </div>
 

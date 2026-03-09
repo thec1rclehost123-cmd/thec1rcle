@@ -100,7 +100,7 @@ export function VenueStep({
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case "available": return "bg-green-500/10 text-c1rcle-orange border-[var(--state-success)]/20";
+            case "available": return "bg-green-500/10 text-accent-primary border-[var(--state-success)]/20";
             case "blocked": return "bg-red-500/10 text-red-500 border-[var(--state-error)]/20";
             case "booked": return "bg-surface-tertiary text-text-tertiary border-border-subtle";
             case "partial": return "bg-yellow-500/10 text-yellow-500 border-[var(--state-warning)]/20";
