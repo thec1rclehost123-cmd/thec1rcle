@@ -1,16 +1,17 @@
 /**
  * THE C1RCLE - User Registration API
- * Creates Firebase Auth user (Admin SDK required) + delegates profile creation to Gateway
+ * Creates Firebase Auth user + writes profile to Firestore directly (reliable in all envs).
+ * Also forwards to Gateway for cache/indexing if available.
  */
 import { NextResponse } from "next/server";
-import { getAdminApp } from "@/lib/firebase/admin";
+import { getAdminApp, getAdminDb } from "@/lib/firebase/admin";
 import { getAuth } from "firebase-admin/auth";
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
 
 export async function POST(req) {
     try {
-        const { email, password, name, gender, phone } = await req.json();
+        const { email, password, name, gender, phone, city } = await req.json();
 
         if (!email || !password || !name) {
             return NextResponse.json({ error: "Identity data incomplete." }, { status: 400 });
@@ -26,26 +27,33 @@ export async function POST(req) {
             emailVerified: true
         });
 
-        // 2. Create profile via Gateway (no direct Firestore)
+        const now = new Date().toISOString();
+        const profilePayload = {
+            uid: userRecord.uid,
+            email,
+            displayName: name,
+            gender: gender || null,
+            phone: phone || null,
+            city: city || "",
+            photoURL: "",
+            attendedEvents: [],
+            instagram: "",
+            createdAt: now,
+            updatedAt: now,
+            isVerified: true,
+            onboardingComplete: true
+        };
+
+        // 2. Write profile directly to Firestore (works in dev without Gateway)
+        const db = getAdminDb();
+        await db.collection("users").doc(userRecord.uid).set(profilePayload, { merge: true });
+
+        // 3. Forward to Gateway for search indexing (fire-and-forget)
         if (GATEWAY_URL) {
-            const now = new Date().toISOString();
-            await fetch(`${GATEWAY_URL}/api/v1/users/profile`, {
+            fetch(`${GATEWAY_URL}/api/v1/users/profile`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    uid: userRecord.uid,
-                    email,
-                    displayName: name,
-                    gender: gender || null,
-                    phone: phone || null,
-                    photoURL: "",
-                    attendedEvents: [],
-                    city: "",
-                    instagram: "",
-                    createdAt: now,
-                    updatedAt: now,
-                    isVerified: true
-                })
+                body: JSON.stringify(profilePayload)
             }).catch(err => console.warn("[Register] Profile Gateway write failed:", err.message));
         }
 

@@ -1,125 +1,233 @@
 /**
- * Event Store (Refactored for API Governance)
- * 
- * Uses the unified C1rcleApiClient to manage Events.
- * Legacy transformation logic removed; now handled by core/event-engine.
+ * Event Store — Direct Firebase Admin (no API gateway required)
+ *
+ * Previously delegated all calls to C1rcleApiClient → Fastify gateway at :4000.
+ * Rewritten to use Firebase Admin + @c1rcle/core/event-engine directly so the
+ * partner-dashboard works without the gateway running in dev.
  */
 
-import { getApiClient } from "./apiClient";
+import { getAdminDb } from "../firebase/admin";
+import { buildEvent } from "@c1rcle/core/event-engine";
 
 export const DEFAULT_CITY = process.env.NEXT_PUBLIC_DEFAULT_CITY || "Pune";
 
+const EVENT_COLLECTION = "events";
+
+const serialize = (obj) => {
+    if (!obj) return null;
+    return JSON.parse(JSON.stringify(obj, (key, value) => {
+        if (value && typeof value === "object" && value.seconds !== undefined && value.nanoseconds !== undefined) {
+            return new Date(value.seconds * 1000).toISOString();
+        }
+        return value;
+    }));
+};
+
 /**
  * List events for the partner dashboard.
+ * Queries Firestore directly; secondary filters applied client-side to avoid
+ * composite index requirements.
  */
-export async function listEvents(params, token) {
-  const client = getApiClient(token);
-  try {
-    const data = await client.getEvents(params);
-    return data.events || [];
-  } catch (error) {
-    console.error("[EventStore] listEvents failed:", error.message);
-    throw error;
-  }
+export async function listEvents({ city, limit, sort, search, host, venueId, lifecycle, creatorId, creatorRole } = {}, token) {
+    const db = getAdminDb();
+    let ref = db.collection(EVENT_COLLECTION);
+
+    // Use a single equality filter as the primary Firestore predicate
+    if (creatorId) {
+        ref = ref.where("creatorId", "==", creatorId);
+    } else if (venueId) {
+        ref = ref.where("venueId", "==", venueId);
+    } else if (host) {
+        ref = ref.where("host", "==", host);
+    }
+
+    const snapshot = await ref.limit(300).get();
+    let events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Secondary filters applied client-side
+    if (lifecycle && lifecycle !== "all") {
+        if (lifecycle === "approved") {
+            events = events.filter(e => e.lifecycle === "approved" || e.lifecycle === "scheduled");
+        } else {
+            events = events.filter(e => e.lifecycle === lifecycle);
+        }
+    }
+    if (city) {
+        const c = city.toLowerCase();
+        events = events.filter(e =>
+            e.city?.toLowerCase().includes(c) || e.cityKey?.toLowerCase() === c
+        );
+    }
+    if (search) {
+        const q = search.toLowerCase();
+        events = events.filter(e =>
+            e.title?.toLowerCase().includes(q) ||
+            e.description?.toLowerCase().includes(q) ||
+            e.venue?.toLowerCase().includes(q)
+        );
+    }
+
+    events.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    if (limit) events = events.slice(0, limit);
+
+    return { events: serialize(events), hasMore: false, nextCursor: null };
 }
 
 /**
- * Get a single event by ID or slug.
+ * Get a single event by ID.
  */
 export async function getEvent(eventId, token) {
-  const client = getApiClient(token);
-  try {
-    const data = await client.getEvent(eventId);
-    return data.event || null;
-  } catch (error) {
-    console.error("[EventStore] getEvent failed:", error.message);
-    return null;
-  }
+    if (!eventId) return null;
+    const db = getAdminDb();
+    try {
+        const doc = await db.collection(EVENT_COLLECTION).doc(eventId).get();
+        if (!doc.exists) return null;
+        return serialize({ id: doc.id, ...doc.data() });
+    } catch (error) {
+        console.error("[EventStore] getEvent failed:", error.message);
+        return null;
+    }
 }
 
 /**
  * Create a new event.
+ * Uses buildEvent() from @c1rcle/core/event-engine then writes to Firestore.
+ * Preserves all partner-dashboard wizard fields not covered by buildEvent.
  */
 export async function createEvent(payload, token) {
-  const client = getApiClient(token);
-  return client.createEvent(payload);
+    const db = getAdminDb();
+
+    const built = buildEvent(payload);
+
+    // Merge partner-dashboard wizard fields that buildEvent doesn't map
+    const event = {
+        ...built,
+        startTime: payload.startTime || "",
+        endTime: payload.endTime || "",
+        doorsOpen: payload.doorsOpen || "",
+        lastEntry: payload.lastEntry || "",
+        artists: payload.artists || [],
+        genres: payload.genres || [],
+        dressCode: payload.dressCode || "",
+        ageRestriction: payload.ageRestriction || payload.ageLimit || "",
+        capacity: Number(payload.capacity) || 0,
+        address: payload.address || "",
+        pincode: payload.pincode || "",
+        mapsLink: payload.mapsLink || "",
+        arrivalInstructions: payload.arrivalInstructions || "",
+        subtitle: payload.subtitle || "",
+        venueName: payload.venueName || built.venue || "",
+        promotersEnabled: payload.promotersEnabled ?? false,
+        // Denormalized snapshots for guest-portal display (no extra reads)
+        hostData: payload.hostData || null,
+        venueData: payload.venueData || null,
+    };
+
+    await db.collection(EVENT_COLLECTION).doc(event.id).set(event);
+    return serialize(event);
 }
 
 /**
  * Update an existing event.
  */
 export async function updateEvent(eventId, payload, token) {
-  const client = getApiClient(token);
-  return client.updateEvent(eventId, payload);
+    const db = getAdminDb();
+    const updates = { ...payload, updatedAt: new Date().toISOString() };
+    await db.collection(EVENT_COLLECTION).doc(eventId).update(updates);
+    return serialize({ id: eventId, ...updates });
 }
 
 /**
  * Soft delete an event.
  */
 export async function deleteEvent(eventId, token) {
-  const client = getApiClient(token);
-  return client.deleteEvent(eventId);
+    const db = getAdminDb();
+    await db.collection(EVENT_COLLECTION).doc(eventId).update({
+        lifecycle: "deleted",
+        isDeleted: true,
+        deletedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+    });
+    return { success: true };
 }
 
 /**
- * Update event lifecycle (Publish, Unpublish, Cancel).
+ * Transition an event lifecycle (publish, unpublish, cancel, etc.)
  */
-export async function updateEventLifecycle(eventId, status, context, notes = "") {
-  // Pass everything through to updateEvent as it handles lifecycle in the Gateway
-  const client = getApiClient(context.token);
-  return client.updateEvent(eventId, { lifecycle: status, approvalNotes: notes });
+export async function updateEventLifecycle(eventId, status, context = {}, notes = "") {
+    const db = getAdminDb();
+    const updates = {
+        lifecycle: status,
+        updatedAt: new Date().toISOString(),
+    };
+    if (notes) updates.approvalNotes = notes;
+    await db.collection(EVENT_COLLECTION).doc(eventId).update(updates);
+    return { success: true, lifecycle: status };
 }
 
 /**
- * Get users interested in an event. (Used for Guestlist tabs)
+ * Get users interested in an event (saved/liked).
  */
 export async function getEventInterested(eventId, limit = 20, token) {
-  const client = getApiClient(token);
-  const data = await client.request(`/events/${eventId}/interested?limit=${limit}`);
-  return data || { count: 0, users: [] };
+    const db = getAdminDb();
+    try {
+        const snapshot = await db.collection("likes")
+            .where("eventId", "==", eventId)
+            .limit(limit)
+            .get();
+        const users = snapshot.docs.map(doc => {
+            const d = doc.data();
+            return { id: d.userId, name: d.displayName || "Member", photoURL: d.photoURL || null };
+        });
+        return { count: users.length, users };
+    } catch {
+        return { count: 0, users: [] };
+    }
 }
 
 /**
- * Get the full guestlist for an event. (Confirmed buyers/RSVPs)
+ * Get the confirmed guestlist (orders) for an event.
  */
 export async function getEventGuestlist(eventId, limit = 50, token) {
-  const client = getApiClient(token);
-  const data = await client.request(`/events/${eventId}/guestlist?limit=${limit}`);
-  return data || [];
+    const db = getAdminDb();
+    try {
+        const snapshot = await db.collection("orders")
+            .where("eventId", "==", eventId)
+            .where("status", "==", "confirmed")
+            .limit(limit)
+            .get();
+        return serialize(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch {
+        return [];
+    }
 }
 
 /**
- * List events enabled for promoters
+ * List events available for promoters.
  */
-export async function listEventsForPromoter({ promoterId, city, limit = 20 }, token) {
-  const client = getApiClient(token);
-  try {
-    const params = {
-      promotersEnabled: "true",
-      limit: String(limit)
-    };
-    if (city) params.city = city;
-
-    // We pass promoterId to the gateway to ensure it only returns events 
-    // from hosts the promoter is connected to (logic handled centraly)
-    if (promoterId) params.promoterId = promoterId;
-
-    const data = await client.getEvents(params);
-    return data.events || [];
-  } catch (error) {
-    console.error("[EventStore] listEventsForPromoter failed:", error.message);
-    return [];
-  }
+export async function listEventsForPromoter({ promoterId, city, limit = 20 } = {}, token) {
+    const db = getAdminDb();
+    try {
+        const snapshot = await db.collection(EVENT_COLLECTION)
+            .where("promotersEnabled", "==", true)
+            .where("lifecycle", "in", ["scheduled", "live"])
+            .limit(limit)
+            .get();
+        let events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (city) {
+            const c = city.toLowerCase();
+            events = events.filter(e =>
+                e.city?.toLowerCase().includes(c) || e.cityKey === c
+            );
+        }
+        return serialize(events);
+    } catch (error) {
+        console.error("[EventStore] listEventsForPromoter failed:", error.message);
+        return [];
+    }
 }
 
 export default {
-  listEvents,
-  getEvent,
-  createEvent,
-  updateEvent,
-  deleteEvent,
-  updateEventLifecycle,
-  getEventInterested,
-  getEventGuestlist,
-  listEventsForPromoter
+    listEvents, getEvent, createEvent, updateEvent, deleteEvent,
+    updateEventLifecycle, getEventInterested, getEventGuestlist, listEventsForPromoter,
 };

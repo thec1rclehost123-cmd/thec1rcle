@@ -14,10 +14,11 @@ export async function GET(req: NextRequest) {
         }
 
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-        const params: any = { hostId, limit };
+        const params: any = { creatorId: hostId, limit };
         if (lastId) params.lastId = lastId;
 
-        const events = await listEvents(params, token);
+        const result = await listEvents(params, token);
+        const events = result.events || result || [];
 
         return NextResponse.json({ events });
     } catch (error: any) {

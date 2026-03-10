@@ -23,9 +23,12 @@ export async function GET(req: NextRequest) {
 
         // Fetch events for this venue with relevant lifecycle statuses
         // Gateway now supports comma-separated status values via the venueId+status filter
-        const events = await listEvents({ venueId, status: "approved,scheduled,live" }, token);
+        const result = await listEvents({ venueId }, token);
+        const events = result.events || result || [];
 
-        const blockedSlots = events.map((event: any) => ({
+        const blockedSlots = events.filter((e: any) =>
+            ["approved", "scheduled", "live"].includes(e.lifecycle || e.status)
+        ).map((event: any) => ({
             // Gateway returns startDate as ISO string (Firestore Timestamps are serialized)
             date: event.startDate || event.date || null,
             startTime: event.startTime || null,

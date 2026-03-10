@@ -152,54 +152,82 @@ export async function respondToSlotRequest(id, action, responseData, actor) {
  * @param {string} endDate   - End of date range (YYYY-MM-DD)
  */
 export async function getOperatingCalendar(db, partnerId, role, startDate, endDate) {
-    // If db is not passed, fall back to admin db (for direct usage)
     const firestore = db || getAdminDb();
 
-    // 1. Fetch calendar entries (blocks, tentative bookings, booked slots)
-    const calendarEntries = [];
+    // 1. Fetch blocks (from venue_calendar)
+    let blocks = [];
     if (role === "venue") {
         const calSnap = await firestore.collection(CALENDAR_COLLECTION)
             .where("venueId", "==", partnerId)
             .get();
-
-        calendarEntries.push(...calSnap.docs
-            .map(doc => ({ id: doc.id, ...doc.data(), entryType: "calendar" }))
-            .filter(entry => entry.date >= startDate && entry.date <= endDate)
-        );
+        blocks = calSnap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(entry => entry.date >= startDate && entry.date <= endDate);
     }
 
-    // 2. Fetch events linked to this partner in the date range
-    let eventsQuery;
+    // 2. Fetch events
+    let eventsQuery = firestore.collection("events");
     if (role === "venue") {
-        eventsQuery = firestore.collection("events")
-            .where("venueId", "==", partnerId);
+        eventsQuery = eventsQuery.where("venueId", "==", partnerId);
     } else {
-        // Host: fetch events created by this host
-        eventsQuery = firestore.collection("events")
-            .where("hostId", "==", partnerId);
+        eventsQuery = eventsQuery.where("hostId", "==", partnerId);
     }
 
     const eventsSnap = await eventsQuery.get();
-    const events = eventsSnap.docs
-        .map(doc => ({ id: doc.id, ...doc.data(), entryType: "event" }))
+    const allEvents = eventsSnap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(event => {
             const dateStr = event.startDate ? event.startDate.substring(0, 10) : "";
             return dateStr >= startDate && dateStr <= endDate;
         });
 
-    // 3. Fetch pending slot requests for this partner
+    // 3. Fetch slots
     const slotsQuery = role === "venue"
         ? firestore.collection(SLOTS_COLLECTION).where("venueId", "==", partnerId)
         : firestore.collection(SLOTS_COLLECTION).where("hostId", "==", partnerId);
 
     const slotsSnap = await slotsQuery.get();
-    const slots = slotsSnap.docs
-        .map(doc => ({ id: doc.id, ...doc.data(), entryType: "slot_request" }))
+    const allSlots = slotsSnap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(slot => {
             const requestedDate = slot.requestedDate || slot.date;
             return requestedDate >= startDate && requestedDate <= endDate;
         });
 
-    // 4. Merge and return all entries
-    return [...calendarEntries, ...events, ...slots];
+    // 4. Construct daily aggregated view
+    const calendar = [];
+    const curr = new Date(startDate);
+    const end = new Date(endDate);
+
+    while (curr <= end) {
+        const dateStr = curr.toISOString().split("T")[0];
+
+        const dayEvents = allEvents.filter(e => {
+            const eDate = e.startDate?.substring(0, 10);
+            return eDate === dateStr;
+        });
+
+        const daySlots = allSlots.filter(s => {
+            const sDate = s.requestedDate || s.date;
+            return sDate === dateStr;
+        });
+
+        const dayBlock = blocks.find(b => b.date === dateStr);
+
+        calendar.push({
+            date: dateStr,
+            state: dayBlock ? "BLOCKED" : (dayEvents.length > 0 ? "CONFIRMED" : "OPEN"),
+            block: dayBlock || null,
+            events: dayEvents,
+            slots: daySlots,
+            stats: {
+                eventCount: dayEvents.length,
+                pendingSlots: daySlots.filter(s => s.status === "pending").length
+            }
+        });
+
+        curr.setDate(curr.getDate() + 1);
+    }
+
+    return calendar;
 }

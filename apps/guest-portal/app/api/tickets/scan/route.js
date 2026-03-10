@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
-import { validateAndScanTicket } from "@/lib/server/ticketShareStore";
+import { validateAndScanTicket, validateShortQR } from "@/lib/server/ticketShareStore";
 import { processEntryScan } from "@c1rcle/core/entitlement-engine";
 import { verifyQRPayload } from "@/lib/server/qrStore";
 
@@ -26,10 +26,28 @@ export async function POST(request) {
             // Not JSON, continue to legacy split
         }
 
-        // SIGNED JSON QR FLOW (Standard Orders)
+        // SIGNED JSON QR FLOW (Standard Orders & Short QRs)
         if (parsedPayload && (parsedPayload.o || parsedPayload.e)) {
             const verification = verifyQRPayload(parsedPayload);
+
             if (!verification.valid) {
+                // Check if it's a short QR that needs lookup
+                if (verification.needsLookup) {
+                    const result = await validateShortQR(verification.orderId, verification.signature, eventId, scannerId || user.uid);
+                    if (result.valid) {
+                        return NextResponse.json({
+                            status: "approved",
+                            ticket: result.ticket,
+                            message: "Entry Granted (via Short QR)"
+                        });
+                    }
+                    return NextResponse.json({
+                        status: "denied",
+                        reason: result.reason,
+                        message: result.message || "Invalid Short QR"
+                    });
+                }
+
                 return NextResponse.json({
                     status: "denied",
                     reason: "invalid_signature",
@@ -55,6 +73,31 @@ export async function POST(request) {
                     status: "denied",
                     reason: result.reason,
                     message: result.message || "Access Denied"
+                });
+            }
+        }
+
+        // ENTITLEMENT QR FLOW (Dynamic / Rotating QRs)
+        if (parsedPayload && parsedPayload.eid) {
+            // Optimization: Fetch entitlement first to get ownerId for gender check if needed
+            // Actually processEntryScan handles most things, but needs gender in context
+            const result = await processEntryScan(parsedPayload, scannerId || user.uid, eventId, {
+                // Pass any extra context if available from the request
+                isCoupleBypassed: false,
+                partnerPresent: true, // Defaulting to true for now, should come from scanner UI
+            });
+
+            if (result.success) {
+                return NextResponse.json({
+                    status: "approved",
+                    ticket: result.entitlement,
+                    message: "Entry Granted"
+                });
+            } else {
+                return NextResponse.json({
+                    status: "denied",
+                    reason: result.reason,
+                    message: result.reason === "STALE_QR" ? "QR Code Expired. Please refresh." : "Access Denied"
                 });
             }
         }

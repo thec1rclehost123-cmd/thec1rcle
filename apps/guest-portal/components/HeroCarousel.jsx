@@ -278,7 +278,7 @@ function CardItem({ card, index, progress, isMobile, isTablet, onClick, cardsCou
                 whileTap={{ scale: 0.98 }}
                 onClick={onClick}
             >
-                <CardContent card={card} isCenter={true} />
+                <CardContent card={card} isCenter={true} priority={false} />
             </motion.div>
         );
     }
@@ -304,19 +304,19 @@ function CardItem({ card, index, progress, isMobile, isTablet, onClick, cardsCou
             }}
             onClick={onClick}
         >
-            {/* 
-              Fix for "Shredded" distortion: 
+            {/*
+              Fix for "Shredded" distortion:
               We use a separate internal wrapper for overflow-hidden and border-radius.
               Applying overflow-hidden and 3D transforms on the SAME div is what causes the browser to glitch.
             */}
             <div className="relative w-full h-full rounded-[28px] overflow-hidden bg-[#0A0A0A] border-[1.5px] border-white/5 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] transition-all duration-500 group-hover:border-[#ff4b1f]/30 group-hover:shadow-[0_40px_80px_-20px_rgba(255,75,31,0.15)]">
-                <CardContent card={card} progress={progress} index={index} cardsCount={cardsCount} />
+                <CardContent card={card} progress={progress} index={index} cardsCount={cardsCount} priority={index < 3} />
             </div>
         </motion.div>
     );
 }
 
-function CardContent({ card, progress, index, cardsCount }) {
+function CardContent({ card, progress, index, cardsCount, priority = false }) {
     const overlayTransform = useTransform(progress || useMotionValue(0), (p) => {
         // Sanity check for NaN
         const safeProgress = Number.isFinite(p) ? p : 0;
@@ -352,6 +352,7 @@ function CardContent({ card, progress, index, cardsCount }) {
                     src={card.image}
                     alt={card.title}
                     fill
+                    priority={priority}
                     className="object-cover transition-transform duration-1000 group-hover:scale-110"
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                 />

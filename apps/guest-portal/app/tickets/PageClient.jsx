@@ -193,6 +193,12 @@ const TransferAction = ({ action, onAccept, onDecline }) => {
     );
 };
 
+const WaIcon = () => (
+    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05.003C5.427.003.041 5.39.038 12.013c0 2.116.554 4.18 1.606 6.006L.002 24l6.142-1.611a11.78 11.78 0 005.904 1.57h.005c6.622 0 12.008-5.387 12.011-12.01.003-3.21-1.246-6.223-3.513-8.491z" />
+    </svg>
+);
+
 const TicketSkeleton = () => (
     <div className="animate-pulse rounded-[24px] border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] p-4 flex gap-4">
         <div className="h-24 w-20 rounded-xl bg-black/[0.05] dark:bg-white/5" />
@@ -873,6 +879,16 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
     const claimedCount = ticket.tickets?.filter(t => t.isClaimedByOther || t.isClaimed).length || 0;
     const remainingToClaim = ticket.tickets?.filter(t => !t.isClaimedByOther && !t.isClaimed && t.slotIndex !== 0).length || 0;
 
+    // Tier-based theming
+    const tierKey = (ticket.tickets?.[0]?.tierId || ticket.tickets?.[0]?.ticketType || "").toLowerCase();
+    const isVipTier = tierKey.includes("vip") || tierKey.includes("table");
+    const isCrewTier = tierKey.includes("crew") || tierKey.includes("artist");
+
+    // Pre-existing share token for 1-tap WhatsApp share
+    const existingShareToken = ticket.tickets?.find(
+        t => t.shareToken && !t.isClaimed && !t.isClaimedByOther && t.slotIndex !== 0
+    )?.shareToken;
+
     return (
         <div className="relative group">
             {/* Multi-layered Atmospheric Glow */}
@@ -895,7 +911,11 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
                 onClick={() => onClick(ticket)}
                 className={`relative z-10 flex flex-col cursor-pointer overflow-hidden rounded-[28px] border transition-all duration-500 h-full min-h-[240px] ${isPast
                     ? "border-black/5 dark:border-white/5 bg-white/40 dark:bg-black/40 opacity-60 backdrop-blur-sm"
-                    : "border-black/[0.12] dark:border-white/[0.08] bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_4px_20px_rgb(0,0,0,0.02)] dark:shadow-none hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] dark:hover:shadow-none"
+                    : isVipTier
+                        ? "border-yellow-500/40 dark:border-yellow-400/30 bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_0_30px_rgba(234,179,8,0.12),0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-[0_0_50px_rgba(234,179,8,0.2),0_20px_50px_rgba(0,0,0,0.08)]"
+                        : isCrewTier
+                            ? "border-iris/40 dark:border-iris/30 bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_0_30px_rgba(93,95,239,0.12),0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-[0_0_50px_rgba(93,95,239,0.2),0_20px_50px_rgba(0,0,0,0.08)]"
+                            : "border-black/[0.12] dark:border-white/[0.08] bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_4px_20px_rgb(0,0,0,0.02)] dark:shadow-none hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] dark:hover:shadow-none"
                     }`}
             >
                 <div className="flex w-full p-5 gap-6 relative flex-1">
@@ -920,6 +940,18 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
                                         {ticket.eventTitle}
                                     </h3>
                                     <div className="flex flex-wrap gap-1.5 items-center">
+                                        {isVipTier && (
+                                            <span className="flex items-center gap-1 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest">
+                                                <Crown className="h-2.5 w-2.5" />
+                                                VIP
+                                            </span>
+                                        )}
+                                        {isCrewTier && (
+                                            <span className="flex items-center gap-1 rounded-full bg-iris/10 text-iris border border-iris/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest">
+                                                <Sparkles className="h-2.5 w-2.5" />
+                                                Creator
+                                            </span>
+                                        )}
                                         <span className="rounded-full bg-black/10 dark:bg-white/10 text-black/70 dark:text-white/60 border border-black/[0.08] dark:border-white/[0.08] px-2 py-0.5 text-[8px] font-black uppercase tracking-widest whitespace-nowrap">
                                             {groupCount} Ticket{groupCount > 1 ? 's' : ''}
                                         </span>
@@ -940,6 +972,23 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
                                                 className="group/btn h-9 w-9 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-white dark:hover:bg-white hover:border-orange/20 shadow-sm"
                                             >
                                                 <Share2 className="h-4 w-4 text-black/40 dark:text-white/40 group-hover/btn:text-orange transition-colors" />
+                                            </button>
+                                        )}
+                                        {ticket.isPrimaryBuyer && (existingShareToken || remainingToClaim > 0) && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (existingShareToken) {
+                                                        const url = `${window.location.origin}/tickets/claim/${existingShareToken}`;
+                                                        window.open(`https://wa.me/?text=${encodeURIComponent(`You're invited! Claim your ticket for ${ticket.eventTitle}: ${url}`)}`);
+                                                    } else {
+                                                        onShare(ticket);
+                                                    }
+                                                }}
+                                                title="Share to WhatsApp"
+                                                className="group/btn h-9 w-9 flex items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] backdrop-blur-md transition-all duration-300 hover:scale-110 active:scale-95 hover:bg-[#25D366]/10 dark:hover:bg-[#25D366]/10 hover:border-[#25D366]/30 shadow-sm"
+                                            >
+                                                <WaIcon />
                                             </button>
                                         )}
                                         <button
@@ -1341,6 +1390,21 @@ function TicketsContent() {
     const { tickets, status: ticketStatus, error: ticketError, loadTickets, invalidate } = useTicketsStore();
     const loading = ticketStatus === "loading" || ticketStatus === "idle";
 
+    // Payment Recovery: detect an active cart reservation left by a previous session
+    const [pendingReservation, setPendingReservation] = useState(null);
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("c1rcle_reservation");
+            if (!saved) return;
+            const parsed = JSON.parse(saved);
+            if (parsed.eventId && new Date(parsed.expiresAt) > new Date()) {
+                setPendingReservation(parsed);
+            } else {
+                localStorage.removeItem("c1rcle_reservation");
+            }
+        } catch (_) {}
+    }, []);
+
     // Listen for cancel order events from QR modal
     useEffect(() => {
         const handler = () => {
@@ -1682,6 +1746,42 @@ function TicketsContent() {
                             </div>
                         </div>
                     </div>
+
+                    {pendingReservation && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8 }}
+                            className="mb-8 flex items-center justify-between gap-4 rounded-[24px] border border-orange/20 bg-orange/5 px-6 py-5"
+                        >
+                            <div className="flex items-center gap-4 min-w-0">
+                                <div className="h-2 w-2 rounded-full bg-orange animate-pulse shrink-0" />
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-orange">Incomplete Payment</p>
+                                    <p className="text-sm font-bold text-black dark:text-white truncate mt-0.5">
+                                        {pendingReservation.eventTitle || "Your reserved tickets are waiting"}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                                <button
+                                    onClick={() => {
+                                        localStorage.removeItem("c1rcle_reservation");
+                                        setPendingReservation(null);
+                                    }}
+                                    className="text-[10px] font-bold uppercase tracking-widest text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60 transition-colors"
+                                >
+                                    Dismiss
+                                </button>
+                                <Link
+                                    href={`/checkout/${pendingReservation.eventId}`}
+                                    className="px-5 py-2.5 rounded-full bg-orange text-white text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-transform shadow-[0_4px_20px_rgba(255,120,0,0.3)]"
+                                >
+                                    Resume Payment →
+                                </Link>
+                            </div>
+                        </motion.div>
+                    )}
 
                     <div className="min-h-[400px]">
                         <AnimatePresence mode="wait">

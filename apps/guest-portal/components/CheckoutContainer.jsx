@@ -51,6 +51,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     const [promoDiscount, setPromoDiscount] = useState(0);
     const [promoterDiscount, setPromoterDiscount] = useState(0);
     const [pricingResult, setPricingResult] = useState(null);
+    const [otherEventReservation, setOtherEventReservation] = useState(null);
 
     useEffect(() => {
         setMounted(true);
@@ -67,8 +68,16 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 const saved = localStorage.getItem("c1rcle_reservation");
                 if (saved) {
                     const parsed = JSON.parse(saved);
+                    // If it's for THIS event, we can auto-restore or show banner
                     if (parsed.eventId === event?.id && new Date(parsed.expiresAt) > new Date()) {
                         setCartReservation(parsed);
+                        // If current selection is empty, restore the tickets from reservation
+                        if (selectedTickets.length === 0 && parsed.items?.length > 0) {
+                            setSelectedTickets(parsed.items);
+                        }
+                    } else if (new Date(parsed.expiresAt) > new Date()) {
+                        // It's for a DIFFERENT event - keep it in state for the cross-event banner
+                        setOtherEventReservation(parsed);
                     } else {
                         localStorage.removeItem("c1rcle_reservation");
                     }
@@ -78,6 +87,48 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             }
         }
     }, []);
+
+    // Scarcity Engine: stream live ticket availability from Firestore
+    const [liveTiers, setLiveTiers] = useState(null);
+    useEffect(() => {
+        if (!event?.id) return;
+        let unsubscribe;
+        (async () => {
+            const { getFirebaseDb } = await import("../lib/firebase/client");
+            const { onSnapshot, doc } = await import("firebase/firestore");
+            const db = await getFirebaseDb();
+            unsubscribe = onSnapshot(doc(db, "events", event.id), (snap) => {
+                if (!snap.exists()) return;
+                const data = snap.data();
+                const tiers = data.ticketCatalog?.tiers || data.tickets || [];
+                setLiveTiers(tiers.map(tier => ({
+                    ...tier,
+                    _liveAvailable: Math.max(0,
+                        Number(tier.remaining ?? tier.quantity ?? 0) - Number(tier.lockedQuantity || 0)
+                    ),
+                })));
+            });
+        })().catch(() => { });
+        return () => unsubscribe?.();
+    }, [event?.id]);
+
+    // Clamp selected quantities when live inventory drops below current selection
+    useEffect(() => {
+        if (!liveTiers) return;
+        setSelectedTickets(prev => {
+            const next = prev.map(sel => {
+                const live = liveTiers.find(t => t.id === sel.id);
+                if (!live) return sel;
+                if (sel.quantity > live._liveAvailable) {
+                    return live._liveAvailable > 0 ? { ...sel, quantity: live._liveAvailable } : null;
+                }
+                return sel;
+            }).filter(Boolean);
+            return next.length !== prev.length || next.some((t, i) => t?.quantity !== prev[i]?.quantity)
+                ? next
+                : prev;
+        });
+    }, [liveTiers]);
 
     useEffect(() => {
         if (user || profile) {
@@ -105,7 +156,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
         })
             .then(r => r.json())
             .then(data => { if (!cancelled && data.success) setPricingResult(data.pricing); })
-            .catch(() => {});
+            .catch(() => { });
         return () => { cancelled = true; };
     }, [step, appliedPromoCode]);
 
@@ -192,18 +243,19 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     const canProceedStep1 = totalSelectedQuantity >= minTickets && totalSelectedQuantity <= maxTickets;
     const canProceedStep2 = attendeeDetails.name.trim() !== "" && attendeeDetails.email.trim() !== "";
 
+    const displayTiers = liveTiers ?? event.tickets ?? [];
+
     const handleTicketChange = (ticketId, delta) => {
-        const updated = (event.tickets || []).map(t => {
+        const updated = displayTiers.map(t => {
             const sel = selectedTickets.find(st => st.id === t.id);
             const currentQty = sel ? sel.quantity : 0;
             let newQty = currentQty;
             if (t.id === ticketId) {
-                // If adding, check against max total limit
                 if (delta > 0 && totalSelectedQuantity >= maxTickets) {
                     return { ...t, quantity: currentQty };
                 }
                 newQty = Math.max(0, currentQty + delta);
-                const available = Number(t.remaining ?? t.quantity ?? 10);
+                const available = t._liveAvailable ?? Number(t.remaining ?? t.quantity ?? 10);
                 if (newQty > available) newQty = available;
             }
             return { ...t, id: t.id, quantity: newQty, price: Number(t.price || 0), name: t.name };
@@ -227,33 +279,42 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 return;
             }
 
-            // 2. Step 1: Reserve Inventory (if not already done)
-            setProcessingState("reserving");
-            const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "";
-            const reserveRes = await fetch(`${gatewayUrl}/api/v1/checkout/reserve`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    eventId: event.id,
-                    items: selectedTickets.map(t => ({ tierId: t.id, quantity: t.quantity })),
-                    deviceId: "browser-" + (user?.uid || "anon")
-                })
-            });
+            // 2. Step 1: Reserve Inventory (if not already done or if selection changed)
+            let reserveData = cartReservation;
 
-            const reserveData = await reserveRes.json();
-            if (!reserveRes.ok) throw new Error(reserveData.error || "Failed to reserve tickets");
+            // Check if we need to (re)reserve: No reserve Data OR event mismatch OR expired OR selection changed
+            const selectionChanged = !reserveData || JSON.stringify(reserveData.items) !== JSON.stringify(selectedTickets.map(t => ({ tierId: t.id, quantity: t.quantity })));
 
-            setCartReservation(reserveData);
-            try {
-                localStorage.setItem("c1rcle_reservation", JSON.stringify({
-                    reservationId: reserveData.reservationId,
-                    eventId: event.id,
-                    expiresAt: reserveData.expiresAt
-                }));
-            } catch (_) {}
+            if (!reserveData || reserveData.eventId !== event.id || new Date(reserveData.expiresAt) <= new Date() || selectionChanged) {
+                setProcessingState("reserving");
+                const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "";
+                const reserveRes = await fetch(`${gatewayUrl}/api/v1/checkout/reserve`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        eventId: event.id,
+                        items: selectedTickets.map(t => ({ tierId: t.id, quantity: t.quantity })),
+                        deviceId: "browser-" + (user?.uid || "anon")
+                    })
+                });
+
+                reserveData = await reserveRes.json();
+                if (!reserveRes.ok) throw new Error(reserveData.error || "Failed to reserve tickets");
+
+                setCartReservation({ ...reserveData, items: selectedTickets.map(t => ({ tierId: t.id, quantity: t.quantity })) });
+                try {
+                    localStorage.setItem("c1rcle_reservation", JSON.stringify({
+                        reservationId: reserveData.reservationId,
+                        eventId: event.id,
+                        eventTitle: event.title,
+                        expiresAt: reserveData.expiresAt,
+                        items: selectedTickets.map(t => ({ tierId: t.id, quantity: t.quantity }))
+                    }));
+                } catch (_) { }
+            }
 
             // 3. Step 2 & 3: Initiate Checkout (Pricing + Draft Order)
             setProcessingState("initiating");
@@ -282,7 +343,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 await handlePayBranch(initiateData, token);
             } else {
                 // Branch B & C: Free-Paid or RSVP
-                try { localStorage.removeItem("c1rcle_reservation"); } catch (_) {}
+                try { localStorage.removeItem("c1rcle_reservation"); } catch (_) { }
                 setProcessingState("issuing");
                 setIsSuccess(true);
                 setTimeout(() => {
@@ -346,7 +407,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                     const verifyData = await verifyRes.json();
                     if (!verifyRes.ok) throw new Error(verifyData.error || "Verification failed");
 
-                    try { localStorage.removeItem("c1rcle_reservation"); } catch (_) {}
+                    try { localStorage.removeItem("c1rcle_reservation"); } catch (_) { }
                     setProcessingState("issuing");
                     setIsSuccess(true);
                     setTimeout(() => {
@@ -360,28 +421,14 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 }
             },
             modal: {
-                ondismiss: async function () {
-                    try { localStorage.removeItem("c1rcle_reservation"); } catch (_) {}
+                ondismiss: function () {
+                    // DO NOT remove from localStorage here - allow user to resume or retry
                     setIsProcessing(false);
                     setProcessingState("");
-                    setError("Payment cancelled by user");
+                    setError("Payment cancelled");
 
-                    // Automatically release inventory if user actively cancels
-                    try {
-                        const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "";
-                        await fetch(`${gatewayUrl}/api/v1/checkout/cancel`, {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "Authorization": `Bearer ${authToken}`
-                            },
-                            body: JSON.stringify({ orderId: initiateData.order.id })
-                        });
-                        console.log("[Checkout] Order released successfully after cancellation");
-                    } catch (err) {
-                        console.error("[Checkout] Failed to release order:", err);
-                    }
-
+                    // We can still fire a background release on the server if we want, 
+                    // but keeping the local reservation ID allows for the "Resume" banner to stay active.
                     reject(new Error("Payment cancelled"));
                 }
             },
@@ -409,6 +456,24 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
 
                 {/* Main Action Area */}
                 <div className="relative flex flex-col h-full overflow-hidden">
+                    {otherEventReservation && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-orange/10 border border-orange/20 rounded-2xl p-4 mb-4 flex items-center justify-between gap-4"
+                        >
+                            <div className="min-w-0">
+                                <p className="text-[8px] font-black uppercase tracking-widest text-orange mb-1">Resume Other Payment</p>
+                                <p className="text-[10px] font-black uppercase text-white truncate">{otherEventReservation.eventTitle}</p>
+                            </div>
+                            <button
+                                onClick={() => router.push(`/checkout/${otherEventReservation.eventId}`)}
+                                className="px-4 py-2 bg-orange text-white text-[9px] font-black uppercase rounded-full shrink-0"
+                            >
+                                Resume →
+                            </button>
+                        </motion.div>
+                    )}
                     <AnimatePresence mode="wait">
                         {step === 1 && (
                             <motion.div key="step1" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6 h-full flex flex-col justify-center">
@@ -417,21 +482,36 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     <h1 className="text-4xl font-black uppercase tracking-tight text-white leading-[0.9]">Select your <br />Tickets</h1>
                                 </div>
                                 <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1 py-1">
-                                    {event.tickets?.map((ticket) => {
+                                    {displayTiers.map((ticket) => {
                                         const sel = selectedTickets.find(st => st.id === ticket.id);
                                         const qty = sel ? sel.quantity : 0;
+                                        const available = ticket._liveAvailable ?? Number(ticket.remaining ?? ticket.quantity ?? 0);
+                                        const isSoldOut = available <= 0;
+                                        const isLow = !isSoldOut && available <= 5;
                                         return (
-                                            <div key={ticket.id} className={`p-5 rounded-[28px] border transition-all duration-500 ${qty > 0 ? "border-orange/40 bg-orange/5" : "border-white/5 bg-white/[0.02]"}`}>
+                                            <div key={ticket.id} className={`p-5 rounded-[28px] border transition-all duration-500 ${isSoldOut ? "border-red-500/30 bg-red-500/[0.03] opacity-60" : qty > 0 ? "border-orange/40 bg-orange/5" : "border-white/5 bg-white/[0.02]"}`}>
                                                 <div className="flex items-center justify-between gap-4">
                                                     <div className="flex-1 min-w-0">
-                                                        <h3 className="text-lg font-black uppercase text-white truncate">{ticket.name}</h3>
+                                                        <div className="flex items-center gap-2">
+                                                            <h3 className="text-lg font-black uppercase text-white truncate">{ticket.name}</h3>
+                                                            {isSoldOut && (
+                                                                <span className="text-[9px] font-black uppercase tracking-widest text-red-400 border border-red-500/40 px-2 py-0.5 rounded-full shrink-0">Gone</span>
+                                                            )}
+                                                            {isLow && (
+                                                                <span className="text-[9px] font-black uppercase tracking-widest text-orange border border-orange/40 px-2 py-0.5 rounded-full shrink-0">{available} left</span>
+                                                            )}
+                                                        </div>
                                                         <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-0.5">₹{(ticket.price || 0).toLocaleString('en-IN')} • {ticket.description || "Limited Access"}</p>
                                                     </div>
-                                                    <div className="flex items-center gap-4 bg-white/5 p-1 rounded-full border border-white/5">
-                                                        <button onClick={() => handleTicketChange(ticket.id, -1)} disabled={qty === 0} className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-20">-</button>
-                                                        <span className="w-4 text-center font-bold text-sm text-white">{qty}</span>
-                                                        <button onClick={() => handleTicketChange(ticket.id, 1)} className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-white/10">+</button>
-                                                    </div>
+                                                    {isSoldOut ? (
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-red-400/60">Sold Out</span>
+                                                    ) : (
+                                                        <div className="flex items-center gap-4 bg-white/5 p-1 rounded-full border border-white/5">
+                                                            <button onClick={() => handleTicketChange(ticket.id, -1)} disabled={qty === 0} className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-20">-</button>
+                                                            <span className="w-4 text-center font-bold text-sm text-white">{qty}</span>
+                                                            <button onClick={() => handleTicketChange(ticket.id, 1)} disabled={qty >= available} className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-20">+</button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );

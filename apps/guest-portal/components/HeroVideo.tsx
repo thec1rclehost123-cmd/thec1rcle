@@ -1,12 +1,29 @@
 "use client";
 
 import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 
-export default function HeroVideo({ src }) {
+export default function HeroVideo({ src, poster }: { src: string; poster?: string }) {
   const ref = useRef(null);
   const { scrollY } = useScroll();
+
+  const [isSlowConnection, setIsSlowConnection] = useState(false);
+  const [loadVideo, setLoadVideo] = useState(false);
+
+  useEffect(() => {
+    const nav = navigator as any;
+    const connection = nav.connection || nav.mozConnection || nav.webkitConnection;
+    if (
+      connection?.effectiveType === "2g" ||
+      connection?.effectiveType === "slow-2g" ||
+      connection?.saveData === true
+    ) {
+      setIsSlowConnection(true);
+    }
+  }, []);
+
+  const showVideo = !isSlowConnection || loadVideo;
 
   // Smoother, more subtle parallax effects
   const y = useTransform(scrollY, [0, 600], [0, 80]);
@@ -14,18 +31,32 @@ export default function HeroVideo({ src }) {
   const scale = useTransform(scrollY, [0, 600], [1, 1.08]);
 
   return (
-    <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
-      {/* Background Video Layer with Parallax */}
+    <div
+      className="relative h-[100dvh] w-full overflow-hidden bg-black"
+      onPointerEnter={() => isSlowConnection && setLoadVideo(true)}
+    >
+      {/* Background Video Layer — lazy on slow connections */}
       <div className="absolute inset-0 h-full w-full">
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="h-full w-full object-cover scale-105"
-        >
-          <source src={src} type="video/mp4" />
-        </video>
+        {showVideo ? (
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="h-full w-full object-cover scale-105"
+          >
+            <source src={src} type="video/mp4" />
+          </video>
+        ) : poster ? (
+          // Static high-res poster for 2G / data-saver connections
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={poster}
+            alt=""
+            aria-hidden="true"
+            className="h-full w-full object-cover scale-105"
+          />
+        ) : null}
       </div>
 
       {/* Multi-layered Gradient Overlays */}

@@ -58,7 +58,7 @@ async function buildUserProfile(userId) {
     // Since orderStore stores eventTitle/Location but not tags, we might need to fetch events.
     // To avoid N+1, we'll just use the order details we have + global event list.
 
-    const allEvents = await listEvents({ limit: 1000 }); // Get all events to lookup metadata
+    const { events: allEvents = [] } = await listEvents({ limit: 1000 }); // Get all events to lookup metadata
     const eventMap = new Map(allEvents.map(e => [e.id, e]));
 
     for (const order of orders) {
@@ -80,11 +80,12 @@ async function buildUserProfile(userId) {
 export async function getRecommendedEvents(userId, limit = 5) {
     if (!userId) {
         // If no user, return trending events
-        return listEvents({ sort: "heat", limit });
+        const { events = [] } = await listEvents({ sort: "heat", limit });
+        return events;
     }
 
     const userProfile = await buildUserProfile(userId);
-    const allEvents = await listEvents({ limit: 100 }); // Candidate pool
+    const { events: allEvents = [] } = await listEvents({ limit: 100 }); // Candidate pool
 
     // Filter out past events
     const candidates = allEvents.filter(e => e.status !== "past");
@@ -105,7 +106,7 @@ export async function getRecommendedEvents(userId, limit = 5) {
  * Get "Similar Events" for a specific event (Item-to-Item recommendation)
  */
 export async function getSimilarEvents(eventId, limit = 3) {
-    const allEvents = await listEvents({ limit: 100 });
+    const { events: allEvents = [] } = await listEvents({ limit: 100 });
     const sourceEvent = allEvents.find(e => e.id === eventId);
 
     if (!sourceEvent) return [];

@@ -4,9 +4,10 @@ import Link from "next/link";
 import { getHostBySlug } from "../../../lib/server/hostStore";
 import { getProfilePosts, getProfileHighlights, getProfileStats } from "../../../lib/server/partnerProfileStore";
 import { listEvents } from "../../../lib/server/eventStore";
-import { CheckCircle2, MapPin, Heart, ExternalLink, Instagram, Music, Play, Calendar, Users, Eye, ChevronRight } from "lucide-react";
+import { CheckCircle2, MapPin, ExternalLink, Instagram, Music, Play, Calendar, ChevronRight } from "lucide-react";
+import { ShimmerImage } from "@c1rcle/ui";
 import ProfileClient from "../../venue/[slug]/ProfileClient";
-import CtaLayer from "../../../components/profile/CtaLayer";
+import HostFollowCta from "../../../components/profile/HostFollowCta";
 
 export const revalidate = 60;
 
@@ -90,8 +91,8 @@ export default async function HostPublicPage({ params }) {
                         <div className="flex flex-col lg:flex-row lg:items-end gap-8 lg:gap-12">
                             {/* Avatar */}
                             <div className="relative flex-shrink-0">
-                                <div className="w-36 h-36 lg:w-48 lg:h-48 rounded-3xl overflow-hidden border-2 border-white/20 bg-black/40 backdrop-blur-xl shadow-2xl">
-                                    <Image
+                                <div className="relative w-36 h-36 lg:w-48 lg:h-48 rounded-3xl overflow-hidden border-2 border-white/20 bg-black/40 backdrop-blur-xl shadow-2xl">
+                                    <ShimmerImage
                                         src={hostProfile.photoURL || "/events/holi-edit.svg"}
                                         alt={hostProfile.name}
                                         fill
@@ -144,24 +145,13 @@ export default async function HostPublicPage({ params }) {
                                     <span className="text-white/30">@{hostProfile.slug || slug}</span>
                                 </div>
 
-                                {/* Stats Row */}
-                                <div className="flex gap-10 pt-4">
-                                    <div className="text-center">
-                                        <p className="text-3xl md:text-4xl font-black">{(stats.followersCount || 0).toLocaleString('en-IN')}</p>
-                                        <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 mt-1">Followers</p>
-                                    </div>
-                                    <div className="text-center">
-                                        <p className="text-3xl md:text-4xl font-black">{upcomingEvents.length}</p>
-                                        <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 mt-1">Upcoming</p>
-                                    </div>
-                                    <div className="text-center">
-                                        <p className="text-3xl md:text-4xl font-black">{hostEvents.length}</p>
-                                        <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 mt-1">Total Events</p>
-                                    </div>
-                                </div>
+                                <HostFollowCta
+                                    hostProfile={hostProfile}
+                                    initialFollowersCount={stats.followersCount || 0}
+                                    upcomingCount={upcomingEvents.length}
+                                    totalCount={hostEvents.length}
+                                />
                             </div>
-
-                            <CtaLayer venue={hostProfile} />
                         </div>
                     </div>
                 </div>
@@ -216,7 +206,7 @@ export default async function HostPublicPage({ params }) {
                                 {upcomingEvents.slice(0, 6).map((event) => (
                                     <Link key={event.id} href={`/event/${event.id}`} className="group">
                                         <div className="relative aspect-[4/5] rounded-2xl overflow-hidden bg-white/5 border border-white/10 hover:border-white/20 transition-all">
-                                            <Image
+                                            <ShimmerImage
                                                 src={event.image || event.coverImage || "/events/neon-nights.jpg"}
                                                 alt={event.name}
                                                 fill
@@ -227,7 +217,7 @@ export default async function HostPublicPage({ params }) {
                                             <div className="absolute inset-x-0 bottom-0 p-6">
                                                 <div className="flex items-center gap-2 mb-3">
                                                     <span className="px-3 py-1 bg-orange rounded-full text-[10px] font-black uppercase tracking-wider text-white">
-                                                        {new Date(event.startDate || event.startAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                                                        {new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" }).format(new Date(event.startDate || event.startAt))}
                                                     </span>
                                                 </div>
                                                 <h3 className="text-xl font-bold text-white mb-1 line-clamp-2">{event.name}</h3>
@@ -300,7 +290,7 @@ export default async function HostPublicPage({ params }) {
                                 {pastEvents.map((event) => (
                                     <Link key={event.id} href={`/event/${event.id}`} className="group">
                                         <div className="relative aspect-square rounded-xl overflow-hidden bg-white/5 border border-white/10">
-                                            <Image
+                                            <ShimmerImage
                                                 src={event.image || event.coverImage || "/events/neon-nights.jpg"}
                                                 alt={event.name}
                                                 fill

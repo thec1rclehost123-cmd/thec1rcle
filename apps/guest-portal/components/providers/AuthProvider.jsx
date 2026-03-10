@@ -34,6 +34,7 @@ const buildProfilePayload = (firebaseUser, overrides = {}) => {
     instagram: "",
     createdAt: now,
     updatedAt: now,
+    onboardingComplete: false,
     ...overrides
   };
 };
@@ -128,8 +129,8 @@ export function AuthProvider({ children }) {
     const auth = await getFirebaseAuth();
     await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
     const credential = await signInWithEmailAndPassword(auth, email, password);
-    await ensureProfile(credential.user);
-    return credential.user;
+    const profile = await ensureProfile(credential.user);
+    return { user: credential.user, profile };
   }, [ensureProfile]);
 
   const register = useCallback(async (email, password, displayName) => {
@@ -159,8 +160,8 @@ export function AuthProvider({ children }) {
     const auth = await getFirebaseAuth();
     const provider = new GoogleAuthProvider();
     const credential = await signInWithPopup(auth, provider);
-    await ensureProfile(credential.user);
-    return credential.user;
+    const profile = await ensureProfile(credential.user);
+    return { user: credential.user, profile };
   }, [ensureProfile]);
 
   const updateEventList = useCallback(

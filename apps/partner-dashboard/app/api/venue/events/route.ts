@@ -20,15 +20,16 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const params: any = { venueId, limit, ...(status && status !== "all" ? { status } : {}) };
+        const params: any = { venueId, limit, ...(status && status !== "all" ? { lifecycle: status } : {}) };
         if (lastId) params.lastId = lastId;
 
-        let events = await listEvents(params, token);
+        const result = await listEvents(params, token);
+        let events: any[] = result.events || result || [];
 
         // Server-side date filtering
         if (date) {
             const targetDate = date === "today" ? new Date().toISOString().split('T')[0] : date;
-            events = (events || []).filter((e: any) => {
+            events = events.filter((e: any) => {
                 const eventDate = (e.date || e.startDate || "").split('T')[0];
                 return eventDate === targetDate;
             });

@@ -12,9 +12,9 @@ import {
     finalizeRefund,
     MONEY_STATES
 } from "@c1rcle/core/ledger-engine";
-import { issueEntitlements, revokeEntitlement } from "@c1rcle/core/entitlement-engine";
 import { validateOrder as coreValidateOrder, executeOrderCreation as coreExecuteOrderCreation, generateOrderId } from "@c1rcle/core/order-engine";
 import inventoryEngine from "@c1rcle/core/inventory-engine";
+import { sendEvent, Events } from "@c1rcle/core/inngest";
 
 const ORDERS_COLLECTION = "orders";
 const RSVP_COLLECTION = "rsvp_orders";
@@ -151,51 +151,39 @@ export async function createRSVPOrder(payload) {
         await holdOrderRevenue(rsvpOrder, transaction);
     });
 
-    // Issue entitlements after transaction commits (keeps transaction boundary small)
-    try {
-        await issueEntitlements(rsvpOrder, rsvpOrder.tickets);
-    } catch (err) {
-        console.error("[OrderStore] Failed to issue entitlements for RSVP:", err);
-        try {
-            await db.collection("entitlement_outbox").add({
-                orderId: rsvpOrder.id,
-                userId: rsvpOrder.userId,
-                eventId: rsvpOrder.eventId,
-                tickets: rsvpOrder.tickets,
-                status: "pending",
-                error: err.message,
-                retryCount: 0,
-                createdAt: new Date().toISOString()
-            });
-        } catch (outboxErr) {
-            console.error("[OrderStore] Failed to write entitlement outbox:", outboxErr);
-        }
-    }
+    // Trigger background fulfillment pipeline for RSVP (entitlements, email, analytics).
+    sendEvent(Events.TICKET_PURCHASED, {
+        orderId: rsvpOrder.id,
+        userId: rsvpOrder.userId,
+        userEmail: rsvpOrder.userEmail,
+        eventId: rsvpOrder.eventId,
+        tickets: rsvpOrder.tickets.map(t => ({
+            tierId: t.ticketId,
+            tierName: t.name,
+            quantity: t.quantity,
+            entryType: t.entryType || 'general',
+        })),
+        totalAmount: 0,
+        promoterCode: promoterCode || null,
+    }, { idempotencyKey: `ticket-purchased-${rsvpOrder.id}` }).catch(err =>
+        console.error("[OrderStore] Failed to dispatch TICKET_PURCHASED (RSVP) to Inngest:", err)
+    );
 
-    // Record promoter conversion for RSVP
-    if (promoterLinkId) {
-        try {
-            const firstTicket = rsvpOrder.tickets[0];
-            await recordConversion(promoterLinkId, rsvpOrder.id, 0, firstTicket.ticketId);
-            console.log(`[OrderStore] Promoter conversion recorded for RSVP ${rsvpOrder.id}`);
-        } catch (err) {
-            console.error("[OrderStore] Failed to record promoter RSVP conversion:", err);
-        }
-    }
-
-    // Auto-consume admission if this was a surge order
+    // Fire-and-forget: admission consumption and promoter conversion
     if (reservationId) {
-        try {
+        (async () => {
             const { getReservation } = await import("./checkoutService");
             const res = await getReservation(reservationId);
             if (res?.queueId) {
                 const { consumeAdmission } = await import("./queueStore");
                 await consumeAdmission(res.queueId);
-                console.log(`[OrderStore] Admission consumed for RSVP ${orderId}`);
             }
-        } catch (err) {
-            console.error("[OrderStore] Failed to consume admission for RSVP:", err);
-        }
+        })().catch(err => console.error("[OrderStore] Failed to consume admission for RSVP:", err));
+    }
+
+    if (promoterLinkId) {
+        recordConversion(promoterLinkId, rsvpOrder.id, 0, rsvpOrder.tickets[0]?.ticketId)
+            .catch(err => console.error("[OrderStore] Failed to record promoter RSVP conversion:", err));
     }
 
     return rsvpOrder;
@@ -421,112 +409,43 @@ export async function createOrder(payload) {
 
         console.log(`Order created successfully: ${orderId}`);
 
-        // Issue entitlements after transaction commits (keeps transaction boundary small)
         if (order.status === "confirmed") {
-            try {
-                await issueEntitlements(order, order.tickets);
-            } catch (err) {
-                console.error("[OrderStore] Failed to issue entitlements for free order:", err);
-                try {
-                    await db.collection("entitlement_outbox").add({
-                        orderId,
-                        userId: order.userId,
-                        eventId: order.eventId,
-                        tickets: order.tickets,
-                        status: "pending",
-                        error: err.message,
-                        retryCount: 0,
-                        createdAt: new Date().toISOString()
-                    });
-                } catch (outboxErr) {
-                    console.error("[OrderStore] Failed to write entitlement outbox:", outboxErr);
-                }
-            }
-        }
+            // Trigger background fulfillment pipeline (entitlements, email, promoter credits, analytics).
+            sendEvent(Events.TICKET_PURCHASED, {
+                orderId,
+                userId: order.userId,
+                userEmail: order.userEmail,
+                eventId: order.eventId,
+                tickets: order.tickets.map(t => ({
+                    tierId: t.ticketId,
+                    tierName: t.name,
+                    quantity: t.quantity,
+                    entryType: t.entryType || 'general',
+                })),
+                totalAmount: order.totalAmount,
+                promoterCode: order.promoterCode || null,
+            }, { idempotencyKey: `ticket-purchased-${orderId}` }).catch(err =>
+                console.error("[OrderStore] Failed to dispatch TICKET_PURCHASED to Inngest:", err)
+            );
 
-
-        // If the order is confirmed (e.g., free tickets), record the promoter conversion and promo redemptions immediately
-        if (order.status === "confirmed") {
-            if (promoterLinkId) {
-                try {
-                    // For simplicity, we record conversion for the first ticket tier in the order
-                    const firstTicket = order.tickets[0];
-                    await recordConversion(promoterLinkId, order.id, order.totalAmount, firstTicket.ticketId);
-                    console.log(`[OrderStore] Promoter conversion recorded for order ${order.id}`);
-                } catch (err) {
-                    console.error("[OrderStore] Failed to record promoter conversion:", err);
-                    try {
-                        await db.collection("promoter_conversion_outbox").add({
-                            orderId: order.id, userId: order.userId, eventId: order.eventId,
-                            promoterLinkId, totalAmount: order.totalAmount,
-                            status: "pending", error: err.message, retryCount: 0,
-                            createdAt: new Date().toISOString()
-                        });
-                    } catch (outboxErr) {
-                        console.error("[OrderStore] Failed to write promoter_conversion_outbox:", outboxErr);
-                    }
+            // Fire-and-forget: share bundle creation
+            (async () => {
+                const { createShareBundle } = await import("./ticketShareStore");
+                for (const ticket of order.tickets) {
+                    await createShareBundle(order.id, order.userId, order.eventId, ticket.quantity, ticket.ticketId);
                 }
-            }
-
-            if (order.promoCodeId) {
-                try {
-                    const { recordRedemption } = await import("@c1rcle/core/promo-service");
-                    await recordRedemption(order.promoCodeId, order.id, order.userId, {
-                        discountAmount: order.discountAmount
-                    });
-                    console.log(`[OrderStore] Promo redemption recorded for order ${order.id}`);
-                } catch (err) {
-                    console.error("[OrderStore] Failed to record promo redemption:", err);
-                    try {
-                        await db.collection("promo_redemption_outbox").add({
-                            orderId: order.id, userId: order.userId, eventId: order.eventId,
-                            promoCodeId: order.promoCodeId, discountAmount: order.discountAmount,
-                            status: "pending", error: err.message, retryCount: 0,
-                            createdAt: new Date().toISOString()
-                        });
-                    } catch (outboxErr) {
-                        console.error("[OrderStore] Failed to write promo_redemption_outbox:", outboxErr);
-                    }
-                }
-            }
+            })().catch(err => console.error("[OrderStore] Failed to create share bundles:", err));
 
             // Consumption of admission for auto-confirmed free tickets
             if (reservationId) {
-                try {
+                (async () => {
                     const { getReservation } = await import("./checkoutService");
                     const res = await getReservation(reservationId);
                     if (res?.queueId) {
                         const { consumeAdmission } = await import("./queueStore");
                         await consumeAdmission(res.queueId);
                     }
-                } catch (err) {
-                    console.error("[OrderStore] Failed to consume admission for free order:", err);
-                }
-            }
-
-            // Per-Ticket Identity: Auto-create share bundles for each tier in the order
-            try {
-                const { createShareBundle } = await import("./ticketShareStore");
-                for (const ticket of order.tickets) {
-                    await createShareBundle(order.id, order.userId, order.eventId, ticket.quantity, ticket.ticketId);
-                }
-                console.log(`[OrderStore] Auto-created share bundles for confirmed order ${order.id}`);
-            } catch (err) {
-                console.error("[OrderStore] Failed to auto-create share bundles:", err);
-                try {
-                    await getAdminDb().collection("share_bundle_outbox").add({
-                        orderId: order.id,
-                        userId: order.userId,
-                        eventId: order.eventId,
-                        tickets: order.tickets,
-                        status: "pending",
-                        error: err.message,
-                        retryCount: 0,
-                        createdAt: new Date().toISOString()
-                    });
-                } catch (outboxErr) {
-                    console.error("[OrderStore] Failed to write share bundle outbox:", outboxErr);
-                }
+                })().catch(err => console.error("[OrderStore] Failed to consume admission for free order:", err));
             }
         }
 
@@ -1021,26 +940,24 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
 
     console.log(`[OrderStore] Money ledger and order status updated for confirmed order ${orderId}`);
 
-    // Issue entitlements after transaction commits (keeps transaction boundary small)
-    try {
-        await issueEntitlements({ ...order, ...updates }, order.tickets);
-    } catch (err) {
-        console.error("[OrderStore] Failed to issue entitlements for paid order:", err);
-        try {
-            await db.collection("entitlement_outbox").add({
-                orderId,
-                userId: order.userId,
-                eventId: order.eventId,
-                tickets: order.tickets,
-                status: "pending",
-                error: err.message,
-                retryCount: 0,
-                createdAt: new Date().toISOString()
-            });
-        } catch (outboxErr) {
-            console.error("[OrderStore] Failed to write entitlement outbox:", outboxErr);
-        }
-    }
+    // Trigger background fulfillment pipeline (entitlements, email, promoter credits, analytics).
+    // handleTicketFulfillment retries up to 5× and writes to fulfillment_failures on exhaustion.
+    sendEvent(Events.TICKET_PURCHASED, {
+        orderId,
+        userId: order.userId,
+        userEmail: order.userEmail,
+        eventId: order.eventId,
+        tickets: order.tickets.map(t => ({
+            tierId: t.ticketId,
+            tierName: t.name,
+            quantity: t.quantity,
+            entryType: t.entryType || 'general',
+        })),
+        totalAmount: order.totalAmount,
+        promoterCode: order.promoterCode || null,
+    }, { idempotencyKey: `ticket-purchased-${orderId}` }).catch(err =>
+        console.error("[OrderStore] Failed to dispatch TICKET_PURCHASED to Inngest:", err)
+    );
 
 
     // Handle promoter conversion
@@ -1063,30 +980,13 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
         }
     }
 
-    // Per-Ticket Identity: Auto-create share bundles for each tier in the order
-    try {
+    // Fire-and-forget: share bundle creation (best-effort, not critical path)
+    (async () => {
         const { createShareBundle } = await import("./ticketShareStore");
         for (const ticket of order.tickets) {
             await createShareBundle(orderId, order.userId, order.eventId, ticket.quantity, ticket.ticketId);
         }
-        console.log(`[OrderStore] Auto-created share bundles for confirmed order ${orderId}`);
-    } catch (err) {
-        console.error("[OrderStore] Failed to auto-create share bundles:", err);
-        try {
-            await getAdminDb().collection("share_bundle_outbox").add({
-                orderId,
-                userId: order.userId,
-                eventId: order.eventId,
-                tickets: order.tickets,
-                status: "pending",
-                error: err.message,
-                retryCount: 0,
-                createdAt: new Date().toISOString()
-            });
-        } catch (outboxErr) {
-            console.error("[OrderStore] Failed to write share bundle outbox:", outboxErr);
-        }
-    }
+    })().catch(err => console.error("[OrderStore] Failed to create share bundles:", err));
 
     // Send ticket notification (async, don't await)
     try {

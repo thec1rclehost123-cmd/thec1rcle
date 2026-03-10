@@ -12,8 +12,9 @@ const getQueryParams = (request) => {
   const venueId = searchParams.get("venueId") || undefined;
   const lifecycle = searchParams.get("lifecycle") || undefined;
   const creatorRole = searchParams.get("creatorRole") || undefined;
+  const creatorId = searchParams.get("creatorId") || undefined;
   const parsedLimit = limit ? Number(limit) : undefined;
-  return { city, limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined, sort, search, host, venueId, lifecycle, creatorRole };
+  return { city, limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined, sort, search, host, venueId, lifecycle, creatorRole, creatorId };
 };
 
 export async function GET(request) {
@@ -44,14 +45,14 @@ export async function GET(request) {
       const data = await response.json();
       return NextResponse.json(data);
     } catch (error) {
-      console.error("[Events Redirect] Error:", error);
-      return NextResponse.json({ error: "Failed to fetch from Gateway" }, { status: 502 });
+      console.error("[Events Redirect] Gateway unavailable, falling back to Firestore:", error.message);
+      // Fall through to direct Firestore below
     }
   }
 
   try {
-    const { city, limit, sort, search, host, venueId, lifecycle, creatorRole } = getQueryParams(request);
-    const events = await listEvents({ city, limit, sort, search, host, venueId, lifecycle, creatorRole });
+    const { city, limit, sort, search, host, venueId, lifecycle, creatorRole, creatorId } = getQueryParams(request);
+    const events = await listEvents({ city, limit, sort, search, host, venueId, lifecycle, creatorRole, creatorId });
     return NextResponse.json(events);
   } catch (error) {
     console.error("GET /api/events error", error);

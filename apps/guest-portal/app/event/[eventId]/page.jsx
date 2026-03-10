@@ -1,8 +1,6 @@
 import { notFound } from "next/navigation";
 import EventRSVP from "../../../components/EventRSVP";
-import { getEvent, getEventInterested, getEventGuestlist } from "../../../lib/server/eventStore";
-import { getHostByHandle } from "../../../lib/server/hostStore";
-import { getVenueBySlug } from "../../../lib/server/venueStore";
+import { getEvent, getEventInterested } from "../../../lib/server/eventStore";
 import { getHostProfile as getMockHostProfile } from "../../../data/hosts";
 
 
@@ -19,7 +17,7 @@ export async function generateMetadata({ params }) {
 
   const title = event.title.toUpperCase();
   const description = event.summary || event.description || "Join us at THE C1RCLE.";
-  const images = event.image ? [event.image] : [];
+  const images = event.image ? [event.image] : ["/logo-circle.jpg"];
 
   return {
     title: title,
@@ -89,34 +87,16 @@ export default async function EventDetailPage({ params }) {
     );
   }
 
-  // Determine the primary host profile
-  // Q1: Use denormalized data embedded in the event document if available (eliminates 1-2 Firestore reads).
-  // Falls back to separate collection queries for events created before the denormalization write path is deployed.
+  // Resolve host/venue profile from denormalized fields embedded at write time.
+  // Falls back to mock data if neither hostData nor venueData is present.
   let hostProfile = null;
 
   if (event.hostData) {
-    // Embedded at write time — no extra Firestore read needed
     hostProfile = { ...event.hostData, type: event.hostData.type || "host" };
-  } else if (event.host) {
-    // Legacy path: separate collection read
-    hostProfile = await getHostByHandle(event.host);
-    if (hostProfile) hostProfile.type = "host";
   }
 
   if (!hostProfile && event.venueData) {
-    // Embedded at write time — no extra Firestore read needed
     hostProfile = { ...event.venueData, type: "venue", avatar: event.venueData.photoURL || event.venueData.image };
-  } else if (!hostProfile && event.venue) {
-    // Legacy path: separate collection read
-    const venueSlug = event.venueSlug || event.venue.toLowerCase().replace(/\s+/g, '-');
-    const venueProfile = await getVenueBySlug(venueSlug);
-    if (venueProfile) {
-      hostProfile = {
-        ...venueProfile,
-        type: "venue",
-        avatar: venueProfile.photoURL || venueProfile.image
-      };
-    }
   }
 
   // 3. Fallback to mock data if still nothing
@@ -136,13 +116,8 @@ export default async function EventDetailPage({ params }) {
     hostProfile.slug = hostProfile.handle ? hostProfile.handle.replace("@", "").replace(/\./g, "-") : hostProfile.id;
   }
 
-  // Fetch live social proof
+  // Fetch live social proof — first 20 saves for avatar display
   const interestedData = await getEventInterested(event.id);
-
-  let guestlist = [];
-  if (event.settings?.showGuestlist) {
-    guestlist = await getEventGuestlist(event.id);
-  }
 
   // ── Handle Cancelled Event ──
   if (event.lifecycle === "cancelled") {
@@ -231,7 +206,6 @@ export default async function EventDetailPage({ params }) {
       event={event}
       host={hostProfile}
       interestedData={interestedData}
-      guestlist={guestlist}
     />
   );
 }

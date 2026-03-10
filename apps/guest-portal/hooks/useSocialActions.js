@@ -12,20 +12,13 @@ export function useSocialActions(eventId) {
     const rsvpMutation = useMutation({
         mutationFn: async ({ shouldInclude }) => {
             const token = await user.getIdToken();
-            const res = await fetch('/api/auth/profile', {
-                method: 'PATCH',
+            const res = await fetch(`/api/events/${eventId}/rsvp`, {
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${token}`
                 },
-                body: JSON.stringify({ 
-                    type: 'user', 
-                    updates: { 
-                        attendedEvents: shouldInclude 
-                            ? [...(profile?.attendedEvents || []), eventId]
-                            : profile?.attendedEvents?.filter(id => id !== eventId) || []
-                    } 
-                })
+                body: JSON.stringify({ shouldInclude })
             });
             if (!res.ok) throw new Error("Failed to update RSVP");
             return res.json();

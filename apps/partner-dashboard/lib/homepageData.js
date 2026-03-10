@@ -56,7 +56,7 @@ const getCity = (city) => city || DEFAULT_CITY;
 
 export const getHomepageContent = cache(async (city) => {
   const selectedCity = getCity(city);
-  const events = await listEvents({ city: selectedCity, limit: 12, sort: "heat" });
+  const { events = [] } = await listEvents({ city: selectedCity, limit: 12, sort: "heat" });
   const heroCards = mapHeroCards(events);
   const eventGrid = mapEventGrid(events);
   const categories = getCategoryFilters(events);
