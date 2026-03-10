@@ -1,19 +1,29 @@
 /**
  * Venue Calendar Store (Refactored for API Governance)
  * 
- * Uses the unified C1rcleApiClient to manage venue availability and slots.
- * All scheduling logic and DB access moved to @c1rcle/core/calendar-engine via API Gateway.
+ * Rewritten to use @c1rcle/core/calendar-engine directly 
+ * so the partner-dashboard works without the gateway running in dev.
  */
 
+import { getAdminDb } from "../firebase/admin";
+import {
+    getOperatingCalendar as directGetOperatingCalendar,
+    blockDate as directBlockDate,
+    unblockDate as directUnblockDate,
+    respondToSlotRequest as directRespondToSlotRequest,
+    createSlotRequest as directCreateSlotRequest,
+    getVenueAvailability
+} from "@c1rcle/core/calendar-engine";
 import { getApiClient } from "./apiClient";
 
 /**
  * Get operating calendar for partner dashboard (rich view)
+ * Returns daily aggregated data for the internal calendar component.
  */
 export async function getOperatingCalendar(partnerId, role, startDate, endDate, token) {
-    const client = getApiClient(token);
+    const db = getAdminDb();
     try {
-        return await client.getOperatingCalendar(partnerId, role, startDate, endDate);
+        return await directGetOperatingCalendar(db, partnerId, role, startDate, endDate);
     } catch (error) {
         console.error("[CalendarStore] getOperatingCalendar failed:", error.message);
         return [];
@@ -23,46 +33,37 @@ export async function getOperatingCalendar(partnerId, role, startDate, endDate, 
 /**
  * Block a date or time range (venue action)
  */
-export async function blockDate(venueId, date, reason = "", token, startTime = "16:00", endTime = "04:00") {
-    const client = getApiClient(token);
-    return client.blockVenueDate(venueId, date, reason, startTime, endTime);
+export async function blockDate(venueId, date, reason = "", actor, startTime = "16:00", endTime = "04:00") {
+    return directBlockDate(venueId, date, reason, actor || { uid: "system", role: "venue" }, startTime, endTime);
 }
 
 /**
  * Unblock a date (venue action)
  */
-export async function unblockDate(venueId, date, token) {
-    const client = getApiClient(token);
-    return client.request('/calendar/block', {
-        method: 'DELETE',
-        body: JSON.stringify({ venueId, date })
-    });
+export async function unblockDate(venueId, date, _token) {
+    return directUnblockDate(venueId, date);
 }
 
 /**
  * Request a slot (host action)
  */
-export async function requestSlot(data, token) {
-    const client = getApiClient(token);
-    return client.requestSlot(data);
+export async function requestSlot(data, actor) {
+    return directCreateSlotRequest(data, actor || { uid: "system", role: "host" });
 }
 
 /**
  * Respond to a slot request (venue action)
  */
-export async function respondToSlotRequest(id, action, responseData = {}, token) {
-    const client = getApiClient(token);
-    return client.respondToSlot(id, action, responseData);
+export async function respondToSlotRequest(id, action, responseData = {}, actor) {
+    return directRespondToSlotRequest(id, action, responseData, actor || { uid: "system", role: "venue" });
 }
 
 /**
  * Get venue availability for a specific range (consumer/host view)
  */
-export async function getVenueCalendar(venueId, startDate, endDate, hostId, token) {
-    const client = getApiClient(token);
+export async function getVenueCalendar(venueId, startDate, endDate, _hostId, _token) {
     try {
-        // hostId can be used for host-specific logic if needed in the future
-        return await client.getVenueAvailability(venueId, startDate, endDate);
+        return await getVenueAvailability(venueId, startDate, endDate);
     } catch (error) {
         console.error("[CalendarStore] getVenueCalendar failed:", error.message);
         return [];
@@ -72,10 +73,9 @@ export async function getVenueCalendar(venueId, startDate, endDate, hostId, toke
 /**
  * Get availability for a specific single date
  */
-export async function getDateAvailability(venueId, date, token) {
-    const client = getApiClient(token);
+export async function getDateAvailability(venueId, date, _token) {
     try {
-        return await client.getVenueAvailability(venueId, date, date);
+        return await getVenueAvailability(venueId, date, date);
     } catch (error) {
         console.error("[CalendarStore] getDateAvailability failed:", error.message);
         return null;
@@ -85,10 +85,9 @@ export async function getDateAvailability(venueId, date, token) {
 /**
  * Get unified venue calendar (combines operating slots and blocks)
  */
-export async function getUnifiedVenueCalendar(venueId, startDate, endDate, token) {
-    const client = getApiClient(token);
+export async function getUnifiedVenueCalendar(venueId, startDate, endDate, _token) {
     try {
-        return await client.getVenueAvailability(venueId, startDate, endDate);
+        return await getVenueAvailability(venueId, startDate, endDate);
     } catch (error) {
         console.error("[CalendarStore] getUnifiedVenueCalendar failed:", error.message);
         return [];
@@ -98,11 +97,10 @@ export async function getUnifiedVenueCalendar(venueId, startDate, endDate, token
 /**
  * Check if a slot is available
  */
-export async function isSlotAvailable(venueId, date, startTime, endTime, token) {
-    const client = getApiClient(token);
+export async function isSlotAvailable(venueId, date, startTime, endTime, _token) {
     try {
-        const slots = await client.getVenueAvailability(venueId, date, date);
-        // Basic check: find a slot that contains the requested range and is available
+        const slots = await getVenueAvailability(venueId, date, date);
+        // Basic check: find a slot that is available and contains the requested range
         return (slots || []).some(slot =>
             slot.isAvailable &&
             slot.startTime <= startTime &&
@@ -125,6 +123,3 @@ export default {
     requestSlot,
     respondToSlotRequest
 };
-
-
-

@@ -35,7 +35,7 @@ const Badge = ({ label, type = "default" }) => {
     );
 };
 
-const MemberCard = ({ user, profile, displayName, initials, isOwner, onEdit, onLogout }) => (
+const MemberCard = ({ user, profile, displayName, initials, isOwner, onEdit, onLogout, cultureStats }) => (
     <div className="relative w-full overflow-hidden rounded-[32px] border border-black/5 dark:border-white/10 bg-white dark:bg-white/5 p-8 transition-all duration-500 shadow-sm dark:shadow-none md:p-10">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange/20 dark:via-white/20 to-transparent" />
 
@@ -93,18 +93,31 @@ const MemberCard = ({ user, profile, displayName, initials, isOwner, onEdit, onL
                             </span>
                         )}
                     </div>
-                    <h1 className="text-4xl font-black uppercase tracking-tight text-black dark:text-white md:text-6xl">
+                    <h1
+                        className="text-4xl font-black uppercase tracking-tight text-black dark:text-white md:text-6xl"
+                        style={profile?.gender === 'female'
+                            ? { filter: 'drop-shadow(0 0 24px rgba(255,215,0,0.3))' }
+                            : profile?.gender === 'male'
+                                ? { filter: 'drop-shadow(0 0 24px rgba(93,95,239,0.3))' }
+                                : undefined}
+                    >
                         {displayName}
                     </h1>
                     {isOwner && <p className="font-mono text-xs text-black/40 dark:text-white/40">{profile?.email || ""}</p>}
                 </div>
             </div>
 
-            <div className="flex items-center gap-8 border-t border-black/5 dark:border-white/10 pt-6 md:border-l md:border-t-0 md:pl-8 md:pt-0">
+            <div className="flex flex-wrap items-center gap-6 border-t border-black/5 dark:border-white/10 pt-6 md:border-l md:border-t-0 md:pl-8 md:pt-0">
+                {cultureStats?.uniqueVenues > 0 && (
+                    <div className="text-center md:text-right">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-black/40 dark:text-white/40">Venues</p>
+                        <p className="mt-1 font-mono text-xl text-black dark:text-white">{cultureStats.uniqueVenues}</p>
+                    </div>
+                )}
                 <div className="text-center md:text-right">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-black/40 dark:text-white/40">Joined</p>
-                    <p className="mt-1 font-mono text-xl text-black dark:text-white" suppressHydrationWarning>
-                        {new Date(profile?.createdAt || Date.now()).getFullYear()}
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-black/40 dark:text-white/40">{cultureStats?.prestige || "Member"}</p>
+                    <p className="mt-1 font-mono text-sm text-black/60 dark:text-white/60" suppressHydrationWarning>
+                        {cultureStats?.sinceLabel || new Date(profile?.createdAt || Date.now()).getFullYear()}
                     </p>
                 </div>
                 <div className="text-center md:text-right">
@@ -273,6 +286,18 @@ export default function PublicProfilePage() {
     const displayName = profile.displayName || "Member";
     const initials = displayName.slice(0, 2).toUpperCase();
 
+    const allEvents = [...(events.upcoming || []), ...(events.attended || [])];
+    const uniqueVenues = new Set(allEvents.map(e => e.venueName).filter(Boolean)).size;
+    const joinedDate = profile.createdAt ? new Date(profile.createdAt) : null;
+    const joinYear = joinedDate?.getFullYear();
+    const cultureStats = {
+        uniqueVenues,
+        prestige: joinYear && joinYear <= 2024 ? "C1RCLE Founder" : joinYear === 2025 ? "Early Member" : "Member",
+        sinceLabel: joinedDate
+            ? `${joinedDate.toLocaleString('en-IN', { month: 'short' })} ${joinYear}`
+            : null,
+    };
+
     return (
         <div className="bg-[var(--bg-color)] text-[var(--text-primary)] transition-colors duration-500 selection:bg-orange/30 flex-1 flex flex-col">
             <AuroraBackground />
@@ -295,6 +320,7 @@ export default function PublicProfilePage() {
                             logout();
                             router.replace('/login');
                         }}
+                        cultureStats={cultureStats}
                     />
                 </motion.div>
 

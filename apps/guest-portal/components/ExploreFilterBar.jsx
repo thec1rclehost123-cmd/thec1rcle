@@ -4,6 +4,145 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
 
+// ── Recent-search helpers ───────────────────────────────────────────────────
+const RECENT_KEY = "c1rcle:recent-searches";
+const MAX_RECENT = 5;
+
+function getRecentSearches() {
+    try {
+        return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+    } catch {
+        return [];
+    }
+}
+
+function saveRecentSearch(term) {
+    if (!term.trim()) return;
+    try {
+        const stored = getRecentSearches();
+        const updated = [term.trim(), ...stored.filter((s) => s !== term.trim())].slice(0, MAX_RECENT);
+        localStorage.setItem(RECENT_KEY, JSON.stringify(updated));
+    } catch { /* storage unavailable */ }
+}
+
+// ── SearchInput ─────────────────────────────────────────────────────────────
+const pillVariants = {
+    hidden: { opacity: 0, y: -6, scale: 0.9 },
+    visible: (i) => ({
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        transition: { delay: i * 0.055, duration: 0.2, ease: "easeOut" },
+    }),
+    exit: { opacity: 0, y: -4, scale: 0.9, transition: { duration: 0.12 } },
+};
+
+function SearchInput({ value, onChange }) {
+    const [focused, setFocused] = useState(false);
+    const [recentSearches, setRecentSearches] = useState([]);
+    const containerRef = useRef(null);
+
+    // Load from localStorage after mount (SSR-safe)
+    useEffect(() => {
+        setRecentSearches(getRecentSearches());
+    }, []);
+
+    // Close dropdown on outside click
+    useEffect(() => {
+        const handleOutside = (e) => {
+            if (containerRef.current && !containerRef.current.contains(e.target)) {
+                setFocused(false);
+            }
+        };
+        document.addEventListener("mousedown", handleOutside);
+        return () => document.removeEventListener("mousedown", handleOutside);
+    }, []);
+
+    const handleFocus = () => {
+        setRecentSearches(getRecentSearches()); // refresh on every open
+        setFocused(true);
+    };
+
+    const handleSelect = (term) => {
+        onChange(term);
+        saveRecentSearch(term);
+        setRecentSearches(getRecentSearches());
+        setFocused(false);
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === "Enter" && value.trim()) {
+            saveRecentSearch(value.trim());
+            setRecentSearches(getRecentSearches());
+            setFocused(false);
+        }
+        if (e.key === "Escape") setFocused(false);
+    };
+
+    const showRecents = focused && recentSearches.length > 0 && !value.trim();
+
+    return (
+        <div className="relative" ref={containerRef}>
+            <div className="flex items-center gap-2 px-4 py-2.5">
+                {/* Search icon */}
+                <svg
+                    className="w-3.5 h-3.5 text-black/40 dark:text-white/40 shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                    aria-hidden="true"
+                >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                </svg>
+                <input
+                    type="search"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    onFocus={handleFocus}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Search"
+                    className="bg-transparent text-[10px] font-bold uppercase tracking-widest text-black dark:text-white placeholder:text-black/30 dark:placeholder:text-white/30 outline-none w-20 md:w-28"
+                />
+            </div>
+
+            {/* Recent searches dropdown */}
+            <AnimatePresence>
+                {showRecents && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.95, filter: "blur(10px)" }}
+                        animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                        exit={{ opacity: 0, y: 8, scale: 0.95, filter: "blur(10px)" }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="absolute left-0 top-full mt-3 min-w-[220px] overflow-hidden rounded-2xl border border-black/10 dark:border-white/20 bg-white/95 dark:bg-[#0A0A0A]/90 backdrop-blur-3xl shadow-xl z-50 p-3"
+                    >
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-black/40 dark:text-white/40 mb-2 px-1">
+                            Recent
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                            {recentSearches.map((term, i) => (
+                                <motion.button
+                                    key={term}
+                                    custom={i}
+                                    variants={pillVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                    exit="exit"
+                                    onClick={() => handleSelect(term)}
+                                    className="px-3 py-1.5 rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-[10px] font-bold uppercase tracking-widest text-black/70 dark:text-white/70 hover:bg-[#F44A22] hover:text-white hover:border-[#F44A22] transition-colors duration-200"
+                                >
+                                    {term}
+                                </motion.button>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+}
+
+// ── FilterPill ───────────────────────────────────────────────────────────────
 function FilterPill({ label, value, options, onChange, icon: Icon }) {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef(null);
@@ -91,6 +230,7 @@ function FilterPill({ label, value, options, onChange, icon: Icon }) {
     );
 }
 
+// ── ExploreFilterBar ─────────────────────────────────────────────────────────
 export default function ExploreFilterBar({
     sort,
     setSort,
@@ -98,7 +238,9 @@ export default function ExploreFilterBar({
     setDate,
     city,
     setCity,
-    cityOptions = []
+    cityOptions = [],
+    searchTerm = "",
+    setSearchTerm,
 }) {
     const sortOptions = [
         { label: "Trending", value: "heat" },
@@ -123,6 +265,12 @@ export default function ExploreFilterBar({
                 transition={{ duration: 0.6, ease: "easeOut" }}
                 className="inline-flex items-center gap-1 p-1.5 rounded-full border border-black/5 dark:border-white/10 bg-white/50 dark:bg-black/50 shadow-sm dark:shadow-glow backdrop-blur-2xl"
             >
+                {setSearchTerm && (
+                    <>
+                        <SearchInput value={searchTerm} onChange={setSearchTerm} />
+                        <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 mx-1" />
+                    </>
+                )}
                 <FilterPill
                     label="Sort"
                     value={sortOptions.find(o => o.value === sort)?.label}
@@ -147,4 +295,3 @@ export default function ExploreFilterBar({
         </div>
     );
 }
-

@@ -19,7 +19,7 @@ export default function AuthCallbackPage() {
 function AuthCallbackContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { user, loading: authLoading } = useAuth();
+    const { user, profile, loading: authLoading } = useAuth();
     const [status, setStatus] = useState("processing"); // processing, success, error
     const [errorMessage, setErrorMessage] = useState("");
 
@@ -29,6 +29,11 @@ function AuthCallbackContent() {
         // If auth is no longer loading and we have a user, redirect
         if (!authLoading) {
             if (user) {
+                // Block access if onboarding was never completed
+                if (profile !== null && profile?.onboardingComplete === false) {
+                    router.replace(`/login?next=${encodeURIComponent(returnUrl)}`);
+                    return;
+                }
                 setStatus("success");
                 const timer = setTimeout(() => {
                     router.replace(returnUrl);
@@ -54,7 +59,7 @@ function AuthCallbackContent() {
                 }
             }
         }
-    }, [user, authLoading, router, returnUrl, searchParams]);
+    }, [user, profile, authLoading, router, returnUrl, searchParams]);
 
     return (
         <div className="relative h-[100dvh] bg-black flex items-center justify-center overflow-hidden">

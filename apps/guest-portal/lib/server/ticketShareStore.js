@@ -629,6 +629,45 @@ export async function validateAndScanTicket(ticketId, signature, eventId, scanne
 }
 
 /**
+ * Validates a compact QR code by looking up the order and finding a matching ticket signature.
+ */
+export async function validateShortQR(orderId, shortSignature, eventId, scannerId) {
+    if (!isFirebaseConfigured()) throw new Error("Firebase not configured");
+
+    const db = getAdminDb();
+    const orderRef = db.collection("orders").doc(orderId);
+    const orderDoc = await orderRef.get();
+
+    if (!orderDoc.exists) return { valid: false, reason: "order_not_found" };
+    const order = orderDoc.data();
+
+    if (order.eventId !== eventId) return { valid: false, reason: "event_mismatch" };
+
+    // Try finding assignments first
+    const assignmentsSnapshot = await db.collection(TICKET_ASSIGNMENTS_COLLECTION)
+        .where("orderId", "==", orderId)
+        .get();
+
+    for (const doc of assignmentsSnapshot.docs) {
+        const data = doc.data();
+        if (data.qrPayload?.sig === shortSignature || data.assignmentId?.includes(shortSignature)) {
+            return await validateAndScanTicket(doc.id, shortSignature, eventId, scannerId, { directPayload: data.qrPayload });
+        }
+    }
+
+    // fallback to standard order tickets
+    for (const ticket of order.tickets) {
+        // Broadly check the first quantity unit
+        const ticketId = `${orderId}-${ticket.ticketId}-1`;
+        const result = await validateAndScanTicket(ticketId, shortSignature, eventId, scannerId);
+        if (result.valid) return result;
+    }
+
+    return { valid: false, reason: "invalid_signature", message: "No matching ticket found for this signature" };
+}
+
+
+/**
  * @private
  */
 async function _handleAssignmentScan(transaction, doc, eventId, scannerId, now) {

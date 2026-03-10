@@ -13,8 +13,11 @@ const QR_SECRET = process.env.QR_SECRET_KEY || "c1rcle-qr-secret-2024";
 export function verifyScanSignature(payload) {
     if (!payload.sig) return false;
 
-    // Standard data format: orderId:eventId:ticketId:userId:quantity:timestamp
-    const dataToSign = `${payload.o}:${payload.e}:${payload.t}:${payload.u}:${payload.q}:${payload.ts}`;
+    const isRSVP = payload.rt === 1;
+
+    // Standard data format: orderId:eventId:ticketId:userId:quantity:timestamp:STATUS
+    // Matches qrStore.js implementation
+    const dataToSign = `${payload.o}:${payload.e}:${payload.t}:${payload.u}:${payload.q}:${payload.ts}:${isRSVP ? 'RSVP' : 'PAID'}`;
     const expectedSignature = createHmac("sha256", QR_SECRET)
         .update(dataToSign)
         .digest("hex")

@@ -134,6 +134,10 @@ export default function ExploreClient({ initialEvents = [] }) {
     hasMore
   } = useExploreStore();
 
+  // Real-time Trending listener — top-20 events in current city by heatScore
+  const [liveEvents, setLiveEvents] = useState(null);
+  const trendingUnsubRef = useRef(null);
+
   const [selectedCity, setSelectedCity] = useState("");
   const [filters, setFilters] = useState({
     datePreset: "any",
@@ -199,6 +203,64 @@ export default function ExploreClient({ initialEvents = [] }) {
     window.localStorage.setItem("c1rcle:city", selectedCity);
   }, [selectedCity]);
 
+  useEffect(() => {
+    if (activeSort !== "Trending" || !selectedCity) {
+      if (trendingUnsubRef.current) {
+        trendingUnsubRef.current();
+        trendingUnsubRef.current = null;
+      }
+      setLiveEvents(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function setupTrendingListener() {
+      try {
+        const [{ getFirebaseDb }, { collection, query, where, orderBy, limit, onSnapshot }] = await Promise.all([
+          import("../lib/firebase/client"),
+          import("firebase/firestore"),
+        ]);
+        const db = await getFirebaseDb();
+        const q = query(
+          collection(db, "events"),
+          where("cityKey", "==", selectedCity),
+          where("status", "==", "published"),
+          orderBy("heatScore", "desc"),
+          limit(20)
+        );
+        const unsub = onSnapshot(
+          q,
+          (snapshot) => {
+            if (cancelled) return;
+            setLiveEvents(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+          },
+          (err) => {
+            console.error("Trending listener error", err);
+            setLiveEvents(null);
+          }
+        );
+        if (cancelled) {
+          unsub();
+        } else {
+          trendingUnsubRef.current = unsub;
+        }
+      } catch (err) {
+        console.error("Failed to set up trending listener", err);
+      }
+    }
+
+    setupTrendingListener();
+
+    return () => {
+      cancelled = true;
+      if (trendingUnsubRef.current) {
+        trendingUnsubRef.current();
+        trendingUnsubRef.current = null;
+      }
+    };
+  }, [activeSort, selectedCity]);
+
   const eventTypeOptions = useMemo(() => {
     const map = new Map();
     events.forEach((event) => {
@@ -242,8 +304,11 @@ export default function ExploreClient({ initialEvents = [] }) {
     }));
   }, [cityOptions]);
 
+  // When Trending is active and the listener has data, use live docs; otherwise use store cache
+  const eventsSource = useMemo(() => liveEvents ?? events, [liveEvents, events]);
+
   const processedEvents = useMemo(() => {
-    return events.map((event) => {
+    return eventsSource.map((event) => {
       const searchHaystack = [
         event.title,
         event.location,
@@ -269,7 +334,7 @@ export default function ExploreClient({ initialEvents = [] }) {
         _eventType: eventType,
       };
     });
-  }, [events]);
+  }, [eventsSource]);
 
   const filteredEvents = useMemo(() => {
     if (!processedEvents.length) return [];
@@ -407,6 +472,8 @@ export default function ExploreClient({ initialEvents = [] }) {
             city={selectedCity}
             setCity={setSelectedCity}
             cityOptions={cityDropdownOptions}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
           />
         </div>
 

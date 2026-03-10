@@ -73,6 +73,11 @@ export function generateQRCodeData(payload) {
  */
 export function verifyQRPayload(payload) {
     try {
+        // Handle short QR format (needs lookup before verification)
+        if (payload.isShort && payload.o && payload.sig) {
+            return { valid: false, needsLookup: true, orderId: payload.o, signature: payload.sig };
+        }
+
         // Validate required fields
         if (!payload.o || !payload.e || !payload.t || !payload.sig) {
             return { valid: false, error: "Invalid QR code format" };
@@ -91,10 +96,9 @@ export function verifyQRPayload(payload) {
             return { valid: false, error: "Invalid signature - QR code may be tampered" };
         }
 
-        // Check if QR is too old (older than 48 hours before event)
-        // This is a soft check - the actual validation happens at scan time
+        // Check if QR is too old (max 30 days)
         const qrAge = Date.now() - payload.ts;
-        const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+        const maxAge = 30 * 24 * 60 * 60 * 1000;
         if (qrAge > maxAge) {
             return { valid: false, error: "QR code has expired" };
         }
