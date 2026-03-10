@@ -455,9 +455,6 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             <div className="w-full max-w-[1200px] grid grid-cols-1 md:grid-cols-[1fr_380px] gap-8 lg:gap-16 items-center px-6">
 
                 {/* Main Action Area */}
-<<<<<<< HEAD
-                <div className="relative flex flex-col overflow-hidden">
-=======
                 <div className="relative flex flex-col h-full overflow-hidden">
                     {otherEventReservation && (
                         <motion.div
@@ -477,7 +474,6 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                             </button>
                         </motion.div>
                     )}
->>>>>>> ea557c9896de8a62d005174b682fed8cb6efcb73
                     <AnimatePresence mode="wait">
                         {step === 1 && (
                             <motion.div key="step1" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-8 flex flex-col">

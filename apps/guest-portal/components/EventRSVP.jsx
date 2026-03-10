@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EventPage } from "@c1rcle/ui";
+import EventDetail from "./EventDetail";
 import { useAuth } from "./providers/AuthProvider";
 import { useToast } from "./providers/ToastProvider";
 import { saveIntent } from "../lib/utils/intentStore";
@@ -214,7 +214,7 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
 
   return (
     <>
-      <EventPage
+      <EventDetail
         event={event}
         host={host}
         interestedData={liveInterestedData}

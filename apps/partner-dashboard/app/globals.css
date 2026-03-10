@@ -1680,4 +1680,234 @@ body {
   display: none;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   VENUE SHELL — Apple Retail Dark Design System
+   Scoped to .venue-shell ancestor. Always dark, not affected by theme toggle.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.venue-shell {
+  /* ── Surfaces ── */
+  --v-canvas:       #111113;
+  --v-card:         #1a1a1d;
+  --v-card-hover:   #1e1e22;
+  --v-hero:         #0D0D0F;
+  --v-elevated:     #222226;
+  --v-border:       rgba(255,255,255,0.06);
+  --v-border-strong:rgba(255,255,255,0.12);
+  --v-divider:      rgba(255,255,255,0.04);
+
+  /* ── Typography ── */
+  --v-text-primary:   rgba(255,255,255,0.95);
+  --v-text-secondary: rgba(255,255,255,0.60);
+  --v-text-tertiary:  rgba(255,255,255,0.35);
+  --v-text-muted:     rgba(255,255,255,0.20);
+
+  /* ── Brand ── */
+  --v-orange:      #F44A22;
+  --v-orange-glow: rgba(244,74,34,0.20);
+  --v-orange-dim:  rgba(244,74,34,0.10);
+
+  /* ── Semantic ── */
+  --v-success:     #34D399;
+  --v-success-bg:  rgba(52,211,153,0.10);
+  --v-warning:     #FBBF24;
+  --v-warning-bg:  rgba(251,191,36,0.10);
+  --v-error:       #F87171;
+  --v-error-bg:    rgba(248,113,113,0.10);
+  --v-info:        #818CF8;
+  --v-info-bg:     rgba(129,140,248,0.10);
+
+  /* ── Trend ── */
+  --v-up:      #34D399;
+  --v-up-bg:   rgba(52,211,153,0.12);
+  --v-down:    #F87171;
+  --v-down-bg: rgba(248,113,113,0.12);
+
+  /* ── Status ── */
+  --v-live:    #34D399;
+  --v-pending: #FBBF24;
+  --v-draft:   rgba(255,255,255,0.35);
+  --v-done:    rgba(255,255,255,0.50);
+
+  /* ── Radius scale ── */
+  --v-r-sm:   12px;
+  --v-r-md:   16px;
+  --v-r-lg:   24px;
+  --v-r-xl:   32px;
+  --v-r-full: 9999px;
+
+  /* ── Shadow ── */
+  --v-shadow-card:  0 1px 3px rgba(0,0,0,0.40), 0 1px 2px rgba(0,0,0,0.30);
+  --v-shadow-hover: 0 8px 24px rgba(0,0,0,0.50);
+  --v-shadow-hero:  0 24px 64px rgba(0,0,0,0.60);
+
+  /* ── Focus ── */
+  --v-focus: #F44A22;
+
+  /* ── Z-index layers ── */
+  --v-z-base:    0;
+  --v-z-card:    10;
+  --v-z-overlay: 50;
+  --v-z-modal:   100;
+  --v-z-toast:   200;
+
+  /* ── Backdrop ── */
+  --v-blur-sm: saturate(180%) blur(8px);
+  --v-blur-lg: saturate(180%) blur(20px);
+
+  /* ── Typography scale ── */
+  --v-hero-size:    clamp(48px, 6vw, 80px);
+  --v-title-size:   clamp(28px, 3vw, 40px);
+  --v-section-size: 20px;
+
+  /* ── Skeleton ── */
+  --v-skeleton:       #2a2a2e;
+  --v-skeleton-shine: #333338;
+
+  /* ── Chart palette ── */
+  --v-chart-1: #F44A22;
+  --v-chart-2: #818CF8;
+  --v-chart-3: #34D399;
+  --v-chart-4: #FBBF24;
+  --v-chart-5: #F472B6;
+}
+
+/* Apple Typography helpers (scoped inside venue-shell via utility classes) */
+.v-text-hero {
+  font-size: var(--v-hero-size);
+  font-weight: 700;
+  letter-spacing: -0.022em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.v-text-title {
+  font-size: var(--v-title-size);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+}
+
+.v-text-section {
+  font-size: var(--v-section-size);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.v-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--v-text-tertiary);
+}
+
+/* Focus ring for venue shell */
+.venue-shell *:focus-visible {
+  outline: 2px solid var(--v-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Skeleton shimmer */
+@keyframes v-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.v-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--v-skeleton) 25%,
+    var(--v-skeleton-shine) 50%,
+    var(--v-skeleton) 75%
+  );
+  background-size: 800px 100%;
+  animation: v-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--v-r-md);
+}
+
+/* Reduced motion — kill all venue animations */
+@media (prefers-reduced-motion: reduce) {
+  .venue-shell * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Live pulse (green dot for tonight ops) */
+@keyframes v-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52,211,153,0.4); }
+  50%       { opacity: 0.8; box-shadow: 0 0 0 6px rgba(52,211,153,0); }
+}
+
+.v-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--v-success);
+  animation: v-pulse 2s ease-in-out infinite;
+}
+
+/* Bento base card */
+.v-bento {
+  background: var(--v-card);
+  border-radius: var(--v-r-xl);
+  box-shadow: var(--v-shadow-card);
+  transition: background 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out;
+}
+
+.v-bento[data-interactive="true"]:hover {
+  background: var(--v-card-hover);
+  box-shadow: var(--v-shadow-hover);
+  transform: translateY(-2px);
+  cursor: pointer;
+}
+
+.v-bento[data-interactive="true"]:active {
+  transform: scale(0.99);
+}
+
+/* Hero card */
+.v-hero-card {
+  background: var(--v-hero);
+  border-radius: var(--v-r-xl);
+  box-shadow: var(--v-shadow-hero);
+}
+
+/* Status pills inside venue shell */
+.v-status-live      { color: var(--v-success); background: var(--v-success-bg); }
+.v-status-pending   { color: var(--v-warning); background: var(--v-warning-bg); }
+.v-status-error     { color: var(--v-error);   background: var(--v-error-bg);   }
+.v-status-info      { color: var(--v-info);    background: var(--v-info-bg);    }
+.v-status-neutral   { color: var(--v-text-tertiary); background: rgba(255,255,255,0.06); }
+
+.v-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--v-r-full);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Trend chips */
+.v-trend-up      { color: var(--v-up);   background: var(--v-up-bg);   }
+.v-trend-down    { color: var(--v-down); background: var(--v-down-bg); }
+.v-trend-neutral { color: var(--v-text-tertiary); background: rgba(255,255,255,0.06); }
+
+.v-trend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: var(--v-r-full);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 @tailwind utilities;
