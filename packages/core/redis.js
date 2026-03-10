@@ -15,6 +15,9 @@ export function getRedisClient() {
     if (!redis) {
         redis = new Redis(REDIS_URL, {
             maxRetriesPerRequest: 3,
+            enableOfflineQueue: false,
+            connectTimeout: 5000,
+            commandTimeout: 2000,
             retryStrategy(times) {
                 const delay = Math.min(times * 100, 2000);
                 return delay;
@@ -22,13 +25,14 @@ export function getRedisClient() {
         });
 
         redis.on("error", (err) => {
-            console.error("Redis Client Error:", err);
+            console.error("[Redis] Client Error:", err.message);
         });
 
         redis.on("connect", () => {
             console.log("✅ Redis connected successfully");
         });
     }
+
     return redis;
 }
 

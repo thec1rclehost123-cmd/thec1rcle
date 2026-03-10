@@ -72,14 +72,21 @@ export async function sendEvent(eventName, data, options = {}) {
     };
 
     try {
-        const result = await inngest.send(event);
+        // Add a timeout to prevent hanging if Inngest server is unreachable (port 8288 closed)
+        const timeout = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Inngest send timeout")), 2000)
+        );
+
+        const result = await Promise.race([
+            inngest.send(event),
+            timeout
+        ]);
+
         return { success: true, ids: result.ids };
     } catch (error) {
-        console.error(`[Inngest] Failed to send event ${eventName}:`, error);
-        // In production, you might want to:
-        // 1. Log to your error tracking (Sentry, etc.)
-        // 2. Write to a dead-letter queue
-        // 3. Retry with exponential backoff
-        throw error;
+        console.warn(`[Inngest] Failed to send event ${eventName}:`, error.message);
+        // We log as a warning and return success: false instead of throwing,
+        // so background events don't crash critical flows.
+        return { success: false, error: error.message };
     }
 }

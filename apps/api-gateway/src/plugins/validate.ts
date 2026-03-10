@@ -39,8 +39,8 @@ export default fp(async (fastify: FastifyInstance) => {
                         error: 'Bad Request',
                         message: 'Validation failed',
                         requestId: request.id,
-                        details: zodError.errors.map((e: any) => ({
-                            path: e.path.join('.'),
+                        details: (zodError.issues || []).map((e: any) => ({
+                            path: (e.path || []).join('.'),
                             message: e.message
                         }))
                     });

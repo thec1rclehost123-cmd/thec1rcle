@@ -20,6 +20,7 @@ const initialForm = {
     email: "",
     password: "",
     name: "",
+    age: "",
     gender: "",
     phone: "",
     country: "IN"
@@ -42,16 +43,18 @@ function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
+    const [isLoginMode, setIsLoginMode] = useState(true); // Toggle between traditional Login vs Signup
     const [form, setForm] = useState(initialForm);
     const [step, setStep] = useState(1);
     const [status, setStatus] = useState({ type: "", message: "" });
     const [submitting, setSubmitting] = useState(false);
-    const [isNewUser, setIsNewUser] = useState(false); // Email/Pass registration flow
-    const [isOnboarding, setIsOnboarding] = useState(false); // Google login missing info
+    
+    // Trackers for Google OAuth missing fields or completed signup OTP
+    const [isOnboarding, setIsOnboarding] = useState(false); 
     const [emailVerified, setEmailVerified] = useState(false);
     const [phoneVerified, setPhoneVerified] = useState(false);
 
-    const redirectUrl = useMemo(() => searchParams.get("next") || "/profile", [searchParams]);
+    const redirectUrl = useMemo(() => searchParams.get("returnUrl") || searchParams.get("next") || "/profile", [searchParams]);
 
     const handleGoogleLogin = async () => {
         setSubmitting(true);
@@ -59,10 +62,11 @@ function LoginForm() {
         try {
             const { user, profile: userProfile } = await loginWithGoogle();
 
-            // Check if profile is complete (needs phone and gender)
+            // Check if profile is complete
             if (!userProfile?.phone || !userProfile?.gender) {
+                setIsLoginMode(false); // Force into signup/onboarding mode conceptually
                 setIsOnboarding(true);
-                setStep(3); // Jump to Phone onboarding
+                setStep(3); // Jump straight to Phone onboarding
                 if (user?.displayName && !form.name) {
                     setForm(prev => ({ ...prev, name: user.displayName }));
                 }
@@ -86,11 +90,11 @@ function LoginForm() {
     }), [form]);
 
     useEffect(() => {
-        // Only redirect if NOT in the middle of onboarding
-        if (user && !loading && !isNewUser && !isOnboarding && step < 5) {
+        // Only redirect if NOT in the middle of onboarding and NOT explicitly creating a new user through the panel
+        if (user && !loading && !isOnboarding && step < (isLoginMode ? 2 : 7)) {
             router.replace(`/auth/callback?returnUrl=${encodeURIComponent(redirectUrl)}`);
         }
-    }, [user, loading, router, redirectUrl, step, isNewUser, isOnboarding]);
+    }, [user, loading, router, redirectUrl, step, isOnboarding, isLoginMode]);
 
     useEffect(() => {
         if (authError && step < 3) {
@@ -102,20 +106,40 @@ function LoginForm() {
         setForm((prev) => ({ ...prev, [field]: event.target.value }));
     };
 
+    const toggleMode = () => {
+        setIsLoginMode(!isLoginMode);
+        setStep(1);
+        setStatus({ type: "", message: "" });
+        setForm(initialForm);
+    };
+
     const nextStep = async () => {
         setStatus({ type: "", message: "" });
 
+        if (isLoginMode) {
+            // LOGIN MODE LOGIC
+            if (form.email && form.password) {
+                handleInitialAuth();
+            } else {
+                setStatus({ type: "error", message: "Please enter both email and password." });
+            }
+            return;
+        }
+
+        // SIGNUP MODE LOGIC
         if (step === 1 && form.email) {
             setStep(2);
         } else if (step === 2 && form.password) {
-            handleInitialAuth();
+            setStep(3); // Go to phone
         } else if (step === 3 && form.phone) {
             setStep(4);
         } else if (step === 4 && form.name) {
             setStep(5);
-        } else if (step === 5 && form.gender) {
-            if (isNewUser) handleStartRegistration();
-            else handleCompleteOnboarding();
+        } else if (step === 5 && form.age) {
+            setStep(6);
+        } else if (step === 6 && form.gender) {
+            if (isOnboarding) handleCompleteOnboarding(); // Google user finishing up
+            else handleStartRegistration(); // Standard email user finishing up
         }
     };
 
@@ -123,13 +147,10 @@ function LoginForm() {
         setSubmitting(true);
         try {
             await login(cleanForm.email, form.password, true);
-            // If we reach here, user exists and logged in. Profile check will happen in useEffect or handled below.
+             // If we reach here, user exists and logged in. Redirect handled by useEffect.
         } catch (err) {
-            // Firebase error code for user not found
-            if (err.code === 'auth/user-not-found' || err.message.includes('not-found')) {
-                setIsNewUser(true);
-                setStep(3);
-                setStatus({ type: "info", message: "Creating your new account..." });
+            if (err.code === 'auth/user-not-found' || err.message.includes('not-found') || err.code === 'auth/invalid-credential') {
+                 setStatus({ type: "error", message: "Invalid credentials or account not found. Please sign up." });
             } else {
                 setStatus({ type: "error", message: err.message });
             }
@@ -144,6 +165,7 @@ function LoginForm() {
             await updateUserProfile({
                 phone: cleanForm.phone,
                 gender: form.gender,
+                age: form.age, 
                 displayName: form.name || user?.displayName || "Member"
             });
             setIsOnboarding(false);
@@ -156,7 +178,7 @@ function LoginForm() {
     };
 
     const prevStep = () => {
-        if (step > 1 && step < 6) setStep(step - 1);
+        if (step > 1 && step < 7) setStep(step - 1); 
         else router.back();
     };
 
@@ -166,7 +188,7 @@ function LoginForm() {
         try {
             await authService.sendOtp("email", cleanForm.email);
             await authService.sendOtp("phone", cleanForm.phone);
-            setStep(6);
+            setStep(7); // push OTP to step 7
         } catch (err) {
             setStatus({ type: "error", message: err.message });
         } finally {
@@ -210,11 +232,12 @@ function LoginForm() {
                 ...cleanForm,
                 password: form.password,
                 name: form.name.trim(),
+                age: parseInt(form.age, 10), 
                 gender: form.gender
             });
             // Login manually after creation to establish session
             await login(cleanForm.email, form.password, true);
-            setStep(7);
+            setStep(8); // success step
         } catch (err) {
             setStatus({ type: "error", message: err.message });
         } finally {
@@ -222,7 +245,8 @@ function LoginForm() {
         }
     };
 
-    const totalSteps = (isNewUser || isOnboarding) ? 5 : 2;
+    // Total steps for progress bar logic
+    const totalSteps = isLoginMode ? 1 : (isOnboarding ? 6 : 6); 
 
     return (
         <div className="flex flex-col md:flex-row w-full h-full">
@@ -239,7 +263,6 @@ function LoginForm() {
                     </h2>
                 </motion.div>
 
-                {/* Decorative Bottom Tag or Logo */}
                 <div className="absolute bottom-12 flex items-center gap-4 opacity-50">
                     <div className="h-px w-10 bg-black" />
                     <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-black">Discover Life Offline</span>
@@ -251,12 +274,15 @@ function LoginForm() {
             <div className="flex-1 flex flex-col justify-center items-center px-4 md:px-12 relative z-10 w-full h-full min-h-screen bg-black/50 md:bg-transparent backdrop-blur-xl md:backdrop-blur-none">
                 {/* Fixed Header */}
                 <header className="absolute top-8 left-8 right-8 flex justify-between items-center z-50">
-                    <button
-                        onClick={prevStep}
-                        className="h-10 w-10 flex items-center justify-center rounded-full border border-white/5 bg-white/[0.02] backdrop-blur-xl hover:border-orange/50 transition-colors group"
-                    >
-                        <ArrowLeft className="h-5 w-5 text-white/40 group-hover:text-orange transition-colors" />
-                    </button>
+                    {(!isLoginMode || step > 1) ? (
+                        <button
+                            onClick={prevStep}
+                            className="h-10 w-10 flex items-center justify-center rounded-full border border-white/5 bg-white/[0.02] backdrop-blur-xl hover:border-orange/50 transition-colors group"
+                        >
+                            <ArrowLeft className="h-5 w-5 text-white/40 group-hover:text-orange transition-colors" />
+                        </button>
+                    ) : <div />}
+                    
                     <Link href="/" className="md:hidden flex items-center gap-3">
                         <div className="h-8 w-8 overflow-hidden rounded-full border border-orange/40">
                             <img src="/logo-circle.jpg" alt="Logo" className="h-full w-full object-cover" />
@@ -266,23 +292,26 @@ function LoginForm() {
                 </header>
 
                 <div className="w-full max-w-[380px] py-12 flex flex-col gap-8">
-                    {step < 6 && (
+                    {step < 7 && (
                         <div className="text-center md:text-left">
                             <motion.div
-                                key={step + isNewUser}
+                                key={`${step}-${isLoginMode}`}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 className="space-y-4"
                             >
                                 <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange mb-3">
-                                    {(isNewUser || isOnboarding) ? "Identity" : "Member Access"}
+                                    {(isLoginMode) ? "Member Access" : "Identity"}
                                 </p>
                                 <h1 className="text-4xl md:text-5xl lg:text-5xl font-black uppercase tracking-tighter leading-[0.9] text-white">
-                                    {step === 1 ? <>What's your <br /><span className="text-orange">Email?</span></> :
-                                        step === 2 ? <>And your <br /><span className="text-orange">Password?</span></> :
-                                            step === 3 ? <>Verify your <br /><span className="text-orange">Phone.</span></> :
-                                                step === 4 ? <>What's your <br /><span className="text-orange">Name?</span></> :
-                                                    <>Almost <br /><span className="text-orange">Done.</span></>}
+                                    {isLoginMode ? <>Log In <br /><span className="text-orange">To Portal.</span></> : 
+                                        step === 1 ? <>What's your <br /><span className="text-orange">Email?</span></> :
+                                        step === 2 ? <>Choose a <br /><span className="text-orange">Password.</span></> :
+                                        step === 3 ? <>Verify your <br /><span className="text-orange">Phone.</span></> :
+                                        step === 4 ? <>What's your <br /><span className="text-orange">Name?</span></> :
+                                        step === 5 ? <>What's your <br /><span className="text-orange">Age?</span></> :
+                                                     <>Almost <br /><span className="text-orange">Done.</span></>
+                                    }
                                 </h1>
                             </motion.div>
                         </div>
@@ -290,9 +319,9 @@ function LoginForm() {
 
                     <div className="relative">
                         <AnimatePresence mode="wait">
-                            {step < 5 ? (
+                            {step < 7 ? (
                                 <motion.div
-                                    key="form"
+                                    key={`form-${isLoginMode}`}
                                     initial={{ opacity: 0, scale: 0.98 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     exit={{ opacity: 0, scale: 0.95 }}
@@ -303,13 +332,66 @@ function LoginForm() {
                                     <form onSubmit={(e) => { e.preventDefault(); nextStep(); }} className="space-y-8">
                                         <AnimatePresence mode="wait">
                                             <motion.div
-                                                key={step}
+                                                key={`${step}-${isLoginMode}`}
                                                 initial={{ opacity: 0, x: 20 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 exit={{ opacity: 0, x: -20 }}
                                                 transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                                             >
-                                                {step === 1 && (
+                                                {/* ---- LOGIN MODE ---- */}
+                                                {isLoginMode && step === 1 && (
+                                                    <div className="space-y-6">
+                                                        <div className="space-y-2">
+                                                            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 block">Email address</label>
+                                                            <input
+                                                                type="email"
+                                                                autoFocus
+                                                                required
+                                                                value={form.email}
+                                                                onChange={handleChange("email")}
+                                                                placeholder="NAME@EMAIL.COM"
+                                                                className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/40 focus:outline-none focus:border-orange/50 transition-all"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 block">Password</label>
+                                                            <input
+                                                                type="password"
+                                                                required
+                                                                value={form.password}
+                                                                onChange={handleChange("password")}
+                                                                placeholder="••••••••"
+                                                                className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/40 focus:outline-none focus:border-orange/50 transition-all"
+                                                            />
+                                                        </div>
+
+                                                        <div className="pt-2 border-t border-white/5 space-y-4">
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleGoogleLogin}
+                                                                disabled={submitting}
+                                                                className="w-full relative group h-12 rounded-xl bg-white/5 text-white font-black uppercase tracking-[0.3em] text-[10px] transition-all flex items-center justify-center overflow-hidden hover:bg-white/10 border border-white/10"
+                                                            >
+                                                                <div className="flex items-center gap-3 px-6 relative z-10">
+                                                                    {submitting ? (
+                                                                        <Loader2 className="animate-spin" size={16} />
+                                                                    ) : (
+                                                                        <svg className="w-4 h-4" viewBox="0 0 24 24">
+                                                                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                                                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                                                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.27.81-.57z"/>
+                                                                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                                                        </svg>
+                                                                    )}
+                                                                    Google Sign In
+                                                                </div>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* ---- SIGNUP MODE ---- */}
+                                                {!isLoginMode && step === 1 && (
                                                     <div className="space-y-6">
                                                         <div className="space-y-2">
                                                             <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 block">Email address</label>
@@ -336,22 +418,10 @@ function LoginForm() {
                                                                     <Loader2 className="animate-spin" size={16} />
                                                                 ) : (
                                                                     <svg className="w-4 h-4" viewBox="0 0 24 24">
-                                                                        <path
-                                                                            fill="#4285F4"
-                                                                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                                                                        />
-                                                                        <path
-                                                                            fill="#34A853"
-                                                                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                                                                        />
-                                                                        <path
-                                                                            fill="#FBBC05"
-                                                                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.27.81-.57z"
-                                                                        />
-                                                                        <path
-                                                                            fill="#EA4335"
-                                                                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                                                                        />
+                                                                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                                                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                                                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.27.81-.57z" />
+                                                                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                                                                     </svg>
                                                                 )}
                                                                 Continue with Google
@@ -360,7 +430,7 @@ function LoginForm() {
                                                     </div>
                                                 )}
 
-                                                {step === 2 && (
+                                                {!isLoginMode && step === 2 && (
                                                     <div className="space-y-2">
                                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 block">Password</label>
                                                         <input
@@ -375,7 +445,7 @@ function LoginForm() {
                                                     </div>
                                                 )}
 
-                                                {(isNewUser || isOnboarding) && step === 3 && (
+                                                {!isLoginMode && step === 3 && (
                                                     <div className="space-y-6 pt-4">
                                                         <CountrySelect
                                                             value={form.country}
@@ -391,7 +461,7 @@ function LoginForm() {
                                                     </div>
                                                 )}
 
-                                                {(isNewUser || isOnboarding) && step === 4 && (
+                                                {!isLoginMode && step === 4 && (
                                                     <div className="space-y-2">
                                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 block">What's your full name?</label>
                                                         <input
@@ -405,8 +475,25 @@ function LoginForm() {
                                                         />
                                                     </div>
                                                 )}
+                                                
+                                                {!isLoginMode && step === 5 && (
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 block">What's your age?</label>
+                                                        <input
+                                                            type="number"
+                                                            autoFocus
+                                                            required
+                                                            min="18"
+                                                            max="100"
+                                                            value={form.age}
+                                                            onChange={handleChange("age")}
+                                                            placeholder="e.g. 24"
+                                                            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/40 focus:outline-none focus:border-orange/50 transition-all"
+                                                        />
+                                                    </div>
+                                                )}
 
-                                                {(isNewUser || isOnboarding) && step === 5 && (
+                                                {!isLoginMode && step === 6 && (
                                                     <div className="space-y-4">
                                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 block">How do you identify?</label>
                                                         <GenderSelector
@@ -440,7 +527,7 @@ function LoginForm() {
                                                     <Loader2 className="h-5 w-5 animate-spin" />
                                                 ) : (
                                                     <>
-                                                        {step === totalSteps ? "Finish" : "Continue"}
+                                                        {isLoginMode ? "Login to Profile" : (step === totalSteps ? "Finish" : "Continue")}
                                                         <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                                                     </>
                                                 )}
@@ -448,17 +535,19 @@ function LoginForm() {
                                         </button>
                                     </form>
 
-                                    {/* Progress Dots */}
-                                    <div className="mt-8 flex justify-center md:justify-start gap-3">
-                                        {Array.from({ length: totalSteps }).map((_, i) => (
-                                            <div
-                                                key={i}
-                                                className={`h-1 transition-all duration-500 rounded-full ${i + 1 === step ? "w-8 bg-orange" : "w-1.5 bg-white/10"}`}
-                                            />
-                                        ))}
-                                    </div>
+                                    {/* Progress Dots (Only in Signup mode) */}
+                                    {!isLoginMode && (
+                                        <div className="mt-8 flex justify-center md:justify-start gap-3">
+                                            {Array.from({ length: totalSteps }).map((_, i) => (
+                                                <div
+                                                    key={i}
+                                                    className={`h-1 transition-all duration-500 rounded-full ${i + 1 === step ? "w-8 bg-orange" : "w-1.5 bg-white/10"}`}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
                                 </motion.div>
-                            ) : step === 6 ? (
+                            ) : step === 7 ? (
                                 <motion.div
                                     key="verify"
                                     initial={{ opacity: 0, y: 20 }}
@@ -488,7 +577,25 @@ function LoginForm() {
                         </AnimatePresence>
                     </div>
 
-                    {/* Footer Toggle Link Removed */}
+                    {/* Footer Toggle Link */}
+                    {step < 7 && (
+                        <motion.div 
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
+                            className="text-center w-full mt-4"
+                        >
+                            <button
+                                onClick={toggleMode}
+                                disabled={submitting}
+                                className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50 hover:text-white transition-colors"
+                            >
+                                {isLoginMode ? (
+                                    <>New here? <span className="text-orange underline underline-offset-4">Create account</span></>
+                                ) : (
+                                    <>Already have an account? <span className="text-orange underline underline-offset-4">Log in</span></>
+                                )}
+                            </button>
+                        </motion.div>
+                    )}
                 </div>
             </div>
         </div >

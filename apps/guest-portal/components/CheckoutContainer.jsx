@@ -223,7 +223,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 token = await user.getIdToken();
             } else {
                 const currentPath = window.location.pathname + window.location.search;
-                router.push(`/auth?returnUrl=${encodeURIComponent(currentPath)}`);
+                router.push(`/login?returnUrl=${encodeURIComponent(currentPath)}`);
                 return;
             }
 
@@ -404,14 +404,14 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     };
 
     return (
-        <div className="h-[calc(100vh-80px)] min-h-[500px] flex items-center justify-center -mt-8">
-            <div className="w-full max-w-[1000px] grid grid-cols-1 md:grid-cols-[1fr_360px] gap-8 h-full max-h-[600px]">
+        <div className="flex-1 flex items-center justify-center w-full pb-6 md:pb-10">
+            <div className="w-full max-w-[1200px] grid grid-cols-1 md:grid-cols-[1fr_380px] gap-8 lg:gap-16 items-center px-6">
 
                 {/* Main Action Area */}
-                <div className="relative flex flex-col h-full overflow-hidden">
+                <div className="relative flex flex-col overflow-hidden">
                     <AnimatePresence mode="wait">
                         {step === 1 && (
-                            <motion.div key="step1" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6 h-full flex flex-col justify-center">
+                            <motion.div key="step1" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-8 flex flex-col">
                                 <div className="space-y-4">
                                     <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Step 01</h2>
                                     <h1 className="text-4xl font-black uppercase tracking-tight text-white leading-[0.9]">Select your <br />Tickets</h1>
@@ -442,7 +442,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                         <p className="text-[10px] text-orange font-bold uppercase tracking-widest text-center">Minimum {minTickets} tickets required</p>
                                     )}
                                     {isAboveMax && (
-                                        <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest text-center">Maximum {maxTicketsPerOrder} tickets allowed per account</p>
+                                        <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest text-center">Maximum {maxTickets} tickets allowed per account</p>
                                     )}
                                     <button onClick={() => setStep(2)} disabled={!canProceedStep1} className="w-full h-16 flex items-center justify-center rounded-full bg-white text-black font-black uppercase tracking-[0.3em] transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-30 group shadow-[0_20px_40px_rgba(255,255,255,0.1)]">
                                         Continue to Details
@@ -453,7 +453,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                         )}
 
                         {step === 2 && (
-                            <motion.div key="step2" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6 h-full flex flex-col justify-center">
+                            <motion.div key="step2" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-8 flex flex-col justify-center">
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3">
                                         <button onClick={() => setStep(1)} className="text-white/40 hover:text-white transition-colors"><ArrowLeft className="h-5 w-5" /></button>
@@ -483,7 +483,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                         )}
 
                         {step === 3 && (
-                            <motion.div key="step3" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6 h-full flex flex-col justify-center text-white">
+                            <motion.div key="step3" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-8 flex flex-col text-white justify-center">
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3">
                                         <button onClick={() => setStep(2)} className="text-white/40 hover:text-white transition-colors"><ArrowLeft className="h-5 w-5" /></button>
@@ -548,7 +548,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 </div>
 
                 {/* Vertical Summary Container */}
-                <div className="hidden md:flex flex-col h-full bg-white/[0.03] rounded-[48px] border border-white/10 backdrop-blur-3xl overflow-hidden shadow-2xl">
+                <div className="hidden md:flex flex-col h-fit bg-white/[0.03] rounded-[40px] border border-white/10 backdrop-blur-3xl overflow-hidden shadow-2xl">
                     <div className="relative h-40 shrink-0">
                         <Image src={event.image || "/events/placeholder.jpg"} alt={event.title} fill sizes="(max-width: 768px) 100vw, 600px" className="object-cover" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />

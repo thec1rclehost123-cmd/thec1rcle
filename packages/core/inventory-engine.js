@@ -63,22 +63,26 @@ export async function calculateEffectiveInventory(tier, event, excludeReservatio
     }
 
     // 5. Subtract active cart reservations from Redis (if available)
-    const redis = getRedisClient();
-    if (redis) {
-        const tierResKey = `${REDIS_TIER_RES_PREFIX}${event.id}:tier:${tier.id}`;
-        const activeResIds = await redis.smembers(tierResKey);
+    try {
+        const redis = getRedisClient();
+        if (redis && (redis.status === 'ready' || redis.status === 'connecting')) {
+            const tierResKey = `${REDIS_TIER_RES_PREFIX}${event.id}:tier:${tier.id}`;
+            const activeResIds = await redis.smembers(tierResKey);
 
-        for (const resId of activeResIds) {
-            if (resId === excludeReservationId) continue;
-            const resData = await redis.get(`${REDIS_RES_PREFIX}${resId}`);
-            if (!resData) {
-                redis.srem(tierResKey, resId).catch(() => { });
-                continue;
+            for (const resId of activeResIds) {
+                if (resId === excludeReservationId) continue;
+                const resData = await redis.get(`${REDIS_RES_PREFIX}${resId}`);
+                if (!resData) {
+                    redis.srem(tierResKey, resId).catch(() => { });
+                    continue;
+                }
+                const reservation = JSON.parse(resData);
+                const item = reservation.items.find(i => i.tierId === tier.id);
+                if (item) remaining -= item.quantity;
             }
-            const reservation = JSON.parse(resData);
-            const item = reservation.items.find(i => i.tierId === tier.id);
-            if (item) remaining -= item.quantity;
         }
+    } catch (e) {
+        console.warn("[Redis] Effective inventory check failed, falling back to base inventory:", e.message);
     }
 
     return Math.max(0, remaining);
@@ -159,21 +163,38 @@ export async function createReservation(event, customerId, deviceId, items, opti
 
     // Mutex Lock
     const lockKey = `inv:lock:${event.id}`;
-    const acquiredLock = await redis.set(lockKey, "locked", "NX", "EX", 5);
-    if (!acquiredLock) throw new Error("System busy, please retry in 1s");
+    let acquiredLock = false;
+    try {
+        acquiredLock = await redis.set(lockKey, "locked", "NX", "EX", 5);
+        if (!acquiredLock) {
+            // If we didn't get the lock because someone else has it, we still wait/retry
+            throw new Error("System busy, please retry in 1s");
+        }
+    } catch (e) {
+        if (e.message.includes("System busy")) throw e;
+        
+        console.warn("[Redis] Lock acquisition failed (Stream error), failing open:", e.message);
+        // Fail-open: proceed even without lock to keep checkout functional
+        acquiredLock = true;
+    }
 
     try {
         // 0. Per-user reservation cap: one active reservation per user per event
         if (customerId && customerId !== 'anonymous') {
             const userResKey = `res:user:${customerId}:event:${event.id}`;
-            const existingResIds = await redis.smembers(userResKey);
-            for (const existingId of existingResIds) {
-                const existingData = await redis.get(`${REDIS_RES_PREFIX}${existingId}`);
-                if (existingData) {
-                    throw new Error("You already have an active reservation for this event. Please complete or cancel your existing checkout first.");
+            try {
+                const existingResIds = await redis.smembers(userResKey);
+                for (const existingId of existingResIds) {
+                    const existingData = await redis.get(`${REDIS_RES_PREFIX}${existingId}`);
+                    if (existingData) {
+                        throw new Error("You already have an active reservation for this event. Please complete or cancel your existing checkout first.");
+                    }
+                    // Stale entry from an expired reservation — remove it
+                    await redis.srem(userResKey, existingId).catch(() => {});
                 }
-                // Stale entry from an expired reservation — remove it
-                await redis.srem(userResKey, existingId);
+            } catch (e) {
+                if (e.message.includes("already have an active reservation")) throw e;
+                console.warn("[Redis] Per-user check failed, skipping:", e.message);
             }
         }
 
@@ -207,11 +228,20 @@ export async function createReservation(event, customerId, deviceId, items, opti
             multi.sadd(userResKey, reservationId);
             multi.expire(userResKey, ttlSeconds);
         }
-        await multi.exec();
+        try {
+            await multi.exec();
+        } catch (e) {
+            console.warn("[Redis] Multi-exec failed in createReservation (failing open):", e.message);
+            // Even if Redis tracking fails, the reservation ID is returned so checkout can proceed to the database phase
+        }
 
         return { success: true, reservationId, expiresAt: reservation.expiresAt };
     } finally {
-        await redis.del(lockKey);
+        try {
+            await redis.del(lockKey);
+        } catch (e) {
+            console.warn("[Redis] Failed to release lock in finally (fail-open):", e.message);
+        }
     }
 }
 
@@ -236,7 +266,11 @@ export async function releaseReservation(reservationId) {
     if (reservation.customerId && reservation.customerId !== 'anonymous') {
         multi.srem(`res:user:${reservation.customerId}:event:${reservation.eventId}`, reservationId);
     }
-    await multi.exec();
+    try {
+        await multi.exec();
+    } catch (e) {
+        console.warn("[Redis] Multi-exec failed in releaseReservation:", e.message);
+    }
     return { success: true };
 }
 

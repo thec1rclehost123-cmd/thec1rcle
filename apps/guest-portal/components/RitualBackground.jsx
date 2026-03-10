@@ -1,8 +1,25 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 
 export default function RitualBackground() {
+    // Client-side only mounting for random particles to prevent hydration mismatches
+    const [mounted, setMounted] = useState(false);
+    const [particles, setParticles] = useState([]);
+
+    useEffect(() => {
+        setMounted(true);
+        const generated = [...Array(20)].map(() => ({
+            x: Math.random() * 100 + "%",
+            y: Math.random() * 100 + "%",
+            animX: (Math.random() - 0.5) * 200 + "px",
+            animY: (Math.random() - 0.5) * 200 + "px",
+            duration: 10 + Math.random() * 10
+        }));
+        setParticles(generated);
+    }, []);
+
     return (
         <div className="fixed inset-0 -z-10 overflow-hidden bg-black pointer-events-none">
             {/* Central Brand Symbol - THE C1RCLE */}
@@ -52,30 +69,32 @@ export default function RitualBackground() {
                 className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-orange/15 blur-[120px]"
             />
 
-            {/* Floating Particles */}
-            <div className="absolute inset-0">
-                {[...Array(20)].map((_, i) => (
-                    <motion.div
-                        key={i}
-                        initial={{
-                            opacity: 0,
-                            x: Math.random() * 100 + "%",
-                            y: Math.random() * 100 + "%"
-                        }}
-                        animate={{
-                            opacity: [0, 0.4, 0],
-                            y: [null, (Math.random() - 0.5) * 200 + "px"],
-                            x: [null, (Math.random() - 0.5) * 200 + "px"]
-                        }}
-                        transition={{
-                            duration: 10 + Math.random() * 10,
-                            repeat: Infinity,
-                            ease: "linear"
-                        }}
-                        className="absolute h-1 w-1 bg-white rounded-full blur-[1px]"
-                    />
-                ))}
-            </div>
+            {/* Floating Particles (Client Only) */}
+            {mounted && particles.length > 0 && (
+                <div className="absolute inset-0">
+                    {particles.map((p, i) => (
+                        <motion.div
+                            key={i}
+                            initial={{
+                                opacity: 0,
+                                x: p.x,
+                                y: p.y
+                            }}
+                            animate={{
+                                opacity: [0, 0.4, 0],
+                                y: [null, p.animY],
+                                x: [null, p.animX]
+                            }}
+                            transition={{
+                                duration: p.duration,
+                                repeat: Infinity,
+                                ease: "linear"
+                            }}
+                            className="absolute h-1 w-1 bg-white rounded-full blur-[1px]"
+                        />
+                    ))}
+                </div>
+            )}
 
             {/* Global Noise Overlay */}
             <div className="absolute inset-0 opacity-[0.03] mix-blend-overlay"

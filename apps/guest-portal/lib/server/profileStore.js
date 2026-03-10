@@ -208,7 +208,9 @@ export async function getUserTickets(userId) {
     // Proactively clean up any stale pending orders for this user before fetching
     try {
         const { cleanupStaleOrders } = await import("./orderStore");
-        await cleanupStaleOrders(userId);
+        cleanupStaleOrders(userId).catch(err => {
+            console.error("[ProfileStore] Background stale order cleanup failed:", err);
+        });
     } catch (err) {
         console.error("[ProfileStore] Failed to cleanup stale orders in getUserTickets:", err);
     }
@@ -248,13 +250,16 @@ export async function getUserTickets(userId) {
         };
     }
 
+    console.log(`[ProfileStore] Fetching tickets for user: ${userId}`);
     const db = getAdminDb();
 
     // 1. Fetch ALL orders (Paid and RSVP) for this user
+    console.log(`[ProfileStore] Fetching orders and RSVPs...`);
     const [ordersSnapshot, rsvpsSnapshot] = await Promise.all([
         db.collection("orders").where("userId", "==", userId).get(),
         db.collection("rsvp_orders").where("userId", "==", userId).get()
     ]);
+    console.log(`[ProfileStore] Fetched ${ordersSnapshot.size} orders and ${rsvpsSnapshot.size} RSVPs.`);
 
     const orderDocs = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), isRSVP: false }));
     const rsvpOrderDocs = rsvpsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), isRSVP: true }));
@@ -264,13 +269,16 @@ export async function getUserTickets(userId) {
     const profileRsvpEventIds = userProfile?.attendedEvents || [];
 
     // 3. Fetch Claimed Tickets (from other people's shares or transfers)
+    console.log(`[ProfileStore] Fetching claimed tickets...`);
     const claimedTickets = await getUserClaimedTickets(userId);
 
     // 4. Fetch Pending Transfers (Sent or Received)
+    console.log(`[ProfileStore] Fetching pending transfers...`);
     const transfers = userEmail ? await getPendingTransfers(userId, userEmail) : [];
     const pendingSentTicketIds = transfers.filter(t => t.isSender).map(t => t.ticketId);
 
     // 5. Fetch Couple Assignments
+    console.log(`[ProfileStore] Fetching couple assignments...`);
     const partnerAssignmentsSnapshot = await db.collection("couple_assignments")
         .where("partnerId", "==", userId)
         .get();
@@ -301,6 +309,7 @@ export async function getUserTickets(userId) {
 
     const eventsData = {};
     if (allEventIds.length > 0) {
+        console.log(`[ProfileStore] Fetching ${allEventIds.length} event documents...`);
         const snapshots = await Promise.all(allEventIds.map(id => db.collection("events").doc(id).get()));
         snapshots.forEach(s => {
             if (s.exists) eventsData[s.id] = { id: s.id, ...s.data() };
@@ -683,6 +692,7 @@ export async function getUserTickets(userId) {
     upcoming.sort((a, b) => new Date(a.eventStartAt) - new Date(b.eventStartAt));
     past.sort((a, b) => new Date(b.eventStartAt) - new Date(a.eventStartAt));
 
+    console.log(`[ProfileStore] Returning ${upcoming.length} upcoming and ${past.length} past tickets.`);
     return {
         upcomingTickets: upcoming,
         pastTickets: past,

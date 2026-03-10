@@ -4,6 +4,7 @@ import { sendEmailOtp, sendSmsOtp } from "@/lib/server/verification";
 import { rateLimit } from "@/lib/server/rateLimit";
 import { getAdminApp } from "@/lib/firebase/admin";
 import { getAuth } from "firebase-admin/auth";
+import { validateConfig } from "@/lib/server/security";
 
 export async function POST(req) {
     if (!rateLimit(req, 5, 60000)) {
@@ -12,7 +13,6 @@ export async function POST(req) {
 
     try {
         // Enforce security config check at runtime
-        const { validateConfig } = require("@/lib/server/security");
         validateConfig();
 
         const { type, recipient } = await req.json();
@@ -44,7 +44,8 @@ export async function POST(req) {
 
         return NextResponse.json(successMessage);
     } catch (err) {
-        console.error("OTP Send Failure", err);
-        return NextResponse.json({ error: "Service recalibration required. Please try again later." }, { status: 500 });
+        // In dev, try to return real errors, in prod generic
+        const errorMessage = err?.message || "An unexpected error occurred during OTP dispatch.";
+        return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }

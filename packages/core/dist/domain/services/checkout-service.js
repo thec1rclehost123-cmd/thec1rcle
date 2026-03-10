@@ -119,24 +119,26 @@ export class CheckoutService {
                 convertedAt: new Date().toISOString()
             }, transaction);
         });
-        // Handle Inngest trigger after transaction
+        // Handle Inngest trigger after transaction (Non-blocking)
         if (orderPayload.status === 'confirmed') {
-            try {
-                // @ts-ignore
-                const { sendEvent, Events } = await import('@c1rcle/core/inngest-client');
-                await sendEvent(Events.TICKET_PURCHASED, {
-                    orderId: orderPayload.id,
-                    userId: orderPayload.userId,
-                    userEmail: orderPayload.userEmail,
-                    eventId: orderPayload.eventId,
-                    tickets: orderPayload.tickets,
-                    totalAmount: orderPayload.totalAmount,
-                    promoterCode: orderPayload.promoterCode
-                });
-            }
-            catch (e) {
-                console.error('Inngest trigger failed:', e);
-            }
+            (async () => {
+                try {
+                    // @ts-ignore
+                    const { sendEvent, Events } = await import('@c1rcle/core/inngest-client');
+                    sendEvent(Events.TICKET_PURCHASED, {
+                        orderId: orderPayload.id,
+                        userId: orderPayload.userId,
+                        userEmail: orderPayload.userEmail,
+                        eventId: orderPayload.eventId,
+                        tickets: orderPayload.tickets,
+                        totalAmount: orderPayload.totalAmount,
+                        promoterCode: orderPayload.promoterCode
+                    });
+                }
+                catch (e) {
+                    console.error('Inngest trigger initiation failed:', e);
+                }
+            })();
         }
         return {
             success: true,

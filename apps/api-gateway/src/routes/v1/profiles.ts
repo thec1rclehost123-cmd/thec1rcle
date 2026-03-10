@@ -16,6 +16,7 @@ const UserProfileCreateBody = z.object({
     uid: z.string(),
     email: z.string().email(),
     displayName: z.string().optional(),
+    age: z.number().optional(),
     gender: z.string().optional(),
     phone: z.string().optional(),
     photoURL: z.string().optional(),
@@ -115,13 +116,13 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ body: UserProfileCreateBody })]
     }, async (request: any, reply) => {
         const body = request.body as any;
-        const { uid, email, displayName, gender, phone, photoURL, createdAt, updatedAt } = body;
+        const { uid, email, displayName, age, gender, phone, photoURL, createdAt, updatedAt } = body;
 
         if (!uid || !email) return reply.status(400).send({ error: 'uid and email are required' });
 
         const now = new Date().toISOString();
         const profileDoc = {
-            uid, email, displayName: displayName || '', gender: gender || null,
+            uid, email, displayName: displayName || '', age: age || null, gender: gender || null,
             phone: phone || null, photoURL: photoURL || '', attendedEvents: [],
             city: body.city || '', instagram: body.instagram || '',
             isVerified: body.isVerified ?? true,

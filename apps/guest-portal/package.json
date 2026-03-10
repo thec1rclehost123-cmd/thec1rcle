@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbo",
     "dev:staging": "node -e \"require('fs').copyFileSync('.env.staging', '.env.local')\" && next dev",
     "dev:prod": "node -e \"require('fs').copyFileSync('.env.production', '.env.local')\" && next dev",
     "build": "next build",

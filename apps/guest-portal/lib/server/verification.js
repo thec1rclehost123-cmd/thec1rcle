@@ -12,7 +12,12 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
  * @param {'auth'|'transaction'} type
  */
 export async function sendEmailOtp(email, type = 'auth') {
-    if (!resend) throw new Error("Email provider not configured");
+    if (!resend) {
+        console.warn("Email provider not configured. Using Mock for dev.");
+        if (process.env.NODE_ENV !== "development") {
+            throw new Error("Email provider not configured");
+        }
+    }
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + SECURITY_CONFIG.OTP_EXPIRY_MINUTES * 60 * 1000);
@@ -38,30 +43,35 @@ export async function sendEmailOtp(email, type = 'auth') {
         attempts: 0
     });
 
-    try {
-        await resend.emails.send({
-            from: "THE C1RCLE <thec1rcle.host123@gmail.com>",
-            to: email,
-            subject: "Your Access Key",
-            html: `
-                <div style="background-color: #000; color: #fff; padding: 40px; font-family: sans-serif; text-align: center;">
-                    <h1 style="color: #FF5A00; text-transform: uppercase; letter-spacing: 5px;">THE C1RCLE</h1>
-                    <p style="text-transform: uppercase; letter-spacing: 2px; color: #666; font-size: 12px;">${type === 'transaction' ? 'Transaction Authorization' : 'Identity Authorization'}</p>
-                    <div style="margin: 40px 0; font-size: 48px; font-weight: 900; letter-spacing: 10px; color: #fff;">
-                        ${code}
+    if (resend) {
+        try {
+            await resend.emails.send({
+                from: "THE C1RCLE <thec1rcle.host123@gmail.com>",
+                to: email,
+                subject: "Your Access Key",
+                html: `
+                    <div style="background-color: #000; color: #fff; padding: 40px; font-family: sans-serif; text-align: center;">
+                        <h1 style="color: #FF5A00; text-transform: uppercase; letter-spacing: 5px;">THE C1RCLE</h1>
+                        <p style="text-transform: uppercase; letter-spacing: 2px; color: #666; font-size: 12px;">${type === 'transaction' ? 'Transaction Authorization' : 'Identity Authorization'}</p>
+                        <div style="margin: 40px 0; font-size: 48px; font-weight: 900; letter-spacing: 10px; color: #fff;">
+                            ${code}
+                        </div>
+                        <p style="color: #666; font-size: 10px; text-transform: uppercase;">
+                            ${type === 'transaction' ? 'This code is for ticket transfer confirmation.' : 'This code is for your secure access.'}<br/>
+                            It will expire in 10 minutes.
+                        </p>
                     </div>
-                    <p style="color: #666; font-size: 10px; text-transform: uppercase;">
-                        ${type === 'transaction' ? 'This code is for ticket transfer confirmation.' : 'This code is for your secure access.'}<br/>
-                        It will expire in 10 minutes.
-                    </p>
-                </div>
-            `
-        });
-        return true;
-    } catch (err) {
-        console.error("Resend error:", err);
-        throw new Error("Unable to send authorization code.");
+                `
+            });
+        } catch (err) {
+            console.error("Resend error:", err);
+            throw new Error("Unable to send authorization code.");
+        }
+    } else {
+        console.log(`\n\n=== 🔐 MOCK OTP DISPATCH ===\nMethod: EMAIL\nRecipient: ${email}\nCode: ${code}\n============================\n\n`);
     }
+
+    return true;
 }
 
 /**
@@ -102,9 +112,12 @@ export async function sendSmsOtp(phone) {
     const cleanPhone = phone.replace("+", "");
 
     if (!MSG91_AUTH_KEY || !MSG91_TEMPLATE_ID) {
+        if (process.env.NODE_ENV !== "development") {
+            throw new Error("SMS provider not configured");
+        }
         console.warn("Msg91 not configured. Using Mock for dev.");
-        if (process.env.NODE_ENV === "development") return true;
-        throw new Error("SMS provider not configured");
+        console.log(`\n\n=== 🔐 MOCK OTP DISPATCH ===\nMethod: SMS\nRecipient: ${phone}\nCode: 123456\n============================\n\n`);
+        return true;
     }
 
     try {
