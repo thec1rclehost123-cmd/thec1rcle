@@ -1,5 +1,3 @@
-"use client";
-
 import { VenueClientWrapper } from "@/components/layout/VenueClientWrapper";
 import {
     LayoutDashboard,

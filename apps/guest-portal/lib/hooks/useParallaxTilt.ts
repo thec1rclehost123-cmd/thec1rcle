@@ -1,3 +1,5 @@
+"use client";
+
 import { useCallback } from "react";
 import { useMotionValue, useSpring, type MotionValue } from "framer-motion";
 

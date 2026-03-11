@@ -1,5 +1,3 @@
-"use client";
-
 import React, { Suspense } from "react";
 import { SkeletonKPIGrid, SkeletonCard } from "@/components/ui/Skeleton";
 import dynamic from "next/dynamic";

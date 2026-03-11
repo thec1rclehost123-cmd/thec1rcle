@@ -1,5 +1,5 @@
-
 "use client";
+
 
 import { motion } from "framer-motion";
 import { CheckCircle, ArrowRight, Ticket } from "lucide-react";

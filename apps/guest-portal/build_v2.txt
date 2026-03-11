@@ -1,0 +1,43 @@
+npm warn config ignoring workspace config at C:\Users\Gauri\Desktop\Sagar\Circle\thec1rcle\apps\guest-portal/.npmrc
+
+> @c1rcle/guest-portal@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.35
+  - Environments: .env.production
+  - Experiments (use with caution):
+    · instrumentationHook
+
+   Creating an optimized production build ...
+[@sentry/nextjs] It seems like you don't have a global error handler set up. It is recommended that you add a 'global-error.js' file with Sentry instrumentation so that React rendering errors are reported to Sentry. Read more: https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/#react-render-errors-in-app-router (you can suppress this warning by setting SENTRY_SUPPRESS_GLOBAL_ERROR_HANDLER_FILE_WARNING=1 as environment variable)
+Failed to compile.
+
+./app/event/[eventId]/page.jsx
+Error: 
+  [31mx[0m You are attempting to export "generateMetadata" from a component marked with "use client", which is disallowed. Either remove the export, or the "use client" directive. Read more: https://
+  [31m|[0m nextjs.org/docs/getting-started/react-essentials#the-use-client-directive
+  [31m|[0m 
+  [31m|[0m 
+    ,-[[36;1;4mC:\Users\Gauri\Desktop\Sagar\Circle\thec1rcle\apps\guest-portal\app\event\[eventId]\page.jsx[0m:6:1]
+ [2m 6[0m | import { getHostProfile as getMockHostProfile } from "../../../data/hosts";
+ [2m 7[0m | 
+ [2m 8[0m | 
+ [2m 9[0m | export async function generateMetadata({ params }) {
+    : [31;1m                      ^^^^^^^^^^^^^^^^[0m
+ [2m10[0m |   const identifier = decodeURIComponent(params.eventId);
+ [2m11[0m |   const event = await getEvent(identifier);
+ [2m11[0m | 
+    `----
+
+Import trace for requested module:
+./app/event/[eventId]/page.jsx
+
+
+> Build failed because of webpack errors
+npm error Lifecycle script `build` failed with error:
+npm error code 1
+npm error path C:\Users\Gauri\Desktop\Sagar\Circle\thec1rcle\apps\guest-portal
+npm error workspace @c1rcle/guest-portal@0.1.0
+npm error location C:\Users\Gauri\Desktop\Sagar\Circle\thec1rcle\apps\guest-portal
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c next build

@@ -1,5 +1,3 @@
-"use client";
-
 import { OperatingCalendar } from "@/components/calendar/OperatingCalendar";
 import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
 

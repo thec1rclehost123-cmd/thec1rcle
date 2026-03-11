@@ -10,7 +10,11 @@ const nextConfig = {
       "date-fns",
       "lodash",
       "framer-motion",
-      "react-icons"
+      "react-icons",
+      "firebase/app",
+      "firebase/auth",
+      "firebase/firestore",
+      "firebase/storage"
     ],
     instrumentationHook: true,
   },
@@ -25,6 +29,8 @@ const nextConfig = {
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 86400,
     remotePatterns: [
       { protocol: 'https', hostname: 'firebasestorage.googleapis.com', pathname: '/**' },
       { protocol: 'https', hostname: 'storage.googleapis.com', pathname: '/**' },
@@ -45,6 +51,7 @@ const nextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
         ],
       },
     ]

@@ -10,7 +10,11 @@ const nextConfig = {
       "date-fns",
       "lodash",
       "framer-motion",
-      "react-icons"
+      "react-icons",
+      "firebase/app",
+      "firebase/auth",
+      "firebase/firestore",
+      "firebase/storage"
     ],
     instrumentationHook: true,
   },

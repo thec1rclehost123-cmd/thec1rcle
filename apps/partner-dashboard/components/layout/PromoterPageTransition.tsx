@@ -1,5 +1,3 @@
-"use client";
-
 import { motion } from "framer-motion";
 
 export function PromoterPageTransition({ children }: { children: React.ReactNode }) {

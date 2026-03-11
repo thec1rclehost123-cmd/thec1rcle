@@ -1,0 +1,2128 @@
+{
+  "summary": {
+    "total": 352,
+    "byApp": {
+      "guest-portal": 114,
+      "partner-dashboard": 176,
+      "admin-console": 53,
+      "packages/ui": 9
+    },
+    "group1": 79,
+    "group2": 142,
+    "group3": 131
+  },
+  "files": [
+    {
+      "file": "\\apps\\guest-portal\\app\\about\\page.js",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 34927
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\app\\page.js",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 25196
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\auth\\callback\\PageClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 8605
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\auth\\PageClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 11594
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\error.js",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 3353
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\event\\[eventId]\\queue\\PageClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 14474
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\forgot-password\\PageClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 8106
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\hosts\\page.js",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 17032
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\login\\PageClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 46231
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\not-found.js",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 4087
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\privacy\\page.js",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 4838
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\profile\\PageClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 716
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\profile\\[userId]\\PageClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 21526
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\terms\\page.js",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 5051
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\tickets\\claim\\[token]\\PageClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 18637
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\tickets\\PageClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 122032
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\tickets\\pair\\[token]\\PageClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 7265
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\venue\\[slug]\\menu\\MenuClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 8774
+    },
+    {
+      "file": "\\apps\\guest-portal\\app\\venue\\[slug]\\ProfileClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 24445
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\AuthModal.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 11538
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\BuyTicketsModal.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (Event Handlers)",
+      "size": 781
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\CacheWarmer.js",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 3361
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\CancelOrderModal.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 24491
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\CategoryTabs.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (Event Handlers)",
+      "size": 1394
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\checkout\\CartTimer.tsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 5091
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\checkout\\PromoCodeInput.tsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 6225
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\CheckoutAwareShell.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 3115
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\CheckoutContainer.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 46022
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\CheckoutForm.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 14291
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\EditProfileModal.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 37689
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\EventCard.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 824
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\EventGallery.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 1266
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\EventGrid.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 1514
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\EventPoster.tsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 1676
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\EventRSVP.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 8786
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ExploreCarouselHeader.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 13953
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ExploreClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 30107
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ExploreEventGrid.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 1099
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ExploreFilterBar.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 13751
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\FirstTimeBanner.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 3711
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\Footer.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 2405
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\FunnelShell.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (Event Handlers)",
+      "size": 2645
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\GenderSelector.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (Event Handlers)",
+      "size": 4191
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\GlobalAuthManager.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 3286
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\GuestlistModal.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 6432
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\HeroCarousel.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 17488
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\HeroVideoOverlay.tsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 7170
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\hosts\\HostCard.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (Event Handlers)",
+      "size": 9914
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\InterviewCard.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 3506
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\LikeButton.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (Event Handlers)",
+      "size": 1665
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\MobileBottomNav.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 3412
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\Navbar.tsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 12250
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\OfflineListener.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 1278
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\OrderConfirmationDetails.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 10152
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\PageLoadingAnimation.tsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 10430
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\PageShell.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (Event Handlers)",
+      "size": 4521
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\PageWrapper.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 843
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\profile\\CtaLayer.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 4110
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\profile\\HostFollowCta.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 3837
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ProfileCompletionPrompt.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 5068
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\providers\\AppProviders.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 1376
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\providers\\AuthProvider.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 7588
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\providers\\QueryProvider.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 411
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\providers\\ThemeProvider.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 231
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\providers\\ToastProvider.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 1284
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\QRTicket.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 8199
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\RazorpayCheckout.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 7518
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\RitualBackground.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 4959
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\RouteTransition.tsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 900
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ScrollProgressBar.tsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 522
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ScrollReveal.tsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 807
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\SectionReveal.tsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 983
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ShimmerImage.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 1871
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\SmoothScroll.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 1282
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ThemeToggle.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 2928
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\TicketModal.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 9101
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ui\\AccessGranted.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 2907
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ui\\Button.tsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 2931
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ui\\Card.tsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 3022
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ui\\CountrySelect.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 5923
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ui\\EmptyState.tsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 1596
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ui\\MagneticButton.tsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 1943
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ui\\OtpInput.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 2925
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ui\\PhoneInput.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 3188
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ui\\ResendTimer.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 1953
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ui\\Skeleton.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 498
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ui\\Toast.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 2398
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\ui\\Toggle.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (Event Handlers)",
+      "size": 797
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\BookTableAction.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 1738
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\ReservationCalendarModal.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 62211
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\ReservationModal.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 10072
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenueActionCards.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 16478
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenueCtaBar.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 11050
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenueDetails.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 15280
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenueFacilities.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 4711
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenueGallery.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 9738
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenueHero.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 6360
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenueHeroEnhanced.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 12044
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenueHighlights.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 15441
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenuePageClient.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 6426
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenuePastEvents.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 9730
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenuePoliciesSection.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 10948
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenueQuickActions.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 5421
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenueReelsSection.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 8306
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenueRestaurantSection.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 13818
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\venue\\VenueSocialProof.jsx",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 11929
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\VerifyPanel.jsx",
+      "app": "guest-portal",
+      "category": "Group 3 (Heavy Client)",
+      "size": 6236
+    },
+    {
+      "file": "\\apps\\guest-portal\\components\\WebVitals.jsx",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 466
+    },
+    {
+      "file": "\\apps\\guest-portal\\hooks\\useSocialActions 2.js",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 2350
+    },
+    {
+      "file": "\\apps\\guest-portal\\hooks\\useSocialActions.js",
+      "app": "guest-portal",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 2038
+    },
+    {
+      "file": "\\apps\\guest-portal\\lib\\hooks\\useInstantSearch.js",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 7388
+    },
+    {
+      "file": "\\apps\\guest-portal\\lib\\hooks\\usePrefersReducedMotion.ts",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 1003
+    },
+    {
+      "file": "\\apps\\guest-portal\\lib\\utils\\analytics.js",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 488
+    },
+    {
+      "file": "\\apps\\guest-portal\\lib\\utils\\intentStore.js",
+      "app": "guest-portal",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 966
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\auth\\PageClient.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 13416
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\error.js",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 2620
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\forgot-password\\PageClient.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 8052
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\analytics\\[category]\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 20568
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\calendar\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 278
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\create\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 566
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\discover\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 3792
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\events\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 10519
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\events\\requests\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 20952
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\events\\[id]\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 15228
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\layout.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 2111
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\ops\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 9957
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\page-management\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 73801
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 280
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\partnerships\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 11722
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\profile\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 51657
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\promoters\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 36088
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\host\\settings\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 10941
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\login\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 20422
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\not-found.js",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 4030
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\onboard\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 35299
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\promoter\\analytics\\[category]\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 19838
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\promoter\\connections\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 12344
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\promoter\\events\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 16238
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\promoter\\layout.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 3144
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\promoter\\links\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 9318
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\promoter\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 17242
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\promoter\\partnerships\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 15543
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\promoter\\payouts\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 21001
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\promoter\\profile\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 11475
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\analytics\\[category]\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 32458
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\calendar\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 278
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\connections\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 523
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\connections\\requests\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 22362
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\create\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 568
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\DashboardSidebarModule.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 3406
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\events\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 18168
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\events\\requests\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 22672
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\events\\[id]\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 45015
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\KPIGridModule.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 1949
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\layout.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 2236
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\menu\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 11924
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\page-management\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 6524
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 25829
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\partnerships\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 22937
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\payouts\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 9551
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\registers\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 26377
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\reservations\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 22584
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\security\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 22178
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\settings\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 18082
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\staff\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 22881
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\StreamingDashboard.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 1969
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\tables\\PageClient.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 31372
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\TonightOpsModule.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 4271
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\app\\venue\\UpcomingScheduleModule.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 3198
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\AddTicketModal.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 2838
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\auth\\RoleGuard.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 2013
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\AuthModal.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 8959
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\BuyTicketsModal.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (Event Handlers)",
+      "size": 781
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\calendar\\OperatingCalendar.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 46600
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\CategoryTabs.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (Event Handlers)",
+      "size": 1394
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\CheckoutForm.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 14201
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ContextualFooter.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 421
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\CreateEventForm.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 47091
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\discovery\\DiscoveryView.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 18536
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\EditProfileModal.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 19783
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\event-detail\\CancelEventModal.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 34541
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\EventGallery.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 1266
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\EventPoster.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 1699
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\EventRSVP.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 27671
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\events\\ScannerAccess.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 16388
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\events\\SurgeMonitor.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 12303
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ExploreCarouselHeader.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 13812
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ExploreFilterBar.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 6978
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\FirstTimeBanner.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 3711
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\GlobalAuthManager.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 2505
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\guards\\ApprovalGuard.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 6065
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\guards\\ClubGuard.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 1772
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\GuestlistModal.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 4961
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\HeroCarousel.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 6664
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\HeroVideo.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 7735
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\host\\VenueCalendarPreview.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 23165
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\host-layout\\HostSidebar.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (Event Handlers)",
+      "size": 6110
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\host-layout\\PlaceholderPage.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 787
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\HostVerificationForm.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 8356
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\layout\\HostClientWrapper.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 5432
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\layout\\PromoterPageTransition.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 384
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\layout\\PromoterSidebarWrapper.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 3647
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\layout\\VenueClientWrapper.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 5440
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\LikeButton.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (Event Handlers)",
+      "size": 1665
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\MobileBottomNav.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 3007
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\Navbar.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 11351
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\PageLoadingAnimation.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 6315
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\PageWrapper.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 630
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\partnerships\\DiscoverDirectory.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 16085
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\partnerships\\NetworkProfileModal.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (Event Handlers)",
+      "size": 13791
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\partnerships\\TierSelectionModal.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 8211
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\promoter-layout\\PromoterPlaceholderPage.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 778
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\promoter-layout\\PromoterSidebar.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (Event Handlers)",
+      "size": 6596
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\providers\\AppProviders.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 530
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\providers\\AuthProvider.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 6550
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\providers\\DashboardAuthProvider.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 8628
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\providers\\QueryProvider.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 442
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\providers\\ThemeProvider.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 231
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\providers\\ToastProvider.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 1434
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\RouteTransition.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 618
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ScrollProgressBar.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 522
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ScrollReveal.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 793
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\SectionReveal.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 974
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\Selects.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 5047
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\shared\\AppleSidebar.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 11201
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\shared\\AppleTopBar.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 12540
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\shared\\AuditTrail.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 6629
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\shared\\NotificationCenter.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 19009
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ShimmerImage.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 1626
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\SmoothScroll.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 906
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\studio\\EventStudio.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 9279
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\studio\\StudioComponents.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 3767
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\studio\\StudioShell.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 10476
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ThemeToggle.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 10373
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\TicketModal.jsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 5495
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\Badge.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 2716
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\Button.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 5470
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\Card.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 4706
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\EmptyState.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 1366
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\Input.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 3243
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\KPITile.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (Event Handlers)",
+      "size": 11416
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\ListItem.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (Event Handlers)",
+      "size": 2364
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\MagneticButton.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 1943
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\Select.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 2434
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\Skeleton.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 11849
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\StatCard.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 3832
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\TextArea.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 1651
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\Toast.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 7980
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\ui\\Toggle.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (Event Handlers)",
+      "size": 1870
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-layout\\AddStaffModal.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 9712
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-layout\\BlockDateModal.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 7571
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-layout\\CreateEventModal.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 30080
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-layout\\EventDetailsModal.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 18741
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-layout\\FollowerAnalyticsSection.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 17461
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-layout\\MenuManagementSection.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 23446
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-layout\\PoliciesSection.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 15510
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-layout\\PublishingControlsSection.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 15726
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-layout\\VenuePlaceholderPage.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 802
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-layout\\VenuePreviewModal.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 15279
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-layout\\VenueSidebar.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 17561
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-management\\BasicDetailsEditor.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 12835
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-management\\EnhancedVenueEditor.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 49029
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-management\\FacilitiesManager.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 9342
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-management\\GalleryManager.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 9655
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-management\\HighlightsManager.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 21116
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-management\\LivePreviewEditor.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 15352
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\venue-management\\MenuManager.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 12869
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\WebVitals.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 422
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\components\\DetailedBreakdown.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 23162
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\components\\PromoCodeManager.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 18733
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\components\\ScheduledPricing.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 16041
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\CreateEventWizard.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 102178
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\CreateEventWizardV2.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 54376
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\MediaStep.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 62173
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\PromoterStep.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 312
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\PublishConfirmationModal.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (Event Handlers)",
+      "size": 13184
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\steps\\CapacityStep.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (Event Handlers)",
+      "size": 5502
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\steps\\ExperienceStep.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 13412
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\steps\\IdentityStep.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (Event Handlers)",
+      "size": 15925
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\steps\\LocationStep.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 9408
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\steps\\SchedulingStep.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 14926
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\TableBookingStep.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 40569
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\TicketTierStep.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 92294
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\VenueStep.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 3 (Heavy Client)",
+      "size": 21896
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\components\\wizard\\WizardNavigation.tsx",
+      "app": "partner-dashboard",
+      "category": "Group 2 (Event Handlers)",
+      "size": 8105
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\lib\\hooks\\useCancelEvent.ts",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 2507
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\lib\\hooks\\usePrefersReducedMotion.ts",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 1003
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\lib\\hooks\\useVenueQueries.ts",
+      "app": "partner-dashboard",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 2671
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\lib\\utils\\analytics.js",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 488
+    },
+    {
+      "file": "\\apps\\partner-dashboard\\lib\\utils\\intentStore.js",
+      "app": "partner-dashboard",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 966
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\admins\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 21105
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\analytics\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 7819
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\approvals\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 26520
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\content\\curation\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 23499
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\content\\explore\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 17352
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\content\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 10706
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\error.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 978
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\events\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 24813
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\health\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 11981
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\hosts\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 22220
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\login\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 9212
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\logs\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 21753
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 18027
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\payments\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 21568
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\promoters\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 23061
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\promotions\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 9242
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\proposals\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 18990
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\refunds\\page.tsx",
+      "app": "admin-console",
+      "category": "Group 3 (Heavy Client)",
+      "size": 27062
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\safety\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 10288
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\settings\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 18532
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\support\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 8715
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\tickets\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 13520
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\users\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 21772
+    },
+    {
+      "file": "\\apps\\admin-console\\app\\venues\\page.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 28338
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\admin\\AdminConfirmModal.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 11631
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\admin\\AdminConsoleShell.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 25192
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\admin\\AdminGuard.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 5133
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\admin\\AdminPagePlaceholder.jsx",
+      "app": "admin-console",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 2738
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\admin\\ProvisionAdminModal.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 7679
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\AuthModal.jsx",
+      "app": "admin-console",
+      "category": "Group 3 (Heavy Client)",
+      "size": 9934
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\GlobalAuthManager.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 3174
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\PageLoadingAnimation.tsx",
+      "app": "admin-console",
+      "category": "Group 3 (Heavy Client)",
+      "size": 9769
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\providers\\AppProviders.jsx",
+      "app": "admin-console",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 532
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\providers\\AuthProvider.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 6550
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\providers\\QueryProvider.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 411
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\providers\\ThemeProvider.jsx",
+      "app": "admin-console",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 231
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\providers\\ToastProvider.jsx",
+      "app": "admin-console",
+      "category": "Group 3 (Heavy Client)",
+      "size": 1434
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\RouteTransition.tsx",
+      "app": "admin-console",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 632
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\ui\\AccessGranted.jsx",
+      "app": "admin-console",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 2909
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\ui\\Button.tsx",
+      "app": "admin-console",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 2931
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\ui\\Card.tsx",
+      "app": "admin-console",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 3022
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\ui\\CountrySelect.jsx",
+      "app": "admin-console",
+      "category": "Group 3 (Heavy Client)",
+      "size": 5923
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\ui\\MagneticButton.tsx",
+      "app": "admin-console",
+      "category": "Group 3 (Heavy Client)",
+      "size": 1943
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\ui\\OtpInput.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 2925
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\ui\\PhoneInput.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 3302
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\ui\\ResendTimer.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 1953
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\ui\\Skeleton.jsx",
+      "app": "admin-console",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 498
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\ui\\Toast.jsx",
+      "app": "admin-console",
+      "category": "Group 3 (Heavy Client)",
+      "size": 2445
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\ui\\Toggle.jsx",
+      "app": "admin-console",
+      "category": "Group 2 (Event Handlers)",
+      "size": 797
+    },
+    {
+      "file": "\\apps\\admin-console\\components\\WebVitals.jsx",
+      "app": "admin-console",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 422
+    },
+    {
+      "file": "\\apps\\admin-console\\lib\\hooks\\usePrefersReducedMotion.ts",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 1003
+    },
+    {
+      "file": "\\apps\\admin-console\\lib\\utils\\analytics.js",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 488
+    },
+    {
+      "file": "\\apps\\admin-console\\lib\\utils\\intentStore.js",
+      "app": "admin-console",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 966
+    },
+    {
+      "file": "\\packages\\ui\\src\\components\\ErrorBoundary.tsx",
+      "app": "packages/ui",
+      "category": "Group 2 (Event Handlers)",
+      "size": 1879
+    },
+    {
+      "file": "\\packages\\ui\\src\\components\\EventCard\\DashboardEventCard.jsx",
+      "app": "packages/ui",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 13610
+    },
+    {
+      "file": "\\packages\\ui\\src\\components\\EventCard\\EventCard.jsx",
+      "app": "packages/ui",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 12860
+    },
+    {
+      "file": "\\packages\\ui\\src\\components\\EventPage\\GuestlistModal.jsx",
+      "app": "packages/ui",
+      "category": "Group 3 (Heavy Client)",
+      "size": 8022
+    },
+    {
+      "file": "\\packages\\ui\\src\\components\\EventPage\\index.jsx",
+      "app": "packages/ui",
+      "category": "Group 3 (Heavy Client)",
+      "size": 47816
+    },
+    {
+      "file": "\\packages\\ui\\src\\components\\EventPage\\LikeButton.jsx",
+      "app": "packages/ui",
+      "category": "Group 2 (Event Handlers)",
+      "size": 2015
+    },
+    {
+      "file": "\\packages\\ui\\src\\components\\EventPage\\TicketModal.jsx",
+      "app": "packages/ui",
+      "category": "Group 3 (Heavy Client)",
+      "size": 14409
+    },
+    {
+      "file": "\\packages\\ui\\src\\components\\ShimmerImage.jsx",
+      "app": "packages/ui",
+      "category": "Group 2 (State/Hooks/Browser)",
+      "size": 4331
+    },
+    {
+      "file": "\\packages\\ui\\src\\components\\Skeletons.tsx",
+      "app": "packages/ui",
+      "category": "Group 1 (Pure UI - Safe to Convert)",
+      "size": 1421
+    }
+  ]
+}

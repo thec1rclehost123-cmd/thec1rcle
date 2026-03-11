@@ -12,6 +12,7 @@ const ExploreCarouselHeader = dynamic(() => import("./ExploreCarouselHeader"), {
 });
 import ExploreFilterBar from "./ExploreFilterBar";
 import ExploreEventGrid from "./ExploreEventGrid";
+import { getFirebaseDb } from "../lib/firebase/client";
 import { GridSkeleton } from "@c1rcle/ui";
 import { useExploreStore } from "../store/exploreStore";
 
@@ -228,7 +229,8 @@ export default function ExploreClient({ initialEvents = [] }) {
         const q = query(
           collection(db, "events"),
           where("cityKey", "==", selectedCity),
-          where("status", "==", "published"),
+          where("lifecycle", "in", ["scheduled", "live"]),
+          where("isDeleted", "==", false),
           orderBy("heatScore", "desc"),
           limit(20)
         );

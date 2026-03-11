@@ -1,5 +1,3 @@
-"use client";
-
 import { DetailedBreakdown } from "./components/DetailedBreakdown";
 
 interface PromoterStepProps {

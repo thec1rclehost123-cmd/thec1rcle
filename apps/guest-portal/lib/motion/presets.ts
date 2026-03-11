@@ -1,3 +1,5 @@
+"use client";
+
 import type { Transition, Variants } from "framer-motion";
 
 export const transitions = {

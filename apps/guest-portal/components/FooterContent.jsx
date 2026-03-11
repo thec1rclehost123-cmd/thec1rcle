@@ -1,7 +1,4 @@
-"use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
 const links = [
   { label: "Download App", href: "/app" },
@@ -12,14 +9,7 @@ const links = [
   { label: "Terms", href: "/terms" }
 ];
 
-export default function Footer() {
-  const pathname = usePathname();
-
-  const isHostDashboard = pathname?.startsWith("/host") && !pathname.includes("%40") && !pathname.includes("@");
-  const isFocusedFlow = pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/auth";
-
-  if (isHostDashboard || isFocusedFlow) return null;
-
+export default function FooterContent() {
   return (
     <footer className="bg-black text-white pt-24 md:pt-32 pb-40 md:pb-12 px-4 sm:px-6" style={{ paddingBottom: 'max(160px, calc(140px + env(safe-area-inset-bottom, 0px)))' }}>
       <div className="max-w-[1400px] mx-auto flex flex-col items-center">

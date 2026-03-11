@@ -1,5 +1,3 @@
-"use client";
-
 import { motion } from "framer-motion";
 import clsx from "clsx";
 import { type ReactNode } from "react";

@@ -1,5 +1,3 @@
-"use client";
-
 import React, { ReactNode } from "react";
 import { TrendingUp, TrendingDown, Minus, Info } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";

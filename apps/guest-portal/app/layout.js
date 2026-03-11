@@ -77,6 +77,10 @@ export const viewport = {
   userScalable: false,
 };
 
+import Navbar from "../components/Navbar";
+import FooterContent from "../components/FooterContent";
+import ContextualFooter from "../components/ContextualFooter";
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -84,7 +88,10 @@ export default function RootLayout({ children }) {
         <WebVitals />
         <QueryProvider>
           <AppProviders>
-            <CheckoutAwareShell>
+            <CheckoutAwareShell
+              navbar={<Navbar />}
+              footer={<ContextualFooter footerContent={<FooterContent />} />}
+            >
               {children}
             </CheckoutAwareShell>
           </AppProviders>

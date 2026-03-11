@@ -31,6 +31,7 @@ const mapHeroCards = (events) =>
     venue: event.venue || event.location || event.city,
     time: formatEventTime(event),
     image: event.image,
+    description: event.description || event.shortDescription || event.about,
     guests: event.guests || [],
     href: getEventHref(event)
   }));

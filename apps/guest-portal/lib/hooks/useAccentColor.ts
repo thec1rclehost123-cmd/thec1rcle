@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo, useState } from "react";
 import { accentNames, getAccentToken, type AccentName } from "../design-system/tokens";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
@@ -24,6 +24,7 @@ import {
 import { useAuth } from "./providers/AuthProvider";
 import { CartTimer } from "./checkout/CartTimer";
 import { PromoCodeInput } from "./checkout/PromoCodeInput";
+import { getFirebaseDb } from "../lib/firebase/client";
 
 export default function CheckoutContainer({ event, initialTickets = [] }) {
     const router = useRouter();
@@ -95,7 +96,6 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
         if (!event?.id) return;
         let unsubscribe;
         (async () => {
-            const { getFirebaseDb } = await import("../lib/firebase/client");
             const { onSnapshot, doc } = await import("firebase/firestore");
             const db = await getFirebaseDb();
             unsubscribe = onSnapshot(doc(db, "events", event.id), (snap) => {
@@ -836,6 +836,6 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div>
+        </div >
     );
 }

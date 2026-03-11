@@ -9,6 +9,7 @@ import { saveIntent } from "../lib/utils/intentStore";
 import { useSocialActions } from "../hooks/useSocialActions";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { getFirebaseDb } from "../lib/firebase/client";
 
 const NotLiveModal = ({ isOpen, onClose }) => (
   <AnimatePresence>
@@ -104,7 +105,6 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
 
     (async () => {
       try {
-        const { getFirebaseDb } = await import("../lib/firebase/client");
         const { onSnapshot, doc } = await import("firebase/firestore");
         const db = await getFirebaseDb();
         if (cancelled) return;

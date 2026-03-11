@@ -10,7 +10,11 @@ const nextConfig = {
       "date-fns",
       "lodash",
       "framer-motion",
-      "react-icons"
+      "react-icons",
+      "firebase/app",
+      "firebase/auth",
+      "firebase/firestore",
+      "firebase/storage"
     ],
   },
   productionBrowserSourceMaps: false,
@@ -26,6 +30,8 @@ const nextConfig = {
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 86400,
     remotePatterns: [
       {
         protocol: 'https',

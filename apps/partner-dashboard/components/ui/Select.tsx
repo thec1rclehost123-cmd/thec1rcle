@@ -1,5 +1,3 @@
-"use client";
-
 import clsx from "clsx";
 import { forwardRef, type SelectHTMLAttributes } from "react";
 import { ChevronDown } from "lucide-react";

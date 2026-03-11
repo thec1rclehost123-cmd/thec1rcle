@@ -1,5 +1,3 @@
-"use client";
-
 import { Construction } from "lucide-react";
 
 export default function VenuePlaceholderPage({ title, description }: { title: string, description: string }) {

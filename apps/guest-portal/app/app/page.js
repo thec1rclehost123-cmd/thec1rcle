@@ -184,6 +184,7 @@ const MagneticButton = ({ children, className = "" }) => {
       onMouseLeave={handleMouseLeave}
       style={{ x, y }}
       className={`relative group ${className}`}
+      suppressHydrationWarning
     >
       {children}
     </motion.button>
@@ -227,7 +228,10 @@ const FeatureCard = ({ title, subtitle, video, index, align }) => {
           </p>
 
           <Link href="/explore">
-            <MagneticButton className="px-8 py-4 border border-white/20 rounded-full overflow-hidden">
+            <MagneticButton
+              className="px-8 py-4 border border-white/20 rounded-full overflow-hidden"
+              suppressHydrationWarning
+            >
               <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
               <span className="relative z-10 text-white group-hover:text-black font-bold uppercase tracking-widest text-sm transition-colors duration-300">
                 Experience It
@@ -493,7 +497,7 @@ export default function AppPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-black" />}>
       <AppLikeGate />
-      <div className="bg-[var(--bg-color)] text-[var(--text-primary)] selection:bg-[#F44A22] selection:text-black transition-colors duration-500 overflow-x-hidden">
+      <div className="relative bg-[var(--bg-color)] text-[var(--text-primary)] selection:bg-[#F44A22] selection:text-black transition-colors duration-500 overflow-x-hidden">
 
         {/* --- HERO --- */}
         <BillboardHero />

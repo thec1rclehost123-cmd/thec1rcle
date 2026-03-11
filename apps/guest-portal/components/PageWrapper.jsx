@@ -17,7 +17,7 @@ export default function PageWrapper({ children }) {
 
     return (
         <main
-            className={`flex-1 flex flex-col
+            className={`flex-1 flex flex-col relative
         ${isLandingOrHero ? "p-0" : "px-5 pt-24 pb-24 sm:px-8 sm:pt-32 sm:pb-32"}
       `}
         >

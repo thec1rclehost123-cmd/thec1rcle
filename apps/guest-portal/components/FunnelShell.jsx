@@ -5,7 +5,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
-import RitualBackground from "./RitualBackground";
+import dynamic from "next/dynamic";
+const RitualBackground = dynamic(() => import("./RitualBackground"), { ssr: false });
 
 export default function FunnelShell({ children, title, backHref, showLogo = true }) {
     const router = useRouter();

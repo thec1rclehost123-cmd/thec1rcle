@@ -1,15 +1,16 @@
 import Link from "next/link";
 import HeroVideo from "../components/HeroVideo";
-import HeroCarousel from "../components/HeroCarousel";
+// import HeroCarousel from "../components/HeroCarousel";
 import CategoryBar from "../components/CategoryBar";
 import dynamic from "next/dynamic";
 import { GridSkeleton } from "@c1rcle/ui";
-const EventGrid = dynamic(() => import("../components/EventGrid"), { 
+const EventGrid = dynamic(() => import("../components/EventGrid"), {
   ssr: true,
   loading: () => <GridSkeleton count={6} />
 });
 import Selects from "../components/Selects";
 import InterviewSection from "../components/InterviewSection";
+const HeroCarousel = dynamic(() => import("../components/HeroCarousel"), { ssr: false });
 import SectionReveal from "../components/SectionReveal";
 import { heroVideoSrc, getHomepageContent } from "../lib/homepageData";
 

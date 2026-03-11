@@ -8,7 +8,8 @@ import { Mail, Lock, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "../../components/providers/AuthProvider";
 import { useToast } from "../../components/providers/ToastProvider";
 import GenderSelector from "../../components/GenderSelector";
-import RitualBackground from "../../components/RitualBackground";
+import dynamic from "next/dynamic";
+const RitualBackground = dynamic(() => import("../../components/RitualBackground"), { ssr: false });
 import CountrySelect from "../../components/ui/CountrySelect";
 import PhoneInput from "../../components/ui/PhoneInput";
 import VerifyPanel from "../../components/VerifyPanel";
@@ -601,8 +602,8 @@ function LoginForm() {
                                                                     disabled={submitting}
                                                                     onClick={() => handleCitySelect(city)}
                                                                     className={`h-14 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] transition-all border disabled:opacity-50 ${form.city === city
-                                                                            ? "bg-orange text-white border-orange"
-                                                                            : "bg-white/[0.03] text-white/60 border-white/10 hover:border-orange/30 hover:text-white"
+                                                                        ? "bg-orange text-white border-orange"
+                                                                        : "bg-white/[0.03] text-white/60 border-white/10 hover:border-orange/30 hover:text-white"
                                                                         }`}
                                                                 >
                                                                     {submitting && form.city === city

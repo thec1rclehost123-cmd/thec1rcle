@@ -11,14 +11,14 @@ export default function RouteTransition({ children }: { children: React.ReactNod
 
   if (isTabRoute) {
     // Tab routes: zero animation, instant switch (matches native-app feel)
-    return <div className="w-full flex-1 flex flex-col">{children}</div>;
+    return <div className="relative w-full flex-1 flex flex-col">{children}</div>;
   }
 
   // Non-tab routes: CSS enter animation (opacity + translateY slideUp).
   // key={pathname} triggers a remount on navigation, restarting the animation.
   // The .route-enter keyframe is defined in globals.css.
   return (
-    <div key={pathname} className="route-enter w-full flex-1 flex flex-col">
+    <div key={pathname} className="route-enter relative w-full flex-1 flex flex-col">
       {children}
     </div>
   );
