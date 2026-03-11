@@ -56,11 +56,15 @@ export async function deactivateLink(linkId, token) {
     return client.deactivatePromoterLink(linkId);
 }
 
-export async function recordLinkClick(code, token) {
+export async function recordLinkClick(code, source = null, token) {
     const client = getApiClient(token);
     try {
+        const payload = { code };
+        if (source) payload.source = source;
         return await client.request(`/promoter-links/click/${code}`, {
-            method: 'POST'
+            method: 'POST',
+            body: JSON.stringify(payload),
+            headers: { 'Content-Type': 'application/json' }
         });
     } catch (error) {
         console.error("[PromoterLinkStore] recordLinkClick failed:", error.message);

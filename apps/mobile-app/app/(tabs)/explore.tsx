@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { FlashList } from "@shopify/flash-list";
 import {
     View,
     Text,
     ScrollView,
+    FlatList,
     Pressable,
     TextInput,
     ActivityIndicator,
@@ -24,6 +26,8 @@ import Animated, {
     useAnimatedStyle,
     withSpring,
     withTiming,
+    withRepeat,
+    withSequence,
     interpolate,
     FadeIn,
     FadeInDown,
@@ -35,6 +39,7 @@ import { NotificationBell } from "@/components/ui/NotificationBell";
 import { EmptyState, ErrorState, NetworkError } from "@/components/ui/EmptyState";
 import { useNotificationsStore } from "@/store/notificationsStore";
 import { trackScreen } from "@/lib/analytics";
+import { safeDate, formatEventDate } from "@/lib/utils/date";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_CARD_WIDTH = SCREEN_WIDTH - 48;
@@ -165,11 +170,7 @@ function HeroEventCard({ event, index }: { event: Event; index: number }) {
         router.push({ pathname: "/event/[id]", params: { id: event.id } });
     };
 
-    const formattedDate = new Date(event.startDate).toLocaleDateString("en-IN", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-    });
+    const formattedDate = formatEventDate(event.startDate);
 
     const lowestPrice = event.tickets?.reduce((min, tier) =>
         tier.price < min ? tier.price : min,
@@ -289,11 +290,7 @@ function EventListCard({ event, index }: { event: Event; index: number }) {
         router.push({ pathname: "/event/[id]", params: { id: event.id } });
     };
 
-    const formattedDate = new Date(event.startDate).toLocaleDateString("en-IN", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-    });
+    const formattedDate = formatEventDate(event.startDate);
 
     const lowestPrice = event.tickets?.reduce((min, tier) =>
         tier.price < min ? tier.price : min,
@@ -373,6 +370,42 @@ function SectionHeader({ title, emoji, action }: { title: string; emoji?: string
     );
 }
 
+// Pulse bar: live events indicator
+function PulseBar({ liveCount, isTonight, topEventTitle }: { liveCount: number; isTonight: boolean; topEventTitle?: string }) {
+    const pulseScale = useSharedValue(1);
+
+    useEffect(() => {
+        pulseScale.value = withRepeat(
+            withSequence(
+                withTiming(1.2, { duration: 700 }),
+                withTiming(1, { duration: 700 })
+            ),
+            -1,
+            true
+        );
+    }, []);
+
+    const dotStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: pulseScale.value }],
+    }));
+
+    if (!isTonight && liveCount === 0) return null;
+
+    return (
+        <View style={styles.pulseBar}>
+            <Animated.View style={[styles.pulseDot, dotStyle]} />
+            <Text style={styles.pulseText}>
+                {isTonight
+                    ? topEventTitle
+                        ? `Tonight: ${topEventTitle}`
+                        : "What's on tonight"
+                    : `${liveCount} ${liveCount === 1 ? "event" : "events"} happening now`
+                }
+            </Text>
+        </View>
+    );
+}
+
 // Categories with icons
 const CATEGORIES = [
     { id: "all", label: "All", icon: "✨" },
@@ -393,8 +426,11 @@ export default function ExploreScreen() {
     const [isOffline, setIsOffline] = useState(false);
     const [cachedEvents, setCachedEvents] = useState<Event[]>([]);
     const [lastSync, setLastSync] = useState<Date | null>(null);
+    const [carouselIndex, setCarouselIndex] = useState(0);
+    const carouselRef = useRef<FlatList>(null);
 
     useEffect(() => {
+        trackScreen("Explore");
         loadData();
     }, []);
 
@@ -457,12 +493,53 @@ export default function ExploreScreen() {
         return {
             featured: featuredEvents.slice(0, 5),
             thisWeek: filteredEvents.filter((e) => {
-                const date = new Date(e.startDate);
-                return date >= now && date <= thisWeek;
+                const date = safeDate(e.startDate);
+                return date !== null && date >= now && date <= thisWeek;
             }).slice(0, 5),
             upcoming: filteredEvents.slice(0, 10),
         };
     }, [filteredEvents, featuredEvents]);
+
+    // Count live events (status === "live" or startDate is today)
+    const liveCount = useMemo(() => {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayEnd = new Date(todayStart.getTime() + 86_400_000);
+        const source = events.length > 0 ? events : cachedEvents;
+        return source.filter((e) => {
+            if ((e as any).status === "live") return true;
+            const d = safeDate(e.startDate);
+            return d !== null && d >= todayStart && d < todayEnd;
+        }).length;
+    }, [events, cachedEvents]);
+
+    // "Tonight" mode: after 6 PM, surface top tonight event
+    const isTonightMode = new Date().getHours() >= 18;
+    const topTonightEvent = useMemo(() => {
+        if (!isTonightMode) return undefined;
+        const now = new Date();
+        const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const source = events.length > 0 ? events : cachedEvents;
+        const tonight = source.filter((e) => {
+            const d = safeDate(e.startDate);
+            return d !== null && d >= now && d < midnight;
+        });
+        // Return the one with the highest heatScore (or first)
+        return tonight.sort((a, b) => ((b as any).heatScore ?? 0) - ((a as any).heatScore ?? 0))[0]?.title;
+    }, [events, cachedEvents, isTonightMode]);
+
+    // Auto-advance hero carousel every 5 seconds
+    useEffect(() => {
+        if (displayEvents.featured.length <= 1) return;
+        const interval = setInterval(() => {
+            setCarouselIndex((prev) => {
+                const next = (prev + 1) % displayEvents.featured.length;
+                carouselRef.current?.scrollToIndex({ index: next, animated: true });
+                return next;
+            });
+        }, 5000);
+        return () => clearInterval(interval);
+    }, [displayEvents.featured.length]);
 
     const showNoResults = !loading && filteredEvents.length === 0 && searchQuery;
     const showEmpty = !loading && events.length === 0 && cachedEvents.length === 0 && !searchQuery;
@@ -509,6 +586,9 @@ export default function ExploreScreen() {
                             <NotificationBell variant="solid" />
                         </View>
                     </View>
+
+                    {/* Live events pulse indicator */}
+                    <PulseBar liveCount={liveCount} isTonight={isTonightMode} topEventTitle={topTonightEvent} />
 
                     {/* Search */}
                     <SearchBar
@@ -577,22 +657,42 @@ export default function ExploreScreen() {
                     />
                 )}
 
-                {/* Featured Carousel */}
+                {/* Featured Carousel — auto-advances every 5s */}
                 {!searchQuery && displayEvents.featured.length > 0 && (
                     <View style={styles.section}>
                         <SectionHeader title="Featured" emoji="🔥" />
-                        <ScrollView
+                        <FlatList
+                            ref={carouselRef}
+                            data={displayEvents.featured}
+                            keyExtractor={(e) => e.id}
                             horizontal
                             showsHorizontalScrollIndicator={false}
-                            pagingEnabled
+                            pagingEnabled={false}
                             snapToInterval={HERO_CARD_WIDTH + 16}
                             decelerationRate="fast"
                             contentContainerStyle={styles.heroCarousel}
-                        >
-                            {displayEvents.featured.map((event, index) => (
-                                <HeroEventCard key={event.id} event={event} index={index} />
-                            ))}
-                        </ScrollView>
+                            renderItem={({ item, index }) => (
+                                <HeroEventCard event={item} index={index} />
+                            )}
+                            onScrollToIndexFailed={() => {}}
+                            onMomentumScrollEnd={(e) => {
+                                const idx = Math.round(
+                                    e.nativeEvent.contentOffset.x / (HERO_CARD_WIDTH + 16)
+                                );
+                                setCarouselIndex(idx);
+                            }}
+                        />
+                        {/* Pagination dots */}
+                        {displayEvents.featured.length > 1 && (
+                            <View style={styles.carouselDots}>
+                                {displayEvents.featured.map((_, i) => (
+                                    <View
+                                        key={i}
+                                        style={[styles.carouselDot, i === carouselIndex && styles.carouselDotActive]}
+                                    />
+                                ))}
+                            </View>
+                        )}
                     </View>
                 )}
 
@@ -606,16 +706,24 @@ export default function ExploreScreen() {
                     </View>
                 )}
 
-                {/* All Events */}
-                <View style={styles.section}>
-                    <SectionHeader
-                        title={searchQuery ? `Results (${filteredEvents.length})` : "All Events"}
-                        emoji={searchQuery ? undefined : "🎭"}
-                    />
-                    {(searchQuery ? filteredEvents : displayEvents.upcoming).map((event, index) => (
-                        <EventListCard key={event.id} event={event} index={index} />
-                    ))}
-                </View>
+                {/* All Events — FlashList for smooth performance */}
+                {(searchQuery ? filteredEvents : displayEvents.upcoming).length > 0 && (
+                    <View style={[styles.section, { minHeight: 300 }]}>
+                        <SectionHeader
+                            title={searchQuery ? `Results (${filteredEvents.length})` : "All Events"}
+                            emoji={searchQuery ? undefined : "🎭"}
+                        />
+                        <FlashList
+                            data={searchQuery ? filteredEvents : displayEvents.upcoming}
+                            keyExtractor={(e) => e.id}
+                            estimatedItemSize={120}
+                            renderItem={({ item, index }) => (
+                                <EventListCard event={item} index={index} />
+                            )}
+                            scrollEnabled={false}
+                        />
+                    </View>
+                )}
 
                 {/* Offline indicator */}
                 {isOffline && lastSync && (
@@ -663,6 +771,48 @@ const styles = StyleSheet.create({
         fontSize: 15,
         marginTop: 4,
     },
+    // Pulse bar
+    pulseBar: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 12,
+    },
+    pulseDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: "#4CAF50",
+        shadowColor: "#4CAF50",
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.8,
+        shadowRadius: 4,
+    },
+    pulseText: {
+        color: "#4CAF50",
+        fontSize: 13,
+        fontWeight: "600",
+    },
+
+    // Carousel dots
+    carouselDots: {
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 6,
+        marginTop: 12,
+    },
+    carouselDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: "rgba(255,255,255,0.25)",
+    },
+    carouselDotActive: {
+        backgroundColor: colors.iris,
+        width: 16,
+    },
+
     offlineBadge: {
         backgroundColor: "rgba(255, 170, 0, 0.15)",
         paddingHorizontal: 12,

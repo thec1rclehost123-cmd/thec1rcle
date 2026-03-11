@@ -20,6 +20,7 @@ import Link from "next/link";
 
 import { DashboardEventCard } from "@c1rcle/ui";
 import { mapEventForClient } from "@c1rcle/core/events";
+import TierProgressBar from "@/components/promoter-layout/TierProgressBar";
 
 /**
  * Promoter Dashboard Home — Attribution & Proof Lens
@@ -204,6 +205,14 @@ export default function PromoterDashboardHome() {
 
                 {/* Performance Context */}
                 <div className="space-y-6">
+                    {/* Commission Tier */}
+                    {stats && (stats.totalConversions > 0 || stats.totalSales > 0) && (
+                        <TierProgressBar
+                            currentSales={stats.totalConversions || stats.totalSales || 0}
+                            variant="compact"
+                        />
+                    )}
+
                     {/* Insights Card */}
                     <div className="p-6 md:p-8 rounded-[2rem] bg-surface-secondary border border-border-subtle shadow-sm">
                         <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-6">Recent Earnings</h3>
@@ -237,9 +246,9 @@ export default function PromoterDashboardHome() {
                     <div className="p-6 md:p-8 rounded-[2rem] bg-surface-elevated border border-border-subtle shadow-sm">
                         <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-6">Tools</h3>
                         <div className="space-y-2">
-                            <QuickAction label="Promoter Assets" href="/promoter/assets" icon={ExternalLink} />
-                            <QuickAction label="Verified Buyers" href="/promoter/guests" icon={Users} />
-                            <QuickAction label="Network Status" href="/promoter/connections" icon={Link2} />
+                            <QuickAction label="Sales Arsenal" href="/promoter/links" icon={ExternalLink} />
+                            <QuickAction label="Live Guest Feed" href="/promoter/guests" icon={Users} />
+                            <QuickAction label="Partner Network" href="/promoter/partnerships" icon={Link2} />
                         </div>
                     </div>
                 </div>

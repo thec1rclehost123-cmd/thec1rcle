@@ -155,7 +155,7 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.98, y: -10 }}
                             transition={{ duration: 0.15 }}
-                            className="fixed top-[15%] left-1/2 -translate-x-1/2 w-[90%] max-w-2xl z-[101]"
+                            className="fixed top-24 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl z-[101]"
                         >
                             <div className="bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl overflow-hidden">
                                 {/* Search Input */}

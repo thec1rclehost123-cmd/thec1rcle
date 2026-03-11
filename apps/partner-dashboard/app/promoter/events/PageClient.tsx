@@ -19,6 +19,7 @@ import {
     ChevronRight
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { CITY_MAP } from "@c1rcle/core/events";
 
 interface PromoterEvent {
     id: string;
@@ -323,10 +324,9 @@ export default function PromoterEventsPage() {
                     className="px-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all appearance-none cursor-pointer"
                 >
                     <option value="">All Cities</option>
-                    <option value="Pune">Pune</option>
-                    <option value="Mumbai">Mumbai</option>
-                    <option value="Goa">Goa</option>
-                    <option value="Bengaluru">Bengaluru</option>
+                    {CITY_MAP.map(city => (
+                        <option key={city.key} value={city.label.split(',')[0]}>{city.label}</option>
+                    ))}
                 </select>
             </div>
 

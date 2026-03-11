@@ -33,6 +33,10 @@ import * as Haptics from "expo-haptics";
 import { useEventsStore, Event, TicketTier } from "@/store/eventsStore";
 import { useCartStore } from "@/store/cartStore";
 import { colors, radii, gradients } from "@/lib/design/theme";
+import { safeDate, formatEventDate, formatEventTime } from "@/lib/utils/date";
+import { trackScreen } from "@/lib/analytics";
+import { VenueSheet } from "@/components/ui/VenueSheet";
+import { HostSheet } from "@/components/ui/HostSheet";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const HEADER_HEIGHT = 400;
@@ -55,6 +59,11 @@ function TicketTierCard({
     const [added, setAdded] = useState(false);
     const isAvailable = tier.remaining > 0;
     const { addItem } = useCartStore();
+
+    // Compute sold percentage for progress bar
+    const soldPercent = tier.quantity > 0
+        ? Math.max(0, Math.min(100, ((tier.quantity - tier.remaining) / tier.quantity) * 100))
+        : 0;
 
     const scale = useSharedValue(1);
 
@@ -124,6 +133,13 @@ function TicketTierCard({
                     </Text>
                 </View>
             </View>
+
+            {/* Sold progress bar */}
+            {tier.quantity > 0 && soldPercent > 0 && (
+                <View style={styles.inventoryBar}>
+                    <View style={[styles.inventoryFill, { width: `${soldPercent}%` as any }]} />
+                </View>
+            )}
 
             {/* Quantity & Add Button */}
             {isAvailable ? (
@@ -198,10 +214,17 @@ export default function EventDetailScreen() {
     const [loading, setLoading] = useState(true);
     const [isLiked, setIsLiked] = useState(false);
     const [venueCoords, setVenueCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+    const [showVenueSheet, setShowVenueSheet] = useState(false);
+    const [showHostSheet, setShowHostSheet] = useState(false);
     const miniMapRef = useRef<MapView>(null);
 
     const scrollY = useSharedValue(0);
     const cartCount = getItemCount();
+
+    useEffect(() => {
+        trackScreen("EventDetail");
+    }, []);
 
     useEffect(() => {
         async function loadEvent() {
@@ -327,15 +350,12 @@ export default function EventDetailScreen() {
         );
     }
 
-    const formattedDate = new Date(event.startDate).toLocaleDateString("en-IN", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-    });
-    const formattedTime = new Date(event.startDate).toLocaleTimeString("en-IN", {
-        hour: "numeric",
-        minute: "2-digit",
-    });
+    const formattedDate = (() => {
+        const d = safeDate(event.startDate);
+        if (!d) return "TBD";
+        return d.toLocaleDateString("en-IN", { weekday: "long", month: "long", day: "numeric" });
+    })();
+    const formattedTime = formatEventTime(event.startDate);
 
     const lowestPrice = event.tickets?.reduce((min, tier) => {
         return tier.price < min ? tier.price : min;
@@ -343,6 +363,22 @@ export default function EventDetailScreen() {
 
     return (
         <View style={styles.container}>
+            {/* Venue + Host sheets */}
+            <VenueSheet
+                visible={showVenueSheet}
+                onClose={() => setShowVenueSheet(false)}
+                venueName={event.venue || event.location || "Venue"}
+                venueLocation={event.location}
+                venueCoords={venueCoords}
+                venueId={(event as any).venueId}
+            />
+            <HostSheet
+                visible={showHostSheet}
+                onClose={() => setShowHostSheet(false)}
+                hostName={event.hostName || "Host"}
+                hostId={(event as any).hostId}
+            />
+
             {/* Floating Header */}
             <View style={[styles.floatingHeader, { paddingTop: insets.top }]}>
                 <View style={styles.floatingHeaderContent}>
@@ -449,7 +485,10 @@ export default function EventDetailScreen() {
                             </View>
                         </View>
                         <View style={styles.infoDivider} />
-                        <View style={styles.infoRow}>
+                        <Pressable
+                            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowVenueSheet(true); }}
+                            style={styles.infoRow}
+                        >
                             <View style={styles.infoIcon}>
                                 <Text style={styles.infoIconText}>📍</Text>
                             </View>
@@ -459,7 +498,8 @@ export default function EventDetailScreen() {
                                     {event.venue || event.location || "Location TBA"}
                                 </Text>
                             </View>
-                        </View>
+                            <Text style={{ color: colors.goldMetallic, fontSize: 18 }}>›</Text>
+                        </Pressable>
                     </Animated.View>
 
                     {/* Venue Map */}
@@ -567,7 +607,17 @@ export default function EventDetailScreen() {
                             style={styles.section}
                         >
                             <Text style={styles.sectionTitle}>About</Text>
-                            <Text style={styles.description}>{event.description}</Text>
+                            <Text
+                                style={styles.description}
+                                numberOfLines={descriptionExpanded ? undefined : 3}
+                            >
+                                {event.description}
+                            </Text>
+                            <Pressable onPress={() => setDescriptionExpanded(!descriptionExpanded)}>
+                                <Text style={styles.readMoreText}>
+                                    {descriptionExpanded ? "Show less" : "Read more"}
+                                </Text>
+                            </Pressable>
                         </Animated.View>
                     )}
 
@@ -576,7 +626,10 @@ export default function EventDetailScreen() {
                         <Animated.View
                             entering={FadeInDown.delay(300).springify()}
                         >
-                            <Pressable style={styles.hostCard}>
+                            <Pressable
+                            style={styles.hostCard}
+                            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowHostSheet(true); }}
+                        >
                                 <View style={styles.hostAvatar}>
                                     <LinearGradient
                                         colors={gradients.primary as [string, string]}
@@ -918,6 +971,12 @@ const styles = StyleSheet.create({
         fontSize: 15,
         lineHeight: 24,
     },
+    readMoreText: {
+        color: colors.iris,
+        fontSize: 14,
+        fontWeight: "600",
+        marginTop: 6,
+    },
 
     // Host
     hostCard: {
@@ -1089,6 +1148,18 @@ const styles = StyleSheet.create({
         color: colors.goldMetallic,
         fontSize: 15,
         fontWeight: "600",
+    },
+    inventoryBar: {
+        height: 3,
+        backgroundColor: "rgba(255,255,255,0.08)",
+        borderRadius: 2,
+        marginBottom: 12,
+        overflow: "hidden",
+    },
+    inventoryFill: {
+        height: "100%",
+        backgroundColor: colors.iris,
+        borderRadius: 2,
     },
 
     // Safety

@@ -72,15 +72,17 @@ export function VenueActionButton({
     children,
     onClick,
     variant = "primary",
+    disabled = false,
     className,
 }: {
     children: ReactNode;
     onClick?: () => void;
     variant?: "primary" | "secondary" | "ghost";
+    disabled?: boolean;
     className?: string;
 }) {
     const base =
-        "inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v-focus)]";
+        "inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v-focus)] disabled:opacity-50 disabled:cursor-not-allowed";
 
     const variants = {
         primary:
@@ -92,7 +94,7 @@ export function VenueActionButton({
     };
 
     return (
-        <button onClick={onClick} className={clsx(base, variants[variant], className)}>
+        <button onClick={onClick} disabled={disabled} className={clsx(base, variants[variant], className)}>
             {children}
         </button>
     );

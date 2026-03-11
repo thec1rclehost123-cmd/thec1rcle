@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { User, subscribeToAuthState } from "@/lib/firebase";
+import { useProfileStore } from "./profileStore";
+import { useNotificationsStore } from "./notificationsStore";
 
 interface AuthState {
     user: User | null;
@@ -26,6 +28,12 @@ export function initAuthListener() {
     const unsubscribe = subscribeToAuthState((user) => {
         setUser(user);
         setInitialized(true);
+
+        // On sign-out: clean up all user-scoped Firestore subscriptions
+        if (!user) {
+            useProfileStore.getState().clearProfile();
+            useNotificationsStore.getState().clearNotifications();
+        }
     });
 
     return unsubscribe;

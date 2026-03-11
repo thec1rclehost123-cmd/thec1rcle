@@ -24,6 +24,7 @@ import {
     CheckCircle2
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import TierProgressBar from "@/components/promoter-layout/TierProgressBar";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -133,23 +134,58 @@ export default function PromoterAnalyticsPage() {
 }
 
 function PromoterOverviewView({ stats }: { stats: any }) {
+    // Use real timeline data from API, or derive from stats
+    const earningTimeline = stats.earningTimeline || stats.timeline || [];
+    const maxEarning = Math.max(...earningTimeline.map((d: any) => d.amount || d.value || 0), 1);
+
     return (
         <div className="space-y-10">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <StatMetric label="Total Earnings" value={`₹${Math.round(stats.totalCommission).toLocaleString()}`} trend="Commission" color="emerald" />
-                <StatMetric label="Check-ins" value={stats.totalCheckIns} trend="Actual Intent" color="indigo" />
-                <StatMetric label="Yield %" value={`${Math.round(stats.conversionRate)}%`} trend="Claim → Entry" color="amber" />
-                <StatMetric label="Partners" value={stats.activePartnerships} trend="Active Hosts" color="rose" />
+                <StatMetric label="Total Earnings" value={`₹${Math.round(stats.totalCommission || 0).toLocaleString()}`} trend="Commission" color="emerald" />
+                <StatMetric label="Check-ins" value={stats.totalCheckIns || 0} trend="Actual Intent" color="indigo" />
+                <StatMetric label="Yield %" value={`${Math.round(stats.conversionRate || 0)}%`} trend="Claim → Entry" color="amber" />
+                <StatMetric label="Partners" value={stats.activePartnerships || 0} trend="Active Hosts" color="rose" />
             </div>
+
+            {/* Commission Tier Progress */}
+            {(stats.totalConversions > 0 || stats.totalSales > 0) && (
+                <TierProgressBar
+                    currentSales={stats.totalConversions || stats.totalSales || 0}
+                    tiers={stats.commissionTiers || undefined}
+                    variant="compact"
+                />
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm relative overflow-hidden">
                     <h3 className="text-xl font-black text-text-primary uppercase tracking-tight mb-8">Earning Velocity</h3>
                     <div className="h-64 flex items-end justify-between gap-2">
-                        {/* Placeholder for timeline bar chart using stats.totalConversions as context */}
-                        {[30, 50, 40, 70, 90, 60, 80].map((h, i) => (
-                            <div key={i} className="flex-1 bg-surface-secondary rounded-t-xl hover:bg-green-500 transition-all cursor-pointer" style={{ height: `${h}%` }} />
-                        ))}
+                        {earningTimeline.length > 0 ? (
+                            earningTimeline.slice(-14).map((d: any, i: number) => {
+                                const val = d.amount || d.value || 0;
+                                const height = maxEarning > 0 ? (val / maxEarning) * 100 : 0;
+                                return (
+                                    <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
+                                        <span className="text-[8px] font-bold text-text-placeholder opacity-0 group-hover:opacity-100 transition-opacity">
+                                            ₹{Math.round(val).toLocaleString()}
+                                        </span>
+                                        <div
+                                            className="w-full bg-surface-secondary rounded-t-xl hover:bg-emerald-500 transition-all cursor-pointer"
+                                            style={{ height: `${Math.max(height, 3)}%` }}
+                                        />
+                                        <span className="text-[8px] font-bold text-text-placeholder">
+                                            {d.label || d.date?.slice(-5) || ""}
+                                        </span>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            /* Graceful fallback when no timeline data available */
+                            <div className="flex-1 flex flex-col items-center justify-center text-center py-12">
+                                <BarChart3 className="w-10 h-10 text-text-placeholder mb-3" />
+                                <p className="text-xs text-text-placeholder font-medium">Timeline data will appear<br />after your first sales</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -159,7 +195,7 @@ function PromoterOverviewView({ stats }: { stats: any }) {
                         <div className="flex justify-between items-center">
                             <div>
                                 <p className="text-xs font-black text-text-primary/40 uppercase tracking-widest mb-1">Link Clicks</p>
-                                <p className="text-2xl font-black">{stats.totalClicks.toLocaleString()}</p>
+                                <p className="text-2xl font-black">{(stats.totalClicks || 0).toLocaleString()}</p>
                             </div>
                             <div className="h-10 w-10 bg-surface-elevated/10 rounded-xl flex items-center justify-center">
                                 <MousePointer2 className="h-5 w-5 text-accent-primary" />
@@ -168,12 +204,33 @@ function PromoterOverviewView({ stats }: { stats: any }) {
                         <div className="flex justify-between items-center">
                             <div>
                                 <p className="text-xs font-black text-text-primary/40 uppercase tracking-widest mb-1">Total Claims</p>
-                                <p className="text-2xl font-black">{stats.totalConversions.toLocaleString()}</p>
+                                <p className="text-2xl font-black">{(stats.totalConversions || 0).toLocaleString()}</p>
                             </div>
                             <div className="h-10 w-10 bg-surface-elevated/10 rounded-xl flex items-center justify-center">
                                 <CheckCircle2 className="h-5 w-5 text-indigo-400" />
                             </div>
                         </div>
+                        {/* Channel Attribution */}
+                        {stats.channelBreakdown && Object.keys(stats.channelBreakdown).length > 0 && (
+                            <div className="pt-4 border-t border-surface-elevated/20">
+                                <p className="text-xs font-black text-text-primary/40 uppercase tracking-widest mb-3">By Channel</p>
+                                <div className="space-y-2">
+                                    {Object.entries(stats.channelBreakdown).map(([ch, count]: any) => {
+                                        const total = stats.totalClicks || 1;
+                                        const pct = ((count / total) * 100).toFixed(0);
+                                        return (
+                                            <div key={ch} className="flex items-center gap-2">
+                                                <span className="text-[10px] font-bold uppercase w-8">{ch}</span>
+                                                <div className="flex-1 h-1.5 bg-surface-elevated/10 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${pct}%` }} />
+                                                </div>
+                                                <span className="text-[10px] font-bold">{pct}%</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

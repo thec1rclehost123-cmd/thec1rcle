@@ -3,11 +3,13 @@ import { recordLinkClick, getPromoterLinkByCode } from "@/lib/server/promoterLin
 
 /**
  * POST /api/promoter/links/click
- * Record a click on a promoter link
+ * Record a click on a promoter link with optional source tracking
+ * 
+ * Sources: wa (WhatsApp), ig (Instagram), tw (Twitter/X), fb (Facebook), em (Email), ot (Other)
  */
 export async function POST(req: NextRequest) {
     try {
-        const { code } = await req.json();
+        const { code, source } = await req.json();
 
         if (!code) {
             return NextResponse.json(
@@ -15,6 +17,10 @@ export async function POST(req: NextRequest) {
                 { status: 400 }
             );
         }
+
+        // Validate source if provided
+        const validSources = ["wa", "ig", "tw", "fb", "em", "ot"];
+        const cleanSource = source && validSources.includes(source) ? source : null;
 
         // Get the link by code
         const link = await getPromoterLinkByCode(code);
@@ -26,12 +32,13 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Record the click
-        await recordLinkClick(link.id);
+        // Record the click with source attribution
+        await recordLinkClick(link.id, cleanSource);
 
         return NextResponse.json({
             success: true,
-            eventId: link.eventId
+            eventId: link.eventId,
+            source: cleanSource
         });
     } catch (error: any) {
         console.error("[Promoter Links Click API] POST Error:", error);

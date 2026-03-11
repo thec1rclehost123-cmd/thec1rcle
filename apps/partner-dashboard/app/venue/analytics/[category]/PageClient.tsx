@@ -3,40 +3,39 @@
 import { useEffect, useState } from "react";
 import {
     TrendingUp,
-    TrendingDown,
     DollarSign,
-    Ticket,
     Users,
     Activity,
-    ArrowUpRight,
-    ArrowDownRight,
-    Calendar,
     ChevronRight,
     Loader2,
     BarChart3,
-    PieChart,
-    Download,
     Target,
     Zap,
-    ShieldCheck,
-    Briefcase,
-    Search,
-    Play,
     ShieldAlert,
     Handshake,
-    Info,
-    ChevronDown,
-    Clock
 } from "lucide-react";
 
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import StudioShell from "@/components/studio/StudioShell";
-import { KPICard, StudioKPIGrid, StudioCard, ChartPlaceholder } from "@/components/studio/StudioComponents";
 import { EventTimeline, InsightsPanel } from "@/components/studio/EventStudio";
-import { ENTITLEMENT_STATES } from "@c1rcle/core/entitlement-engine";
+import { BentoCard, KPIBento } from "@/components/ui/BentoCard";
+import { VenueChart } from "@/components/ui/VenueChart";
+import { AppleHeroStat } from "@/components/ui/AppleHeroStat";
+import { VenueStatStrip } from "@/components/ui/VenueStatStrip";
 
+// ── Formatters ──
+function fmt(n: number | undefined | null, type: "currency" | "percent" | "number" = "number"): string {
+    if (n == null) return type === "currency" ? "₹--" : type === "percent" ? "--%"  : "--";
+    if (type === "currency") {
+        if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
+        if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
+        return `₹${n}`;
+    }
+    if (type === "percent") return `${n.toFixed(1)}%`;
+    return n.toLocaleString();
+}
 
 export default function VenueAnalyticsPage() {
     const { profile } = useDashboardAuth();
@@ -46,37 +45,31 @@ export default function VenueAnalyticsPage() {
     const [stats, setStats] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [range, setRange] = useState("30d");
+    const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
     const categoryLabels: Record<string, string> = {
-        overview: "Dashboard",
-        reach: "Demand",
-        engagement: "Turnout",
-        revenue: "Money",
-        audience: "Crowd Profile",
-        ops: "Gate & Operations",
+        overview:    "Dashboard",
+        reach:       "Demand",
+        engagement:  "Turnout",
+        revenue:     "Money",
+        audience:    "Crowd Profile",
+        ops:         "Gate & Operations",
         attribution: "Hosts & Partners",
-        timeline: "Timing"
+        timeline:    "Timing",
+        strategy:    "Strategy",
     };
-
-
-
 
     const categoryDescriptions: Record<string, string> = {
-        overview: "What happened, what's happening, and the final numbers.",
-        reach: "Who wants to come? Track interest and people joining the queue.",
-        engagement: "Who actually showed up? Track when people arrive.",
-        revenue: "Where is the money? Real numbers on gross and net.",
-        audience: "Who is the crowd? Age, gender, and loyalty profile.",
-        ops: "How is the gate moving? Scans, denials, and speed.",
+        overview:    "What happened, what's happening, and the final numbers.",
+        reach:       "Who wants to come? Track interest and people joining the queue.",
+        engagement:  "Who actually showed up? Track when people arrive.",
+        revenue:     "Where is the money? Real numbers on gross and net.",
+        audience:    "Who is the crowd? Age, gender, and loyalty profile.",
+        ops:         "How is the gate moving? Scans, denials, and speed.",
         attribution: "Who brought the crowd? Performance of hosts and partners.",
-        timeline: "How the night went. Minute-by-minute view of everything."
+        timeline:    "How the night went. Minute-by-minute view of everything.",
+        strategy:    "What should you do next? AI-powered recommendations.",
     };
-
-
-
-
-
-    const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchAnalytics = async () => {
@@ -86,7 +79,6 @@ export default function VenueAnalyticsPage() {
                 const venueId = profile.activeMembership.partnerId;
                 let url = `/api/venue/analytics/${category}?venueId=${venueId}&range=${range}`;
                 if (selectedEventId) url += `&eventId=${selectedEventId}`;
-
                 const res = await fetch(url);
                 if (res.ok) {
                     const data = await res.json();
@@ -98,31 +90,46 @@ export default function VenueAnalyticsPage() {
                 setIsLoading(false);
             }
         };
-
         fetchAnalytics();
     }, [profile, range, category, selectedEventId]);
 
-
     if (isLoading) {
         return (
-            <div className="py-24 flex flex-col items-center justify-center">
-                <Loader2 className="h-12 w-12 text-text-placeholder animate-spin mb-4" />
-                <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Processing Data...</p>
+            <div
+                className="py-24 flex flex-col items-center justify-center rounded-[32px]"
+                style={{ background: "var(--v-card)" }}
+            >
+                <Loader2 className="h-10 w-10 animate-spin mb-4" style={{ color: "var(--v-orange)" }} />
+                <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
+                    Processing Data...
+                </p>
             </div>
         );
     }
 
     if (!stats || !stats.dataReady) {
         return (
-            <div className="py-24 flex flex-col items-center text-center">
-                <div className="h-24 w-24 bg-surface-tertiary rounded-3xl flex items-center justify-center mb-8 border border-border-subtle">
-                    <BarChart3 className="h-12 w-12 text-text-placeholder" />
+            <div
+                className="py-24 flex flex-col items-center text-center rounded-[32px]"
+                style={{ background: "var(--v-card)" }}
+            >
+                <div
+                    className="w-20 h-20 rounded-2xl flex items-center justify-center mb-8"
+                    style={{ background: "var(--v-elevated)" }}
+                >
+                    <BarChart3 className="w-10 h-10" style={{ color: "var(--v-text-muted)" }} />
                 </div>
-                <h3 className="text-headline text-text-primary mb-3">No Data Yet</h3>
-                <p className="text-body text-text-tertiary mb-10 max-w-sm mx-auto">
-                    Complete your first event to see {categoryLabels[category].toLowerCase()} analytics and performance insights.
+                <h3 className="text-[20px] font-bold mb-3" style={{ color: "var(--v-text-primary)" }}>
+                    No Data Yet
+                </h3>
+                <p className="text-[14px] mb-10 max-w-sm" style={{ color: "var(--v-text-tertiary)" }}>
+                    Complete your first event to see {(categoryLabels[category] || category).toLowerCase()} analytics.
                 </p>
-                <Link href="/venue/create" className="btn btn-primary">
+                <Link
+                    href="/venue/create"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all hover:brightness-110"
+                    style={{ background: "var(--v-orange)", color: "#fff" }}
+                >
                     Create Your First Event
                 </Link>
             </div>
@@ -137,311 +144,501 @@ export default function VenueAnalyticsPage() {
             onRangeChange={(r) => setRange(r)}
             onEventChange={(eId) => setSelectedEventId(eId)}
         >
-
-            <div className="space-y-10 pb-20 animate-in fade-in duration-500">
-                {/* Category Content */}
-                {category === "overview" && <OverviewView stats={stats} />}
-                {category === "reach" && <ReachView stats={stats} />}
-                {category === "engagement" && <EngagementView stats={stats} />}
-                {category === "revenue" && <RevenueView stats={stats} />}
-                {category === "audience" && <AudienceView stats={stats} />}
-                {category === "ops" && <OpsView stats={stats} />}
+            <div className="space-y-6 pb-20">
+                {category === "overview"    && <OverviewView    stats={stats} />}
+                {category === "reach"       && <ReachView       stats={stats} />}
+                {category === "engagement"  && <EngagementView  stats={stats} />}
+                {category === "revenue"     && <RevenueView     stats={stats} />}
+                {category === "audience"    && <AudienceView    stats={stats} />}
+                {category === "ops"         && <OpsView         stats={stats} />}
                 {category === "attribution" && <AttributionView stats={stats} />}
-                {category === "timeline" && <TimelineView stats={stats} />}
-                {category === "strategy" && <StrategyView stats={stats} />}
+                {category === "timeline"    && <TimelineView    stats={stats} />}
+                {category === "strategy"    && <StrategyView    stats={stats} />}
             </div>
-
-
         </StudioShell>
     );
 }
 
-
-
-
+// ── View Components ──────────────────────────────────────────────────────────
 
 function OverviewView({ stats }: { stats: any }) {
     return (
-        <div className="space-y-12">
+        <div className="space-y-6">
             {stats.insights?.length > 0 && <InsightsPanel insights={stats.insights} />}
 
-            <StudioKPIGrid>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <KPIBento
+                    label="TOTAL COLLECTION"
+                    value={fmt(stats.totalRevenue, "currency")}
+                    trend={{ value: "+12.4%", direction: "up" }}
+                    icon={<DollarSign className="w-5 h-5" />}
+                    iconBg="var(--v-orange-dim)"
+                />
+                <KPIBento
+                    label="PEOPLE IN VENUE"
+                    value={fmt(stats.totalCheckIns)}
+                    trend={{ value: "+8.2%", direction: "up" }}
+                    icon={<Users className="w-5 h-5" />}
+                    iconBg="var(--v-success-bg)"
+                />
+                <KPIBento
+                    label="AVG TURNOUT"
+                    value={fmt(stats.avgTurnout, "percent")}
+                    trend={{ value: "-2.1%", direction: "down" }}
+                    icon={<Activity className="w-5 h-5" />}
+                    iconBg="var(--v-warning-bg)"
+                />
+                <KPIBento
+                    label="NET EARNINGS"
+                    value={fmt(stats.totalNetPayable, "currency")}
+                    trend={{ value: "+15%", direction: "up" }}
+                    icon={<TrendingUp className="w-5 h-5" />}
+                    iconBg="var(--v-info-bg)"
+                />
+            </div>
 
-                <KPICard
-                    label="Total Collection"
-                    value={`₹${stats.totalRevenue?.toLocaleString()}`}
-                    trend="+12.4%"
-                    trendType="up"
-                    description="Total money captured for all productions."
-                />
-                <KPICard
-                    label="People In Venue"
-                    value={stats.totalCheckIns?.toLocaleString()}
-                    trend="+8.2%"
-                    trendType="up"
-                    description="Verified entries (people who stepped in)."
-                />
-                <KPICard
-                    label="% Turnout"
-                    value={`${stats.avgTurnout}%`}
-                    trend="-2.1%"
-                    trendType="down"
-                    description="Ratio of people who showed up vs those who RSVP'd."
-                />
-                <KPICard
-                    label="Net Earnings"
-                    value={`₹${stats.totalNetPayable?.toLocaleString()}`}
-                    trend="+15%"
-                    trendType="up"
-                    description="Actual money cleared for your account."
-                />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <BentoCard
+                    className="lg:col-span-2"
+                    header={<span className="v-label">REVENUE TIMELINE</span>}
+                >
+                    <VenueChart
+                        type="area"
+                        data={stats.revenueTimeline || []}
+                        config={{ dataKey: "revenue", xKey: "date", color: "var(--v-chart-1)", gradientId: "overview-rev" }}
+                        height={280}
+                        title="Revenue Timeline"
+                    />
+                </BentoCard>
 
-            </StudioKPIGrid>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <StudioCard title="Revenue Timeline" className="lg:col-span-2">
-                    <div className="h-[300px] w-full bg-surface-tertiary/50 rounded-3xl border border-dashed border-border-default flex items-center justify-center p-8">
-                        <div className="w-full flex items-end justify-between h-48 px-4 gap-2">
-                            {stats.revenueTimeline?.map((item: any, i: number) => (
-                                <div
-                                    key={i}
-                                    style={{ height: `${Math.min(100, (item.revenue / (stats.totalRevenue / stats.eventCount)) * 50)}%` }}
-                                    className="flex-1 bg-surface-secondary rounded-t-lg hover:bg-green-500 transition-all group relative"
-                                >
-                                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-surface-elevated shadow-xl border border-border-subtle px-3 py-1 rounded-lg text-[10px] font-black opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 text-text-primary">
-                                        ₹{item.revenue.toLocaleString()}
+                <BentoCard
+                    header={<span className="v-label">TOP EVENTS</span>}
+                    empty={!stats.topEvents?.length}
+                    emptyTitle="No events yet"
+                >
+                    <div className="space-y-1 pt-2">
+                        {stats.topEvents?.map((event: any, i: number) => (
+                            <div
+                                key={event.id}
+                                className="flex items-center justify-between py-3"
+                                style={{ borderBottom: i < stats.topEvents.length - 1 ? "1px solid var(--v-border)" : undefined }}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[11px] font-black w-5 text-center tabular-nums" style={{ color: "var(--v-text-muted)" }}>
+                                        {i + 1}
+                                    </span>
+                                    <div>
+                                        <p className="text-[13px] font-semibold truncate max-w-[140px]" style={{ color: "var(--v-text-primary)" }}>
+                                            {event.title}
+                                        </p>
+                                        <p className="text-[11px]" style={{ color: "var(--v-text-muted)" }}>
+                                            {event.issued} issued
+                                        </p>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
+                                <span className="text-[13px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                    {fmt(event.revenue, "currency")}
+                                </span>
+                            </div>
+                        ))}
                     </div>
-                </StudioCard>
+                </BentoCard>
+            </div>
+        </div>
+    );
+}
 
-                <div className="bg-surface-secondary rounded-[2.5rem] p-10 shadow-2xl shadow-slate-200 text-text-primary">
-                    <div className="flex items-center justify-between mb-8">
-                        <h3 className="text-xl font-black uppercase tracking-tight opacity-60">Top Events</h3>
-                        <PieChart className="h-6 w-6 text-text-primary/20" />
-                    </div>
-                    <div className="space-y-6">
-                        {stats.topEvents?.map((event: any, i: number) => (
-                            <div key={event.id} className="flex items-center justify-between p-2 hover:bg-surface-elevated/5 rounded-2xl transition-all group">
-                                <div className="flex items-center gap-4">
-                                    <div className="h-10 w-10 rounded-xl bg-surface-elevated/10 flex items-center justify-center font-black text-xs">
-                                        #{i + 1}
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-bold truncate max-w-[120px]">{event.title}</p>
-                                        <p className="text-[10px] font-bold text-text-primary/40 uppercase tracking-widest">{event.issued} Issued</p>
-                                    </div>
+function RevenueView({ stats }: { stats: any }) {
+    return (
+        <div className="space-y-6">
+            <AppleHeroStat
+                label="MONEY COLLECTED"
+                value={fmt(stats.totalRevenue, "currency")}
+                subtitle={`Net cleared: ${fmt(stats.totalNetPayable, "currency")}`}
+            />
+
+            <VenueStatStrip
+                stats={[
+                    { label: "GROSS REVENUE",  value: fmt(stats.totalRevenue, "currency") },
+                    { label: "PLATFORM FEE",   value: fmt((stats.totalRevenue || 0) - (stats.totalNetPayable || 0), "currency") },
+                    { label: "NET PAYABLE",    value: fmt(stats.totalNetPayable, "currency") },
+                ]}
+                columns={3}
+            />
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <BentoCard header={<span className="v-label">REVENUE BY EVENT</span>}>
+                    <VenueChart
+                        type="bar"
+                        data={stats.revenueByEvent || []}
+                        config={{ dataKey: "revenue", xKey: "title", color: "var(--v-chart-1)" }}
+                        height={260}
+                        title="Revenue by Event"
+                    />
+                </BentoCard>
+
+                <BentoCard
+                    header={<span className="v-label">RECENT PAYOUTS</span>}
+                    empty={!stats.recentPayouts?.length}
+                    emptyTitle="No payouts yet"
+                >
+                    <div className="space-y-3 pt-2">
+                        {(stats.recentPayouts || []).map((p: any, i: number) => (
+                            <div
+                                key={p.id || i}
+                                className="flex items-center justify-between px-4 py-3 rounded-2xl"
+                                style={{ background: "var(--v-elevated)" }}
+                            >
+                                <div>
+                                    <p className="text-[13px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
+                                        Payout #{p.id || `PY-${100 + i}`}
+                                    </p>
+                                    <p className="text-[11px] uppercase tracking-widest mt-0.5" style={{ color: "var(--v-text-muted)" }}>
+                                        {p.date || "—"}
+                                    </p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-sm font-black tracking-tight">₹{(event.revenue / 1000).toFixed(1)}K</p>
-                                    <ArrowUpRight className="h-3 w-3 text-accent-primary ml-auto group-hover:scale-125 transition-transform" />
+                                    <p className="text-[13px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                        {fmt(p.amount, "currency")}
+                                    </p>
+                                    <span
+                                        className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
+                                        style={{ background: "var(--v-success-bg)", color: "var(--v-success)" }}
+                                    >
+                                        {p.status || "Settled"}
+                                    </span>
                                 </div>
                             </div>
                         ))}
                     </div>
-                </div>
+                </BentoCard>
             </div>
         </div>
     );
 }
 
+function OpsView({ stats }: { stats: any }) {
+    return (
+        <div className="space-y-6">
+            {stats.insights?.length > 0 && <InsightsPanel insights={stats.insights} />}
+
+            <VenueStatStrip
+                stats={[
+                    {
+                        label: "PEAK ENTRY WINDOW",
+                        value: stats.peakEntryHour != null ? `${stats.peakEntryHour}:00` : "--",
+                        liveIndicator: true,
+                    },
+                    {
+                        label: "AVG ENTRY VELOCITY",
+                        value: stats.avgEntryVelocity != null ? `${stats.avgEntryVelocity.toFixed(1)}/min` : "--",
+                    },
+                    {
+                        label: "SCAN DENIALS",
+                        value: stats.deniedStats?.total ?? "--",
+                        trend: stats.deniedStats?.total > 10
+                            ? { value: "High", direction: "down" as const }
+                            : { value: "Low",  direction: "up"   as const },
+                    },
+                ]}
+                columns={3}
+            />
+
+            <BentoCard header={<span className="v-label">ENTRY VELOCITY CURVE</span>}>
+                <VenueChart
+                    type="line"
+                    data={(stats.entryCurve || []).map((c: any) => ({ ...c, label: `${c.hour}h` }))}
+                    config={{ dataKey: "count", xKey: "label", color: "var(--v-success)" }}
+                    height={280}
+                    title="Entry Velocity Curve"
+                />
+            </BentoCard>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <BentoCard
+                    header={<span className="v-label">SCAN OUTCOMES</span>}
+                    empty={!stats.deniedStats}
+                    emptyTitle="No scan data"
+                >
+                    <div className="space-y-3 pt-2">
+                        {[
+                            { label: "Successful Entries", value: stats.totalCheckIns ?? "--", color: "var(--v-success)",  bg: "var(--v-success-bg)" },
+                            { label: "Denied Entry",       value: stats.deniedStats?.total ?? "--", color: "var(--v-error)", bg: "var(--v-error-bg)" },
+                            { label: "Re-entries",         value: stats.reentries ?? "--",     color: "var(--v-info)",    bg: "var(--v-info-bg)"  },
+                        ].map((row) => (
+                            <div
+                                key={row.label}
+                                className="flex items-center justify-between px-4 py-3 rounded-2xl"
+                                style={{ background: row.bg }}
+                            >
+                                <span className="text-[12px] font-semibold" style={{ color: row.color }}>{row.label}</span>
+                                <span className="text-[18px] font-bold tabular-nums" style={{ color: row.color }}>{row.value}</span>
+                            </div>
+                        ))}
+                    </div>
+                </BentoCard>
+
+                <BentoCard header={<span className="v-label">PEAK HOUR DETAIL</span>}>
+                    <div className="space-y-0 pt-2">
+                        {[
+                            { label: "Peak Entry Hour",      value: stats.peakEntryHour != null ? `${stats.peakEntryHour}:00` : "--" },
+                            { label: "Entries in Peak Hour", value: fmt(stats.peakHourCount) },
+                            { label: "Avg Wait Estimate",    value: stats.avgEntryTime ?? "--" },
+                            { label: "Queue Clearance",      value: stats.queueClearance ?? "--" },
+                        ].map((row) => (
+                            <div
+                                key={row.label}
+                                className="flex items-center justify-between py-3"
+                                style={{ borderBottom: "1px solid var(--v-border)" }}
+                            >
+                                <span className="text-[12px] font-medium" style={{ color: "var(--v-text-secondary)" }}>{row.label}</span>
+                                <span className="text-[14px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>{row.value}</span>
+                            </div>
+                        ))}
+                    </div>
+                </BentoCard>
+            </div>
+        </div>
+    );
+}
 
 function AudienceView({ stats }: { stats: any }) {
+    const total = stats.totalCheckedIn || stats.totalCheckIns || 1;
     return (
-        <div className="space-y-10">
-            <StudioKPIGrid>
-                <KPICard
-                    label="Women Ratio"
-                    value={`${stats.genderRatio?.female || 0}%`}
-                    trend="+5%"
-                    trendType="up"
-                    description="Percentage of women in the crowd."
+        <div className="space-y-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <KPIBento
+                    label="WOMEN RATIO"
+                    value={fmt(stats.genderRatio?.female, "percent")}
+                    trend={{ value: "+5%", direction: "up" }}
+                    icon={<Users className="w-5 h-5" />}
+                    iconBg="var(--v-info-bg)"
                 />
-                <KPICard
-                    label="Repeat Guests"
-                    value={`${stats.metrics?.repeatRate?.toFixed(1) || 0}%`}
-                    trend="+2%"
-                    trendType="up"
-                    description="People who have visited more than once."
+                <KPIBento
+                    label="REPEAT GUESTS"
+                    value={fmt(stats.metrics?.repeatRate, "percent")}
+                    trend={{ value: "+2%", direction: "up" }}
+                    icon={<Activity className="w-5 h-5" />}
+                    iconBg="var(--v-success-bg)"
                 />
-                <KPICard
-                    label="Women's Loyalty"
-                    value={`${stats.metrics?.femaleRetention || 0}%`}
-                    trend="Stable"
-                    trendType="neutral"
-                    description="Likelihood of female guests returning next week."
+                <KPIBento
+                    label="WOMEN'S LOYALTY"
+                    value={fmt(stats.metrics?.femaleRetention, "percent")}
+                    trend={{ value: "Stable", direction: "neutral" }}
+                    icon={<TrendingUp className="w-5 h-5" />}
+                    iconBg="var(--v-warning-bg)"
                 />
-                <KPICard
-                    label="First-Timers"
-                    value={`${stats.metrics?.firstTimeRate?.toFixed(1) || 0}%`}
-                    trend="-3%"
-                    trendType="down"
-                    description="Percentage of new faces discovered this period."
+                <KPIBento
+                    label="FIRST-TIMERS"
+                    value={fmt(stats.metrics?.firstTimeRate, "percent")}
+                    trend={{ value: "-3%", direction: "down" }}
+                    icon={<Zap className="w-5 h-5" />}
+                    iconBg="var(--v-orange-dim)"
                 />
+            </div>
 
-            </StudioKPIGrid>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Age Bands */}
-                <StudioCard title="Age Breakdown">
-                    <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <BentoCard header={<span className="v-label">AGE BREAKDOWN</span>}>
+                    <div className="space-y-5 pt-2">
                         {Object.entries(stats.ageBands || {}).map(([band, count]: any) => {
-                            const percent = stats.totalCheckedIn > 0 ? (count / stats.totalCheckedIn) * 100 : 0;
+                            const pct = ((count / total) * 100).toFixed(1);
                             return (
                                 <div key={band}>
-                                    <div className="flex justify-between text-xs font-black uppercase tracking-widest mb-2">
-                                        <span className="text-text-tertiary">{band}</span>
-                                        <span className="text-text-primary">{count} guests ({percent.toFixed(1)}%)</span>
+                                    <div className="flex justify-between mb-2">
+                                        <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>{band}</span>
+                                        <span className="text-[11px] font-bold" style={{ color: "var(--v-text-secondary)" }}>{count} · {pct}%</span>
                                     </div>
-                                    <div className="h-3 w-full bg-surface-tertiary rounded-full overflow-hidden">
-                                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${percent}%` }} />
+                                    <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "var(--v-elevated)" }}>
+                                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--v-chart-2)" }} />
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
-                </StudioCard>
+                </BentoCard>
 
-                {/* Gender Ratio */}
-                <StudioCard title="Gender Ratio">
-                    <div className="flex items-center justify-center h-48 gap-8">
-                        {Object.entries(stats.genderRatio || {}).map(([gender, count]: any) => {
-                            const percent = stats.totalCheckedIn > 0 ? (count / stats.totalCheckedIn) * 100 : 0;
-                            if (percent === 0) return null;
+                <BentoCard header={<span className="v-label">GENDER SPLIT</span>}>
+                    <div className="flex items-center justify-around h-48 pt-4">
+                        {Object.entries(stats.genderRatio || {}).map(([gender, pct]: any) => {
+                            if (!pct) return null;
+                            const colors: Record<string, string> = {
+                                female: "var(--v-chart-2)",
+                                male:   "var(--v-chart-1)",
+                                other:  "var(--v-chart-3)",
+                            };
                             return (
-                                <div key={gender} className="text-center group">
-                                    <div className="text-3xl font-black text-text-primary mb-1">{percent.toFixed(0)}%</div>
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-text-tertiary group-hover:text-indigo-500 transition-colors">{gender}</div>
+                                <div key={gender} className="text-center">
+                                    <div
+                                        className="text-[56px] font-bold leading-none tracking-tight tabular-nums mb-2"
+                                        style={{ color: colors[gender] || "var(--v-text-primary)" }}
+                                    >
+                                        {typeof pct === "number" ? `${pct.toFixed(0)}%` : pct}
+                                    </div>
+                                    <p className="v-label">{gender}</p>
                                 </div>
                             );
                         })}
                     </div>
-                </StudioCard>
+                </BentoCard>
             </div>
+
+            {stats.loyaltyTiers && (
+                <BentoCard header={<span className="v-label">LOYALTY TIERS</span>}>
+                    <div className="space-y-4 pt-2">
+                        {(stats.loyaltyTiers as Array<{ label: string; count: number; pct: number }>).map((tier) => (
+                            <div key={tier.label}>
+                                <div className="flex justify-between mb-1.5">
+                                    <span className="text-[12px] font-semibold" style={{ color: "var(--v-text-secondary)" }}>{tier.label}</span>
+                                    <span className="text-[12px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>{tier.count}</span>
+                                </div>
+                                <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: "var(--v-elevated)" }}>
+                                    <div
+                                        className="h-full rounded-full"
+                                        style={{ width: `${tier.pct || 0}%`, background: "var(--v-orange)" }}
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </BentoCard>
+            )}
         </div>
     );
 }
 
-
 function ReachView({ stats }: { stats: any }) {
+    const FUNNEL_COLORS = [
+        "var(--v-chart-1)",
+        "var(--v-chart-2)",
+        "var(--v-chart-3)",
+        "var(--v-chart-4)",
+        "var(--v-chart-5)",
+    ];
     return (
-        <div className="space-y-10">
-            <StudioKPIGrid>
-                <KPICard
-                    label="Purchase Intent"
-                    value={stats.funnel?.[0]?.count?.toLocaleString() || 0}
-                    trend="+15%"
-                    trendType="up"
-                    description="Total people who clicked 'Book' or joined queue."
+        <div className="space-y-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <KPIBento
+                    label="PURCHASE INTENT"
+                    value={fmt(stats.funnel?.[0]?.count)}
+                    trend={{ value: "+15%", direction: "up" }}
+                    icon={<Target className="w-5 h-5" />}
+                    iconBg="var(--v-orange-dim)"
                 />
-                <KPICard
-                    label="Queue Checkout"
-                    value={stats.funnel?.[1]?.count?.toLocaleString() || 0}
-                    trend="+8%"
-                    trendType="up"
-                    description="People who successfully made it to the pay screen."
+                <KPIBento
+                    label="QUEUE CHECKOUT"
+                    value={fmt(stats.funnel?.[1]?.count)}
+                    trend={{ value: "+8%", direction: "up" }}
+                    icon={<Activity className="w-5 h-5" />}
+                    iconBg="var(--v-success-bg)"
                 />
-                <KPICard
-                    label="Demand Pressure"
-                    value={`${((stats.funnel?.[0]?.count || 0) / (stats.totalCapacity || 1000)).toFixed(1)}x`}
-                    trend="High"
-                    trendType="up"
-                    description="Interest vs your actual venue capacity."
+                <KPIBento
+                    label="DEMAND PRESSURE"
+                    value={`${(((stats.funnel?.[0]?.count || 0) / (stats.totalCapacity || 1000))).toFixed(1)}x`}
+                    trend={{ value: "High", direction: "up" }}
+                    icon={<Zap className="w-5 h-5" />}
+                    iconBg="var(--v-warning-bg)"
                 />
-                <KPICard
-                    label="% Booked"
-                    value={`${stats.conversionRate?.toFixed(1) || 0}%`}
-                    trend="+2%"
-                    trendType="up"
-                    description="Ratio of interest that turned into a real booking."
+                <KPIBento
+                    label="% BOOKED"
+                    value={fmt(stats.conversionRate, "percent")}
+                    trend={{ value: "+2%", direction: "up" }}
+                    icon={<TrendingUp className="w-5 h-5" />}
+                    iconBg="var(--v-info-bg)"
                 />
+            </div>
 
-            </StudioKPIGrid>
-
-            <StudioCard title="Conversion Funnel (Intent to Entry)">
-                <div className="relative max-w-2xl mx-auto space-y-4">
-                    {stats.funnel?.map((step: any, i: number) => {
-                        const maxWidth = 100 - (i * 15);
-                        return (
-                            <div key={step.stage} className="relative flex items-center justify-center h-20 group">
-                                <div
-                                    className="absolute h-full bg-surface-secondary rounded-2xl flex items-center justify-center text-text-primary transition-all hover:bg-emerald-600 shadow-lg"
-                                    style={{ width: `${maxWidth}%` }}
-                                >
-                                    <div className="text-center">
-                                        <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">{step.stage}</div>
-                                        <div className="text-lg font-black">{step.count.toLocaleString()}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </StudioCard>
-
-            <div className="bg-surface-secondary text-text-primary rounded-[2.5rem] p-10 shadow-sm">
-                <h3 className="text-xl font-black uppercase tracking-tight mb-8">Highest Demand Events</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {stats.topEventsByCTR?.map((event: any, i: number) => (
-                        <div key={event.id} className="bg-surface-elevated/5 border border-border-subtle p-6 rounded-3xl hover:bg-surface-elevated/10 transition-all">
-                            <h4 className="font-bold mb-2 truncate">{event.title}</h4>
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-3xl font-black text-accent-primary">{event.ctr.toFixed(1)}%</span>
-                                <span className="text-[10px] font-bold text-text-primary/40 uppercase tracking-widest">Click-to-RSVP</span>
+            <BentoCard header={<span className="v-label">CONVERSION FUNNEL</span>}>
+                <div className="flex flex-col items-center gap-2 py-4 max-w-lg mx-auto">
+                    {stats.funnel?.map((step: any, i: number) => (
+                        <div key={step.stage} className="w-full flex justify-center">
+                            <div
+                                className="flex items-center justify-between px-6 py-4 rounded-2xl"
+                                style={{
+                                    width: `${100 - i * 16}%`,
+                                    background: "var(--v-elevated)",
+                                    borderLeft: `3px solid ${FUNNEL_COLORS[i % FUNNEL_COLORS.length]}`,
+                                }}
+                            >
+                                <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
+                                    {step.stage}
+                                </span>
+                                <span className="text-[20px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                    {step.count?.toLocaleString() || "--"}
+                                </span>
                             </div>
                         </div>
                     ))}
                 </div>
+            </BentoCard>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <BentoCard header={<span className="v-label">TRAFFIC SOURCES</span>}>
+                    <div className="space-y-4 pt-2">
+                        {(stats.sources || []).map((s: any) => (
+                            <div key={s.name}>
+                                <div className="flex justify-between mb-1.5">
+                                    <span className="text-[12px] font-semibold" style={{ color: "var(--v-text-secondary)" }}>{s.name}</span>
+                                    <span className="text-[12px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>{(s.pct ?? 0).toFixed(1)}%</span>
+                                </div>
+                                <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "var(--v-elevated)" }}>
+                                    <div className="h-full rounded-full" style={{ width: `${s.pct || 0}%`, background: "var(--v-chart-1)" }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </BentoCard>
+
+                <BentoCard header={<span className="v-label">INTEREST OVER TIME</span>}>
+                    <VenueChart
+                        type="area"
+                        data={stats.interestTimeline || []}
+                        config={{ dataKey: "count", xKey: "date", color: "var(--v-chart-2)", gradientId: "reach-interest" }}
+                        height={200}
+                        title="Interest Over Time"
+                    />
+                </BentoCard>
             </div>
         </div>
     );
 }
 
-
-function OpsView({ stats }: { stats: any }) {
+function EngagementView({ stats }: { stats: any }) {
     return (
-        <div className="space-y-12">
-            {stats.insights?.length > 0 && <InsightsPanel insights={stats.insights} />}
+        <div className="space-y-6">
+            <AppleHeroStat
+                label="TURNOUT RATE"
+                value={fmt(stats.turnoutRate ?? stats.avgTurnout, "percent")}
+                trend={{ value: "vs last period", direction: "neutral" }}
+                subtitle={`${fmt(stats.totalCheckIns)} guests arrived · ${fmt(stats.totalTicketsSold)} issued`}
+            />
 
-            <StudioKPIGrid>
-                <KPICard
-                    label="Peak Entry Window"
-                    value={`${stats.peakEntryHour}:00`}
-                    description="The hour with the highest volume of check-ins."
+            <BentoCard header={<span className="v-label">ARRIVAL TIMING</span>}>
+                <VenueChart
+                    type="area"
+                    data={stats.arrivalTimeline || []}
+                    config={{ dataKey: "count", xKey: "time", color: "var(--v-chart-1)", gradientId: "engagement-arrival" }}
+                    height={280}
+                    title="Arrival Timing Distribution"
                 />
-                <KPICard
-                    label="Avg Entry Velocity"
-                    value={`${stats.avgEntryVelocity?.toFixed(1) || 0} / min`}
-                    description="Check-ins per minute during peak operations."
-                />
-                <KPICard
-                    label="Scan Denials"
-                    value={stats.deniedStats?.total || 0}
-                    trendType={stats.deniedStats?.total > 10 ? "down" : "up"}
-                    description="Total entry attempts that were rejected."
-                />
-            </StudioKPIGrid>
+            </BentoCard>
 
-
-            <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm">
-                <h3 className="text-xl font-black text-text-primary uppercase tracking-tight mb-10">Entry Velocity Curve</h3>
-                <div className="h-[300px] w-full flex items-end justify-between px-4 group">
-                    {Array.from({ length: 24 }).map((_, h) => {
-                        const count = stats.entryCurve?.find((c: any) => c.hour === h)?.count || 0;
-                        const maxCount = Math.max(...stats.entryCurve?.map((c: any) => c.count) || [1]);
-                        return (
-                            <div key={h} className="flex-1 flex flex-col items-center gap-2">
-                                <div
-                                    style={{ height: `${(count / maxCount) * 100}%` }}
-                                    className={`w-full rounded-t-mg transition-all ${count > 0 ? "bg-rose-500 opacity-80 hover:opacity-100" : "bg-surface-tertiary"}`}
-                                />
-                                <span className="text-[8px] font-black text-text-placeholder">{h}h</span>
-                            </div>
-                        );
-                    })}
-                </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <KPIBento
+                    label="NO-SHOW RATE"
+                    value={fmt(stats.noShowRate, "percent")}
+                    trend={{ value: "-2%", direction: "down" }}
+                    subtext="Issued entitlements that never checked in"
+                    icon={<Activity className="w-5 h-5" />}
+                    iconBg="var(--v-error-bg)"
+                />
+                <KPIBento
+                    label="SCAN EFFICIENCY"
+                    value={fmt(stats.scanEfficiency ?? 98, "percent")}
+                    trend={{ value: "Stable", direction: "neutral" }}
+                    subtext="Successful scans vs total attempts"
+                    icon={<ShieldAlert className="w-5 h-5" />}
+                    iconBg="var(--v-success-bg)"
+                />
             </div>
         </div>
     );
@@ -449,195 +646,101 @@ function OpsView({ stats }: { stats: any }) {
 
 function AttributionView({ stats }: { stats: any }) {
     return (
-        <div className="space-y-10">
-            <StudioKPIGrid>
-                <KPICard
-                    label="Host Impact"
+        <div className="space-y-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <KPIBento
+                    label="HOST IMPACT"
                     value="64%"
-                    trend="+4%"
-                    trendType="up"
-                    description="Entries attributed to external hosts vs club internal."
+                    trend={{ value: "+4%", direction: "up" }}
+                    icon={<Handshake className="w-5 h-5" />}
+                    iconBg="var(--v-info-bg)"
                 />
-                <KPICard
-                    label="Promoter ROI"
+                <KPIBento
+                    label="PROMOTER ROI"
                     value="₹14.2"
-                    trend="Optimal"
-                    trendType="neutral"
-                    description="Marketing spend per verified entry."
+                    trend={{ value: "Optimal", direction: "neutral" }}
+                    icon={<Target className="w-5 h-5" />}
+                    iconBg="var(--v-success-bg)"
                 />
-                <KPICard
-                    label="Verified Entry Rate"
+                <KPIBento
+                    label="VERIFIED ENTRY RATE"
                     value="82%"
-                    trend="+2%"
-                    trendType="up"
-                    description="Attributed claims that resulted in a check-in."
+                    trend={{ value: "+2%", direction: "up" }}
+                    icon={<Activity className="w-5 h-5" />}
+                    iconBg="var(--v-warning-bg)"
                 />
-                <KPICard
-                    label="Top Host Revenue"
+                <KPIBento
+                    label="TOP HOST REVENUE"
                     value="₹4.2L"
-                    trend="+12%"
-                    trendType="up"
-                    description="Revenue generated by the best performing partner."
+                    trend={{ value: "+12%", direction: "up" }}
+                    icon={<DollarSign className="w-5 h-5" />}
+                    iconBg="var(--v-orange-dim)"
                 />
-            </StudioKPIGrid>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <StudioCard title="Host Impact Leaderboard">
-                    <div className="space-y-6">
-                        {stats.topHosts?.map((host: any, i: number) => (
-                            <div key={host.name} className="flex items-center justify-between group">
-                                <div className="flex items-center gap-4">
-                                    <span className="text-xs font-black text-text-placeholder italic">0{i + 1}</span>
-                                    <div>
-                                        <p className="font-bold text-text-primary">{host.name}</p>
-                                        <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">{host.events} Events</p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-black text-text-primary">₹{(host.revenue / 1000).toFixed(1)}K</p>
-                                    <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">{host.tickets} Sold</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </StudioCard>
-
-                <StudioCard title="Promoter ROI Index">
-                    <div className="space-y-6">
-                        {stats.topPromoters?.map((promoter: any, i: number) => (
-                            <div key={promoter.name} className="flex items-center justify-between group">
-                                <div className="flex items-center gap-4">
-                                    <span className="text-xs font-black text-text-placeholder italic">0{i + 1}</span>
-                                    <div>
-                                        <p className="font-bold text-text-primary">{promoter.name}</p>
-                                        <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">{promoter.tickets} Tickets</p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-black text-text-primary">₹{(promoter.revenue / 1000).toFixed(1)}K</p>
-                                    <ArrowUpRight className="h-3 w-3 text-text-placeholder ml-auto group-hover:text-emerald-500 transition-colors" />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </StudioCard>
             </div>
-        </div>
-    );
-}
 
-
-function StrategyView({ stats }: { stats: any }) {
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {stats.recommendations?.map((rec: any, i: number) => (
-                <div key={i} className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm hover:border-emerald-200 transition-all group">
-                    <div className="h-14 w-14 rounded-2xl bg-surface-tertiary flex items-center justify-center mb-8 border border-border-subtle group-hover:bg-emerald-50 transition-colors">
-                        {rec.impact === "High" ? <Zap className="h-6 w-6 text-amber-500" /> : <Target className="h-6 w-6 text-emerald-500" />}
-                    </div>
-                    <div className="flex items-center gap-3 mb-3">
-                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded ${rec.impact === "High" ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                            {rec.impact} Impact
-                        </span>
-                    </div>
-                    <h3 className="text-xl font-black text-text-primary uppercase tracking-tight mb-3">{rec.title}</h3>
-                    <p className="text-text-tertiary text-sm font-medium leading-relaxed">{rec.desc}</p>
-                    <button className="mt-10 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-text-primary group-hover:text-emerald-600 transition-colors">
-                        Apply Strategy <ChevronRight className="h-4 w-4" />
-                    </button>
-                </div>
-            ))}
-        </div>
-    );
-}
-
-function EngagementView({ stats }: { stats: any }) {
-    return (
-        <div className="space-y-10">
-            <StudioKPIGrid>
-                <KPICard
-                    label="Arrival Momentum"
-                    value="Fast"
-                    trend="High"
-                    trendType="up"
-                    description="Rate of entry during the peak individual hour."
-                />
-                <KPICard
-                    label="Scan Efficiency"
-                    value="98%"
-                    trend="Stable"
-                    trendType="neutral"
-                    description="Successful scans vs total scan attempts."
-                />
-                <KPICard
-                    label="No-Show Rate"
-                    value={`${stats.noShowRate || 0}%`}
-                    trend="-2%"
-                    trendType="down"
-                    description="Issued entitlements that never checked in."
-                />
-                <KPICard
-                    label="Re-entry Index"
-                    value="Low"
-                    trend="Safe"
-                    trendType="neutral"
-                    description="Frequency of guest re-entries if allowed."
-                />
-            </StudioKPIGrid>
-            <StudioCard title="Arrival Distribution">
-                <ChartPlaceholder label="Arrival Time Heatmap (Coming Soon)" />
-            </StudioCard>
-        </div>
-    );
-}
-
-function RevenueView({ stats }: { stats: any }) {
-    return (
-        <div className="space-y-10">
-            <StudioKPIGrid>
-                <KPICard
-                    label="Money Collected"
-                    value={`₹${stats.totalRevenue?.toLocaleString() || 0}`}
-                    description="Gross funds currently held in the payment gateway."
-                />
-                <KPICard
-                    label="Upcoming Payout"
-                    value={`₹${(stats.totalRevenue * 0.4).toLocaleString()}`}
-                    description="Funds in holding for events not yet settled."
-                />
-                <KPICard
-                    label="Net Cleared"
-                    value={`₹${stats.totalNetPayable?.toLocaleString() || 0}`}
-                    description="Money cleared after all platform fees and refunds."
-                />
-                <KPICard
-                    label="Paid to Bank"
-                    value={`₹${(stats.totalNetPayable * 0.2).toLocaleString()}`}
-                    description="Total funds successfully transferred out."
-                />
-
-            </StudioKPIGrid>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <StudioCard title="Money State Transitions">
-                    <ChartPlaceholder label="Waterfall: Gross -> Fees -> Refunds -> Net" />
-                </StudioCard>
-                <StudioCard title="Recent Payouts">
-                    <div className="space-y-4">
-                        {[1, 2, 3].map(i => (
-                            <div key={i} className="flex items-center justify-between p-4 bg-surface-tertiary rounded-2xl border border-border-subtle">
-                                <div>
-                                    <p className="text-sm font-bold text-text-primary">Payout #PY-2024-{100 + i}</p>
-                                    <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Jan {i + 5}, 2025</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <BentoCard
+                    header={<span className="v-label">HOST LEADERBOARD</span>}
+                    empty={!stats.topHosts?.length}
+                    emptyTitle="No host data yet"
+                >
+                    <div className="space-y-1 pt-2">
+                        {stats.topHosts?.map((host: any, i: number) => (
+                            <div
+                                key={host.name}
+                                className="flex items-center justify-between px-3 py-3 rounded-xl"
+                                style={{ background: i === 0 ? "var(--v-orange-dim)" : "transparent" }}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <span
+                                        className="text-[12px] font-black w-5 tabular-nums"
+                                        style={{ color: i === 0 ? "var(--v-orange)" : "var(--v-text-muted)" }}
+                                    >
+                                        {i + 1}
+                                    </span>
+                                    <div>
+                                        <p className="text-[13px] font-semibold" style={{ color: "var(--v-text-primary)" }}>{host.name}</p>
+                                        <p className="text-[11px] uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>{host.events} events</p>
+                                    </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-sm font-black text-text-primary">₹24,500</p>
-                                    <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-emerald-100 text-emerald-600 rounded">Success</span>
+                                    <p className="text-[13px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                        {fmt(host.revenue, "currency")}
+                                    </p>
+                                    <p className="text-[11px]" style={{ color: "var(--v-success)" }}>{host.tickets} sold</p>
                                 </div>
                             </div>
                         ))}
                     </div>
-                </StudioCard>
+                </BentoCard>
+
+                <BentoCard
+                    header={<span className="v-label">PROMOTER ROI INDEX</span>}
+                    empty={!stats.topPromoters?.length}
+                    emptyTitle="No promoter data yet"
+                >
+                    <div className="space-y-1 pt-2">
+                        {stats.topPromoters?.map((promoter: any, i: number) => (
+                            <div
+                                key={promoter.name}
+                                className="flex items-center justify-between px-3 py-3 rounded-xl"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[12px] font-black w-5 tabular-nums" style={{ color: "var(--v-text-muted)" }}>
+                                        {i + 1}
+                                    </span>
+                                    <div>
+                                        <p className="text-[13px] font-semibold" style={{ color: "var(--v-text-primary)" }}>{promoter.name}</p>
+                                        <p className="text-[11px]" style={{ color: "var(--v-chart-2)" }}>{promoter.tickets} tickets</p>
+                                    </div>
+                                </div>
+                                <p className="text-[13px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                    {fmt(promoter.revenue, "currency")}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </BentoCard>
             </div>
         </div>
     );
@@ -645,37 +748,101 @@ function RevenueView({ stats }: { stats: any }) {
 
 function TimelineView({ stats }: { stats: any }) {
     return (
-        <div className="space-y-10">
+        <div className="space-y-6">
             <EventTimeline
                 data={stats.timeline}
                 events={[
-                    { percent: 30, type: 'surge', label: 'Surge Triggered', time: '22:45' },
-                    { percent: 65, type: 'incident', label: 'Gate Backup', time: '00:15' }
+                    { percent: 30, type: "surge",    label: "Surge Triggered", time: "22:45" },
+                    { percent: 65, type: "incident", label: "Gate Backup",     time: "00:15" },
                 ]}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <StudioCard title="Timeline Narrative">
-                    <p className="text-text-tertiary text-sm leading-relaxed font-medium">
-                        The event maintained high demand pressure for 4 hours starting at 9 PM.
-                        Most conversions happened within 15 minutes of queue joins, indicating healthy inventory availability.
+            <BentoCard header={<span className="v-label">NIGHT TIMELINE</span>}>
+                <VenueChart
+                    type="area"
+                    data={stats.minuteByMinute || stats.timeline || []}
+                    config={{ dataKey: "count", xKey: "time", color: "var(--v-chart-3)", gradientId: "timeline-night" }}
+                    height={280}
+                    title="Night Timeline — Entry Flow"
+                />
+            </BentoCard>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <BentoCard header={<span className="v-label">TIMELINE NARRATIVE</span>}>
+                    <p className="text-[14px] leading-relaxed pt-2" style={{ color: "var(--v-text-secondary)" }}>
+                        {stats.narrative ||
+                            "The event maintained high demand pressure for 4 hours starting at 9 PM. Most conversions happened within 15 minutes of queue joins, indicating healthy inventory availability."}
                     </p>
-                </StudioCard>
-                <StudioCard title="Peak Intervals">
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center text-sm font-bold">
-                            <span className="text-text-tertiary">Peak Entry</span>
-                            <span className="text-text-primary">{stats.summary?.peakEntriesAt || '--'}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm font-bold">
-                            <span className="text-text-tertiary">Peak Demand</span>
-                            <span className="text-text-primary">{stats.summary?.peakDemandAt || '--'}</span>
-                        </div>
+                </BentoCard>
+
+                <BentoCard header={<span className="v-label">PEAK INTERVALS</span>}>
+                    <div className="space-y-0 pt-2">
+                        {[
+                            { label: "Peak Entry",   value: stats.summary?.peakEntriesAt },
+                            { label: "Peak Demand",  value: stats.summary?.peakDemandAt },
+                            { label: "Quietest Hour",value: stats.summary?.quietestHour },
+                            { label: "Last Entry",   value: stats.summary?.lastEntryAt },
+                        ].map((row) => (
+                            <div
+                                key={row.label}
+                                className="flex items-center justify-between py-3"
+                                style={{ borderBottom: "1px solid var(--v-border)" }}
+                            >
+                                <span className="text-[12px] font-medium" style={{ color: "var(--v-text-secondary)" }}>{row.label}</span>
+                                <span className="text-[14px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                    {row.value || "--"}
+                                </span>
+                            </div>
+                        ))}
                     </div>
-                </StudioCard>
+                </BentoCard>
             </div>
         </div>
     );
 }
 
+function StrategyView({ stats }: { stats: any }) {
+    return (
+        <div className="space-y-6">
+            {stats.insights?.length > 0 && <InsightsPanel insights={stats.insights} />}
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {stats.recommendations?.map((rec: any, i: number) => (
+                    <BentoCard key={i} variant={rec.impact === "High" ? "accent" : "default"}>
+                        <div
+                            className="w-12 h-12 rounded-xl flex items-center justify-center mb-6"
+                            style={{ background: rec.impact === "High" ? "var(--v-warning-bg)" : "var(--v-elevated)" }}
+                        >
+                            {rec.impact === "High"
+                                ? <Zap    className="w-5 h-5" style={{ color: "var(--v-warning)" }} />
+                                : <Target className="w-5 h-5" style={{ color: "var(--v-success)" }} />
+                            }
+                        </div>
+                        <span
+                            className="inline-block text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3"
+                            style={{
+                                background: rec.impact === "High" ? "var(--v-warning-bg)" : "var(--v-success-bg)",
+                                color:      rec.impact === "High" ? "var(--v-warning)"    : "var(--v-success)",
+                            }}
+                        >
+                            {rec.impact} Impact
+                        </span>
+                        <h3 className="text-[16px] font-bold mb-2" style={{ color: "var(--v-text-primary)" }}>
+                            {rec.title}
+                        </h3>
+                        <p className="text-[13px] leading-relaxed" style={{ color: "var(--v-text-secondary)" }}>
+                            {rec.desc}
+                        </p>
+                        <button
+                            className="mt-6 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest"
+                            style={{ color: "var(--v-orange)" }}
+                        >
+                            Apply Strategy
+                            <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                    </BentoCard>
+                ))}
+            </div>
+        </div>
+    );
+}

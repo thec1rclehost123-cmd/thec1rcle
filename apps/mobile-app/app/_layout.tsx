@@ -8,14 +8,18 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { View, AppState, AppStateStatus } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { initAuthListener, useAuthStore } from "@/store/authStore";
+import { useCartStore } from "@/store/cartStore";
 import { subscribeToDeepLinks, parseDeepLink } from "@/lib/deeplinks";
 import {
     addNotificationReceivedListener,
     addNotificationResponseListener,
+    refreshPushToken,
 } from "@/lib/notifications";
+import { apiFetch } from "@/lib/api";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { hasCompletedOnboarding } from "@/app/onboarding";
+import { hasCompletedProfileSetup } from "@/app/profile-setup";
 import { colors } from "@/lib/design/theme";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 
@@ -33,6 +37,8 @@ function useProtectedRoute(user: unknown) {
     const navigationState = useRootNavigationState();
     const [onboardingChecked, setOnboardingChecked] = useState(false);
     const [needsOnboarding, setNeedsOnboarding] = useState(false);
+    const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
+    const [profileSetupChecked, setProfileSetupChecked] = useState(false);
 
     // Check onboarding status once on mount
     useEffect(() => {
@@ -42,6 +48,18 @@ function useProtectedRoute(user: unknown) {
         });
     }, []);
 
+    // Check profile setup when user logs in
+    useEffect(() => {
+        if (!user) {
+            setProfileSetupChecked(false);
+            return;
+        }
+        hasCompletedProfileSetup().then((completed) => {
+            setNeedsProfileSetup(!completed);
+            setProfileSetupChecked(true);
+        });
+    }, [user]);
+
     useEffect(() => {
         // Wait for navigation + onboarding check to be ready
         if (!navigationState?.key || !onboardingChecked) return;
@@ -49,11 +67,12 @@ function useProtectedRoute(user: unknown) {
         const inAuthGroup = segments[0] === "(auth)";
         const inOnboarding = segments[0] === "onboarding";
         const inScanner = segments[0] === "scanner";
+        const inProfileSetup = segments[0] === "profile-setup";
 
         // Scanner routes are public — no auth needed (security staff)
         if (inScanner) return;
 
-        // First-time user — show onboarding
+        // First-time user — show onboarding before auth
         if (needsOnboarding && !inOnboarding && !user) {
             router.replace("/onboarding");
             return;
@@ -62,9 +81,17 @@ function useProtectedRoute(user: unknown) {
         if (!user && !inAuthGroup && !inOnboarding) {
             router.replace("/(auth)/login");
         } else if (user && (inAuthGroup || inOnboarding)) {
+            // Just authenticated — check profile setup
+            if (profileSetupChecked && needsProfileSetup) {
+                router.replace("/profile-setup");
+            } else if (profileSetupChecked) {
+                router.replace("/(tabs)/explore");
+            }
+        } else if (user && inProfileSetup && profileSetupChecked && !needsProfileSetup) {
+            // Profile setup already done — skip to tabs
             router.replace("/(tabs)/explore");
         }
-    }, [user, segments, navigationState?.key, onboardingChecked, needsOnboarding]);
+    }, [user, segments, navigationState?.key, onboardingChecked, needsOnboarding, needsProfileSetup, profileSetupChecked]);
 }
 
 /**
@@ -84,21 +111,37 @@ export default function RootLayout() {
         return unsubscribe;
     }, []);
 
+    // Refresh push token whenever the authenticated user changes
+    useEffect(() => {
+        if (user?.uid) {
+            refreshPushToken(user.uid).catch(() => {});
+        }
+    }, [user?.uid]);
+
     // Handle deep links
     useEffect(() => {
         const unsubscribe = subscribeToDeepLinks((url) => {
             console.log("[DeepLink] Received:", url);
             const { type, params } = parseDeepLink(url);
 
+            // Regex for UUID validation (v4)
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            // Regex for alphanumeric transfer codes (e.g. 6-12 chars)
+            const codeRegex = /^[A-Z0-9]{6,12}$/i;
+
             switch (type) {
                 case "event":
-                    if (params.id) {
+                    if (params.id && uuidRegex.test(params.id)) {
                         router.push({ pathname: "/event/[id]", params: { id: params.id } });
+                    } else {
+                        console.warn("[DeepLink] Invalid event ID:", params.id);
                     }
                     break;
                 case "transfer":
-                    if (params.code) {
-                        router.push({ pathname: "/transfer/receive", params: { code: params.code } });
+                    if (params.code && codeRegex.test(params.code)) {
+                        router.push({ pathname: "/transfer", params: { code: params.code } });
+                    } else {
+                        console.warn("[DeepLink] Invalid transfer code:", params.code);
                     }
                     break;
                 default:
@@ -136,22 +179,23 @@ export default function RootLayout() {
         };
     }, []);
 
-    // Track app state for background/foreground
+    // Track app state for background/foreground; refresh push token on resume
     useEffect(() => {
         const handleAppStateChange = (nextAppState: AppStateStatus) => {
             if (
                 appState.current.match(/inactive|background/) &&
                 nextAppState === "active"
             ) {
-                console.log("[App] Came to foreground");
-                // Could trigger data refresh here
+                if (user?.uid) {
+                    refreshPushToken(user.uid).catch(() => {});
+                }
             }
             appState.current = nextAppState;
         };
 
         const subscription = AppState.addEventListener("change", handleAppStateChange);
         return () => subscription.remove();
-    }, []);
+    }, [user?.uid]);
 
     // Hide splash when ready
     const onLayoutRootView = useCallback(async () => {
@@ -167,6 +211,37 @@ export default function RootLayout() {
     if (!fontsLoaded || !initialized) {
         return null;
     }
+
+    // ─── ORDER RECOVERY ───
+    // If the app was killed mid-payment, check for a pending order on cold start.
+    useEffect(() => {
+        if (!initialized || !user) return;
+
+        const pendingOrderId = useCartStore.getState().pendingPaymentOrderId;
+        if (!pendingOrderId) return;
+
+        apiFetch(`/api/orders/${pendingOrderId}`)
+            .then((order: any) => {
+                if (order?.status === "confirmed" || order?.status === "checked_in") {
+                    useCartStore.getState().setPendingPaymentOrderId(null);
+                    useCartStore.getState().clearCart();
+                    router.replace({
+                        pathname: "/checkout/success",
+                        params: { orderId: pendingOrderId, recovered: "true" },
+                    });
+                } else if (
+                    order?.status === "cancelled" ||
+                    order?.status === "refunded" ||
+                    order?.status === "payment_failed"
+                ) {
+                    useCartStore.getState().setPendingPaymentOrderId(null);
+                }
+                // If still payment_pending — leave the pendingOrderId in place; user can retry
+            })
+            .catch(() => {
+                // Network error during recovery check — leave pending order, retry next session
+            });
+    }, [initialized, user]);
 
     return (
         <QueryProvider>
@@ -201,6 +276,15 @@ export default function RootLayout() {
                                     options={{
                                         headerShown: false,
                                         animation: "fade",
+                                    }}
+                                />
+
+                                {/* Profile Setup (first sign-in) */}
+                                <Stack.Screen
+                                    name="profile-setup"
+                                    options={{
+                                        headerShown: false,
+                                        animation: "slide_from_bottom",
                                     }}
                                 />
 

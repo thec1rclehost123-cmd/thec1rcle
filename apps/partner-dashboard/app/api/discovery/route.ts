@@ -44,14 +44,19 @@ export async function GET(req: NextRequest) {
                     listConnections(partnerId, role as string, null, token)
                 ]);
 
+                const partnersArr = (partners || []) as any[];
+                const connectionsArr = (existingConnections || []) as any[];
+
                 // Build a status lookup map keyed by the other party's ID
                 const statusMap = new Map<string, { status: string; id: string }>();
-                for (const conn of existingConnections) {
-                    statusMap.set(conn.otherId, { status: conn.status, id: conn.id });
+                for (const conn of connectionsArr) {
+                    if (conn && conn.otherId) {
+                        statusMap.set(conn.otherId, { status: conn.status, id: conn.id });
+                    }
                 }
 
-                const partnersWithStatus = partners
-                    .filter((p: any) => p.id !== partnerId)
+                const partnersWithStatus = partnersArr
+                    .filter((p: any) => p && p.id !== partnerId)
                     .map((partner: any) => {
                         const existing = statusMap.get(partner.id);
                         return {

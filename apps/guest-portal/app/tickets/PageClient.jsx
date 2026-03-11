@@ -95,31 +95,21 @@ const IdentityQR = ({ entitlementId, slotTicketId }) => {
     const qrValue = entitlementId || slotTicketId;
 
     if (!qrValue) return (
-        <div className="flex flex-col items-center justify-center gap-4">
-            <div className="animate-pulse w-[180px] h-[180px] bg-black/5 rounded-2xl" />
+        <div className="flex flex-col items-center justify-center gap-4 w-full">
+            <div className="animate-pulse w-full max-w-[200px] aspect-square bg-black/5 rounded-2xl" />
             <p className="text-[8px] font-black text-black/20 uppercase tracking-widest">Generating Identity Key...</p>
         </div>
     );
 
     return (
-        <div className="flex flex-col items-center gap-4">
-            <div className="relative p-2 bg-white rounded-2xl overflow-hidden shadow-inner">
-                <QRCodeSVG
-                    value={qrValue}
-                    size={200}
-                    level="H"
-                    includeMargin={false}
-                />
-            </div>
-            <div className="flex flex-col items-center gap-1">
-                <p className="text-[8px] font-black text-black/40 dark:text-orange uppercase tracking-[0.2em] flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange" />
-                    Verified Identity Pass
-                </p>
-                <div className="h-0.5 w-12 bg-black/5 rounded-full overflow-hidden">
-                    <div className="h-full bg-orange w-full" />
-                </div>
-            </div>
+        <div className="flex flex-col items-center w-full h-full p-6 md:p-8">
+            <QRCodeSVG
+                value={qrValue}
+                size={220}
+                style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                level="H"
+                includeMargin={false}
+            />
         </div>
     );
 };
@@ -892,15 +882,17 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
     return (
         <div className="relative group">
             {/* Multi-layered Atmospheric Glow */}
-            <div className="absolute inset-0 z-0 pointer-events-none">
+            <div className="absolute inset-0 z-0 pointer-events-none overflow-visible">
                 <div
-                    className="absolute inset-0 scale-75 opacity-20 blur-[100px] transition-all duration-1000 group-hover:scale-110 group-hover:opacity-40"
-                    style={{ backgroundColor: color }}
+                    className="absolute inset-[-40px] opacity-40 blur-[80px] transition-all duration-1000 group-hover:opacity-60 group-hover:scale-110"
+                    style={{
+                        background: `radial-gradient(circle at center, rgba(${rgb}, 0.5) 0%, rgba(${rgb}, 0.2) 40%, transparent 70%)`
+                    }}
                 />
                 <div
-                    className="absolute inset-0 scale-95 opacity-10 blur-[60px] transition-all duration-700 group-hover:opacity-20"
+                    className="absolute inset-[-20px] opacity-20 blur-[40px] transition-all duration-700 group-hover:opacity-40"
                     style={{
-                        background: `radial-gradient(circle at center, ${color} 0%, transparent 70%)`
+                        background: `radial-gradient(circle at center, rgba(${rgb}, 0.8) 0%, transparent 60%)`
                     }}
                 />
             </div>
@@ -915,7 +907,7 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
                         ? "border-yellow-500/40 dark:border-yellow-400/30 bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_0_30px_rgba(234,179,8,0.12),0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-[0_0_50px_rgba(234,179,8,0.2),0_20px_50px_rgba(0,0,0,0.08)]"
                         : isCrewTier
                             ? "border-iris/40 dark:border-iris/30 bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_0_30px_rgba(93,95,239,0.12),0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-[0_0_50px_rgba(93,95,239,0.2),0_20px_50px_rgba(0,0,0,0.08)]"
-                            : "border-black/[0.12] dark:border-white/[0.08] bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_4px_20px_rgb(0,0,0,0.02)] dark:shadow-none hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] dark:hover:shadow-none"
+                            : "border-black/[0.12] dark:border-white/[0.08] bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.02)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_20px_60px_-10px_rgba(0,0,0,0.6)]"
                     }`}
             >
                 <div className="flex w-full p-5 gap-6 relative flex-1">
@@ -1072,6 +1064,7 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
 };
 
 const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
+    const { profile } = useAuth();
     if (!ticket) return null;
 
     const tickets = ticket.tickets || [ticket];
@@ -1169,19 +1162,7 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
                                 exit={{ x: -50, opacity: 0 }}
                                 className="w-full flex flex-col items-center"
                             >
-                                <div className="relative w-full aspect-square max-w-[280px] md:max-w-[240px] flex flex-col justify-center items-center bg-white rounded-[40px] p-8 md:p-6 shadow-2xl border border-white/40">
-                                    {/* Status Pill */}
-                                    <div className="absolute top-6">
-                                        {currentTicket.isTransferPending ? (
-                                            <span className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[8px] font-black uppercase tracking-widest text-amber-600">Transfer Pending</span>
-                                        ) : currentTicket.isClaimedByOther ? (
-                                            <span className="px-3 py-1 rounded-full bg-iris/10 border border-iris/20 text-[8px] font-black uppercase tracking-widest text-iris">Assigned to Guest</span>
-                                        ) : currentTicket.isClaimed ? (
-                                            <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[8px] font-black uppercase tracking-widest text-emerald-600">Assigned to You</span>
-                                        ) : (
-                                            <span className="px-3 py-1 rounded-full bg-black/5 border border-black/10 text-[8px] font-black uppercase tracking-widest text-black/40">Unclaimed</span>
-                                        )}
-                                    </div>
+                                <div className="relative w-full aspect-square max-w-[240px] flex flex-col justify-center items-center bg-white rounded-[32px] shadow-2xl border border-white/40 overflow-hidden">
 
                                     {currentTicket.isTransferPending ? (
                                         <div className="text-center space-y-4">
@@ -1330,7 +1311,43 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
 
                     <div className="flex-1" />
 
-                    <div className="mt-8 flex flex-col items-center gap-4">
+                    <div className="mt-4 flex flex-col items-center gap-4">
+                        {/* Assignment Details Badge */}
+                        <div className="flex flex-col items-center gap-2">
+                            {currentTicket.isClaimedByOther ? (
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-iris/5 border border-iris/10">
+                                    <div className="w-5 h-5 rounded-full overflow-hidden border border-iris/20 bg-iris/5 relative">
+                                        <ShimmerImage
+                                            src={currentTicket.assignment?.avatar || currentTicket.assignment?.photoURL}
+                                            alt={currentTicket.assignment?.userName || "Assigned User"}
+                                            fill
+                                            className="object-cover"
+                                        />
+                                    </div>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-iris">
+                                        Assigned to {currentTicket.assignment?.userName || 'Guest'}
+                                    </span>
+                                </div>
+                            ) : currentTicket.isClaimed ? (
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/5 border border-emerald-500/10">
+                                    <div className="relative">
+                                        <div className="w-5 h-5 rounded-full overflow-hidden border border-emerald-500/20 bg-emerald-500/5 relative">
+                                            <ShimmerImage
+                                                src={profile?.avatar || profile?.photoURL}
+                                                alt={profile?.displayName || "You"}
+                                                fill
+                                                className="object-cover"
+                                            />
+                                        </div>
+                                        <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white" />
+                                    </div>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600">
+                                        Assigned to You
+                                    </span>
+                                </div>
+                            ) : null}
+                        </div>
+
                         <Link
                             href={`/event/${currentTicket.eventSlug}`}
                             className="text-[10px] font-black uppercase tracking-[0.2em] text-black/40 dark:text-white/40 hover:text-orange transition-colors flex items-center gap-2"
@@ -1402,7 +1419,7 @@ function TicketsContent() {
             } else {
                 localStorage.removeItem("c1rcle_reservation");
             }
-        } catch (_) {}
+        } catch (_) { }
     }, []);
 
     // Listen for cancel order events from QR modal

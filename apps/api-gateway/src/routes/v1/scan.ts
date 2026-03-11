@@ -22,7 +22,7 @@ const CodesQuery = z.object({
 
 const CodesBody = z.object({
     eventId: z.string(),
-    type: z.string().optional(),
+    type: z.enum(['full', 'scan_only', 'charge']).optional().default('full'),
     gate: z.string().optional(),
     expiresAt: z.string().nullable().optional(),
     createdBy: z.string().optional()
@@ -221,7 +221,11 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         return {
             valid: true, code: normalizedCode,
             event: { id: eventDoc.id, title: event?.title, venue: event?.venueName, venueId: event?.venueId, date: event?.date, startTime: event?.startTime, endTime: event?.endTime, capacity: event?.capacity || 500, imageUrl: event?.coverImage },
-            permissions: { canScan: codeData.type === 'full' || codeData.type === 'scan_only', canDoorEntry: codeData.type === 'full' },
+            permissions: {
+                canScan: codeData.type === 'full' || codeData.type === 'scan_only',
+                canDoorEntry: codeData.type === 'full',
+                canCharge: codeData.type === 'charge',   // Cover Wallet debit mode
+            },
             tiers, gate: codeData.gate || null,
             stats: { totalEntered: prebookedEntered + doorEntries, prebooked: prebookedEntered, doorEntries, doorRevenue }
         };

@@ -30,6 +30,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { colors, radii, gradients } from "@/lib/design/theme";
 import { NotificationBell } from "@/components/ui/NotificationBell";
+import { safeDate } from "@/lib/utils/date";
+import { trackScreen } from "@/lib/analytics";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -151,16 +153,19 @@ export default function ProfileScreen() {
     const avatarGlow = useSharedValue(0);
 
     useEffect(() => {
-        if (user?.uid) {
-            fetchUserOrders(user.uid);
-        }
-
+        trackScreen("Profile");
         // Subtle pulse animation for avatar
         avatarGlow.value = withRepeat(
             withTiming(1, { duration: 2000 }),
             -1,
             true
         );
+    }, []);
+
+    useEffect(() => {
+        if (user?.uid) {
+            fetchUserOrders(user.uid);
+        }
     }, [user?.uid]);
 
     const avatarAnimatedStyle = useAnimatedStyle(() => ({
@@ -203,10 +208,23 @@ export default function ProfileScreen() {
     };
 
     // Stats
+    const nowMs = Date.now();
+    const thisYear = new Date().getFullYear();
     const upcomingEvents = orders.filter(o =>
-        o.eventDate && new Date(o.eventDate) > new Date()
+        o.eventDate && (safeDate(o.eventDate)?.getTime() ?? 0) > nowMs
     ).length;
     const totalEvents = orders.length;
+    const thisYearEvents = orders.filter(o => {
+        const d = safeDate(o.eventDate);
+        return d && d.getFullYear() === thisYear && d.getTime() < nowMs;
+    }).length;
+
+    // Activity feed — past events newest first, 3 shown by default
+    const [storyExpanded, setStoryExpanded] = useState(false);
+    const pastOrders = [...orders]
+        .filter(o => o.eventDate && (safeDate(o.eventDate)?.getTime() ?? 0) < nowMs)
+        .sort((a, b) => (safeDate(b.eventDate)?.getTime() ?? 0) - (safeDate(a.eventDate)?.getTime() ?? 0));
+    const storyItems = storyExpanded ? pastOrders : pastOrders.slice(0, 3);
 
     // Get initials
     const initials = user?.displayName
@@ -308,12 +326,61 @@ export default function ProfileScreen() {
 
                 {/* Stats Row */}
                 <View style={styles.statsRow}>
-                    <StatsCard value={upcomingEvents} label="Upcoming" accent delay={200} />
+                    <StatsCard value={totalEvents} label="Attended" delay={200} />
                     <View style={styles.statsDivider} />
-                    <StatsCard value={totalEvents} label="Total Events" delay={250} />
+                    <StatsCard value={thisYearEvents} label="This Year" accent delay={240} />
                     <View style={styles.statsDivider} />
-                    <StatsCard value={0} label="Friends" delay={300} />
+                    <StatsCard value={0} label="Friends" delay={280} />
+                    <View style={styles.statsDivider} />
+                    <StatsCard value={upcomingEvents} label="Upcoming" delay={320} />
                 </View>
+
+                {/* Your Story — activity feed */}
+                {pastOrders.length > 0 && (
+                    <View style={styles.storySection}>
+                        <View style={styles.storySectionHeader}>
+                            <Text style={styles.storySectionTitle}>YOUR STORY</Text>
+                            {pastOrders.length > 3 && (
+                                <Pressable onPress={() => setStoryExpanded(v => !v)}>
+                                    <Text style={styles.storyShowAll}>
+                                        {storyExpanded ? "Show less" : `Show all ${pastOrders.length}`}
+                                    </Text>
+                                </Pressable>
+                            )}
+                        </View>
+                        {storyItems.map((order, i) => (
+                            <Animated.View
+                                key={order.id}
+                                entering={FadeInDown.delay(i * 40).springify()}
+                                style={styles.storyItem}
+                            >
+                                {order.eventCoverImage ? (
+                                    <Image
+                                        source={{ uri: order.eventCoverImage }}
+                                        style={styles.storyThumb}
+                                        contentFit="cover"
+                                    />
+                                ) : (
+                                    <LinearGradient
+                                        colors={["#2a1a0e", "#161616"]}
+                                        style={styles.storyThumb}
+                                    />
+                                )}
+                                <View style={styles.storyContent}>
+                                    <Text style={styles.storyEventTitle} numberOfLines={1}>
+                                        {order.eventTitle || "Event"}
+                                    </Text>
+                                    <Text style={styles.storyEventDate}>
+                                        {safeDate(order.eventDate)?.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" }) ?? ""}
+                                    </Text>
+                                </View>
+                                <View style={styles.storyBadge}>
+                                    <Text style={styles.storyBadgeText}>Attended</Text>
+                                </View>
+                            </Animated.View>
+                        ))}
+                    </View>
+                )}
 
                 {/* Menu Sections */}
                 <View style={styles.menuContainer}>
@@ -605,6 +672,72 @@ const styles = StyleSheet.create({
         width: 1,
         height: 40,
         backgroundColor: "rgba(255, 255, 255, 0.1)",
+    },
+
+    // Your Story activity feed
+    storySection: {
+        marginHorizontal: 20,
+        marginBottom: 24,
+    },
+    storySectionHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 12,
+    },
+    storySectionTitle: {
+        color: colors.goldMetallic,
+        fontSize: 11,
+        fontWeight: "600",
+        letterSpacing: 1.5,
+        textTransform: "uppercase",
+    },
+    storyShowAll: {
+        color: colors.iris,
+        fontSize: 13,
+        fontWeight: "500",
+    },
+    storyItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: colors.base[50],
+        borderRadius: radii.xl,
+        padding: 12,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.06)",
+    },
+    storyThumb: {
+        width: 48,
+        height: 48,
+        borderRadius: 10,
+        marginRight: 12,
+    },
+    storyContent: {
+        flex: 1,
+    },
+    storyEventTitle: {
+        color: colors.gold,
+        fontSize: 15,
+        fontWeight: "600",
+        marginBottom: 3,
+    },
+    storyEventDate: {
+        color: colors.goldMetallic,
+        fontSize: 12,
+    },
+    storyBadge: {
+        backgroundColor: "rgba(244,74,34,0.12)",
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: radii.pill,
+        borderWidth: 1,
+        borderColor: "rgba(244,74,34,0.2)",
+    },
+    storyBadgeText: {
+        color: colors.iris,
+        fontSize: 11,
+        fontWeight: "600",
     },
 
     // Menu

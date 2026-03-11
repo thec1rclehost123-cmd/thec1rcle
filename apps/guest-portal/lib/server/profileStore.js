@@ -1,4 +1,5 @@
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+import { getAdminDb, getAdminApp, isFirebaseConfigured } from "../firebase/admin";
+import { getAuth } from "firebase-admin/auth";
 import { getUserOrders } from "./orderStore";
 import { getEvent } from "./eventStore";
 import { createHmac } from "node:crypto";
@@ -22,9 +23,27 @@ export async function getUserProfile(userId) {
 
     const db = getAdminDb();
     const doc = await db.collection(USERS_COLLECTION).doc(userId).get();
-    if (!doc.exists) return null;
 
-    const data = doc.data();
+    let data = doc.exists ? doc.data() : {};
+
+    // Hybrid fetch: if Firestore is missing photo, check Firebase Auth
+    if (!data.photoURL && !data.avatar) {
+        try {
+            const auth = getAuth(getAdminApp());
+            const userRecord = await auth.getUser(userId);
+            if (userRecord.photoURL) {
+                data.photoURL = userRecord.photoURL;
+                // Proactively sync back to Firestore for faster future reads
+                if (doc.exists) {
+                    await db.collection(USERS_COLLECTION).doc(userId).update({ photoURL: userRecord.photoURL, avatar: userRecord.photoURL });
+                }
+            }
+        } catch (e) {
+            console.warn(`[ProfileStore] Auth fallback failed for ${userId}:`, e.message);
+        }
+    }
+
+    const photoURL = data.photoURL || data.avatar || null;
 
     // Normalize timestamps for client serialization
     Object.keys(data).forEach(key => {
@@ -33,7 +52,12 @@ export async function getUserProfile(userId) {
         }
     });
 
-    return { id: doc.id, ...data };
+    return {
+        id: doc.id,
+        ...data,
+        photoURL,
+        avatar: photoURL
+    };
 }
 
 export async function findUserByEmail(email) {
@@ -377,14 +401,38 @@ export async function getUserTickets(userId) {
         for (let i = 0; i < uidList.length; i += 30) chunks.push(uidList.slice(i, i + 30));
         await Promise.all(chunks.map(async chunk => {
             const snap = await db.collection(USERS_COLLECTION).where("__name__", "in", chunk).get();
+            const foundUids = new Set();
+
             snap.forEach(doc => {
+                foundUids.add(doc.id);
                 const data = doc.data();
+                const photoURL = data.photoURL || data.avatar || null;
                 profilesMap[doc.id] = {
                     uid: doc.id,
                     displayName: data.displayName || "C1RCLE User",
-                    photoURL: data.photoURL || data.avatar || null
+                    photoURL: photoURL,
+                    avatar: photoURL
                 };
             });
+
+            // Fallback for UIDs missing from Firestore: fetch from Firebase Auth
+            const missingUids = chunk.filter(id => !foundUids.has(id));
+            if (missingUids.length > 0) {
+                try {
+                    const auth = getAuth(getAdminApp());
+                    const authResults = await auth.getUsers(missingUids.map(id => ({ uid: id })));
+                    authResults.users.forEach(userRecord => {
+                        profilesMap[userRecord.uid] = {
+                            uid: userRecord.uid,
+                            displayName: userRecord.displayName || "C1RCLE User",
+                            photoURL: userRecord.photoURL || null,
+                            avatar: userRecord.photoURL || null
+                        };
+                    });
+                } catch (e) {
+                    console.warn(`[ProfileStore] Batch Auth fallback failed:`, e.message);
+                }
+            }
         }));
     }
 
@@ -426,7 +474,7 @@ export async function getUserTickets(userId) {
                 const tierId = ticketGroup.ticketId;
                 const units = ticketGroup.quantity;
                 const bundle = bundles.find(b => b.tierId === tierId);
-                const isCouple = ticketGroup.name.toLowerCase().includes("couple") || !!ticketGroup.isCouple;
+                const isCouple = (ticketGroup.name || '').toLowerCase().includes("couple") || !!ticketGroup.isCouple;
 
                 // One unit of couple ticket = 2 identities/slots
                 const effectiveQuantity = isCouple ? units * 2 : units;

@@ -16,6 +16,6 @@ export async function POST(request, { params }) {
     } catch (err) {
         // Non-critical — never surface analytics errors to the client
         console.error("[/api/events/view] Failed to track view:", err);
-        return NextResponse.json({ ok: false }, { status: 500 });
+        return NextResponse.json({ ok: false });
     }
 }

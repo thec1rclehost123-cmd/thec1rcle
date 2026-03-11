@@ -3,7 +3,10 @@ import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 import { doc, updateDoc, arrayUnion } from "firebase/firestore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirebaseDb } from "./firebase";
+
+const PUSH_TOKEN_KEY = "@c1rcle/pushToken";
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -158,4 +161,28 @@ export async function getBadgeCount(): Promise<number> {
 // Set badge count
 export async function setBadgeCount(count: number): Promise<void> {
     await Notifications.setBadgeCountAsync(count);
+}
+
+/**
+ * Refresh push token — only writes to Firestore if the token has changed since
+ * the last registration. Safe to call on every foreground resume and auth change.
+ */
+export async function refreshPushToken(userId: string): Promise<void> {
+    try {
+        const newToken = await getExpoPushToken();
+        if (!newToken) return;
+
+        const storedToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+        if (storedToken === newToken) return; // token unchanged — skip write
+
+        const db = getFirebaseDb();
+        await updateDoc(doc(db, "users", userId), {
+            pushTokens: arrayUnion(newToken),
+            lastTokenUpdate: new Date().toISOString(),
+        });
+
+        await AsyncStorage.setItem(PUSH_TOKEN_KEY, newToken);
+    } catch (error) {
+        console.error("Error refreshing push token:", error);
+    }
 }

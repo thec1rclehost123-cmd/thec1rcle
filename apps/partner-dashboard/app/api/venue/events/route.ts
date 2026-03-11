@@ -15,10 +15,11 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "venueId is required" }, { status: 400 });
         }
 
-        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-        if (!token) {
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
 
         const params: any = { venueId, limit, ...(status && status !== "all" ? { lifecycle: status } : {}) };
         if (lastId) params.lastId = lastId;

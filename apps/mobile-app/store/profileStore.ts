@@ -24,6 +24,9 @@ export interface UserProfile {
     eventsAttended?: number;
     connections?: number;
 
+    // Personalisation
+    vibeTags?: string[];
+
     // Status
     isVerified?: boolean;
     isPremium?: boolean;
@@ -33,6 +36,7 @@ interface ProfileState {
     profile: UserProfile | null;
     loading: boolean;
     error: string | null;
+    _unsubscribe: (() => void) | null;
 
     // Actions
     loadProfile: (userId: string) => Promise<void>;
@@ -45,6 +49,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     profile: null,
     loading: false,
     error: null,
+    _unsubscribe: null,
 
     loadProfile: async (userId: string) => {
         set({ loading: true, error: null });
@@ -120,6 +125,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     },
 
     subscribeToProfile: (userId: string) => {
+        // Clean up any existing subscription before starting a new one
+        get()._unsubscribe?.();
+
         const db = getFirebaseDb();
         const profileRef = doc(db, "users", userId);
 
@@ -137,11 +145,14 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
             set({ error: error.message });
         });
 
+        set({ _unsubscribe: unsubscribe });
         return unsubscribe;
     },
 
     clearProfile: () => {
-        set({ profile: null, loading: false, error: null });
+        // Unsubscribe from Firestore before clearing state
+        get()._unsubscribe?.();
+        set({ profile: null, loading: false, error: null, _unsubscribe: null });
     },
 }));
 

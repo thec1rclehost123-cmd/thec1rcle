@@ -8,6 +8,8 @@
  */
 
 import { Alert, Platform } from "react-native";
+import { useAuthStore } from "@/store/authStore";
+import { useCartStore } from "@/store/cartStore";
 import {
     reserveTickets,
     initiateCheckout,
@@ -18,8 +20,11 @@ import {
 } from "./api";
 
 // Razorpay key for the frontend SDK (public key only — secret stays on server)
-const RAZORPAY_KEY =
-    process.env.EXPO_PUBLIC_RAZORPAY_KEY || "rzp_test_UaS7oqTKOwuALQ";
+const RAZORPAY_KEY = process.env.EXPO_PUBLIC_RAZORPAY_KEY;
+
+if (!RAZORPAY_KEY && !__DEV__) {
+    throw new Error("EXPO_PUBLIC_RAZORPAY_KEY is missing. Payment system cannot initialize.");
+}
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -115,6 +120,9 @@ export async function processFullCheckout(
         // ── Step 4: Open Razorpay Native SDK ──
         onStatusChange?.("awaiting_payment");
 
+        // PERSIST FOR RECOVERY: Survives app kill mid-payment
+        useCartStore.getState().setPendingPaymentOrderId(checkout.order.id);
+
         const paymentResult = await openNativeRazorpay({
             razorpayOrderId: checkout.razorpay!.orderId,
             amount: checkout.razorpay!.amount,
@@ -128,7 +136,8 @@ export async function processFullCheckout(
         });
 
         if (!paymentResult.success) {
-            // User cancelled or payment failed — release inventory
+            // User cancelled or payment failed — clear recovery & release inventory
+            useCartStore.getState().setPendingPaymentOrderId(null);
             try {
                 await cancelOrder(checkout.order.id);
             } catch (e) {
@@ -154,6 +163,10 @@ export async function processFullCheckout(
         if (!verification.success) {
             throw new Error(verification.error || "Payment verification failed");
         }
+
+        // SUCCESS: Clear recovery state and cart
+        useCartStore.getState().setPendingPaymentOrderId(null);
+        useCartStore.getState().clearCart();
 
         onStatusChange?.("confirmed");
         return {

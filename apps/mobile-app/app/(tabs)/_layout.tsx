@@ -5,7 +5,7 @@
  */
 
 import { Tabs } from "expo-router";
-import { View, Text, StyleSheet, Platform, Dimensions } from "react-native";
+import { View, Text, StyleSheet, Platform, Dimensions, AppState, AppStateStatus } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Compass, Ticket, MessageCircle, Sparkles, type LucideIcon } from "lucide-react-native";
@@ -17,9 +17,10 @@ import Animated, {
     withRepeat,
     withSequence,
     interpolate,
+    cancelAnimation,
     Easing,
 } from "react-native-reanimated";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import * as Haptics from "expo-haptics";
 import { colors } from "@/lib/design/theme";
 
@@ -145,8 +146,9 @@ function PremiumTabBarBackground() {
     const auroraX = useSharedValue(0);
     const auroraOpacity = useSharedValue(0.5);
 
-    useEffect(() => {
-        // Subtle aurora drift
+    const appState = useRef(AppState.currentState);
+
+    const startAuroraAnimations = () => {
         auroraX.value = withRepeat(
             withSequence(
                 withTiming(50, { duration: 8000, easing: Easing.inOut(Easing.sin) }),
@@ -155,8 +157,6 @@ function PremiumTabBarBackground() {
             -1,
             true
         );
-
-        // Aurora breathing
         auroraOpacity.value = withRepeat(
             withSequence(
                 withTiming(0.7, { duration: 3000 }),
@@ -165,6 +165,25 @@ function PremiumTabBarBackground() {
             -1,
             true
         );
+    };
+
+    useEffect(() => {
+        startAuroraAnimations();
+
+        const subscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
+            if (nextAppState === "background" || nextAppState === "inactive") {
+                cancelAnimation(auroraX);
+                cancelAnimation(auroraOpacity);
+            } else if (
+                appState.current.match(/inactive|background/) &&
+                nextAppState === "active"
+            ) {
+                startAuroraAnimations();
+            }
+            appState.current = nextAppState;
+        });
+
+        return () => subscription.remove();
     }, []);
 
     const auroraStyle = useAnimatedStyle(() => ({

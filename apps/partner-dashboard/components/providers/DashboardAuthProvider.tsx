@@ -103,7 +103,10 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                         partnerType: (claims.partnerType === 'club' ? 'venue' : claims.partnerType) as PartnerType,
                         role: claims.partnerRole as StaffRole,
                         joinedAt: 0,
-                        isActive: true
+                        isActive: true,
+                        // partnerName is not stored in JWT claims, but the /api/auth/me
+                        // endpoint now resolves it from the venue/host Firestore document
+                        partnerName: userData.activeMembership?.partnerName || undefined
                     };
                 } else if (userData.activeMembership) { // Assuming activeMembership is now part of userData from /api/auth/me
                     activeMembership = {

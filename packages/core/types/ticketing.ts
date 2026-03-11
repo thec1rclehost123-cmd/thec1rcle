@@ -89,6 +89,9 @@ export type AddOnType =
     | 'vip_upgrade'
     | 'custom';
 
+// Re-export cover wallet types from dedicated module
+export type { CoverWalletTierConfig, PresetItem } from './cover-charge.js';
+
 export type PromoCodeType = 'public' | 'private' | 'single_use' | 'multi_use';
 
 export type DiscountType = 'percent' | 'fixed';
@@ -228,6 +231,9 @@ export interface TicketTier {
     visibility: TierVisibility;
     promoterOverride?: TierPromoterSettings;
     refundOverride?: RefundPolicy;
+    /** Optional cover wallet configuration. When present and enabled, purchasing
+     *  this tier also issues a closed-loop spend wallet for the event venue. */
+    coverWallet?: import('./cover-charge.js').CoverWalletTierConfig;
     sortOrder: number;
     createdAt: string;
     updatedAt: string;

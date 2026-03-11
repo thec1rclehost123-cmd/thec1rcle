@@ -36,12 +36,14 @@ interface CartState {
     items: CartItem[];
     promo: PromoState | null;
     reservationExpiry: number | null;
+    pendingPaymentOrderId: string | null;
 
     // Cart actions
     addItem: (item: CartItem) => void;
     removeItem: (eventId: string, tierId: string) => void;
     updateQuantity: (eventId: string, tierId: string, quantity: number) => void;
     clearCart: () => void;
+    setPendingPaymentOrderId: (orderId: string | null) => void;
 
     // Promo code — validated via backend API
     applyPromoCode: (code: string, eventId: string) => Promise<{ success: boolean; error?: string }>;
@@ -63,6 +65,7 @@ export const useCartStore = create<CartState>()(
             items: [],
             promo: null,
             reservationExpiry: null,
+            pendingPaymentOrderId: null,
 
             addItem: (item: CartItem) => {
                 const items = get().items;
@@ -164,7 +167,12 @@ export const useCartStore = create<CartState>()(
                     items: [],
                     promo: null,
                     reservationExpiry: null,
+                    pendingPaymentOrderId: null,
                 });
+            },
+
+            setPendingPaymentOrderId: (orderId: string | null) => {
+                set({ pendingPaymentOrderId: orderId });
             },
 
             getSubtotal: () => {
@@ -203,6 +211,7 @@ export const useCartStore = create<CartState>()(
                 items: state.items,
                 promo: state.promo,
                 reservationExpiry: state.reservationExpiry,
+                pendingPaymentOrderId: state.pendingPaymentOrderId,
             }),
         }
     )

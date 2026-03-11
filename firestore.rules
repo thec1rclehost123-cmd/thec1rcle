@@ -457,6 +457,36 @@ service cloud.firestore {
       allow write: if false; // Server only
     }
 
+    // --- 💳 COVER WALLET SYSTEM ---
+
+    // Cover Wallets: closed-loop spend wallets attached to ticket entitlements
+    match /cover_wallets/{walletId} {
+      // Guests can read their own wallet (balance + state)
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      // Only the backend (Admin SDK) creates wallets — no client-side creation
+      allow create: if false;
+      // Only the backend updates wallet balance and state
+      allow update, delete: if false;
+    }
+
+    // Wallet Transactions: immutable debit/credit/reversal log
+    match /cover_wallets/{walletId}/txns/{txnId} {
+      // Guests can read their own wallet's transactions
+      allow read: if isAdmin() || (isSignedIn() &&
+        get(/databases/$(database)/documents/cover_wallets/$(walletId)).data.userId == request.auth.uid
+      );
+      // Only backend writes transactions
+      allow write: if false;
+    }
+
+    // Cover Wallet Reconciliations: event-close finance reports
+    match /cover_wallet_reconciliations/{eventId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        request.auth.token.partnerId != null
+      ));
+      allow write: if false; // Backend only
+    }
+
     // --- 🏁 DEFAULT CATCH-ALL (STRICT) ---
     match /{document=**} {
       allow read: if isAdmin();

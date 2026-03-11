@@ -5,15 +5,13 @@ import {
     ScrollView,
     Pressable,
     RefreshControl,
-    ActivityIndicator,
     StyleSheet,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useAuthStore } from "@/store/authStore";
 import { useTicketsStore } from "@/store/ticketsStore";
-import { useEventsStore } from "@/store/eventsStore";
 import {
     getEventPhase,
     getPhaseInfo,
@@ -32,8 +30,10 @@ import Animated, {
 } from "react-native-reanimated";
 import { colors, radii, gradients } from "@/lib/design/theme";
 import { NotificationBell } from "@/components/ui/NotificationBell";
-import { EmptyState, ErrorState, NetworkError } from "@/components/ui/EmptyState";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/Skeleton";
+import { safeDate } from "@/lib/utils/date";
+import { trackScreen } from "@/lib/analytics";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -192,6 +192,75 @@ function DMRequestCard({ count, onPress }: { count: number; onPress: () => void 
     );
 }
 
+// Live Now Card — enhanced card for events currently happening
+function LiveNowCard({
+    event,
+    attendeeCount,
+    index,
+}: {
+    event: { id: string; title: string; date: string };
+    attendeeCount: number;
+    index: number;
+}) {
+    const scale = useSharedValue(1);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+    }));
+
+    return (
+        <Animated.View
+            entering={FadeInDown.delay(index * 60).springify()}
+            style={[animatedStyle, styles.liveNowCard]}
+        >
+            <LinearGradient
+                colors={["rgba(244, 74, 34, 0.12)", "rgba(244, 74, 34, 0.04)"]}
+                style={styles.liveNowGradient}
+            >
+                <View style={styles.liveNowHeader}>
+                    <View style={styles.liveNowBadge}>
+                        <View style={styles.liveDot} />
+                        <Text style={styles.liveBadgeText}>LIVE</Text>
+                    </View>
+                    <Text style={styles.liveNowTitle} numberOfLines={1}>{event.title}</Text>
+                </View>
+                <Text style={styles.liveNowAttendees}>{attendeeCount} attendees online</Text>
+                <View style={styles.liveNowActions}>
+                    <Pressable
+                        onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            router.push({
+                                pathname: "/social/group/[eventId]",
+                                params: { eventId: event.id, eventTitle: event.title },
+                            });
+                        }}
+                        style={styles.liveNowBtn}
+                    >
+                        <LinearGradient
+                            colors={gradients.primary as [string, string]}
+                            style={styles.liveNowBtnGradient}
+                        >
+                            <Text style={styles.liveNowBtnText}>Open Chat</Text>
+                        </LinearGradient>
+                    </Pressable>
+                    <Pressable
+                        onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            router.push({
+                                pathname: "/social/gallery/[eventId]" as any,
+                                params: { eventId: event.id },
+                            });
+                        }}
+                        style={styles.liveNowBtnSecondary}
+                    >
+                        <Text style={styles.liveNowBtnSecondaryText}>View Gallery</Text>
+                    </Pressable>
+                </View>
+            </LinearGradient>
+        </Animated.View>
+    );
+}
+
 // Quick Action Button
 function QuickActionButton({
     icon,
@@ -248,6 +317,10 @@ export default function InboxScreen() {
     const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
+        trackScreen("Connect");
+    }, []);
+
+    useEffect(() => {
         loadData();
     }, [user?.uid]);
 
@@ -272,9 +345,7 @@ export default function InboxScreen() {
         const processChats = async () => {
             const chats = await Promise.all(
                 orders.map(async (order) => {
-                    const eventDate = order.eventDate
-                        ? new Date(order.eventDate)
-                        : new Date();
+                    const eventDate = safeDate(order.eventDate) ?? new Date();
                     const phase = getEventPhase(eventDate);
                     const attendeeCount = await getAttendeeCount(order.eventId || "");
 
@@ -313,8 +384,10 @@ export default function InboxScreen() {
         setRefreshing(false);
     }, [user?.uid]);
 
-    const activeChats = eventChats.filter(c => c.phase !== "expired");
+    const liveChats = eventChats.filter(c => c.phase === "during");
+    const preEventChats = eventChats.filter(c => c.phase === "pre-event" || c.phase === "post-event");
     const archivedChats = eventChats.filter(c => c.phase === "expired");
+    const activeChats = [...liveChats, ...preEventChats];
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -369,19 +442,35 @@ export default function InboxScreen() {
                     />
                 )}
 
-                {/* Loading */}
-                {loading && (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={colors.iris} />
-                        <Text style={styles.loadingText}>Loading your event chats...</Text>
+                {/* Loading skeleton */}
+                {loading && <SkeletonList type="notification" count={4} />}
+
+                {/* Live Now section — events currently happening */}
+                {!loading && liveChats.length > 0 && (
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeaderRow}>
+                            <Text style={styles.sectionTitle}>Live Now</Text>
+                            <View style={styles.livePillBadge}>
+                                <View style={styles.liveDotSmall} />
+                                <Text style={styles.livePillText}>{liveChats.length}</Text>
+                            </View>
+                        </View>
+                        {liveChats.map((chat, index) => (
+                            <LiveNowCard
+                                key={chat.id}
+                                event={chat}
+                                attendeeCount={chat.attendeeCount}
+                                index={index}
+                            />
+                        ))}
                     </View>
                 )}
 
-                {/* Active Event Chats */}
-                {!loading && activeChats.length > 0 && (
+                {/* Pre/Post Event Chats */}
+                {!loading && preEventChats.length > 0 && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Event Chats</Text>
-                        {activeChats.map((chat, index) => (
+                        {preEventChats.map((chat, index) => (
                             <EventChatCard
                                 key={chat.id}
                                 event={chat}
@@ -688,14 +777,114 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
 
-    // Loading
-    loadingContainer: {
+    // Section header row
+    sectionHeaderRow: {
+        flexDirection: "row",
         alignItems: "center",
-        paddingVertical: 60,
+        marginBottom: 16,
+        gap: 10,
     },
-    loadingText: {
+    livePillBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "rgba(244, 74, 34, 0.15)",
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: radii.pill,
+        gap: 5,
+    },
+    liveDotSmall: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: colors.iris,
+    },
+    livePillText: {
+        color: colors.iris,
+        fontSize: 11,
+        fontWeight: "700",
+    },
+
+    // Live Now Card
+    liveNowCard: {
+        marginBottom: 12,
+        borderRadius: radii.xl,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(244, 74, 34, 0.25)",
+    },
+    liveNowGradient: {
+        padding: 16,
+    },
+    liveNowHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        marginBottom: 6,
+    },
+    liveNowBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "rgba(244, 74, 34, 0.2)",
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: radii.pill,
+        gap: 5,
+    },
+    liveDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: colors.iris,
+    },
+    liveBadgeText: {
+        color: colors.iris,
+        fontSize: 10,
+        fontWeight: "800",
+        letterSpacing: 0.5,
+    },
+    liveNowTitle: {
+        color: colors.gold,
+        fontSize: 16,
+        fontWeight: "700",
+        flex: 1,
+    },
+    liveNowAttendees: {
         color: colors.goldMetallic,
-        marginTop: 16,
+        fontSize: 13,
+        marginBottom: 14,
+    },
+    liveNowActions: {
+        flexDirection: "row",
+        gap: 10,
+    },
+    liveNowBtn: {
+        flex: 1,
+        borderRadius: radii.lg,
+        overflow: "hidden",
+    },
+    liveNowBtnGradient: {
+        paddingVertical: 10,
+        alignItems: "center",
+    },
+    liveNowBtnText: {
+        color: "#fff",
+        fontSize: 14,
+        fontWeight: "600",
+    },
+    liveNowBtnSecondary: {
+        flex: 1,
+        paddingVertical: 10,
+        alignItems: "center",
+        borderRadius: radii.lg,
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.12)",
+        backgroundColor: "rgba(255, 255, 255, 0.05)",
+    },
+    liveNowBtnSecondaryText: {
+        color: colors.gold,
+        fontSize: 14,
+        fontWeight: "600",
     },
 
     // Empty

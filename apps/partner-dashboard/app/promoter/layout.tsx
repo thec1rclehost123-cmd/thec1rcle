@@ -13,7 +13,8 @@ import {
     CreditCard,
     Settings,
     User,
-    Users
+    Users,
+    Activity
 } from "lucide-react";
 
 const menuSections = [
@@ -39,6 +40,7 @@ const menuSections = [
         items: [
             { icon: CalendarDays, label: "Events", href: "/promoter/events" },
             { icon: Link2, label: "My Links", href: "/promoter/links" },
+            { icon: Activity, label: "Guest Stream", href: "/promoter/guests" },
         ]
     },
     {

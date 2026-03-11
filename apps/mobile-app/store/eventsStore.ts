@@ -97,6 +97,7 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     hasMore: true,
 
     fetchEvents: async (city?: string) => {
+        if (get().loading) return;
         set({ loading: true, error: null });
 
         try {
@@ -143,6 +144,7 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     },
 
     fetchFeaturedEvents: async () => {
+        if (get().loading) return;
         set({ loading: true, error: null });
 
         try {
@@ -171,6 +173,7 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     },
 
     fetchPublicEvents: async (options?: { limit?: number }) => {
+        if (get().loading) return;
         set({ loading: true, error: null });
 
         try {
@@ -198,6 +201,7 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     },
 
     searchEvents: async (filters: SearchFilters) => {
+        if (get().searching) return;
         set({ searching: true, error: null });
 
         try {

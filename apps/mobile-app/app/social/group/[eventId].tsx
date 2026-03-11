@@ -37,6 +37,7 @@ import {
 } from "@/lib/social";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, FadeInDown, SlideInUp } from "react-native-reanimated";
+import { trackScreen } from "@/lib/analytics";
 
 // Typing indicator component
 function TypingIndicator({ status }: { status: TypingStatus }) {
@@ -265,6 +266,10 @@ export default function EventGroupChatScreen() {
         }
         return { onChangeText: () => { }, onBlur: () => { } };
     }, [eventId, user?.uid, user?.displayName]);
+
+    useEffect(() => {
+        trackScreen("GroupChat");
+    }, []);
 
     useEffect(() => {
         if (!eventId || !user?.uid) return;

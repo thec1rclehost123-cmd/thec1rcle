@@ -28,6 +28,7 @@ const buildProfilePayload = (firebaseUser, overrides = {}) => {
     email: firebaseUser.email || "",
     displayName: firebaseUser.displayName || "Member",
     photoURL: firebaseUser.photoURL || "",
+    avatar: firebaseUser.photoURL || "",
 
     attendedEvents: [],
     city: "",
@@ -59,6 +60,24 @@ export function AuthProvider({ children }) {
       if (res.ok) {
         const data = await res.json();
         if (data && data.user) {
+          // Sync photo if missing in DB but present in Firebase
+          if ((!data.user.photoURL || !data.user.avatar) && firebaseUser.photoURL) {
+            const syncPayload = {
+              photoURL: firebaseUser.photoURL,
+              avatar: firebaseUser.photoURL
+            };
+            fetch('/api/auth/profile', {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify(syncPayload)
+            });
+            const updatedProfile = { ...data.user, ...syncPayload };
+            setProfile(updatedProfile);
+            return updatedProfile;
+          }
           setProfile(data.user);
           return data.user;
         }

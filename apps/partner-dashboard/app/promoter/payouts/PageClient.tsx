@@ -297,13 +297,43 @@ function PayoutRequestModal({
         setSubmitting(true);
 
         try {
+            // Stronger validation
+            if (amount < 100) {
+                throw new Error("Minimum payout amount is ₹100");
+            }
+            if (amount > availableBalance) {
+                throw new Error("Amount exceeds available balance");
+            }
+
+            if (paymentMethod === "upi") {
+                // UPI ID format: name@bankhandle
+                const upiRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9]+$/;
+                if (!upiRegex.test(upiId.trim())) {
+                    throw new Error("Invalid UPI ID format. Expected: name@bankhandle (e.g., user@paytm)");
+                }
+            }
+
+            if (paymentMethod === "bank_transfer") {
+                // IFSC: 4 letters + 0 + 6 alphanumeric
+                const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+                if (!ifscRegex.test(ifscCode.trim().toUpperCase())) {
+                    throw new Error("Invalid IFSC code. Expected format: ABCD0123456");
+                }
+                if (!accountNumber.trim() || accountNumber.trim().length < 9) {
+                    throw new Error("Account number must be at least 9 digits");
+                }
+                if (!accountName.trim() || accountName.trim().length < 3) {
+                    throw new Error("Account holder name is required");
+                }
+            }
+
             const paymentDetails: any = {};
             if (paymentMethod === "upi") {
-                paymentDetails.upiId = upiId;
+                paymentDetails.upiId = upiId.trim();
             } else if (paymentMethod === "bank_transfer") {
-                paymentDetails.accountNumber = accountNumber;
-                paymentDetails.ifscCode = ifscCode;
-                paymentDetails.accountName = accountName;
+                paymentDetails.accountNumber = accountNumber.trim();
+                paymentDetails.ifscCode = ifscCode.trim().toUpperCase();
+                paymentDetails.accountName = accountName.trim();
             }
 
             const res = await fetch("/api/promoter/payouts", {
@@ -378,8 +408,8 @@ function PayoutRequestModal({
                                 type="button"
                                 onClick={() => setPaymentMethod("upi")}
                                 className={`p-4 rounded-xl border flex items-center gap-3 transition-all ${paymentMethod === "upi"
-                                        ? "border-emerald-500 bg-emerald-50"
-                                        : "border-border-default hover:border-border-strong"
+                                    ? "border-emerald-500 bg-emerald-50"
+                                    : "border-border-default hover:border-border-strong"
                                     }`}
                             >
                                 <Smartphone className={`w-5 h-5 ${paymentMethod === "upi" ? "text-emerald-600" : "text-text-tertiary"}`} />
@@ -389,8 +419,8 @@ function PayoutRequestModal({
                                 type="button"
                                 onClick={() => setPaymentMethod("bank_transfer")}
                                 className={`p-4 rounded-xl border flex items-center gap-3 transition-all ${paymentMethod === "bank_transfer"
-                                        ? "border-emerald-500 bg-emerald-50"
-                                        : "border-border-default hover:border-border-strong"
+                                    ? "border-emerald-500 bg-emerald-50"
+                                    : "border-border-default hover:border-border-strong"
                                     }`}
                             >
                                 <Building2 className={`w-5 h-5 ${paymentMethod === "bank_transfer" ? "text-emerald-600" : "text-text-tertiary"}`} />

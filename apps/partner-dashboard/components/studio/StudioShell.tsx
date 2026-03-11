@@ -79,7 +79,7 @@ export default function StudioShell({
     };
 
     return (
-        <div className="flex flex-col min-h-screen bg-[#F9FAFB]">
+        <div className="flex flex-col min-h-screen bg-surface-base">
             {/* Studio Header */}
             <div className="bg-surface-elevated border-b border-border-default sticky top-0 z-30">
                 <div className="px-8 py-4 flex items-center justify-between">

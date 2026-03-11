@@ -73,7 +73,7 @@ export async function sendEvent(eventName, data, options = {}) {
 
     try {
         // Add a timeout to prevent hanging if Inngest server is unreachable (port 8288 closed)
-        const timeout = new Promise((_, reject) => 
+        const timeout = new Promise((_, reject) =>
             setTimeout(() => reject(new Error("Inngest send timeout")), 2000)
         );
 
@@ -85,6 +85,39 @@ export async function sendEvent(eventName, data, options = {}) {
         return { success: true, ids: result.ids };
     } catch (error) {
         console.warn(`[Inngest] Failed to send event ${eventName}:`, error.message);
+
+        // Development Fallback: Execute ticket fulfillment manually if Inngest is missing
+        if (eventName === Events.TICKET_PURCHASED && process.env.NODE_ENV !== "production") {
+            console.log(`[Fallback] Executing local ticket fulfillment for ${data.orderId}...`);
+            try {
+                const { issueEntitlements, generateEntitlementQR } = await import("./entitlement-engine.js");
+                const { getAdminDb } = await import("./admin.js");
+
+                const db = getAdminDb();
+                const order = { id: data.orderId, userId: data.userId, eventId: data.eventId, isRSVP: data.totalAmount === 0 };
+                const items = (data.tickets || []).map(t => ({
+                    ticketId: t.tierId || t.ticketId,
+                    name: t.tierName || t.name,
+                    quantity: t.quantity,
+                    entryType: t.entryType || 'general',
+                    genderRequirement: t.genderRequirement
+                }));
+
+                const issuedEntitlements = await issueEntitlements(order, items);
+                const entitlementIds = issuedEntitlements.map(e => e.id);
+
+                await db.collection("orders").doc(data.orderId).update({
+                    entitlementIds,
+                    fulfilledAt: new Date().toISOString(),
+                    fulfillmentStatus: "completed_fallback"
+                });
+
+                console.log(`[Fallback] Successfully issued ${entitlementIds.length} tickets for order ${data.orderId}`);
+            } catch (fallbackError) {
+                console.error(`[Fallback] Failed to issue tickets for ${data.orderId}:`, fallbackError);
+            }
+        }
+
         // We log as a warning and return success: false instead of throwing,
         // so background events don't crash critical flows.
         return { success: false, error: error.message };

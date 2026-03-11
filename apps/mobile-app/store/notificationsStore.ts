@@ -60,6 +60,7 @@ interface NotificationsState {
     unreadCount: number;
     loading: boolean;
     error: string | null;
+    _unsubscribe: (() => void) | null;
 
     // Actions
     fetchNotifications: (userId: string) => Promise<void>;
@@ -67,6 +68,7 @@ interface NotificationsState {
     markAllAsRead: (userId: string) => Promise<void>;
     subscribeToNotifications: (userId: string) => () => void;
     clearNotification: (notificationId: string) => Promise<void>;
+    clearNotifications: () => void;
 }
 
 export const useNotificationsStore = create<NotificationsState>((set, get) => ({
@@ -74,8 +76,10 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     unreadCount: 0,
     loading: false,
     error: null,
+    _unsubscribe: null,
 
     fetchNotifications: async (userId: string) => {
+        if (get().loading) return;
         set({ loading: true, error: null });
 
         try {
@@ -153,6 +157,9 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     },
 
     subscribeToNotifications: (userId: string) => {
+        // Clean up any existing subscription before starting a new one
+        get()._unsubscribe?.();
+
         const q = query(
             collection(getFirebaseDb(), "notifications"),
             where("userId", "==", userId),
@@ -176,17 +183,20 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
             console.error("Notification subscription error:", error);
         });
 
+        set({ _unsubscribe: unsubscribe });
         return unsubscribe;
     },
 
     clearNotification: async (notificationId: string) => {
         const { notifications } = get();
-
         set({
             notifications: notifications.filter((n) => n.id !== notificationId),
         });
+    },
 
-        // Note: In production, you might want to actually delete or archive
+    clearNotifications: () => {
+        get()._unsubscribe?.();
+        set({ notifications: [], unreadCount: 0, error: null, _unsubscribe: null });
     },
 }));
 

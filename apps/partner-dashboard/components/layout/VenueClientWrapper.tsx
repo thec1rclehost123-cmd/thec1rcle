@@ -19,7 +19,7 @@ export function VenueClientWrapper({ children, menuSections }: VenueClientWrappe
     return (
         <ApprovalGuard>
             <RoleGuard allowedType="venue">
-                <div className="venue-shell min-h-screen bg-[var(--v-canvas)]">
+                <div className="venue-shell dark min-h-screen bg-[var(--v-canvas)]">
                     {/* Desktop Sidebar */}
                     <div className="hidden lg:block fixed left-0 top-0 bottom-0 h-full z-50">
                         <AppleSidebar

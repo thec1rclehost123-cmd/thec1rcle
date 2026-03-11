@@ -175,8 +175,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     const handleApplyPromoCode = async (code) => {
         try {
             const token = user ? await user.getIdToken() : null;
-            const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "";
-            const res = await fetch(`${gatewayUrl}/api/v1/checkout/promo`, {
+            const res = await fetch(`/api/checkout/promo`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -287,8 +286,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
 
             if (!reserveData || reserveData.eventId !== event.id || new Date(reserveData.expiresAt) <= new Date() || selectionChanged) {
                 setProcessingState("reserving");
-                const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "";
-                const reserveRes = await fetch(`${gatewayUrl}/api/v1/checkout/reserve`, {
+                const reserveRes = await fetch(`/api/checkout/reserve`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -318,7 +316,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
 
             // 3. Step 2 & 3: Initiate Checkout (Pricing + Draft Order)
             setProcessingState("initiating");
-            const initiateRes = await fetch(`${gatewayUrl}/api/v1/checkout/initiate`, {
+            const initiateRes = await fetch(`/api/checkout/initiate`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -389,8 +387,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             handler: async function (response) {
                 try {
                     setProcessingState("verifying");
-                    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || "";
-                    const verifyRes = await fetch(`${gatewayUrl}/api/v1/payments/verify`, {
+                    const verifyRes = await fetch(`/api/payments`, {
                         method: "PATCH",
                         headers: {
                             "Content-Type": "application/json",

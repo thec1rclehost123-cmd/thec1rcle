@@ -39,6 +39,7 @@ import { EmptyState, ErrorState } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/Skeleton";
 import { colors, radii, gradients } from "@/lib/design/theme";
 import { trackScreen } from "@/lib/analytics";
+import { formatRelativeTime } from "@/lib/utils/date";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -73,7 +74,7 @@ function NotificationItem({
         onPress();
     };
 
-    const timeAgo = getTimeAgo(notification.createdAt);
+    const timeAgo = formatRelativeTime(notification.createdAt);
     const icon = getNotificationIcon(notification.type);
 
     const renderRightActions = () => (
@@ -154,6 +155,7 @@ export default function NotificationsScreen() {
         notifications,
         unreadCount,
         loading,
+        error,
         fetchNotifications,
         markAsRead,
         markAllAsRead,
@@ -164,6 +166,9 @@ export default function NotificationsScreen() {
 
     useEffect(() => {
         trackScreen("Notifications");
+    }, []);
+
+    useEffect(() => {
         if (user?.uid) {
             fetchNotifications(user.uid);
         }
@@ -239,6 +244,14 @@ export default function NotificationsScreen() {
                     <SkeletonList type="notification" count={5} />
                 )}
 
+                {/* Error state */}
+                {error && !loading && notifications.length === 0 && (
+                    <ErrorState
+                        message="Failed to load notifications"
+                        onRetry={() => user?.uid && fetchNotifications(user.uid)}
+                    />
+                )}
+
                 {/* Unread count badge */}
                 {!loading && unreadCount > 0 && (
                     <Animated.View entering={FadeInDown} style={styles.unreadBanner}>
@@ -302,7 +315,7 @@ export default function NotificationsScreen() {
                 )}
 
                 {/* Empty State */}
-                {!loading && notifications.length === 0 && (
+                {!loading && !error && notifications.length === 0 && (
                     <EmptyState
                         type="no-notifications"
                         actionLabel="Explore Events"
@@ -314,20 +327,6 @@ export default function NotificationsScreen() {
     );
 }
 
-// Helper function
-function getTimeAgo(date: Date): string {
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (minutes < 1) return "Just now";
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    if (days < 7) return `${days}d ago`;
-    return date.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
-}
 
 const styles = StyleSheet.create({
     container: {

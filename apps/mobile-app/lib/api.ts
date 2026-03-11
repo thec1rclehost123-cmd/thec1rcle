@@ -4,6 +4,7 @@
  * ensuring full sync with web checkout, payments, and inventory.
  */
 
+import Constants from "expo-constants";
 import { getFirebaseAuth } from "./firebase";
 
 // The guest-portal base URL — same backend used by the website
@@ -25,39 +26,69 @@ async function getAuthToken(): Promise<string | null> {
  */
 async function apiFetch<T = any>(
     path: string,
-    options: RequestInit & { requireAuth?: boolean } = {}
+    options: RequestInit & { requireAuth?: boolean; _retry?: boolean } = {}
 ): Promise<T> {
-    const { requireAuth = true, ...fetchOptions } = options;
+    const { requireAuth = true, _retry = false, ...fetchOptions } = options;
 
+    const appVersion = Constants.expoConfig?.version ?? "unknown";
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
+        "X-App-Version": appVersion,
         ...(fetchOptions.headers as Record<string, string>),
     };
 
     if (requireAuth) {
-        const token = await getAuthToken();
-        if (!token) {
+        // Pass forceRefresh=true if this is a retry
+        const auth = getFirebaseAuth();
+        const user = auth.currentUser;
+        if (!user) {
             throw new Error("Authentication required. Please sign in.");
         }
+
+        const token = await user.getIdToken(_retry);
         headers["Authorization"] = `Bearer ${token}`;
     }
 
     const url = `${API_BASE}${path}`;
 
-    const response = await fetch(url, {
-        ...fetchOptions,
-        headers,
-    });
+    // Step 1: Set timeout based on path
+    const isCheckout = path.includes("/checkout") || path.includes("/payments");
+    const timeout = isCheckout ? 30000 : 15000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-    const data = await response.json();
+    try {
+        const response = await fetch(url, {
+            ...fetchOptions,
+            headers,
+            signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
 
-    if (!response.ok) {
-        throw new Error(
-            data.error || data.message || `Request failed (${response.status})`
-        );
+        // Handle 401 Unauthorized — potentially expired token
+        if (response.status === 401 && requireAuth && !_retry) {
+            console.log("[API] 401 detected, attempting token refresh retry...");
+            return apiFetch<T>(path, { ...options, _retry: true });
+        }
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.error || data.message || `Request failed (${response.status})`
+            );
+        }
+
+        return data as T;
+    } catch (error: any) {
+        // If it's already an Error with a message from above, rethrow
+        if (error.message && !error.message.includes("fetch")) {
+            throw error;
+        }
+
+        // Handle network/timeout errors
+        throw new Error(error.message || "Network request failed. Please check your connection.");
     }
-
-    return data as T;
 }
 
 // ─── Checkout APIs (same as guest-portal) ────────────────────────

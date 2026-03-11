@@ -11,7 +11,10 @@ import {
     ShieldCheck,
     Edit3,
     Save,
-    Loader2
+    Loader2,
+    Globe,
+    Copy,
+    Link as LinkIcon
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
@@ -27,8 +30,11 @@ export default function ProfilePage() {
         phone: "",
         instagram: "",
         bio: "",
-        city: "Pune"
+        city: "Pune",
+        username: ""
     });
+
+    const [linkCopied, setLinkCopied] = useState(false);
 
     const promoterId = profile?.activeMembership?.partnerId;
 
@@ -47,7 +53,8 @@ export default function ProfilePage() {
                         phone: data.phone || data.contactPhone || "",
                         instagram: data.instagram || "",
                         bio: data.bio || data.summary || "",
-                        city: data.city || "Pune"
+                        city: data.city || "Pune",
+                        username: data.username || ""
                     });
                 }
             } catch (err) {
@@ -80,6 +87,7 @@ export default function ProfilePage() {
                         instagram: formData.instagram,
                         bio: formData.bio,
                         city: formData.city,
+                        username: formData.username.toLowerCase().replace(/[^a-z0-9_]/g, ''),
                         updatedAt: new Date().toISOString()
                     }
                 })
@@ -187,6 +195,47 @@ export default function ProfilePage() {
                                     <p className="text-sm font-medium text-[#1d1d1f] leading-relaxed italic">
                                         "{formData.bio || "No biography provided. Tell venues and hosts about your impact!"}"
                                     </p>
+                                )}
+                            </div>
+
+                            {/* Public Profile / Link-in-Bio */}
+                            <SectionHeader title="Public Profile / Link-in-Bio" />
+                            <div className="p-6 rounded-2xl bg-[#f5f5f7] border border-[rgba(0,0,0,0.02)] space-y-4">
+                                {editMode ? (
+                                    <div className="space-y-3">
+                                        <label className="text-[11px] font-bold text-[#86868b] uppercase tracking-widest">Username</label>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium text-[#86868b]">c1rcle.app/p/</span>
+                                            <input
+                                                className="flex-1 bg-surface-elevated border-0 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-[#007aff] outline-none"
+                                                value={formData.username}
+                                                onChange={(e) => setFormData({ ...formData, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
+                                                placeholder="your_username"
+                                                maxLength={30}
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-[#86868b]">Letters, numbers, and underscores only. This is your permanent public URL.</p>
+                                    </div>
+                                ) : formData.username ? (
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Globe className="w-4 h-4 text-[#86868b]" />
+                                            <span className="text-sm font-semibold text-[#1d1d1f]">c1rcle.app/p/{formData.username}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(`https://c1rcle.app/p/${formData.username}`);
+                                                setLinkCopied(true);
+                                                setTimeout(() => setLinkCopied(false), 1500);
+                                            }}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-elevated text-xs font-bold hover:bg-surface-secondary transition-all"
+                                        >
+                                            {linkCopied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-[#86868b]" />}
+                                            {linkCopied ? "Copied!" : "Copy"}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-[#86868b] italic">Set a username to activate your public profile link.</p>
                                 )}
                             </div>
 

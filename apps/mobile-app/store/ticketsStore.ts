@@ -17,6 +17,7 @@ export interface Order {
     eventId: string;
     eventTitle?: string;
     eventDate?: string;
+    eventCoverImage?: string;
     venueLocation?: string;
     status: "pending_payment" | "confirmed" | "checked_in" | "cancelled" | "refunded";
     tickets: OrderTicket[];
@@ -42,12 +43,13 @@ interface TicketsState {
     getOrderById: (orderId: string) => Promise<Order | null>;
 }
 
-export const useTicketsStore = create<TicketsState>((set) => ({
+export const useTicketsStore = create<TicketsState>((set, get) => ({
     orders: [],
     loading: false,
     error: null,
 
     fetchUserOrders: async (userId: string) => {
+        if (get().loading) return;
         set({ loading: true, error: null });
 
         try {

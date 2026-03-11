@@ -30,8 +30,9 @@ import {
     subscribeToDMTyping,
     createTypingHandler,
 } from "@/lib/social";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase";
+import { trackScreen } from "@/lib/analytics";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn } from "react-native-reanimated";
 
@@ -177,10 +178,21 @@ export default function DirectMessageScreen() {
     }, [conversationId, user?.uid, user?.displayName]);
 
     useEffect(() => {
+        trackScreen("DirectMessage");
+    }, []);
+
+    useEffect(() => {
         if (!conversationId || !user?.uid) return;
 
-        // Subscribe to conversation status
+        // Write read receipt — 1 write per screen open
         const db = getFirebaseDb();
+        setDoc(
+            doc(db, "privateConversations", conversationId, "readStatus", user.uid),
+            { lastReadAt: serverTimestamp() },
+            { merge: true }
+        ).catch(() => {});
+
+        // Subscribe to conversation status
         const convoRef = doc(db, "privateConversations", conversationId);
 
         const unsubConvo = onSnapshot(convoRef, async (snapshot) => {

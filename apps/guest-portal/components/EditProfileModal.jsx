@@ -8,6 +8,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import Image from "next/image";
 import Cropper from "react-easy-crop";
 import GenderSelector from "./GenderSelector";
+import ShimmerImage from "./ShimmerImage";
 
 export default function EditProfileModal({ open, onClose }) {
     const { user, profile, updateUserProfile, changePassword } = useAuth();
@@ -16,7 +17,7 @@ export default function EditProfileModal({ open, onClose }) {
     const [uploadingImage, setUploadingImage] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
-    const [imagePreview, setImagePreview] = useState(profile?.photoURL || "");
+    const [imagePreview, setImagePreview] = useState(profile?.photoURL || profile?.avatar || "");
     const [cropperOpen, setCropperOpen] = useState(false);
     const [imageSrc, setImageSrc] = useState(null);
     const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -27,7 +28,7 @@ export default function EditProfileModal({ open, onClose }) {
         displayName: profile?.displayName || "",
         instagram: profile?.instagram || "",
         phoneNumber: profile?.phoneNumber || "",
-        photoURL: profile?.photoURL || "",
+        photoURL: profile?.photoURL || profile?.avatar || "",
         city: profile?.city || "",
         gender: profile?.gender || ""
     });
@@ -134,12 +135,21 @@ export default function EditProfileModal({ open, onClose }) {
             const downloadURL = await getDownloadURL(storageRef);
 
             // Update form data and preview
-            setFormData((prev) => ({ ...prev, photoURL: downloadURL }));
+            setFormData((prev) => ({ ...prev, photoURL: downloadURL, avatar: downloadURL }));
             setImagePreview(downloadURL);
             setImageSrc(null);
         } catch (err) {
             console.error("Upload error:", err);
-            setError("Failed to upload image. Please try again.");
+            if (err.code === 'storage/quota-exceeded') {
+                setError("Firebase storage quota exceeded. Please try again later or synchronize with Google/Social account.");
+                // Fallback: If it's a social user, we can try to use their provider photoURL directly
+                if (user?.photoURL) {
+                    setFormData(prev => ({ ...prev, photoURL: user.photoURL, avatar: user.photoURL }));
+                    setImagePreview(user.photoURL);
+                }
+            } else {
+                setError("Failed to upload image. Please try again.");
+            }
         } finally {
             setUploadingImage(false);
             if (fileInputRef.current) {
@@ -164,6 +174,16 @@ export default function EditProfileModal({ open, onClose }) {
         setError("");
         setSuccess("");
         try {
+            // Quota Cleanse: If the photo is from Firebase Storage and we know there's a quota issue,
+            // we should swap it for the user's Auth photo (lh3.googleusercontent.com) which is free.
+            if (formData.photoURL?.includes('firebasestorage.googleapis.com')) {
+                const isSocialUser = user?.photoURL && (user.photoURL.includes('googleusercontent.com') || user.photoURL.includes('facebook') || user.photoURL.includes('dicebear'));
+                if (isSocialUser) {
+                    formData.photoURL = user.photoURL;
+                    formData.avatar = user.photoURL;
+                }
+            }
+
             // Update profile
             await updateUserProfile(formData);
 
@@ -320,11 +340,10 @@ export default function EditProfileModal({ open, onClose }) {
                                                         <div className="absolute inset-0 rounded-full bg-gradient-to-br from-orange/20 to-iris/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                                         <div className="relative h-full w-full overflow-hidden rounded-full border-2 border-white/10 bg-black/40 shadow-2xl">
                                                             {imagePreview || formData.photoURL ? (
-                                                                <Image
+                                                                <ShimmerImage
                                                                     src={imagePreview || formData.photoURL}
-                                                                    alt="Profile preview"
+                                                                    alt={formData.displayName || "Profile preview"}
                                                                     fill
-                                                                    sizes="112px"
                                                                     className="object-cover transition-transform duration-500 hover:scale-110"
                                                                 />
                                                             ) : (

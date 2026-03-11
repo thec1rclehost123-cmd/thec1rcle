@@ -11,7 +11,9 @@ import {
     Layout,
     ShieldCheck,
     Building,
-    Clock
+    Clock,
+    Star,
+    Compass
 } from "lucide-react";
 
 const menuSections = [
@@ -39,12 +41,14 @@ const menuSections = [
             { icon: PlusCircle, label: "Create Event", href: "/host/create" },
             { icon: Clock, label: "Slot Requests", href: "/host/events/requests" },
             { icon: ShieldCheck, label: "Entry Control", href: "/host/ops" },
+            { icon: Star, label: "Reviews", href: "/host/reviews" },
         ]
     },
     {
         items: [
             { icon: Users, label: "Promoters", href: "/host/promoters" },
             { icon: Building, label: "Venues", href: "/host/partnerships" },
+            { icon: Compass, label: "Discover", href: "/host/discover" },
         ]
     },
     {

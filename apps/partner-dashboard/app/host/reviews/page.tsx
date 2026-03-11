@@ -1,5 +1,9 @@
-import PlaceholderPage from "../../../components/host-layout/PlaceholderPage";
+"use client";
+
+import dynamic from "next/dynamic";
+
+const ReviewsClient = dynamic(() => import("./PageClient"), { ssr: false });
 
 export default function ReviewsPage() {
-    return <PlaceholderPage title="Past Event Reviews" description="Analyze what worked and what didn't. See feedback from venues and audience." />;
+    return <ReviewsClient />;
 }

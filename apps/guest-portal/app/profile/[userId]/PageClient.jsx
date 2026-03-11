@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../../components/providers/AuthProvider";
 import { getUserEvents, fetchProfile } from "../actions";
 import EditProfileModal from "../../../components/EditProfileModal";
+import ShimmerImage from "../../../components/ShimmerImage";
 import { useParams, useRouter } from "next/navigation";
 
 // --- Visual Components ---
@@ -65,13 +66,12 @@ const MemberCard = ({ user, profile, displayName, initials, isOwner, onEdit, onL
         <div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-6">
                 <div className="group relative h-24 w-24 shrink-0 overflow-hidden rounded-full border-2 border-black/10 dark:border-white/20 shadow-xl md:h-32 md:w-32">
-                    {profile?.photoURL ? (
-                        <Image src={profile.photoURL} alt={displayName} fill sizes="128px" className="object-cover transition-transform duration-500 group-hover:scale-110" />
-                    ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-black/[0.03] dark:bg-[#111]">
-                            <span className="font-heading text-3xl font-black text-black/20 dark:text-white/30">{initials}</span>
-                        </div>
-                    )}
+                    <ShimmerImage
+                        src={profile?.photoURL || profile?.avatar}
+                        alt={displayName || "Member"}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
                     {isOwner && (
                         <button
                             onClick={onEdit}
@@ -259,7 +259,7 @@ export default function PublicProfilePage() {
         };
 
         loadData();
-    }, [userId, currentUser?.uid]);
+    }, [userId, currentUser?.uid, currentProfile]);
 
     if (loading) {
         return (

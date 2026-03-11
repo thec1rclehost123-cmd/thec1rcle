@@ -550,6 +550,62 @@ function SidePanel({
 
     const needsAttention = data?.state === 'PENDING' || data?.stats?.pendingSlots > 0;
 
+    const visualItems = useMemo(() => {
+        const events = (data?.events || []).map((e: any) => ({ ...e, vType: 'event' }));
+        const slots = (data?.slots || []).map((s: any) => ({ ...s, vType: 'slot' }));
+        const combined = [...events, ...slots];
+
+        const getMinutes = (timeStr: string) => {
+            if (!timeStr) return 0;
+            const [h, m] = timeStr.split(':').map(Number);
+            let diff = h - 16;
+            if (diff < 0) diff += 24;
+            return diff * 60 + m;
+        };
+
+        const sorted = combined.map(item => ({
+            ...item,
+            startMin: getMinutes(item.startTime),
+            endMin: getMinutes(item.endTime)
+        })).sort((a, b) => a.startMin - b.startMin || (b.endMin - b.startMin) - (a.endMin - a.startMin));
+
+        // Group into overlapping clusters to determine column widths
+        const finalItems: any[] = [];
+        let currentCluster: any[] = [];
+        let clusterEnd = -1;
+
+        const processCluster = (cluster: any[]) => {
+            const columns: any[][] = [];
+            cluster.forEach(item => {
+                let colIdx = 0;
+                while (columns[colIdx] && columns[colIdx].some(other => item.startMin < other.endMin && item.endMin > other.startMin)) {
+                    colIdx++;
+                }
+                if (!columns[colIdx]) columns[colIdx] = [];
+                columns[colIdx].push(item);
+                item.colIdx = colIdx;
+            });
+            cluster.forEach(item => {
+                item.totalCols = columns.length;
+                finalItems.push(item);
+            });
+        };
+
+        sorted.forEach(item => {
+            if (item.startMin >= clusterEnd) {
+                if (currentCluster.length > 0) processCluster(currentCluster);
+                currentCluster = [item];
+                clusterEnd = item.endMin;
+            } else {
+                currentCluster.push(item);
+                clusterEnd = Math.max(clusterEnd, item.endMin);
+            }
+        });
+        if (currentCluster.length > 0) processCluster(currentCluster);
+
+        return finalItems;
+    }, [data]);
+
     return (
         <div className="h-full flex flex-col bg-transparent select-none">
             {/* Header */}
@@ -600,78 +656,97 @@ function SidePanel({
                                 ))}
                             </div>
 
-                            {/* Event Blocks */}
+                            {/* Stacked Event & Slot Blocks */}
                             <div className="absolute inset-x-0 h-full pl-4 pointer-events-none">
-                                {data?.events?.map((e: any) => {
-                                    const isConfirmed = ['published', 'scheduled', 'live', 'confirmed', 'approved'].includes(e.lifecycle || e.status);
-                                    const isAnonymized = role === 'host' && e.isAnonymized;
+                                {visualItems.map((item: any) => {
+                                    const isEvent = item.vType === 'event';
+                                    const top = getTop(item.startTime);
+                                    const height = getHeight(item.startTime, item.endTime);
+                                    const colIdx = item.colIdx || 0;
+                                    const totalCols = item.totalCols || 1;
 
-                                    return (
-                                        <Link
-                                            key={e.id}
-                                            href={isAnonymized ? '#' : (role === 'venue' ? `/venue/events/${e.id}` : `/host/events/${e.id}`)}
-                                            style={{
-                                                top: `${getTop(e.startTime)}%`,
-                                                height: `${getHeight(e.startTime, e.endTime)}%`,
-                                                minHeight: '80px'
-                                            }}
-                                            className={`absolute inset-x-0 mr-4 rounded-xl p-5 flex flex-col border transition-all hover:translate-x-1 ${isAnonymized
-                                                ? 'bg-[#F2F2F7] border-[rgba(0,0,0,0.06)] text-[#86868B]'
-                                                : isConfirmed
-                                                    ? 'bg-green-500/5 border-emerald-500/20 text-[#1D1D1F] shadow-[0_0_20px_rgba(16,185,129,0.05)]'
-                                                    : 'bg-[#FAFAFB] border-[rgba(0,0,0,0.08)] text-[#424245]'
-                                                }`}
-                                        >
-                                            <div className="flex gap-4 h-full pointer-events-auto">
-                                                {e.posterUrl && !isAnonymized && (
-                                                    <div className="w-16 h-16 rounded-lg overflow-hidden border border-border-subtle shadow-lg flex-shrink-0">
-                                                        <img src={e.posterUrl} alt="" className="w-full h-full object-cover" />
-                                                    </div>
-                                                )}
-                                                <div className="flex-1 min-w-0 flex flex-col">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className={`text-[10px] font-black uppercase tracking-widest tabular-nums ${isConfirmed ? 'text-emerald-500/80' : 'text-text-tertiary'}`}>
-                                                            {e.startTime} <span className="mx-1 opacity-50">/</span> {e.endTime}
-                                                        </span>
-                                                        {isConfirmed && !isAnonymized && <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_rgba(16,185,129,0.4)]" />}
-                                                        {isAnonymized && <Lock className="h-3 w-3 opacity-30 text-text-tertiary" />}
-                                                    </div>
-                                                    <h3 className="text-sm font-bold truncate leading-tight mb-2 text-text-primary">
-                                                        {isAnonymized ? 'RESERVED' : (e.title?.toUpperCase() || 'UNTITLED')}
-                                                    </h3>
-                                                    {!isAnonymized && (
-                                                        <div className="flex items-center gap-2 mt-auto">
-                                                            <div className="w-5 h-5 rounded-full bg-surface-elevated/5 border border-border-subtle flex items-center justify-center">
-                                                                <User className="h-2.5 w-2.5 text-text-tertiary" />
-                                                            </div>
-                                                            <span className="text-[10px] font-black text-text-tertiary uppercase tracking-widest truncate">{e.host || 'Booking'}</span>
+                                    // Stacked layout: slightly offset each card
+                                    const leftOffset = colIdx * 8;
+                                    const widthPercent = totalCols > 1 ? 85 : 100;
+                                    const zIndex = 10 + colIdx;
+
+                                    if (isEvent) {
+                                        const isConfirmed = ['published', 'scheduled', 'live', 'confirmed', 'approved'].includes(item.lifecycle || item.status);
+                                        const isAnonymized = role === 'host' && item.isAnonymized;
+
+                                        return (
+                                            <Link
+                                                key={item.id}
+                                                href={isAnonymized ? '#' : (role === 'venue' ? `/venue/events/${item.id}` : `/host/events/${item.id}`)}
+                                                style={{
+                                                    top: `${top}%`,
+                                                    height: `${height}%`,
+                                                    minHeight: '80px',
+                                                    left: `${leftOffset}px`,
+                                                    width: `calc(${widthPercent}% - ${leftOffset}px - 16px)`,
+                                                    zIndex: zIndex
+                                                }}
+                                                className={`absolute rounded-xl p-5 flex flex-col border transition-all hover:translate-x-1 shadow-2xl ${isAnonymized
+                                                    ? 'bg-[#F2F2F7] border-[rgba(0,0,0,0.06)] text-[#86868B]'
+                                                    : isConfirmed
+                                                        ? 'bg-green-500/5 border-emerald-500/20 text-[#1D1D1F] shadow-[0_0_20px_rgba(16,185,129,0.05)]'
+                                                        : 'bg-[#FAFAFB] border-[rgba(0,0,0,0.08)] text-[#424245]'
+                                                    }`}
+                                            >
+                                                <div className="flex gap-4 h-full pointer-events-auto">
+                                                    {item.posterUrl && !isAnonymized && (
+                                                        <div className="w-16 h-16 rounded-lg overflow-hidden border border-border-subtle shadow-lg flex-shrink-0">
+                                                            <img src={item.posterUrl} alt="" className="w-full h-full object-cover" />
                                                         </div>
                                                     )}
+                                                    <div className="flex-1 min-w-0 flex flex-col">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <span className={`text-[10px] font-black uppercase tracking-widest tabular-nums ${isConfirmed ? 'text-emerald-500/80' : 'text-text-tertiary'}`}>
+                                                                {item.startTime} <span className="mx-1 opacity-50">/</span> {item.endTime}
+                                                            </span>
+                                                            {isConfirmed && !isAnonymized && <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_rgba(16,185,129,0.4)]" />}
+                                                            {isAnonymized && <Lock className="h-3 w-3 opacity-30 text-text-tertiary" />}
+                                                        </div>
+                                                        <h3 className="text-sm font-bold truncate leading-tight mb-2 text-text-primary">
+                                                            {isAnonymized ? 'RESERVED' : (item.title?.toUpperCase() || 'UNTITLED')}
+                                                        </h3>
+                                                        {!isAnonymized && (
+                                                            <div className="flex items-center gap-2 mt-auto">
+                                                                <div className="w-5 h-5 rounded-full bg-surface-elevated/5 border border-border-subtle flex items-center justify-center">
+                                                                    <User className="h-2.5 w-2.5 text-text-tertiary" />
+                                                                </div>
+                                                                <span className="text-[10px] font-black text-text-tertiary uppercase tracking-widest truncate">{item.host || 'Booking'}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
+                                            </Link>
+                                        );
+                                    } else {
+                                        // Slot rendering
+                                        return (
+                                            <div
+                                                key={item.id}
+                                                style={{
+                                                    top: `${top}%`,
+                                                    height: `${height}%`,
+                                                    minHeight: '60px',
+                                                    left: `${leftOffset}px`,
+                                                    width: `calc(${widthPercent}% - ${leftOffset}px - 16px)`,
+                                                    zIndex: zIndex
+                                                }}
+                                                className="absolute rounded-xl p-5 border border-iris/30 bg-iris/5 flex flex-col transition-all shadow-xl"
+                                            >
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 tabular-nums">{item.startTime} / {item.endTime}</span>
+                                                    <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-[9px] font-black text-rose-500 uppercase tracking-widest border border-rose-500/20">PENDING REQUEST</span>
+                                                </div>
+                                                <h3 className="text-sm font-black text-text-primary uppercase tracking-tight truncate">{item.host}</h3>
+                                                <p className="text-[9px] text-rose-500 font-black uppercase tracking-[0.2em] mt-auto animate-pulse">ACTION_REQUIRED</p>
                                             </div>
-                                        </Link>
-                                    );
+                                        );
+                                    }
                                 })}
-
-                                {/* Pending Slots */}
-                                {data?.slots?.map((s: any) => (
-                                    <div
-                                        key={s.id}
-                                        style={{
-                                            top: `${getTop(s.startTime)}%`,
-                                            height: `${getHeight(s.startTime, s.endTime)}%`,
-                                            minHeight: '60px'
-                                        }}
-                                        className="absolute inset-x-0 mr-4 rounded-xl p-5 border border-iris/30 bg-iris/5 flex flex-col transition-all"
-                                    >
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 tabular-nums">{s.startTime} / {s.endTime}</span>
-                                            <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-[9px] font-black text-rose-500 uppercase tracking-widest border border-rose-500/20">PENDING REQUEST</span>
-                                        </div>
-                                        <h3 className="text-sm font-black text-text-primary uppercase tracking-tight truncate">{s.host}</h3>
-                                        <p className="text-[9px] text-rose-500 font-black uppercase tracking-[0.2em] mt-auto animate-pulse">ACTION_REQUIRED</p>
-                                    </div>
-                                ))}
 
                                 {/* Blocked Overlay */}
                                 {(data?.block || isDragging || (isBlockingMode && startTime && endTime)) && (

@@ -41,8 +41,12 @@ export default function ShimmerImage({ className = "", wrapperClassName = "", on
           }}
         />
       ) : (
-        <div className={`relative z-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold uppercase text-zinc-400 ${className}`}>
-          {props.alt?.slice(0, 2) || "IM"}
+        <div className={`relative z-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 ${className}`}>
+          <img
+            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${props.alt || 'user'}`}
+            alt="Fallback Avatar"
+            className="w-full h-full object-cover"
+          />
         </div>
       )}
     </div>
