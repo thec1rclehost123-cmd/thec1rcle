@@ -14,7 +14,7 @@ export default fp(async (fastify: FastifyInstance) => {
         max: (req: FastifyRequest) => {
             // Internal network / health checks bypass limits
             if (req.url.startsWith('/health') || req.url.startsWith('/metrics')) {
-                return 0; // 0 = unlimited
+                return 1000;
             }
 
             // Auth Routes: Strict limit to prevent brute force (e.g. login, onboarding)

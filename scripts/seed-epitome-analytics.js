@@ -299,7 +299,7 @@ const makeEvent = (id, title, subtitle, startDate, lifecycle, status, ticketsSol
         ],
         priceRange,
         isRSVP: false,
-        promoterVisibility: true,
+        promotersEnabled: true,
         promoterSettings: {
             enabled: true,
             useDefaultCommission: true,

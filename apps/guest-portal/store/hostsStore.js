@@ -139,7 +139,9 @@ export const useHostsStore = create(
         }),
         {
             name: 'hosts-cache',
-            storage: createJSONStorage(() => localStorage),
+            storage: createJSONStorage(() =>
+                typeof window !== "undefined" ? localStorage : undefined
+            ),
         }
     )
 );

@@ -63,9 +63,11 @@ export async function PATCH(req: NextRequest) {
             );
         }
 
-        // Map frontend action to canonical lifecycle status
+        // Map frontend action to canonical lifecycle status.
+        // "approve" publishes a host-submitted event directly to "scheduled"
+        // so it becomes publicly visible without a separate publish step.
         const statusMap: Record<string, string> = {
-            approve: "approved",
+            approve: "scheduled",
             reject: "denied",
             pause: "paused",
             resume: "live"

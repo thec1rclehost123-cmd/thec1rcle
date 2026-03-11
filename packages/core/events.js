@@ -5,22 +5,130 @@
 
 // --- 1. Lifecycle States ---
 export const EVENT_LIFECYCLE = {
-    DRAFT: "draft",           // Private, only creator sees
-    SUBMITTED: "submitted",   // Pending club/admin approval (if host created)
-    NEEDS_CHANGES: "needs_changes", // Rejected with notes
-    APPROVED: "approved",     // Approval received, ready for public status
-    SCHEDULED: "scheduled",   // Publicly listed, tickets available (Future date)
-    LIVE: "live",             // Currently happening
-    COMPLETED: "completed",   // Event ended
-    CANCELLED: "cancelled"    // Shutdown
+    DRAFT: "draft",               // Private working state, creator only
+    SUBMITTED: "submitted",       // Host submitted to venue for approval
+    NEEDS_CHANGES: "needs_changes", // Venue sent back to host for revision
+    APPROVED: "approved",         // Venue approved host request — internal pre-publish state
+    SCHEDULED: "scheduled",       // Publicly visible upcoming event, ticket-selling state
+    LIVE: "live",                 // Currently happening
+    COMPLETED: "completed",       // Event ended, read-only
+    PAUSED: "paused",             // Temporarily hidden / ticket sales suspended
+    CANCELLED: "cancelled",       // Cancelled, visible only where appropriate
+    DENIED: "denied",             // Venue rejected host request
+    DELETED: "deleted",           // Soft-deleted
 };
 
+/**
+ * States that appear in the guest-facing public portal (explore, search, event pages).
+ * approved is intentionally excluded — it is an internal pre-publish state.
+ */
 export const PUBLIC_LIFECYCLE_STATES = [
     EVENT_LIFECYCLE.SCHEDULED,
-    EVENT_LIFECYCLE.LIVE
+    EVENT_LIFECYCLE.LIVE,
 ];
 
-// --- 2. City Normalization ---
+// --- 2. Shared Lifecycle Helpers ---
+
+/**
+ * Is this lifecycle visible to guests in the public portal?
+ * Use this instead of hardcoding lifecycle strings in components.
+ */
+export function isPublicLifecycle(lifecycle) {
+    return PUBLIC_LIFECYCLE_STATES.includes(lifecycle);
+}
+
+/**
+ * Is this an upcoming or ongoing event (suitable for discovery feeds)?
+ * Excludes completed, cancelled, paused, denied, deleted.
+ */
+export function isUpcomingLifecycle(lifecycle) {
+    return lifecycle === EVENT_LIFECYCLE.SCHEDULED || lifecycle === EVENT_LIFECYCLE.LIVE;
+}
+
+/**
+ * Does this event require venue approval before it can be published?
+ * Only host-created events go through the approval flow.
+ */
+export function requiresVenueApproval(event) {
+    const role = event.creatorRole || event.eventType;
+    return role === "host";
+}
+
+/**
+ * Can a promoter see this event in their discovery view?
+ * Requires both public visibility AND promotersEnabled flag.
+ */
+export function canPromoterSee(event) {
+    const isPublic = isPublicLifecycle(event.lifecycle);
+    const promotersEnabled = event.promotersEnabled === true || event.promoterSettings?.enabled === true;
+    return isPublic && promotersEnabled;
+}
+
+/**
+ * Can a promoter create a personal link for this event?
+ * Currently same as visibility logic, but separated for future extensibility (e.g. invite-only).
+ */
+export function canPromoterCreateLink(event) {
+    return canPromoterSee(event);
+}
+
+/**
+ * Can the given actor edit this event?
+ * - venue: can edit their own draft events
+ * - host: can edit their own draft or needs_changes events
+ * - admin: can always edit
+ */
+export function isEditableEvent(event, actorRole) {
+    if (actorRole === "admin") return true;
+    const lc = event.lifecycle;
+    if (actorRole === "venue" && (event.creatorRole || event.eventType) === "venue") {
+        return lc === EVENT_LIFECYCLE.DRAFT;
+    }
+    if (actorRole === "host" && (event.creatorRole || event.eventType) === "host") {
+        return lc === EVENT_LIFECYCLE.DRAFT || lc === EVENT_LIFECYCLE.NEEDS_CHANGES;
+    }
+    return false;
+}
+
+/**
+ * Returns the set of lifecycle values the actor can transition this event to.
+ * Used to validate PATCH /events/:id/lifecycle requests.
+ */
+export function getNextAllowedTransitions(event, actorRole) {
+    const lc = event.lifecycle;
+    const role = event.creatorRole || event.eventType;
+
+    if (actorRole === "admin") {
+        return Object.values(EVENT_LIFECYCLE).filter(s => s !== lc);
+    }
+
+    if (actorRole === "venue") {
+        if (role === "venue") {
+            if (lc === EVENT_LIFECYCLE.DRAFT) return [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.APPROVED, EVENT_LIFECYCLE.CANCELLED];
+            if (lc === EVENT_LIFECYCLE.APPROVED) return [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.CANCELLED];
+            if (lc === EVENT_LIFECYCLE.SCHEDULED) return [EVENT_LIFECYCLE.LIVE, EVENT_LIFECYCLE.PAUSED, EVENT_LIFECYCLE.CANCELLED];
+            if (lc === EVENT_LIFECYCLE.LIVE) return [EVENT_LIFECYCLE.COMPLETED, EVENT_LIFECYCLE.PAUSED, EVENT_LIFECYCLE.CANCELLED];
+            if (lc === EVENT_LIFECYCLE.PAUSED) return [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.LIVE, EVENT_LIFECYCLE.CANCELLED];
+        }
+        if (role === "host") {
+            // Venue reviewing a host submission
+            if (lc === EVENT_LIFECYCLE.SUBMITTED) return [EVENT_LIFECYCLE.APPROVED, EVENT_LIFECYCLE.NEEDS_CHANGES, EVENT_LIFECYCLE.DENIED];
+            if (lc === EVENT_LIFECYCLE.APPROVED) return [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.CANCELLED];
+            if (lc === EVENT_LIFECYCLE.SCHEDULED) return [EVENT_LIFECYCLE.LIVE, EVENT_LIFECYCLE.PAUSED, EVENT_LIFECYCLE.CANCELLED];
+            if (lc === EVENT_LIFECYCLE.LIVE) return [EVENT_LIFECYCLE.COMPLETED, EVENT_LIFECYCLE.PAUSED, EVENT_LIFECYCLE.CANCELLED];
+            if (lc === EVENT_LIFECYCLE.PAUSED) return [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.LIVE, EVENT_LIFECYCLE.CANCELLED];
+        }
+    }
+
+    if (actorRole === "host") {
+        if (lc === EVENT_LIFECYCLE.DRAFT) return [EVENT_LIFECYCLE.SUBMITTED];
+        if (lc === EVENT_LIFECYCLE.NEEDS_CHANGES) return [EVENT_LIFECYCLE.SUBMITTED];
+    }
+
+    return [];
+}
+
+// --- 4. City Normalization ---
 export const CITY_MAP = [
     { key: "pune-in", label: "Pune, IN", matches: ["pune", "kp", "koregaon", "baner", "viman", "magarpatta", "hinjewadi", "kalyani"] },
     { key: "mumbai-in", label: "Mumbai, IN", matches: ["mumbai", "bandra", "andheri", "juhu", "worli", "colaba", "powai", "thane", "navi mumbai"] },
@@ -52,7 +160,7 @@ export function getCityLabel(key) {
     return found ? found.label : "Other City, IN";
 }
 
-// --- 3. Canonical Media Resolver ---
+// --- 5. Canonical Media Resolver ---
 export function resolvePoster(event) {
     if (!event) return "/events/placeholder.svg";
 
@@ -82,7 +190,7 @@ export function resolvePoster(event) {
     return (poster && typeof poster === "string") ? poster : "/events/placeholder.svg";
 }
 
-// --- 4. Canonical Event Mapper ---
+// --- 6. Canonical Event Mapper ---
 /**
  * Maps a raw Firestore document to a consistent client-side object.
  * Used by Guest Portal, Partner Dashboard, and Admin Console.
@@ -102,19 +210,28 @@ export function mapEventForClient(data, id) {
     const eventType = creatorRole === "host" ? "host" : "venue";
     let lifecycle = data.lifecycle || data.status || EVENT_LIFECYCLE.DRAFT;
 
-    // Hardening: Club events never need approval. Normalize legacy 'submitted' states.
-    if (eventType === "venue" && (lifecycle === EVENT_LIFECYCLE.SUBMITTED || lifecycle === "pending")) {
+    // Normalization: venue events never require approval and are never approved or submitted.
+    // Normalize legacy 'submitted', 'pending', and 'approved' states for venue events.
+    if (eventType === "venue" && (
+        lifecycle === EVENT_LIFECYCLE.SUBMITTED ||
+        lifecycle === "pending" ||
+        lifecycle === EVENT_LIFECYCLE.APPROVED
+    )) {
         lifecycle = EVENT_LIFECYCLE.SCHEDULED;
     }
 
     // Derived Permission Flags (True for Club/Admin viewing in Partner Dashboard)
-    const canApprove = eventType === "host" && (lifecycle === EVENT_LIFECYCLE.SUBMITTED || data.status === "pending");
-    const canRequestEdits = eventType === "host" && (lifecycle === EVENT_LIFECYCLE.SUBMITTED || data.status === "pending");
+    const canApprove = eventType === "host" && lifecycle === EVENT_LIFECYCLE.SUBMITTED;
+    const canRequestEdits = eventType === "host" && lifecycle === EVENT_LIFECYCLE.SUBMITTED;
 
     // Edit Rules:
-    // Club can edit its own drafts.
-    // Club can NEVER edit host content.
-    const canEdit = eventType === "venue" && lifecycle === EVENT_LIFECYCLE.DRAFT;
+    // Venue can edit its own draft events only.
+    // Host can edit their own draft or needs_changes events.
+    // Neither can edit across roles (venue cannot touch host content and vice-versa).
+    const canEdit = (
+        (eventType === "venue" && lifecycle === EVENT_LIFECYCLE.DRAFT) ||
+        (eventType === "host" && (lifecycle === EVENT_LIFECYCLE.DRAFT || lifecycle === EVENT_LIFECYCLE.NEEDS_CHANGES))
+    );
 
     return {
         ...data,

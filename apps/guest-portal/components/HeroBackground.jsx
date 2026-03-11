@@ -2,10 +2,10 @@ import Link from "next/link";
 
 export default function HeroBackground() {
   return (
-    <section className="mx-auto flex max-w-5xl flex-col items-center gap-6 rounded-[40px] border border-white/10 bg-gradient-to-b from-white/5 via-transparent to-white/5 p-10 text-center shadow-glow">
-      <p className="text-xs uppercase tracking-[0.7em] text-white/60">THE C1RCLE</p>
+    <section className="mx-auto flex max-w-5xl flex-col items-center gap-6 rounded-[40px] border border-black/10 dark:border-white/10 bg-gradient-to-b from-black/5 dark:from-white/5 via-transparent to-black/5 dark:to-white/5 p-10 text-center shadow-glow">
+      <p className="text-xs uppercase tracking-[0.7em] text-black/60 dark:text-white/60">THE C1RCLE</p>
       <h1 className="text-4xl font-display uppercase leading-tight tracking-[0.2em]">Discover life offline</h1>
-      <p className="max-w-2xl text-white/60">
+      <p className="max-w-2xl text-black/60 dark:text-white/60">
         A curated set of campus nights, rooftop flows, and underground pop-ups inspired by global social drops but remixed for Gen Z
         India.
       </p>

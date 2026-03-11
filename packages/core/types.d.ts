@@ -96,6 +96,12 @@ declare module '@c1rcle/core/events' {
     export function getCityLabel(cityKey: string): string;
     export function resolvePoster(payload: any): string;
     export function mapEventForClient(data: any, id: string): any;
+    export function isPublicLifecycle(lifecycle: string): boolean;
+    export function isUpcomingLifecycle(lifecycle: string): boolean;
+    export function requiresVenueApproval(event: any): boolean;
+    export function canPromoterSee(event: any): boolean;
+    export function canPromoterCreateLink(event: any): boolean;
+    export function isEditableEvent(event: any, role: string): boolean;
 }
 
 

@@ -121,7 +121,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
                   </svg>
                   <span>{activeEvent.date}</span>
                 </div>
-                <div className="hidden sm:block text-white/40">•</div>
+                <div className="hidden sm:block text-black/40 dark:text-white/40">•</div>
                 <div className="flex items-center gap-2 justify-center lg:justify-start">
                   <svg className="w-4 h-4 sm:w-6 sm:h-6 text-[#F44A22]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -154,19 +154,19 @@ export default function ExploreCarouselHeader({ slides = [] }) {
                 <div className="absolute inset-0 bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </Link>
 
-              <div className="flex items-center gap-2 lg:gap-3 px-4 py-2 lg:px-6 lg:py-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20">
+              <div className="flex items-center gap-2 lg:gap-3 px-4 py-2 lg:px-6 lg:py-3 rounded-full bg-black/10 dark:bg-white/10 backdrop-blur-md border border-black/20 dark:border-white/20">
                 <div className="flex -space-x-2 lg:-space-x-3">
                   {[1, 2, 3, 4].map((i) => (
                     <div
                       key={i}
-                      className="w-6 h-6 lg:w-10 lg:h-10 rounded-full bg-gradient-to-br from-[#F44A22] to-[#FF6B4A] border-2 border-white/20"
+                      className="w-6 h-6 lg:w-10 lg:h-10 rounded-full bg-gradient-to-br from-[#F44A22] to-[#FF6B4A] border-2 border-black/20 dark:border-white/20"
                       style={{
                         transform: `translateX(-${i * 2}px)`
                       }}
                     />
                   ))}
                 </div>
-                <span className="text-white font-bold text-xs lg:text-sm">+156 Going</span>
+                <span className="text-black dark:text-white font-bold text-xs lg:text-sm">+156 Going</span>
               </div>
             </motion.div>
           </motion.div>
@@ -213,7 +213,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
           <div className="flex gap-3">
             <button
               onClick={prevSlide}
-              className="p-4 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 hover:scale-110 transition-all duration-300"
+              className="p-4 rounded-full bg-black/10 dark:bg-white/10 backdrop-blur-md border border-black/20 dark:border-white/20 text-black dark:text-white hover:bg-black/20 dark:hover:bg-white/20 hover:scale-110 transition-all duration-300"
               aria-label="Previous slide"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
@@ -222,7 +222,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
             </button>
             <button
               onClick={nextSlide}
-              className="p-4 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 hover:scale-110 transition-all duration-300"
+              className="p-4 rounded-full bg-black/10 dark:bg-white/10 backdrop-blur-md border border-black/20 dark:border-white/20 text-black dark:text-white hover:bg-black/20 dark:hover:bg-white/20 hover:scale-110 transition-all duration-300"
               aria-label="Next slide"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
@@ -232,7 +232,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
           </div>
 
           {/* Pagination Dots */}
-          <div className="flex gap-2 px-6 py-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20">
+          <div className="flex gap-2 px-6 py-3 rounded-full bg-black/10 dark:bg-white/10 backdrop-blur-md border border-black/20 dark:border-white/20">
             {slides.map((_, idx) => (
               <button
                 key={idx}
@@ -240,8 +240,8 @@ export default function ExploreCarouselHeader({ slides = [] }) {
                 className={clsx(
                   "h-2 rounded-full transition-all duration-500",
                   idx === activeIndex
-                    ? "w-12 bg-white shadow-[0_0_15px_rgba(255,255,255,0.8)]"
-                    : "w-2 bg-white/30 hover:bg-white/50 hover:scale-125"
+                    ? "w-12 bg-black dark:bg-white shadow-[0_0_15px_rgba(0,0,0,0.4)] dark:shadow-[0_0_15px_rgba(255,255,255,0.8)]"
+                    : "w-2 bg-black/30 dark:bg-white/30 hover:bg-black/50 dark:hover:bg-white/50 hover:scale-125"
                 )}
                 aria-label={`Go to slide ${idx + 1}`}
               />
@@ -257,13 +257,13 @@ export default function ExploreCarouselHeader({ slides = [] }) {
           className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20"
         >
           <div className="flex flex-col items-center gap-2">
-            <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">Scroll</span>
+            <span className="text-[10px] uppercase tracking-[0.3em] text-black/50 dark:text-white/50">Scroll</span>
             <motion.div
               animate={{ y: [0, 10, 0] }}
               transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              className="w-6 h-10 rounded-full border border-white/20 flex justify-center p-1"
+              className="w-6 h-10 rounded-full border border-black/20 dark:border-white/20 flex justify-center p-1"
             >
-              <motion.div className="w-1 h-2 bg-white/50 rounded-full" />
+              <motion.div className="w-1 h-2 bg-black/50 dark:bg-white/50 rounded-full" />
             </motion.div>
           </div>
         </motion.div>

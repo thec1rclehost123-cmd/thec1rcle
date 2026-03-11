@@ -58,8 +58,10 @@ export async function GET(request) {
         }
 
         // Event search (default)
+        // Only show events in canonical PUBLIC states (scheduled = upcoming, live = happening now).
+        // This mirrors PUBLIC_LIFECYCLE_STATES from @c1rcle/core/events and the Firestore read rules.
         const filters = {
-            status: "published", // Only show published events
+            lifecycle: ["scheduled", "live"],
         };
 
         if (searchParams.get("city")) filters.venueCity = searchParams.get("city");

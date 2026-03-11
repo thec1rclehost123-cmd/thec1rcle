@@ -18,7 +18,7 @@ import {
     Loader2
 } from "lucide-react";
 import AdminConfirmModal from "@/components/admin/AdminConfirmModal";
-import { mapEventForClient } from "@c1rcle/core/events";
+import { mapEventForClient, EVENT_LIFECYCLE, isPublicLifecycle } from "@c1rcle/core/events";
 
 export default function AdminCuration() {
     const { user } = useAuth();
@@ -132,18 +132,18 @@ export default function AdminCuration() {
         const endDate = e.endDate ? new Date(e.endDate) : (e.endTime ? new Date(e.endTime) : (startDate));
 
         // Validation: No Drafts and MUST have a real poster (not the default placeholder)
-        const isDraft = e.lifecycle === 'draft' || e.status === 'draft';
+        const isDraft = e.lifecycle === EVENT_LIFECYCLE.DRAFT;
         const hasRealPoster = e.poster && !e.poster.includes('placeholder.svg');
 
         let statusMatch = false;
         if (activeTab === 'live') {
             // "Published" = Public lifecycle + has poster + NOT a draft + hasn't ended yet
-            statusMatch = (e.lifecycle === 'live' || e.lifecycle === 'scheduled') &&
+            statusMatch = isPublicLifecycle(e.lifecycle) &&
                 (!endDate || endDate >= now) &&
                 !isDraft &&
                 hasRealPoster;
         } else if (activeTab === 'ended') {
-            statusMatch = (endDate && endDate < now) || e.lifecycle === 'completed' || e.lifecycle === 'past';
+            statusMatch = (endDate && endDate < now) || e.lifecycle === EVENT_LIFECYCLE.COMPLETED;
         } else if (activeTab === 'all') {
             statusMatch = true;
         }

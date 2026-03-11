@@ -3,7 +3,7 @@ import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { trackedGet } from "./firestoreMetrics";
 import { algoliasearch } from 'algoliasearch';
 import { EVENT_LIFECYCLE, PUBLIC_LIFECYCLE_STATES, normalizeCity, resolvePoster, mapEventForClient } from "@c1rcle/core/events";
-import { filterAndSortEvents, calculateHeatScore as coreHeatScore } from "@c1rcle/core/event-engine";
+import { filterAndSortEvents, calculateHeatScore as coreHeatScore, buildEvent } from "@c1rcle/core/event-engine";
 import { events as seedEvents } from "../../data/events.js";
 
 /**
@@ -248,88 +248,6 @@ const listFallbackEvents = ({ city, limit = 12, sort = "heat", host } = {}) => {
   const comparator = fallbackSorters[sort] || fallbackSorters.heat;
   events.sort(comparator);
   return limit ? events.slice(0, limit) : events;
-};
-
-const buildEvent = (payload = {}) => {
-  const required = ["title", "startDate", "location", "host"];
-  const missing = required.filter((field) => !payload[field]);
-  if (missing.length) {
-    const error = new Error(`Missing fields: ${missing.join(", ")}`);
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const nowIso = new Date().toISOString();
-  const startDate = toIsoDate(payload.startDate);
-  const endDate = payload.endDate ? toIsoDate(payload.endDate) : startDate;
-  const gallery = parseList(payload.gallery);
-  const guests = parseList(payload.guests);
-  const tags = parseList(payload.tags || payload.features);
-  const gradient = getGradient(payload);
-  const accentColor = getAccent(payload.accentColor);
-  const tickets = formatTickets(payload.tickets, payload.ticketName, payload.ticketPrice, startDate);
-  const priceRange = derivePriceRange(tickets);
-  const stats = {
-    rsvps: Number(payload.stats?.rsvps) || guests.length * 3,
-    views: Number(payload.stats?.views) || 0,
-    saves: Number(payload.stats?.saves) || 0,
-    shares: Number(payload.stats?.shares) || 0
-  };
-  const settings = {
-    showExplore: payload.settings?.showExplore ?? true,
-    password: payload.settings?.password ?? false,
-    passwordCode: payload.settings?.passwordCode || payload.settings?.password_value || "",
-    activity: payload.settings?.activity ?? true,
-    recurring: payload.settings?.recurring ?? false,
-    showGuestlist: payload.settings?.showGuestlist ?? false
-  };
-
-  const event = {
-    id: payload.id?.trim() || randomUUID(),
-    slug: payload.slug?.trim() || payload.id?.trim() || randomUUID(),
-    title: payload.title.trim(),
-    summary: payload.summary?.trim() || "",
-    description: payload.description?.trim() || payload.summary?.trim() || "",
-    category: payload.category?.trim() || "Trending",
-    tags,
-    host: payload.host.trim(),
-    location: payload.location.trim(),
-    venue: payload.venue?.trim() || "",
-    city: inferCity(payload.city, payload.location),
-    country: payload.country?.trim() || "India",
-    date: formatDateRange(startDate, endDate),
-    time: formatTimeRange(payload.startTime, payload.endTime),
-    startDate,
-    endDate,
-    startTime: payload.startTime || "",
-    endTime: payload.endTime || "",
-    timezone: payload.timezone || payload.timeZone || "Asia/Kolkata",
-    image: payload.image?.trim() || "/events/holi-edit.svg",
-    gradient,
-    accentColor,
-    spotifyTrack: payload.spotifyTrack || "",
-    guests: guests.length ? guests : ["New", "Guests"],
-    gallery: gallery.length ? gallery : [payload.image?.trim() || "/events/holi-edit.svg"],
-    tickets,
-    priceRange,
-    isRSVP: !!payload.isRSVP,
-    settings: {
-      ...settings,
-      visibility: settings.password ? "password" : settings.showExplore ? "public" : "link"
-    },
-    stats,
-    createdAt: payload.createdAt || nowIso,
-    updatedAt: payload.updatedAt || nowIso
-  };
-
-  // Generate search keywords
-  const searchString = `${event.title} ${event.category} ${event.tags.join(" ")} ${event.host} ${event.location} ${event.venue}`.toLowerCase();
-  // Create unique keywords array (simple tokenization)
-  event.keywords = Array.from(new Set(searchString.split(/[\s,]+/).filter(k => k.length > 2)));
-
-  event.status = determineStatus(event.startDate, event.endDate);
-  event.heatScore = calculateHeatScore(event);
-  return event;
 };
 
 const createFallbackEvent = (payload) => {

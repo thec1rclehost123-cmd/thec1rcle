@@ -50,7 +50,7 @@ export default function UpcomingScheduleModule() {
                             {event.title}
                         </h4>
                         <div className="flex items-center gap-2">
-                            <span className={`status-dot ${event.lifecycle === 'published' ? 'status-dot-success' : 'status-dot-neutral'}`} />
+                            <span className={`status-dot ${(event.lifecycle === 'scheduled' || event.lifecycle === 'live') ? 'status-dot-success' : 'status-dot-neutral'}`} />
                             <span className="text-caption capitalize">{event.lifecycle}</span>
                         </div>
                     </motion.div>

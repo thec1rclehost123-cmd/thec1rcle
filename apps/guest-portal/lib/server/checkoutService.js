@@ -1,9 +1,3 @@
-/**
- * THE C1RCLE - Checkout Service (Phase 1)
- * Orchestrates cart reservations, pricing, and order creation
- * Location: apps/guest-portal/lib/server/checkoutService.js
- */
-
 import { randomUUID } from "node:crypto";
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { getEvent } from "./eventStore";
@@ -13,6 +7,7 @@ import { getPromoterLinkByCode, recordConversion } from "./promoterStore";
 import { validatePromoCode } from "@c1rcle/core/promo-service";
 import { calculatePricing as coreCalculatePricing, getEffectivePrice } from "@c1rcle/core/pricing-engine";
 import { createReservation as coreCreateReservation, releaseReservation as coreReleaseReservation } from "@c1rcle/core/inventory-engine";
+import { PUBLIC_LIFECYCLE_STATES } from "@c1rcle/core/events";
 
 
 // Constants
@@ -58,7 +53,22 @@ export async function createCartReservation(eventId, customerId, deviceId, items
     const event = await getEvent(eventId);
     if (!event) return { success: false, error: 'Event not found' };
 
-    // 2. Delegate to Core Master Engine (Redis Atomic Lock)
+    // ── LIFECYCLE GATE ─────────────────────────────────────────────────────
+    // Only allow ticket reservations for events that are publicly purchasable.
+    // This prevents buying tickets for paused, cancelled, draft, or denied events.
+    // Canonical PUBLIC states: scheduled | live — mirrors PUBLIC_LIFECYCLE_STATES.
+    if (!PUBLIC_LIFECYCLE_STATES.includes(event.lifecycle)) {
+        const msg = event.lifecycle === 'paused'
+            ? 'Ticket sales for this event are temporarily paused.'
+            : event.lifecycle === 'cancelled'
+                ? 'This event has been cancelled.'
+                : event.lifecycle === 'completed'
+                    ? 'This event has already ended.'
+                    : 'Tickets are not available for this event right now.';
+        return { success: false, error: msg };
+    }
+
+
     try {
         const result = await coreCreateReservation(event, customerId, deviceId, items, options);
 
@@ -233,7 +243,19 @@ export async function initiateCheckout(reservationId, userId, userDetails, optio
         return { success: false, error: 'Event not found' };
     }
 
-    // Calculate final pricing
+    // ── LIFECYCLE RE-VALIDATION ────────────────────────────────────────────
+    // Re-check lifecycle at checkout time in case the event was paused or
+    // cancelled between reservation and payment initiation (race condition guard).
+    if (!PUBLIC_LIFECYCLE_STATES.includes(event.lifecycle)) {
+        const msg = event.lifecycle === 'paused'
+            ? 'Ticket sales for this event have been paused. Please contact the organizer.'
+            : event.lifecycle === 'cancelled'
+                ? 'This event has been cancelled. Your reservation will be released.'
+                : 'This event is no longer available for purchase.';
+        return { success: false, error: msg };
+    }
+
+
     const pricingResult = await calculatePricing(
         reservation.eventId,
         reservation.items,

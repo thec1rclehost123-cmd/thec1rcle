@@ -78,7 +78,7 @@ export async function PATCH(
                     newStatus = "submitted";
                     break;
                 case "approve":
-                    newStatus = "approved";
+                    newStatus = "approved"; // Moving to internal approved state (confirmed)
                     break;
                 case "reject":
                 case "deny":
@@ -88,13 +88,11 @@ export async function PATCH(
                     newStatus = "needs_changes";
                     break;
                 case "publish":
-                    newStatus = "scheduled";
+                case "resume":
+                    newStatus = "scheduled"; // Published/Resumed -> Publicly visible
                     break;
                 case "pause":
                     newStatus = "paused";
-                    break;
-                case "resume":
-                    newStatus = "scheduled";
                     break;
                 case "cancel":
                     newStatus = "cancelled";

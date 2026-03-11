@@ -4,6 +4,7 @@ import { getUserOrders } from "./orderStore";
 import { getEvent } from "./eventStore";
 import { createHmac } from "node:crypto";
 import { getUserClaimedTickets, getOrderShareBundles, getOrderAssignments, getCoupleAssignment, getPendingTransfers } from "./ticketShareStore";
+import { PUBLIC_LIFECYCLE_STATES } from "@c1rcle/core/events";
 
 const USERS_COLLECTION = "users";
 
@@ -191,11 +192,13 @@ export async function getUserEvents(profileUserId, viewerUserId) {
         const isUpcoming = eventStart > now && isEventLive;
         const isPast = eventStart <= now || !isEventLive;
 
-        // Privacy/Lifecycle: Only show published events to others
-        const isPublic = ["live", "scheduled", "approved", "published"].includes(event.lifecycle);
+        // Privacy/Lifecycle: Only show publicly visible events to other viewers.
+        // Uses canonical PUBLIC_LIFECYCLE_STATES (scheduled | live) — mirrors Firestore rules & Algolia sync.
+        const isPublic = PUBLIC_LIFECYCLE_STATES.includes(event.lifecycle);
         const isSelf = profileUserId === viewerUserId;
+        const isCompleted = event.lifecycle === "completed";
 
-        if (!isPublic && !isSelf) return;
+        if (!isPublic && !isCompleted && !isSelf) return;
 
         const summary = {
             eventId: event.id,

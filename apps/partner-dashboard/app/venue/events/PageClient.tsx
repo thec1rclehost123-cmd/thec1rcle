@@ -10,7 +10,7 @@ import Link from "next/link";
 import { DashboardEventCard } from "@c1rcle/ui";
 import { EventDetailsModal } from "@/components/venue-layout/EventDetailsModal";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { mapEventForClient } from "@c1rcle/core/events";
+import { mapEventForClient, EVENT_LIFECYCLE } from "@c1rcle/core/events";
 import { parseAsIST } from "@c1rcle/core/time";
 import { VenuePageShell, VenueActionButton, VenueFilterTabs } from "@/components/venue-layout/VenuePageShell";
 
@@ -141,8 +141,14 @@ export default function EventsManagementPage() {
                 body: JSON.stringify({ eventId, action, data }),
             });
             if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Failed"); }
-            const newStatus = (s: string) => ({ approve: "approved", reject: "cancelled", pause: "paused", resume: "live" }[action] || s);
-            setEvents((prev) => prev.map((e) => e.id === eventId ? { ...e, status: newStatus(e.status) as any } : e));
+            const newStatusMap: Record<string, string> = {
+                approve: EVENT_LIFECYCLE.SCHEDULED,
+                reject: EVENT_LIFECYCLE.DENIED,
+                pause: EVENT_LIFECYCLE.PAUSED,
+                resume: EVENT_LIFECYCLE.SCHEDULED
+            };
+            const mappedStatus = newStatusMap[action];
+            setEvents((prev) => prev.map((e) => e.id === eventId ? { ...e, status: (mappedStatus || e.status) as any } : e));
         } catch (e: any) { alert(e.message); }
     }, [selectedEvent?.id, user]);
 
@@ -151,21 +157,21 @@ export default function EventsManagementPage() {
     const filteredEvents = useMemo(() => events.filter((e) => {
         const s = getStatus(e);
         let match = filter === "all";
-        if (filter === "draft") match = e.eventType === "venue" && s === "draft";
-        if (filter === "pending") match = e.eventType === "host" && (s === "submitted" || s === "pending");
-        if (filter === "live") match = s === "live";
-        if (filter === "approved") match = s === "approved" || s === "scheduled";
-        if (filter === "completed") match = s === "completed";
+        if (filter === "draft") match = e.eventType === "venue" && s === EVENT_LIFECYCLE.DRAFT;
+        if (filter === "pending") match = e.eventType === "host" && s === EVENT_LIFECYCLE.SUBMITTED;
+        if (filter === "live") match = s === EVENT_LIFECYCLE.LIVE;
+        if (filter === "approved") match = s === EVENT_LIFECYCLE.APPROVED || s === EVENT_LIFECYCLE.SCHEDULED;
+        if (filter === "completed") match = s === EVENT_LIFECYCLE.COMPLETED;
         return match && (
             e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             e.hostName.toLowerCase().includes(searchQuery.toLowerCase())
         );
     }), [events, filter, searchQuery]);
 
-    const liveCount = useMemo(() => events.filter((e) => getStatus(e) === "live").length, [events]);
-    const pendingCount = useMemo(() => events.filter((e) => e.eventType === "host" && ["pending", "submitted"].includes(getStatus(e))).length, [events]);
-    const draftCount = useMemo(() => events.filter((e) => e.eventType === "venue" && getStatus(e) === "draft").length, [events]);
-    const publishedCount = useMemo(() => events.filter((e) => ["scheduled", "approved"].includes(getStatus(e))).length, [events]);
+    const liveCount = useMemo(() => events.filter((e) => getStatus(e) === EVENT_LIFECYCLE.LIVE).length, [events]);
+    const pendingCount = useMemo(() => events.filter((e) => e.eventType === "host" && getStatus(e) === EVENT_LIFECYCLE.SUBMITTED).length, [events]);
+    const draftCount = useMemo(() => events.filter((e) => e.eventType === "venue" && getStatus(e) === EVENT_LIFECYCLE.DRAFT).length, [events]);
+    const publishedCount = useMemo(() => events.filter((e) => [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.APPROVED].includes(getStatus(e) as string)).length, [events]);
     const totalRevenue = useMemo(() => events.reduce((s, e) => s + (e.revenue || 0), 0), [events]);
 
     const filterTabs = [

@@ -15,7 +15,7 @@ import Link from "next/link";
 
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { DashboardEventCard } from "@c1rcle/ui";
-import { mapEventForClient } from "@c1rcle/core/events";
+import { mapEventForClient, EVENT_LIFECYCLE } from "@c1rcle/core/events";
 import { Edit3, BarChart3, Share2, Eye } from "lucide-react";
 
 type EventTab = "all" | "live" | "submitted" | "approved" | "drafts";
@@ -57,10 +57,10 @@ export default function HostEventsPage() {
         return events.filter(e => {
             const matchesTab =
                 activeTab === "all" ? true :
-                    activeTab === "live" ? e.status === "live" :
-                        activeTab === "submitted" ? e.lifecycle === "submitted" :
-                            activeTab === "approved" ? (e.lifecycle === "approved" || e.lifecycle === "scheduled") :
-                                activeTab === "drafts" ? e.lifecycle === "draft" : true;
+                    activeTab === "live" ? e.lifecycle === EVENT_LIFECYCLE.LIVE :
+                        activeTab === "submitted" ? e.lifecycle === EVENT_LIFECYCLE.SUBMITTED :
+                            activeTab === "approved" ? (e.lifecycle === EVENT_LIFECYCLE.APPROVED || e.lifecycle === EVENT_LIFECYCLE.SCHEDULED) :
+                                activeTab === "drafts" ? e.lifecycle === EVENT_LIFECYCLE.DRAFT : true;
 
             const matchesSearch = !searchQuery ||
                 e.title?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -71,10 +71,10 @@ export default function HostEventsPage() {
 
     const tabCounts = useMemo(() => ({
         all: events.length,
-        live: events.filter(e => e.status === 'live').length,
-        submitted: events.filter(e => e.lifecycle === 'submitted').length,
-        approved: events.filter(e => e.lifecycle === 'approved' || e.lifecycle === 'scheduled').length,
-        drafts: events.filter(e => e.lifecycle === 'draft').length
+        live: events.filter(e => e.lifecycle === EVENT_LIFECYCLE.LIVE).length,
+        submitted: events.filter(e => e.lifecycle === EVENT_LIFECYCLE.SUBMITTED).length,
+        approved: events.filter(e => e.lifecycle === EVENT_LIFECYCLE.APPROVED || e.lifecycle === EVENT_LIFECYCLE.SCHEDULED).length,
+        drafts: events.filter(e => e.lifecycle === EVENT_LIFECYCLE.DRAFT).length
     }), [events]);
 
     return (
@@ -175,9 +175,9 @@ export default function HostEventsPage() {
                     }}
                     itemContent={(index, event) => {
                         const getPrimaryAction = (e: any) => {
-                            if (e.lifecycle === 'draft') return { label: "Continue Editing", href: `/host/create?id=${e.id}`, icon: <Edit3 size={16} /> };
-                            if (e.lifecycle === 'submitted') return { label: "View Submission", href: `/host/events/${e.id}`, icon: <Eye size={16} /> };
-                            if (e.lifecycle === 'denied' || e.lifecycle === 'needs_changes') return { label: "Fix & Resubmit", href: `/host/create?id=${e.id}`, icon: <Edit3 size={16} /> };
+                            if (e.lifecycle === EVENT_LIFECYCLE.DRAFT) return { label: "Continue Editing", href: `/host/create?id=${e.id}`, icon: <Edit3 size={16} /> };
+                            if (e.lifecycle === EVENT_LIFECYCLE.SUBMITTED) return { label: "View Submission", href: `/host/events/${e.id}`, icon: <Eye size={16} /> };
+                            if (e.lifecycle === EVENT_LIFECYCLE.DENIED || e.lifecycle === EVENT_LIFECYCLE.NEEDS_CHANGES) return { label: "Fix & Resubmit", href: `/host/create?id=${e.id}`, icon: <Edit3 size={16} /> };
                             return { label: "Manage Event", href: `/host/events/${e.id}`, icon: <ArrowUpRight size={16} /> };
                         };
 

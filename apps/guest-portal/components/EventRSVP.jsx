@@ -56,7 +56,7 @@ const NotLiveModal = ({ isOpen, onClose }) => (
   </AnimatePresence>
 );
 
-export default function EventRSVP({ event, host, interestedData = { count: 0, users: [] } }) {
+export default function EventRSVP({ event, host, interestedData = { count: 0, users: [] }, isCompleted = false }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, profile, updateEventList } = useAuth();
@@ -66,10 +66,10 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
   const [liveInterestedData, setLiveInterestedData] = useState(interestedData);
   const unsubscribeRef = useRef(null);
   const [notLiveModalOpen, setNotLiveModalOpen] = useState(() => {
-    const isPastFromStatus = event?.status === "past";
+    const isPastFromStatus = event?.status === "past" || event?.lifecycle === "completed";
     const isPastFromDate = event?.endDate && new Date(event.endDate) < new Date();
     const isDisabled = event?.settings?.activity === false;
-    return isPastFromStatus || isPastFromDate || isDisabled;
+    return isCompleted || isPastFromStatus || isPastFromDate || isDisabled;
   });
 
   useEffect(() => {

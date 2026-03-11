@@ -31,6 +31,7 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import AuditTrail from "@/components/shared/AuditTrail";
 import CancelEventModal from "@/components/event-detail/CancelEventModal";
 import { useCancelEvent } from "@/lib/hooks/useCancelEvent";
+import { EVENT_LIFECYCLE, isPublicLifecycle } from "@c1rcle/core/events";
 
 function useDebounce<T>(value: T, delay: number): T {
     const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -244,7 +245,7 @@ export default function EventManagementPage() {
             ) : (
                 <>
                     {/* Cancelled Banner */}
-                    {event.lifecycle === 'cancelled' && (
+                    {event.lifecycle === EVENT_LIFECYCLE.CANCELLED && (
                         <motion.div
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -284,9 +285,9 @@ export default function EventManagementPage() {
                             </button>
                             <div>
                                 <div className="flex items-center gap-2 mb-1">
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${event.lifecycle === 'scheduled' || event.lifecycle === 'live'
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${isPublicLifecycle(event.lifecycle)
                                         ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                        : event.lifecycle === 'cancelled'
+                                        : event.lifecycle === EVENT_LIFECYCLE.CANCELLED
                                             ? 'bg-rose-50 text-rose-600 border border-rose-100'
                                             : 'bg-surface-secondary text-text-tertiary'
                                         }`}>
@@ -333,7 +334,7 @@ export default function EventManagementPage() {
                             >
                                 <Globe className="h-5 w-5" />
                             </a>
-                            {event.lifecycle !== 'cancelled' && event.lifecycle !== 'deleted' && (
+                            {event.lifecycle !== EVENT_LIFECYCLE.CANCELLED && event.lifecycle !== EVENT_LIFECYCLE.DELETED && (
                                 <button
                                     onClick={() => setShowCancelModal(true)}
                                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-rose-600 font-bold text-sm bg-surface-elevated hover:bg-rose-50 transition-all shadow-sm"

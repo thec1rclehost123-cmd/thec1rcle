@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { EVENT_LIFECYCLE, canPromoterCreateLink } from "@c1rcle/core/events";
 import {
     createPromoterLink,
     listPromoterLinks,
@@ -93,18 +94,9 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        if (!event.promoterSettings?.enabled && event.promoterSettings?.enabled !== undefined) {
+        if (!canPromoterCreateLink(event)) {
             return NextResponse.json(
-                { error: "Promoter sales are not enabled for this event" },
-                { status: 403 }
-            );
-        }
-
-        // Check event lifecycle - only published events
-        const allowedLifecycles = ["scheduled", "live", "approved"];
-        if (event.lifecycle && !allowedLifecycles.includes(event.lifecycle)) {
-            return NextResponse.json(
-                { error: "Event is not available for promoter links yet" },
+                { error: "Event is not available for promoter links" },
                 { status: 403 }
             );
         }

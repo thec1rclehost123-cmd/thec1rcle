@@ -22,10 +22,10 @@ interface EventDetailsModalProps {
     isOpen: boolean;
     onClose: () => void;
     event: any;
-    onUpdate: (action: string, data?: any) => Promise<void>;
+    onEventUpdate: (action: string, data?: any) => Promise<void>;
 }
 
-export function EventDetailsModal({ isOpen, onClose, event, onUpdate }: EventDetailsModalProps) {
+export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: EventDetailsModalProps) {
     const [activeTab, setActiveTab] = useState<"details" | "approval" | "feedback">("details");
     const [loading, setLoading] = useState(false);
     const [approvalNotes, setApprovalNotes] = useState("");
@@ -37,7 +37,7 @@ export function EventDetailsModal({ isOpen, onClose, event, onUpdate }: EventDet
     const handleApprove = async () => {
         setLoading(true);
         try {
-            await onUpdate("approve", { notes: approvalNotes });
+            await onEventUpdate("approve", { notes: approvalNotes });
             onClose();
         } catch (error) {
             console.error(error);
@@ -51,7 +51,7 @@ export function EventDetailsModal({ isOpen, onClose, event, onUpdate }: EventDet
 
         setLoading(true);
         try {
-            await onUpdate("reject", { notes: approvalNotes });
+            await onEventUpdate("reject", { notes: approvalNotes });
             onClose();
         } catch (error) {
             console.error(error);
@@ -65,7 +65,7 @@ export function EventDetailsModal({ isOpen, onClose, event, onUpdate }: EventDet
 
         setLoading(true);
         try {
-            await onUpdate("pause");
+            await onEventUpdate("pause");
             onClose();
         } catch (error) {
             console.error(error);
@@ -79,7 +79,7 @@ export function EventDetailsModal({ isOpen, onClose, event, onUpdate }: EventDet
 
         setLoading(true);
         try {
-            await onUpdate("lock", {
+            await onEventUpdate("lock", {
                 rating: hostRating,
                 feedback: feedbackNotes,
             });
@@ -128,8 +128,8 @@ export function EventDetailsModal({ isOpen, onClose, event, onUpdate }: EventDet
                         <button
                             onClick={() => setActiveTab("details")}
                             className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${activeTab === "details"
-                                    ? "border-indigo-600 text-indigo-600"
-                                    : "border-transparent text-text-tertiary hover:text-text-primary"
+                                ? "border-indigo-600 text-indigo-600"
+                                : "border-transparent text-text-tertiary hover:text-text-primary"
                                 }`}
                         >
                             Event Details
@@ -138,8 +138,8 @@ export function EventDetailsModal({ isOpen, onClose, event, onUpdate }: EventDet
                             <button
                                 onClick={() => setActiveTab("approval")}
                                 className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${activeTab === "approval"
-                                        ? "border-indigo-600 text-indigo-600"
-                                        : "border-transparent text-text-tertiary hover:text-text-primary"
+                                    ? "border-indigo-600 text-indigo-600"
+                                    : "border-transparent text-text-tertiary hover:text-text-primary"
                                     }`}
                             >
                                 Approval
@@ -149,8 +149,8 @@ export function EventDetailsModal({ isOpen, onClose, event, onUpdate }: EventDet
                             <button
                                 onClick={() => setActiveTab("feedback")}
                                 className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${activeTab === "feedback"
-                                        ? "border-indigo-600 text-indigo-600"
-                                        : "border-transparent text-text-tertiary hover:text-text-primary"
+                                    ? "border-indigo-600 text-indigo-600"
+                                    : "border-transparent text-text-tertiary hover:text-text-primary"
                                     }`}
                             >
                                 Post-Event Review
@@ -302,8 +302,8 @@ export function EventDetailsModal({ isOpen, onClose, event, onUpdate }: EventDet
                                         >
                                             <Star
                                                 className={`h-8 w-8 ${star <= hostRating
-                                                        ? "fill-amber-400 text-amber-400"
-                                                        : "text-text-placeholder"
+                                                    ? "fill-amber-400 text-amber-400"
+                                                    : "text-text-placeholder"
                                                     }`}
                                             />
                                         </button>

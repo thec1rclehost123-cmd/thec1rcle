@@ -102,8 +102,9 @@ export default function HostEventDetailPage() {
         );
     }
 
-    const isLocked = event.lifecycle === "submitted" || event.lifecycle === "scheduled" || event.lifecycle === "live" || event.lifecycle === "approved";
-    const isRejected = event.lifecycle === "rejected" || event.lifecycle === "needs_changes" || event.lifecycle === "denied";
+    const canEdit = (event.lifecycle === "draft" || event.lifecycle === "needs_changes");
+    const isLocked = !canEdit;
+    const isRejected = event.lifecycle === "denied" || event.lifecycle === "needs_changes";
 
     return (
         <div className="space-y-10 pb-20 animate-in fade-in duration-500">
@@ -257,7 +258,7 @@ function EventBadge({ lifecycle }: { lifecycle: string }) {
         approved: { bg: "bg-indigo-50", text: "text-indigo-600", dot: "bg-indigo-400" },
         submitted: { bg: "bg-amber-50", text: "text-amber-600", dot: "bg-amber-400" },
         draft: { bg: "bg-surface-tertiary", text: "text-text-tertiary", dot: "bg-surface-tertiary" },
-        rejected: { bg: "bg-rose-50", text: "text-rose-600", dot: "bg-rose-400" },
+        denied: { bg: "bg-rose-50", text: "text-rose-600", dot: "bg-rose-400" },
         needs_changes: { bg: "bg-rose-50", text: "text-rose-600", dot: "bg-rose-400" }
     };
 

@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cleanJargon } from "@/lib/utils/jargon";
+import { EVENT_LIFECYCLE } from "@c1rcle/core/events";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -330,8 +331,12 @@ export function OperatingCalendar() {
                                             <div className="mt-2 space-y-1 relative z-10">
                                                 {cell.events.slice(0, 2).map((e: any) => {
                                                     const status = e.lifecycle || e.status;
-                                                    const isConfirmed = ['published', 'scheduled', 'live', 'confirmed', 'approved'].includes(status);
-                                                    const isPending = ['submitted', 'pending'].includes(status);
+                                                    const isConfirmed = [
+                                                        EVENT_LIFECYCLE.SCHEDULED,
+                                                        EVENT_LIFECYCLE.LIVE,
+                                                        EVENT_LIFECYCLE.APPROVED
+                                                    ].includes(status);
+                                                    const isPending = status === EVENT_LIFECYCLE.SUBMITTED;
 
                                                     return (
                                                         <div
@@ -671,7 +676,12 @@ function SidePanel({
                                     const zIndex = 10 + colIdx;
 
                                     if (isEvent) {
-                                        const isConfirmed = ['published', 'scheduled', 'live', 'confirmed', 'approved'].includes(item.lifecycle || item.status);
+                                        const status = item.lifecycle || item.status;
+                                        const isConfirmed = [
+                                            EVENT_LIFECYCLE.SCHEDULED,
+                                            EVENT_LIFECYCLE.LIVE,
+                                            EVENT_LIFECYCLE.APPROVED
+                                        ].includes(status);
                                         const isAnonymized = role === 'host' && item.isAnonymized;
 
                                         return (

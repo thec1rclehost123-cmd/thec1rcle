@@ -31,14 +31,19 @@ export function mapEventToAlgolia(event: any, eventId: string) {
         image: event.image,
         priceRange: event.priceRange || { min: 0, max: 0 },
         heatScore: event.heatScore || 0,
-        status: event.status, // upcoming, live, past
-        lifecycle: event.lifecycle, // draft, pending, approved, scheduled, live, completed
+        status: event.status, // upcoming, live, past (time-derived)
+        lifecycle: event.lifecycle, // canonical: draft | submitted | approved | scheduled | live | completed | paused | cancelled | denied | deleted
+        // Promoter discovery: used by promoter event filter in guest portal & dashboard
+        promotersEnabled: event.promotersEnabled === true || event.promoterSettings?.enabled === true,
+        // Creator type: 'venue' | 'host' — used for dashboard filtering
+        creatorRole: event.creatorRole || (event.hostId ? 'host' : 'venue'),
         _geoloc: event.coordinates ? {
             lat: event.coordinates.latitude,
             lng: event.coordinates.longitude
         } : undefined
     };
 }
+
 
 /**
  * Syncs an event to Algolia
@@ -49,10 +54,12 @@ export async function syncEventToAlgolia(eventId: string, event: any) {
         return;
     }
 
-    // Only index events that are approved or live
-    const publicStates = ['approved', 'scheduled', 'live'];
-    if (!publicStates.includes(event.lifecycle)) {
-        console.log(`[Algolia] Skipping sync for event ${eventId} (lifecycle: ${event.lifecycle})`);
+    // Only index events in canonical PUBLIC lifecycle states.
+    // 'approved' is an internal pre-publish state — intentionally excluded.
+    // This must mirror PUBLIC_LIFECYCLE_STATES from @c1rcle/core/events.
+    const PUBLIC_LIFECYCLE_STATES = ['scheduled', 'live'];
+    if (!PUBLIC_LIFECYCLE_STATES.includes(event.lifecycle)) {
+        console.log(`[Algolia] Removing/skipping event ${eventId} (lifecycle: ${event.lifecycle} is not public)`);
         await client.deleteObject({ indexName: INDEX_NAME, objectID: eventId });
         return;
     }

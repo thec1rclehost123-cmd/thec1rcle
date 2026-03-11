@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import Link from "next/link";
+import { EVENT_LIFECYCLE } from "@c1rcle/core/events";
 
 interface SlotRequest {
     id: string;
@@ -78,7 +79,7 @@ export default function VenueEventRequestsPage() {
             const slotsData = await slotsRes.json();
 
             // 2. Fetch events in 'submitted' state for this club
-            const submittedRes = await fetch(`/api/events?venueId=${venueId}&lifecycle=submitted`);
+            const submittedRes = await fetch(`/api/events?venueId=${venueId}&lifecycle=${EVENT_LIFECYCLE.SUBMITTED}`);
             const submittedData = await submittedRes.json();
 
             // Map slot requests to EventRequest objects
@@ -152,7 +153,7 @@ export default function VenueEventRequestsPage() {
             if (action === "approve" || action === "reject") {
                 // Only trigger publish on approval if the event is actually submitted
                 // Rejection (deny) is always allowed to transition lifecycle
-                if (action === "reject" || (action === "approve" && actionModal.request.lifecycle === "submitted")) {
+                if (action === "reject" || (action === "approve" && actionModal.request.lifecycle === EVENT_LIFECYCLE.SUBMITTED)) {
                     const eventAction = action === "approve" ? "approve" : "deny";
                     const res = await fetch(`/api/events/${eventId}`, {
                         method: "PATCH",
@@ -189,7 +190,7 @@ export default function VenueEventRequestsPage() {
     };
 
     const getStatusBadge = (request: EventRequest) => {
-        if (request.lifecycle === 'submitted') {
+        if (request.lifecycle === EVENT_LIFECYCLE.SUBMITTED) {
             return "bg-blue-100 text-blue-600";
         }
         const status = request.slotRequest?.status || "pending";
@@ -198,13 +199,13 @@ export default function VenueEventRequestsPage() {
             approved: "bg-[#34c759]/10 text-[#34c759]",
             rejected: "bg-[#ff3b30]/10 text-[#ff3b30]",
             modified: "bg-[#007aff]/10 text-[#007aff]",
-            denied: "bg-[#ff3b30]/10 text-[#ff3b30]"
+            [EVENT_LIFECYCLE.DENIED]: "bg-[#ff3b30]/10 text-[#ff3b30]"
         };
         return styles[status] || "bg-[#f5f5f7] text-[#86868b]";
     };
 
     const getStatusLabel = (request: EventRequest) => {
-        if (request.lifecycle === 'submitted') return "Reviewing Content";
+        if (request.lifecycle === EVENT_LIFECYCLE.SUBMITTED) return "Reviewing Content";
         return request.slotRequest?.status || "pending";
     };
 
@@ -339,13 +340,13 @@ export default function VenueEventRequestsPage() {
                                 </div>
 
                                 {/* Actions */}
-                                {(request.slotRequest?.status === "pending" || request.lifecycle === "submitted") && (
+                                {(request.slotRequest?.status === "pending" || request.lifecycle === EVENT_LIFECYCLE.SUBMITTED) && (
                                     <div className="flex flex-col gap-2">
                                         <button
                                             onClick={() => setActionModal({ type: "approve", request })}
                                             className="btn btn-primary px-4 py-2 text-[13px]"
                                         >
-                                            <Check className="w-4 h-4" /> {request.lifecycle === 'submitted' ? 'Publish' : 'Approve'}
+                                            <Check className="w-4 h-4" /> {request.lifecycle === EVENT_LIFECYCLE.SUBMITTED ? 'Publish' : 'Approve'}
                                         </button>
                                         <button
                                             onClick={() => setActionModal({ type: "reject", request })}

@@ -84,8 +84,14 @@ const useDominantColor = (imageUrl) => {
 
 const AuroraBackground = () => (
     <div className="fixed inset-0 -z-10 overflow-hidden bg-[var(--bg-color)]">
-        <div className="absolute -top-[30%] left-0 h-[80vh] w-full bg-gradient-to-b from-orange/10 dark:from-iris/10 via-transparent to-transparent blur-[120px] opacity-60 transition-colors duration-500" />
-        <div className="absolute top-[20%] right-[-20%] h-[600px] w-[600px] rounded-full bg-orange/5 dark:bg-gold/5 blur-[100px] opacity-40 mix-blend-multiply dark:mix-blend-screen animate-pulse" />
+        {/* Top sweep */}
+        <div className="absolute -top-[20%] left-0 h-[90vh] w-full bg-gradient-to-b from-orange/40 dark:from-iris/40 via-transparent to-transparent blur-[100px] opacity-[1.0] transition-colors duration-500" />
+        {/* Right orb */}
+        <div className="absolute top-[10%] right-[-10%] h-[1400px] w-[1400px] rounded-full bg-orange/24 dark:bg-gold/24 blur-[120px] opacity-[1.0] mix-blend-multiply dark:mix-blend-screen animate-pulse" />
+        {/* Bottom-left accent orb */}
+        <div className="absolute bottom-[5%] left-[-15%] h-[1000px] w-[1000px] rounded-full bg-iris/20 dark:bg-iris/30 blur-[100px] opacity-[1.0] mix-blend-multiply dark:mix-blend-screen" />
+        {/* Centre mid-page warm bloom */}
+        <div className="absolute top-[45%] left-[30%] h-[800px] w-[1200px] rounded-full bg-orange/16 dark:bg-orange/20 blur-[140px] opacity-[1.0] mix-blend-multiply dark:mix-blend-screen" />
         {/* Subtle noise texture */}
         <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
     </div>
@@ -880,19 +886,19 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
     )?.shareToken;
 
     return (
-        <div className="relative group">
+        <div className="relative group overflow-visible">
             {/* Multi-layered Atmospheric Glow */}
             <div className="absolute inset-0 z-0 pointer-events-none overflow-visible">
                 <div
-                    className="absolute inset-[-40px] opacity-40 blur-[80px] transition-all duration-1000 group-hover:opacity-60 group-hover:scale-110"
+                    className="absolute inset-[-80px] opacity-80 blur-[160px] transition-all duration-1000 group-hover:opacity-[1.0] group-hover:scale-110"
                     style={{
-                        background: `radial-gradient(circle at center, rgba(${rgb}, 0.5) 0%, rgba(${rgb}, 0.2) 40%, transparent 70%)`
+                        background: `radial-gradient(circle at center, rgba(${rgb}, 1.0) 0%, rgba(${rgb}, 0.4) 40%, transparent 70%)`
                     }}
                 />
                 <div
-                    className="absolute inset-[-20px] opacity-20 blur-[40px] transition-all duration-700 group-hover:opacity-40"
+                    className="absolute inset-[-40px] opacity-40 blur-[80px] transition-all duration-700 group-hover:opacity-80"
                     style={{
-                        background: `radial-gradient(circle at center, rgba(${rgb}, 0.8) 0%, transparent 60%)`
+                        background: `radial-gradient(circle at center, rgba(${rgb}, 1.0) 0%, transparent 60%)`
                     }}
                 />
             </div>
@@ -904,10 +910,10 @@ const TicketCard = ({ ticket, onShare, onClick, onPartner, onTransfer }) => {
                 className={`relative z-10 flex flex-col cursor-pointer overflow-hidden rounded-[28px] border transition-all duration-500 h-full min-h-[240px] ${isPast
                     ? "border-black/5 dark:border-white/5 bg-white/40 dark:bg-black/40 opacity-60 backdrop-blur-sm"
                     : isVipTier
-                        ? "border-yellow-500/40 dark:border-yellow-400/30 bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_0_30px_rgba(234,179,8,0.12),0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-[0_0_50px_rgba(234,179,8,0.2),0_20px_50px_rgba(0,0,0,0.08)]"
+                        ? "border-yellow-500/40 dark:border-yellow-400/30 bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_0_60px_rgba(234,179,8,0.24),0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-[0_0_100px_rgba(234,179,8,0.4),0_20px_50px_rgba(0,0,0,0.08)]"
                         : isCrewTier
-                            ? "border-iris/40 dark:border-iris/30 bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_0_30px_rgba(93,95,239,0.12),0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-[0_0_50px_rgba(93,95,239,0.2),0_20px_50px_rgba(0,0,0,0.08)]"
-                            : "border-black/[0.12] dark:border-white/[0.08] bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.02)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_20px_60px_-10px_rgba(0,0,0,0.6)]"
+                            ? "border-iris/40 dark:border-iris/30 bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_0_60px_rgba(93,95,239,0.24),0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-[0_0_100px_rgba(93,95,239,0.4),0_20px_50px_rgba(0,0,0,0.08)]"
+                            : "border-black/[0.12] dark:border-white/[0.08] bg-white/80 dark:bg-white/5 backdrop-blur-md shadow-[0_8px_40px_rgba(0,0,0,0.04)] dark:shadow-[0_16px_64px_rgba(0,0,0,0.8)] hover:shadow-[0_40px_100px_rgba(0,0,0,0.2)] dark:hover:shadow-[0_40px_120px_-10px_rgba(0,0,0,0.9)]"
                     }`}
             >
                 <div className="flex w-full p-5 gap-6 relative flex-1">

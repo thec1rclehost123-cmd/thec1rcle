@@ -26,7 +26,7 @@ export const useExploreStore = create(
             hasMore: true,
             lastFetchedAt: null,
 
-            fetchEvents: async (reset = false) => {
+            fetchEvents: async (city = null, reset = false) => {
                 const { lastFetchedAt, status, nextCursor, events: existingEvents, revalidating } = get();
 
                 // ⚡ Guard: Already fetching
@@ -56,7 +56,8 @@ export const useExploreStore = create(
                 try {
                     const cursor = reset ? "" : (nextCursor || "");
 
-                    let url = `/api/events?limit=12&sort=soonest`;
+                    let url = `/api/events?limit=24&sort=soonest`;
+                    if (city) url += `&city=${encodeURIComponent(city)}`;
                     if (cursor) url += `&lastId=${cursor}`;
 
                     const response = await fetch(url);
@@ -89,7 +90,12 @@ export const useExploreStore = create(
         }),
         {
             name: "explore-cache",
-            storage: createJSONStorage(() => localStorage),
+            // Guard localStorage access: during SSR (Next.js server), window is undefined.
+            // Returning undefined tells Zustand to skip persistence server-side and only
+            // hydrate on the client — prevents "storage.setItem is not a function" crash.
+            storage: createJSONStorage(() =>
+                typeof window !== "undefined" ? localStorage : undefined
+            ),
             // Persist only the data — transient UI state (status, revalidating, error) is not persisted
             partialize: (state) => ({
                 events: state.events,

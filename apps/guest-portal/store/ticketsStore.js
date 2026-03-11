@@ -128,7 +128,9 @@ export const useTicketsStore = create(
         }),
         {
             name: 'tickets-cache',
-            storage: createJSONStorage(() => localStorage),
+            storage: createJSONStorage(() =>
+                typeof window !== "undefined" ? localStorage : undefined
+            ),
         }
     )
 );

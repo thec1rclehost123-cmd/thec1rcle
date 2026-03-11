@@ -223,6 +223,7 @@ export default function CreateEventForm() {
             price: Number(t.price),
             quantity: Number(t.quantity || 150)
           })),
+          lifecycle: "scheduled",
           settings: {
             showExplore,
             password: password ? form.eventPassword : "",

@@ -24,7 +24,7 @@ const loadCollection = async (collectionName) => {
 };
 
 const mapHeroCards = (events) =>
-  events.slice(0, 12).map((event) => ({
+  events.slice(0, 30).map((event) => ({
     id: event.id,
     title: event.title,
     location: event.location,
@@ -70,7 +70,7 @@ const getCity = (city) => city || DEFAULT_CITY;
 
 export const getHomepageContent = cache(async (city) => {
   const selectedCity = getCity(city);
-  const events = await listEvents({ city: selectedCity, limit: 12, sort: "heat" });
+  const events = await listEvents({ city: selectedCity, limit: 30, sort: "heat" });
   const heroCards = mapHeroCards(events);
   const eventGrid = mapEventGrid(events);
   const categories = getCategoryFilters(events);

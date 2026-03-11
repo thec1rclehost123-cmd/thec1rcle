@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
@@ -44,6 +44,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     const [isSuccess, setIsSuccess] = useState(false);
     const [error, setError] = useState("");
     const [promoterCode, setPromoterCode] = useState(null);
+    const redirectTimeoutRef = useRef(null);
 
     // Cart reservation and promo code state
     const [cartReservation, setCartReservation] = useState(null);
@@ -159,6 +160,13 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             .catch(() => { });
         return () => { cancelled = true; };
     }, [step, appliedPromoCode]);
+
+    // Proactively prefetch tickets page for instant navigation on success
+    useEffect(() => {
+        if (isSuccess) {
+            router.prefetch('/tickets');
+        }
+    }, [isSuccess, router]);
 
     // Calculate totals with discounts
     const subtotal = useMemo(() => {
@@ -344,9 +352,11 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 try { localStorage.removeItem("c1rcle_reservation"); } catch (_) { }
                 setProcessingState("issuing");
                 setIsSuccess(true);
-                setTimeout(() => {
+                router.prefetch('/tickets');
+                redirectTimeoutRef.current = setTimeout(() => {
                     router.push(`/confirmation/${initiateData.order.id}`);
-                }, 2000);
+                }, 4000);
+                return;
             }
 
         } catch (err) {
@@ -407,10 +417,13 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                     try { localStorage.removeItem("c1rcle_reservation"); } catch (_) { }
                     setProcessingState("issuing");
                     setIsSuccess(true);
-                    setTimeout(() => {
+                    router.prefetch('/tickets');
+
+                    // Auto-redirect to confirmation if they don't click anything
+                    redirectTimeoutRef.current = setTimeout(() => {
                         router.push(`/confirmation/${initiateData.order.id}`);
                         resolve();
-                    }, 2000);
+                    }, 4000); // 4 seconds for better reading time
                 } catch (err) {
                     setError(err.message);
                     setIsProcessing(false);
@@ -712,41 +725,112 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             {/* Success/Processing Overlay */}
             <AnimatePresence>
                 {(isProcessing || isSuccess) && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-2xl flex flex-col items-center justify-center text-white text-center p-8">
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center text-white text-center p-8 overflow-hidden"
+                    >
+                        {/* Premium Success Background */}
+                        <div className="absolute inset-0 -z-10 bg-black">
+                            <motion.div
+                                animate={{
+                                    scale: [1, 1.2, 1],
+                                    rotate: [0, 90, 0],
+                                    opacity: [0.1, 0.2, 0.1]
+                                }}
+                                transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                                className="absolute -top-1/4 -right-1/4 w-[80vw] h-[80vw] bg-orange/20 rounded-full blur-[120px]"
+                            />
+                            <motion.div
+                                animate={{
+                                    scale: [1.2, 1, 1.2],
+                                    rotate: [0, -90, 0],
+                                    opacity: [0.1, 0.15, 0.1]
+                                }}
+                                transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                                className="absolute -bottom-1/4 -left-1/4 w-[70vw] h-[70vw] bg-iris/20 rounded-full blur-[100px]"
+                            />
+                            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] pointer-events-none" />
+                        </div>
+
                         <div className="relative w-40 h-40 mb-10">
-                            <motion.div className="absolute inset-0 rounded-full border-2 border-white/5" initial={{ scale: 0.8 }} animate={{ scale: 1.1, opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 2 }} />
+                            <motion.div
+                                className="absolute inset-0 rounded-full border-2 border-white/5"
+                                initial={{ scale: 0.8 }}
+                                animate={{ scale: 1.4, opacity: 0 }}
+                                transition={{ repeat: Infinity, duration: 2 }}
+                            />
                             <div className="absolute inset-0 flex items-center justify-center">
                                 {isSuccess ? (
-                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="h-20 w-20 bg-orange rounded-full flex items-center justify-center shadow-[0_0_60px_rgba(255,165,0,0.5)]">
-                                        <Check className="h-10 w-10 text-white" strokeWidth={4} />
+                                    <motion.div
+                                        initial={{ scale: 0, rotate: -45 }}
+                                        animate={{ scale: 1, rotate: 0 }}
+                                        transition={{ type: "spring", damping: 12 }}
+                                        className="h-24 w-24 bg-gradient-to-br from-orange to-[#FF7A5C] rounded-full flex items-center justify-center shadow-[0_0_80px_rgba(244,74,34,0.4)] relative"
+                                    >
+                                        <Check className="h-12 w-12 text-white" strokeWidth={4} />
+                                        <motion.div
+                                            animate={{ opacity: [0, 1, 0], scale: [1, 1.5, 2] }}
+                                            transition={{ duration: 1.5, repeat: Infinity }}
+                                            className="absolute inset-0 rounded-full bg-orange opacity-20"
+                                        />
                                     </motion.div>
                                 ) : (
-                                    <Loader2 className="h-12 w-12 animate-spin text-orange" />
+                                    <div className="relative h-20 w-20">
+                                        <Loader2 className="h-20 w-20 animate-spin text-orange opacity-20" strokeWidth={1} />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="h-2 w-2 bg-orange rounded-full animate-ping" />
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         </div>
-                        <motion.h2 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-3xl font-black uppercase tracking-tight">
-                            {isSuccess ? "Order Successful" : "Processing"}
-                        </motion.h2>
-                        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="text-[10px] uppercase font-black tracking-[0.4em] text-white/40 mt-6 max-w-[280px]">
-                            {isSuccess ? "Your booking is confirmed. Your identity pass is being generated." :
-                                processingState === "reserving" ? "Reserving your tickets..." :
-                                    processingState === "initiating" ? "Processing order..." :
-                                        processingState === "verifying" ? "Verifying payment..." :
-                                            processingState === "issuing" ? "Issuing tickets..." :
-                                                "Processing..."}
-                        </motion.p>
+
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={isSuccess ? "success" : "processing"}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                                transition={{ duration: 0.5 }}
+                                className="space-y-6"
+                            >
+                                <h2 className="text-5xl font-black uppercase tracking-tight leading-none">
+                                    {isSuccess ? <span>YOU'RE<br />IN.</span> : "Processing"}
+                                </h2>
+
+                                <p className="text-[10px] uppercase font-black tracking-[0.4em] text-white/40 max-w-[280px] mx-auto leading-loose">
+                                    {isSuccess ?
+                                        "Your pass has been secured. Get ready for an unforgettable night." :
+                                        processingState === "reserving" ? "Reserving your tickets..." :
+                                            processingState === "initiating" ? "Securing your spot..." :
+                                                processingState === "verifying" ? "Authenticating payment..." :
+                                                    processingState === "issuing" ? "Generating identity keys..." :
+                                                        "Hold tight, we're finishing up..."}
+                                </p>
+                            </motion.div>
+                        </AnimatePresence>
 
                         {isSuccess && (
                             <motion.button
-                                initial={{ opacity: 0, y: 20 }}
+                                initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.5 }}
-                                onClick={() => router.push('/tickets')}
-                                className="mt-12 h-16 px-12 rounded-full bg-white text-black font-black uppercase tracking-[0.3em] text-[10px] hover:scale-105 transition-all shadow-[0_20px_40px_rgba(255,255,255,0.1)] flex items-center gap-4 group"
+                                transition={{ duration: 0.2 }}
+                                onClick={() => {
+                                    router.prefetch('/tickets'); // Double check prefetch
+                                    if (redirectTimeoutRef.current) {
+                                        clearTimeout(redirectTimeoutRef.current);
+                                    }
+                                    router.push('/tickets');
+                                }}
+                                className="mt-16 group relative"
                             >
-                                View My Tickets
-                                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                                <div className="absolute -inset-1 bg-gradient-to-r from-orange to-iris rounded-full blur opacity-25 group-hover:opacity-60 transition duration-1000 group-hover:duration-200"></div>
+                                <div className="relative h-16 px-14 rounded-full bg-white text-black font-black uppercase tracking-[0.3em] text-[10px] hover:scale-105 active:scale-95 transition-all flex items-center gap-4">
+                                    View My Tickets
+                                    <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                                </div>
                             </motion.button>
                         )}
                     </motion.div>

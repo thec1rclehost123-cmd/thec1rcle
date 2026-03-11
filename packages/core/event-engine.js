@@ -89,7 +89,7 @@ export function buildEvent(payload = {}) {
         location: (payload.location || payload.venueName || "").trim(),
         venue: (payload.venue || payload.venueName || "").trim(),
         venueId: payload.venueId || "",
-        promoterVisibility: payload.promotersEnabled ?? payload.promoterSettings?.enabled ?? true,
+        promotersEnabled: payload.promotersEnabled ?? payload.promoterSettings?.enabled ?? true,
         city: cityLabel,
         cityKey,
         country: payload.country || "India",

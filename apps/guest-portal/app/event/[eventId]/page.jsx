@@ -2,13 +2,14 @@ import { notFound } from "next/navigation";
 import EventRSVP from "../../../components/EventRSVP";
 import { getEvent, getEventInterested } from "../../../lib/server/eventStore";
 import { getHostProfile as getMockHostProfile } from "../../../data/hosts";
+import { PUBLIC_LIFECYCLE_STATES } from "@c1rcle/core/events";
 
 
 export async function generateMetadata({ params }) {
   const identifier = decodeURIComponent(params.eventId);
   const event = await getEvent(identifier);
 
-  if (!event) {
+  if (!event || !PUBLIC_LIFECYCLE_STATES.includes(event.lifecycle) && event.lifecycle !== "cancelled") {
     return {
       title: "Event Not Found",
       description: "The event you are looking for does not exist."
@@ -87,40 +88,53 @@ export default async function EventDetailPage({ params }) {
     );
   }
 
-  // Resolve host/venue profile from denormalized fields embedded at write time.
-  // Falls back to mock data if neither hostData nor venueData is present.
-  let hostProfile = null;
+  // ── Lifecycle Gate ──────────────────────────────────────────────────────────
+  // Only 'scheduled' and 'live' events are browseable by guests.
+  // 'cancelled' is an intentional exception — it renders a cancellation notice.
+  // All other non-public states (draft, submitted, approved, paused, denied,
+  // deleted, needs_changes, completed) return 404 to guests.
+  const isPublic = PUBLIC_LIFECYCLE_STATES.includes(event.lifecycle);
+  const isCancelled = event.lifecycle === "cancelled";
+  const isCompleted = event.lifecycle === "completed";
+  const isPaused = event.lifecycle === "paused";
 
-  if (event.hostData) {
-    hostProfile = { ...event.hostData, type: event.hostData.type || "host" };
+  if (!isPublic && !isCancelled && !isCompleted && !isPaused) {
+    // draft / submitted / approved / needs_changes / denied / deleted
+    notFound();
   }
 
-  if (!hostProfile && event.venueData) {
-    hostProfile = { ...event.venueData, type: "venue", avatar: event.venueData.photoURL || event.venueData.image };
+  // ── Handle Paused Event ───────────────────────────────────────────────────
+  if (isPaused) {
+    return (
+      <div className="relative flex min-h-screen flex-col items-center justify-center bg-[var(--bg-color)] px-4 py-20">
+        <AuroraBackground />
+        <div className="relative z-10 w-full max-w-lg text-center">
+          <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-yellow-500/10 ring-8 ring-yellow-500/5">
+            <svg className="h-12 w-12 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h1 className="font-heading text-3xl font-black uppercase tracking-tight text-[var(--text-primary)] md:text-5xl">
+            Ticket Sales Paused
+          </h1>
+          <p className="mx-auto mt-4 max-w-md text-base font-medium text-[var(--text-muted)] leading-relaxed">
+            <span className="font-bold text-[var(--text-primary)]">{event.title}</span> has temporarily paused ticket sales. Check back soon.
+          </p>
+          <div className="mt-12">
+            <Link href="/explore" className="inline-flex items-center gap-3 rounded-full bg-orange dark:bg-white px-10 py-5 text-[10px] font-black uppercase tracking-[0.3em] text-white dark:text-black shadow-lg shadow-orange/20 dark:shadow-none transition-transform hover:scale-105">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              Explore Other Events
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  // 3. Fallback to mock data if still nothing
-  if (!hostProfile) {
-    const mock = getMockHostProfile(event.host);
-    hostProfile = {
-      ...mock,
-      type: "host",
-      handle: event.host || "@guest",
-      slug: (event.host || "@guest").replace("@", "").replace(/\./g, "-")
-    };
-  }
-
-  // Ensure hostProfile always has a type and fallback slug
-  if (hostProfile && !hostProfile.type) hostProfile.type = "host";
-  if (hostProfile && !hostProfile.slug) {
-    hostProfile.slug = hostProfile.handle ? hostProfile.handle.replace("@", "").replace(/\./g, "-") : hostProfile.id;
-  }
-
-  // Fetch live social proof — first 20 saves for avatar display
-  const interestedData = await getEventInterested(event.id);
-
-  // ── Handle Cancelled Event ──
-  if (event.lifecycle === "cancelled") {
+  // ── Handle Cancelled Event ──────────────────────────────────────────────
+  if (isCancelled) {
     return (
       <div className="relative flex min-h-screen flex-col items-center justify-center bg-[var(--bg-color)] px-4 py-20">
         <AuroraBackground />
@@ -201,11 +215,45 @@ export default async function EventDetailPage({ params }) {
     );
   }
 
+  // Resolve host/venue profile from denormalized fields embedded at write time.
+  // Falls back to mock data if neither hostData nor venueData is present.
+  let hostProfile = null;
+
+  if (event.hostData) {
+    hostProfile = { ...event.hostData, type: event.hostData.type || "host" };
+  }
+
+  if (!hostProfile && event.venueData) {
+    hostProfile = { ...event.venueData, type: "venue", avatar: event.venueData.photoURL || event.venueData.image };
+  }
+
+  // 3. Fallback to mock data if still nothing
+  if (!hostProfile) {
+    const mock = getMockHostProfile(event.host);
+    hostProfile = {
+      ...mock,
+      type: "host",
+      handle: event.host || "@guest",
+      slug: (event.host || "@guest").replace("@", "").replace(/\./g, "-")
+    };
+  }
+
+  // Ensure hostProfile always has a type and fallback slug
+  if (hostProfile && !hostProfile.type) hostProfile.type = "host";
+  if (hostProfile && !hostProfile.slug) {
+    hostProfile.slug = hostProfile.handle ? hostProfile.handle.replace("@", "").replace(/\./g, "-") : hostProfile.id;
+  }
+
+  // Fetch live social proof — first 20 saves for avatar display
+  const interestedData = await getEventInterested(event.id);
+
   return (
     <EventRSVP
       event={event}
       host={hostProfile}
       interestedData={interestedData}
+      isCompleted={isCompleted}
     />
   );
 }
+
