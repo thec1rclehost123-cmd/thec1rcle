@@ -3,7 +3,7 @@ import "./lib/env.js";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@c1rcle/core', '@c1rcle/ui'],
+  transpilePackages: ['@c1rcle/core', '@c1rcle/ui', '@c1rcle/types'],
   experimental: {
     optimizePackageImports: [
       "lucide-react",

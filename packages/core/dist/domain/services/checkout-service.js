@@ -200,6 +200,7 @@ export class CheckoutService {
     }
     async verifyPayment(params) {
         const { orderId, razorpayOrderId, razorpayPaymentId, userId } = params;
+        let finalOrder = null;
         await this.orderRepo.runInTransaction(async (transaction) => {
             const order = await this.orderRepo.getOrderById(orderId);
             if (!order)
@@ -208,19 +209,42 @@ export class CheckoutService {
                 return;
             if (order.userId !== userId)
                 throw new Error('Unauthorized');
-            await this.orderRepo.updateOrder(orderId, {
+            const updates = {
                 status: 'confirmed',
                 paymentId: razorpayPaymentId,
                 paymentOrderId: razorpayOrderId,
                 confirmedAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
-            }, transaction);
+            };
+            await this.orderRepo.updateOrder(orderId, updates, transaction);
             await this.orderRepo.updatePaymentRecord(orderId, razorpayOrderId, {
                 status: 'verified',
                 razorpayPaymentId: razorpayPaymentId,
                 verifiedAt: new Date().toISOString()
             }, transaction);
+            finalOrder = { ...order, ...updates };
         });
+        // Trigger fulfillment workflow (fallback for missed webhooks)
+        if (finalOrder) {
+            (async () => {
+                try {
+                    // @ts-ignore
+                    const { sendEvent, Events } = await import('@c1rcle/core/inngest-client');
+                    sendEvent(Events.TICKET_PURCHASED, {
+                        orderId: finalOrder.id,
+                        userId: finalOrder.userId,
+                        userEmail: finalOrder.userEmail,
+                        eventId: finalOrder.eventId,
+                        tickets: finalOrder.tickets,
+                        totalAmount: finalOrder.totalAmount,
+                        promoterCode: finalOrder.promoterCode
+                    });
+                }
+                catch (e) {
+                    console.error('Inngest trigger initiation failed in verifyPayment:', e);
+                }
+            })();
+        }
     }
     async cancelCheckout(reservationId, orderId) {
         if (orderId) {
