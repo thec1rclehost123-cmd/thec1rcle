@@ -590,27 +590,41 @@ export function RevenueStepV3({ formData, updateFormData, validationErrors }: Re
             </div>
 
             {/* 2. Tables */}
-            {formData.tablesEnabled && (
-                <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
-                    <div className="px-6 pt-6 pb-4 border-b border-white/[0.04] flex items-center justify-between">
+            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+                <div className="px-6 pt-6 pb-4 border-b border-white/[0.04]">
+                    <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                                <Wine className="w-3.5 h-3.5 text-purple-400" />
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${formData.tablesEnabled ? 'bg-purple-500/10' : 'bg-white/[0.04]'}`}>
+                                <Wine className={`w-3.5 h-3.5 ${formData.tablesEnabled ? 'text-purple-400' : 'text-white/25'}`} />
                             </div>
                             <div>
                                 <h3 className="text-[13px] font-bold text-white">Table Packages</h3>
-                                <p className="text-[10px] text-white/35 mt-0.5">{tables.length} package{tables.length !== 1 ? 's' : ''}</p>
+                                <p className="text-[10px] text-white/35 mt-0.5">Reserved seating with minimum spends</p>
                             </div>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => updateFormData({ tables: [...tables, newTable()] })}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 text-[10px] font-bold text-purple-400 hover:bg-purple-500/15 transition-all"
-                        >
-                            <Plus className="w-3 h-3" />
-                            Add package
-                        </button>
+                        <div className="flex items-center gap-3">
+                            {formData.tablesEnabled && (
+                                <button
+                                    type="button"
+                                    onClick={() => updateFormData({ tables: [...tables, newTable()] })}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 text-[10px] font-bold text-purple-400 hover:bg-purple-500/15 transition-all"
+                                >
+                                    <Plus className="w-3 h-3" />
+                                    Add package
+                                </button>
+                            )}
+                            {/* Toggle */}
+                            <button
+                                type="button"
+                                onClick={() => updateFormData({ tablesEnabled: !formData.tablesEnabled })}
+                                className={`w-10 h-6 rounded-full border transition-all duration-200 flex-shrink-0 ${formData.tablesEnabled ? 'bg-purple-500 border-purple-500' : 'bg-white/[0.06] border-white/[0.12]'}`}
+                            >
+                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm mt-0.5 transition-all duration-200 ${formData.tablesEnabled ? 'ml-5' : 'ml-0.5'}`} />
+                            </button>
+                        </div>
                     </div>
+                </div>
+                {formData.tablesEnabled && (
                     <div className="px-6 py-5 space-y-3">
                         {tables.length === 0 ? (
                             <div className="py-8 text-center">
@@ -630,8 +644,13 @@ export function RevenueStepV3({ formData, updateFormData, validationErrors }: Re
                             ))
                         )}
                     </div>
-                </div>
-            )}
+                )}
+                {!formData.tablesEnabled && (
+                    <div className="px-6 py-4">
+                        <p className="text-[11px] text-white/25 italic">Enable tables to configure packages and minimum spends</p>
+                    </div>
+                )}
+            </div>
 
             {/* 3. Walk-in Cover */}
             {formData.walkInEnabled && (

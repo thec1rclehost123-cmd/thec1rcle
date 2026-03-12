@@ -135,7 +135,7 @@ function EventTypeSelector({ value, onChange }: { value: string; onChange: (v: s
 // ─── Segmented Selector ────────────────────────────────────────────────────────
 
 function SegmentedSelector<T extends string>({ options, value, onChange }: {
-    options: { value: T; label: string }[];
+    options: readonly { value: T; label: string }[];
     value: T;
     onChange: (v: T) => void;
 }) {

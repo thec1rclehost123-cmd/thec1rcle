@@ -66,6 +66,25 @@ export default function HostEventsPage() {
                 e.title?.toLowerCase().includes(searchQuery.toLowerCase());
 
             return matchesTab && matchesSearch;
+        }).sort((a, b) => {
+            const now = new Date();
+            const dateA = a.startDate ? new Date(a.startDate) : null;
+            const dateB = b.startDate ? new Date(b.startDate) : null;
+
+            const isFutureA = dateA && dateA > now && a.lifecycle !== EVENT_LIFECYCLE.DRAFT;
+            const isFutureB = dateB && dateB > now && b.lifecycle !== EVENT_LIFECYCLE.DRAFT;
+
+            // 1. Future events first
+            if (isFutureA && !isFutureB) return -1;
+            if (!isFutureA && isFutureB) return 1;
+
+            // 2. Both are future: sort by date ascending (soonest first)
+            if (isFutureA && isFutureB) {
+                return (dateA?.getTime() || 0) - (dateB?.getTime() || 0);
+            }
+
+            // 3. Both are past or drafts: sort by createdAt descending (newest first)
+            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
         });
     }, [events, activeTab, searchQuery]);
 

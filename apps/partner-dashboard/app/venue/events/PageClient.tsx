@@ -123,7 +123,23 @@ export default function EventsManagementPage() {
                         };
                     })
                     .filter((e: any) => !(e.eventType === "host" && e.creatorId !== venueId && e.lifecycle === "draft"))
-                    .sort((a: any, b: any) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+                    .sort((a: any, b: any) => {
+                        const now = new Date();
+                        const dateA = a.date instanceof Date ? a.date : new Date(a.date);
+                        const dateB = b.date instanceof Date ? b.date : new Date(b.date);
+
+                        const isFutureA = dateA > now && a.status !== 'draft';
+                        const isFutureB = dateB > now && b.status !== 'draft';
+
+                        if (isFutureA && !isFutureB) return -1;
+                        if (!isFutureA && isFutureB) return 1;
+
+                        if (isFutureA && isFutureB) {
+                            return dateA.getTime() - dateB.getTime();
+                        }
+
+                        return dateB.getTime() - dateA.getTime();
+                    });
                 setEvents(mapped);
             } catch { }
             finally { setLoading(false); }

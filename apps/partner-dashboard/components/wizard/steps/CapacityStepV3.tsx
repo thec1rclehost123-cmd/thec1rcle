@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Users, Ticket, Wine, DoorOpen, UserCheck, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { Users, Ticket, Wine, DoorOpen, UserCheck, ChevronDown, ChevronUp, AlertTriangle, SlidersHorizontal } from "lucide-react";
 
 // ─── Primitives ────────────────────────────────────────────────────────────────
 
@@ -191,6 +191,43 @@ export function CapacityStepV3({ formData, updateFormData, validationErrors }: C
     return (
         <div className="space-y-4">
 
+            {/* 0. Channel Settings */}
+            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
+                <div className="px-6 pt-6 pb-4 border-b border-white/[0.04]">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center">
+                            <SlidersHorizontal className="w-3.5 h-3.5 text-white/60" />
+                        </div>
+                        <div>
+                            <h3 className="text-[13px] font-bold text-white">Entry Channels</h3>
+                            <p className="text-[10px] text-white/35 mt-0.5">Which paths guests can use to attend</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="px-6 py-5 space-y-5">
+                    <Toggle
+                        enabled={formData.guestListEnabled ?? false}
+                        onChange={v => updateFormData({ guestListEnabled: v })}
+                        label="Guest List"
+                        desc="Promoters add guests; they check in by name at the door"
+                    />
+                    <div className="h-px bg-white/[0.04]" />
+                    <Toggle
+                        enabled={formData.walkInEnabled ?? false}
+                        onChange={v => updateFormData({ walkInEnabled: v })}
+                        label="Walk-in / Cover"
+                        desc="Guests pay cover at the door — no advance purchase needed"
+                    />
+                    <div className="h-px bg-white/[0.04]" />
+                    <Toggle
+                        enabled={formData.tablesEnabled ?? false}
+                        onChange={v => updateFormData({ tablesEnabled: v })}
+                        label="Tables"
+                        desc="Reserved seating with minimum spends — configure packages in Revenue step"
+                    />
+                </div>
+            </div>
+
             {/* 1. Total Capacity + Allocation Bar */}
             <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] overflow-hidden">
                 <div className="px-6 pt-6 pb-4 border-b border-white/[0.04]">
@@ -354,7 +391,7 @@ export function CapacityStepV3({ formData, updateFormData, validationErrors }: C
                         <input
                             type="number"
                             value={formData.walkInCoverPrice ?? ''}
-                            onChange={e => updateFormData({ walkInCoverPrice: parseInt(e.target.value) || 0 })}
+                            onChange={e => updateFormData({ walkInCoverPrice: parseInt(e.target.value) || 0, coverPrice: parseInt(e.target.value) || 0 })}
                             placeholder="e.g. 500"
                             min={0}
                             className="w-full px-4 h-11 rounded-xl text-[14px] font-bold text-white bg-white/[0.05] border border-white/[0.08] focus:outline-none focus:border-[#F44A22]/50 transition-all [appearance:textfield]"

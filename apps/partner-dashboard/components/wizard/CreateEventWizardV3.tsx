@@ -177,6 +177,7 @@ export function CreateEventWizardV3({ role }: CreateEventWizardV3Props) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoadingDraft, setIsLoadingDraft] = useState(false);
     const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+    const [pendingDraft, setPendingDraft] = useState<any>(null);
 
     // ─── Form data ───────────────────────────────────────────────────────────────
 
@@ -206,6 +207,7 @@ export function CreateEventWizardV3({ role }: CreateEventWizardV3Props) {
         seriesEditScope: 'this',
         isOvernight: false,
         dynamicPricingEnabled: false,
+        scheduledPublishAt: '',
         ticketSalesEnd: '',
         guestListClose: '',
         ageVerificationRequired: false,
@@ -322,19 +324,21 @@ export function CreateEventWizardV3({ role }: CreateEventWizardV3Props) {
     // ─── localStorage crash recovery ─────────────────────────────────────────────
 
     useEffect(() => {
-        if (!profile?.uid || isLoadingDraft) return;
+        if (!profile?.uid || isLoadingDraft || pendingDraft) return;
         const currentId = searchParams.get('id') || 'new';
+        if (currentId !== 'new') return;
         const storageKey = `c1rcle_draft_event_v3_${profile.uid}_${currentId}`;
         const stored = localStorage.getItem(storageKey);
-        if (stored && currentId === 'new') {
+        if (stored) {
             try {
                 const localData = JSON.parse(stored);
-                if (localData.title) setFormData((prev: any) => ({ ...prev, ...localData }));
+                if (localData.title) setPendingDraft(localData);
             } catch (e) {
                 // ignore parse errors
             }
         }
-    }, [profile?.uid, searchParams, isLoadingDraft]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile?.uid, isLoadingDraft]);
 
     // ─── localStorage autosave ────────────────────────────────────────────────────
 
@@ -451,7 +455,7 @@ export function CreateEventWizardV3({ role }: CreateEventWizardV3Props) {
 
     // ─── Publish ──────────────────────────────────────────────────────────────────
 
-    const handlePublish = useCallback(async (action: 'draft' | 'publish' | 'schedule') => {
+    const handlePublish = useCallback(async (action: 'draft' | 'publish' | 'schedule', scheduledAt?: string) => {
         if (action === 'publish') {
             const allIssues = Object.values(stepIssues).flat();
             if (allIssues.filter(Boolean).length > 0) return;
@@ -469,6 +473,7 @@ export function CreateEventWizardV3({ role }: CreateEventWizardV3Props) {
                 body: JSON.stringify({
                     ...formData,
                     lifecycle,
+                    ...(scheduledAt ? { scheduledPublishAt: scheduledAt } : {}),
                     creatorId: profile?.activeMembership?.partnerId || profile?.uid,
                     hostData: role === 'host' ? {
                         id: profile?.activeMembership?.partnerId,
@@ -513,6 +518,7 @@ export function CreateEventWizardV3({ role }: CreateEventWizardV3Props) {
         } finally {
             setIsSubmitting(false);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [formData, savedDraftId, role, profile, authedFetch, stepIssues, router]);
 
     // ─── Loading state ────────────────────────────────────────────────────────────
@@ -582,8 +588,47 @@ export function CreateEventWizardV3({ role }: CreateEventWizardV3Props) {
                 </div>
             </div>
 
+            {/* ─── Draft recovery banner ────────────────────────────────────────── */}
+            {pendingDraft && (
+                <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-3">
+                    <div className="max-w-[1400px] mx-auto flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                            <p className="text-[11px] font-semibold text-amber-300">
+                                Unsaved draft found{pendingDraft.title ? ` — "${pendingDraft.title}"` : ''}.
+                                Restore where you left off?
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setFormData((prev: any) => ({ ...prev, ...pendingDraft }));
+                                    setPendingDraft(null);
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/30 text-[10px] font-bold text-amber-300 hover:bg-amber-500/30 transition-all"
+                            >
+                                Restore
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const currentId = searchParams.get('id') || 'new';
+                                    const storageKey = `c1rcle_draft_event_v3_${profile?.uid}_${currentId}`;
+                                    localStorage.removeItem(storageKey);
+                                    setPendingDraft(null);
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-[10px] font-bold text-white/40 hover:text-white/60 transition-all"
+                            >
+                                Discard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ─── Body: two-column layout ──────────────────────────────────────── */}
-            <div className="max-w-[1400px] mx-auto px-6 py-8">
+            <div className="max-w-[1400px] mx-auto px-6 py-8 pb-24 lg:pb-8">
                 <div className="flex gap-8 items-start">
 
                     {/* ── Left: primary workspace ──────────────────────────────── */}
@@ -743,6 +788,43 @@ export function CreateEventWizardV3({ role }: CreateEventWizardV3Props) {
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* ─── Mobile sticky bottom bar ─────────────────────────────────────── */}
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 z-20 bg-[var(--surface-base)]/95 backdrop-blur-xl border-t border-white/[0.06] px-4 py-3">
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={prevStep}
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] text-[11px] font-semibold text-white/50 hover:text-white/80 transition-all"
+                    >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        {currentStepIndex === 0 ? 'Cancel' : 'Back'}
+                    </button>
+                    <div className="flex-1 text-center">
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-white/25">{currentStepIndex + 1} of {STEPS.length}</p>
+                        <p className="text-[11px] font-bold text-white/60 mt-0.5">{STEP_LABELS[currentStep]}</p>
+                    </div>
+                    {!isLastStep ? (
+                        <button
+                            type="button"
+                            onClick={nextStep}
+                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#F44A22] text-[11px] font-bold text-white hover:bg-[#e0421e] transition-all"
+                        >
+                            Continue
+                            <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => handlePublish('draft')}
+                            disabled={isSubmitting}
+                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/[0.08] border border-white/[0.12] text-[11px] font-bold text-white/60 hover:text-white hover:bg-white/[0.12] transition-all"
+                        >
+                            Save Draft
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

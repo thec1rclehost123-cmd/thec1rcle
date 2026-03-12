@@ -67,7 +67,26 @@ export async function listEvents({ city, limit, sort, search, host, venueId, lif
         );
     }
 
-    events.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    const now = new Date();
+    events.sort((a, b) => {
+        const dateA = a.startDate ? new Date(a.startDate) : null;
+        const dateB = b.startDate ? new Date(b.startDate) : null;
+
+        const isFutureA = dateA && dateA > now && a.lifecycle !== 'draft';
+        const isFutureB = dateB && dateB > now && b.lifecycle !== 'draft';
+
+        // 1. Future events first
+        if (isFutureA && !isFutureB) return -1;
+        if (!isFutureA && isFutureB) return 1;
+
+        // 2. Both are future: sort by date ascending (soonest first)
+        if (isFutureA && isFutureB) {
+            return dateA - dateB;
+        }
+
+        // 3. Both are past or drafts: sort by createdAt descending (newest first)
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
     if (limit) events = events.slice(0, limit);
 
     return { events: serialize(events), hasMore: false, nextCursor: null };
@@ -225,6 +244,11 @@ export async function listEventsForPromoter({ promoterId, city, limit = 20 } = {
                 e.city?.toLowerCase().includes(c) || e.cityKey === c
             );
         }
+        events.sort((a, b) => {
+            const dateA = a.startDate ? new Date(a.startDate) : new Date(0);
+            const dateB = b.startDate ? new Date(b.startDate) : new Date(0);
+            return dateA - dateB;
+        });
         return serialize(events);
     } catch (error) {
         console.error("[EventStore] listEventsForPromoter failed:", error.message);

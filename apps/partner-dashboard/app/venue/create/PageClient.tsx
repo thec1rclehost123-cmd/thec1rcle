@@ -1,15 +1,11 @@
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 
-const CreateEventWizardV2 = dynamic(
-    () => import("@/components/wizard/CreateEventWizardV2").then(mod => mod.CreateEventWizardV2),
-    { ssr: false, loading: () => <div className="py-40 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-text-placeholder" /></div> }
+const CreateEventWizardV3 = dynamic(
+    () => import("@/components/wizard/CreateEventWizardV3").then(mod => mod.CreateEventWizardV3),
+    { ssr: false, loading: () => <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-white/20" /></div> }
 );
 
 export default function VenueCreateEventPage() {
-    return (
-        <div className="pb-20">
-            <CreateEventWizardV2 role="venue" />
-        </div>
-    );
+    return <CreateEventWizardV3 role="venue" />;
 }

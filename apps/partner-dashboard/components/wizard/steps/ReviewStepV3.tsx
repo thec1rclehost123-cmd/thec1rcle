@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckCircle2, AlertTriangle, AlertCircle, ExternalLink, Edit2 } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, AlertTriangle, AlertCircle, Calendar, Clock, Edit2 } from "lucide-react";
 
 const formatINR = (v: number) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v);
@@ -141,46 +142,120 @@ function RevenueSummary({ revenue }: { revenue: any }) {
 
 // ─── Publish Controls ──────────────────────────────────────────────────────────
 
-function PublishControls({ formData, onAction, isSubmitting, canPublish }: {
-    formData: any; onAction: (action: 'draft' | 'publish' | 'schedule') => void; isSubmitting: boolean; canPublish: boolean
+function PublishControls({ onAction, isSubmitting, canPublish }: {
+    onAction: (action: 'draft' | 'publish' | 'schedule', scheduledAt?: string) => void; isSubmitting: boolean; canPublish: boolean
 }) {
-    const PUBLISH_MODES = [
-        { id: 'publish',  label: 'Publish Now',     desc: 'Goes live immediately',                 primary: true },
-        { id: 'schedule', label: 'Schedule',         desc: 'Choose a future publish date & time',   primary: false },
-        { id: 'draft',    label: 'Save as Draft',    desc: 'Continue editing later',                primary: false },
-    ] as const;
+    const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+    const [scheduledDate, setScheduledDate] = useState('');
+    const [scheduledTime, setScheduledTime] = useState('12:00');
+
+    const minDate = new Date();
+    minDate.setMinutes(minDate.getMinutes() + 5);
+    const minDateStr = minDate.toISOString().split('T')[0];
+
+    const handleConfirmSchedule = () => {
+        if (!scheduledDate) return;
+        const scheduledAt = `${scheduledDate}T${scheduledTime}:00`;
+        onAction('schedule', scheduledAt);
+    };
 
     return (
         <div className="space-y-3">
-            {PUBLISH_MODES.map(mode => (
+            {/* Publish Now */}
+            <button
+                type="button"
+                disabled={isSubmitting || !canPublish}
+                onClick={() => onAction('publish')}
+                className={`
+                    w-full flex items-center justify-between p-4 rounded-xl border transition-all duration-200
+                    ${canPublish
+                        ? 'bg-[#F44A22] border-[#F44A22] hover:bg-[#e0421e] text-white'
+                        : 'bg-white/[0.04] border-white/[0.07] cursor-not-allowed opacity-50'
+                    }
+                `}
+            >
+                <div className="text-left">
+                    <p className="text-[13px] font-bold">Publish Now</p>
+                    <p className="text-[10px] mt-0.5 text-white/70">Goes live immediately for guests to discover</p>
+                </div>
+                {isSubmitting && (
+                    <div className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                )}
+            </button>
+
+            {/* Schedule */}
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] overflow-hidden">
                 <button
-                    key={mode.id}
                     type="button"
-                    disabled={isSubmitting || (mode.id === 'publish' && !canPublish)}
-                    onClick={() => onAction(mode.id)}
-                    className={`
-                        w-full flex items-center justify-between p-4 rounded-xl border transition-all duration-200
-                        ${mode.primary && canPublish
-                            ? 'bg-[#F44A22] border-[#F44A22] hover:bg-[#e0421e] text-white'
-                            : mode.primary && !canPublish
-                                ? 'bg-white/[0.04] border-white/[0.07] cursor-not-allowed opacity-50'
-                                : 'bg-white/[0.03] border-white/[0.07] hover:bg-white/[0.05] hover:border-white/[0.12]'
-                        }
-                    `}
+                    disabled={isSubmitting}
+                    onClick={() => setShowSchedulePicker(p => !p)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors"
                 >
                     <div className="text-left">
-                        <p className={`text-[13px] font-bold ${mode.primary && canPublish ? 'text-white' : 'text-white/65'}`}>
-                            {mode.label}
-                        </p>
-                        <p className={`text-[10px] mt-0.5 ${mode.primary && canPublish ? 'text-white/70' : 'text-white/30'}`}>
-                            {mode.desc}
+                        <p className="text-[13px] font-bold text-white/65">Schedule</p>
+                        <p className="text-[10px] mt-0.5 text-white/30">
+                            {showSchedulePicker && scheduledDate
+                                ? `${scheduledDate} at ${scheduledTime}`
+                                : 'Choose a future publish date & time'
+                            }
                         </p>
                     </div>
-                    {isSubmitting && mode.primary && (
-                        <div className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
-                    )}
+                    <Calendar className={`w-4 h-4 transition-colors ${showSchedulePicker ? 'text-[#F44A22]' : 'text-white/25'}`} />
                 </button>
-            ))}
+
+                {showSchedulePicker && (
+                    <div className="px-4 pb-4 border-t border-white/[0.05] pt-4 space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-semibold text-white/35 uppercase tracking-wider flex items-center gap-1">
+                                    <Calendar className="w-2.5 h-2.5" />
+                                    Publish Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={scheduledDate}
+                                    onChange={e => setScheduledDate(e.target.value)}
+                                    min={minDateStr}
+                                    className="w-full px-3 h-10 rounded-xl text-[12px] font-semibold text-white bg-white/[0.05] border border-white/[0.08] focus:outline-none focus:border-[#F44A22]/50 transition-all [color-scheme:dark]"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-semibold text-white/35 uppercase tracking-wider flex items-center gap-1">
+                                    <Clock className="w-2.5 h-2.5" />
+                                    Publish Time
+                                </label>
+                                <input
+                                    type="time"
+                                    value={scheduledTime}
+                                    onChange={e => setScheduledTime(e.target.value)}
+                                    className="w-full px-3 h-10 rounded-xl text-[12px] font-mono font-semibold text-white bg-white/[0.05] border border-white/[0.08] focus:outline-none focus:border-[#F44A22]/50 transition-all [color-scheme:dark]"
+                                />
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            disabled={!scheduledDate || isSubmitting}
+                            onClick={handleConfirmSchedule}
+                            className="w-full py-2.5 rounded-xl bg-white/[0.08] border border-white/[0.12] text-[12px] font-bold text-white/70 hover:bg-white/[0.12] hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            Confirm Schedule
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Save as Draft */}
+            <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => onAction('draft')}
+                className="w-full flex items-center justify-between p-4 rounded-xl border border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.05] hover:border-white/[0.12] transition-all duration-200"
+            >
+                <div className="text-left">
+                    <p className="text-[13px] font-bold text-white/65">Save as Draft</p>
+                    <p className="text-[10px] mt-0.5 text-white/30">Continue editing later — not visible to guests</p>
+                </div>
+            </button>
         </div>
     );
 }
@@ -192,7 +267,7 @@ interface ReviewStepV3Props {
     revenue: any;
     capacity: any;
     onStepJump: (step: any) => void;
-    onPublish: (action: 'draft' | 'publish' | 'schedule') => void;
+    onPublish: (action: 'draft' | 'publish' | 'schedule', scheduledAt?: string) => void;
     isSubmitting: boolean;
 }
 
@@ -310,7 +385,6 @@ export function ReviewStepV3({ formData, revenue, capacity, onStepJump, onPublis
             <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-3">Publish</p>
                 <PublishControls
-                    formData={formData}
                     onAction={onPublish}
                     isSubmitting={isSubmitting}
                     canPublish={canPublish}
