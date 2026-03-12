@@ -63,14 +63,10 @@ export default function AdminDashboard() {
 
     const snapshot = data?.snapshot || {};
     const stats = [
-        { label: "Platform Users", value: snapshot.users_total || 0, icon: Users, trend: "+12.5%", trendUp: true, href: "/users" },
-        { label: "Active Venues", value: snapshot.venues_total?.active || 0, icon: Building2, trend: "+2", trendUp: true, href: "/venues" },
-        { label: "Verified Hosts", value: snapshot.hosts_total || 0, icon: User, trend: "+8", trendUp: true, href: "/hosts" },
-        { label: "Live Events", value: snapshot.events?.live || 0, icon: Calendar, trend: "-3", trendUp: false, href: "/events" },
         { label: "Total Revenue", value: (snapshot.revenue?.total || 0).toLocaleString(), prefix: "₹", icon: TrendingUp, trend: "+₹14k", trendUp: true, href: "/payments" },
-        { label: "Tickets Sold", value: snapshot.tickets_sold_total || 0, icon: Ticket, trend: "+142", trendUp: true, href: "/events" },
-        { label: "Action Items", value: data?.alertsCount || 0, icon: ShieldAlert, trend: "Stable", trendUp: null, href: "/approvals" },
-        { label: "Upcoming Events", value: snapshot.events?.upcoming || 0, icon: Clock, trend: "+5", trendUp: true, href: "/events" },
+        { label: "Verified Partners", value: (snapshot.hosts_total || 0) + (snapshot.venues_total?.active || 0), icon: Building2, trend: "+10", trendUp: true, href: "/hosts" },
+        { label: "Platform Users", value: snapshot.users_total || 0, icon: Users, trend: "+12.5%", trendUp: true, href: "/users" },
+        { label: "Active Nodes", value: data?.alertsCount || 0, icon: Activity, trend: "Stable", trendUp: null, href: "/health" },
     ];
 
     const handleExport = () => {
@@ -134,27 +130,20 @@ export default function AdminDashboard() {
             <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
                     <div className="flex items-center gap-2 mb-3">
-                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">System Online</span>
+                        <div className="h-1.5 w-1.5 rounded-full bg-iris shadow-[0_0_8px_rgba(99,102,241,0.4)]"></div>
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-iris">Platform Overview</span>
                     </div>
-                    <h1 className="text-4xl font-semibold tracking-tight text-white mb-2">Admin Dashboard</h1>
+                    <h1 className="text-4xl font-semibold tracking-tight text-white mb-2">Authority Node</h1>
                     <p className="text-sm text-zinc-500 font-medium max-w-xl">
-                        Monitor performance and manage core operations across THE C1RCLE.
+                        High-level health metrics and governance controls for THE C1RCLE.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={() => setFilterActive(!filterActive)}
-                        className={`h-9 px-4 rounded-md border text-[11px] font-bold uppercase tracking-widest transition-all flex items-center gap-2 ${filterActive ? 'bg-iris/10 border-iris text-iris' : 'bg-white/5 border-white/5 text-zinc-400 hover:bg-white/10'}`}
-                    >
-                        <Filter className="h-3.5 w-3.5" strokeWidth={1.5} />
-                        {filterActive ? "View All" : "Filter"}
-                    </button>
-                    <button
                         onClick={handleExport}
                         className="h-9 px-4 rounded-md bg-white text-black text-[11px] font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors"
                     >
-                        Export Report
+                        Export Log
                     </button>
                 </div>
             </header>
@@ -195,16 +184,14 @@ export default function AdminDashboard() {
                     {/* Active Tasks */}
                     <section>
                         <div className="flex items-center justify-between mb-6 px-1">
-                            <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500 uppercase">Management Queues</h2>
+                            <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">Pending Approvals</h2>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                             {[
-                                { label: "Venues Pending", count: snapshot.queues?.venues || 0, href: "/venues" },
-                                { label: "Host Approvals", count: snapshot.queues?.hosts || 0, href: "/hosts" },
-                                { label: "Refund Requests", count: snapshot.queues?.refunds || 0, href: "/payments" },
-                                { label: "Support Tickets", count: snapshot.queues?.incidents || 0, href: "/support" },
-                                { label: "System Alerts", count: snapshot.queues?.webhooks || 0, href: "/logs" },
-                                { label: "Payout Batches", count: snapshot.queues?.payouts || 0, href: "/payments" },
+                                { label: "Venues", count: snapshot.queues?.venues || 0, href: "/venues" },
+                                { label: "Hosts", count: snapshot.queues?.hosts || 0, href: "/hosts" },
+                                { label: "Refunds", count: snapshot.queues?.refunds || 0, href: "/payments" },
+                                { label: "Support", count: snapshot.queues?.incidents || 0, href: "/support" }
                             ].map((q, i) => (
                                 <Link href={q.href} key={i}>
                                     <div className="p-5 rounded-xl bg-obsidian-surface border border-[#ffffff08] hover:bg-white/[0.02] hover:border-[#ffffff15] transition-all group">

@@ -35,29 +35,65 @@ const Zap = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 14.71 13 4l-1 8h8l-9 10.71 1-8h-8z" /></svg>
 );
 
-const sidebarItems = [
-    { label: "Overview", href: "/", icon: BarChart3, minRole: 'support' },
-    { label: "Approvals", href: "/approvals", icon: CheckSquare, minRole: 'support' },
-    { label: "Users", href: "/users", icon: User, minRole: 'support' },
-
-
-    { label: "Venues", href: "/venues", icon: Building2, minRole: 'ops' },
-    { label: "Hosts", href: "/hosts", icon: Users, minRole: 'ops' },
-    { label: "Promoters", href: "/promoters", icon: Zap, minRole: 'ops' },
-    { label: "Events", href: "/events", icon: Calendar, minRole: 'ops' },
-    { label: "Payments", href: "/payments", icon: CreditCard, minRole: 'finance' },
-    { label: "Support", href: "/support", icon: ShieldCheck, minRole: 'support' },
-    { label: "Safety", href: "/safety", icon: ShieldAlert, minRole: 'content' },
-    { label: "Curation", href: "/content/curation", icon: Star, minRole: 'ops' },
-    { label: "Discovery", href: "/content/explore", icon: Calendar, minRole: 'ops' },
-    { label: "Admins", href: "/admins", icon: ShieldCheck, minRole: 'admin' },
-    { label: "Settings", href: "/settings", icon: Settings, minRole: 'admin' },
-    { label: "Audit Log", href: "/logs", icon: History, minRole: 'admin' },
-    { label: "System Health", href: "/health", icon: Activity, minRole: 'admin' },
+const navGroups = [
+    {
+        id: 'main',
+        label: 'Main',
+        items: [
+            { label: "Insights", href: "/", icon: BarChart3, minRole: 'support' },
+            { label: "Partner Queue", href: "/approvals", icon: CheckSquare, minRole: 'support' },
+        ]
+    },
+    {
+        id: 'identities',
+        label: 'Identities',
+        items: [
+            { label: "Users", href: "/users", icon: User, minRole: 'support' },
+            { label: "Venues", href: "/venues", icon: Building2, minRole: 'ops' },
+            { label: "Hosts", href: "/hosts", icon: Users, minRole: 'ops' },
+            { label: "Promoters", href: "/promoters", icon: Zap, minRole: 'ops' },
+        ]
+    },
+    {
+        id: 'ops',
+        label: 'Operations',
+        items: [
+            { label: "Events", href: "/events", icon: Calendar, minRole: 'ops' },
+            { label: "Curation", href: "/content/curation", icon: Star, minRole: 'ops' },
+            { label: "Discovery", href: "/content/explore", icon: Calendar, minRole: 'ops' },
+        ]
+    },
+    {
+        id: 'finance',
+        label: 'Finance',
+        items: [
+            { label: "Payments", href: "/payments", icon: CreditCard, minRole: 'finance' },
+            { label: "Refunds", href: "/refunds", icon: RefreshCcw, minRole: 'finance' },
+        ]
+    },
+    {
+        id: 'governance',
+        label: 'Governance',
+        items: [
+            { label: "Support", href: "/support", icon: ShieldCheck, minRole: 'support' },
+            { label: "Safety", href: "/safety", icon: ShieldAlert, minRole: 'content' },
+        ]
+    },
+    {
+        id: 'system',
+        label: 'System',
+        items: [
+            { label: "Admins", href: "/admins", icon: ShieldCheck, minRole: 'admin' },
+            { label: "Audit Log", href: "/logs", icon: History, minRole: 'admin' },
+            { label: "System Health", href: "/health", icon: Activity, minRole: 'admin' },
+            { label: "Settings", href: "/settings", icon: Settings, minRole: 'admin' },
+        ]
+    }
 ];
 
 const hierarchy = {
     'super': 1000,
+    'admin': 1000,
     'finance': 500,
     'ops': 400,
     'support': 300,
@@ -150,11 +186,17 @@ export default function AdminConsoleShell({ children }) {
     }
 
     const isLoginPage = pathname === "/login";
-    const userRoleValue = hierarchy[profile?.admin_role] || (profile?.role === 'admin' ? 100 : 0);
-    const filteredItems = sidebarItems.filter(item => {
-        const requiredValue = hierarchy[item.minRole] || 100;
-        return userRoleValue >= requiredValue;
-    });
+    // If admin_role is explicitly set, use that. 
+    // Otherwise, if base role is 'admin', grant full 'super' privileges by default for the console.
+    const userRoleValue = hierarchy[profile?.admin_role] || (profile?.role === 'admin' ? 1000 : 0);
+
+    const filteredGroups = navGroups.map(group => ({
+        ...group,
+        items: group.items.filter(item => {
+            const requiredValue = hierarchy[item.minRole] || 100;
+            return userRoleValue >= requiredValue;
+        })
+    })).filter(group => group.items.length > 0);
 
     if (isLoginPage) {
         return <AdminGuard>{children}</AdminGuard>;
@@ -184,31 +226,38 @@ export default function AdminConsoleShell({ children }) {
                     </div>
 
                     {/* Navigation */}
-                    <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto py-4 custom-scrollbar">
-                        {filteredItems.map((item) => {
-                            const isActive = pathname === item.href;
-                            const Icon = item.icon;
-                            return (
-                                <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    className={`flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-200 group ${isActive
-                                        ? "bg-white/10 text-white shadow-sm"
-                                        : "text-zinc-400 hover:text-white hover:bg-white/[0.03]"
-                                        }`}
-                                >
-                                    <Icon className={`h-5 w-5 ${isActive ? "text-white" : "opacity-60 group-hover:opacity-100 transition-opacity"}`} strokeWidth={1.5} />
-                                    <span className="text-[15px] font-semibold tracking-tight whitespace-nowrap">{item.label}</span>
-                                    {isActive && (
-                                        <div className="ml-auto">
-                                            <div className="h-1 w-1 rounded-full bg-white opacity-40" />
-                                        </div>
-                                    )}
-                                </Link>
-                            );
-                        })}
-
-
+                    <nav className="flex-1 px-3 space-y-6 overflow-y-auto py-6 custom-scrollbar">
+                        {filteredGroups.map((group) => (
+                            <div key={group.id} className="space-y-1">
+                                <h3 className="px-4 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-3 opacity-50">
+                                    {group.label}
+                                </h3>
+                                <div className="space-y-0.5">
+                                    {group.items.map((item) => {
+                                        const isActive = pathname === item.href;
+                                        const Icon = item.icon;
+                                        return (
+                                            <Link
+                                                key={item.href}
+                                                href={item.href}
+                                                className={`flex items-center gap-3.5 px-4 py-2.5 rounded-lg transition-all duration-200 group ${isActive
+                                                    ? "bg-white/10 text-white shadow-sm"
+                                                    : "text-zinc-400 hover:text-white hover:bg-white/[0.03]"
+                                                    }`}
+                                            >
+                                                <Icon className={`h-4.5 w-4.5 ${isActive ? "text-white" : "opacity-40 group-hover:opacity-100 transition-opacity"}`} strokeWidth={1.5} />
+                                                <span className="text-[14px] font-semibold tracking-tight whitespace-nowrap">{item.label}</span>
+                                                {isActive && (
+                                                    <div className="ml-auto">
+                                                        <div className="h-1 w-1 rounded-full bg-white opacity-40" />
+                                                    </div>
+                                                )}
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
                     </nav>
 
                     {/* Footer */}
@@ -230,12 +279,16 @@ export default function AdminConsoleShell({ children }) {
 
                 <div className="flex-1 ml-[300px] flex flex-col relative bg-obsidian-base">
                     <header className="h-16 flex items-center justify-between px-8 z-30 sticky top-0 bg-obsidian-base/80 backdrop-blur-xl border-b border-[#ffffff05]">
-                        <div className="flex items-center gap-4">
-                            <span className="text-xs font-medium text-zinc-500 uppercase tracking-widest">
+                        <div className="flex items-center gap-3">
+                            <Link href="/" className="text-[10px] font-bold text-zinc-500 hover:text-iris transition-colors uppercase tracking-[0.2em]">
+                                Console
+                            </Link>
+                            <ChevronRight className="h-3 w-3 text-zinc-800" />
+                            <span className="text-[10px] font-bold text-white uppercase tracking-[0.2em]">
                                 {pathname === '/' ? 'Insights' :
                                     pathname === '/logs' ? 'Audit Ledger' :
                                         pathname === '/approvals' ? 'Partner Queue' :
-                                            pathname?.replace('/', '').replace('-', ' ')}
+                                            pathname?.split('/').pop()?.replace('-', ' ')}
                             </span>
                         </div>
 

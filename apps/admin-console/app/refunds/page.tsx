@@ -1,28 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useMemo } from "react";
 import {
     RefreshCw,
     Check,
     X,
     Clock,
-    AlertTriangle,
     DollarSign,
     User,
-    Calendar,
-    Ticket,
-    ChevronDown,
-    ChevronUp,
     Shield,
-    Loader2,
-    Search,
-    Filter,
     ArrowRight,
     CircleDashed,
-    CreditCard
+    CreditCard,
+    ChevronRight
 } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { DataTable } from "@/components/ui/DataTable";
+import { ActionDrawer } from "@/components/ui/ActionDrawer";
 
 interface RefundRequest {
     id: string;
@@ -47,7 +41,8 @@ export default function RefundsPage() {
     const [refundRequests, setRefundRequests] = useState<RefundRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<'pending' | 'all'>('pending');
-    const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [selectedRefund, setSelectedRefund] = useState<RefundRequest | null>(null);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [processing, setProcessing] = useState<string | null>(null);
 
     useEffect(() => {
@@ -164,19 +159,92 @@ export default function RefundsPage() {
         return styles[status] || styles.pending;
     };
 
-    const formatDate = (dateStr: string) => {
-        return new Date(dateStr).toLocaleDateString('en-IN', {
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit'
-        });
-    };
+    const filteredRefunds = useMemo(() => {
+        return refundRequests;
+    }, [refundRequests]);
+
+    const columns = [
+        {
+            key: 'amount',
+            label: 'Amount',
+            sortable: true,
+            render: (val: number, row: RefundRequest) => (
+                <div>
+                    <p className="text-sm font-bold text-white tracking-tight">₹{val.toLocaleString()}</p>
+                    {row.isPartial && (
+                        <p className="text-[9px] text-amber-500 font-bold uppercase tracking-widest mt-1">Partial</p>
+                    )}
+                </div>
+            )
+        },
+        {
+            key: 'customerName',
+            label: 'Customer',
+            sortable: true,
+            render: (val: string, row: RefundRequest) => (
+                <div>
+                    <p className="text-sm font-semibold text-white truncate">{val || row.customerEmail || 'Anonymous'}</p>
+                    <p className="text-[10px] text-zinc-500 font-medium truncate uppercase tracking-tighter mt-0.5">{row.eventName}</p>
+                </div>
+            )
+        },
+        {
+            key: 'status',
+            label: 'Status',
+            sortable: true,
+            render: (val: string, row: RefundRequest) => (
+                <div className="flex items-center gap-2">
+                    <div className={`h-1.5 w-1.5 rounded-full ${val === 'pending' ? 'bg-amber-500' : val === 'approved' || val === 'completed' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${val === 'pending' ? 'text-amber-500' : val === 'approved' || val === 'completed' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {val}
+                    </span>
+                </div>
+            )
+        },
+        {
+            key: 'approversRequired',
+            label: 'Verification',
+            sortable: true,
+            render: (val: number, row: RefundRequest) => (
+                <div className="flex items-center gap-2.5">
+                    <div className="flex -space-x-1.5">
+                        {[...Array(val)].map((_, i) => (
+                            <div
+                                key={i}
+                                className={`w-5 h-5 rounded-full border border-obsidian-surface flex items-center justify-center transition-colors ${i < row.approvers.length
+                                    ? 'bg-emerald-500 text-white'
+                                    : 'bg-zinc-800 text-zinc-600'
+                                    }`}
+                            >
+                                {i < row.approvers.length ? (
+                                    <Check className="w-2.5 h-2.5" />
+                                ) : (
+                                    <User className="w-2.5 h-2.5" />
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+                        {row.approvers.length}/{val}
+                    </span>
+                </div>
+            )
+        },
+        {
+            key: 'createdAt',
+            label: 'Timeline',
+            sortable: true,
+            render: (val: string) => (
+                <div className="text-right">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{new Date(val).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                </div>
+            )
+        }
+    ];
 
     return (
         <div className="space-y-12 pb-24">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+            <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
                 <div>
                     <div className="flex items-center gap-2 mb-3">
                         <CreditCard className="h-4 w-4 text-iris" strokeWidth={1.5} />
@@ -192,7 +260,7 @@ export default function RefundsPage() {
                     <button
                         onClick={() => {
                             const headers = ["ID", "Order ID", "Event", "Customer", "Email", "Amount", "Status", "Date"];
-                            const rows = refundRequests.map(r => [
+                            const rows = filteredRefunds.map(r => [
                                 r.id,
                                 r.orderId,
                                 r.eventName || 'N/A',
@@ -225,9 +293,8 @@ export default function RefundsPage() {
                         Refresh Queue
                     </button>
                 </div>
-            </div>
+            </header>
 
-            {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-8 rounded-xl bg-obsidian-surface border border-[#ffffff08] flex items-center gap-6 shadow-sm group hover:border-[#ffffff15] transition-all">
                     <div className="h-12 w-12 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center shadow-inner">
@@ -264,7 +331,6 @@ export default function RefundsPage() {
                 </div>
             </div>
 
-            {/* Filters */}
             <div className="flex gap-2">
                 {(['pending', 'all'] as const).map((f) => (
                     <button
@@ -280,185 +346,127 @@ export default function RefundsPage() {
                 ))}
             </div>
 
-            {/* Refund List */}
-            {loading ? (
-                <div className="space-y-4">
-                    {[...Array(3)].map((_, i) => (
-                        <div key={i} className="h-28 bg-white/[0.02] animate-pulse rounded-xl border border-white/5" />
-                    ))}
-                </div>
-            ) : refundRequests.length === 0 ? (
-                <div className="py-24 text-center rounded-xl border border-[#ffffff08] bg-obsidian-surface/50">
-                    <div className="h-16 w-16 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/5 shadow-inner">
-                        <Check className="h-8 w-8 text-emerald-500" strokeWidth={1} />
+            <DataTable 
+                columns={columns}
+                data={filteredRefunds}
+                searchPlaceholder="Search by Customer, Event or Order ID..."
+                onRowClick={(request) => {
+                    setSelectedRefund(request);
+                    setIsDrawerOpen(true);
+                }}
+            />
+
+            <ActionDrawer
+                isOpen={isDrawerOpen}
+                onClose={() => setIsDrawerOpen(false)}
+                title={`Refund Request`}
+                subtitle={`Ref: ${selectedRefund?.orderId}`}
+                footer={
+                    selectedRefund?.status === 'pending' && (
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => selectedRefund && handleApprove(selectedRefund.id)}
+                                disabled={processing === selectedRefund?.id}
+                                className="h-12 rounded-xl bg-white text-black text-[11px] font-bold uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-lg shadow-white/5 flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {processing === selectedRefund?.id ? (
+                                    <CircleDashed className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Check className="w-4 h-4" />
+                                )}
+                                Approve
+                            </button>
+                            <button
+                                onClick={() => selectedRefund && handleReject(selectedRefund.id, 'Declined by administration.')}
+                                disabled={processing === selectedRefund?.id}
+                                className="h-12 rounded-xl bg-white/5 border border-white/10 text-zinc-500 text-[11px] font-bold uppercase tracking-widest hover:text-rose-500 hover:border-rose-500/20 hover:bg-rose-500/5 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                <X className="w-4 h-4" />
+                                Reject
+                            </button>
+                        </div>
+                    )
+                }
+            >
+                <div className="space-y-8">
+                    <div className="p-8 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col items-center text-center space-y-4">
+                        <div className="h-20 w-20 rounded-2xl bg-zinc-900 border border-white/5 flex items-center justify-center text-white shadow-inner">
+                            <DollarSign className="h-10 w-10 text-emerald-500/50" />
+                        </div>
+                        <div>
+                            <h3 className="text-4xl font-bold tracking-tight text-white mb-1.5">₹{selectedRefund?.amount.toLocaleString()}</h3>
+                            <div className="flex items-center gap-2 justify-center">
+                                <div className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest ${getStatusStyle(selectedRefund?.status || 'pending')}`}>
+                                    {selectedRefund?.status}
+                                </div>
+                                {selectedRefund?.isPartial && (
+                                    <span className="text-[9px] text-amber-500 font-bold uppercase tracking-widest">Partial Refund</span>
+                                )}
+                            </div>
+                        </div>
                     </div>
-                    <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-white">Queue Sanitized</h3>
-                    <p className="text-[10px] text-zinc-600 mt-2 font-bold uppercase tracking-widest">No pending refund requests require attention.</p>
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    <AnimatePresence mode="popLayout">
-                        {refundRequests.map((request) => {
-                            const isExpanded = expandedId === request.id;
-                            const pendingApprovals = request.approversRequired - request.approvers.length;
 
-                            return (
-                                <motion.div
-                                    key={request.id}
-                                    layout
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -10 }}
-                                    className="rounded-xl bg-obsidian-surface border border-[#ffffff08] overflow-hidden group hover:border-[#ffffff15] transition-all"
-                                >
-                                    {/* Main Row */}
-                                    <div className="p-7 flex items-center gap-8">
-                                        <div className="w-32">
-                                            <p className="text-3xl font-light text-white tracking-tight font-mono-numbers">
-                                                ₹{request.amount.toLocaleString()}
-                                            </p>
-                                            {request.isPartial && (
-                                                <p className="text-[9px] text-amber-500 font-bold uppercase tracking-widest mt-1">Partial Refund</p>
-                                            )}
-                                        </div>
+                    <div className="grid grid-cols-1 gap-4">
+                        <div className="p-5 rounded-xl bg-white/[0.02] border border-[#ffffff05] space-y-2">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Request Reason</p>
+                            <p className="text-sm text-zinc-300 font-medium leading-relaxed italic">
+                                &quot;{selectedRefund?.reason}&quot;
+                            </p>
+                        </div>
 
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-3 mb-1.5">
-                                                <p className="text-lg font-semibold text-white tracking-tight truncate">
-                                                    {request.customerName || request.customerEmail}
-                                                </p>
-                                                <div className={`px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-widest border ${getStatusStyle(request.status)}`}>
-                                                    {request.status}
-                                                </div>
-                                                {request.approvalType === 'dual' && (
-                                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-iris/10 border border-iris/20 text-iris text-[9px] font-bold uppercase tracking-widest">
-                                                        <Shield className="w-3 h-3" strokeWidth={2} />
-                                                        Requires Dual Verification
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-3 text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
-                                                <span>{request.eventName}</span>
-                                                <div className="h-1 w-1 bg-zinc-800 rounded-full" />
-                                                <span>Ref: {request.orderId}</span>
-                                            </div>
-                                        </div>
+                        <div className="p-5 rounded-xl bg-white/[0.02] border border-[#ffffff05] space-y-4">
+                            <div>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1">Customer Profile</p>
+                                <p className="text-sm font-semibold text-white">{selectedRefund?.customerName}</p>
+                                <p className="text-xs text-zinc-500">{selectedRefund?.customerEmail}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1">Event Context</p>
+                                <p className="text-sm font-semibold text-zinc-300">{selectedRefund?.eventName}</p>
+                            </div>
+                        </div>
 
-                                        {request.status === 'pending' && request.approvalType === 'dual' && (
-                                            <div className="flex items-center gap-3 bg-white/[0.02] border border-white/5 p-2 rounded-xl">
-                                                <div className="flex -space-x-2">
-                                                    {[...Array(request.approversRequired)].map((_, i) => (
-                                                        <div
-                                                            key={i}
-                                                            className={`w-8 h-8 rounded-full border-2 border-obsidian-surface flex items-center justify-center transition-colors ${i < request.approvers.length
-                                                                ? 'bg-emerald-500 text-white'
-                                                                : 'bg-zinc-800 text-zinc-600'
-                                                                }`}
-                                                        >
-                                                            {i < request.approvers.length ? (
-                                                                <Check className="w-4 h-4" />
-                                                            ) : (
-                                                                <User className="w-4 h-4" />
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 pr-2">
-                                                    {pendingApprovals} pending
-                                                </p>
-                                            </div>
-                                        )}
+                        <div className="p-5 rounded-xl bg-white/[0.02] border border-[#ffffff05] space-y-4">
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Governing Verifications</p>
+                                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
+                                    {selectedRefund?.approvers.length} / {selectedRefund?.approversRequired} Secured
+                                </span>
+                            </div>
 
-                                        {request.status === 'pending' && (
+                            <div className="space-y-3">
+                                {selectedRefund?.approvers.length === 0 ? (
+                                    <p className="text-[10px] text-zinc-700 font-bold uppercase tracking-widest italic pt-1 text-center">No verifications recorded.</p>
+                                ) : (
+                                    selectedRefund?.approvers.map((approver, i) => (
+                                        <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-black/20 border border-white/[0.02]">
                                             <div className="flex items-center gap-3">
-                                                <button
-                                                    onClick={() => handleApprove(request.id)}
-                                                    disabled={processing === request.id}
-                                                    className="h-11 px-6 rounded-xl bg-white text-black text-[11px] font-bold uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-lg shadow-white/5 flex items-center gap-2"
-                                                >
-                                                    {processing === request.id ? (
-                                                        <CircleDashed className="w-4 h-4 animate-spin" />
-                                                    ) : (
-                                                        <Check className="w-4 h-4" />
-                                                    )}
-                                                    Approve
-                                                </button>
-                                                <button
-                                                    onClick={() => handleReject(request.id, 'Declined by administration.')}
-                                                    disabled={processing === request.id}
-                                                    className="h-11 px-6 rounded-xl bg-white/5 border border-white/10 text-zinc-500 text-[11px] font-bold uppercase tracking-widest hover:text-rose-500 hover:border-rose-500/20 hover:bg-rose-500/5 transition-all flex items-center gap-2"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                    Reject
-                                                </button>
-                                            </div>
-                                        )}
-
-                                        <button
-                                            onClick={() => setExpandedId(isExpanded ? null : request.id)}
-                                            className={`h-10 w-10 rounded-xl flex items-center justify-center transition-colors ${isExpanded ? 'bg-white/10 text-white' : 'text-zinc-700 hover:text-white hover:bg-white/5'}`}
-                                        >
-                                            {isExpanded ? (
-                                                <ChevronUp className="w-4 h-4" />
-                                            ) : (
-                                                <ChevronDown className="w-4 h-4" />
-                                            )}
-                                        </button>
-                                    </div>
-
-                                    {/* Expanded Details */}
-                                    <AnimatePresence>
-                                        {isExpanded && (
-                                            <motion.div
-                                                initial={{ height: 0 }}
-                                                animate={{ height: 'auto' }}
-                                                exit={{ height: 0 }}
-                                                className="border-t border-[#ffffff05] bg-white/[0.01]"
-                                            >
-                                                <div className="p-8 grid grid-cols-3 gap-12">
-                                                    <div className="space-y-4">
-                                                        <p className="text-[10px] text-zinc-600 uppercase font-bold tracking-widest">Customer Profile</p>
-                                                        <div className="space-y-1">
-                                                            <p className="text-sm font-semibold text-white">{request.customerName}</p>
-                                                            <p className="text-xs text-zinc-500">{request.customerEmail}</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="space-y-4">
-                                                        <p className="text-[10px] text-zinc-600 uppercase font-bold tracking-widest">Request Context</p>
-                                                        <div className="space-y-1">
-                                                            <p className="text-sm text-zinc-400 font-medium">&quot;{request.reason}&quot;</p>
-                                                            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mt-2 flex items-center gap-1.5">
-                                                                <Clock className="w-3 h-3" /> Received: {formatDate(request.createdAt)}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="space-y-4">
-                                                        <p className="text-[10px] text-zinc-600 uppercase font-bold tracking-widest">Approval Status</p>
-                                                        {request.approvers.length === 0 ? (
-                                                            <p className="text-[10px] text-zinc-700 font-bold uppercase tracking-widest italic pt-2">No verifications recorded.</p>
-                                                        ) : (
-                                                            <div className="space-y-3">
-                                                                {request.approvers.map((approver, i) => (
-                                                                    <div key={i} className="flex flex-col">
-                                                                        <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-500 uppercase tracking-tight">
-                                                                            <Check className="w-3.5 h-3.5" /> {approver.name}
-                                                                        </div>
-                                                                        <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest ml-5">{formatDate(approver.at)}</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                <div className="h-7 w-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                                                    <Check className="w-3.5 h-3.5 text-emerald-500" strokeWidth={2.5} />
                                                 </div>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </motion.div>
-                            );
-                        })}
-                    </AnimatePresence>
+                                                <div>
+                                                    <p className="text-[11px] font-bold text-white uppercase tracking-tight">{approver.name}</p>
+                                                    <p className="text-[8px] text-zinc-600 font-bold uppercase tracking-widest">{new Date(approver.at).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                                                </div>
+                                            </div>
+                                            <Shield className="h-3.5 w-3.5 text-zinc-800" />
+                                        </div>
+                                    ))
+                                )}
+
+                                {selectedRefund && selectedRefund.approvers.length < selectedRefund.approversRequired && (
+                                    <div className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-white/5 bg-transparent">
+                                        <div className="h-7 w-7 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center">
+                                            <Clock className="w-3.5 h-3.5 text-zinc-700" />
+                                        </div>
+                                        <p className="text-[9px] font-bold text-zinc-700 uppercase tracking-[0.15em]">Pending Authority Signature</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            )}
+            </ActionDrawer>
         </div>
     );
 }

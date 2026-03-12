@@ -618,12 +618,17 @@ export const adminStore = {
             db.collection('users').count().get(),
             db.collection('hosts').count().get(),
             db.collection('venues').where('status', '==', 'active').count().get(),
-            db.collection('admin_audit_logs').orderBy('createdAt', 'desc').limit(5).get()
+            db.collection('admin_audit_logs').orderBy('timestamp', 'desc').limit(5).get()
         ]);
-        const recentLogs = logsSnapshot.docs.map(doc => ({
-            id: doc.id, action: doc.data().actionType,
-            timestamp: doc.data().createdAt?.toDate?.() || new Date(), reason: doc.data().reason
-        }));
+        const recentLogs = logsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id, 
+                action: data.action,
+                timestamp: data.timestamp?.toDate?.() || new Date(), 
+                reason: data.reason
+            };
+        });
         return { stats, pendingReviewsCount: pendingReviewsCount.data().count, activeIncidentsCount: activeIncidentsCount.data().count, liveEvents: liveEvents.data().count, liveUsers: liveUsers.data().count, liveHosts: liveHosts.data().count, liveVenues: liveVenues.data().count, recentLogs };
     },
 
@@ -632,8 +637,8 @@ export const adminStore = {
         let query = db.collection(collection);
         if (status) query = query.where('status', '==', status);
         const ORDER_MAP = {
-            'admin_audit_logs': ['createdAt', 'desc'],   // logs use createdAt, not timestamp
-            'events': ['startDate', 'desc'],              // events use startDate, not startTime
+            'admin_audit_logs': ['timestamp', 'desc'],
+            'events': ['startDate', 'desc'],
             'onboarding_requests': ['submittedAt', 'desc'],
         };
         const defaultOrder = ['createdAt', 'desc'];
