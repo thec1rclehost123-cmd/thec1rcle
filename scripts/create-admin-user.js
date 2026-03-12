@@ -1,12 +1,16 @@
 
+import { existsSync } from "node:fs";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { resolve } from "node:path";
 import { config } from "dotenv";
 
-// Load environment from apps/admin-console/.env.staging
-const envPath = resolve(process.cwd(), "apps/admin-console/.env.staging");
+// Load environment from apps/admin-console/.env.staging or .env.development
+let envPath = resolve(process.cwd(), "apps/admin-console/.env.staging");
+if (!existsSync(envPath)) {
+    envPath = resolve(process.cwd(), "apps/admin-console/.env.development");
+}
 config({ path: envPath });
 
 console.log(`📂 Loading environment from: ${envPath}`);
@@ -76,9 +80,6 @@ async function run() {
             console.log(`✅ User created (uid: ${user.uid}).`);
         } else {
             console.error("❌ Auth Error Details:", JSON.stringify(error, null, 2));
-            if (error.code === 'auth/configuration-not-found') {
-               console.log("\n💡 TIP: If you just enabled Authentication, please wait 1-2 minutes for propagation and try again.");
-            }
             throw error;
         }
     }
@@ -96,7 +97,15 @@ async function run() {
         updatedAt: new Date().toISOString()
     }, { merge: true });
 
-    console.log(`\n🎉 SUCCESS: Admin account is ready!`);
+    // Set Custom Claims for withAdminAuth middleware
+    console.log(`🛡️  Setting custom claims: role=admin, admin_role=super, admin=true...`);
+    await auth.setCustomUserClaims(user.uid, {
+        role: "admin",
+        admin_role: "super",
+        admin: true
+    });
+
+    console.log(`\n🎉 SUCCESS: Admin account is ready with custom claims!`);
 }
 
 run().catch(err => {

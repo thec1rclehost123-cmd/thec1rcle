@@ -194,12 +194,12 @@ export default function HostEventsPage() {
                     useWindowScroll
                     data={filteredEvents}
                     components={{
-                        List: forwardRef<HTMLDivElement>((props, ref) => (
-                            <div {...props} ref={ref} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" />
-                        )),
-                        Item: forwardRef<HTMLDivElement>((props, ref) => (
-                            <div {...props} ref={ref} className="h-full w-full" />
-                        ))
+                        List: forwardRef<HTMLDivElement>(function VirtuosoList(props, ref) {
+                            return <div {...props} ref={ref} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" />;
+                        }),
+                        Item: forwardRef<HTMLDivElement>(function VirtuosoItem(props, ref) {
+                            return <div {...props} ref={ref} className="h-full w-full" />;
+                        })
                     }}
                     itemContent={(index, event) => {
                         const getPrimaryAction = (e: any) => {
