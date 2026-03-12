@@ -20,9 +20,16 @@ import {
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
-        const venueId = searchParams.get("venueId");
+        let venueId = searchParams.get("venueId");
         const isDashboard = searchParams.get("dashboard") === "true";
         const includeEvents = searchParams.get("events") === "true";
+
+        const decodedToken = await verifyAuth(req);
+
+        // Auto-resolve venueId if missing in dashboard mode
+        if (!venueId && isDashboard && decodedToken) {
+            venueId = (decodedToken as any).partnerId;
+        }
 
         if (!venueId) {
             return NextResponse.json({ error: "venueId is required" }, { status: 400 });
@@ -30,7 +37,6 @@ export async function GET(req: NextRequest) {
 
         // For dashboard view, verify user has access to this venue
         if (isDashboard) {
-            const decodedToken = await verifyAuth(req);
             if (!decodedToken) {
                 return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
             }

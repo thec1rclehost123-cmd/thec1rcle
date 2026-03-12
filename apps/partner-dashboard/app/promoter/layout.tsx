@@ -5,6 +5,7 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
 import { PromoterSidebarWrapper } from "@/components/layout/PromoterSidebarWrapper";
 import { PromoterPageTransition } from "@/components/layout/PromoterPageTransition";
+import { AssistantButton } from "@/components/assistant/AssistantButton";
 import {
     LayoutDashboard,
     CalendarDays,
@@ -86,6 +87,7 @@ export default function PromoterLayout({ children }: { children: React.ReactNode
                             </PromoterPageTransition>
                         </main>
                     </div>
+                    <AssistantButton />
                 </div>
             </RoleGuard>
         </ApprovalGuard>

@@ -1,26 +1,50 @@
 /**
- * Venue Page Store (Refactored for API Governance)
+ * Venue Page Store — Direct Firebase Admin (no API gateway required)
  * 
- * Uses the unified C1rcleApiClient to manage Venue CMS data.
+ * Rewritten to use Firebase Admin directly so the partner-dashboard works 
+ * without the gateway running in dev, adhering to CLAUDE.md architecture rules.
  */
 
-import { getApiClient } from "./apiClient";
+import { getAdminDb } from "../firebase/admin";
+
+/**
+ * Utility to serialize Firestore documents for Next.js (converts Timestamps to strings)
+ */
+const serialize = (obj) => {
+    if (!obj) return null;
+    return JSON.parse(JSON.stringify(obj, (key, value) => {
+        if (value && typeof value === 'object' && value.seconds !== undefined && value.nanoseconds !== undefined) {
+            return new Date(value.seconds * 1000).toISOString();
+        }
+        return value;
+    }));
+};
 
 /**
  * Get complete venue page data for partner dashboard.
  */
-export async function getVenuePageDataForDashboard(venueId, token) {
-    const client = getApiClient(token);
+export async function getVenuePageDataForDashboard(venueId) {
+    const db = getAdminDb();
     try {
-        const data = await client.getVenueCMSData(venueId);
+        const [venueDoc, highlightsSnap, gallerySnap, menuSnap, facilitiesSnap] = await Promise.all([
+            db.collection('venues').doc(venueId).get(),
+            db.collection('profile_highlights').where('profileId', '==', venueId).orderBy('order', 'asc').get(),
+            db.collection('venue_gallery').where('venueId', '==', venueId).orderBy('order', 'asc').get(),
+            db.collection('venue_menu').where('venueId', '==', venueId).orderBy('order', 'asc').get(),
+            db.collection('venue_facilities').where('venueId', '==', venueId).orderBy('order', 'asc').get()
+        ]);
 
-        // Ensure default facilities are initialized if empty (handled by Gateway/Engine usually, but safe fallback)
-        if (data.facilities?.length === 0) {
-            await client.initVenueFacilities(venueId);
-            return client.getVenueCMSData(venueId);
-        }
+        if (!venueDoc.exists) return null;
 
-        return data;
+        const data = {
+            venue: { id: venueDoc.id, ...venueDoc.data() },
+            highlights: highlightsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            gallery: gallerySnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            menu: menuSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            facilities: facilitiesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        };
+
+        return serialize(data);
     } catch (error) {
         console.error("[VenuePageStore] Error getting venue page data:", error.message);
         throw error;
@@ -30,135 +54,165 @@ export async function getVenuePageDataForDashboard(venueId, token) {
 /**
  * Update venue basic details
  */
-export async function updateVenueDetails(venueId, updates, token) {
-    const client = getApiClient(token);
-    return client.updateProfile("venue", updates, venueId);
+export async function updateVenueDetails(venueId, updates) {
+    const db = getAdminDb();
+    const data = {
+        ...updates,
+        updatedAt: new Date().toISOString()
+    };
+    await db.collection('venues').doc(venueId).update(data);
+    return { id: venueId, ...data };
 }
 
 // ─── Highlights ──────────────────────────────────────────────────
 
-export async function createHighlight(venueId, data, token) {
-    const client = getApiClient(token);
-    return client.createHighlight(venueId, data);
+export async function createHighlight(venueId, data) {
+    const db = getAdminDb();
+    const highlight = {
+        ...data,
+        profileId: venueId,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+    const docRef = await db.collection('profile_highlights').add(highlight);
+    return { id: docRef.id, ...highlight };
 }
 
-export async function updateHighlight(highlightId, venueId, updates, token) {
-    const client = getApiClient(token);
-    return client.updateHighlight(highlightId, venueId, updates);
+export async function updateHighlight(highlightId, venueId, updates) {
+    const db = getAdminDb();
+    const data = {
+        ...updates,
+        updatedAt: new Date().toISOString()
+    };
+    await db.collection('profile_highlights').doc(highlightId).update(data);
+    return { id: highlightId, ...data };
 }
 
-export async function deleteHighlight(highlightId, venueId, token) {
-    // Note: We might need a deleteHighlight in SDK if PATCH isActive=false isn't enough
-    // For now, using updateHighlight with isActive: false or if we added a DELETE route
-    const client = getApiClient(token);
-    return client.updateHighlight(highlightId, venueId, { isActive: false });
+export async function deleteHighlight(highlightId, venueId) {
+    const db = getAdminDb();
+    await db.collection('profile_highlights').doc(highlightId).update({
+        isActive: false,
+        updatedAt: new Date().toISOString()
+    });
+    return { success: true };
 }
 
 // ─── Gallery ─────────────────────────────────────────────────────
 
-export async function addGalleryPhoto(venueId, imageUrl, caption, token) {
-    const client = getApiClient(token);
-    return client.addGalleryPhoto(venueId, imageUrl, caption);
+export async function addGalleryPhoto(venueId, imageUrl, caption) {
+    const db = getAdminDb();
+    const photo = {
+        venueId,
+        imageUrl,
+        caption,
+        order: Date.now(), // Default order
+        createdAt: new Date().toISOString()
+    };
+    const docRef = await db.collection('venue_gallery').add(photo);
+    return { id: docRef.id, ...photo };
 }
 
-export async function removeGalleryPhoto(photoId, venueId, token) {
-    // SDK needs removeGalleryPhoto if we implemented it in Gateway
-    const client = getApiClient(token);
-    // If not in SDK yet, we can use request directly for now or update SDK
-    return client.request(`/cms/gallery/${photoId}?venueId=${venueId}`, { method: 'DELETE' });
+export async function removeGalleryPhoto(photoId, venueId) {
+    const db = getAdminDb();
+    await db.collection('venue_gallery').doc(photoId).delete();
+    return { success: true };
 }
 
 // ─── Menu ────────────────────────────────────────────────────────
 
-export async function addMenuImage(venueId, imageUrl, title, token) {
-    const client = getApiClient(token);
-    return client.request('/cms/menu', {
-        method: 'POST',
-        body: JSON.stringify({ venueId, imageUrl, title })
-    });
+export async function addMenuImage(venueId, imageUrl, title) {
+    const db = getAdminDb();
+    const item = {
+        venueId,
+        imageUrl,
+        title,
+        order: Date.now(),
+        createdAt: new Date().toISOString()
+    };
+    const docRef = await db.collection('venue_menu').add(item);
+    return { id: docRef.id, ...item };
 }
 
-export async function removeMenuImage(menuId, venueId, token) {
-    const client = getApiClient(token);
-    return client.request(`/cms/menu/${menuId}?venueId=${venueId}`, { method: 'DELETE' });
+export async function removeMenuImage(menuId, venueId) {
+    const db = getAdminDb();
+    await db.collection('venue_menu').doc(menuId).delete();
+    return { success: true };
 }
 
 // ─── Facilities ──────────────────────────────────────────────────
 
-export async function addFacility(venueId, name, icon, token) {
-    const client = getApiClient(token);
-    return client.request('/cms/facilities', {
-        method: 'POST',
-        body: JSON.stringify({ venueId, name, icon })
+export async function addFacility(venueId, name, icon) {
+    const db = getAdminDb();
+    const facility = {
+        venueId,
+        name,
+        icon,
+        isEnabled: true,
+        order: Date.now(),
+        createdAt: new Date().toISOString()
+    };
+    const docRef = await db.collection('venue_facilities').add(facility);
+    return { id: docRef.id, ...facility };
+}
+
+export async function updateFacility(facilityId, updates) {
+    const db = getAdminDb();
+    await db.collection('venue_facilities').doc(facilityId).update({
+        ...updates,
+        updatedAt: new Date().toISOString()
     });
+    return { success: true };
 }
 
-export async function updateFacility(facilityId, updates, token) {
-    const client = getApiClient(token);
-    return client.request(`/cms/facilities/${facilityId}`, {
-        method: 'PATCH',
-        body: JSON.stringify(updates)
+export async function deleteFacility(facilityId) {
+    const db = getAdminDb();
+    await db.collection('venue_facilities').doc(facilityId).delete();
+    return { success: true };
+}
+
+export async function toggleFacility(facilityId, isEnabled) {
+    const db = getAdminDb();
+    await db.collection('venue_facilities').doc(facilityId).update({
+        isEnabled,
+        updatedAt: new Date().toISOString()
     });
+    return { success: true };
 }
 
-export async function deleteFacility(facilityId, token) {
-    const client = getApiClient(token);
-    return client.request(`/cms/facilities/${facilityId}`, { method: 'DELETE' });
-}
-
-export async function toggleFacility(facilityId, isEnabled, token) {
-    const client = getApiClient(token);
-    return client.request(`/cms/facilities/${facilityId}/toggle`, {
-        method: 'PATCH',
-        body: JSON.stringify({ isEnabled })
+export async function reorderFacilities(venueId, orderedIds) {
+    const db = getAdminDb();
+    const batch = db.batch();
+    orderedIds.forEach((id, index) => {
+        const ref = db.collection('venue_facilities').doc(id);
+        batch.update(ref, { order: index, updatedAt: new Date().toISOString() });
     });
+    await batch.commit();
+    return { success: true };
 }
-
-export async function reorderFacilities(venueId, orderedIds, token) {
-    const client = getApiClient(token);
-    return client.request('/cms/facilities/reorder', {
-        method: 'POST',
-        body: JSON.stringify({ venueId, orderedIds })
-    });
-}
-
-export async function initializeDefaultFacilities(venueId, token) {
-    const client = getApiClient(token);
-    return client.initVenueFacilities(venueId);
-}
-
-// ─── Gallery (Extended) ──────────────────────────────────────────
-
-export async function reorderGalleryPhotos(venueId, orderedIds, token) {
-    const client = getApiClient(token);
-    return client.request('/cms/gallery/reorder', {
-        method: 'POST',
-        body: JSON.stringify({ venueId, orderedIds })
-    });
-}
-
 
 /**
  * Get public venue page data
  */
-export async function getVenuePageData(venueId, token) {
-    const client = getApiClient(token);
-    try {
-        return await client.getVenueCMSData(venueId);
-    } catch (error) {
-        console.error("[VenuePageStore] Error getting venue page data:", error.message);
-        return null;
-    }
+export async function getVenuePageData(venueId) {
+    return getVenuePageDataForDashboard(venueId);
 }
 
 /**
  * Get upcoming events for a venue
  */
-export async function getVenueUpcomingEvents(venueId, token) {
-    const client = getApiClient(token);
+export async function getVenueUpcomingEvents(venueId) {
+    const db = getAdminDb();
     try {
-        const data = await client.getEvents({ venueId, timeframe: 'upcoming' });
-        return data.events || [];
+        const now = new Date().toISOString();
+        const snapshot = await db.collection('events')
+            .where('venueId', '==', venueId)
+            .where('startDate', '>=', now)
+            .where('lifecycle', '==', 'approved')
+            .orderBy('startDate', 'asc')
+            .limit(20)
+            .get();
+        return serialize(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     } catch (error) {
         console.error("[VenuePageStore] Error getting upcoming events:", error.message);
         return [];
@@ -168,55 +222,55 @@ export async function getVenueUpcomingEvents(venueId, token) {
 /**
  * Get past events for a venue
  */
-export async function getVenuePastEvents(venueId, token) {
-    const client = getApiClient(token);
+export async function getVenuePastEvents(venueId) {
+    const db = getAdminDb();
     try {
-        const data = await client.getEvents({ venueId, timeframe: 'past' });
-        return data.events || [];
+        const now = new Date().toISOString();
+        const snapshot = await db.collection('events')
+            .where('venueId', '==', venueId)
+            .where('startDate', '<', now)
+            .where('lifecycle', '==', 'approved')
+            .orderBy('startDate', 'desc')
+            .limit(20)
+            .get();
+        return serialize(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     } catch (error) {
         console.error("[VenuePageStore] Error getting past events:", error.message);
         return [];
     }
 }
 
-export async function addImageToHighlight(highlightId, imageUrl, token) {
-    const client = getApiClient(token);
-    return client.request(`/cms/highlights/${highlightId}/images`, {
-        method: 'POST',
-        body: JSON.stringify({ imageUrl })
+export async function reorderHighlights(venueId, orderedIds) {
+    const db = getAdminDb();
+    const batch = db.batch();
+    orderedIds.forEach((id, index) => {
+        const ref = db.collection('profile_highlights').doc(id);
+        batch.update(ref, { order: index, updatedAt: new Date().toISOString() });
     });
+    await batch.commit();
+    return { success: true };
 }
 
-export async function removeImageFromHighlight(highlightId, imageUrl, token) {
-    const client = getApiClient(token);
-    return client.request(`/cms/highlights/${highlightId}/images`, {
-        method: 'DELETE',
-        body: JSON.stringify({ imageUrl })
+export async function reorderMenuImages(venueId, orderedIds) {
+    const db = getAdminDb();
+    const batch = db.batch();
+    orderedIds.forEach((id, index) => {
+        const ref = db.collection('venue_menu').doc(id);
+        batch.update(ref, { order: index, updatedAt: new Date().toISOString() });
     });
+    await batch.commit();
+    return { success: true };
 }
 
-export async function reorderHighlightImages(highlightId, images, token) {
-    const client = getApiClient(token);
-    return client.request(`/cms/highlights/${highlightId}/reorder`, {
-        method: 'POST',
-        body: JSON.stringify({ images })
+export async function reorderGalleryPhotos(venueId, orderedIds) {
+    const db = getAdminDb();
+    const batch = db.batch();
+    orderedIds.forEach((id, index) => {
+        const ref = db.collection('venue_gallery').doc(id);
+        batch.update(ref, { order: index, updatedAt: new Date().toISOString() });
     });
-}
-
-export async function reorderHighlights(venueId, orderedIds, token) {
-    const client = getApiClient(token);
-    return client.request('/cms/highlights/reorder', {
-        method: 'POST',
-        body: JSON.stringify({ venueId, orderedIds })
-    });
-}
-
-export async function reorderMenuImages(venueId, orderedIds, token) {
-    const client = getApiClient(token);
-    return client.request('/cms/menu/reorder', {
-        method: 'POST',
-        body: JSON.stringify({ venueId, orderedIds })
-    });
+    await batch.commit();
+    return { success: true };
 }
 
 export default {
@@ -226,9 +280,6 @@ export default {
     createHighlight,
     updateHighlight,
     deleteHighlight,
-    addImageToHighlight,
-    removeImageFromHighlight,
-    reorderHighlightImages,
     reorderHighlights,
     addGalleryPhoto,
     removeGalleryPhoto,
@@ -242,8 +293,8 @@ export default {
     updateFacility,
     deleteFacility,
     toggleFacility,
-    reorderFacilities,
-    initializeDefaultFacilities
+    reorderFacilities
 };
+
 
 

@@ -7,6 +7,7 @@ import { AppleTopBar } from "@/components/shared/AppleTopBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
+import { AssistantButton } from "@/components/assistant/AssistantButton";
 
 interface HostClientWrapperProps {
     children: React.ReactNode;
@@ -99,6 +100,7 @@ export function HostClientWrapper({ children, menuSections }: HostClientWrapperP
                             </motion.div>
                         </main>
                     </div>
+                    <AssistantButton />
                 </div>
             </RoleGuard>
         </ApprovalGuard>

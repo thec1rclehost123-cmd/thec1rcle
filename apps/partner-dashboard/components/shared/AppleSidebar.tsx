@@ -89,7 +89,7 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath, 
             {/* Navigation - Continuous Flow */}
             <nav className="flex-1 overflow-y-auto px-5 space-y-1 scrollbar-hide">
                 {visibleSections.map((section, idx) => (
-                    <div key={idx} className="pt-2 first:pt-0">
+                    <div key={idx} className="pt-0">
                         {section.label && (
                              <p className="px-5 pb-2 pt-4 text-[10px] font-black text-text-tertiary uppercase tracking-[0.25em] opacity-30">
                                 {section.label}
