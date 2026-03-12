@@ -44,11 +44,10 @@ import venueRoutes from './routes/v1/venues';
 import matchingRoutes from './routes/v1/matching';
 import authRoutes from './routes/v1/auth';
 import adminRoutes from './routes/v1/admin';
-
 const server = Fastify({
     trustProxy: process.env.NODE_ENV === 'production',
     genReqId: function (req) {
-        return (req.headers['x-request-id'] as string) || crypto.randomUUID();
+        return req.headers['x-request-id'] || crypto.randomUUID();
     },
     // ... (logger remains same)
     logger: {
@@ -71,7 +70,6 @@ const server = Fastify({
         },
     },
 });
-
 async function main() {
     // @ts-ignore - Sentry v10 types may have inconsistent dsn property in BaseNodeOptions
     Sentry.init({
@@ -79,23 +77,19 @@ async function main() {
         tracesSampleRate: 1.0,
         environment: process.env.NODE_ENV || "development",
     });
-
     // ⚡ REQUEST TRACING & SENTRY CONTEXT
     server.addHook('onRequest', async (request, reply) => {
         Sentry.setTag("request_id", request.id);
         reply.header('x-request-id', request.id);
     });
-
     // ⚡ PERFORMANCE LOGGING: Track request duration
-    server.addHook('preHandler', async (request: any) => {
+    server.addHook('preHandler', async (request) => {
         request.startTime = process.hrtime();
     });
-
-    server.addHook('onResponse', async (request: any, reply: any) => {
+    server.addHook('onResponse', async (request, reply) => {
         if (request.startTime) {
             const hrtime = process.hrtime(request.startTime);
             const durationMs = (hrtime[0] * 1e3 + hrtime[1] * 1e-6).toFixed(2);
-
             // Log metrics for performance auditing
             server.log.info({
                 requestId: request.id,
@@ -108,9 +102,8 @@ async function main() {
             }, `Response sent in ${durationMs}ms`);
         }
     });
-
     // ⚡ GLOBAL ERROR HANDLER
-    server.setErrorHandler(function (error: any, request, reply) {
+    server.setErrorHandler(function (error, request, reply) {
         server.log.error({
             requestId: request.id,
             url: request.url,
@@ -118,17 +111,15 @@ async function main() {
             error: error.message,
             stack: error.stack
         }, 'Unhandled Error');
-
         const isProd = process.env.NODE_ENV === 'production';
         const statusCode = error.statusCode || 500;
-
         if (isProd && statusCode >= 500) {
             reply.status(statusCode).send({ error: 'Internal Server Error', requestId: request.id });
-        } else {
+        }
+        else {
             reply.status(statusCode).send(error);
         }
     });
-
     // Register Core Plugins
     const allowedOrigins = config.FRONTEND_URLS ? config.FRONTEND_URLS.split(',') : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'];
     await server.register(cors, {
@@ -145,7 +136,6 @@ async function main() {
     await server.register(featureFlagsPlugin);
     await server.register(rateLimitPlugin);
     await server.register(validatePlugin);
-
     // Register Routes
     await server.register(eventRoutes, { prefix: '/api/v1' });
     await server.register(checkoutRoutes, { prefix: '/api/v1' });
@@ -163,7 +153,6 @@ async function main() {
     await server.register(searchRoutes, { prefix: '/api/v1/search' });
     await server.register(calendarRoutes, { prefix: '/api/v1/calendar' });
     await server.register(promoRoutes, { prefix: '/api/v1/promos' });
-
     // Setup Sentry Error Handler (catches all unhandled exceptions)
     Sentry.setupFastifyErrorHandler(server);
     await server.register(cmsRoutes, { prefix: '/api/v1/cms' });
@@ -180,43 +169,42 @@ async function main() {
     await server.register(venueSettingsRoutes, { prefix: '/api/v1/venue-settings' });
     await server.register(venueRoutes, { prefix: '/api/v1' });
     await server.register(matchingRoutes, { prefix: '/api/v1/matching' });
-
     // Enhanced Database-aware Health Check
     server.get('/health', async (request, reply) => {
         try {
             // Validate Firestore connectivity natively
             await server.db.collection('health_checks').doc('ping').set({ timestamp: new Date().toISOString() });
             return { status: 'ok', database: 'connected', timestamp: new Date().toISOString() };
-        } catch (e: any) {
+        }
+        catch (e) {
             server.log.error(`Healthcheck failed: ${e.message}`);
             return reply.status(503).send({ status: 'error', database: 'disconnected', timestamp: new Date().toISOString() });
         }
     });
-
     // Graceful Shutdown Handlers
-    const gracefulShutdown = async (signal: string) => {
+    const gracefulShutdown = async (signal) => {
         server.log.info(`Received ${signal}. Shutting down Fastify server gracefully...`);
         try {
             await server.close();
             server.log.info('Server successfully closed.');
             process.exit(0);
-        } catch (err: any) {
+        }
+        catch (err) {
             server.log.error(err, 'Error during shutdown');
             process.exit(1);
         }
     };
-
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-
     // Start Listening
     try {
         await server.listen({ port: config.PORT, host: '0.0.0.0' });
         server.log.info(`API Gateway listening on http://0.0.0.0:${config.PORT}`);
-    } catch (err) {
+    }
+    catch (err) {
         server.log.error(err);
         process.exit(1);
     }
 }
-
 main();
+//# sourceMappingURL=app.js.map
