@@ -45,14 +45,14 @@ export async function POST(req: NextRequest) {
 
         switch (action) {
             case "create":
-                result = await createHighlight(venueId, data, user);
+                result = await createHighlight(venueId, data);
                 break;
 
             case "update":
                 if (!data.highlightId) {
                     return NextResponse.json({ error: "highlightId required" }, { status: 400 });
                 }
-                result = await updateHighlight(data.highlightId, data.updates, user);
+                result = await updateHighlight(data.highlightId, venueId, data.updates);
                 break;
 
             case "delete":

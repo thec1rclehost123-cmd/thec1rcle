@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
         // Fetch parallel stats
         const [guestlist, promoterSummary, salesStats] = await Promise.all([
-            getEventGuestlist(eventId, 100, token),
+            getEventGuestlist(eventId, 50, token),
             getEventPromoterSummary(eventId, token),
             getEventSalesStats(eventId, token)
         ]);

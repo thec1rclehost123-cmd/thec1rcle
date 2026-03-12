@@ -6,7 +6,8 @@ import { useReducedMotion } from "framer-motion";
 
 // ── Lazy-load recharts to keep it out of non-analytics bundles ──
 const RechartsArea = lazy(() =>
-    import("recharts").then((m) => ({
+    // @ts-ignore
+    (import("recharts") as any).then((m: any) => ({
         default: function AreaChartWrapper({
             data,
             dataKey,
@@ -24,17 +25,23 @@ const RechartsArea = lazy(() =>
             title: string;
             gradientId: string;
         }) {
-            const { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, defs, linearGradient, stop } = m;
+            const { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } = m;
+            // Access SVG defs components from 'm' or use standard SVG tags if they are just strings
+            // Recharts doesn't always export 'defs' as a component in types, but it's used as a tag.
+            const Defs = (m as any).defs || "defs";
+            const LinearGradient = (m as any).linearGradient || "linearGradient";
+            const Stop = (m as any).stop || "stop";
+
             return (
                 <div role="img" aria-label={title}>
                     <ResponsiveContainer width="100%" height={height}>
                         <AreaChart data={data} margin={{ top: 8, right: 0, left: -20, bottom: 0 }}>
-                            <defs>
-                                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={color} stopOpacity={0.25} />
-                                    <stop offset="95%" stopColor={color} stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
+                            <Defs>
+                                <LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                                    <Stop offset="5%" stopColor={color} stopOpacity={0.25} />
+                                    <Stop offset="95%" stopColor={color} stopOpacity={0} />
+                                </LinearGradient>
+                            </Defs>
                             <XAxis
                                 dataKey={xKey}
                                 tick={{ fontSize: 10, fill: "rgba(255,255,255,0.30)" }}
@@ -73,7 +80,8 @@ const RechartsArea = lazy(() =>
 );
 
 const RechartsBar = lazy(() =>
-    import("recharts").then((m) => ({
+    // @ts-ignore
+    (import("recharts") as any).then((m: any) => ({
         default: function BarChartWrapper({
             data,
             dataKey,
@@ -129,7 +137,8 @@ const RechartsBar = lazy(() =>
 );
 
 const RechartsLine = lazy(() =>
-    import("recharts").then((m) => ({
+    // @ts-ignore
+    (import("recharts") as any).then((m: any) => ({
         default: function LineChartWrapper({
             data,
             dataKey,

@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
             name: decodedToken.name || decodedToken.email || "User"
         };
 
-        const result = await updateVenueDetails(venueId, updates, user);
+        const result = await updateVenueDetails(venueId, updates);
 
         return NextResponse.json({ success: true, result });
     } catch (error: any) {

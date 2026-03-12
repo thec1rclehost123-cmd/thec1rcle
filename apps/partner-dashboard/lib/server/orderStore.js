@@ -42,12 +42,12 @@ export async function getEventSalesStats(eventId, token) {
 /**
  * Get the guestlist for an event
  */
-export async function getEventGuestlist(eventId, token) {
+export async function getEventGuestlist(eventId, limit = 50, token) {
     const client = getApiClient(token);
     try {
         // Recycles the eventStore method which is already refactored
         const { getEventGuestlist: getGuestlist } = await import("./eventStore");
-        return await getGuestlist(eventId, 500, token);
+        return await getGuestlist(eventId, limit, token);
     } catch (error) {
         console.error("[OrderStore] getEventGuestlist failed:", error.message);
         return [];

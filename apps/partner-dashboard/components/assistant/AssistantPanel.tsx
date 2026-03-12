@@ -116,7 +116,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
         // Update session history (send last 6 messages, not the loading placeholder)
         const updatedHistory: ChatMessage[] = [
             ...session.history,
-            { role: "user", content: text.trim(), timestamp: Date.now() },
+            { role: "user" as const, content: text.trim(), timestamp: Date.now() },
         ].slice(-6);
 
         try {
@@ -158,7 +158,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                 ...prev,
                 history: [
                     ...updatedHistory,
-                    { role: "assistant", content: data.answer.text, timestamp: Date.now() },
+                    { role: "assistant" as const, content: data.answer.text, timestamp: Date.now() },
                 ].slice(-6),
             }));
 

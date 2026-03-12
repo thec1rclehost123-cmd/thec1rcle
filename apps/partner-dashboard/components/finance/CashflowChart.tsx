@@ -9,7 +9,8 @@ import { ChartSkeleton } from "@/components/ui/VenueChart";
 
 // Disable SSR for recharts to prevent useContext/DOM errors during Next.js generation
 const RechartsComposed = dynamic(() =>
-    import("recharts").then((m) => {
+    // @ts-ignore
+    import("recharts").then((m: any) => {
         return function CashflowInner({
             data,
             series,

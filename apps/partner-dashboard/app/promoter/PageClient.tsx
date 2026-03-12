@@ -206,9 +206,9 @@ export default function PromoterDashboardHome() {
                 {/* Performance Context */}
                 <div className="space-y-6">
                     {/* Commission Tier */}
-                    {stats && (stats.totalConversions > 0 || stats.totalSales > 0) && (
+                    {stats && (stats.totalConversions > 0) && (
                         <TierProgressBar
-                            currentSales={stats.totalConversions || stats.totalSales || 0}
+                            currentSales={stats.totalConversions || 0}
                             variant="compact"
                         />
                     )}

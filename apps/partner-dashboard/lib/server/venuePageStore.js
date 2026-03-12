@@ -98,6 +98,45 @@ export async function deleteHighlight(highlightId, venueId) {
     return { success: true };
 }
 
+export async function addImageToHighlight(highlightId, imageUrl) {
+    const db = getAdminDb();
+    const highlightRef = db.collection('profile_highlights').doc(highlightId);
+    const doc = await highlightRef.get();
+    if (!doc.exists) throw new Error("Highlight not found");
+    
+    const images = doc.data().images || [];
+    if (!images.includes(imageUrl)) {
+        await highlightRef.update({
+            images: [...images, imageUrl],
+            updatedAt: new Date().toISOString()
+        });
+    }
+    return { success: true };
+}
+
+export async function removeImageFromHighlight(highlightId, imageUrl) {
+    const db = getAdminDb();
+    const highlightRef = db.collection('profile_highlights').doc(highlightId);
+    const doc = await highlightRef.get();
+    if (!doc.exists) throw new Error("Highlight not found");
+    
+    const images = (doc.data().images || []).filter(img => img !== imageUrl);
+    await highlightRef.update({
+        images,
+        updatedAt: new Date().toISOString()
+    });
+    return { success: true };
+}
+
+export async function reorderHighlightImages(highlightId, images) {
+    const db = getAdminDb();
+    await db.collection('profile_highlights').doc(highlightId).update({
+        images,
+        updatedAt: new Date().toISOString()
+    });
+    return { success: true };
+}
+
 // ─── Gallery ─────────────────────────────────────────────────────
 
 export async function addGalleryPhoto(venueId, imageUrl, caption) {
@@ -187,6 +226,33 @@ export async function reorderFacilities(venueId, orderedIds) {
         const ref = db.collection('venue_facilities').doc(id);
         batch.update(ref, { order: index, updatedAt: new Date().toISOString() });
     });
+    await batch.commit();
+    return { success: true };
+}
+
+export async function initializeDefaultFacilities(venueId) {
+    const DEFAULT_FACILITIES = [
+        { name: "Parking", icon: "Car" },
+        { name: "WiFi", icon: "Wifi" },
+        { name: "VIP Area", icon: "Crown" },
+        { name: "Bar", icon: "GlassWater" },
+        { name: "Security", icon: "Shield" }
+    ];
+    
+    const db = getAdminDb();
+    const batch = db.batch();
+    
+    DEFAULT_FACILITIES.forEach((f, i) => {
+        const ref = db.collection('venue_facilities').doc();
+        batch.set(ref, {
+            ...f,
+            venueId,
+            isEnabled: true,
+            order: i,
+            createdAt: new Date().toISOString()
+        });
+    });
+    
     await batch.commit();
     return { success: true };
 }
