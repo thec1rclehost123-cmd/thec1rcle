@@ -4,6 +4,8 @@ import AdminConsoleShell from "@/components/admin/AdminConsoleShell";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { WebVitals } from "@/components/WebVitals";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
     title: "c1rcle | Authority Node",
     description: "Administrative Command Center",

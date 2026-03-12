@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getRecommendedEvents, getSimilarEvents } from "../../../lib/server/recommendations";
 import { verifyAuth } from "../../../lib/server/auth";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export async function GET(request) {
     try {

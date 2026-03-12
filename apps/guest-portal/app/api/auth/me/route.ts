@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
 import { getUserProfile } from "@/lib/server/profileStore";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
     try {
         const decodedToken = await verifyAuth(req);

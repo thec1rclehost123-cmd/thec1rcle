@@ -14,7 +14,7 @@ const getQueryParams = (request) => {
   return { city, limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined, sort, search, host };
 };
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export async function GET(request) {
   try {

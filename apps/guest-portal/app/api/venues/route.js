@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { listVenues } from "../../../lib/server/venueStore";
 
-export const revalidate = 300; // 5-minute ISR — venue data changes on a scale of days
+export const dynamic = "force-dynamic";
 
 export async function GET(request) {
     try {

@@ -5,6 +5,8 @@ import { ToastProvider } from "../components/ui/Toast";
 import { QueryProvider } from "../components/providers/QueryProvider";
 import { WebVitals } from "../components/WebVitals";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: {
     default: "THE C1RCLE | Partner Dashboard",

@@ -7,6 +7,7 @@ import { getEvent } from "@/lib/server/eventStore";
  * GET /api/venue/overview/tonight
  * Fetches real-time stats for tonight's event for the dashboard overview
  */
+export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
