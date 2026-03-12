@@ -17,17 +17,18 @@ import {
     MapPin,
     DollarSign,
     Layers,
-    ArrowUpRight
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { motion, AnimatePresence } from "framer-motion";
+import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
+import { BentoCard } from "@/components/ui/BentoCard";
 
 const TABLE_TYPES = [
-    { id: "standard", label: "Standard", icon: Armchair, color: "slate" },
-    { id: "premium", label: "Premium", icon: Wine, color: "orange" },
-    { id: "vvip", label: "VVIP", icon: Sparkles, color: "purple" },
-    { id: "booth", label: "Booth", icon: Users, color: "blue" },
-    { id: "cabana", label: "Cabana", icon: Layout, color: "emerald" },
+    { id: "standard", label: "Standard", icon: Armchair, color: "var(--v-text-muted)" },
+    { id: "premium", label: "Premium", icon: Wine, color: "var(--v-orange)" },
+    { id: "vvip", label: "VVIP", icon: Sparkles, color: "#A78BFA" },
+    { id: "booth", label: "Booth", icon: Users, color: "var(--v-info)" },
+    { id: "cabana", label: "Cabana", icon: Layout, color: "var(--v-success)" },
 ];
 
 export default function TablesPage() {
@@ -158,174 +159,215 @@ export default function TablesPage() {
 
     if (isLoading) {
         return (
-            <div className="py-24 flex flex-col items-center justify-center">
-                <Loader2 className="h-10 w-10 text-text-placeholder animate-spin mb-4" />
-                <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Mapping Floor Plan...</p>
+            <div className="py-16 flex flex-col items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin mb-3" style={{ color: "var(--v-text-muted)" }} />
+                <p className="v-label text-[9px]">Mapping Floor Plan...</p>
             </div>
         );
     }
 
     return (
-        <div className="space-y-10 pb-20 animate-in fade-in duration-500">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-default pb-10">
-                <div>
-                    <h1 className="text-4xl font-extrabold text-text-primary tracking-tight flex items-center gap-4 uppercase">
-                        Tables & VIP
-                    </h1>
-                    <p className="text-text-tertiary text-lg font-medium mt-3">Manage floor inventory and real-time nightly reservations.</p>
-                </div>
-                <div className="flex p-1.5 bg-surface-secondary rounded-[1.5rem] w-fit">
-                    <button
-                        onClick={() => setMode("setup")}
-                        className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === "setup" ? "bg-surface-elevated text-text-primary shadow-sm" : "text-text-tertiary hover:text-text-secondary"}`}
-                    >
-                        Floor Setup
-                    </button>
-                    <button
-                        onClick={() => setMode("tonight")}
-                        className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === "tonight" ? "bg-surface-elevated text-text-primary shadow-sm" : "text-text-tertiary hover:text-text-secondary"}`}
-                    >
-                        Tonight's Ops
-                    </button>
-                </div>
-            </div>
-
-            {mode === "setup" ? (
-                <>
-                    {/* Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatCard label="Total Tables" value={tables.length} icon={Armchair} color="indigo" />
-                        <StatCard label="Guest Capacity" value={totalCapacity} icon={Users} color="emerald" />
-                        <StatCard label="VVIP Units" value={vvipCount} icon={Sparkles} color="purple" />
-                        <StatCard label="Sections" value={new Set(tables.map(t => t.location)).size} icon={Layers} color="amber" />
-                    </div>
-
-                    <div className="flex items-center justify-between gap-6">
-                        <div className="relative flex-1 group">
-                            <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-text-tertiary group-focus-within:text-text-primary transition-colors" />
-                            <input
-                                type="text"
-                                placeholder="Search definitions..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-16 pr-6 py-5 bg-surface-elevated border border-border-default rounded-3xl text-sm font-medium focus:ring-4 focus:ring-slate-50 transition-all outline-none"
-                            />
-                        </div>
+        <VenuePageShell
+            title="Tables & VIP"
+            subtitle="Floor inventory and nightly reservations"
+            actions={
+                <div className="flex items-center gap-2">
+                    {/* Mode toggle */}
+                    <div className="flex p-1 rounded-xl" style={{ background: "var(--v-hero)", border: "1px solid var(--v-border)" }}>
                         <button
-                            onClick={() => {
-                                setEditingTable(null);
-                                setShowAddModal(true);
+                            onClick={() => setMode("setup")}
+                            className="px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
+                            style={{
+                                background: mode === "setup" ? "var(--v-elevated)" : "transparent",
+                                color: mode === "setup" ? "var(--v-text-primary)" : "var(--v-text-muted)",
                             }}
-                            className="flex items-center gap-3 px-8 py-5 bg-surface-secondary text-text-primary rounded-[1.5rem] text-sm font-bold shadow-xl hover:bg-surface-tertiary transition-all active:scale-95 group shrink-0"
                         >
-                            <Plus className="h-5 w-5 group-hover:rotate-90 transition-transform" />
-                            Add Definition
+                            Floor Setup
+                        </button>
+                        <button
+                            onClick={() => setMode("tonight")}
+                            className="px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
+                            style={{
+                                background: mode === "tonight" ? "var(--v-elevated)" : "transparent",
+                                color: mode === "tonight" ? "var(--v-text-primary)" : "var(--v-text-muted)",
+                            }}
+                        >
+                            Tonight
                         </button>
                     </div>
+                    {mode === "setup" && (
+                        <VenueActionButton variant="primary" onClick={() => { setEditingTable(null); setShowAddModal(true); }}>
+                            <Plus className="w-4 h-4" /> Add Table
+                        </VenueActionButton>
+                    )}
+                </div>
+            }
+        >
+            {mode === "setup" ? (
+                <>
+                    {/* KPI strip */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {[
+                            { label: "TABLES", value: tables.length, icon: Armchair, bg: "var(--v-info-bg)", text: "var(--v-info)" },
+                            { label: "CAPACITY", value: totalCapacity, icon: Users, bg: "var(--v-success-bg)", text: "var(--v-success)" },
+                            { label: "VVIP", value: vvipCount, icon: Sparkles, bg: "rgba(167,139,250,0.1)", text: "#A78BFA" },
+                            { label: "SECTIONS", value: new Set(tables.map(t => t.location)).size, icon: Layers, bg: "var(--v-warning-bg)", text: "var(--v-warning)" },
+                        ].map((stat, i) => (
+                            <div key={i} className="rounded-2xl p-4 flex items-center gap-3 border border-white/[0.04]" style={{ background: "var(--v-card)" }}>
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: stat.bg }}>
+                                    <stat.icon className="w-3.5 h-3.5" style={{ color: stat.text }} />
+                                </div>
+                                <div>
+                                    <p className="v-label text-[9px] mb-0">{stat.label}</p>
+                                    <p className="text-[18px] font-black leading-tight tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                        {stat.value}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
 
+                    {/* Search */}
+                    <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5" style={{ color: "var(--v-text-muted)" }} />
+                        <input
+                            type="text"
+                            placeholder="Search tables..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2.5 rounded-xl text-[13px] font-medium transition-all outline-none"
+                            style={{ background: "var(--v-elevated)", color: "var(--v-text-primary)", border: "1px solid var(--v-border)" }}
+                        />
+                    </div>
+
+                    {/* Table grid */}
                     {filteredTables.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                             {filteredTables.map((table) => (
                                 <TableCard
                                     key={table.id}
                                     table={table}
-                                    onEdit={() => {
-                                        setEditingTable(table);
-                                        setShowAddModal(true);
-                                    }}
+                                    onEdit={() => { setEditingTable(table); setShowAddModal(true); }}
                                     onDelete={() => handleDeleteTable(table.id)}
                                 />
                             ))}
                         </div>
                     ) : (
-                        <div className="bg-surface-tertiary rounded-[3rem] border-2 border-dashed border-border-default p-20 text-center">
-                            <div className="h-20 w-20 bg-surface-elevated rounded-3xl shadow-sm flex items-center justify-center mx-auto mb-6 text-text-placeholder">
-                                <Armchair className="h-10 w-10" />
-                            </div>
-                            <h3 className="text-xl font-bold text-text-primary mb-2">No tables mapped</h3>
-                            <p className="text-text-tertiary text-sm max-w-sm mx-auto">Start building your floor plan.</p>
-                        </div>
+                        <BentoCard
+                            empty
+                            emptyIcon={<Armchair className="w-8 h-8" />}
+                            emptyTitle="No tables mapped. Start building your floor plan."
+                            emptyAction={
+                                <VenueActionButton variant="primary" onClick={() => { setEditingTable(null); setShowAddModal(true); }}>
+                                    <Plus className="w-3.5 h-3.5" /> Add First Table
+                                </VenueActionButton>
+                            }
+                        >{null}</BentoCard>
                     )}
                 </>
             ) : (
-                <div className="space-y-10">
-                    <div className="bg-surface-secondary rounded-[2.5rem] p-10 text-text-primary flex flex-col md:flex-row md:items-center justify-between gap-8">
-                        <div>
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-text-primary/40">Tonight's Production</span>
-                            <h2 className="text-3xl font-black mt-2">{tonightEvent?.name || "No Live Event"}</h2>
-                            <p className="text-text-primary/60 text-sm font-medium mt-1">{tonightEvent?.start_date ? new Date(tonightEvent.start_date).toDateString() : 'N/A'}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="px-8 py-5 bg-surface-elevated/5 rounded-3xl border border-border-subtle">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-text-primary/40 mb-1">Booked</p>
-                                <p className="text-2xl font-black">{eventTableStatus?.bookings?.length || 0}</p>
+                /* Tonight's Ops mode */
+                <>
+                    {/* Tonight header */}
+                    <div className="rounded-2xl p-5" style={{ background: "var(--v-hero)", border: "1px solid var(--v-border)" }}>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <span className="v-label text-[9px]">TONIGHT&apos;S PRODUCTION</span>
+                                <h2 className="text-xl font-black mt-1" style={{ color: "var(--v-text-primary)" }}>
+                                    {tonightEvent?.name || "No Live Event"}
+                                </h2>
+                                <p className="text-[12px] mt-0.5" style={{ color: "var(--v-text-tertiary)" }}>
+                                    {tonightEvent?.start_date ? new Date(tonightEvent.start_date).toDateString() : 'N/A'}
+                                </p>
                             </div>
-                            <div className="px-8 py-5 bg-surface-elevated/5 rounded-3xl border border-border-subtle">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-text-primary/40 mb-1">Available</p>
-                                <p className="text-2xl font-black">{tables.length - (eventTableStatus?.bookings?.length || 0)}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-6">
-                        {tables.map(table => {
-                            const booking = eventTableStatus?.bookings?.find((b: any) => b.tableId === table.id);
-                            const isBlocked = eventTableStatus?.blockedTables?.includes(table.id);
-
-                            return (
-                                <div key={table.id} className="bg-surface-elevated border border-border-default rounded-[2rem] p-8 flex items-center justify-between group hover:shadow-xl transition-all">
-                                    <div className="flex items-center gap-8">
-                                        <div className={`h-14 w-14 rounded-2xl flex items-center justify-center transition-all ${isBlocked ? 'bg-amber-50 text-amber-500' : booking ? 'bg-emerald-50 text-emerald-500' : 'bg-surface-tertiary text-text-tertiary'}`}>
-                                            <Armchair className="h-6 w-6" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-xl font-black text-text-primary">{table.name}</h3>
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mt-1">{table.location} • {table.capacity} Pax</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-6">
-                                        {booking ? (
-                                            <div className="text-right flex items-center gap-6">
-                                                <div>
-                                                    <p className="text-sm font-bold text-text-primary">{booking.guestName || "Reserved Guest"}</p>
-                                                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Confimed Reservation</p>
-                                                </div>
-                                                <div className="h-10 w-[1px] bg-surface-secondary" />
-                                                <button onClick={() => updateStatus(table.id, 'available')} className="p-4 bg-surface-tertiary text-text-tertiary hover:text-rose-500 rounded-2xl transition-all">
-                                                    <X className="h-5 w-5" />
-                                                </button>
-                                            </div>
-                                        ) : isBlocked ? (
-                                            <div className="flex items-center gap-6">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">Held / Blocked</p>
-                                                <button onClick={() => updateStatus(table.id, 'available')} className="px-6 py-3 bg-surface-secondary text-text-primary rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
-                                                    Release
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-3">
-                                                <button
-                                                    onClick={() => updateStatus(table.id, 'blocked')}
-                                                    className="px-6 py-3 bg-surface-tertiary text-text-tertiary hover:text-text-primary border border-border-subtle rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                                                >
-                                                    Hold Table
-                                                </button>
-                                                <button
-                                                    onClick={() => updateStatus(table.id, 'reserved', 'Manual Reservation')}
-                                                    className="px-6 py-3 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-text-primary border border-emerald-100 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                                                >
-                                                    Mark Reserved
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
+                            <div className="flex items-center gap-3">
+                                <div className="px-4 py-3 rounded-xl" style={{ background: "var(--v-elevated)", border: "1px solid var(--v-border)" }}>
+                                    <p className="v-label text-[9px] mb-0.5">BOOKED</p>
+                                    <p className="text-xl font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                        {eventTableStatus?.bookings?.length || 0}
+                                    </p>
                                 </div>
-                            );
-                        })}
+                                <div className="px-4 py-3 rounded-xl" style={{ background: "var(--v-elevated)", border: "1px solid var(--v-border)" }}>
+                                    <p className="v-label text-[9px] mb-0.5">AVAILABLE</p>
+                                    <p className="text-xl font-black tabular-nums" style={{ color: "var(--v-success)" }}>
+                                        {tables.length - (eventTableStatus?.bookings?.length || 0)}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
+
+                    {/* Tonight table rows */}
+                    <BentoCard padding="sm" header={<span className="v-label">FLOOR STATUS</span>}>
+                        <div className="divide-y" style={{ borderColor: "var(--v-border)" }}>
+                            {tables.map(table => {
+                                const booking = eventTableStatus?.bookings?.find((b: any) => b.tableId === table.id);
+                                const isBlocked = eventTableStatus?.blockedTables?.includes(table.id);
+                                const type = TABLE_TYPES.find(t => t.id === table.type) || TABLE_TYPES[0];
+
+                                return (
+                                    <div key={table.id} className="px-4 py-3 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div
+                                                className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0"
+                                                style={{
+                                                    background: isBlocked ? "var(--v-warning-bg)" : booking ? "var(--v-success-bg)" : "var(--v-elevated)",
+                                                    color: isBlocked ? "var(--v-warning)" : booking ? "var(--v-success)" : "var(--v-text-muted)",
+                                                }}
+                                            >
+                                                <type.icon className="h-4 w-4" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-[14px] font-bold" style={{ color: "var(--v-text-primary)" }}>{table.name}</h3>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>
+                                                    {table.location} · {table.capacity} Pax
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                            {booking ? (
+                                                <>
+                                                    <div className="text-right">
+                                                        <p className="text-[12px] font-bold" style={{ color: "var(--v-text-primary)" }}>{booking.guestName || "Reserved"}</p>
+                                                        <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--v-success)" }}>Confirmed</p>
+                                                    </div>
+                                                    <button onClick={() => updateStatus(table.id, 'available')} className="p-2 rounded-lg transition-colors" style={{ color: "var(--v-text-muted)", background: "var(--v-elevated)" }}>
+                                                        <X className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </>
+                                            ) : isBlocked ? (
+                                                <>
+                                                    <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--v-warning)" }}>Held</span>
+                                                    <button onClick={() => updateStatus(table.id, 'available')} className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest" style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)" }}>
+                                                        Release
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => updateStatus(table.id, 'blocked')}
+                                                        className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
+                                                        style={{ background: "var(--v-elevated)", color: "var(--v-text-muted)", border: "1px solid var(--v-border)" }}
+                                                    >
+                                                        Hold
+                                                    </button>
+                                                    <button
+                                                        onClick={() => updateStatus(table.id, 'reserved', 'Manual Reservation')}
+                                                        className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
+                                                        style={{ background: "var(--v-success-bg)", color: "var(--v-success)", border: "1px solid rgba(52,211,153,0.2)" }}
+                                                    >
+                                                        Reserve
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </BentoCard>
+                </>
             )}
 
             <AnimatePresence>
@@ -338,29 +380,11 @@ export default function TablesPage() {
                     />
                 )}
             </AnimatePresence>
-        </div>
+        </VenuePageShell>
     );
 }
 
-function StatCard({ label, value, icon: Icon, color }: any) {
-    const colors: any = {
-        emerald: "bg-emerald-50 text-emerald-600 border-emerald-100",
-        indigo: "bg-indigo-50 text-indigo-600 border-indigo-100",
-        amber: "bg-amber-50 text-amber-600 border-amber-100",
-        purple: "bg-purple-50 text-purple-600 border-purple-100"
-    };
-
-    return (
-        <div className="bg-surface-elevated p-8 rounded-[2.5rem] border border-border-default shadow-sm transition-all hover:scale-[1.02]">
-            <div className={`h-12 w-12 rounded-2xl ${colors[color]} flex items-center justify-center mb-6 border`}>
-                <Icon className="w-6 h-6" />
-            </div>
-            <p className="text-4xl font-black text-text-primary tracking-tighter mb-1">{value}</p>
-            <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest leading-none">{label}</p>
-        </div>
-    );
-}
-
+/* ── Table Card (Setup Mode) ── */
 function TableCard({ table, onEdit, onDelete }: any) {
     const type = TABLE_TYPES.find(t => t.id === table.type) || TABLE_TYPES[0];
     const Icon = type.icon;
@@ -368,56 +392,69 @@ function TableCard({ table, onEdit, onDelete }: any) {
     return (
         <motion.div
             layout
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="group bg-surface-elevated rounded-[2.5rem] border border-border-default overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500"
+            className="group rounded-2xl overflow-hidden transition-all duration-300 hover:brightness-110"
+            style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}
         >
-            <div className={`h-24 p-8 flex items-center justify-between border-b border-slate-50 shadow-inner`} style={{ backgroundColor: `${type.color === 'slate' ? '#f8fafc' : type.color === 'orange' ? '#fff7ed' : type.color === 'purple' ? '#faf5ff' : type.color === 'blue' ? '#eff6ff' : '#ecfdf5'}` }}>
-                <div className={`h-12 w-12 rounded-2xl bg-surface-elevated shadow-sm flex items-center justify-center text-text-primary`}>
-                    <Icon className="h-6 w-6" />
+            {/* Header strip */}
+            <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--v-border)" }}>
+                <div className="flex items-center gap-2.5">
+                    <div
+                        className="h-8 w-8 rounded-lg flex items-center justify-center"
+                        style={{ background: "var(--v-elevated)" }}
+                    >
+                        <Icon className="h-4 w-4" style={{ color: type.color }} />
+                    </div>
+                    <div>
+                        <p className="text-[14px] font-bold leading-tight" style={{ color: "var(--v-text-primary)" }}>{table.name}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1" style={{ color: "var(--v-text-muted)" }}>
+                            <MapPin className="h-2.5 w-2.5" /> {table.location || "Main Floor"}
+                        </p>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={onEdit} className="p-3 bg-surface-elevated text-text-tertiary hover:text-text-primary rounded-xl shadow-sm transition-all hover:scale-110 active:scale-95">
-                        <Edit3 className="h-4 w-4" />
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={onEdit} className="p-1.5 rounded-lg transition-colors" style={{ color: "var(--v-text-muted)" }}>
+                        <Edit3 className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={onDelete} className="p-3 bg-surface-elevated text-text-tertiary hover:text-rose-500 rounded-xl shadow-sm transition-all hover:scale-110 active:scale-95">
-                        <Trash2 className="h-4 w-4" />
+                    <button onClick={onDelete} className="p-1.5 rounded-lg transition-colors hover:text-red-400" style={{ color: "var(--v-text-muted)" }}>
+                        <Trash2 className="h-3.5 w-3.5" />
                     </button>
                 </div>
             </div>
-            <div className="p-8">
-                <div className="mb-6">
-                    <p className="text-3xl font-black text-text-primary tracking-tight">{table.name}</p>
-                    <p className="text-[10px] font-black uppercase text-text-tertiary tracking-widest flex items-center gap-2 mt-1">
-                        <MapPin className="h-3 w-3" /> {table.location || "Main Floor"}
-                    </p>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 bg-surface-tertiary rounded-2xl">
-                        <p className="text-[9px] font-black uppercase text-text-tertiary tracking-widest mb-1 leading-none">Min Spend</p>
-                        <p className="text-lg font-black text-text-primary leading-none">₹{table.minSpend || 0}</p>
+            {/* Body */}
+            <div className="px-4 py-3">
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2.5 rounded-xl" style={{ background: "var(--v-elevated)" }}>
+                        <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--v-text-muted)" }}>Min Spend</p>
+                        <p className="text-[15px] font-black leading-none tabular-nums" style={{ color: "var(--v-text-primary)" }}>₹{table.minSpend || 0}</p>
                     </div>
-                    <div className="p-4 bg-surface-tertiary rounded-2xl">
-                        <p className="text-[9px] font-black uppercase text-text-tertiary tracking-widest mb-1 leading-none">Seats</p>
-                        <p className="text-lg font-black text-text-primary leading-none">{table.capacity} Pax</p>
+                    <div className="p-2.5 rounded-xl" style={{ background: "var(--v-elevated)" }}>
+                        <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--v-text-muted)" }}>Seats</p>
+                        <p className="text-[15px] font-black leading-none tabular-nums" style={{ color: "var(--v-text-primary)" }}>{table.capacity} Pax</p>
                     </div>
                 </div>
-
-                <div className="mt-6 pt-6 border-t border-slate-50 flex items-center justify-between">
-                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${table.isActive !== false ? 'bg-emerald-50 text-emerald-600' : 'bg-surface-secondary text-text-tertiary'
-                        }`}>
+                <div className="flex items-center justify-between mt-3 pt-2" style={{ borderTop: "1px solid var(--v-border)" }}>
+                    <span
+                        className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
+                        style={{
+                            background: table.isActive !== false ? "var(--v-success-bg)" : "var(--v-elevated)",
+                            color: table.isActive !== false ? "var(--v-success)" : "var(--v-text-muted)",
+                        }}
+                    >
                         {table.isActive !== false ? 'Active' : 'Offline'}
                     </span>
-                    <div className="flex items-center gap-1 text-[10px] font-bold text-text-tertiary uppercase tracking-widest">
-                        Type: <span className="text-text-primary">{type.label}</span>
-                    </div>
+                    <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>
+                        {type.label}
+                    </span>
                 </div>
             </div>
         </motion.div>
     );
 }
 
+/* ── Add / Edit Table Modal ── */
 function TableModal({ table, isSaving, onClose, onSave }: any) {
     const [formData, setFormData] = useState(table || {
         name: "",
@@ -428,127 +465,137 @@ function TableModal({ table, isSaving, onClose, onSave }: any) {
         isActive: true
     });
 
+    const inputStyle: React.CSSProperties = {
+        background: "var(--v-elevated)",
+        color: "var(--v-text-primary)",
+        border: "1px solid var(--v-border)",
+        borderRadius: 12,
+        padding: "10px 14px",
+        fontSize: 13,
+        outline: "none",
+        width: "100%",
+    };
+
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-12">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
             <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={onClose}
-                className="absolute inset-0 bg-surface-secondary/90 backdrop-blur-xl"
-            />
-            <motion.div
-                initial={{ opacity: 0, y: 50, scale: 0.95 }}
+                initial={{ opacity: 0, y: 20, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                className="relative w-full max-w-2xl bg-surface-elevated rounded-[3rem] shadow-2xl overflow-hidden border border-white"
+                exit={{ opacity: 0, y: 10, scale: 0.97 }}
+                className="relative w-full max-w-lg rounded-[32px] overflow-hidden"
+                style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}
             >
-                <div className="p-10 border-b border-slate-50 flex items-center justify-between">
+                {/* Modal header */}
+                <div className="p-6 flex items-center justify-between" style={{ borderBottom: "1px solid var(--v-border)" }}>
                     <div>
-                        <h2 className="text-3xl font-black text-text-primary uppercase">
+                        <h2 className="text-[18px] font-bold" style={{ color: "var(--v-text-primary)" }}>
                             {table ? "Edit Table" : "Add New Table"}
                         </h2>
-                        <p className="text-text-tertiary text-xs font-bold uppercase tracking-widest mt-1">Configure layout properties.</p>
+                        <p className="text-[12px] mt-0.5" style={{ color: "var(--v-text-tertiary)" }}>Configure layout properties</p>
                     </div>
-                    <button onClick={onClose} className="p-4 bg-surface-tertiary text-text-tertiary hover:text-text-primary rounded-3xl transition-all">
-                        <X className="h-6 w-6" />
+                    <button onClick={onClose} className="p-2 rounded-xl transition-colors" style={{ color: "var(--v-text-muted)", background: "var(--v-elevated)" }}>
+                        <X className="h-4 w-4" />
                     </button>
                 </div>
 
-                <div className="p-10 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                    <div className="grid grid-cols-2 gap-8">
-                        <div className="space-y-4 col-span-2">
-                            <label className="text-[10px] font-black uppercase text-text-tertiary tracking-widest ml-1">Table Name / ID</label>
-                            <input
-                                type="text"
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                className="w-full p-6 bg-surface-tertiary border border-border-default rounded-3xl text-sm font-bold focus:bg-surface-elevated focus:ring-4 focus:ring-slate-50 transition-all outline-none"
-                                placeholder="e.g. V01, VIP-4"
-                            />
-                        </div>
+                {/* Modal body */}
+                <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
+                    <div>
+                        <label className="v-label mb-1.5 block">TABLE NAME / ID</label>
+                        <input
+                            type="text"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            style={inputStyle}
+                            placeholder="e.g. V01, VIP-4"
+                        />
+                    </div>
 
-                        <div className="space-y-4">
-                            <label className="text-[10px] font-black uppercase text-text-tertiary tracking-widest ml-1">Table Type</label>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="v-label mb-1.5 block">TYPE</label>
                             <select
                                 value={formData.type}
                                 onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                                className="w-full p-6 bg-surface-tertiary border border-border-default rounded-3xl text-sm font-bold focus:bg-surface-elevated focus:ring-4 focus:ring-slate-50 transition-all outline-none appearance-none"
+                                style={{ ...inputStyle, cursor: "pointer" }}
                             >
                                 {TABLE_TYPES.map(t => (
                                     <option key={t.id} value={t.id}>{t.label}</option>
                                 ))}
                             </select>
                         </div>
-
-                        <div className="space-y-4">
-                            <label className="text-[10px] font-black uppercase text-text-tertiary tracking-widest ml-1">Location / Floor</label>
+                        <div>
+                            <label className="v-label mb-1.5 block">LOCATION</label>
                             <input
                                 type="text"
                                 value={formData.location}
                                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                                className="w-full p-6 bg-surface-tertiary border border-border-default rounded-3xl text-sm font-bold focus:bg-surface-elevated focus:ring-4 focus:ring-slate-50 transition-all outline-none"
-                                placeholder="Main Floor, Rooftop..."
+                                style={inputStyle}
+                                placeholder="Main Floor"
                             />
                         </div>
+                    </div>
 
-                        <div className="space-y-4">
-                            <label className="text-[10px] font-black uppercase text-text-tertiary tracking-widest ml-1">Capacity (Pax)</label>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="v-label mb-1.5 block">CAPACITY (PAX)</label>
                             <div className="relative">
-                                <Users className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-text-tertiary" />
+                                <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5" style={{ color: "var(--v-text-muted)" }} />
                                 <input
                                     type="number"
                                     value={formData.capacity}
                                     onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
-                                    className="w-full pl-16 pr-6 py-6 bg-surface-tertiary border border-border-default rounded-3xl text-sm font-bold focus:bg-surface-elevated focus:ring-4 focus:ring-slate-50 transition-all outline-none"
+                                    style={{ ...inputStyle, paddingLeft: 36 }}
                                 />
                             </div>
                         </div>
-
-                        <div className="space-y-4">
-                            <label className="text-[10px] font-black uppercase text-text-tertiary tracking-widest ml-1">Min Spend (₹)</label>
+                        <div>
+                            <label className="v-label mb-1.5 block">MIN SPEND (₹)</label>
                             <div className="relative">
-                                <DollarSign className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-text-tertiary" />
+                                <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5" style={{ color: "var(--v-text-muted)" }} />
                                 <input
                                     type="number"
                                     value={formData.minSpend}
                                     onChange={(e) => setFormData({ ...formData, minSpend: e.target.value })}
-                                    className="w-full pl-16 pr-6 py-6 bg-surface-tertiary border border-border-default rounded-3xl text-sm font-bold focus:bg-surface-elevated focus:ring-4 focus:ring-slate-50 transition-all outline-none"
+                                    style={{ ...inputStyle, paddingLeft: 36 }}
                                 />
                             </div>
                         </div>
                     </div>
 
-                    <div className="pt-4">
-                        <label className="flex items-center gap-4 cursor-pointer group">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
+                            className="w-11 h-6 rounded-full relative transition-all flex-shrink-0"
+                            style={{ background: formData.isActive ? "var(--v-orange)" : "var(--v-elevated)" }}
+                        >
                             <div
-                                onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
-                                className={`w-14 h-8 rounded-full transition-all flex items-center p-1 ${formData.isActive ? 'bg-green-500' : 'bg-surface-tertiary'}`}
-                            >
-                                <motion.div
-                                    animate={{ x: formData.isActive ? 24 : 0 }}
-                                    className="w-6 h-6 bg-surface-elevated rounded-full shadow-sm"
-                                />
-                            </div>
-                            <span className="text-sm font-bold text-text-secondary uppercase tracking-widest">Active in Discovery</span>
-                        </label>
-                    </div>
+                                className="absolute top-1 w-4 h-4 rounded-full shadow-md transition-all"
+                                style={{ background: "rgba(255,255,255,0.9)", left: formData.isActive ? "calc(100% - 20px)" : "4px" }}
+                            />
+                        </button>
+                        <span className="text-[12px] font-semibold" style={{ color: "var(--v-text-secondary)" }}>Active in Discovery</span>
+                    </label>
                 </div>
 
-                <div className="p-10 border-t border-slate-50 bg-surface-tertiary/50 flex items-center justify-end gap-4">
+                {/* Modal footer */}
+                <div className="p-6 flex items-center justify-end gap-3" style={{ borderTop: "1px solid var(--v-border)", background: "var(--v-hero)" }}>
                     <button
                         onClick={onClose}
-                        className="px-8 py-4 bg-surface-elevated border border-border-default text-text-secondary rounded-2xl text-sm font-bold hover:bg-surface-tertiary transition-all"
+                        className="px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all"
+                        style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)" }}
                     >
                         Cancel
                     </button>
                     <button
                         onClick={() => onSave(formData)}
                         disabled={isSaving || !formData.name}
-                        className="flex items-center gap-3 px-10 py-4 bg-surface-secondary text-text-primary rounded-2xl text-sm font-black shadow-xl hover:bg-surface-tertiary transition-all disabled:opacity-50"
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all hover:brightness-110 disabled:opacity-50"
+                        style={{ background: "var(--v-orange)", color: "#fff" }}
                     >
-                        {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
-                        Save Definition
+                        {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                        {table ? "Update" : "Create"}
                     </button>
                 </div>
             </motion.div>

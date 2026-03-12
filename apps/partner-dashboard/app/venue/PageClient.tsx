@@ -8,6 +8,7 @@ import {
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
+import clsx from "clsx";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 import { KPIBento } from "@/components/ui/BentoCard";
 import { AppleHeroStat } from "@/components/ui/AppleHeroStat";
@@ -32,11 +33,11 @@ function formatDate(dateStr: string): string {
 }
 
 const LIFECYCLE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-    published: { label: "Live",      color: "var(--v-success)", bg: "var(--v-success-bg)" },
-    live:      { label: "Live",      color: "var(--v-success)", bg: "var(--v-success-bg)" },
-    pending:   { label: "Pending",   color: "var(--v-warning)", bg: "var(--v-warning-bg)" },
-    draft:     { label: "Draft",     color: "var(--v-text-tertiary)", bg: "rgba(255,255,255,0.06)" },
-    completed: { label: "Done",      color: "var(--v-text-secondary)", bg: "rgba(255,255,255,0.06)" },
+    published: { label: "Live", color: "var(--v-success)", bg: "var(--v-success-bg)" },
+    live: { label: "Live", color: "var(--v-success)", bg: "var(--v-success-bg)" },
+    pending: { label: "Pending", color: "var(--v-warning)", bg: "var(--v-warning-bg)" },
+    draft: { label: "Draft", color: "var(--v-text-tertiary)", bg: "rgba(255,255,255,0.06)" },
+    completed: { label: "Done", color: "var(--v-text-secondary)", bg: "rgba(255,255,255,0.06)" },
     cancelled: { label: "Cancelled", color: "var(--v-error)", bg: "var(--v-error-bg)" },
     scheduled: { label: "Scheduled", color: "var(--v-info)", bg: "var(--v-info-bg)" },
 };
@@ -63,7 +64,7 @@ export default function VenueDashboardHome() {
             const res = await fetch(`/api/venue/notifications?venueId=${venueId}&limit=3`);
             const data = await res.json();
             if (res.ok && data.notifications) setAlerts(data.notifications.slice(0, 3));
-        } catch {}
+        } catch { }
     }
 
     async function fetchDashboard() {
@@ -90,7 +91,7 @@ export default function VenueDashboardHome() {
                 const tonightRes = await fetch(`/api/venue/overview/tonight?eventId=${tonightEvent.id}`);
                 if (tonightRes.ok) setTonight(await tonightRes.json());
             }
-        } catch {}
+        } catch { }
         finally { setLoading(false); }
     }
 
@@ -126,70 +127,113 @@ export default function VenueDashboardHome() {
                 </>
             }
         >
-            {/* ── A: Tonight's Pulse ── */}
-            <motion.div {...mp(0)}>
-                <AppleHeroStat
-                    label="Tonight's Pulse"
-                    value={loading ? "..." : tonight ? formatRevenue(tonight.revenue) : "Quiet Tonight"}
-                    subtitle={
-                        loading ? undefined
-                        : tonight ? `${tonight.checkedIn} guests · ${capacityPct}% capacity`
-                        : nextEvent ? `Next event ${formatDate(nextEvent.startDate || nextEvent.date)}`
-                        : "No upcoming events"
-                    }
-                    liveIndicator={!!tonight && !loading}
-                    cta={tonight ? { label: "Entry Control", href: `/venue/events/${tonight.id}` } : undefined}
-                    loading={loading}
-                    noData={!tonight && !loading}
-                />
-            </motion.div>
+            {/* Dashboard Grid */}
+            <div className="flex flex-col gap-4">
+                {/* Row 1: Pulse & Primary Targets */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    {/* Live Pulse Card */}
+                    <div className="v-hero-card p-5 flex flex-col justify-between min-h-[140px] relative overflow-hidden lg:col-span-2">
+                        <div className="relative z-10">
+                            <div className="flex items-center gap-2 mb-1.5">
+                                {tonight && <span className="v-live-dot" />}
+                                <span className="v-label uppercase tracking-widest text-[9px]">Tonight's Pulse</span>
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-3xl font-black tracking-tighter" style={{ color: "var(--v-text-primary)" }}>
+                                    {loading ? "—" : tonight ? formatRevenue(tonight.revenue) : "Quiet Tonight"}
+                                </span>
+                                {tonight && (
+                                    <span className="text-[12px] font-bold text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                                        Live
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-[13px] font-medium mt-1" style={{ color: "var(--v-text-secondary)" }}>
+                                {loading ? "Fetching live data..." : tonight ? `${tonight.checkedIn} checked in · ${capacityPct}% capacity` : "Next event " + (nextEvent ? formatDate(nextEvent.startDate || nextEvent.date) : "not scheduled")}
+                            </p>
+                        </div>
 
-            {/* ── B: KPI Strip ── */}
-            <motion.div {...mp(0.06)} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <KPIBento
-                    label="Weekend Revenue"
-                    value={loading ? "—" : formatRevenue(summary?.weekendRevenue)}
-                    trend={summary?.weekendRevenue ? { value: "12.4%", direction: "up" } : undefined}
-                    icon={<TrendingUp className="w-5 h-5" />}
-                    iconBg="var(--v-orange-dim)"
-                    loading={loading}
-                />
-                <KPIBento
-                    label="Upcoming Events"
-                    value={loading ? "—" : summary?.activeEventsCount ?? "—"}
-                    subtext="Next 7 days"
-                    icon={<Calendar className="w-5 h-5" />}
-                    iconBg="var(--v-info-bg)"
-                    loading={loading}
-                />
-                <KPIBento
-                    label="Entry Rate"
-                    value={loading ? "—" : summary?.avgEntryVelocity ?? "—"}
-                    subtext="Last session peak"
-                    icon={<Zap className="w-5 h-5" />}
-                    iconBg="var(--v-warning-bg)"
-                    loading={loading}
-                />
-                <KPIBento
-                    label="Guest Profiles"
-                    value={loading ? "—" : summary?.totalGuestProfiles
-                        ? `${(summary.totalGuestProfiles / 1000).toFixed(1)}K`
-                        : "—"}
-                    trend={summary?.newGuestsThisWeek
-                        ? { value: `${summary.newGuestsThisWeek} new`, direction: "up" }
-                        : undefined}
-                    icon={<Users className="w-5 h-5" />}
-                    iconBg="var(--v-success-bg)"
-                    loading={loading}
-                />
-            </motion.div>
+                        <div className="flex items-center justify-between relative z-10 mt-4">
+                            {tonight ? (
+                                <Link href={`/venue/events/${tonight.id}`} className="v-btn-primary px-5 py-2 text-[12px]">
+                                    Entry Control →
+                                </Link>
+                            ) : (
+                                <Link href="/venue/events" className="text-[11px] font-bold uppercase tracking-widest hover:underline" style={{ color: "var(--v-text-tertiary)" }}>
+                                    View Schedule
+                                </Link>
+                            )}
+                        </div>
+
+                        {/* Background subtle glow if live */}
+                        {tonight && (
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 pointer-events-none" />
+                        )}
+                    </div>
+
+                    {/* Primary Target KPI */}
+                    <div className="v-hero-card p-5 flex flex-col justify-between min-h-[140px] border-l-[3px] border-l-[var(--v-orange)]">
+                        <div>
+                            <span className="v-label uppercase tracking-widest text-[9px]">Weekend Target</span>
+                            <div className="mt-1">
+                                <span className="text-2xl font-black tracking-tighter" style={{ color: "var(--v-text-primary)" }}>
+                                    {loading ? "—" : formatRevenue(summary?.weekendRevenue)}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                            {summary?.revenueTrend && (
+                                <span className={clsx("v-trend-chip text-[10px]", summary.revenueTrendDirection === "down" ? "v-trend-down" : "v-trend-up")}>
+                                    {summary.revenueTrendDirection === "down" ? "↓ " : "↑ "}{summary.revenueTrend}
+                                </span>
+                            )}
+                            <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">vs Last Week</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Row 2: Secondary Stats Strip */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <KPIBento
+                        label="UPCOMING"
+                        value={loading ? "—" : summary?.activeEventsCount ?? "—"}
+                        subtext="Next 7 days"
+                        icon={<Calendar className="w-4 h-4" />}
+                        className="!p-4 !min-h-[90px]"
+                        loading={loading}
+                    />
+                    <KPIBento
+                        label="ENTRY RATE"
+                        value={loading ? "—" : summary?.avgEntryVelocity ?? "—"}
+                        subtext="Peak velocity"
+                        icon={<Zap className="w-4 h-4" />}
+                        className="!p-4 !min-h-[90px]"
+                        loading={loading}
+                    />
+                    <KPIBento
+                        label="GUEST PROFILES"
+                        value={loading ? "—" : summary?.totalGuestProfiles ? `${(summary.totalGuestProfiles / 1000).toFixed(1)}K` : "—"}
+                        subtext={`${summary?.newGuestsThisWeek || 0} new this week`}
+                        icon={<Users className="w-4 h-4" />}
+                        className="!p-4 !min-h-[90px]"
+                        loading={loading}
+                    />
+                    <div className="v-hero-card !bg-surface-secondary/50 p-4 flex flex-col justify-center min-h-[90px]">
+                        <span className="v-label text-[9px]">SYSTEM STATUS</span>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="text-[12px] font-black uppercase tracking-widest text-emerald-500">All Systems Go</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             {/* ── C: Schedule + Right sidebar ── */}
             <motion.div {...mp(0.12)} className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
                 {/* Upcoming schedule */}
-                <div className="xl:col-span-2 rounded-[32px] p-6 sm:p-8" style={{ background: "var(--v-card)" }}>
-                    <div className="flex items-center justify-between mb-6">
+                <div className="xl:col-span-2 rounded-[32px] p-4 sm:p-5" style={{ background: "var(--v-card)" }}>
+                    <div className="flex items-center justify-between mb-4">
                         <h2 className="v-text-section" style={{ color: "var(--v-text-primary)" }}>
                             Upcoming Schedule
                         </h2>
@@ -215,7 +259,7 @@ export default function VenueDashboardHome() {
                             </Link>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                             {events.slice(0, 4).map((event: any, i: number) => (
                                 <EventMiniCard key={event.id || i} event={event} />
                             ))}
@@ -283,8 +327,8 @@ export default function VenueDashboardHome() {
             {/* ── D: Live Ops (only when tonight exists) ── */}
             {tonight && !loading && (
                 <motion.div {...mp(0.18)}>
-                    <div className="rounded-[32px] p-8" style={{ background: "var(--v-card)" }}>
-                        <div className="flex items-center justify-between mb-8">
+                    <div className="rounded-[32px] p-6" style={{ background: "var(--v-card)" }}>
+                        <div className="flex items-center justify-between mb-4">
                             <div>
                                 <h2 className="v-text-section" style={{ color: "var(--v-text-primary)" }}>
                                     Live Operations
@@ -299,7 +343,7 @@ export default function VenueDashboardHome() {
                             </span>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="space-y-4">
                                 <div>
                                     <p className="v-label mb-1">Expected</p>
@@ -329,11 +373,13 @@ export default function VenueDashboardHome() {
 
                             <div className="space-y-4">
                                 <div>
-                                    <p className="v-label mb-2">Entry Velocity</p>
-                                    <MiniSparkline />
-                                    <p className="text-[12px] mt-1 font-medium" style={{ color: "var(--v-success)" }}>
-                                        {tonight.entryRate ?? "124"} guests/hr peak
+                                    <p className="v-label mb-2">
+                                        {tonight.entryRate ? `${tonight.entryRate} guests/hr peak` : 'Entry Velocity'}
                                     </p>
+                                    <MiniSparkline data={tonight.entryHistory} />
+                                    <h4 className="text-xl font-bold text-text-primary mt-2">
+                                        {tonight.entryVelocity ?? "--"} <span className="text-[10px] opacity-40 font-black">Guests/hr</span>
+                                    </h4>
                                 </div>
                                 <Link
                                     href={`/venue/events/${tonight.id}`}
@@ -438,18 +484,18 @@ function TurnoutBar({ checked, expected }: { checked: number; expected: number }
     );
 }
 
-function MiniSparkline() {
-    const bars = [30, 45, 60, 80, 100, 70, 40];
+function MiniSparkline({ data }: { data?: number[] }) {
+    const bars = data || [30, 45, 60, 80, 100, 70, 40];
     return (
-        <div className="flex items-end gap-1 h-10">
+        <div className="flex items-end gap-1 h-10 group">
             {bars.map((h, i) => (
                 <motion.div
                     key={i}
                     initial={{ height: 0 }}
                     animate={{ height: `${h}%` }}
                     transition={{ delay: 0.3 + i * 0.05, duration: 0.4 }}
-                    className="flex-1 rounded-t"
-                    style={{ background: "rgba(52,211,153,0.25)" }}
+                    className="flex-1 rounded-t transition-colors duration-300 group-hover:bg-emerald-400/50"
+                    style={{ background: i === bars.length - 1 ? "var(--v-success)" : "rgba(52,211,153,0.25)" }}
                 />
             ))}
         </div>

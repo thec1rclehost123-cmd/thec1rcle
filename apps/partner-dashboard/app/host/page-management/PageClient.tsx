@@ -295,76 +295,76 @@ export default function HostPageManagement() {
     }
 
     return (
-        <div className="space-y-8 pb-20 max-w-7xl mx-auto">
+        <div className="space-y-6 pb-12 max-w-7xl mx-auto">
             {/* Premium Header */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8 md:p-12">
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 md:p-8">
                 <div className="absolute inset-0 bg-[url('data:image/svg+xml,...')] opacity-5" />
                 <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-orange-500/20 to-transparent rounded-full blur-3xl" />
 
-                <div className="relative flex flex-col md:flex-row md:items-end justify-between gap-6">
-                    <div className="flex items-start gap-6">
+                <div className="relative flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div className="flex items-start gap-4 md:gap-6">
                         {/* Profile Avatar */}
                         <div
                             onClick={() => { setPhotoModal({ field: "photoURL", currentUrl: data?.profile?.photoURL }); setPhotoInputUrl(data?.profile?.photoURL || ""); }}
-                            className="relative w-24 h-24 md:w-32 md:h-32 rounded-2xl overflow-hidden border-2 border-white/20 cursor-pointer group"
+                            className="relative w-20 h-20 md:w-28 md:h-28 rounded-2xl overflow-hidden border-2 border-white/20 cursor-pointer group shrink-0"
                         >
                             {data?.profile?.photoURL ? (
                                 <img src={data.profile.photoURL} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="" />
                             ) : (
                                 <div className="w-full h-full bg-surface-elevated/10 flex items-center justify-center">
-                                    <Upload className="w-8 h-8 text-text-primary/40" />
+                                    <Upload className="w-6 h-6 md:w-8 md:h-8 text-text-primary/40" />
                                 </div>
                             )}
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Camera className="w-6 h-6 text-text-primary" />
+                                <Camera className="w-5 h-5 md:w-6 md:h-6 text-text-primary" />
                             </div>
                         </div>
 
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-3">
-                                <span className="px-3 py-1 bg-surface-elevated/10 rounded-full text-[10px] font-bold text-text-primary/60 uppercase tracking-widest">
+                        <div className="space-y-2 md:space-y-3">
+                            <div className="flex items-center gap-2 md:gap-3">
+                                <span className="px-2.5 py-1 bg-surface-elevated/10 rounded-full text-[9px] md:text-[10px] font-bold text-text-primary/60 uppercase tracking-widest">
                                     {data?.profile?.role || "Host"}
                                 </span>
                                 {data?.profile?.isVerified && (
-                                    <span className="flex items-center gap-1 px-3 py-1 bg-green-500/20 rounded-full text-[10px] font-bold text-accent-primary uppercase tracking-widest">
-                                        <CheckCircle2 className="w-3 h-3" /> Verified
+                                    <span className="flex items-center gap-1 px-2.5 py-1 bg-green-500/20 rounded-full text-[9px] md:text-[10px] font-bold text-accent-primary uppercase tracking-widest">
+                                        <CheckCircle2 className="w-2.5 h-2.5 md:w-3 md:h-3" /> Verified
                                     </span>
                                 )}
                             </div>
-                            <h1 className="text-3xl md:text-4xl font-black text-text-primary tracking-tight">
+                            <h1 className="text-2xl md:text-3xl font-black text-text-primary tracking-tight">
                                 {data?.profile?.displayName || data?.profile?.name || "Your Page"}
                             </h1>
-                            <p className="text-text-primary/50 text-sm font-medium max-w-md">
+                            <p className="text-text-primary/50 text-xs md:text-sm font-medium max-w-md">
                                 {data?.profile?.tagline || "Curate how your public profile appears to guests and partners."}
                             </p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                         {data?.profile?.slug && (
                             <a
                                 href={`${process.env.NEXT_PUBLIC_GUEST_PORTAL_URL || ''}/host/${data.profile.slug}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-5 py-3 bg-surface-elevated/10 backdrop-blur-sm text-text-primary rounded-xl text-[11px] font-bold border border-border-subtle hover:bg-surface-elevated/20 transition-all group"
+                                className="flex items-center gap-1.5 px-4 py-2 bg-surface-elevated/10 backdrop-blur-sm text-text-primary rounded-lg text-[10px] font-bold border border-border-subtle hover:bg-surface-elevated/20 transition-all group"
                             >
-                                <Globe className="w-4 h-4" />
+                                <Globe className="w-3.5 h-3.5" />
                                 <span>View Live</span>
-                                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                             </a>
                         )}
                         <div className="flex items-center gap-2">
                             {saveStatus === "saved" && (
-                                <span className="flex items-center gap-1.5 text-accent-primary text-[10px] font-bold uppercase tracking-widest">
-                                    <CheckCircle2 className="w-3 h-3" /> Saved
+                                <span className="flex items-center gap-1 text-accent-primary text-[9px] font-bold uppercase tracking-widest">
+                                    <CheckCircle2 className="w-2.5 h-2.5" /> Saved
                                 </span>
                             )}
                             <button
                                 onClick={() => handleUpdateProfile({})}
                                 disabled={isSaving}
-                                className="flex items-center gap-2 px-6 py-3 bg-surface-elevated text-text-primary rounded-xl text-[11px] font-bold shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-50"
+                                className="flex items-center gap-2 px-5 py-2.5 bg-surface-elevated text-text-primary rounded-xl text-[10px] font-bold shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-50"
                             >
-                                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                                 Publish
                             </button>
                         </div>
@@ -372,7 +372,7 @@ export default function HostPageManagement() {
                 </div>
 
                 {/* Quick Stats */}
-                <div className="relative mt-8 pt-8 border-t border-border-subtle grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
+                <div className="relative mt-6 pt-6 border-t border-border-subtle grid grid-cols-2 md:grid-cols-4 gap-4">
                     <QuickStat value={data?.stats?.followersCount || 0} label="Followers" icon={Users} />
                     <QuickStat value={data?.stats?.postsCount || 0} label="Posts" icon={FileText} />
                     <QuickStat value={data?.stats?.totalLikes || 0} label="Total Engagement" icon={Heart} />
@@ -381,7 +381,7 @@ export default function HostPageManagement() {
             </div>
 
             {/* Tab Navigation */}
-            <div className="flex p-1.5 bg-surface-secondary rounded-2xl border border-border-subtle">
+            <div className="flex p-1 bg-surface-secondary rounded-xl border border-border-subtle overflow-x-auto scrollbar-hide">
                 {[
                     { id: "identity", label: "Identity", icon: Settings },
                     { id: "content", label: "Content", icon: FileText },
@@ -392,20 +392,20 @@ export default function HostPageManagement() {
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
-                        className={`flex-1 py-3.5 flex items-center justify-center gap-2 rounded-xl text-[11px] font-bold transition-all ${activeTab === tab.id
+                        className={`flex-1 py-2 px-4 whitespace-nowrap flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all ${activeTab === tab.id
                             ? "bg-surface-base text-text-primary shadow-sm"
                             : "text-text-tertiary hover:text-text-secondary"
                             }`}
                     >
-                        <tab.icon className="w-4 h-4" />
+                        <tab.icon className="w-3.5 h-3.5" />
                         {tab.label}
                     </button>
                 ))}
             </div>
 
             {/* Main Content Area */}
-            <div className="bg-surface-base rounded-3xl border border-border-subtle overflow-hidden min-h-[600px] shadow-sm">
-                <div className="p-8 md:p-10">
+            <div className="bg-surface-base rounded-2xl border border-border-subtle overflow-hidden min-h-[500px] shadow-sm">
+                <div className="p-6 md:p-8">
                     <AnimatePresence mode="wait">
                         {activeTab === "identity" && (
                             <motion.div
@@ -416,13 +416,13 @@ export default function HostPageManagement() {
                                 className="space-y-12"
                             >
                                 {/* Core Identity */}
-                                <section className="space-y-6">
+                                <section className="space-y-5">
                                     <SectionHeader title="Core Identity" subtitle="The fundamentals of your public presence" />
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                                         <FormField label="Display Name" placeholder="Your stage name or brand" defaultValue={data?.profile?.displayName} onSave={(v: string) => handleUpdateProfile({ displayName: v })} />
                                         <FormField label="Tagline" placeholder="A one-liner that defines you" defaultValue={data?.profile?.tagline} onSave={(v: string) => handleUpdateProfile({ tagline: v })} />
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                                         <div className="space-y-2">
                                             <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Neighborhood</label>
                                             <FormField placeholder="e.g. Bandra West, Indiranagar" defaultValue={data?.profile?.neighborhood} onSave={(v: string) => handleUpdateProfile({ neighborhood: v })} />
@@ -442,16 +442,16 @@ export default function HostPageManagement() {
                                     </div>
                                     <FormField label="Bio / Story" placeholder="Tell your story, describe your sound, share your journey..." defaultValue={data?.profile?.bio} onSave={(v: string) => handleUpdateProfile({ bio: v })} multiline rows={5} />
 
-                                    <div className="space-y-4">
+                                    <div className="space-y-3">
                                         <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Role / Type</label>
                                         <div className="flex flex-wrap gap-2">
                                             {ROLE_OPTIONS.map((role) => (
                                                 <button
                                                     key={role}
                                                     onClick={() => handleUpdateProfile({ role })}
-                                                    className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all ${data?.profile?.role === role
-                                                        ? "bg-surface-secondary text-text-primary"
-                                                        : "bg-surface-secondary text-text-secondary hover:bg-surface-elevated border border-border-subtle"
+                                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${data?.profile?.role === role
+                                                        ? "bg-surface-secondary text-text-primary shadow-sm"
+                                                        : "bg-surface-secondary/50 text-text-secondary hover:bg-surface-elevated border border-border-subtle"
                                                         }`}
                                                 >
                                                     {role}
@@ -462,9 +462,9 @@ export default function HostPageManagement() {
                                 </section>
 
                                 {/* CTA Layer - New Section */}
-                                <section className="space-y-6 pt-8 border-t border-border-subtle">
+                                <section className="space-y-5 pt-6 border-t border-border-subtle">
                                     <SectionHeader title="Action Layer" subtitle="Configure primary call-to-action buttons for your page" icon={Zap} />
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                                         <FormField
                                             label="WhatsApp Number"
                                             placeholder="+91..."
@@ -490,42 +490,42 @@ export default function HostPageManagement() {
                                 </section>
 
                                 {/* Visual Identity */}
-                                <section className="space-y-6 pt-8 border-t border-border-subtle">
+                                <section className="space-y-5 pt-6 border-t border-border-subtle">
                                     <SectionHeader title="Visual Identity" subtitle="Cover image for your public page" />
                                     <div
                                         onClick={() => { setPhotoModal({ field: "coverURL", currentUrl: data?.profile?.coverURL }); setPhotoInputUrl(data?.profile?.coverURL || ""); }}
-                                        className="aspect-[21/9] w-full bg-surface-secondary rounded-2xl border border-border-subtle flex flex-col items-center justify-center group hover:border-border-strong transition-all cursor-pointer overflow-hidden relative"
+                                        className="aspect-[21/9] md:aspect-[24/5] w-full bg-surface-secondary rounded-2xl border border-border-subtle flex flex-col items-center justify-center group hover:border-border-strong transition-all cursor-pointer overflow-hidden relative"
                                     >
                                         {data?.profile?.coverURL ? (
                                             <img src={data.profile.coverURL} className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105" alt="" />
                                         ) : (
-                                            <div className="flex flex-col items-center gap-4">
-                                                <div className="p-4 bg-surface-elevated rounded-2xl">
-                                                    <ImageIcon className="h-8 w-8 text-text-tertiary" />
+                                            <div className="flex flex-col items-center gap-3">
+                                                <div className="p-3 bg-surface-elevated rounded-xl">
+                                                    <ImageIcon className="h-6 w-6 text-text-tertiary" />
                                                 </div>
-                                                <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Upload Cover Image</p>
+                                                <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Upload Cover Image</p>
                                             </div>
                                         )}
-                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent py-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <p className="text-[11px] font-bold text-text-primary text-center uppercase tracking-widest">Click to Change</p>
+                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent py-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <p className="text-[10px] font-bold text-text-primary text-center uppercase tracking-widest">Click to Change</p>
                                         </div>
                                     </div>
                                 </section>
 
                                 {/* Genres & Style */}
-                                <section className="space-y-6 pt-8 border-t border-border-subtle">
+                                <section className="space-y-5 pt-6 border-t border-border-subtle">
                                     <SectionHeader title="Sound & Style" subtitle="Help guests discover you by genre and vibe" icon={Music} />
 
-                                    <div className="space-y-4">
+                                    <div className="space-y-3">
                                         <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Genres</label>
                                         <div className="flex flex-wrap gap-2">
                                             {GENRE_OPTIONS.map((genre) => (
                                                 <button
                                                     key={genre}
                                                     onClick={() => handleGenreToggle(genre)}
-                                                    className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all ${data?.profile?.genres?.includes(genre)
+                                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${data?.profile?.genres?.includes(genre)
                                                         ? "bg-gradient-to-r from-orange-500 to-orange-600 text-text-primary shadow-sm"
-                                                        : "bg-surface-secondary text-text-secondary hover:bg-surface-elevated border border-border-subtle"
+                                                        : "bg-surface-secondary/50 text-text-secondary hover:bg-surface-elevated border border-border-subtle"
                                                         }`}
                                                 >
                                                     {genre}
@@ -534,16 +534,16 @@ export default function HostPageManagement() {
                                         </div>
                                     </div>
 
-                                    <div className="space-y-4">
+                                    <div className="space-y-3">
                                         <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Style Tags</label>
                                         <div className="flex flex-wrap gap-2">
                                             {STYLE_TAGS.map((tag) => (
                                                 <button
                                                     key={tag}
                                                     onClick={() => handleStyleTagToggle(tag)}
-                                                    className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all ${data?.profile?.styleTags?.includes(tag)
-                                                        ? "bg-surface-secondary text-text-primary"
-                                                        : "bg-surface-secondary text-text-secondary hover:bg-surface-elevated border border-border-subtle"
+                                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${data?.profile?.styleTags?.includes(tag)
+                                                        ? "bg-surface-secondary text-text-primary shadow-sm"
+                                                        : "bg-surface-secondary/50 text-text-secondary hover:bg-surface-elevated border border-border-subtle"
                                                         }`}
                                                 >
                                                     {tag}
@@ -554,50 +554,50 @@ export default function HostPageManagement() {
                                 </section>
 
                                 {/* Social & Contact */}
-                                <section className="space-y-6 pt-8 border-t border-border-subtle">
+                                <section className="space-y-5 pt-6 border-t border-border-subtle">
                                     <SectionHeader title="Social & Contact" subtitle="Connect your channels and let fans find you everywhere" icon={Link2} />
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                                         <FormField
                                             label="Instagram"
                                             placeholder="@yourhandle"
                                             icon={Instagram}
                                             defaultValue={data?.profile?.socialLinks?.instagram}
-                                            onSave={(v) => handleUpdateProfile({ socialLinks: { ...data?.profile?.socialLinks, instagram: v } })}
+                                            onSave={(v: string) => handleUpdateProfile({ socialLinks: { ...data?.profile?.socialLinks, instagram: v } })}
                                         />
                                         <FormField
                                             label="Twitter / X"
                                             placeholder="@yourhandle"
                                             icon={Twitter}
                                             defaultValue={data?.profile?.socialLinks?.twitter}
-                                            onSave={(v) => handleUpdateProfile({ socialLinks: { ...data?.profile?.socialLinks, twitter: v } })}
+                                            onSave={(v: string) => handleUpdateProfile({ socialLinks: { ...data?.profile?.socialLinks, twitter: v } })}
                                         />
                                         <FormField
                                             label="SoundCloud"
                                             placeholder="soundcloud.com/..."
                                             icon={Disc3}
                                             defaultValue={data?.profile?.socialLinks?.soundcloud}
-                                            onSave={(v) => handleUpdateProfile({ socialLinks: { ...data?.profile?.socialLinks, soundcloud: v } })}
+                                            onSave={(v: string) => handleUpdateProfile({ socialLinks: { ...data?.profile?.socialLinks, soundcloud: v } })}
                                         />
                                         <FormField
                                             label="Spotify"
                                             placeholder="open.spotify.com/artist/..."
                                             icon={Headphones}
                                             defaultValue={data?.profile?.socialLinks?.spotify}
-                                            onSave={(v) => handleUpdateProfile({ socialLinks: { ...data?.profile?.socialLinks, spotify: v } })}
+                                            onSave={(v: string) => handleUpdateProfile({ socialLinks: { ...data?.profile?.socialLinks, spotify: v } })}
                                         />
                                         <FormField
                                             label="Website"
                                             placeholder="https://..."
                                             icon={Globe}
                                             defaultValue={data?.profile?.website}
-                                            onSave={(v) => handleUpdateProfile({ website: v })}
+                                            onSave={(v: string) => handleUpdateProfile({ website: v })}
                                         />
                                         <FormField
                                             label="Email"
                                             placeholder="booking@..."
                                             icon={Mail}
                                             defaultValue={data?.profile?.email}
-                                            onSave={(v) => handleUpdateProfile({ email: v })}
+                                            onSave={(v: string) => handleUpdateProfile({ email: v })}
                                         />
                                         <FormField
                                             label="Location"
@@ -617,74 +617,74 @@ export default function HostPageManagement() {
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
-                                className="space-y-12"
+                                className="space-y-10"
                             >
                                 {/* Posts Timeline */}
-                                <section className="space-y-6">
+                                <section className="space-y-5">
                                     <div className="flex items-center justify-between">
                                         <SectionHeader title="Timeline Updates" subtitle="Share news, announcements, and behind-the-scenes" />
                                         <button
                                             onClick={() => setIsComposerOpen(true)}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-surface-secondary text-text-primary rounded-xl text-[11px] font-bold hover:bg-surface-tertiary transition-all"
+                                            className="flex items-center gap-2 px-4 py-2 bg-surface-secondary text-text-primary rounded-xl text-[10px] font-bold hover:bg-surface-tertiary transition-all"
                                         >
-                                            <Plus className="w-4 h-4" />
+                                            <Plus className="w-3.5 h-3.5" />
                                             New Post
                                         </button>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                                         {data?.posts?.map((post: any) => (
                                             <PostCard key={post.id} post={post} onDelete={() => handleDeletePost(post.id)} />
                                         ))}
                                         {(!data?.posts || data.posts.length === 0) && (
-                                            <div className="col-span-full py-16 text-center bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle">
-                                                <FileText className="w-10 h-10 text-border-subtle mx-auto mb-4" />
-                                                <p className="text-text-tertiary text-sm font-medium">No posts yet. Share your first update!</p>
+                                            <div className="col-span-full py-12 text-center bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle">
+                                                <FileText className="w-8 h-8 text-border-subtle mx-auto mb-3" />
+                                                <p className="text-text-tertiary text-xs font-medium">No posts yet. Share your first update!</p>
                                             </div>
                                         )}
                                     </div>
                                 </section>
 
                                 {/* Highlights */}
-                                <section className="space-y-6 pt-8 border-t border-border-subtle">
+                                <section className="space-y-5 pt-6 border-t border-border-subtle">
                                     <div className="flex items-center justify-between">
                                         <SectionHeader title="Story Highlights" subtitle="Pin your best moments to the top of your page" icon={Camera} />
                                         <button
                                             onClick={handleCreateHighlight}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-surface-secondary text-text-primary rounded-xl text-[11px] font-bold border border-border-subtle hover:bg-surface-elevated transition-all"
+                                            className="flex items-center gap-2 px-4 py-2 bg-surface-secondary text-text-primary rounded-xl text-[10px] font-bold border border-border-subtle hover:bg-surface-elevated transition-all"
                                         >
-                                            <Plus className="w-4 h-4" />
+                                            <Plus className="w-3.5 h-3.5" />
                                             Add Highlight
                                         </button>
                                     </div>
 
-                                    <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide">
+                                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                                         {data?.highlights?.map((h: any) => (
                                             <HighlightCard key={h.id} highlight={h} onDelete={() => handleDeleteHighlight(h.id)} />
                                         ))}
                                         {(!data?.highlights || data.highlights.length === 0) && (
-                                            <div className="w-full py-12 text-center bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle">
-                                                <Camera className="w-8 h-8 text-border-subtle mx-auto mb-3" />
-                                                <p className="text-text-tertiary text-sm font-medium">No highlights added yet</p>
+                                            <div className="w-full py-8 text-center bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle">
+                                                <Camera className="w-6 h-6 text-border-subtle mx-auto mb-2" />
+                                                <p className="text-text-tertiary text-xs font-medium">No highlights added yet</p>
                                             </div>
                                         )}
                                     </div>
                                 </section>
 
                                 {/* Press Snippets */}
-                                <section className="space-y-6 pt-8 border-t border-border-subtle">
+                                <section className="space-y-5 pt-6 border-t border-border-subtle">
                                     <SectionHeader title="Press & Features" subtitle="Showcase media mentions and press coverage" icon={Quote} />
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {data?.profile?.pressSnippets?.map((snippet: any, idx: number) => (
-                                            <div key={idx} className="p-6 bg-surface-secondary/50 rounded-2xl border border-border-subtle">
-                                                <Quote className="w-5 h-5 text-text-tertiary mb-3" />
-                                                <p className="text-text-secondary text-sm mb-3 italic">"{snippet.quote}"</p>
-                                                <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">{snippet.source}</p>
+                                            <div key={idx} className="p-5 bg-surface-secondary/50 rounded-xl border border-border-subtle">
+                                                <Quote className="w-4 h-4 text-text-tertiary mb-2" />
+                                                <p className="text-text-secondary text-xs mb-2 italic">"{snippet.quote}"</p>
+                                                <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest">{snippet.source}</p>
                                             </div>
                                         ))}
-                                        <button className="p-6 bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle flex flex-col items-center justify-center gap-3 hover:bg-surface-secondary transition-all group">
-                                            <Plus className="w-6 h-6 text-text-tertiary group-hover:text-text-secondary" />
-                                            <span className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Add Press Quote</span>
+                                        <button className="p-5 bg-surface-secondary/30 rounded-xl border border-dashed border-border-subtle flex flex-col items-center justify-center gap-2 hover:bg-surface-secondary transition-all group">
+                                            <Plus className="w-5 h-5 text-text-tertiary group-hover:text-text-secondary" />
+                                            <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Add Press Quote</span>
                                         </button>
                                     </div>
                                 </section>
@@ -697,22 +697,22 @@ export default function HostPageManagement() {
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
-                                className="space-y-12"
+                                className="space-y-10"
                             >
                                 {/* Photo Gallery */}
-                                <section className="space-y-6">
+                                <section className="space-y-5">
                                     <div className="flex items-center justify-between">
                                         <SectionHeader title="Photo Gallery" subtitle="Showcase your best shots from events and performances" />
                                         <button
                                             onClick={() => { setPhotoModal({ field: "photos", currentUrl: "" }); setPhotoInputUrl(""); }}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-surface-secondary text-text-primary rounded-xl text-[11px] font-bold hover:bg-surface-tertiary transition-all"
+                                            className="flex items-center gap-2 px-4 py-2 bg-surface-secondary text-text-primary rounded-xl text-[10px] font-bold hover:bg-surface-tertiary transition-all"
                                         >
-                                            <Plus className="w-4 h-4" />
+                                            <Plus className="w-3.5 h-3.5" />
                                             Add Photo
                                         </button>
                                     </div>
 
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
                                         {data?.profile?.photos?.map((photo: string, idx: number) => (
                                             <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border border-border-subtle group">
                                                 <img src={photo} className="w-full h-full object-cover transition-transform group-hover:scale-105" alt="" />
@@ -721,42 +721,42 @@ export default function HostPageManagement() {
                                                         const newPhotos = data.profile.photos.filter((p: string) => p !== photo);
                                                         handleUpdateProfile({ photos: newPhotos });
                                                     }}
-                                                    className="absolute top-2 right-2 p-2 bg-black/40 backdrop-blur-md rounded-xl text-text-primary opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                                                    className="absolute top-2 right-2 p-1.5 bg-black/40 backdrop-blur-md rounded-lg text-text-primary opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
                                                 >
-                                                    <Trash2 className="w-4 h-4" />
+                                                    <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
                                             </div>
                                         ))}
                                         {(!data?.profile?.photos || data.profile.photos.length === 0) && (
-                                            <div className="col-span-full py-16 text-center bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle">
-                                                <ImageIcon className="w-10 h-10 text-border-subtle mx-auto mb-4" />
-                                                <p className="text-text-tertiary text-sm font-medium">No photos uploaded yet</p>
+                                            <div className="col-span-full py-12 text-center bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle">
+                                                <ImageIcon className="w-8 h-8 text-border-subtle mx-auto mb-3" />
+                                                <p className="text-text-tertiary text-xs font-medium">No photos uploaded yet</p>
                                             </div>
                                         )}
                                     </div>
                                 </section>
 
                                 {/* Videos & Aftermovies */}
-                                <section className="space-y-6 pt-8 border-t border-border-subtle">
+                                <section className="space-y-5 pt-6 border-t border-border-subtle">
                                     <div className="flex items-center justify-between">
                                         <SectionHeader title="Videos & Aftermovies" subtitle="Share recaps, aftermovies, and performance clips" icon={Video} />
                                         <button
                                             onClick={() => setVideoModal(true)}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-surface-secondary text-text-primary rounded-xl text-[11px] font-bold border border-border-subtle hover:bg-surface-elevated transition-all"
+                                            className="flex items-center gap-2 px-4 py-2 bg-surface-secondary text-text-primary rounded-xl text-[10px] font-bold border border-border-subtle hover:bg-surface-elevated transition-all"
                                         >
-                                            <Plus className="w-4 h-4" />
+                                            <Plus className="w-3.5 h-3.5" />
                                             Add Video
                                         </button>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                                         {data?.profile?.videos?.map((video: any) => (
                                             <VideoCard key={video.id} video={video} onDelete={() => handleRemoveVideo(video.id)} />
                                         ))}
                                         {(!data?.profile?.videos || data.profile.videos.length === 0) && (
-                                            <div className="col-span-full py-16 text-center bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle">
-                                                <Video className="w-10 h-10 text-border-subtle mx-auto mb-4" />
-                                                <p className="text-text-tertiary text-sm font-medium">No videos added yet</p>
+                                            <div className="col-span-full py-12 text-center bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle">
+                                                <Video className="w-8 h-8 text-border-subtle mx-auto mb-3" />
+                                                <p className="text-text-tertiary text-xs font-medium">No videos added yet</p>
                                             </div>
                                         )}
                                     </div>
@@ -770,10 +770,10 @@ export default function HostPageManagement() {
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
-                                className="space-y-12"
+                                className="space-y-10"
                             >
                                 {/* Followers Overview */}
-                                <section className="space-y-6">
+                                <section className="space-y-5">
                                     <SectionHeader title="Audience Overview" subtitle="Understand your community and reach" icon={Users} />
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                         <EngagementStat label="Total Followers" value={data?.stats?.followersCount || 0} change="+12%" positive />
@@ -816,12 +816,12 @@ export default function HostPageManagement() {
                                 </section>
 
                                 {/* Demographics */}
-                                <section className="space-y-6 pt-8 border-t border-border-subtle">
+                                <section className="space-y-5 pt-6 border-t border-border-subtle">
                                     <SectionHeader title="Audience Demographics" subtitle="Who your followers are" icon={Users} />
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                                         {/* Age Distribution */}
-                                        <div className="bg-surface-secondary/30 rounded-3xl border border-border-subtle p-8 space-y-5">
-                                            <h4 className="text-xs font-bold text-text-primary uppercase tracking-widest">Age Bands</h4>
+                                        <div className="bg-surface-secondary/30 rounded-2xl border border-border-subtle p-6 space-y-4">
+                                            <h4 className="text-[10px] font-bold text-text-primary uppercase tracking-widest">Age Bands</h4>
                                             {[
                                                 { range: "18-21", pct: 22, color: "bg-violet-500" },
                                                 { range: "21-25", pct: 41, color: "bg-indigo-500" },
@@ -842,33 +842,33 @@ export default function HostPageManagement() {
                                         </div>
 
                                         {/* Gender Split */}
-                                        <div className="bg-surface-secondary/30 rounded-3xl border border-border-subtle p-8 space-y-5">
-                                            <h4 className="text-xs font-bold text-text-primary uppercase tracking-widest">Gender Split</h4>
-                                            <div className="flex items-center justify-center gap-8 py-4">
+                                        <div className="bg-surface-secondary/30 rounded-2xl border border-border-subtle p-6 space-y-4">
+                                            <h4 className="text-[10px] font-bold text-text-primary uppercase tracking-widest">Gender Split</h4>
+                                            <div className="flex items-center justify-center gap-6 py-2">
                                                 <div className="text-center">
-                                                    <div className="w-20 h-20 rounded-full bg-indigo-500/20 border-4 border-indigo-500 flex items-center justify-center mb-3">
-                                                        <span className="text-xl font-black text-indigo-400">58%</span>
+                                                    <div className="w-16 h-16 rounded-full bg-indigo-500/20 border-4 border-indigo-500 flex items-center justify-center mb-2">
+                                                        <span className="text-lg font-black text-indigo-400">58%</span>
                                                     </div>
-                                                    <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Male</p>
+                                                    <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest">Male</p>
                                                 </div>
                                                 <div className="text-center">
-                                                    <div className="w-20 h-20 rounded-full bg-pink-500/20 border-4 border-pink-500 flex items-center justify-center mb-3">
-                                                        <span className="text-xl font-black text-pink-400">38%</span>
+                                                    <div className="w-16 h-16 rounded-full bg-pink-500/20 border-4 border-pink-500 flex items-center justify-center mb-2">
+                                                        <span className="text-lg font-black text-pink-400">38%</span>
                                                     </div>
-                                                    <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Female</p>
+                                                    <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest">Female</p>
                                                 </div>
                                                 <div className="text-center">
-                                                    <div className="w-14 h-14 rounded-full bg-purple-500/20 border-4 border-purple-500 flex items-center justify-center mb-3">
-                                                        <span className="text-sm font-black text-purple-400">4%</span>
+                                                    <div className="w-12 h-12 rounded-full bg-purple-500/20 border-[3px] border-purple-500 flex items-center justify-center mb-2">
+                                                        <span className="text-xs font-black text-purple-400">4%</span>
                                                     </div>
-                                                    <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Other</p>
+                                                    <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest">Other</p>
                                                 </div>
                                             </div>
                                         </div>
 
                                         {/* Top Cities */}
-                                        <div className="bg-surface-secondary/30 rounded-3xl border border-border-subtle p-8 space-y-5">
-                                            <h4 className="text-xs font-bold text-text-primary uppercase tracking-widest">Top Cities</h4>
+                                        <div className="bg-surface-secondary/30 rounded-2xl border border-border-subtle p-6 space-y-4">
+                                            <h4 className="text-[10px] font-bold text-text-primary uppercase tracking-widest">Top Cities</h4>
                                             {[
                                                 { city: "Pune", pct: 48 },
                                                 { city: "Mumbai", pct: 28 },
@@ -889,39 +889,39 @@ export default function HostPageManagement() {
                                 </section>
 
                                 {/* Engagement Patterns */}
-                                <section className="space-y-6 pt-8 border-t border-border-subtle">
+                                <section className="space-y-5 pt-6 border-t border-border-subtle">
                                     <SectionHeader title="Engagement Patterns" subtitle="When your audience is most active" icon={Zap} />
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="bg-surface-secondary/30 rounded-3xl border border-border-subtle p-8 space-y-4">
-                                            <h4 className="text-xs font-bold text-text-primary uppercase tracking-widest">Best Posting Times</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                        <div className="bg-surface-secondary/30 rounded-2xl border border-border-subtle p-6 space-y-4">
+                                            <h4 className="text-[10px] font-bold text-text-primary uppercase tracking-widest">Best Posting Times</h4>
                                             {[
                                                 { day: "Friday", time: "7:00 PM - 9:00 PM", engagement: "Highest" },
                                                 { day: "Saturday", time: "1:00 PM - 3:00 PM", engagement: "High" },
                                                 { day: "Thursday", time: "8:00 PM - 10:00 PM", engagement: "Good" },
                                             ].map((slot) => (
-                                                <div key={slot.day} className="flex items-center justify-between p-4 bg-surface-secondary/30 rounded-2xl">
+                                                <div key={slot.day} className="flex items-center justify-between p-3 bg-surface-secondary/30 rounded-xl">
                                                     <div>
-                                                        <p className="text-[12px] font-bold text-text-primary">{slot.day}</p>
-                                                        <p className="text-[10px] text-text-tertiary">{slot.time}</p>
+                                                        <p className="text-[11px] font-bold text-text-primary">{slot.day}</p>
+                                                        <p className="text-[9px] text-text-tertiary">{slot.time}</p>
                                                     </div>
-                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${slot.engagement === "Highest" ? "text-emerald-400" :
+                                                    <span className={`text-[9px] font-black uppercase tracking-widest ${slot.engagement === "Highest" ? "text-emerald-400" :
                                                             slot.engagement === "High" ? "text-blue-400" : "text-text-tertiary"
                                                         }`}>{slot.engagement}</span>
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="bg-surface-secondary/30 rounded-3xl border border-border-subtle p-8 space-y-4">
-                                            <h4 className="text-xs font-bold text-text-primary uppercase tracking-widest">Content Performance</h4>
+                                        <div className="bg-surface-secondary/30 rounded-2xl border border-border-subtle p-6 space-y-4">
+                                            <h4 className="text-[10px] font-bold text-text-primary uppercase tracking-widest">Content Performance</h4>
                                             {[
                                                 { type: "Event Announcements", rate: "8.4%", icon: "🎪" },
                                                 { type: "Behind-the-Scenes", rate: "6.2%", icon: "🎬" },
                                                 { type: "Lineup Reveals", rate: "11.1%", icon: "🎧" },
                                                 { type: "Aftermovies", rate: "9.7%", icon: "📹" },
                                             ].map((content) => (
-                                                <div key={content.type} className="flex items-center justify-between p-4 bg-surface-secondary/30 rounded-2xl">
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="text-lg">{content.icon}</span>
-                                                        <p className="text-[12px] font-bold text-text-primary">{content.type}</p>
+                                                <div key={content.type} className="flex items-center justify-between p-3 bg-surface-secondary/30 rounded-xl">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <span className="text-base">{content.icon}</span>
+                                                        <p className="text-[11px] font-bold text-text-primary">{content.type}</p>
                                                     </div>
                                                     <span className="text-[11px] font-bold text-emerald-400">{content.rate}</span>
                                                 </div>
@@ -938,17 +938,17 @@ export default function HostPageManagement() {
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
-                                className="space-y-12"
+                                className="space-y-8"
                             >
-                                <section className="space-y-8">
+                                <section className="space-y-6">
                                     <SectionHeader
                                         title="Push Broadcast"
                                         subtitle="Send a direct notification to all your followers on THE C1RCLE"
                                         icon={Zap}
                                     />
 
-                                    <div className="bg-gradient-to-br from-indigo-900/40 to-slate-900 border border-indigo-500/20 rounded-[2.5rem] p-10 space-y-8">
-                                        <div className="space-y-6">
+                                    <div className="bg-gradient-to-br from-indigo-900/40 to-slate-900 border border-indigo-500/20 rounded-[2rem] p-8 space-y-6">
+                                        <div className="space-y-5">
                                             <FormField
                                                 label="Notification Title"
                                                 placeholder="e.g. New Event Dropping Tonight! 🔥"
@@ -1019,21 +1019,21 @@ export default function HostPageManagement() {
                                                         setIsBroadcasting(false);
                                                     }
                                                 }}
-                                                className="w-full py-5 bg-surface-elevated text-text-primary rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl hover:scale-[1.01] transition-all disabled:opacity-50"
+                                                className="w-full py-4 bg-surface-elevated text-text-primary rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl hover:scale-[1.01] transition-all disabled:opacity-50"
                                             >
-                                                {isBroadcasting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Send Broadcast Now"}
+                                                {isBroadcasting ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Send Broadcast Now"}
                                             </button>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="p-8 bg-surface-secondary/30 rounded-3xl border border-border-subtle">
-                                            <h4 className="text-xs font-bold text-text-primary mb-2 uppercase tracking-widest">Auto-Broadcasts</h4>
-                                            <p className="text-[11px] text-text-tertiary leading-relaxed">Followers are automatically notified when you launch a new ticketed event.</p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                        <div className="p-6 bg-surface-secondary/30 rounded-2xl border border-border-subtle">
+                                            <h4 className="text-[10px] font-bold text-text-primary mb-2 uppercase tracking-widest">Auto-Broadcasts</h4>
+                                            <p className="text-[10px] text-text-tertiary leading-relaxed">Followers are automatically notified when you launch a new ticketed event.</p>
                                         </div>
-                                        <div className="p-8 bg-surface-secondary/30 rounded-3xl border border-border-subtle">
-                                            <h4 className="text-xs font-bold text-text-primary mb-2 uppercase tracking-widest">Delivery Time</h4>
-                                            <p className="text-[11px] text-text-tertiary leading-relaxed">Broadcasts are delivered instantly via Mobile Push and In-App Notifications.</p>
+                                        <div className="p-6 bg-surface-secondary/30 rounded-2xl border border-border-subtle">
+                                            <h4 className="text-[10px] font-bold text-text-primary mb-2 uppercase tracking-widest">Delivery Time</h4>
+                                            <p className="text-[10px] text-text-tertiary leading-relaxed">Broadcasts are delivered instantly via Mobile Push and In-App Notifications.</p>
                                         </div>
                                     </div>
                                 </section>
@@ -1047,9 +1047,9 @@ export default function HostPageManagement() {
             <AnimatePresence>
                 {photoModal && (
                     <Modal onClose={() => setPhotoModal(null)}>
-                        <div className="p-8">
-                            <h2 className="text-xl font-bold text-text-primary mb-2">Update Image</h2>
-                            <p className="text-text-tertiary text-sm mb-6">
+                        <div className="p-6">
+                            <h2 className="text-lg font-bold text-text-primary mb-1">Update Image</h2>
+                            <p className="text-text-tertiary text-xs mb-5">
                                 Upload a new {photoModal.field === 'photoURL' ? 'profile photo' : photoModal.field === 'coverURL' ? 'cover image' : 'gallery photo'}
                             </p>
 
@@ -1071,8 +1071,8 @@ export default function HostPageManagement() {
                                 )}
                             </div>
 
-                            <div className="flex gap-3 mt-6">
-                                <button onClick={() => setPhotoModal(null)} className="flex-1 py-3 bg-surface-secondary text-text-secondary rounded-xl text-sm font-bold hover:bg-surface-elevated transition-all">
+                            <div className="flex gap-3 mt-5">
+                                <button onClick={() => setPhotoModal(null)} className="flex-1 py-2.5 bg-surface-secondary text-text-secondary rounded-xl text-xs font-bold hover:bg-surface-elevated transition-all">
                                     Cancel
                                 </button>
                             </div>
@@ -1085,9 +1085,9 @@ export default function HostPageManagement() {
             <AnimatePresence>
                 {videoModal && (
                     <Modal onClose={() => setVideoModal(false)}>
-                        <div className="p-8">
-                            <h2 className="text-xl font-bold text-text-primary mb-2">Add Video</h2>
-                            <p className="text-text-tertiary text-sm mb-6">
+                        <div className="p-6">
+                            <h2 className="text-lg font-bold text-text-primary mb-1">Add Video</h2>
+                            <p className="text-text-tertiary text-xs mb-5">
                                 Add a YouTube, Vimeo, or SoundCloud link
                             </p>
 
@@ -1114,9 +1114,9 @@ export default function HostPageManagement() {
                                 </div>
                             </div>
 
-                            <div className="flex gap-3 mt-6">
-                                <button onClick={() => setVideoModal(false)} className="flex-1 py-3 bg-surface-secondary text-text-secondary rounded-xl text-sm font-bold">Cancel</button>
-                                <button onClick={handleAddVideo} disabled={!newVideo.url || !newVideo.title} className="flex-1 py-3 bg-surface-secondary text-text-primary rounded-xl text-sm font-bold disabled:opacity-50">Add Video</button>
+                            <div className="flex gap-3 mt-5">
+                                <button onClick={() => setVideoModal(false)} className="flex-1 py-2.5 bg-surface-secondary text-text-secondary rounded-xl text-xs font-bold">Cancel</button>
+                                <button onClick={handleAddVideo} disabled={!newVideo.url || !newVideo.title} className="flex-1 py-2.5 bg-surface-secondary text-text-primary rounded-xl text-xs font-bold disabled:opacity-50">Add Video</button>
                             </div>
                         </div>
                     </Modal>
@@ -1128,10 +1128,10 @@ export default function HostPageManagement() {
                 {isComposerOpen && (
                     <Modal onClose={() => setIsComposerOpen(false)} wide>
                         <div className="flex flex-col md:flex-row max-h-[85vh]">
-                            <div className="flex-1 p-8 border-r border-border-subtle">
-                                <h2 className="text-xl font-bold text-text-primary mb-6">New Post</h2>
+                            <div className="flex-1 p-6 border-r border-border-subtle">
+                                <h2 className="text-lg font-bold text-text-primary mb-5">New Post</h2>
 
-                                <div className="space-y-6">
+                                <div className="space-y-5">
                                     <div className="space-y-2">
                                         <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Content</label>
                                         <textarea
@@ -1160,18 +1160,18 @@ export default function HostPageManagement() {
                                 <button
                                     onClick={handleCreatePost}
                                     disabled={isSaving || !composerContent}
-                                    className="w-full mt-6 py-4 bg-surface-secondary text-text-primary rounded-xl text-sm font-bold disabled:opacity-50"
+                                    className="w-full mt-5 py-3 bg-surface-secondary text-text-primary rounded-xl text-xs font-bold disabled:opacity-50"
                                 >
-                                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Post"}
+                                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Post"}
                                 </button>
                             </div>
 
-                            <div className="w-full md:w-80 bg-surface-secondary p-8">
-                                <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-4">Preview</p>
+                            <div className="w-full md:w-80 bg-surface-secondary p-6">
+                                <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-3">Preview</p>
                                 <div className="bg-surface-base rounded-2xl overflow-hidden border border-border-subtle">
                                     {composerImage && <img src={composerImage} className="w-full aspect-video object-cover" alt="" />}
-                                    <div className="p-4">
-                                        <p className="text-sm text-text-secondary line-clamp-4">
+                                    <div className="p-3">
+                                        <p className="text-xs text-text-secondary line-clamp-4">
                                             {composerContent || "Your post content..."}
                                         </p>
                                     </div>
@@ -1188,13 +1188,13 @@ export default function HostPageManagement() {
 // Helper Components
 function QuickStat({ value, label, icon: Icon }: { value: number | string; label: string; icon: any }) {
     return (
-        <div className="flex items-center gap-4">
-            <div className="p-3 bg-surface-elevated/10 rounded-xl">
-                <Icon className="w-5 h-5 text-text-primary/60" />
+        <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-surface-elevated/10 rounded-xl">
+                <Icon className="w-4 h-4 text-text-primary/60" />
             </div>
             <div>
-                <p className="text-2xl font-bold text-text-primary">{typeof value === 'number' ? value.toLocaleString() : value}</p>
-                <p className="text-[10px] font-bold text-text-primary/40 uppercase tracking-widest">{label}</p>
+                <p className="text-xl font-bold text-text-primary">{typeof value === 'number' ? value.toLocaleString() : value}</p>
+                <p className="text-[9px] font-bold text-text-primary/40 uppercase tracking-widest">{label}</p>
             </div>
         </div>
     );
@@ -1202,15 +1202,15 @@ function QuickStat({ value, label, icon: Icon }: { value: number | string; label
 
 function SectionHeader({ title, subtitle, icon: Icon }: { title: string; subtitle: string; icon?: any }) {
     return (
-        <div className="flex items-start gap-4">
+        <div className="flex items-start gap-3">
             {Icon && (
-                <div className="p-2.5 bg-surface-secondary rounded-xl">
-                    <Icon className="w-5 h-5 text-text-tertiary" />
+                <div className="p-1.5 bg-surface-secondary rounded-lg">
+                    <Icon className="w-3.5 h-3.5 text-text-tertiary" />
                 </div>
             )}
             <div>
-                <h3 className="text-lg font-bold text-text-primary">{title}</h3>
-                <p className="text-sm text-text-tertiary">{subtitle}</p>
+                <h3 className="text-sm font-bold text-text-primary">{title}</h3>
+                <p className="text-[11px] text-text-tertiary mt-0.5">{subtitle}</p>
             </div>
         </div>
     );
@@ -1273,24 +1273,24 @@ function PostCard({ post, onDelete }: { post: any; onDelete: () => void }) {
                     <img src={post.imageUrl} className="w-full h-full object-cover transition-transform group-hover:scale-105" alt="" />
                 </div>
             )}
-            <div className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">
+            <div className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest">
                         {new Date(post.createdAt).toLocaleDateString()}
                     </span>
-                    <button onClick={onDelete} className="p-1.5 text-text-placeholder hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
-                        <Trash2 className="h-4 w-4" />
+                    <button onClick={onDelete} className="p-1 text-text-placeholder hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                        <Trash2 className="h-3.5 w-3.5" />
                     </button>
                 </div>
-                <p className="text-sm text-text-secondary line-clamp-3 mb-4">{post.content}</p>
-                <div className="flex items-center gap-4 pt-3 border-t border-border-subtle">
+                <p className="text-xs text-text-secondary line-clamp-3 mb-3">{post.content}</p>
+                <div className="flex items-center gap-3 pt-2 mt-auto border-t border-border-subtle">
                     <div className="flex items-center gap-1.5 text-text-tertiary">
-                        <Heart className="h-3.5 w-3.5" />
-                        <span className="text-[11px] font-bold">{post.likes || 0}</span>
+                        <Heart className="h-3 w-3" />
+                        <span className="text-[10px] font-bold">{post.likes || 0}</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-text-tertiary">
-                        <Eye className="h-3.5 w-3.5" />
-                        <span className="text-[11px] font-bold">{post.views || 0}</span>
+                        <Eye className="h-3 w-3" />
+                        <span className="text-[10px] font-bold">{post.views || 0}</span>
                     </div>
                 </div>
             </div>
@@ -1338,10 +1338,10 @@ function VideoCard({ video, onDelete }: { video: any; onDelete: () => void }) {
 
 function EngagementStat({ label, value, change, positive }: { label: string; value: number | string; change: string; positive: boolean }) {
     return (
-        <div className="p-6 bg-surface-secondary/50 rounded-2xl border border-border-subtle">
-            <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-2">{label}</p>
-            <p className="text-3xl font-bold text-text-primary mb-1">{typeof value === 'number' ? value.toLocaleString() : value}</p>
-            <span className={`text-[11px] font-bold ${positive ? "text-emerald-500" : "text-red-500"}`}>{change}</span>
+        <div className="p-3 bg-surface-secondary/50 rounded-xl border border-border-subtle">
+            <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mb-1">{label}</p>
+            <p className="text-xl font-bold text-text-primary mb-0.5">{typeof value === 'number' ? value.toLocaleString() : value}</p>
+            <span className={`text-[9px] font-bold ${positive ? "text-emerald-500" : "text-red-500"}`}>{change}</span>
         </div>
     );
 }

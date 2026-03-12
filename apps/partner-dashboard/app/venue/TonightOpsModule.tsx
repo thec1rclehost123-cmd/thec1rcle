@@ -1,3 +1,5 @@
+"use client";
+
 import { Clock, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { ProgressStat } from "@/components/ui/KPITile";

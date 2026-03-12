@@ -43,13 +43,13 @@ const GridList = forwardRef<HTMLDivElement>((props, ref) => (
     <div
         {...props}
         ref={ref}
-        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
     />
 ));
 GridList.displayName = "GridList";
 
 const GridItem = forwardRef<HTMLDivElement>((props, ref) => (
-    <div {...props} ref={ref} className="h-[450px] w-full" />
+    <div {...props} ref={ref} className="h-[340px] w-full" />
 ));
 GridItem.displayName = "GridItem";
 
@@ -196,13 +196,13 @@ export default function EventsManagementPage() {
             }
         >
             {/* ── KPI Strip ── */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                     { label: "LIVE NOW", value: loading ? "—" : liveCount, color: "var(--v-success)", bg: "var(--v-success-bg)", icon: Play },
                     { label: "REQUESTS", value: loading ? "—" : pendingCount, color: "var(--v-warning)", bg: "var(--v-warning-bg)", icon: AlertCircle },
                     { label: "PUBLISHED", value: loading ? "—" : publishedCount, color: "var(--v-info)", bg: "var(--v-info-bg)", icon: CheckCircle2 },
                     {
-                        label: "TOTAL REVENUE",
+                        label: "REVENUE",
                         value: loading ? "—" : totalRevenue >= 100000
                             ? `₹${(totalRevenue / 100000).toFixed(1)}L`
                             : `₹${(totalRevenue / 1000).toFixed(1)}K`,
@@ -211,14 +211,16 @@ export default function EventsManagementPage() {
                         icon: DollarSign,
                     },
                 ].map((stat, i) => (
-                    <div key={i} className="rounded-[32px] p-5" style={{ background: "var(--v-card)" }}>
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3" style={{ background: stat.bg }}>
-                            <stat.icon className="w-4 h-4" style={{ color: stat.color }} />
+                    <div key={i} className="rounded-2xl p-4 flex items-center gap-3 border border-white/[0.04]" style={{ background: "var(--v-card)" }}>
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: stat.bg }}>
+                            <stat.icon className="w-3.5 h-3.5" style={{ color: stat.color }} />
                         </div>
-                        <p className="v-label mb-1">{stat.label}</p>
-                        <p className="text-[28px] font-bold leading-none tabular-nums" style={{ color: "var(--v-text-primary)" }}>
-                            {stat.value}
-                        </p>
+                        <div>
+                            <p className="v-label text-[9px] mb-0">{stat.label}</p>
+                            <p className="text-[18px] font-black leading-tight tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                {stat.value}
+                            </p>
+                        </div>
                     </div>
                 ))}
             </div>

@@ -22,7 +22,9 @@ import {
     Crown,
     Zap,
     BarChart3,
-    TrendingUp
+    TrendingUp,
+    ReceiptText,
+    CreditCard,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -46,6 +48,10 @@ const MENU_GROUPS = [
         collapsible: true,
         items: [
             { label: "My Events", href: "/venue/events", icon: GlassWater, minPlan: "basic", badge: null },
+            { label: "Finance Overview", href: "/venue/finance", icon: Banknote, minPlan: "basic", badge: null },
+            { label: "Ledger", href: "/venue/finance/ledger", icon: ReceiptText, minPlan: "basic", badge: null },
+            { label: "Payout Settings", href: "/venue/finance/payouts", icon: CreditCard, minPlan: "basic", badge: null },
+            { label: "Reports", href: "/venue/finance/reports", icon: TrendingUp, minPlan: "basic", badge: null },
             { label: "Create Event", href: "/venue/create", icon: Sparkles, minPlan: "basic", badge: null },
             { label: "Calendar", href: "/venue/calendar", icon: CalendarDays, minPlan: "basic", badge: null },
         ]
@@ -71,15 +77,6 @@ const MENU_GROUPS = [
             { label: "Digital Menu", href: "/venue/menu", icon: Utensils, minPlan: "basic", badge: null },
         ]
     },
-    {
-        label: "Finance",
-        icon: Banknote,
-        collapsible: true,
-        items: [
-            { label: "Payouts", href: "/venue/payouts", icon: Banknote, minPlan: "basic", badge: null },
-            { label: "Settings", href: "/venue/settings", icon: Settings, minPlan: "basic", badge: null },
-        ]
-    }
 ];
 
 const PLAN_HIERARCHY: Record<string, number> = {
@@ -125,24 +122,30 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                 <div className="flex items-center gap-3">
                     {/* Glowing Logo Container */}
                     <div className="relative">
-                        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 rounded-xl blur-lg" />
-                        <div className="relative h-11 w-11 rounded-xl bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] flex items-center justify-center border border-border-subtle shadow-lg">
-                            <span className="text-lg font-black bg-gradient-to-br from-white to-white/60 bg-clip-text text-transparent">C</span>
+                        <div className="absolute inset-0 bg-gradient-to-br from-orange-500/30 to-rose-600/20 rounded-xl blur-lg" />
+                        <div className="relative h-12 w-12 rounded-xl bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] flex items-center justify-center border border-white/10 shadow-xl overflow-hidden shrink-0">
+                            {(profile?.activeMembership as any)?.partnerLogo ? (
+                                <img src={(profile.activeMembership as any).partnerLogo} alt="Logo" className="h-full w-full object-cover" />
+                            ) : (
+                                <span className="text-xl font-black bg-gradient-to-br from-white to-white/60 bg-clip-text text-transparent">
+                                    {(profile?.activeMembership as any)?.partnerName?.[0] || "C"}
+                                </span>
+                            )}
                         </div>
                     </div>
                     <div className="min-w-0 flex-1">
-                        <h1 className="font-semibold text-text-primary text-sm truncate leading-tight">
+                        <h1 className="font-black text-text-primary text-sm tracking-tight truncate leading-tight">
                             {profile?.activeMembership?.partnerName || "THE C1RCLE"}
                         </h1>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] text-text-primary/40 uppercase tracking-wider font-medium">Venue Dashboard</span>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] text-orange-500/60 font-black uppercase tracking-widest">Venue Host</span>
                         </div>
                     </div>
                     {/* Plan Badge */}
-                    <div className={`px-2 py-1 rounded-md ${planStyle.bg} ${planStyle.glow} border border-white/5`}>
-                        <div className="flex items-center gap-1">
+                    <div className={`px-2.5 py-1 rounded-lg ${planStyle.bg} ${planStyle.glow} border border-white/5 bg-opacity-20`}>
+                        <div className="flex items-center gap-1.5">
                             <Crown className={`h-3 w-3 ${planStyle.text}`} />
-                            <span className={`text-[9px] font-bold uppercase tracking-wide ${planStyle.text}`}>
+                            <span className={`text-[9px] font-black uppercase tracking-wider ${planStyle.text}`}>
                                 {subscriptionPlan || 'Basic'}
                             </span>
                         </div>
@@ -166,24 +169,24 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                             {group.collapsible ? (
                                 <button
                                     onClick={() => toggleSection(group.label)}
-                                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 group
-                                        ${hasActiveItem ? 'text-text-primary/90' : 'text-text-primary/40 hover:text-text-primary/60 hover:bg-surface-elevated/[0.02]'}`}
+                                    className={`w-full flex items-center justify-between px-3 py-3 rounded-xl transition-all duration-300 group
+                                        ${hasActiveItem ? 'text-text-primary' : 'text-text-primary/30 hover:text-text-primary/60'}`}
                                 >
-                                    <div className="flex items-center gap-2.5">
-                                        <GroupIcon className="h-3.5 w-3.5" />
-                                        <span className="text-[11px] font-semibold uppercase tracking-wider">{group.label}</span>
+                                    <div className="flex items-center gap-3">
+                                        <GroupIcon className={`h-4 w-4 ${hasActiveItem ? 'text-orange-500' : ''}`} />
+                                        <span className="text-[12px] font-black uppercase tracking-[0.15em]">{group.label}</span>
                                     </div>
                                     <motion.div
                                         animate={{ rotate: expanded ? 180 : 0 }}
                                         transition={{ duration: 0.2 }}
                                     >
-                                        <ChevronDown className="h-3.5 w-3.5" />
+                                        <ChevronDown className="h-3.5 w-3.5 opacity-40 group-hover:opacity-100" />
                                     </motion.div>
                                 </button>
                             ) : (
-                                <div className="flex items-center gap-2.5 px-3 py-2 text-text-primary/40">
-                                    <GroupIcon className="h-3.5 w-3.5" />
-                                    <span className="text-[11px] font-semibold uppercase tracking-wider">{group.label}</span>
+                                <div className="flex items-center gap-3 px-3 py-3 text-text-primary/30">
+                                    <GroupIcon className="h-4 w-4" />
+                                    <span className="text-[12px] font-black uppercase tracking-[0.15em]">{group.label}</span>
                                 </div>
                             )}
 
@@ -197,7 +200,7 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                                         transition={{ duration: 0.2, ease: "easeInOut" }}
                                         className="overflow-hidden"
                                     >
-                                        <div className="mt-1 space-y-0.5 pl-2">
+                                        <div className="mt-0.5 space-y-0.5 pl-4">
                                             {visibleItems.map((item) => {
                                                 const Icon = item.icon;
                                                 const active = isActive(item.href);
@@ -205,44 +208,44 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                                                     <Link
                                                         key={item.href}
                                                         href={item.href}
-                                                        className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group
+                                                        className={`relative flex items-center gap-4 px-3 py-2.5 rounded-xl transition-all duration-300 group
                                                             ${active
-                                                                ? "text-text-primary bg-surface-elevated/[0.08]"
-                                                                : "text-text-primary/50 hover:text-text-primary/80 hover:bg-surface-elevated/[0.04]"
+                                                                ? "text-text-primary bg-white/[0.03]"
+                                                                : "text-text-primary/50 hover:text-text-primary/90 hover:bg-white/[0.02]"
                                                             }`}
                                                     >
                                                         {/* Active Indicator Line */}
                                                         {active && (
                                                             <motion.div
                                                                 layoutId="activeIndicator"
-                                                                className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-gradient-to-b from-violet-400 to-fuchsia-500"
+                                                                className="absolute left-0 top-1/2 -translate-y-1/2 w-[4px] h-6 rounded-full bg-gradient-to-b from-orange-500 to-rose-600 shadow-[0_0_12px_rgba(244,74,34,0.4)]"
                                                                 transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
                                                             />
                                                         )}
-
+                                                        
                                                         {/* Icon Container */}
-                                                        <div className={`relative flex items-center justify-center w-7 h-7 rounded-md transition-all duration-200
+                                                        <div className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-300
                                                             ${active
-                                                                ? "bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20"
-                                                                : "bg-surface-elevated/[0.03] group-hover:bg-surface-elevated/[0.06]"
+                                                                ? "bg-gradient-to-br from-orange-500/20 to-rose-600/20 border border-orange-500/20"
+                                                                : "bg-white/[0.02] group-hover:bg-white/[0.05]"
                                                             }`}
                                                         >
-                                                            <Icon className={`h-3.5 w-3.5 transition-all ${active ? "text-violet-400" : ""}`} />
+                                                            <Icon className={`h-4 w-4 transition-all ${active ? "text-orange-500" : "opacity-70 group-hover:opacity-100"}`} />
                                                         </div>
 
                                                         {/* Label */}
-                                                        <span className="text-[13px] font-medium">{item.label}</span>
+                                                        <span className={`text-[14px] font-black tracking-tight ${active ? 'text-white' : ''}`}>{item.label}</span>
 
                                                         {/* Badge */}
                                                         {item.badge && (
-                                                            <span className="ml-auto px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-violet-500/20 text-violet-400 border border-violet-500/20">
+                                                            <span className="ml-auto px-2 py-0.5 text-[8px] font-black uppercase rounded-full bg-orange-500 text-white shadow-lg shadow-orange-500/20">
                                                                 {item.badge}
                                                             </span>
                                                         )}
 
                                                         {/* Active Glow */}
                                                         {active && (
-                                                            <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-violet-500/5 to-transparent pointer-events-none" />
+                                                            <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-orange-500/5 to-transparent pointer-events-none" />
                                                         )}
                                                     </Link>
                                                 );
@@ -258,18 +261,18 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
 
             {/* Upgrade CTA - Only show for non-diamond plans */}
             {subscriptionPlan !== 'diamond' && (
-                <div className="px-3 pb-3">
-                    <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-violet-500/10 via-fuchsia-500/10 to-violet-500/5 border border-white/[0.06]">
-                        <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-violet-500/20 to-transparent rounded-full blur-2xl" />
+                <div className="px-4 pb-4">
+                    <div className="relative overflow-hidden rounded-[1.5rem] p-5 bg-gradient-to-br from-orange-500/10 via-rose-500/5 to-transparent border border-white/[0.06] group/cta">
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-500/20 to-transparent rounded-full blur-2xl group-hover/cta:scale-125 transition-transform duration-500" />
                         <div className="relative">
                             <div className="flex items-center gap-2 mb-2">
-                                <Sparkles className="h-4 w-4 text-violet-400" />
-                                <span className="text-xs font-bold text-text-primary/90">C1RCLE PRO</span>
+                                <Sparkles className="h-4 w-4 text-orange-500" />
+                                <span className="text-[11px] font-black text-text-primary tracking-widest uppercase">C1RCLE PRO</span>
                             </div>
-                            <p className="text-[11px] text-text-primary/50 leading-relaxed mb-3">
-                                Unlock advanced analytics, host management & more
+                            <p className="text-[11px] text-text-primary/40 leading-relaxed font-medium mb-4">
+                                Unlock advanced analytics, host management & connections
                             </p>
-                            <button className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 text-text-primary text-xs font-semibold hover:from-violet-400 hover:to-fuchsia-400 transition-all shadow-lg shadow-violet-500/20">
+                            <button className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-orange-500 to-rose-600 text-white text-[11px] font-black uppercase tracking-wider hover:scale-[1.02] transition-all shadow-xl shadow-orange-500/20">
                                 Upgrade Now
                             </button>
                         </div>
@@ -282,11 +285,11 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-elevated/[0.02] hover:bg-surface-elevated/[0.04] transition-all cursor-pointer group">
                     {/* Avatar with Status */}
                     <div className="relative">
-                        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 flex items-center justify-center font-semibold text-text-primary text-sm border border-border-subtle">
+                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500/20 to-rose-600/20 flex items-center justify-center font-black text-text-primary text-sm border border-white/5">
                             {profile?.displayName?.[0]?.toUpperCase() || 'A'}
                         </div>
                         {/* Online indicator */}
-                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#0D0D0F]" />
+                        <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 rounded-full border-[3px] border-[#0D0D0F]" />
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-text-primary/90 truncate">

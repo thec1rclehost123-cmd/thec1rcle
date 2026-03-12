@@ -17,7 +17,7 @@ import {
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { cleanJargon } from "@/lib/utils/jargon";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
-import { BentoCard, KPIBento } from "@/components/ui/BentoCard";
+import { BentoCard } from "@/components/ui/BentoCard";
 
 interface StaffMember {
     id: string;
@@ -32,27 +32,27 @@ interface StaffMember {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-    manager:       "Manager",
+    manager: "Manager",
     floor_manager: "Floor Manager",
-    security:      "Security",
-    ops:           "Operations",
-    finance:       "Finance",
-    viewer:        "Viewer",
+    security: "Security",
+    ops: "Operations",
+    finance: "Finance",
+    viewer: "Viewer",
 };
 
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
-    manager:       { bg: "var(--v-orange-dim)",  text: "var(--v-orange)"   },
-    floor_manager: { bg: "var(--v-info-bg)",      text: "var(--v-info)"    },
-    security:      { bg: "var(--v-warning-bg)",   text: "var(--v-warning)" },
-    ops:           { bg: "var(--v-success-bg)",   text: "var(--v-success)" },
-    finance:       { bg: "var(--v-error-bg)",     text: "var(--v-error)"   },
-    viewer:        { bg: "var(--v-elevated)",     text: "var(--v-text-muted)" },
+    manager: { bg: "var(--v-orange-dim)", text: "var(--v-orange)" },
+    floor_manager: { bg: "var(--v-info-bg)", text: "var(--v-info)" },
+    security: { bg: "var(--v-warning-bg)", text: "var(--v-warning)" },
+    ops: { bg: "var(--v-success-bg)", text: "var(--v-success)" },
+    finance: { bg: "var(--v-error-bg)", text: "var(--v-error)" },
+    viewer: { bg: "var(--v-elevated)", text: "var(--v-text-muted)" },
 };
 
 export default function VenueStaffPage() {
     const { profile } = useDashboardAuth();
     const [staff, setStaff] = useState<StaffMember[]>([]);
-    const [roleOptions, setRoleOptions] = useState<string[]>([]);
+    const [roleOptions, setRoleOptions] = useState<string[]>(["manager", "floor_manager", "security", "ops", "finance", "viewer"]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
     const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
@@ -116,7 +116,7 @@ export default function VenueStaffPage() {
         }
     };
 
-    const activeStaff   = staff.filter(s => s.isActive);
+    const activeStaff = staff.filter(s => s.isActive);
     const inactiveStaff = staff.filter(s => !s.isActive);
     const verifiedCount = activeStaff.filter(s => s.isVerified).length;
 
@@ -131,38 +131,32 @@ export default function VenueStaffPage() {
             }
         >
             {/* KPI strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <KPIBento
-                    label="TOTAL ACTIVE"
-                    value={loading ? "—" : activeStaff.length}
-                    icon={<Users className="w-5 h-5" />}
-                    iconBg="var(--v-success-bg)"
-                />
-                <KPIBento
-                    label="VERIFIED"
-                    value={loading ? "—" : verifiedCount}
-                    icon={<ShieldCheck className="w-5 h-5" />}
-                    iconBg="var(--v-info-bg)"
-                />
-                <KPIBento
-                    label="PENDING"
-                    value={loading ? "—" : activeStaff.length - verifiedCount}
-                    icon={<Shield className="w-5 h-5" />}
-                    iconBg="var(--v-warning-bg)"
-                />
-                <KPIBento
-                    label="ROLES"
-                    value={loading ? "—" : new Set(activeStaff.map(s => s.role)).size}
-                    icon={<Users className="w-5 h-5" />}
-                    iconBg="var(--v-elevated)"
-                />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                    { label: "ACTIVE", value: loading ? "—" : activeStaff.length, icon: Users, bg: "var(--v-success-bg)", text: "var(--v-success)" },
+                    { label: "VERIFIED", value: loading ? "—" : verifiedCount, icon: ShieldCheck, bg: "var(--v-info-bg)", text: "var(--v-info)" },
+                    { label: "PENDING", value: loading ? "—" : activeStaff.length - verifiedCount, icon: Shield, bg: "var(--v-warning-bg)", text: "var(--v-warning)" },
+                    { label: "ROLES", value: loading ? "—" : new Set(activeStaff.map(s => s.role)).size, icon: Users, bg: "var(--v-elevated)", text: "var(--v-text-muted)" },
+                ].map((stat, i) => (
+                    <div key={i} className="rounded-2xl p-3 flex items-center gap-3 border border-white/[0.04]" style={{ background: "var(--v-card)" }}>
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: stat.bg }}>
+                            <stat.icon className="w-3.5 h-3.5" style={{ color: stat.text }} />
+                        </div>
+                        <div>
+                            <p className="v-label text-[9px] mb-0">{stat.label}</p>
+                            <p className="text-[18px] font-black leading-tight tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                {stat.value}
+                            </p>
+                        </div>
+                    </div>
+                ))}
             </div>
 
             {/* Main layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
 
                 {/* Staff ledger */}
-                <div className="lg:col-span-8 space-y-4">
+                <div className="lg:col-span-8 space-y-3">
                     <BentoCard
                         loading={loading}
                         empty={!loading && activeStaff.length === 0}
@@ -220,20 +214,20 @@ export default function VenueStaffPage() {
                 <div className="lg:col-span-4 lg:sticky lg:top-28">
                     <BentoCard>
                         {selectedStaff ? (
-                            <div className="space-y-6">
-                                <div className="flex items-center gap-4">
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3">
                                     <div
-                                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold"
+                                        className="w-10 h-10 rounded-xl flex items-center justify-center text-[14px] font-black"
                                         style={{ background: "var(--v-elevated)", color: "var(--v-text-primary)" }}
                                     >
                                         {selectedStaff.name.charAt(0).toUpperCase()}
                                     </div>
                                     <div>
-                                        <h4 className="text-[16px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
+                                        <h4 className="text-[13px] font-bold" style={{ color: "var(--v-text-primary)" }}>
                                             {selectedStaff.name}
                                         </h4>
                                         <span
-                                            className="text-[11px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
+                                            className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
                                             style={{
                                                 background: (ROLE_COLORS[selectedStaff.role] || ROLE_COLORS.viewer).bg,
                                                 color: (ROLE_COLORS[selectedStaff.role] || ROLE_COLORS.viewer).text,
@@ -244,31 +238,31 @@ export default function VenueStaffPage() {
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: "var(--v-elevated)" }}>
-                                        <Mail className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--v-text-muted)" }} />
-                                        <span className="text-[12px] truncate" style={{ color: "var(--v-text-secondary)" }}>{selectedStaff.email}</span>
+                                <div className="space-y-1.5">
+                                    <div className="flex items-center gap-3 px-3 py-2 rounded-xl border border-white/[0.03]" style={{ background: "var(--v-elevated)" }}>
+                                        <Mail className="w-3 h-3 flex-shrink-0" style={{ color: "var(--v-text-muted)" }} />
+                                        <span className="text-[11px] truncate" style={{ color: "var(--v-text-secondary)" }}>{selectedStaff.email}</span>
                                     </div>
                                     {selectedStaff.phone && (
-                                        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: "var(--v-elevated)" }}>
-                                            <Phone className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--v-text-muted)" }} />
-                                            <span className="text-[12px]" style={{ color: "var(--v-text-secondary)" }}>{selectedStaff.phone}</span>
+                                        <div className="flex items-center gap-3 px-3 py-2 rounded-xl border border-white/[0.03]" style={{ background: "var(--v-elevated)" }}>
+                                            <Phone className="w-3 h-3 flex-shrink-0" style={{ color: "var(--v-text-muted)" }} />
+                                            <span className="text-[11px]" style={{ color: "var(--v-text-secondary)" }}>{selectedStaff.phone}</span>
                                         </div>
                                     )}
                                 </div>
 
                                 <div>
-                                    <p className="v-label mb-3">PERMISSIONS</p>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <p className="v-label text-[9px] mb-1.5">PERMISSIONS</p>
+                                    <div className="grid grid-cols-2 gap-x-2 gap-y-1">
                                         {Object.entries(selectedStaff.permissions || {}).map(([key, val]) => (
-                                            <div key={key} className="flex items-center gap-2">
+                                            <div key={key} className="flex items-center gap-1.5">
                                                 <div
-                                                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                                    className="w-1 h-1 rounded-full flex-shrink-0"
                                                     style={{ background: val ? "var(--v-success)" : "var(--v-elevated)" }}
                                                 />
                                                 <span
-                                                    className="text-[11px]"
-                                                    style={{ color: val ? "var(--v-text-secondary)" : "var(--v-text-muted)" }}
+                                                    className="text-[10px] uppercase font-bold tracking-tight"
+                                                    style={{ color: val ? "var(--v-text-secondary)" : "rgba(255,255,255,0.2)" }}
                                                 >
                                                     {key.split("_").join(" ")}
                                                 </span>
@@ -279,15 +273,15 @@ export default function VenueStaffPage() {
 
                                 <button
                                     onClick={() => setSelectedStaff(null)}
-                                    className="w-full py-2 text-[12px] font-medium rounded-xl transition-colors"
+                                    className="w-full py-2 text-[11px] font-bold uppercase tracking-widest rounded-xl transition-colors"
                                     style={{ color: "var(--v-text-muted)", background: "var(--v-elevated)" }}
                                 >
-                                    Close
+                                    Close Panel
                                 </button>
                             </div>
                         ) : (
-                            <div className="py-16 flex flex-col items-center text-center gap-3">
-                                <Shield className="w-8 h-8" style={{ color: "var(--v-text-muted)" }} />
+                            <div className="py-10 flex flex-col items-center text-center gap-2">
+                                <Shield className="w-6 h-6" style={{ color: "var(--v-text-muted)" }} />
                                 <p className="text-[12px]" style={{ color: "var(--v-text-muted)" }}>
                                     Select a member to view details
                                 </p>
@@ -329,7 +323,7 @@ function StaffRow({
     return (
         <div
             onClick={onSelect}
-            className="px-5 py-4 flex items-center justify-between transition-colors"
+            className="px-4 py-2.5 flex items-center justify-between transition-colors"
             style={{
                 cursor: inactive ? "default" : "pointer",
                 background: isSelected ? "var(--v-elevated)" : "transparent",
@@ -338,14 +332,14 @@ function StaffRow({
         >
             <div className="flex items-center gap-3">
                 <div
-                    className="h-9 w-9 rounded-xl flex items-center justify-center text-[12px] font-bold flex-shrink-0"
+                    className="h-8 w-8 rounded-lg flex items-center justify-center text-[11px] font-bold flex-shrink-0"
                     style={{ background: "var(--v-elevated)", color: "var(--v-text-primary)" }}
                 >
                     {member.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
                 </div>
                 <div>
                     <div className="flex items-center gap-2">
-                        <h4 className="text-[13px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
+                        <h4 className="text-[12px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
                             {member.name}
                         </h4>
                         {member.isVerified
@@ -353,13 +347,13 @@ function StaffRow({
                             : <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--v-warning)" }} />
                         }
                     </div>
-                    <p className="text-[11px]" style={{ color: "var(--v-text-muted)" }}>{member.email}</p>
+                    <p className="text-[10px]" style={{ color: "var(--v-text-muted)" }}>{member.email}</p>
                 </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
                 <span
-                    className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
+                    className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full hidden sm:inline-flex"
                     style={{ background: roleStyle.bg, color: roleStyle.text }}
                 >
                     {ROLE_LABELS[member.role] || member.role}
@@ -378,13 +372,13 @@ function StaffRow({
 
                         {showActions && (
                             <div
-                                className="absolute right-0 top-full mt-2 rounded-2xl shadow-2xl py-1.5 z-50 min-w-[180px] animate-in fade-in slide-in-from-top-2"
+                                className="absolute right-0 top-full mt-1 rounded-xl shadow-2xl py-1 z-50 min-w-[160px] animate-in fade-in slide-in-from-top-2"
                                 style={{ background: "var(--v-elevated)", border: "1px solid var(--v-border)" }}
                             >
                                 {!member.isVerified && onVerify && (
                                     <button
                                         onClick={(e) => { e.stopPropagation(); onVerify(); setShowActions(false); }}
-                                        className="w-full px-4 py-2.5 text-left text-[12px] flex items-center gap-2 transition-colors hover:brightness-125"
+                                        className="w-full px-3 py-2 text-left text-[12px] flex items-center gap-2 transition-colors hover:brightness-125"
                                         style={{ color: "var(--v-success)" }}
                                     >
                                         <ShieldCheck className="w-3.5 h-3.5" /> Verify User
@@ -392,7 +386,7 @@ function StaffRow({
                                 )}
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onRemove?.(); setShowActions(false); }}
-                                    className="w-full px-4 py-2.5 text-left text-[12px] flex items-center gap-2 transition-colors hover:brightness-125"
+                                    className="w-full px-3 py-2 text-left text-[12px] flex items-center gap-2 transition-colors hover:brightness-125"
                                     style={{ color: "var(--v-error)" }}
                                 >
                                     <Trash2 className="w-3.5 h-3.5" /> Remove User
@@ -421,7 +415,7 @@ function AddStaffModal({
     const [phone, setPhone] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    const inputStyle = {
+    const inputStyle: React.CSSProperties = {
         background: "var(--v-elevated)",
         color: "var(--v-text-primary)",
         border: "1px solid var(--v-border)",
@@ -442,53 +436,60 @@ function AddStaffModal({
     return (
         <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-[100] p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
             <div
-                className="max-w-md w-full p-8 space-y-6 animate-in zoom-in-95 duration-200 rounded-[32px]"
+                className="max-w-md w-full p-6 space-y-5 animate-in zoom-in-95 duration-200 rounded-[28px]"
                 style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}
             >
                 <div className="flex items-center justify-between">
                     <div>
-                        <h3 className="text-[18px] font-bold" style={{ color: "var(--v-text-primary)" }}>Add Member</h3>
-                        <p className="text-[12px] mt-0.5" style={{ color: "var(--v-text-tertiary)" }}>Add a new staff member to your venue</p>
+                        <h3 className="text-[16px] font-bold" style={{ color: "var(--v-text-primary)" }}>Add Member</h3>
+                        <p className="text-[11px] mt-0.5" style={{ color: "var(--v-text-tertiary)" }}>Add a new staff member to your venue</p>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-xl transition-colors hover:brightness-125" style={{ color: "var(--v-text-muted)", background: "var(--v-elevated)" }}>
                         <X className="w-4 h-4" />
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-3">
                     <div>
-                        <label className="v-label mb-1.5 block">NAME</label>
+                        <label className="v-label mb-1 block">NAME</label>
                         <input type="text" value={name} onChange={e => setName(e.target.value)} required style={inputStyle} placeholder="Operator name" />
                     </div>
                     <div>
-                        <label className="v-label mb-1.5 block">EMAIL ADDRESS</label>
+                        <label className="v-label mb-1 block">EMAIL ADDRESS</label>
                         <input type="email" value={email} onChange={e => setEmail(e.target.value)} required style={inputStyle} placeholder="email@example.com" />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="v-label mb-1.5 block">ROLE</label>
-                            <select value={role} onChange={e => setRole(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
-                                {roleOptions.map(r => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
+                            <label className="v-label mb-1 block">ROLE</label>
+                            <select 
+                                value={role} 
+                                onChange={e => setRole(e.target.value)} 
+                                className="input"
+                                style={{ ...inputStyle, paddingRight: 40, cursor: "pointer" }}
+                            >
+                                {(roleOptions.length > 0 ? roleOptions : ["manager", "floor_manager", "security", "ops", "finance", "viewer"]).map(r => (
+                                    <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
+                                ))}
                             </select>
                         </div>
                         <div>
-                            <label className="v-label mb-1.5 block">PHONE (PH)</label>
+                            <label className="v-label mb-1 block">PHONE</label>
                             <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} style={inputStyle} placeholder="+91" />
                         </div>
                     </div>
 
-                    <div className="flex items-start gap-3 p-4 rounded-2xl" style={{ background: "var(--v-info-bg)", border: "1px solid rgba(129,140,248,0.2)" }}>
-                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "var(--v-info)" }} />
-                        <p className="text-[12px]" style={{ color: "var(--v-text-secondary)" }}>
+                    <div className="flex items-start gap-2.5 p-3 rounded-xl" style={{ background: "var(--v-info-bg)", border: "1px solid rgba(129,140,248,0.2)" }}>
+                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: "var(--v-info)" }} />
+                        <p className="text-[11px] leading-relaxed" style={{ color: "var(--v-text-secondary)" }}>
                             A verification link will be sent to their email. They will be active after they verify their account.
                         </p>
                     </div>
 
-                    <div className="flex gap-3 pt-2">
-                        <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold transition-colors" style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)" }}>
+                    <div className="flex gap-3 pt-1">
+                        <button type="button" onClick={onClose} className="flex-1 py-2 rounded-xl text-[13px] font-semibold transition-colors" style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)" }}>
                             Cancel
                         </button>
-                        <button type="submit" disabled={submitting} className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold transition-all hover:brightness-110 flex items-center justify-center gap-2" style={{ background: "var(--v-orange)", color: "#fff" }}>
+                        <button type="submit" disabled={submitting} className="flex-1 py-2 rounded-xl text-[13px] font-semibold transition-all hover:brightness-110 flex items-center justify-center gap-2" style={{ background: "var(--v-orange)", color: "#fff" }}>
                             {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Creating...</> : "Create Member"}
                         </button>
                     </div>

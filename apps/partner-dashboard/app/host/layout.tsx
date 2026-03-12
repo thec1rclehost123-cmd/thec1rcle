@@ -1,3 +1,5 @@
+"use client";
+
 import { HostClientWrapper } from "@/components/layout/HostClientWrapper";
 import {
     LayoutDashboard,
@@ -11,7 +13,8 @@ import {
     Building,
     Clock,
     Star,
-    Compass
+    Compass,
+    Banknote,
 } from "lucide-react";
 
 const menuSections = [
@@ -36,6 +39,7 @@ const menuSections = [
     {
         items: [
             { icon: CalendarDays, label: "Events", href: "/host/events" },
+            { icon: Banknote, label: "Finance", href: "/host/finance" },
             { icon: PlusCircle, label: "Create Event", href: "/host/create" },
             { icon: Clock, label: "Slot Requests", href: "/host/events/requests" },
             { icon: ShieldCheck, label: "Entry Control", href: "/host/ops" },
@@ -54,7 +58,7 @@ const menuSections = [
             { icon: Layout, label: "Page Management", href: "/host/page-management" },
             { icon: Settings, label: "Settings", href: "/host/settings" },
         ]
-    }
+    },
 ];
 
 export default function HostLayout({ children }: { children: React.ReactNode }) {

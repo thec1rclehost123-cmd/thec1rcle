@@ -11,6 +11,7 @@ import {
     AlertCircle,
     User,
     Lock,
+    Settings,
     Calendar as CalendarIcon
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
@@ -213,90 +214,80 @@ export function OperatingCalendar() {
     }, [calendarData]);
 
     return (
-        <div className="flex flex-col w-full min-h-[calc(100vh-56px)] space-y-8 pb-10">
-            {/* Header */}
-            <header className="px-4 py-8 flex flex-col md:flex-row items-center justify-between border-b border-[rgba(0,0,0,0.06)] bg-transparent">
-                <div className="flex items-center gap-10">
-                    <div>
-                        <h1 className="text-3xl font-bold text-text-primary tracking-tight uppercase">
-                            {cleanJargon(role === 'venue' ? 'management' : 'operating_calendar')}
-                        </h1>
-                        <p className="text-[11px] font-black text-rose-500 uppercase tracking-[0.3em] mt-1">
-                            {MONTHS[month]} {year} — Connected
-                        </p>
-                    </div>
-
-                    {/* Quick Stats */}
-                    <div className="hidden lg:flex items-center gap-8 pl-10 border-l border-[rgba(255,255,255,0.06)]">
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-1">{cleanJargon('confirmed')}</span>
-                            <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_#10B981]" />
-                                <span className="text-lg font-bold text-text-primary tabular-nums">{stats.confirmed}</span>
-                            </div>
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-1">{cleanJargon('pending')}</span>
-                            <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_#F44A22]" />
-                                <span className="text-lg font-bold text-text-primary tabular-nums">{stats.pending}</span>
-                            </div>
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-1">Grid Availability</span>
-                            <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                                <span className="text-lg font-bold text-text-primary tabular-nums">{stats.open}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-6">
-                    {/* Month Navigation */}
-                    <div className="flex items-center gap-1 bg-surface-secondary border border-[rgba(255,255,255,0.08)] rounded-lg p-1">
-                        <button
-                            onClick={() => navigateMonth(-1)}
-                            className="p-2 hover:bg-surface-elevated rounded transition-all text-text-tertiary hover:text-text-primary"
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                        </button>
-                        <button
-                            onClick={() => setCurrentDate(parseAsIST(null))}
-                            className="px-4 py-1.5 text-[10px] font-black text-text-tertiary hover:text-text-primary uppercase tracking-widest transition-all"
-                        >
-                            SYNC TODAY
-                        </button>
-                        <button
-                            onClick={() => navigateMonth(1)}
-                            className="p-2 hover:bg-surface-elevated rounded transition-all text-text-tertiary hover:text-text-primary"
-                        >
-                            <ChevronRight className="h-4 w-4" />
-                        </button>
-                    </div>
-
-                    {/* Create Event Button (Venue only) */}
-                    {role === 'venue' && (
-                        <Link
-                            href="/venue/create"
-                            className="bg-surface-elevated text-text-primary px-6 py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-surface-elevated/90 transition-all font-black text-[11px] uppercase tracking-widest shadow-[0_0_20px_rgba(255,255,255,0.1)]"
-                        >
-                            <Plus className="h-4 w-4" />
-                            Schedule
-                        </Link>
-                    )}
-                </div>
-            </header>
-
+        <div className="flex flex-col w-full min-h-[calc(100vh-56px)] pb-4">
             {/* Main Application Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start px-0">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start px-0">
 
                 {/* Left: Calendar Ledger (8 Cols) */}
-                <div className="lg:col-span-8 space-y-6">
+                <div className="lg:col-span-8 space-y-4">
+                    {/* Compact Sub-Header / Ledger Controls */}
+                    <div className="flex flex-col md:flex-row items-center justify-between py-1 px-1">
+                        <div className="flex items-center gap-6">
+                            <div className="hidden sm:block">
+                                <p className="text-[10px] font-black text-rose-500 uppercase tracking-[0.3em]">
+                                    {MONTHS[month]} {year}
+                                </p>
+                            </div>
+
+                            {/* Tighter Stats */}
+                            <div className="hidden lg:flex items-center gap-6 pl-6 border-l border-[rgba(255,255,255,0.06)]">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_#10B981]" />
+                                    <span className="text-xs font-bold text-text-primary tabular-nums">{stats.confirmed}</span>
+                                    <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-normal">Confirmed</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_#F44A22]" />
+                                    <span className="text-xs font-bold text-text-primary tabular-nums">{stats.pending}</span>
+                                    <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-normal">Pending</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+                                    <span className="text-xs font-bold text-text-primary tabular-nums">{stats.open}</span>
+                                    <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-normal">Available</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            {/* Month Navigation */}
+                            <div className="flex items-center gap-1 bg-surface-secondary border border-[rgba(255,255,255,0.08)] rounded-lg p-1">
+                                <button
+                                    onClick={() => navigateMonth(-1)}
+                                    className="p-1.5 hover:bg-surface-elevated rounded transition-all text-text-tertiary hover:text-text-primary"
+                                >
+                                    <ChevronLeft className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                    onClick={() => setCurrentDate(parseAsIST(null))}
+                                    className="px-3 py-1 text-[9px] font-black text-text-tertiary hover:text-text-primary uppercase tracking-widest transition-all"
+                                >
+                                    SYNC TODAY
+                                </button>
+                                <button
+                                    onClick={() => navigateMonth(1)}
+                                    className="p-1.5 hover:bg-surface-elevated rounded transition-all text-text-tertiary hover:text-text-primary"
+                                >
+                                    <ChevronRight className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+
+                            {/* Create Event Button (Venue only) */}
+                            {role === 'venue' && (
+                                <Link
+                                    href="/venue/create"
+                                    className="bg-surface-elevated text-text-primary px-4 py-1.5 rounded-lg flex items-center justify-center gap-2 hover:bg-surface-elevated/90 transition-all font-black text-[10px] uppercase tracking-widest shadow-sm border border-white/5"
+                                >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Schedule
+                                </Link>
+                            )}
+                        </div>
+                    </div>
                     <div className="glass-panel overflow-hidden border border-border-strong shadow-sm rounded-[32px]">
                         <div className="grid grid-cols-7 border-b border-border-subtle bg-surface-secondary">
                             {DAYS.map(d => (
-                                <div key={d} className="py-4 text-center text-[10px] font-black text-text-tertiary uppercase tracking-[0.2em]">
+                                <div key={d} className="py-3 text-center text-[10px] font-black text-text-tertiary uppercase tracking-[0.2em]">
                                     {d}
                                 </div>
                             ))}
@@ -305,7 +296,7 @@ export function OperatingCalendar() {
                         <div className="grid grid-cols-7 bg-[#FFFFFF]">
                             {calendarGrid.map((cell, idx) => {
                                 if (!cell) {
-                                    return <div key={`empty-${idx}`} className="aspect-[1.15/1] bg-[#F9F9FB] border-r border-b border-[rgba(0,0,0,0.04)]" />;
+                                    return <div key={`empty-${idx}`} className="aspect-[1.3/1] bg-[#F9F9FB] border-r border-b border-[rgba(0,0,0,0.04)]" />;
                                 }
 
                                 const todayStr = toISODateIST(parseAsIST(null));
@@ -317,10 +308,10 @@ export function OperatingCalendar() {
                                     <button
                                         key={cell.dateStr}
                                         onClick={() => setSelectedDateStr(cell.dateStr)}
-                                        className={`relative aspect-[1.15/1] p-3 text-left border-r border-b border-border-subtle transition-all group overflow-hidden ${isSelected ? 'bg-rose-500/10' : 'hover:bg-surface-secondary'}`}
+                                        className={`relative aspect-[1.4/1] p-2 text-left border-r border-b border-border-subtle transition-all group overflow-hidden ${isSelected ? 'bg-rose-500/10' : 'hover:bg-surface-secondary'}`}
                                     >
                                         <div className="flex items-center justify-between relative z-10">
-                                            <span className={`text-[13px] font-black tabular-nums ${isToday ? 'text-rose-500 animate-pulse' : 'text-text-tertiary group-hover:text-text-primary'}`}>
+                                            <span className={`text-[11px] font-bold tabular-nums ${isToday ? 'text-rose-500 animate-pulse' : 'text-text-tertiary group-hover:text-text-primary'}`}>
                                                 {cell.day}
                                             </span>
                                             {isToday && <div className="w-1 h-1 rounded-full bg-iris shadow-[0_0_5px_#F44A22]" />}
@@ -401,8 +392,8 @@ export function OperatingCalendar() {
                 </div>
 
                 {/* Right: Inspection Panel (4 Cols) */}
-                <div className="lg:col-span-4 lg:sticky lg:top-28">
-                    <div className="glass-panel min-h-[600px] flex flex-col overflow-hidden">
+                <div className="lg:col-span-4 lg:sticky lg:top-4 z-20 lg:-mt-28">
+                    <div className="glass-panel min-h-[450px] flex flex-col overflow-hidden shadow-2xl">
                         {selectedDateStr ? (
                             <SidePanel
                                 role={role}
@@ -413,14 +404,14 @@ export function OperatingCalendar() {
                                 onBlockDate={handleBlockDate}
                             />
                         ) : (
-                            <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-4">
-                                <div className="w-16 h-16 rounded-2xl bg-[#F2F2F7] border border-[rgba(0,0,0,0.06)] flex items-center justify-center">
-                                    <CalendarIcon className="w-8 h-8 text-[#86868B]/20" />
+                            <div className="flex-1 flex flex-col items-center justify-start p-6 text-center space-y-2 pt-24">
+                                <div className="w-10 h-10 rounded-2xl bg-[#F2F2F7] border border-[rgba(0,0,0,0.06)] flex items-center justify-center mb-1">
+                                    <CalendarIcon className="w-5 h-5 text-[#86868B]/20" />
                                 </div>
                                 <div>
-                                    <h3 className="text-[12px] font-black text-[#1D1D1F] uppercase tracking-[0.2em]">System Idle</h3>
-                                    <p className="text-[10px] font-bold text-[#86868B] uppercase tracking-widest mt-2">
-                                        Select a date to view<br />daily activity
+                                    <h3 className="text-[10px] font-black text-[#1D1D1F] uppercase tracking-[0.2em]">System Idle</h3>
+                                    <p className="text-[9px] font-bold text-[#86868B] uppercase tracking-widest mt-1">
+                                        Select a date to view daily activity
                                     </p>
                                 </div>
                             </div>
@@ -614,34 +605,34 @@ function SidePanel({
     return (
         <div className="h-full flex flex-col bg-transparent select-none">
             {/* Header */}
-            <div className="px-8 py-6 border-b border-border-subtle flex items-start justify-between bg-surface-secondary">
+            <div className="px-5 py-2.5 border-b border-border-subtle flex items-start justify-between bg-surface-secondary">
                 <div>
-                    <h2 className="text-xl font-bold text-text-primary uppercase tracking-tight">{dayName}</h2>
-                    <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest mt-1">{formattedDate} — SYSTEM_READY</p>
+                    <h2 className="text-base font-black text-text-primary uppercase tracking-tight leading-none">{dayName}</h2>
+                    <p className="text-[8px] font-black text-text-tertiary uppercase tracking-widest mt-1 opacity-70">{formattedDate} — SYSTEM_READY</p>
                 </div>
                 <button
                     onClick={onClose}
-                    className="p-2 hover:bg-surface-tertiary rounded-lg text-text-tertiary hover:text-text-primary transition-all"
+                    className="p-1.5 hover:bg-surface-tertiary rounded-lg text-text-tertiary hover:text-text-primary transition-all"
                 >
-                    <X className="h-5 w-5" />
+                    <X className="h-4 w-4" />
                 </button>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar scrollbar-hide">
                 {/* Timeline Section */}
-                <div className="p-8">
-                    <div className="flex items-center justify-between mb-8">
-                        <p className="text-[10px] font-black text-text-tertiary uppercase tracking-[0.2em]">Operational Timeline</p>
+                <div className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <p className="text-[8px] font-black text-text-tertiary uppercase tracking-[0.2em] opacity-50">Operational Timeline</p>
                         {isBlockingMode && (
-                            <span className="text-[9px] font-black text-rose-500 animate-pulse uppercase tracking-widest">Awaiting Range Selection</span>
+                            <span className="text-[8px] font-black text-rose-500 animate-pulse uppercase tracking-widest">Awaiting Selection</span>
                         )}
                     </div>
 
-                    <div className="relative min-h-[700px] flex">
+                    <div className="relative min-h-[500px] flex">
                         {/* Time Labels */}
-                        <div className="w-16 flex flex-col justify-between pr-4 py-0">
+                        <div className="w-14 flex flex-col justify-between pr-3 py-0">
                             {hours.map((h, i) => (
-                                <span key={i} className="text-[9px] font-bold text-text-tertiary opacity-40 uppercase tracking-widest h-0 flex items-center justify-end tabular-nums">{h.label}</span>
+                                <span key={i} className="text-[7px] font-black text-text-tertiary opacity-40 uppercase tracking-widest h-0 flex items-center justify-end tabular-nums">{h.label}</span>
                             ))}
                         </div>
 
@@ -670,9 +661,9 @@ function SidePanel({
                                     const colIdx = item.colIdx || 0;
                                     const totalCols = item.totalCols || 1;
 
-                                    // Stacked layout: slightly offset each card
-                                    const leftOffset = colIdx * 8;
-                                    const widthPercent = totalCols > 1 ? 85 : 100;
+                                    // Improved Side-by-Side column layout
+                                    const colWidth = 100 / totalCols;
+                                    const colLeft = colIdx * colWidth;
                                     const zIndex = 10 + colIdx;
 
                                     if (isEvent) {
@@ -691,45 +682,66 @@ function SidePanel({
                                                 style={{
                                                     top: `${top}%`,
                                                     height: `${height}%`,
-                                                    minHeight: '80px',
-                                                    left: `${leftOffset}px`,
-                                                    width: `calc(${widthPercent}% - ${leftOffset}px - 16px)`,
-                                                    zIndex: zIndex
+                                                    minHeight: '60px',
+                                                    left: `calc(${colLeft}% + 4px)`,
+                                                    width: `calc(${colWidth}% - 8px)`,
+                                                    zIndex: isAnonymized ? 5 : zIndex,
+                                                    ...(item.posterUrl && !item.posterUrl.includes('placeholder.svg') && !isAnonymized ? {
+                                                        backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.85)), url(${item.posterUrl})`,
+                                                        backgroundSize: 'cover',
+                                                        backgroundPosition: 'center'
+                                                    } : {
+                                                        background: isConfirmed
+                                                            ? 'linear-gradient(135deg, #121214 0%, #064e3b 100%)'
+                                                            : 'linear-gradient(135deg, #121214 0%, #17171a 100%)'
+                                                    })
                                                 }}
-                                                className={`absolute rounded-xl p-5 flex flex-col border transition-all hover:translate-x-1 shadow-2xl ${isAnonymized
-                                                    ? 'bg-[#F2F2F7] border-[rgba(0,0,0,0.06)] text-[#86868B]'
+                                                className={`absolute rounded-xl p-3 flex flex-col border transition-all hover:scale-[1.05] hover:z-[100] active:scale-[0.98] shadow-2xl group overflow-hidden pointer-events-auto ${isAnonymized
+                                                    ? 'bg-surface-secondary border-border-subtle text-text-tertiary'
                                                     : isConfirmed
-                                                        ? 'bg-green-500/5 border-emerald-500/20 text-[#1D1D1F] shadow-[0_0_20px_rgba(16,185,129,0.05)]'
-                                                        : 'bg-[#FAFAFB] border-[rgba(0,0,0,0.08)] text-[#424245]'
+                                                        ? (item.posterUrl && !item.posterUrl.includes('placeholder.svg') ? 'border-white/10 text-white shadow-[#10B981]/20' : 'border-emerald-500/20 text-white shadow-lg')
+                                                        : (item.posterUrl && !item.posterUrl.includes('placeholder.svg') ? 'border-white/10 text-white' : 'border-border-subtle text-text-primary')
                                                     }`}
                                             >
-                                                <div className="flex gap-4 h-full pointer-events-auto">
-                                                    {item.posterUrl && !isAnonymized && (
-                                                        <div className="w-16 h-16 rounded-lg overflow-hidden border border-border-subtle shadow-lg flex-shrink-0">
-                                                            <img src={item.posterUrl} alt="" className="w-full h-full object-cover" />
-                                                        </div>
-                                                    )}
-                                                    <div className="flex-1 min-w-0 flex flex-col">
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <span className={`text-[10px] font-black uppercase tracking-widest tabular-nums ${isConfirmed ? 'text-emerald-500/80' : 'text-text-tertiary'}`}>
-                                                                {item.startTime} <span className="mx-1 opacity-50">/</span> {item.endTime}
+                                                {/* Ambient Glow */}
+                                                {isConfirmed && !item.posterUrl?.includes('placeholder.svg') && (
+                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[60px] pointer-events-none" />
+                                                )}
+
+                                                <div className="flex flex-col h-full relative z-10 overflow-hidden">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span className={`text-[9px] font-black uppercase tracking-[0.1em] tabular-nums truncate ${item.posterUrl && !item.posterUrl.includes('placeholder.svg') && !isAnonymized ? 'text-white/90' : 'text-text-tertiary'}`}>
+                                                                {item.startTime}
                                                             </span>
-                                                            {isConfirmed && !isAnonymized && <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_rgba(16,185,129,0.4)]" />}
-                                                            {isAnonymized && <Lock className="h-3 w-3 opacity-30 text-text-tertiary" />}
                                                         </div>
-                                                        <h3 className="text-sm font-bold truncate leading-tight mb-2 text-text-primary">
-                                                            {isAnonymized ? 'RESERVED' : (item.title?.toUpperCase() || 'UNTITLED')}
-                                                        </h3>
-                                                        {!isAnonymized && (
-                                                            <div className="flex items-center gap-2 mt-auto">
-                                                                <div className="w-5 h-5 rounded-full bg-surface-elevated/5 border border-border-subtle flex items-center justify-center">
-                                                                    <User className="h-2.5 w-2.5 text-text-tertiary" />
-                                                                </div>
-                                                                <span className="text-[10px] font-black text-text-tertiary uppercase tracking-widest truncate">{item.host || 'Booking'}</span>
+                                                        {isConfirmed && !isAnonymized && totalCols < 3 && (
+                                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_#10B981]" />
                                                             </div>
                                                         )}
                                                     </div>
+
+                                                    <h3 className={`text-[11px] font-black truncate leading-tight mb-1 tracking-tight ${item.posterUrl && !item.posterUrl.includes('placeholder.svg') && !isAnonymized ? 'text-white drop-shadow-lg' : 'text-text-primary'}`}>
+                                                        {isAnonymized ? 'RESERVED' : (item.title?.toUpperCase() || 'UNTITLED')}
+                                                    </h3>
+
+                                                    {!isAnonymized && totalCols < 3 && (
+                                                        <div className="flex items-center gap-2 mt-auto pt-2">
+                                                            <div className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 ${item.posterUrl && !item.posterUrl.includes('placeholder.svg') ? 'bg-black/20 border-white/20' : 'bg-surface-elevated border-border-subtle'}`}>
+                                                                <User className={`h-2.5 w-2.5 ${item.posterUrl && !item.posterUrl.includes('placeholder.svg') ? 'text-white/80' : 'text-text-tertiary'}`} />
+                                                            </div>
+                                                            <span className={`text-[9px] font-bold uppercase tracking-widest truncate ${item.posterUrl && !item.posterUrl.includes('placeholder.svg') ? 'text-white' : 'text-text-primary'}`}>
+                                                                {item.host || 'Booking'}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
+
+                                                {/* Premium hover overlay */}
+                                                {(item.posterUrl && !item.posterUrl.includes('placeholder.svg')) && !isAnonymized && (
+                                                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                                                )}
                                             </Link>
                                         );
                                     } else {
@@ -740,19 +752,18 @@ function SidePanel({
                                                 style={{
                                                     top: `${top}%`,
                                                     height: `${height}%`,
-                                                    minHeight: '60px',
-                                                    left: `${leftOffset}px`,
-                                                    width: `calc(${widthPercent}% - ${leftOffset}px - 16px)`,
+                                                    minHeight: '40px',
+                                                    left: `calc(${colLeft}% + 4px)`,
+                                                    width: `calc(${colWidth}% - 8px)`,
                                                     zIndex: zIndex
                                                 }}
-                                                className="absolute rounded-xl p-5 border border-iris/30 bg-iris/5 flex flex-col transition-all shadow-xl"
+                                                className="absolute rounded-xl p-3 border border-iris/30 bg-iris/5 flex flex-col transition-all hover:z-[100] hover:scale-[1.05] shadow-xl pointer-events-auto cursor-pointer"
                                             >
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 tabular-nums">{item.startTime} / {item.endTime}</span>
-                                                    <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-[9px] font-black text-rose-500 uppercase tracking-widest border border-rose-500/20">PENDING REQUEST</span>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-[8px] font-black uppercase tracking-widest text-rose-500 tabular-nums">{item.startTime}</span>
+                                                    {totalCols < 3 && <span className="px-1 py-0.5 rounded bg-rose-500/10 text-[7px] font-black text-rose-500 uppercase tracking-widest border border-rose-500/20">REQUEST</span>}
                                                 </div>
-                                                <h3 className="text-sm font-black text-text-primary uppercase tracking-tight truncate">{item.host}</h3>
-                                                <p className="text-[9px] text-rose-500 font-black uppercase tracking-[0.2em] mt-auto animate-pulse">ACTION_REQUIRED</p>
+                                                <h3 className="text-[10px] font-bold text-text-primary uppercase tracking-tight truncate">{item.host}</h3>
                                             </div>
                                         );
                                     }
@@ -880,7 +891,7 @@ function SidePanel({
                                 onClick={() => setIsBlockingMode(true)}
                                 className="flex-1 py-4 bg-surface-base border border-border-default text-text-primary rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-surface-secondary transition-all flex items-center justify-center gap-3 shadow-sm"
                             >
-                                <Lock className="h-4 w-4" />
+                                {data?.state === 'BLOCKED' ? <Settings className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                                 {data?.state === 'BLOCKED' ? 'Edit Manual Block' : 'Add Manual Block'}
                             </button>
                         )}

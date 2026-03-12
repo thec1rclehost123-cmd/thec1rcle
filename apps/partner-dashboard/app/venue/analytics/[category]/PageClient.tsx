@@ -27,7 +27,7 @@ import { VenueStatStrip } from "@/components/ui/VenueStatStrip";
 
 // ── Formatters ──
 function fmt(n: number | undefined | null, type: "currency" | "percent" | "number" = "number"): string {
-    if (n == null) return type === "currency" ? "₹--" : type === "percent" ? "--%"  : "--";
+    if (n == null) return type === "currency" ? "₹--" : type === "percent" ? "--%" : "--";
     if (type === "currency") {
         if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
         if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
@@ -48,27 +48,27 @@ export default function VenueAnalyticsPage() {
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
     const categoryLabels: Record<string, string> = {
-        overview:    "Dashboard",
-        reach:       "Demand",
-        engagement:  "Turnout",
-        revenue:     "Money",
-        audience:    "Crowd Profile",
-        ops:         "Gate & Operations",
+        overview: "Dashboard",
+        reach: "Demand",
+        engagement: "Turnout",
+        revenue: "Money",
+        audience: "Crowd Profile",
+        ops: "Gate & Operations",
         attribution: "Hosts & Partners",
-        timeline:    "Timing",
-        strategy:    "Strategy",
+        timeline: "Timing",
+        strategy: "Strategy",
     };
 
     const categoryDescriptions: Record<string, string> = {
-        overview:    "What happened, what's happening, and the final numbers.",
-        reach:       "Who wants to come? Track interest and people joining the queue.",
-        engagement:  "Who actually showed up? Track when people arrive.",
-        revenue:     "Where is the money? Real numbers on gross and net.",
-        audience:    "Who is the crowd? Age, gender, and loyalty profile.",
-        ops:         "How is the gate moving? Scans, denials, and speed.",
+        overview: "What happened, what's happening, and the final numbers.",
+        reach: "Who wants to come? Track interest and people joining the queue.",
+        engagement: "Who actually showed up? Track when people arrive.",
+        revenue: "Where is the money? Real numbers on gross and net.",
+        audience: "Who is the crowd? Age, gender, and loyalty profile.",
+        ops: "How is the gate moving? Scans, denials, and speed.",
         attribution: "Who brought the crowd? Performance of hosts and partners.",
-        timeline:    "How the night went. Minute-by-minute view of everything.",
-        strategy:    "What should you do next? AI-powered recommendations.",
+        timeline: "How the night went. Minute-by-minute view of everything.",
+        strategy: "What should you do next? AI-powered recommendations.",
     };
 
     useEffect(() => {
@@ -144,16 +144,16 @@ export default function VenueAnalyticsPage() {
             onRangeChange={(r) => setRange(r)}
             onEventChange={(eId) => setSelectedEventId(eId)}
         >
-            <div className="space-y-6 pb-20">
-                {category === "overview"    && <OverviewView    stats={stats} />}
-                {category === "reach"       && <ReachView       stats={stats} />}
-                {category === "engagement"  && <EngagementView  stats={stats} />}
-                {category === "revenue"     && <RevenueView     stats={stats} />}
-                {category === "audience"    && <AudienceView    stats={stats} />}
-                {category === "ops"         && <OpsView         stats={stats} />}
+            <div className="space-y-4 pb-20">
+                {category === "overview" && <OverviewView stats={stats} />}
+                {category === "reach" && <ReachView stats={stats} />}
+                {category === "engagement" && <EngagementView stats={stats} />}
+                {category === "revenue" && <RevenueView stats={stats} />}
+                {category === "audience" && <AudienceView stats={stats} />}
+                {category === "ops" && <OpsView stats={stats} />}
                 {category === "attribution" && <AttributionView stats={stats} />}
-                {category === "timeline"    && <TimelineView    stats={stats} />}
-                {category === "strategy"    && <StrategyView    stats={stats} />}
+                {category === "timeline" && <TimelineView stats={stats} />}
+                {category === "strategy" && <StrategyView stats={stats} />}
             </div>
         </StudioShell>
     );
@@ -163,41 +163,41 @@ export default function VenueAnalyticsPage() {
 
 function OverviewView({ stats }: { stats: any }) {
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             {stats.insights?.length > 0 && <InsightsPanel insights={stats.insights} />}
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <KPIBento
                     label="TOTAL COLLECTION"
                     value={fmt(stats.totalRevenue, "currency")}
-                    trend={{ value: "+12.4%", direction: "up" }}
+                    trend={stats.revenueTrend ? { value: stats.revenueTrend, direction: stats.revenueTrendDirection || "up" } : undefined}
                     icon={<DollarSign className="w-5 h-5" />}
                     iconBg="var(--v-orange-dim)"
                 />
                 <KPIBento
                     label="PEOPLE IN VENUE"
                     value={fmt(stats.totalCheckIns)}
-                    trend={{ value: "+8.2%", direction: "up" }}
+                    trend={stats.checkInTrend ? { value: stats.checkInTrend, direction: "up" } : undefined}
                     icon={<Users className="w-5 h-5" />}
                     iconBg="var(--v-success-bg)"
                 />
                 <KPIBento
                     label="AVG TURNOUT"
                     value={fmt(stats.avgTurnout, "percent")}
-                    trend={{ value: "-2.1%", direction: "down" }}
+                    trend={stats.turnoutTrend ? { value: stats.turnoutTrend, direction: stats.turnoutTrendDirection || "neutral" } : undefined}
                     icon={<Activity className="w-5 h-5" />}
                     iconBg="var(--v-warning-bg)"
                 />
                 <KPIBento
                     label="NET EARNINGS"
                     value={fmt(stats.totalNetPayable, "currency")}
-                    trend={{ value: "+15%", direction: "up" }}
+                    trend={stats.netTrend ? { value: stats.netTrend, direction: "up" } : undefined}
                     icon={<TrendingUp className="w-5 h-5" />}
                     iconBg="var(--v-info-bg)"
                 />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                 <BentoCard
                     className="lg:col-span-2"
                     header={<span className="v-label">REVENUE TIMELINE</span>}
@@ -206,7 +206,7 @@ function OverviewView({ stats }: { stats: any }) {
                         type="area"
                         data={stats.revenueTimeline || []}
                         config={{ dataKey: "revenue", xKey: "date", color: "var(--v-chart-1)", gradientId: "overview-rev" }}
-                        height={280}
+                        height={240}
                         title="Revenue Timeline"
                     />
                 </BentoCard>
@@ -220,7 +220,7 @@ function OverviewView({ stats }: { stats: any }) {
                         {stats.topEvents?.map((event: any, i: number) => (
                             <div
                                 key={event.id}
-                                className="flex items-center justify-between py-3"
+                                className="flex items-center justify-between py-2"
                                 style={{ borderBottom: i < stats.topEvents.length - 1 ? "1px solid var(--v-border)" : undefined }}
                             >
                                 <div className="flex items-center gap-3">
@@ -250,29 +250,35 @@ function OverviewView({ stats }: { stats: any }) {
 
 function RevenueView({ stats }: { stats: any }) {
     return (
-        <div className="space-y-6">
-            <AppleHeroStat
-                label="MONEY COLLECTED"
-                value={fmt(stats.totalRevenue, "currency")}
-                subtitle={`Net cleared: ${fmt(stats.totalNetPayable, "currency")}`}
-            />
+        <div className="space-y-4">
+            <div className="v-hero-card p-5 border-l-[3px] border-l-[var(--v-orange)]">
+                <span className="v-label uppercase tracking-widest text-[9px]">TOTAL COLLECTION</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-3xl font-black tracking-tighter" style={{ color: "var(--v-text-primary)" }}>
+                        {fmt(stats.totalRevenue, "currency")}
+                    </span>
+                    <span className="text-[12px] font-bold text-text-tertiary">
+                        Net: {fmt(stats.totalNetPayable, "currency")}
+                    </span>
+                </div>
+            </div>
 
             <VenueStatStrip
                 stats={[
-                    { label: "GROSS REVENUE",  value: fmt(stats.totalRevenue, "currency") },
-                    { label: "PLATFORM FEE",   value: fmt((stats.totalRevenue || 0) - (stats.totalNetPayable || 0), "currency") },
-                    { label: "NET PAYABLE",    value: fmt(stats.totalNetPayable, "currency") },
+                    { label: "GROSS REVENUE", value: fmt(stats.totalRevenue, "currency") },
+                    { label: "PLATFORM FEE", value: fmt((stats.totalRevenue || 0) - (stats.totalNetPayable || 0), "currency") },
+                    { label: "NET PAYABLE", value: fmt(stats.totalNetPayable, "currency") },
                 ]}
                 columns={3}
             />
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <BentoCard header={<span className="v-label">REVENUE BY EVENT</span>}>
                     <VenueChart
                         type="bar"
                         data={stats.revenueByEvent || []}
                         config={{ dataKey: "revenue", xKey: "title", color: "var(--v-chart-1)" }}
-                        height={260}
+                        height={240}
                         title="Revenue by Event"
                     />
                 </BentoCard>
@@ -282,11 +288,11 @@ function RevenueView({ stats }: { stats: any }) {
                     empty={!stats.recentPayouts?.length}
                     emptyTitle="No payouts yet"
                 >
-                    <div className="space-y-3 pt-2">
+                    <div className="space-y-2.5 pt-2">
                         {(stats.recentPayouts || []).map((p: any, i: number) => (
                             <div
                                 key={p.id || i}
-                                className="flex items-center justify-between px-4 py-3 rounded-2xl"
+                                className="flex items-center justify-between px-4 py-2.5 rounded-2xl"
                                 style={{ background: "var(--v-elevated)" }}
                             >
                                 <div>
@@ -319,7 +325,7 @@ function RevenueView({ stats }: { stats: any }) {
 
 function OpsView({ stats }: { stats: any }) {
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             {stats.insights?.length > 0 && <InsightsPanel insights={stats.insights} />}
 
             <VenueStatStrip
@@ -338,7 +344,7 @@ function OpsView({ stats }: { stats: any }) {
                         value: stats.deniedStats?.total ?? "--",
                         trend: stats.deniedStats?.total > 10
                             ? { value: "High", direction: "down" as const }
-                            : { value: "Low",  direction: "up"   as const },
+                            : { value: "Low", direction: "up" as const },
                     },
                 ]}
                 columns={3}
@@ -362,9 +368,9 @@ function OpsView({ stats }: { stats: any }) {
                 >
                     <div className="space-y-3 pt-2">
                         {[
-                            { label: "Successful Entries", value: stats.totalCheckIns ?? "--", color: "var(--v-success)",  bg: "var(--v-success-bg)" },
-                            { label: "Denied Entry",       value: stats.deniedStats?.total ?? "--", color: "var(--v-error)", bg: "var(--v-error-bg)" },
-                            { label: "Re-entries",         value: stats.reentries ?? "--",     color: "var(--v-info)",    bg: "var(--v-info-bg)"  },
+                            { label: "Successful Entries", value: stats.totalCheckIns ?? "--", color: "var(--v-success)", bg: "var(--v-success-bg)" },
+                            { label: "Denied Entry", value: stats.deniedStats?.total ?? "--", color: "var(--v-error)", bg: "var(--v-error-bg)" },
+                            { label: "Re-entries", value: stats.reentries ?? "--", color: "var(--v-info)", bg: "var(--v-info-bg)" },
                         ].map((row) => (
                             <div
                                 key={row.label}
@@ -381,10 +387,10 @@ function OpsView({ stats }: { stats: any }) {
                 <BentoCard header={<span className="v-label">PEAK HOUR DETAIL</span>}>
                     <div className="space-y-0 pt-2">
                         {[
-                            { label: "Peak Entry Hour",      value: stats.peakEntryHour != null ? `${stats.peakEntryHour}:00` : "--" },
+                            { label: "Peak Entry Hour", value: stats.peakEntryHour != null ? `${stats.peakEntryHour}:00` : "--" },
                             { label: "Entries in Peak Hour", value: fmt(stats.peakHourCount) },
-                            { label: "Avg Wait Estimate",    value: stats.avgEntryTime ?? "--" },
-                            { label: "Queue Clearance",      value: stats.queueClearance ?? "--" },
+                            { label: "Avg Wait Estimate", value: stats.avgEntryTime ?? "--" },
+                            { label: "Queue Clearance", value: stats.queueClearance ?? "--" },
                         ].map((row) => (
                             <div
                                 key={row.label}
@@ -405,33 +411,33 @@ function OpsView({ stats }: { stats: any }) {
 function AudienceView({ stats }: { stats: any }) {
     const total = stats.totalCheckedIn || stats.totalCheckIns || 1;
     return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <KPIBento
                     label="WOMEN RATIO"
                     value={fmt(stats.genderRatio?.female, "percent")}
-                    trend={{ value: "+5%", direction: "up" }}
+                    trend={stats.womenRatioTrend ? { value: stats.womenRatioTrend, direction: "up" } : undefined}
                     icon={<Users className="w-5 h-5" />}
                     iconBg="var(--v-info-bg)"
                 />
                 <KPIBento
                     label="REPEAT GUESTS"
                     value={fmt(stats.metrics?.repeatRate, "percent")}
-                    trend={{ value: "+2%", direction: "up" }}
+                    trend={stats.repeatTrend ? { value: stats.repeatTrend, direction: "up" } : undefined}
                     icon={<Activity className="w-5 h-5" />}
                     iconBg="var(--v-success-bg)"
                 />
                 <KPIBento
                     label="WOMEN'S LOYALTY"
                     value={fmt(stats.metrics?.femaleRetention, "percent")}
-                    trend={{ value: "Stable", direction: "neutral" }}
+                    trend={undefined}
                     icon={<TrendingUp className="w-5 h-5" />}
                     iconBg="var(--v-warning-bg)"
                 />
                 <KPIBento
                     label="FIRST-TIMERS"
                     value={fmt(stats.metrics?.firstTimeRate, "percent")}
-                    trend={{ value: "-3%", direction: "down" }}
+                    trend={stats.firstTimerTrend ? { value: stats.firstTimerTrend, direction: "down" } : undefined}
                     icon={<Zap className="w-5 h-5" />}
                     iconBg="var(--v-orange-dim)"
                 />
@@ -463,8 +469,8 @@ function AudienceView({ stats }: { stats: any }) {
                             if (!pct) return null;
                             const colors: Record<string, string> = {
                                 female: "var(--v-chart-2)",
-                                male:   "var(--v-chart-1)",
-                                other:  "var(--v-chart-3)",
+                                male: "var(--v-chart-1)",
+                                other: "var(--v-chart-3)",
                             };
                             return (
                                 <div key={gender} className="text-center">
@@ -515,33 +521,32 @@ function ReachView({ stats }: { stats: any }) {
         "var(--v-chart-5)",
     ];
     return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <KPIBento
                     label="PURCHASE INTENT"
                     value={fmt(stats.funnel?.[0]?.count)}
-                    trend={{ value: "+15%", direction: "up" }}
+                    trend={stats.intentTrend ? { value: stats.intentTrend, direction: "up" } : undefined}
                     icon={<Target className="w-5 h-5" />}
                     iconBg="var(--v-orange-dim)"
                 />
                 <KPIBento
                     label="QUEUE CHECKOUT"
                     value={fmt(stats.funnel?.[1]?.count)}
-                    trend={{ value: "+8%", direction: "up" }}
+                    trend={stats.checkoutTrend ? { value: stats.checkoutTrend, direction: "up" } : undefined}
                     icon={<Activity className="w-5 h-5" />}
                     iconBg="var(--v-success-bg)"
                 />
                 <KPIBento
                     label="DEMAND PRESSURE"
-                    value={`${(((stats.funnel?.[0]?.count || 0) / (stats.totalCapacity || 1000))).toFixed(1)}x`}
-                    trend={{ value: "High", direction: "up" }}
+                    value={stats.totalCapacity ? `${(((stats.funnel?.[0]?.count || 0) / stats.totalCapacity)).toFixed(1)}x` : "--"}
                     icon={<Zap className="w-5 h-5" />}
                     iconBg="var(--v-warning-bg)"
                 />
                 <KPIBento
                     label="% BOOKED"
                     value={fmt(stats.conversionRate, "percent")}
-                    trend={{ value: "+2%", direction: "up" }}
+                    trend={stats.conversionTrend ? { value: stats.conversionTrend, direction: "up" } : undefined}
                     icon={<TrendingUp className="w-5 h-5" />}
                     iconBg="var(--v-info-bg)"
                 />
@@ -604,11 +609,11 @@ function ReachView({ stats }: { stats: any }) {
 
 function EngagementView({ stats }: { stats: any }) {
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <AppleHeroStat
                 label="TURNOUT RATE"
                 value={fmt(stats.turnoutRate ?? stats.avgTurnout, "percent")}
-                trend={{ value: "vs last period", direction: "neutral" }}
+                trend={stats.turnoutTrend ? { value: stats.turnoutTrend, direction: stats.turnoutTrendDirection || "neutral" } : undefined}
                 subtitle={`${fmt(stats.totalCheckIns)} guests arrived · ${fmt(stats.totalTicketsSold)} issued`}
             />
 
@@ -622,19 +627,19 @@ function EngagementView({ stats }: { stats: any }) {
                 />
             </BentoCard>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <KPIBento
                     label="NO-SHOW RATE"
                     value={fmt(stats.noShowRate, "percent")}
-                    trend={{ value: "-2%", direction: "down" }}
+                    trend={stats.noShowTrend ? { value: stats.noShowTrend, direction: "down" } : undefined}
                     subtext="Issued entitlements that never checked in"
                     icon={<Activity className="w-5 h-5" />}
                     iconBg="var(--v-error-bg)"
                 />
                 <KPIBento
                     label="SCAN EFFICIENCY"
-                    value={fmt(stats.scanEfficiency ?? 98, "percent")}
-                    trend={{ value: "Stable", direction: "neutral" }}
+                    value={fmt(stats.scanEfficiency, "percent")}
+                    trend={stats.scanTrend ? { value: stats.scanTrend, direction: "neutral" } : undefined}
                     subtext="Successful scans vs total attempts"
                     icon={<ShieldAlert className="w-5 h-5" />}
                     iconBg="var(--v-success-bg)"
@@ -646,33 +651,32 @@ function EngagementView({ stats }: { stats: any }) {
 
 function AttributionView({ stats }: { stats: any }) {
     return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <KPIBento
                     label="HOST IMPACT"
-                    value="64%"
-                    trend={{ value: "+4%", direction: "up" }}
+                    value={fmt(stats.hostImpact, "percent")}
+                    trend={stats.hostImpactTrend ? { value: stats.hostImpactTrend, direction: "up" } : undefined}
                     icon={<Handshake className="w-5 h-5" />}
                     iconBg="var(--v-info-bg)"
                 />
                 <KPIBento
                     label="PROMOTER ROI"
-                    value="₹14.2"
-                    trend={{ value: "Optimal", direction: "neutral" }}
+                    value={fmt(stats.promoterRoi, "currency")}
                     icon={<Target className="w-5 h-5" />}
                     iconBg="var(--v-success-bg)"
                 />
                 <KPIBento
                     label="VERIFIED ENTRY RATE"
-                    value="82%"
-                    trend={{ value: "+2%", direction: "up" }}
+                    value={fmt(stats.verifiedEntryRate, "percent")}
+                    trend={stats.verifiedTrend ? { value: stats.verifiedTrend, direction: "up" } : undefined}
                     icon={<Activity className="w-5 h-5" />}
                     iconBg="var(--v-warning-bg)"
                 />
                 <KPIBento
                     label="TOP HOST REVENUE"
-                    value="₹4.2L"
-                    trend={{ value: "+12%", direction: "up" }}
+                    value={fmt(stats.topHostRevenue, "currency")}
+                    trend={stats.topHostTrend ? { value: stats.topHostTrend, direction: "up" } : undefined}
                     icon={<DollarSign className="w-5 h-5" />}
                     iconBg="var(--v-orange-dim)"
                 />
@@ -748,13 +752,10 @@ function AttributionView({ stats }: { stats: any }) {
 
 function TimelineView({ stats }: { stats: any }) {
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <EventTimeline
                 data={stats.timeline}
-                events={[
-                    { percent: 30, type: "surge",    label: "Surge Triggered", time: "22:45" },
-                    { percent: 65, type: "incident", label: "Gate Backup",     time: "00:15" },
-                ]}
+                events={stats.milestones || []}
             />
 
             <BentoCard header={<span className="v-label">NIGHT TIMELINE</span>}>
@@ -767,21 +768,20 @@ function TimelineView({ stats }: { stats: any }) {
                 />
             </BentoCard>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <BentoCard header={<span className="v-label">TIMELINE NARRATIVE</span>}>
                     <p className="text-[14px] leading-relaxed pt-2" style={{ color: "var(--v-text-secondary)" }}>
-                        {stats.narrative ||
-                            "The event maintained high demand pressure for 4 hours starting at 9 PM. Most conversions happened within 15 minutes of queue joins, indicating healthy inventory availability."}
+                        {stats.narrative || "No narrative available for this interval."}
                     </p>
                 </BentoCard>
 
                 <BentoCard header={<span className="v-label">PEAK INTERVALS</span>}>
                     <div className="space-y-0 pt-2">
                         {[
-                            { label: "Peak Entry",   value: stats.summary?.peakEntriesAt },
-                            { label: "Peak Demand",  value: stats.summary?.peakDemandAt },
-                            { label: "Quietest Hour",value: stats.summary?.quietestHour },
-                            { label: "Last Entry",   value: stats.summary?.lastEntryAt },
+                            { label: "Peak Entry", value: stats.summary?.peakEntriesAt },
+                            { label: "Peak Demand", value: stats.summary?.peakDemandAt },
+                            { label: "Quietest Hour", value: stats.summary?.quietestHour },
+                            { label: "Last Entry", value: stats.summary?.lastEntryAt },
                         ].map((row) => (
                             <div
                                 key={row.label}
@@ -803,7 +803,7 @@ function TimelineView({ stats }: { stats: any }) {
 
 function StrategyView({ stats }: { stats: any }) {
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             {stats.insights?.length > 0 && <InsightsPanel insights={stats.insights} />}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -814,7 +814,7 @@ function StrategyView({ stats }: { stats: any }) {
                             style={{ background: rec.impact === "High" ? "var(--v-warning-bg)" : "var(--v-elevated)" }}
                         >
                             {rec.impact === "High"
-                                ? <Zap    className="w-5 h-5" style={{ color: "var(--v-warning)" }} />
+                                ? <Zap className="w-5 h-5" style={{ color: "var(--v-warning)" }} />
                                 : <Target className="w-5 h-5" style={{ color: "var(--v-success)" }} />
                             }
                         </div>
@@ -822,7 +822,7 @@ function StrategyView({ stats }: { stats: any }) {
                             className="inline-block text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3"
                             style={{
                                 background: rec.impact === "High" ? "var(--v-warning-bg)" : "var(--v-success-bg)",
-                                color:      rec.impact === "High" ? "var(--v-warning)"    : "var(--v-success)",
+                                color: rec.impact === "High" ? "var(--v-warning)" : "var(--v-success)",
                             }}
                         >
                             {rec.impact} Impact

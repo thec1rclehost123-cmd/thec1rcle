@@ -1,3 +1,5 @@
+"use client";
+
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
@@ -8,11 +10,11 @@ import {
     CalendarDays,
     Link2,
     BarChart3,
-    CreditCard,
     Settings,
     User,
     Users,
-    Activity
+    Activity,
+    Banknote,
 } from "lucide-react";
 
 const menuSections = [
@@ -37,6 +39,15 @@ const menuSections = [
     {
         items: [
             { icon: CalendarDays, label: "Events", href: "/promoter/events" },
+            {
+                icon: Banknote,
+                label: "Finance",
+                href: "/promoter/finance",
+                children: [
+                    { label: "Overview", href: "/promoter/finance" },
+                    { label: "Payouts",  href: "/promoter/payouts" },
+                ]
+            },
             { icon: Link2, label: "My Links", href: "/promoter/links" },
             { icon: Activity, label: "Guest Stream", href: "/promoter/guests" },
         ]
@@ -44,11 +55,6 @@ const menuSections = [
     {
         items: [
             { icon: Users, label: "Partnerships", href: "/promoter/partnerships" },
-        ]
-    },
-    {
-        items: [
-            { icon: CreditCard, label: "Payouts", href: "/promoter/payouts" },
         ]
     },
     {

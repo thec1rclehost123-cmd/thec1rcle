@@ -12,10 +12,13 @@ type MenuItem = {
     icon: React.ComponentType<{ className?: string }>;
     label: string;
     href: string;
-    children?: { label: string; href: string }[];
+    badge?: string;
+    minPlan?: string;
+    children?: { label: string; href: string; badge?: string }[];
 };
 
 type MenuSection = {
+    label?: string;
     items: MenuItem[];
 };
 
@@ -24,12 +27,23 @@ interface AppleSidebarProps {
     brandLabel: string;
     menuSections: MenuSection[];
     basePath: string;
+    subscriptionPlan?: string;
 }
 
-export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }: AppleSidebarProps) {
+const PLAN_HIERARCHY: Record<string, number> = {
+    'basic': 0,
+    'silver': 1,
+    'gold': 2,
+    'diamond': 3
+};
+
+export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath, subscriptionPlan: propPlan }: AppleSidebarProps) {
     const pathname = usePathname();
-    const { signOut, profile } = useDashboardAuth();
+    const { signOut, profile, subscriptionPlan: contextPlan } = useDashboardAuth();
     const [expandedItems, setExpandedItems] = useState<string[]>([]);
+
+    const currentPlan = (propPlan || contextPlan || 'basic').toLowerCase();
+    const currentPlanLevel = PLAN_HIERARCHY[currentPlan] ?? 0;
 
     const isActive = (path: string) => {
         if (path === basePath && pathname === basePath) return true;
@@ -49,155 +63,162 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath }
         return expandedItems.includes(href) || pathname.startsWith(href);
     };
 
+    // Filter sections and items based on plan
+    const visibleSections = menuSections.map(section => ({
+        ...section,
+        items: section.items.filter(item => !item.minPlan || PLAN_HIERARCHY[item.minPlan.toLowerCase()] <= currentPlanLevel)
+    })).filter(section => section.items.length > 0);
+
     return (
         <aside className="w-[280px] bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] flex flex-col h-full overflow-hidden z-50 shrink-0">
             {/* Brand Header */}
-            <div className="p-6 border-b border-border-subtle">
+            <div className="p-7">
                 <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-xl bg-text-primary flex items-center justify-center text-text-inverse font-bold text-lg shadow-md">
+                    <div className="w-11 h-11 rounded-2xl bg-text-primary flex items-center justify-center text-text-inverse font-bold text-xl shadow-lg ring-1 ring-white/10">
                         {brandLetter}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <h1 className="text-[15px] font-bold text-text-primary tracking-tight">THE C1RCLE</h1>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-text-tertiary truncate">
+                        <h1 className="text-[17px] font-bold text-text-primary tracking-tight leading-tight uppercase">THE C1RCLE</h1>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-tertiary truncate mt-0.5 opacity-60">
                             {brandLabel} Dashboard
                         </p>
                     </div>
                 </div>
             </div>
 
-            {/* Navigation */}
-            <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-6 scrollbar-hide">
-                {menuSections.map((section, idx) => (
-                    <div key={idx} className="space-y-1">
-                        {section.items.map((item) => {
-                            const Icon = item.icon;
-                            const active = isActive(item.href);
-                            const hasChildren = item.children && item.children.length > 0;
-                            const expanded = hasChildren && isExpanded(item.href);
-                            const isChildActive = hasChildren && item.children?.some(child => pathname === child.href);
-
-                            return (
-                                <div key={item.href}>
-                                    {/* Main Nav Item */}
-                                    <div className="relative">
-                                        <Link
-                                            href={hasChildren ? "#" : item.href}
-                                            onClick={(e) => {
-                                                if (hasChildren) {
-                                                    e.preventDefault();
-                                                    toggleExpand(item.href);
-                                                }
-                                            }}
-                                            className={`nav-item relative group w-full ${active || isChildActive
-                                                ? "nav-item-active"
-                                                : ""
-                                                }`}
-                                        >
-                                            {/* Active Indicator */}
-                                            {(active || isChildActive) && (
-                                                <motion.div
-                                                    layoutId="nav-active-bg"
-                                                    className="absolute inset-0 bg-surface-tertiary dark:bg-surface-elevated/[0.08] rounded-xl"
-                                                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                                                />
-                                            )}
-
-                                            <div className="relative z-10 flex items-center gap-3 w-full">
-                                                <Icon className={`nav-icon ${active || isChildActive
-                                                    ? "text-c1rcle-orange opacity-100"
-                                                    : "text-text-tertiary"
-                                                    }`} />
-                                                <span className="flex-1 text-left">{item.label}</span>
-
-                                                {hasChildren && (
-                                                    <ChevronDown className={`h-4 w-4 text-text-tertiary transition-transform duration-200 ${expanded ? "rotate-180" : ""
-                                                        }`} />
-                                                )}
-
-                                                {active && !hasChildren && (
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-c1rcle-orange shadow-[0_0_8px_var(--c1rcle-orange)]" />
-                                                )}
-                                            </div>
-                                        </Link>
-                                    </div>
-
-                                    {/* Submenu */}
-                                    <AnimatePresence>
-                                        {hasChildren && expanded && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: "auto", opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                transition={{ duration: 0.2 }}
-                                                className="overflow-hidden"
-                                            >
-                                                <div className="ml-10 mt-1 space-y-0.5 py-1">
-                                                    {item.children?.map((child) => {
-                                                        const childActive = pathname === child.href;
-                                                        return (
-                                                            <Link
-                                                                key={child.href}
-                                                                href={child.href}
-                                                                className={`block px-4 py-2.5 rounded-lg text-[13px] font-medium transition-all ${childActive
-                                                                    ? "text-c1rcle-orange bg-c1rcle-orange-glow"
-                                                                    : "text-text-tertiary hover:text-text-primary hover:bg-surface-tertiary"
-                                                                    }`}
-                                                            >
-                                                                <span className="flex items-center gap-2">
-                                                                    {childActive && (
-                                                                        <span className="w-1 h-1 rounded-full bg-c1rcle-orange" />
-                                                                    )}
-                                                                    {child.label}
-                                                                </span>
-                                                            </Link>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </div>
-                            );
-                        })}
-
-                        {/* Section Divider */}
-                        {idx < menuSections.length - 1 && (
-                            <div className="pt-4">
-                                <div className="h-px bg-border-subtle" />
-                            </div>
+            {/* Navigation - Continuous Flow */}
+            <nav className="flex-1 overflow-y-auto px-5 space-y-1 scrollbar-hide">
+                {visibleSections.map((section, idx) => (
+                    <div key={idx} className="pt-2 first:pt-0">
+                        {section.label && (
+                             <p className="px-5 pb-2 pt-4 text-[10px] font-black text-text-tertiary uppercase tracking-[0.25em] opacity-30">
+                                {section.label}
+                             </p>
                         )}
+                        <div className="space-y-1">
+                            {section.items.map((item) => {
+                                const Icon = item.icon;
+                                const active = isActive(item.href);
+                                const hasChildren = item.children && item.children.length > 0;
+                                const expanded = hasChildren && isExpanded(item.href);
+                                const isChildActive = hasChildren && item.children?.some(child => pathname === child.href);
+
+                                return (
+                                    <div key={item.href}>
+                                        <div className="relative">
+                                            {hasChildren ? (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        toggleExpand(item.href);
+                                                    }}
+                                                    className={`nav-item relative group w-full ${isChildActive || expanded ? "text-text-primary" : ""}`}
+                                                >
+                                                    <div className="relative z-10 flex items-center gap-4 w-full">
+                                                        <Icon className={`w-5 h-5 transition-colors ${isChildActive || expanded ? "text-text-primary" : "text-text-tertiary/60 group-hover:text-text-primary/70"}`} />
+                                                        <span className="flex-1 text-left font-semibold">{item.label}</span>
+                                                        <ChevronDown className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ease-out ${expanded ? "rotate-180" : ""}`} />
+                                                    </div>
+                                                </button>
+                                            ) : (
+                                                <Link
+                                                    href={item.href}
+                                                    className={`nav-item relative group w-full ${active ? "nav-item-active" : ""}`}
+                                                >
+                                                    {active && (
+                                                        <motion.div
+                                                            layoutId="nav-active-bg"
+                                                            className="absolute inset-0 bg-surface-tertiary dark:bg-white/[0.06] rounded-2xl"
+                                                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                                        />
+                                                    )}
+
+                                                    <div className="relative z-10 flex items-center gap-4 w-full">
+                                                        <Icon className={`w-5 h-5 transition-colors ${active ? "text-text-primary" : "text-text-tertiary/60 group-hover:text-text-primary/70"}`} />
+                                                        <span className="flex-1 text-left">{item.label}</span>
+                                                        
+                                                        {item.badge && (
+                                                            <span className="px-2 py-0.5 rounded-full bg-c1rcle-orange/10 text-c1rcle-orange text-[9px] font-black uppercase tracking-widest ring-1 ring-c1rcle-orange/20">
+                                                                {item.badge}
+                                                            </span>
+                                                        )}
+
+                                                        {active && (
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-c1rcle-orange shadow-[0_0_12px_var(--c1rcle-orange)]" />
+                                                        )}
+                                                    </div>
+                                                </Link>
+                                            )}
+                                        </div>
+
+                                        <AnimatePresence initial={false}>
+                                            {hasChildren && expanded && (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: "auto", opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                                                    className="overflow-hidden"
+                                                >
+                                                    <div className="ml-7 pl-6 mt-1 space-y-1 border-l-2 border-border-subtle/30">
+                                                        {item.children?.map((child) => {
+                                                            const childActive = pathname === child.href;
+                                                            return (
+                                                                <Link
+                                                                    key={child.href}
+                                                                    href={child.href}
+                                                                    className={`block px-4 py-3 rounded-xl text-[15px] font-semibold transition-all ${childActive
+                                                                        ? "text-text-primary bg-surface-tertiary/50 dark:bg-white/[0.05]"
+                                                                        : "text-text-tertiary/70 hover:text-text-primary hover:bg-surface-tertiary/30"
+                                                                        }`}
+                                                                >
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span>{child.label}</span>
+                                                                        {childActive && (
+                                                                            <div className="w-1.5 h-1.5 rounded-full bg-text-primary" />
+                                                                        )}
+                                                                    </div>
+                                                                </Link>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 ))}
             </nav>
 
             {/* Account Footer */}
-            <div className="p-4 border-t border-border-subtle space-y-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-                {/* User Info Card */}
-                <div className="flex items-center gap-3 px-3 py-3 bg-surface-tertiary dark:bg-surface-elevated/[0.04] rounded-xl border border-border-subtle">
-                    <div className="h-9 w-9 rounded-lg bg-text-primary flex items-center justify-center text-text-inverse text-[13px] font-bold">
+            <div className="p-6 border-t border-border-subtle bg-surface-tertiary/10">
+                <div className="flex items-center gap-4 mb-5">
+                    <div className="h-10 w-10 rounded-full bg-surface-secondary border border-border-subtle flex items-center justify-center text-text-primary font-bold text-base shadow-inner">
                         {profile?.displayName?.charAt(0)?.toUpperCase() || "U"}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-text-primary truncate">
+                        <p className="text-[14px] font-bold text-text-primary truncate">
                             {profile?.displayName || "Operator"}
                         </p>
-                        <p className="text-[10px] text-text-tertiary truncate">
-                            {profile?.email || ""}
+                        <p className="text-[10px] font-bold text-text-tertiary/60 uppercase tracking-widest mt-0.5">
+                            {currentPlan} membership
                         </p>
                     </div>
                     <ThemeToggleCompact />
                 </div>
 
-                {/* Sign Out */}
                 <button
                     onClick={() => signOut()}
-                    className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-text-tertiary hover:text-red-500 hover:bg-red-500/10 transition-all group text-[14px] font-medium"
+                    className="flex items-center justify-center gap-2.5 w-full py-3 rounded-2xl bg-surface-secondary/50 hover:bg-red-500/5 text-text-tertiary hover:text-red-500 transition-all border border-border-subtle hover:border-red-500/20 text-[13px] font-black uppercase tracking-widest"
                 >
-                    <LogOut className="w-4 h-4 group-hover:text-red-500" />
-                    <span>Sign Out</span>
+                    <LogOut className="w-4 h-4" />
+                    <span>Term Sesson</span>
                 </button>
             </div>
         </aside>
     );
 }
+

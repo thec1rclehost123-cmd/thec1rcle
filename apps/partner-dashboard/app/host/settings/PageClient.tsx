@@ -148,28 +148,28 @@ export default function HostSettingsPage() {
     }
 
     return (
-        <div className="space-y-10 pb-20 animate-in fade-in duration-500">
+        <div className="space-y-6 pb-20 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-default pb-10">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border-default pb-6">
                 <div>
-                    <h1 className="text-4xl font-extrabold text-text-primary tracking-tight flex items-center gap-4 uppercase">
+                    <h1 className="text-2xl font-black text-text-primary tracking-tight flex items-center gap-3 uppercase">
                         Console Prefs
                     </h1>
-                    <p className="text-text-tertiary text-lg font-medium mt-3">Operational parameters, verification status, and payout anchors.</p>
+                    <p className="text-text-tertiary text-sm font-medium mt-1">Operational parameters and payout anchors.</p>
                 </div>
                 <button
                     onClick={() => handleSave({})}
                     disabled={isSaving}
-                    className="flex items-center gap-3 px-10 py-4 bg-surface-secondary text-text-primary rounded-2xl text-sm font-bold shadow-xl shadow-slate-200 active:scale-95 transition-all"
+                    className="flex items-center gap-2 px-6 py-2.5 bg-surface-secondary text-text-primary rounded-xl text-xs font-bold shadow-lg active:scale-95 transition-all"
                 >
-                    {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
+                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     Sync Settings
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 {/* Navigation */}
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                     <NavButton active={activeSection === "profile"} onClick={() => setActiveSection("profile")} icon={Users} label="Identity" />
                     <NavButton active={activeSection === "security"} onClick={() => setActiveSection("security")} icon={Shield} label="Security" />
                     <NavButton active={activeSection === "payouts"} onClick={() => setActiveSection("payouts")} icon={CreditCard} label="Financials" />
@@ -177,19 +177,19 @@ export default function HostSettingsPage() {
                 </div>
 
                 {/* Content */}
-                <div className="lg:col-span-3 space-y-12">
+                <div className="lg:col-span-3 space-y-8">
                     {activeSection === "profile" && (
-                        <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-12 shadow-sm space-y-10">
-                            <h2 className="text-2xl font-black text-text-primary uppercase tracking-tight flex items-center gap-4">
+                        <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm space-y-6">
+                            <h2 className="text-lg font-black text-text-primary uppercase tracking-tight flex items-center gap-3">
                                 Personal Anchors
                             </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <SettingsField label="Legal Phone" icon={Phone}>
                                     <input
                                         type="tel"
                                         defaultValue={settings?.phone}
                                         onBlur={(e) => handleSave({ phone: e.target.value })}
-                                        className="w-full bg-surface-tertiary border border-border-default rounded-2xl p-4 font-bold text-sm focus:bg-surface-elevated focus:ring-4 focus:ring-slate-50 transition-all"
+                                        className="w-full bg-surface-tertiary border border-border-default rounded-xl p-3 font-bold text-xs focus:bg-surface-elevated focus:ring-2 focus:ring-slate-100 transition-all"
                                     />
                                 </SettingsField>
                                 <SettingsField label="Support Email" icon={AtSign}>
@@ -197,7 +197,7 @@ export default function HostSettingsPage() {
                                         type="email"
                                         defaultValue={settings?.email}
                                         onBlur={(e) => handleSave({ email: e.target.value })}
-                                        className="w-full bg-surface-tertiary border border-border-default rounded-2xl p-4 font-bold text-sm focus:bg-surface-elevated focus:ring-4 focus:ring-slate-50 transition-all"
+                                        className="w-full bg-surface-tertiary border border-border-default rounded-xl p-3 font-bold text-xs focus:bg-surface-elevated focus:ring-2 focus:ring-slate-100 transition-all"
                                     />
                                 </SettingsField>
                             </div>
@@ -206,51 +206,50 @@ export default function HostSettingsPage() {
 
                     {/* ============ SECURITY (Fixed P2) ============ */}
                     {activeSection === "security" && (
-                        <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-12 shadow-sm space-y-10">
-                            <h2 className="text-2xl font-black text-text-primary uppercase tracking-tight">Security Checkpoint</h2>
+                        <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm space-y-8">
+                            <h2 className="text-lg font-black text-text-primary uppercase tracking-tight">Security Checkpoint</h2>
 
                             {/* 2FA Status */}
-                            <div className="p-8 bg-surface-secondary rounded-3xl text-text-primary flex items-center justify-between">
-                                <div className="flex items-center gap-6">
-                                    <Shield className="h-10 w-10 text-accent-primary" />
+                            <div className="p-6 bg-surface-secondary rounded-2xl text-text-primary flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <Shield className="h-8 w-8 text-accent-primary" />
                                     <div>
-                                        <p className="font-black text-xl mb-1 uppercase tracking-tight">Enterprise Locked</p>
-                                        <p className="text-text-primary/40 text-[10px] font-black uppercase tracking-widest">Two-Factor Authentication Active</p>
+                                        <p className="font-black text-lg mb-0.5 uppercase tracking-tight">Enterprise Locked</p>
+                                        <p className="text-text-primary/40 text-[9px] font-black uppercase tracking-widest">Two-Factor Authentication Active</p>
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => setShowSecurityModal(true)}
-                                    className="px-6 py-3 bg-surface-elevated hover:bg-surface-tertiary rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors border border-border-default"
+                                    className="px-5 py-2.5 bg-surface-elevated hover:bg-surface-tertiary rounded-xl text-[9px] font-black uppercase tracking-widest transition-colors border border-border-default"
                                 >
                                     Adjust Policy
                                 </button>
                             </div>
 
-                            {/* Security Overview */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="p-6 bg-surface-secondary/50 rounded-2xl border border-border-subtle space-y-3">
-                                    <div className="flex items-center gap-3">
-                                        <ShieldCheck className="w-5 h-5 text-emerald-500" />
-                                        <h4 className="text-xs font-black text-text-primary uppercase tracking-widest">Account Status</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                <div className="p-5 bg-surface-secondary/50 rounded-2xl border border-border-subtle space-y-2">
+                                    <div className="flex items-center gap-2.5">
+                                        <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                                        <h4 className="text-[10px] font-black text-text-primary uppercase tracking-widest">Account Status</h4>
                                     </div>
-                                    <p className="text-sm font-bold text-emerald-600">Verified & Secured</p>
-                                    <p className="text-[11px] text-text-tertiary">Last login: {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+                                    <p className="text-xs font-bold text-emerald-600">Verified & Secured</p>
+                                    <p className="text-[10px] text-text-tertiary">Last login: {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
                                 </div>
-                                <div className="p-6 bg-surface-secondary/50 rounded-2xl border border-border-subtle space-y-3">
-                                    <div className="flex items-center gap-3">
-                                        <Smartphone className="w-5 h-5 text-indigo-500" />
-                                        <h4 className="text-xs font-black text-text-primary uppercase tracking-widest">Active Sessions</h4>
+                                <div className="p-5 bg-surface-secondary/50 rounded-2xl border border-border-subtle space-y-2">
+                                    <div className="flex items-center gap-2.5">
+                                        <Smartphone className="w-4 h-4 text-indigo-500" />
+                                        <h4 className="text-[10px] font-black text-text-primary uppercase tracking-widest">Sessions</h4>
                                     </div>
-                                    <p className="text-sm font-bold text-text-primary">1 Device</p>
-                                    <p className="text-[11px] text-text-tertiary">This browser session</p>
+                                    <p className="text-xs font-bold text-text-primary">1 Device Active</p>
+                                    <p className="text-[10px] text-text-tertiary">Current session</p>
                                 </div>
-                                <div className="p-6 bg-surface-secondary/50 rounded-2xl border border-border-subtle space-y-3">
-                                    <div className="flex items-center gap-3">
-                                        <Key className="w-5 h-5 text-amber-500" />
-                                        <h4 className="text-xs font-black text-text-primary uppercase tracking-widest">Password</h4>
+                                <div className="p-5 bg-surface-secondary/50 rounded-2xl border border-border-subtle space-y-2">
+                                    <div className="flex items-center gap-2.5">
+                                        <Key className="w-4 h-4 text-amber-500" />
+                                        <h4 className="text-[10px] font-black text-text-primary uppercase tracking-widest">Password</h4>
                                     </div>
-                                    <p className="text-sm font-bold text-text-primary">Firebase Auth</p>
-                                    <p className="text-[11px] text-text-tertiary">Managed via Google Identity</p>
+                                    <p className="text-xs font-bold text-text-primary">Managed Identity</p>
+                                    <p className="text-[10px] text-text-tertiary">Via Google Auth</p>
                                 </div>
                             </div>
                         </div>
@@ -258,36 +257,36 @@ export default function HostSettingsPage() {
 
                     {/* ============ PAYOUTS (Fixed P1) ============ */}
                     {activeSection === "payouts" && (
-                        <div className="space-y-8">
+                        <div className="space-y-6">
                             {/* Bank Account */}
-                            <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-12 shadow-sm space-y-10">
-                                <h2 className="text-2xl font-black text-text-primary uppercase tracking-tight">Financial Routing</h2>
-                                <div className="space-y-6">
+                            <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm space-y-8">
+                                <h2 className="text-lg font-black text-text-primary uppercase tracking-tight">Financial Routing</h2>
+                                <div className="space-y-5">
                                     <SettingsField label="Bank Account (T+2 Layout)" icon={Building}>
                                         <input
                                             type="text"
                                             defaultValue={settings?.bankAccount}
                                             onBlur={(e) => handleSave({ bankAccount: e.target.value })}
-                                            className="w-full bg-surface-tertiary border border-border-default rounded-2xl p-4 font-bold text-sm focus:bg-surface-elevated focus:ring-4 focus:ring-slate-50 transition-all"
+                                            className="w-full bg-surface-tertiary border border-border-default rounded-xl p-3 font-bold text-xs focus:bg-surface-elevated focus:ring-2 focus:ring-slate-100 transition-all"
                                             placeholder="Enter Account Number or UPI ID"
                                         />
                                     </SettingsField>
-                                    <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-                                            <p className="text-xs font-black text-emerald-900 uppercase tracking-widest">Payouts Enabled: Active State</p>
+                                    <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                                            <p className="text-[10px] font-black text-emerald-900 uppercase tracking-widest">Payouts Enabled: Active State</p>
                                         </div>
-                                        <ChevronRight className="h-4 w-4 text-accent-primary" />
+                                        <ChevronRight className="h-3.5 h-3.5 text-accent-primary" />
                                     </div>
                                 </div>
                             </div>
 
                             {/* Payout History */}
-                            <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-12 shadow-sm space-y-8">
+                            <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm space-y-6">
                                 <div className="flex items-center justify-between">
-                                    <h2 className="text-2xl font-black text-text-primary uppercase tracking-tight">Settlement History</h2>
-                                    <button className="flex items-center gap-2 px-5 py-2.5 bg-surface-secondary rounded-xl text-[10px] font-bold text-text-secondary uppercase tracking-widest hover:bg-surface-tertiary transition-all">
-                                        <Download className="w-3.5 h-3.5" />
+                                    <h2 className="text-lg font-black text-text-primary uppercase tracking-tight">Settlement History</h2>
+                                    <button className="flex items-center gap-2 px-4 py-2 bg-surface-secondary rounded-lg text-[9px] font-bold text-text-secondary uppercase tracking-widest hover:bg-surface-tertiary transition-all">
+                                        <Download className="w-3 h-3" />
                                         Export CSV
                                     </button>
                                 </div>
@@ -298,43 +297,43 @@ export default function HostSettingsPage() {
                                     </div>
                                 ) : payoutHistory.length === 0 ? (
                                     <div className="py-12 text-center">
-                                        <CreditCard className="w-10 h-10 text-text-placeholder mx-auto mb-3" />
-                                        <p className="text-sm font-bold text-text-tertiary">No settlements yet</p>
-                                        <p className="text-[11px] text-text-tertiary mt-1">Payouts will appear here after your first event</p>
+                                        <CreditCard className="w-8 h-8 text-text-placeholder mx-auto mb-2" />
+                                        <p className="text-xs font-bold text-text-tertiary">No settlements yet</p>
+                                        <p className="text-[10px] text-text-tertiary mt-1">Payouts will appear here after your first event</p>
                                     </div>
                                 ) : (
-                                    <div className="space-y-3">
+                                    <div className="space-y-2">
                                         {/* Header Row */}
-                                        <div className="grid grid-cols-5 gap-4 px-6 py-3 text-[10px] font-black text-text-tertiary uppercase tracking-widest">
+                                        <div className="grid grid-cols-5 gap-3 px-4 py-2 text-[9px] font-black text-text-tertiary uppercase tracking-widest border-b border-border-subtle">
                                             <span>Event</span>
                                             <span>Date</span>
                                             <span>Amount</span>
                                             <span>Status</span>
-                                            <span>Settlement</span>
+                                            <span>Settled</span>
                                         </div>
                                         {payoutHistory.map((payout: any) => (
-                                            <div key={payout.id} className="grid grid-cols-5 gap-4 px-6 py-5 bg-surface-secondary/30 rounded-2xl border border-border-subtle hover:border-border-default transition-all items-center">
+                                            <div key={payout.id} className="grid grid-cols-5 gap-3 px-4 py-3 bg-surface-secondary/30 rounded-xl border border-border-subtle hover:border-border-default transition-all items-center">
                                                 <div>
-                                                    <p className="text-sm font-bold text-text-primary truncate">{payout.eventName}</p>
+                                                    <p className="text-[11px] font-bold text-text-primary truncate">{payout.eventName}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-[12px] text-text-secondary">{new Date(payout.eventDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</p>
+                                                    <p className="text-[10px] text-text-secondary">{new Date(payout.eventDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-black text-text-primary">{formatCurrency(payout.amount)}</p>
+                                                    <p className="text-[11px] font-black text-text-primary">{formatCurrency(payout.amount)}</p>
                                                 </div>
                                                 <div>
-                                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${payout.status === "completed" ? "bg-emerald-50 text-emerald-600" :
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${payout.status === "completed" ? "bg-emerald-50 text-emerald-600" :
                                                             payout.status === "pending" ? "bg-amber-50 text-amber-600" :
                                                                 "bg-surface-secondary text-text-tertiary"
                                                         }`}>
-                                                        {payout.status === "completed" ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                                                        {payout.status === "completed" ? <CheckCircle2 className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />}
                                                         {payout.status}
                                                     </span>
                                                 </div>
                                                 <div>
-                                                    <p className="text-[12px] text-text-tertiary">
-                                                        {payout.settlementDate ? new Date(payout.settlementDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Pending"}
+                                                    <p className="text-[10px] text-text-tertiary">
+                                                        {payout.settlementDate ? new Date(payout.settlementDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}
                                                     </p>
                                                 </div>
                                             </div>
@@ -347,32 +346,32 @@ export default function HostSettingsPage() {
 
                     {/* ============ NOTIFICATIONS (Fixed P2) ============ */}
                     {activeSection === "notifications" && (
-                        <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-12 shadow-sm space-y-10">
-                            <h2 className="text-2xl font-black text-text-primary uppercase tracking-tight">Alert Preferences</h2>
-                            <p className="text-text-tertiary text-sm">Choose which notifications you receive and how they're delivered.</p>
+                        <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm space-y-8">
+                            <h2 className="text-lg font-black text-text-primary uppercase tracking-tight">Alert Preferences</h2>
+                            <p className="text-text-tertiary text-xs">Configure which notifications you receive across delivery channels.</p>
 
                             {/* Delivery Channels */}
-                            <div className="space-y-4">
-                                <h3 className="text-xs font-black text-text-tertiary uppercase tracking-widest">Delivery Channels</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-3">
+                                <h3 className="text-[10px] font-black text-text-tertiary uppercase tracking-widest">Delivery Channels</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     <NotifChannelToggle
                                         icon={BellRing}
-                                        label="Push Notifications"
-                                        subtitle="Mobile and browser alerts"
+                                        label="Push Alerts"
+                                        subtitle="App notifications"
                                         active={notifPrefs.pushNotifs}
                                         onToggle={() => handleNotifToggle("pushNotifs")}
                                     />
                                     <NotifChannelToggle
                                         icon={Mail}
-                                        label="Email Notifications"
-                                        subtitle="Updates to your inbox"
+                                        label="Email Updates"
+                                        subtitle="Reports & digests"
                                         active={notifPrefs.emailNotifs}
                                         onToggle={() => handleNotifToggle("emailNotifs")}
                                     />
                                     <NotifChannelToggle
                                         icon={MessageSquare}
-                                        label="SMS Notifications"
-                                        subtitle="Text message alerts"
+                                        label="SMS Protocol"
+                                        subtitle="Critical alerts"
                                         active={notifPrefs.smsNotifs}
                                         onToggle={() => handleNotifToggle("smsNotifs")}
                                     />
@@ -380,8 +379,8 @@ export default function HostSettingsPage() {
                             </div>
 
                             {/* Event Notifications */}
-                            <div className="space-y-4 pt-8 border-t border-border-subtle">
-                                <h3 className="text-xs font-black text-text-tertiary uppercase tracking-widest">Event Notifications</h3>
+                            <div className="space-y-3 pt-6 border-t border-border-subtle">
+                                <h3 className="text-[10px] font-black text-text-tertiary uppercase tracking-widest">Event Protocol</h3>
                                 <div className="space-y-3">
                                     <NotifToggle
                                         label="Slot Approved"
@@ -405,8 +404,8 @@ export default function HostSettingsPage() {
                             </div>
 
                             {/* Network Notifications */}
-                            <div className="space-y-4 pt-8 border-t border-border-subtle">
-                                <h3 className="text-xs font-black text-text-tertiary uppercase tracking-widest">Network Notifications</h3>
+                            <div className="space-y-3 pt-6 border-t border-border-subtle">
+                                <h3 className="text-[10px] font-black text-text-tertiary uppercase tracking-widest">Network Protocol</h3>
                                 <div className="space-y-3">
                                     <NotifToggle
                                         label="Promoter Connection Requests"
@@ -453,60 +452,60 @@ export default function HostSettingsPage() {
                             <button onClick={() => setShowSecurityModal(false)} className="absolute top-4 right-4 p-2 hover:bg-surface-secondary rounded-xl z-10">
                                 <X className="w-5 h-5 text-text-tertiary" />
                             </button>
-                            <div className="p-10 space-y-8">
+                            <div className="p-8 space-y-6">
                                 <div>
-                                    <h2 className="text-2xl font-black text-text-primary uppercase tracking-tight">Security Policy</h2>
-                                    <p className="text-sm text-text-tertiary mt-2">Manage your account security settings</p>
+                                    <h2 className="text-lg font-black text-text-primary uppercase tracking-tight">Security Policy</h2>
+                                    <p className="text-[11px] text-text-tertiary mt-1">Configure account access parameters.</p>
                                 </div>
 
                                 <div className="space-y-4">
-                                    <div className="flex items-center justify-between p-5 bg-surface-secondary rounded-2xl">
-                                        <div className="flex items-center gap-4">
-                                            <Shield className="w-5 h-5 text-emerald-500" />
+                                    <div className="flex items-center justify-between p-4 bg-surface-secondary rounded-2xl">
+                                        <div className="flex items-center gap-3">
+                                            <Shield className="w-4 h-4 text-emerald-500" />
                                             <div>
-                                                <p className="text-sm font-bold text-text-primary">Two-Factor Authentication</p>
-                                                <p className="text-[11px] text-text-tertiary">Managed by Firebase Auth</p>
+                                                <p className="text-xs font-bold text-text-primary">Two-Factor Authentication</p>
+                                                <p className="text-[10px] text-text-tertiary">Managed via Identity Provider</p>
                                             </div>
                                         </div>
-                                        <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase">Active</span>
+                                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase">Active</span>
                                     </div>
 
-                                    <div className="flex items-center justify-between p-5 bg-surface-secondary rounded-2xl">
-                                        <div className="flex items-center gap-4">
-                                            <Smartphone className="w-5 h-5 text-indigo-500" />
+                                    <div className="flex items-center justify-between p-4 bg-surface-secondary rounded-2xl">
+                                        <div className="flex items-center gap-3">
+                                            <Smartphone className="w-4 h-4 text-indigo-500" />
                                             <div>
-                                                <p className="text-sm font-bold text-text-primary">Trusted Devices</p>
-                                                <p className="text-[11px] text-text-tertiary">Manage authorized sessions</p>
+                                                <p className="text-xs font-bold text-text-primary">Trusted Devices</p>
+                                                <p className="text-[10px] text-text-tertiary">Manage authorized sessions</p>
                                             </div>
                                         </div>
-                                        <span className="text-sm font-bold text-text-secondary">1 device</span>
+                                        <span className="text-xs font-bold text-text-secondary">1 Active</span>
                                     </div>
 
-                                    <div className="flex items-center justify-between p-5 bg-surface-secondary rounded-2xl">
-                                        <div className="flex items-center gap-4">
-                                            <Lock className="w-5 h-5 text-amber-500" />
+                                    <div className="flex items-center justify-between p-4 bg-surface-secondary rounded-2xl">
+                                        <div className="flex items-center gap-3">
+                                            <Lock className="w-4 h-4 text-amber-500" />
                                             <div>
-                                                <p className="text-sm font-bold text-text-primary">Login Notifications</p>
-                                                <p className="text-[11px] text-text-tertiary">Get notified of new sign-ins</p>
+                                                <p className="text-xs font-bold text-text-primary">Login Notifications</p>
+                                                <p className="text-[10px] text-text-tertiary">Alert on new sign-ins</p>
                                             </div>
                                         </div>
-                                        <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase">Enabled</span>
+                                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase">Enabled</span>
                                     </div>
                                 </div>
 
-                                <div className="pt-4 border-t border-border-subtle">
-                                    <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
-                                        <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                                <div className="pt-3 border-t border-border-subtle">
+                                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-start gap-2.5">
+                                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
                                         <div>
-                                            <p className="text-xs font-bold text-amber-800">Authentication is managed via Firebase</p>
-                                            <p className="text-[11px] text-amber-700 mt-1">Password changes, 2FA configuration, and session management are handled through your Google Identity provider. Contact support for advanced security changes.</p>
+                                            <p className="text-[10px] font-bold text-amber-800">Auth managed via Provider</p>
+                                            <p className="text-[9px] text-amber-700 mt-0.5 leading-relaxed">Password policy and 2FA are handled through your Identity provider. Contact support for assistance.</p>
                                         </div>
                                     </div>
                                 </div>
 
                                 <button
                                     onClick={() => setShowSecurityModal(false)}
-                                    className="w-full py-4 bg-surface-secondary text-text-primary rounded-2xl text-sm font-bold hover:bg-surface-tertiary transition-all"
+                                    className="w-full py-3 bg-surface-secondary text-text-primary rounded-xl text-xs font-bold hover:bg-surface-tertiary transition-all"
                                 >
                                     Close
                                 </button>
@@ -525,13 +524,13 @@ function NavButton({ active, icon: Icon, label, onClick }: any) {
     return (
         <button
             onClick={onClick}
-            className={`w-full p-6 flex items-center gap-4 rounded-[1.5rem] transition-all group ${active
-                ? "bg-surface-secondary text-text-primary shadow-xl shadow-slate-200"
+            className={`w-full p-4 flex items-center gap-3 rounded-xl transition-all group ${active
+                ? "bg-surface-secondary text-text-primary shadow-lg shadow-slate-100"
                 : "text-text-tertiary hover:bg-surface-tertiary hover:text-text-primary"
                 }`}
         >
-            <Icon className={`h-5 w-5 ${active ? "text-accent-primary" : "group-hover:text-text-primary"}`} />
-            <span className="text-[10px] font-black uppercase tracking-[0.2em]">{label}</span>
+            <Icon className={`h-4 w-4 ${active ? "text-accent-primary" : "group-hover:text-text-primary"}`} />
+            <span className="text-[9px] font-black uppercase tracking-[0.2em]">{label}</span>
         </button>
     );
 }
@@ -550,16 +549,16 @@ function SettingsField({ label, icon: Icon, children }: any) {
 
 function NotifToggle({ label, description, active, onToggle }: { label: string; description: string; active: boolean; onToggle: () => void }) {
     return (
-        <div className="flex items-center justify-between p-5 bg-surface-secondary/30 rounded-2xl border border-border-subtle hover:border-border-default transition-all">
+        <div className="flex items-center justify-between p-4 bg-surface-secondary/30 rounded-xl border border-border-subtle hover:border-border-default transition-all">
             <div>
-                <p className="text-sm font-bold text-text-primary">{label}</p>
-                <p className="text-[11px] text-text-tertiary mt-0.5">{description}</p>
+                <p className="text-xs font-bold text-text-primary">{label}</p>
+                <p className="text-[10px] text-text-tertiary mt-0.5">{description}</p>
             </div>
             <button
                 onClick={onToggle}
-                className={`relative w-12 h-7 rounded-full transition-all ${active ? "bg-emerald-500" : "bg-surface-tertiary"}`}
+                className={`relative w-10 h-6 rounded-full transition-all ${active ? "bg-emerald-500" : "bg-surface-tertiary"}`}
             >
-                <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-all ${active ? "left-6" : "left-1"}`} />
+                <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all ${active ? "left-4.5" : "left-0.5"}`} />
             </button>
         </div>
     );
@@ -569,17 +568,17 @@ function NotifChannelToggle({ icon: Icon, label, subtitle, active, onToggle }: a
     return (
         <button
             onClick={onToggle}
-            className={`p-6 rounded-2xl border transition-all text-left ${active
+            className={`p-4 rounded-xl border transition-all text-left ${active
                     ? "bg-surface-secondary border-border-strong"
                     : "bg-surface-secondary/30 border-border-subtle opacity-60"
                 }`}
         >
-            <div className="flex items-center justify-between mb-3">
-                <Icon className={`w-5 h-5 ${active ? "text-emerald-500" : "text-text-tertiary"}`} />
-                <div className={`w-3 h-3 rounded-full ${active ? "bg-emerald-500" : "bg-surface-tertiary"}`} />
+            <div className="flex items-center justify-between mb-2">
+                <Icon className={`w-4 h-4 ${active ? "text-emerald-500" : "text-text-tertiary"}`} />
+                <div className={`w-2 h-2 rounded-full ${active ? "bg-emerald-500" : "bg-surface-tertiary"}`} />
             </div>
-            <p className="text-sm font-bold text-text-primary">{label}</p>
-            <p className="text-[11px] text-text-tertiary mt-0.5">{subtitle}</p>
+            <p className="text-xs font-bold text-text-primary">{label}</p>
+            <p className="text-[10px] text-text-tertiary mt-0.5">{subtitle}</p>
         </button>
     );
 }

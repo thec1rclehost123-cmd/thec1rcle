@@ -114,7 +114,7 @@ const EventCard = ({
 
                             <div className="relative">
                                 <div className="group/like flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full border border-white/18 bg-white/12 backdrop-blur-[14px] transition-all duration-300">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>
                                 </div>
                             </div>
                         </div>
@@ -127,7 +127,7 @@ const EventCard = ({
 
                             <div className="relative z-10">
                                 <p className="mb-1 sm:mb-2 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-[#f44a22] drop-shadow-md">
-                                    {displayDate} {displayTime ? `• ${displayTime}` : ''}
+                                    {displayDate} {displayTime ? `\u00A0•\u00A0 ${displayTime}` : ''}
                                 </p>
                                 <h3 className="mb-1 sm:mb-2 font-heading text-lg sm:text-2xl md:text-3xl font-black leading-[0.9] text-white drop-shadow-lg line-clamp-2 uppercase tracking-tighter">
                                     {displayTitle}
@@ -145,7 +145,7 @@ const EventCard = ({
                                                     <div
                                                         key={i}
                                                         className="relative h-5 w-5 sm:h-7 sm:w-7 rounded-full ring-1 sm:ring-2 ring-black/50 bg-gradient-to-br from-purple-400 to-pink-400"
-                                                        style={{ zIndex: 3 - i }}
+                                                        style={{ zIndex: 10 - i }}
                                                     >
                                                         <ShimmerImage
                                                             src={`https://api.dicebear.com/9.x/notionists/svg?seed=${guest}&backgroundColor=c0aede`}
@@ -174,7 +174,7 @@ const EventCard = ({
                                         className={`flex items-center gap-2 px-6 py-3 rounded-full bg-white text-black font-black text-[10px] uppercase tracking-widest hover:bg-white/90 transition-all shadow-xl shadow-black/20 ${isPreview ? 'cursor-pointer pointer-events-auto' : ''} active:scale-95`}
                                     >
                                         {isPreview ? 'View Experience' : 'Book Tickets'}
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
                                     </span>
                                 </div>
                             </div>

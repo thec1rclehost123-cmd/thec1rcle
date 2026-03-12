@@ -15,6 +15,7 @@ import {
     UserCircle,
     MapPin,
     TrendingUp,
+    Quote,
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { DiscoverDirectory } from "@/components/partnerships/DiscoverDirectory";
@@ -40,6 +41,7 @@ export default function VenuePartnershipsPage() {
     const { profile, user } = useDashboardAuth();
     const [connections, setConnections] = useState<Connection[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>("pending");
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [tierTarget, setTierTarget] = useState<Connection | null>(null);
@@ -51,13 +53,14 @@ export default function VenuePartnershipsPage() {
     const fetchConnections = useCallback(async () => {
         if (!venueId || !user) return;
         setLoading(true);
+        setError(null);
         try {
             const token = await user.getIdToken();
             const res = await fetch(
                 `/api/discovery?action=list&partnerId=${venueId}&role=venue`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            if (!res.ok) throw new Error("Failed to fetch");
+            if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
             const data = await res.json();
             const all: Connection[] = (data.connections || []).map((c: any) => ({
                 id: c.id,
@@ -71,8 +74,9 @@ export default function VenuePartnershipsPage() {
                 message: c.message,
             }));
             setConnections(all);
-        } catch (err) {
+        } catch (err: any) {
             console.error("[Venue Partnerships] fetch error:", err);
+            setError(err.message || "Failed to load partnerships");
         } finally {
             setLoading(false);
         }
@@ -211,61 +215,77 @@ export default function VenuePartnershipsPage() {
 
             {/* Content */}
             <div className="min-h-[500px]">
-                <AnimatePresence mode="wait">
-                    {activeTab === "discover" ? (
-                        <motion.div
-                            key="discover"
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
+                {error ? (
+                    <div className="py-24 bg-surface-elevated rounded-[3rem] border border-dashed border-error/50 flex flex-col items-center text-center px-10">
+                        <div className="w-16 h-16 bg-error/10 rounded-2xl flex items-center justify-center mb-5">
+                            <ShieldAlert className="w-8 h-8 text-error" />
+                        </div>
+                        <h4 className="text-title font-semibold text-text-primary">Connection Error</h4>
+                        <p className="text-body-sm text-text-tertiary mt-1 max-w-xs">{error}</p>
+                        <button 
+                            onClick={() => fetchConnections()}
+                            className="mt-6 px-6 py-2 bg-surface-secondary hover:bg-surface-tertiary rounded-xl text-caption font-bold transition-all"
                         >
-                            <DiscoverDirectory
-                                allowedTypes={["host", "promoter"]}
-                                partnerId={venueId}
-                                role="venue"
-                            />
-                        </motion.div>
-                    ) : activeTab === "roster" ? (
-                        <motion.div
-                            key="roster"
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
-                        >
-                            <ActiveRoster
-                                connections={roster}
-                                loading={loading}
-                                formatDate={formatDate}
-                                onViewProfile={(conn) =>
-                                    setProfileTarget({
-                                        id: conn.otherId,
-                                        type: conn.otherType,
-                                        name: conn.otherName,
-                                        city: "",
-                                        connectionStatus:
-                                            conn.status === "active" ? "active" : "approved",
-                                    })
-                                }
-                            />
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            key="pending"
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
-                        >
-                            <PendingRequests
-                                requests={pending}
-                                loading={loading}
-                                processingId={processingId}
-                                formatDate={formatDate}
-                                onAccept={(conn) => setTierTarget(conn)}
-                                onDecline={handleDecline}
-                            />
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                            Retry Connection
+                        </button>
+                    </div>
+                ) : (
+                    <AnimatePresence mode="wait">
+                        {activeTab === "discover" ? (
+                            <motion.div
+                                key="discover"
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                            >
+                                <DiscoverDirectory
+                                    allowedTypes={["host", "promoter"]}
+                                    partnerId={venueId}
+                                    role="venue"
+                                />
+                            </motion.div>
+                        ) : activeTab === "roster" ? (
+                            <motion.div
+                                key="roster"
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                            >
+                                <ActiveRoster
+                                    connections={roster}
+                                    loading={loading}
+                                    formatDate={formatDate}
+                                    onViewProfile={(conn) =>
+                                        setProfileTarget({
+                                            id: conn.otherId,
+                                            type: conn.otherType,
+                                            name: conn.otherName,
+                                            city: "",
+                                            connectionStatus:
+                                                conn.status === "active" ? "active" : "approved",
+                                        })
+                                    }
+                                />
+                            </motion.div>
+                        ) : (
+                            <motion.div
+                                key="pending"
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                            >
+                                <PendingRequests
+                                    requests={pending}
+                                    loading={loading}
+                                    processingId={processingId}
+                                    formatDate={formatDate}
+                                    onAccept={(conn) => setTierTarget(conn)}
+                                    onDecline={handleDecline}
+                                />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                )}
             </div>
 
             {/* Tier selection modal */}
@@ -328,29 +348,39 @@ function ActiveRoster({
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {connections.map((conn) => (
                 <motion.div
                     key={conn.id}
                     layout
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="group bg-surface-elevated border border-border-default rounded-[2rem] p-6 hover:border-border-strong hover:shadow-sm transition-all"
+                    className="group relative overflow-hidden bg-[#121216] border border-white/[0.04] rounded-[2.5rem] p-7 hover:border-orange-500/30 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/5"
                 >
-                    <div className="flex items-start justify-between mb-5">
-                        <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-2xl bg-surface-secondary border border-border-subtle flex items-center justify-center text-xl font-black text-text-tertiary">
-                                {conn.otherName[0]}
+                    {/* Background Shine */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-orange-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+                    
+                    <div className="relative flex items-start justify-between mb-6">
+                        <div className="flex items-center gap-4">
+                            <div className="relative">
+                                <div className="absolute inset-0 bg-orange-500/20 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] border border-white/5 flex items-center justify-center text-2xl font-black text-white">
+                                    {conn.otherName[0]}
+                                </div>
                             </div>
                             <div>
-                                <h3 className="text-title font-bold text-text-primary group-hover:text-accent-primary transition-colors">
+                                <h3 className="text-lg font-black text-white tracking-tight group-hover:text-orange-500 transition-colors">
                                     {conn.otherName}
                                 </h3>
-                                <span className="flex items-center gap-1 text-caption text-text-tertiary capitalize mt-0.5">
+                                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-text-tertiary mt-1">
                                     {conn.otherType === "host" ? (
-                                        <UserCircle className="w-3.5 h-3.5" />
+                                        <div className="p-1 rounded bg-orange-500/10 text-orange-500">
+                                            <UserCircle className="w-3 h-3" />
+                                        </div>
                                     ) : (
-                                        <Zap className="w-3.5 h-3.5" />
+                                        <div className="p-1 rounded bg-orange-500/10 text-orange-500">
+                                            <Zap className="w-3 h-3" />
+                                        </div>
                                     )}
                                     {conn.otherType}
                                 </span>
@@ -358,32 +388,34 @@ function ActiveRoster({
                         </div>
                         {conn.tier && (
                             <span
-                                className={`text-label px-2.5 py-1 rounded-lg font-bold ${
+                                className={`text-[10px] px-3 py-1.5 rounded-xl font-black uppercase tracking-widest ${
                                     conn.tier === "trusted"
-                                        ? "bg-accent-glow text-accent-primary"
-                                        : "bg-surface-tertiary text-text-tertiary border border-border-default"
+                                        ? "bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-lg shadow-orange-500/20"
+                                        : "bg-white/5 text-text-tertiary border border-white/5"
                                 }`}
                             >
-                                {conn.tier === "trusted" ? "T1" : "T2"}
+                                {conn.tier === "trusted" ? "Trusted" : "Standard"}
                             </span>
                         )}
                     </div>
 
-                    <div className="flex items-center justify-between text-caption text-text-tertiary mb-5">
-                        <span className="flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            Since {formatDate(conn.updatedAt || conn.createdAt)}
+                    <div className="relative flex items-center justify-between py-4 border-y border-white/[0.04] mb-6">
+                        <span className="flex items-center gap-1.5 text-[11px] font-medium text-text-tertiary">
+                            <Clock className="w-3.5 h-3.5 opacity-40" />
+                            Partner since {formatDate(conn.updatedAt || conn.createdAt)}
                         </span>
-                        <span className="flex items-center gap-1 font-semibold text-text-secondary">
-                            <span className="w-2 h-2 rounded-full bg-accent-primary" /> Active
+                        <span className="flex items-center gap-1.5 font-black text-[10px] uppercase tracking-widest text-orange-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" /> Active
                         </span>
                     </div>
 
                     <button
                         onClick={() => onViewProfile(conn)}
-                        className="w-full py-3 bg-surface-secondary hover:bg-surface-tertiary border border-border-default rounded-xl text-caption font-bold text-text-secondary transition-all flex items-center justify-center gap-2"
+                        className="relative w-full py-3.5 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.04] rounded-2xl text-[11px] font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2 group/btn overflow-hidden"
                     >
-                        View Profile <ChevronRight className="w-4 h-4" />
+                        <span className="relative z-10 flex items-center gap-2">
+                            View Network Profile <ChevronRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
+                        </span>
                     </button>
                 </motion.div>
             ))}
@@ -419,7 +451,7 @@ function PendingRequests({
     if (requests.length === 0) {
         return (
             <EmptyState
-                icon={<Clock className="w-8 h-8 text-text-placeholder" />}
+                icon={<Clock className="w-8 h-8" />}
                 title="No pending requests"
                 subtitle="Incoming partnership requests from hosts and promoters will appear here."
             />
@@ -433,62 +465,62 @@ function PendingRequests({
                     <motion.div
                         key={req.id}
                         layout
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, scale: 0.97 }}
-                        className="group bg-surface-elevated border border-border-default rounded-[2rem] p-6 border-l-4 border-l-accent-primary hover:shadow-sm transition-all"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95, x: 20 }}
+                        className="relative overflow-hidden bg-[#121216] border border-white/[0.04] p-6 rounded-[2rem] group"
                     >
-                        <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-surface-secondary border border-border-subtle flex items-center justify-center text-xl font-black text-text-tertiary shrink-0">
+                        <div className="absolute inset-0 bg-gradient-to-r from-orange-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        
+                        <div className="relative flex items-center justify-between">
+                            <div className="flex items-center gap-5">
+                                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] border border-white/5 flex items-center justify-center text-2xl font-black text-white shadow-xl">
                                     {req.otherName[0]}
                                 </div>
                                 <div>
-                                    <h4 className="text-title font-bold text-text-primary group-hover:text-accent-primary transition-colors">
-                                        {req.otherName}
-                                    </h4>
-                                    <div className="flex items-center gap-3 mt-0.5">
-                                        <span className="text-caption text-text-tertiary capitalize flex items-center gap-1">
-                                            {req.otherType === "host" ? (
-                                                <UserCircle className="w-3.5 h-3.5" />
-                                            ) : (
-                                                <Zap className="w-3.5 h-3.5" />
-                                            )}
+                                    <h3 className="text-xl font-black text-white tracking-tight">{req.otherName}</h3>
+                                    <div className="flex items-center gap-3 mt-1.5">
+                                        <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-orange-500">
+                                            {req.otherType === "host" ? <UserCircle className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
                                             {req.otherType}
                                         </span>
-                                        <span className="text-caption text-text-placeholder">
-                                            {formatDate(req.createdAt)}
+                                        <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">•</span>
+                                        <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">
+                                            Received {formatDate(req.createdAt)}
                                         </span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-3">
                                 <button
                                     onClick={() => onAccept(req)}
                                     disabled={!!processingId}
-                                    className="btn btn-primary h-10 px-5 text-[13px]"
+                                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-rose-600 hover:from-orange-400 hover:to-rose-500 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-orange-500/20 transition-all active:scale-95 disabled:opacity-50"
                                 >
                                     {processingId === req.id ? (
                                         <Loader2 className="w-4 h-4 animate-spin" />
                                     ) : (
-                                        "Accept"
+                                        <>Accept Request <CheckCircle2 className="w-3.5 h-3.5" /></>
                                     )}
                                 </button>
                                 <button
                                     onClick={() => onDecline(req.id)}
                                     disabled={!!processingId}
-                                    className="h-10 w-10 rounded-xl bg-surface-tertiary border border-border-default text-text-tertiary flex items-center justify-center hover:bg-surface-secondary hover:text-text-primary transition-all active:scale-95 disabled:opacity-50"
+                                    className="h-12 w-12 rounded-xl bg-white/[0.04] border border-white/[0.06] text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
                                     title="Decline"
                                 >
-                                    <X className="w-4 h-4" />
+                                    <X className="w-5 h-5" />
                                 </button>
                             </div>
                         </div>
 
                         {req.message && (
-                            <div className="mt-4 p-4 bg-surface-secondary rounded-2xl border border-border-subtle">
-                                <p className="text-body-sm text-text-secondary italic">"{req.message}"</p>
+                            <div className="mt-5 p-5 bg-white/[0.02] rounded-2xl border border-white/[0.02] relative">
+                                <div className="absolute top-4 left-4 text-orange-500/20">
+                                    <Quote size={16} />
+                                </div>
+                                <p className="text-[13px] text-white/60 italic pl-8 leading-relaxed">"{req.message}"</p>
                             </div>
                         )}
                     </motion.div>
@@ -508,12 +540,20 @@ function EmptyState({
     subtitle: string;
 }) {
     return (
-        <div className="py-24 bg-surface-elevated rounded-[3rem] border border-dashed border-border-default flex flex-col items-center text-center px-10">
-            <div className="w-16 h-16 bg-surface-tertiary rounded-2xl flex items-center justify-center mb-5">
-                {icon}
+        <div className="py-32 relative overflow-hidden bg-[#0D0D0F] border border-dashed border-white/[0.08] rounded-[3rem] flex flex-col items-center text-center px-10 group">
+            <div className="absolute inset-0 bg-gradient-to-b from-orange-500/[0.02] to-transparent pointer-events-none" />
+            
+            <div className="relative mb-6">
+                <div className="absolute inset-0 bg-orange-500/20 rounded-[2rem] blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                <div className="relative w-20 h-20 bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] border border-white/5 rounded-[2rem] flex items-center justify-center text-white shadow-2xl transition-transform duration-500 group-hover:scale-110">
+                    <div className="text-orange-500">
+                        {icon}
+                    </div>
+                </div>
             </div>
-            <h4 className="text-title font-semibold text-text-primary">{title}</h4>
-            <p className="text-body-sm text-text-tertiary mt-1 max-w-xs">{subtitle}</p>
+
+            <h4 className="relative text-2xl font-black text-white tracking-tight mb-2 uppercase">{title}</h4>
+            <p className="relative text-[14px] text-white/40 font-medium max-w-xs leading-relaxed">{subtitle}</p>
         </div>
     );
 }

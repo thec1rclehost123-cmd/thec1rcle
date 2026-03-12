@@ -219,29 +219,28 @@ export default function RegistersPage() {
     ];
 
     return (
-        <div className="space-y-10 pb-20 animate-in fade-in duration-500">
+        <div className="space-y-4 pb-20 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-default pb-10">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4">
                 <div>
-                    <h1 className="text-4xl font-extrabold text-text-primary tracking-tight flex items-center gap-4">
+                    <h1 className="text-xl font-black text-text-primary tracking-tight uppercase flex items-center gap-2">
                         Ops Registers
                     </h1>
-                    <p className="text-text-tertiary text-lg font-medium mt-3">Duty logs, incident reports, and floor handovers for the date.</p>
+                    <p className="text-text-tertiary text-[11px] font-medium mt-0.5">Duty logs, incident reports, and floor handovers.</p>
                 </div>
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 bg-surface-elevated border border-border-default rounded-2xl p-1 shadow-sm">
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1 bg-surface-elevated border border-white/5 rounded-xl p-1 shadow-sm">
                         <button
                             onClick={() => {
                                 const d = new Date(selectedDate);
                                 d.setDate(d.getDate() - 1);
                                 setSelectedDate(d.toISOString().split('T')[0]);
                             }}
-                            className="p-3 hover:bg-surface-tertiary rounded-xl transition-colors"
+                            className="p-2 hover:bg-surface-tertiary rounded-lg transition-colors"
                         >
-                            <ChevronLeft className="h-5 w-5 text-text-secondary" />
+                            <ChevronLeft className="h-4 w-4 text-text-secondary" />
                         </button>
-                        <div className="px-4 font-bold text-text-primary flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-emerald-600" />
+                        <div className="px-2 text-[12px] font-bold text-text-primary flex items-center gap-1.5 min-w-[80px] justify-center">
                             {new Date(selectedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                         </div>
                         <button
@@ -250,9 +249,9 @@ export default function RegistersPage() {
                                 d.setDate(d.getDate() + 1);
                                 setSelectedDate(d.toISOString().split('T')[0]);
                             }}
-                            className="p-3 hover:bg-surface-tertiary rounded-xl transition-colors"
+                            className="p-2 hover:bg-surface-tertiary rounded-lg transition-colors"
                         >
-                            <ChevronRight className="h-5 w-5 text-text-secondary" />
+                            <ChevronRight className="h-4 w-4 text-text-secondary" />
                         </button>
                     </div>
                     <button
@@ -260,32 +259,32 @@ export default function RegistersPage() {
                             setActionType("incident");
                             setIsActionModalOpen(true);
                         }}
-                        className="flex items-center gap-3 px-8 py-4 bg-surface-secondary text-text-primary rounded-2xl text-sm font-bold shadow-xl shadow-slate-200 hover:bg-surface-tertiary transition-all active:scale-95"
+                        className="flex items-center gap-2 px-4 py-2.5 bg-[var(--v-orange)] text-white rounded-xl text-[12px] font-bold shadow-lg shadow-orange-500/10 hover:brightness-110 transition-all active:scale-95"
                     >
-                        <Plus className="h-5 w-5" />
-                        New Log Entry
+                        <Plus className="h-4 w-4" />
+                        New Entry
                     </button>
                 </div>
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <StatCard label="Open Incidents" value={stats.openIncidents} subtext="Needs Resolution" color="rose" />
-                <StatCard label="VIPs Expected" value={stats.vipsExpected} subtext="Confirmed bookings" color="indigo" />
-                <StatCard label="Lost & Found" value={stats.lostItems} subtext="Active tickets" color="amber" />
-                <StatCard label="Total Logs" value={stats.totalLogs} subtext="Activity count" color="slate" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatCard label="OPEN INCIDENTS" value={stats.openIncidents} subtext="Pending" color="rose" />
+                <StatCard label="VIP GUESTS" value={stats.vipsExpected} subtext="Tonight" color="indigo" />
+                <StatCard label="LOST & FOUND" value={stats.lostItems} subtext="Active" color="amber" />
+                <StatCard label="TOTAL LOGS" value={stats.totalLogs} subtext="Entries" color="slate" />
             </div>
 
             {/* Main Content */}
-            <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default shadow-sm overflow-hidden">
-                <div className="p-8 border-b border-slate-50 bg-surface-tertiary/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
+            <div className="bg-surface-elevated rounded-[24px] border border-white/5 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-white/5 bg-surface-tertiary/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
                         {TABS.map((tab) => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
-                                    ? "bg-surface-secondary text-text-primary shadow-lg shadow-slate-200"
+                                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
+                                    ? "bg-[var(--v-orange)] text-white shadow-lg shadow-orange-500/10"
                                     : "text-text-tertiary hover:bg-surface-secondary"
                                     }`}
                             >
@@ -295,13 +294,13 @@ export default function RegistersPage() {
                     </div>
 
                     <div className="relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-tertiary" />
                         <input
                             type="text"
-                            placeholder="Search descriptions, authors..."
+                            placeholder="Search registers..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-11 pr-6 py-3.5 bg-surface-elevated border border-border-default rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-slate-50 w-full md:w-80 font-medium transition-all"
+                            className="pl-9 pr-4 py-2 bg-surface-elevated border border-white/5 rounded-xl text-[12px] focus:outline-none focus:ring-2 focus:ring-[var(--v-orange-glow)] w-full md:w-64 font-medium transition-all"
                         />
                     </div>
                 </div>
@@ -313,44 +312,39 @@ export default function RegistersPage() {
                             <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Syncing Registry...</p>
                         </div>
                     ) : filteredLogs.length > 0 ? (
-                        <div className="divide-y divide-slate-50">
+                        <div className="divide-y divide-white/5">
                             {filteredLogs.map((log) => (
-                                <div key={log.id} className="p-8 hover:bg-surface-tertiary/50 transition-colors group">
-                                    <div className="flex items-start justify-between gap-6">
-                                        <div className="flex gap-6">
-                                            <div className={`mt-1 h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 border ${getIconColor(log.type)}`}>
+                                <div key={log.id} className="p-4 hover:bg-white/5 transition-colors group">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="flex gap-4">
+                                            <div className={`mt-0.5 h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border ${getIconColor(log.type)}`}>
                                                 {getIcon(log.type)}
                                             </div>
-                                            <div className="space-y-2">
-                                                <div className="flex items-center gap-3">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
                                                     <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">
                                                         {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
                                                     {log.severity && (
-                                                        <span className={`px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${getSeverityColor(log.severity)}`}>
+                                                        <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border ${getSeverityColor(log.severity)}`}>
                                                             {log.severity}
                                                         </span>
                                                     )}
                                                     {log.status === "resolved" && (
-                                                        <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-3 py-0.5 rounded-full border border-emerald-100">
-                                                            <CheckCircle2 className="h-3 w-3" /> Resolved
+                                                        <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/20">
+                                                            <CheckCircle2 className="h-2.5 w-2.5" /> Resolved
                                                         </span>
                                                     )}
                                                 </div>
-                                                <h4 className="text-lg font-bold text-text-primary leading-snug">
+                                                <h4 className="text-[14px] font-bold text-text-primary leading-tight">
                                                     {log.description}
                                                 </h4>
-                                                <div className="flex items-center gap-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="h-5 w-5 rounded-full bg-surface-secondary flex items-center justify-center border border-border-default">
-                                                            <Briefcase className="h-3 w-3 text-text-tertiary" />
-                                                        </div>
-                                                        <span className="text-sm font-bold text-text-tertiary">{log.author}</span>
-                                                    </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[11px] font-bold text-text-tertiary">{log.author}</span>
                                                 </div>
                                                 {log.resolution && (
-                                                    <div className="mt-4 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100/50">
-                                                        <p className="text-xs text-emerald-800 font-medium italic">
+                                                    <div className="mt-2 p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
+                                                        <p className="text-[11px] text-emerald-500 font-medium italic">
                                                             Resolution: {log.resolution}
                                                         </p>
                                                     </div>
@@ -358,11 +352,11 @@ export default function RegistersPage() {
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex gap-2">
                                             {log.type === "incident" && log.status !== "resolved" && (
                                                 <button
                                                     onClick={() => resolveIncident(log.id)}
-                                                    className="px-4 py-2 bg-emerald-600 text-text-primary rounded-xl text-xs font-bold shadow-lg shadow-emerald-100"
+                                                    className="px-3 py-1.5 bg-emerald-600 text-[10px] font-bold text-white rounded-lg shadow-lg shadow-emerald-500/10"
                                                 >
                                                     Resolve
                                                 </button>
@@ -448,18 +442,18 @@ export default function RegistersPage() {
 
 function StatCard({ label, value, subtext, color }: { label: string, value: string | number, subtext: string, color: string }) {
     const colors: Record<string, string> = {
-        rose: "bg-rose-50 text-rose-600 border-rose-100",
-        indigo: "bg-indigo-50 text-indigo-600 border-indigo-100",
-        amber: "bg-amber-50 text-amber-600 border-amber-100",
-        slate: "bg-surface-tertiary text-text-secondary border-border-subtle"
+        rose: "bg-rose-500/5 text-rose-500 border-rose-500/10",
+        indigo: "bg-indigo-500/5 text-indigo-500 border-indigo-500/10",
+        amber: "bg-amber-500/5 text-amber-500 border-amber-500/10",
+        slate: "bg-white/5 text-text-secondary border-white/5"
     };
 
     return (
-        <div className={`p-8 rounded-[2.5rem] border ${colors[color] || colors.slate} shadow-sm transition-all hover:scale-[1.02] cursor-default`}>
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-2">{label}</p>
+        <div className={`p-4 rounded-2xl border ${colors[color] || colors.slate} shadow-sm transition-all hover:scale-[1.01] cursor-default`}>
+            <p className="text-[9px] font-black uppercase tracking-widest opacity-70 mb-1">{label}</p>
             <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black tracking-tight">{value}</span>
-                <span className="text-[10px] font-bold opacity-60 uppercase tracking-wider">{subtext}</span>
+                <span className="text-2xl font-black tracking-tight">{value}</span>
+                <span className="text-[9px] font-bold opacity-60 uppercase tracking-tight">{subtext}</span>
             </div>
         </div>
     );

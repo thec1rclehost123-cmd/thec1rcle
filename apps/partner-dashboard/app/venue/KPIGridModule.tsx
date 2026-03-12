@@ -1,3 +1,5 @@
+"use client";
+
 import { TrendingUp, Calendar, Zap, Users } from "lucide-react";
 import { KPITile, KPIGrid } from "@/components/ui/KPITile";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
@@ -14,12 +16,20 @@ export default function KPIGridModule() {
         return `₹${amount}`;
     };
 
+    const formatCount = (count: number) => {
+        if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+        return count.toString();
+    };
+
     return (
         <KPIGrid columns={4}>
             <KPITile
                 label="Weekend Revenue"
                 value={formatRevenue(summary?.weekendRevenue || 0)}
-                trend={{ value: "12.4%", direction: "up" }}
+                trend={summary?.revenueTrend && summary.weekendRevenue > 0 ? {
+                    value: summary.revenueTrend,
+                    direction: summary.revenueTrendDirection || "up"
+                } : undefined}
                 icon={<TrendingUp className="w-6 h-6" />}
                 state="accent"
                 currency="none"
@@ -40,8 +50,11 @@ export default function KPIGridModule() {
             />
             <KPITile
                 label="Guest Profiles"
-                value="2.4K"
-                trend={{ value: "180 new", direction: "up" }}
+                value={formatCount(summary?.totalGuestProfiles || 0)}
+                trend={summary?.newGuestsThisWeek ? {
+                    value: `+${summary.newGuestsThisWeek}`,
+                    direction: "up"
+                } : undefined}
                 icon={<Users className="w-6 h-6" />}
                 state="success"
             />

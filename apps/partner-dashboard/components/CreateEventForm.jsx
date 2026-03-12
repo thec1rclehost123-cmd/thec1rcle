@@ -830,7 +830,7 @@ function GlassSection({ icon, title, badge, children }) {
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-black dark:text-white">
-          <motion.div whileHover={{ rotate: 360 }} transition={{ duration: 0.5 }}>
+          <motion.div whileHover={{ scale: 1.1, rotate: 5 }} transition={{ duration: 0.2 }}>
             {icon}
           </motion.div>
           <span className="text-sm font-semibold">{title}</span>
@@ -883,7 +883,7 @@ function FloatingInput({ icon, placeholder, value, onChange, multiline, required
         placeholder={placeholder}
         required={required}
         rows={multiline ? 3 : undefined}
-        className="flex-1 bg-transparent text-black dark:text-white placeholder:text-black/30 dark:placeholder:text-white/30 focus:outline-none resize-none border-b border-black/10 dark:border-white/10 pb-2 focus:border-iris/50 transition-all"
+        className="flex-1 bg-transparent text-black dark:text-white placeholder:text-black/30 dark:placeholder:text-white/30 focus:outline-none resize-none border-b border-black/20 dark:border-white/20 pb-2 focus:border-iris/50 transition-all font-medium"
       />
     </motion.div>
   );

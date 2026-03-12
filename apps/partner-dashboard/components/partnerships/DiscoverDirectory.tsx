@@ -32,7 +32,7 @@ interface DiscoveredPartner {
     eventsCount: number;
     followersCount: number;
     isVerified: boolean;
-    connectionStatus: "pending" | "approved" | "rejected" | "blocked" | null;
+    connectionStatus: "pending" | "approved" | "rejected" | "blocked" | "active" | null;
     // Extended fields
     capacity?: number;
     operatingHours?: string;
@@ -55,6 +55,7 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role }: DiscoverDir
     const { profile, user } = useDashboardAuth();
     const [partners, setPartners] = useState<DiscoveredPartner[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterType, setFilterType] = useState<PartnerFilterType>(
         allowedTypes.includes("all") ? "all" : allowedTypes[0]
@@ -66,6 +67,7 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role }: DiscoverDir
     const fetchPartners = useCallback(async () => {
         if (!partnerId) return;
         setLoading(true);
+        setError(null);
         try {
             const token = await user?.getIdToken();
             const params = new URLSearchParams({
@@ -81,10 +83,12 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role }: DiscoverDir
             const res = await fetch(`/api/discovery?${params}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
+            if (!res.ok) throw new Error(`Discovery failed: ${res.statusText}`);
             const data = await res.json();
             setPartners(data.partners || []);
-        } catch (err) {
+        } catch (err: any) {
             console.error("DiscoverDirectory fetch error:", err);
+            setError(err.message || "Failed to load discovery directory");
         } finally {
             setLoading(false);
         }
@@ -209,6 +213,20 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role }: DiscoverDir
                         />
                     ))}
                 </div>
+            ) : error ? (
+                <div className="py-24 bg-surface-elevated rounded-[3rem] border border-dashed border-error/50 flex flex-col items-center text-center px-10">
+                    <div className="w-16 h-16 bg-error/10 rounded-2xl flex items-center justify-center mb-5">
+                        <XCircle className="w-8 h-8 text-error" />
+                    </div>
+                    <h4 className="text-title font-semibold text-text-primary">Discovery Unavailable</h4>
+                    <p className="text-body-sm text-text-tertiary mt-1 max-w-xs">{error}</p>
+                    <button 
+                        onClick={() => fetchPartners()}
+                        className="mt-6 px-6 py-2 bg-surface-secondary hover:bg-surface-tertiary rounded-xl text-caption font-bold transition-all flex items-center gap-2"
+                    >
+                        <RefreshCw className="w-4 h-4" /> Try Again
+                    </button>
+                </div>
             ) : partners.length === 0 ? (
                 <div className="py-24 bg-surface-elevated rounded-[3rem] border border-dashed border-border-default flex flex-col items-center text-center px-10">
                     <div className="w-16 h-16 bg-surface-tertiary rounded-2xl flex items-center justify-center mb-5">
@@ -269,21 +287,21 @@ function DirectoryCard({
             case "approved":
             case "active":
                 return (
-                    <span className="flex items-center gap-1 text-label font-bold text-text-secondary">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Active
-                    </span>
+                    <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20 text-[11px] font-black uppercase tracking-tight text-emerald-400">
+                        <CheckCircle2 className="w-3 h-3" /> ACTIVE
+                    </div>
                 );
             case "pending":
                 return (
-                    <span className="flex items-center gap-1 text-label font-bold text-text-tertiary">
-                        <Clock className="w-3.5 h-3.5" /> Pending
-                    </span>
+                    <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 rounded-full border border-amber-500/20 text-[11px] font-black uppercase tracking-tight text-amber-500">
+                        <Clock className="w-3 h-3" /> PENDING
+                    </div>
                 );
             case "rejected":
                 return (
-                    <span className="flex items-center gap-1 text-label font-bold text-text-placeholder">
-                        <XCircle className="w-3.5 h-3.5" /> Declined
-                    </span>
+                    <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-500/10 rounded-full border border-rose-500/20 text-[11px] font-black uppercase tracking-tight text-rose-400">
+                        <XCircle className="w-3 h-3" /> DECLINED
+                    </div>
                 );
             default:
                 return null;
@@ -297,64 +315,75 @@ function DirectoryCard({
             exit={{ opacity: 0, scale: 0.97 }}
             className="group bg-surface-elevated border border-border-default rounded-[2rem] overflow-hidden hover:border-border-strong hover:shadow-sm transition-all duration-300 flex flex-col"
         >
-            {/* Card header strip */}
-            <div className="h-2 bg-gradient-to-r from-accent-glow to-transparent" />
+            {/* Card header strip with brand color */}
+            <div className="h-1.5 bg-gradient-to-r from-accent-primary via-orange-600 to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
 
-            <div className="p-6 flex-1 flex flex-col">
-                <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-surface-secondary border border-border-subtle flex items-center justify-center text-xl font-black text-text-tertiary">
+            <div className="p-7 flex-1 flex flex-col relative overflow-hidden">
+                {/* Subtle shimmer on hover */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-accent-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+
+                <div className="flex items-start justify-between mb-6 relative z-10">
+                    <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-surface-secondary to-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-white shadow-xl group-hover:scale-105 transition-transform">
                             {partner.name[0]}
                         </div>
                         <div>
-                            <h3 className="text-title font-bold text-text-primary leading-tight">
+                            <h3 className="text-headline-sm font-black text-text-primary leading-none group-hover:text-accent-primary transition-colors">
                                 {partner.name}
                             </h3>
-                            <div className="flex items-center gap-1.5 mt-0.5 text-caption text-text-tertiary">
-                                <MapPin className="w-3 h-3" /> {partner.city}
+                            <div className="flex items-center gap-1.5 mt-2 text-caption font-bold text-text-muted">
+                                <MapPin className="w-3 h-3 text-accent-primary" /> {partner.city}
                             </div>
                         </div>
                     </div>
                     {partner.isVerified && (
-                        <ShieldCheck className="w-4 h-4 text-text-tertiary shrink-0 mt-1" />
+                        <ShieldCheck className="w-5 h-5 text-accent-primary shrink-0 transition-transform group-hover:rotate-12" />
                     )}
                 </div>
 
                 {/* Type + status row */}
-                <div className="flex items-center justify-between mb-4">
-                    <span className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-secondary rounded-lg text-label font-bold text-text-secondary border border-border-subtle capitalize">
-                        {typeIcon} {partner.type}
+                <div className="flex items-center justify-between mb-6 relative z-10">
+                    <span className="flex items-center gap-2 px-3 py-1.5 bg-black/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-text-secondary border border-white/5 capitalize backdrop-blur-md">
+                        <span className="text-accent-primary">{typeIcon}</span> {partner.type}
                     </span>
                     {statusBadge()}
                 </div>
 
                 {partner.bio && (
-                    <p className="text-caption text-text-tertiary leading-relaxed line-clamp-2 mb-4">
+                    <p className="text-body-sm text-text-tertiary leading-relaxed line-clamp-2 mb-6 relative z-10 group-hover:text-text-secondary transition-colors">
                         {partner.bio}
                     </p>
                 )}
 
                 {/* Metrics row */}
-                <div className="grid grid-cols-2 gap-2 mb-5 mt-auto">
-                    <div className="flex items-center gap-2 p-2.5 bg-surface-secondary rounded-xl border border-border-subtle">
-                        <CalendarDays className="w-3.5 h-3.5 text-text-tertiary" />
-                        <span className="text-caption font-bold text-text-primary">
-                            {partner.eventsCount} Events
-                        </span>
+                <div className="grid grid-cols-2 gap-3 mb-8 mt-auto relative z-10">
+                    <div className="flex items-center gap-2.5 p-3 bg-white/5 rounded-2xl border border-white/5 group-hover:border-accent-primary/10 transition-colors">
+                        <CalendarDays className="w-4 h-4 text-accent-primary/60" />
+                        <div>
+                            <p className="text-[10px] font-black text-text-muted uppercase tracking-tighter">Events</p>
+                            <p className="text-body font-black text-text-primary leading-none">
+                                {partner.eventsCount}
+                            </p>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2 p-2.5 bg-surface-secondary rounded-xl border border-border-subtle">
-                        <Users className="w-3.5 h-3.5 text-text-tertiary" />
-                        <span className="text-caption font-bold text-text-primary">
-                            {partner.followersCount} Fans
-                        </span>
+                    <div className="flex items-center gap-2.5 p-3 bg-white/5 rounded-2xl border border-white/5 group-hover:border-accent-primary/10 transition-colors">
+                        <Users className="w-4 h-4 text-accent-primary/60" />
+                        <div>
+                            <p className="text-[10px] font-black text-text-muted uppercase tracking-tighter">Fans</p>
+                            <p className="text-body font-black text-text-primary leading-none">
+                                {partner.followersCount}
+                            </p>
+                        </div>
                     </div>
                 </div>
 
                 <button
                     onClick={onViewProfile}
-                    className="w-full py-3 bg-surface-secondary hover:bg-surface-tertiary border border-border-default hover:border-border-strong text-text-primary rounded-xl text-caption font-bold transition-all active:scale-[0.98]"
+                    className="w-full py-4 bg-surface-secondary text-text-primary rounded-2xl text-[13px] font-black uppercase tracking-widest border border-border-subtle hover:bg-accent-primary hover:text-text-inverse hover:border-accent-primary hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shadow-xl group/btn"
                 >
-                    View Profile
+                    <span className="flex items-center justify-center gap-2 transition-transform group-hover/btn:translate-x-1">
+                        View Profile <Zap className="w-4 h-4 fill-current group-hover/btn:animate-pulse" />
+                    </span>
                 </button>
             </div>
         </motion.div>

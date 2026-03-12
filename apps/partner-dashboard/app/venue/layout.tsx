@@ -1,3 +1,5 @@
+"use client";
+
 import { VenueClientWrapper } from "@/components/layout/VenueClientWrapper";
 import {
     LayoutDashboard,
@@ -9,7 +11,11 @@ import {
     Settings,
     Building2,
     Calendar,
-    FileText
+    FileText,
+    Banknote,
+    ReceiptText,
+    CreditCard,
+    TrendingUp,
 } from "lucide-react";
 
 const menuSections = [
@@ -35,6 +41,17 @@ const menuSections = [
     {
         items: [
             { icon: CalendarDays, label: "Events", href: "/venue/events" },
+            {
+                icon: Banknote,
+                label: "Finance",
+                href: "/venue/finance",
+                children: [
+                    { label: "Overview",        href: "/venue/finance" },
+                    { label: "Ledger",          href: "/venue/finance/ledger" },
+                    { label: "Payout Settings", href: "/venue/finance/payouts" },
+                    { label: "Reports",         href: "/venue/finance/reports" },
+                ],
+            },
             { icon: PlusCircle, label: "Create Event", href: "/venue/create" },
             { icon: Calendar, label: "Calendar", href: "/venue/calendar" },
         ]
@@ -51,7 +68,7 @@ const menuSections = [
             { icon: Building2, label: "Venue Page", href: "/venue/page-management" },
             { icon: Settings, label: "Settings", href: "/venue/settings" },
         ]
-    }
+    },
 ];
 
 export default function VenueDashboardLayout({ children }: { children: React.ReactNode }) {

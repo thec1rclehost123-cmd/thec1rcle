@@ -113,7 +113,7 @@ export function BentoCard({
         >
             {/* Header slot */}
             {header && (
-                <div className="flex items-center justify-between mb-5 shrink-0">
+                <div className="flex items-center justify-between mb-3 shrink-0">
                     {header}
                 </div>
             )}
@@ -133,7 +133,7 @@ export function BentoCard({
 
             {/* Footer slot */}
             {footer && !loading && !error && !empty && (
-                <div className="mt-5 pt-4 border-t border-[var(--v-border)] shrink-0">
+                <div className="mt-3 pt-3 border-t border-[var(--v-border)] shrink-0">
                     {footer}
                 </div>
             )}
@@ -156,13 +156,13 @@ export function BentoCard({
                 data-interactive="true"
             >
                 {header && (
-                    <div className="flex items-center justify-between mb-5 shrink-0">
+                    <div className="flex items-center justify-between mb-3 shrink-0">
                         {header}
                     </div>
                 )}
                 <div className="flex-1 min-h-0">{children}</div>
                 {footer && (
-                    <div className="mt-5 pt-4 border-t border-[var(--v-border)] shrink-0">
+                    <div className="mt-3 pt-3 border-t border-[var(--v-border)] shrink-0">
                         {footer}
                     </div>
                 )}
@@ -271,18 +271,18 @@ export function KPIBento({
         <BentoCard loading={loading} className={className}>
             {icon && (
                 <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+                    className="w-8 h-8 rounded-lg flex items-center justify-center mb-2"
                     style={{ background: iconBg || "var(--v-elevated)" }}
                 >
                     <div style={{ color: "var(--v-text-secondary)" }}>{icon}</div>
                 </div>
             )}
 
-            <p className="v-label mb-2">{label}</p>
+            <p className="v-label mb-1">{label}</p>
 
             <div className="flex items-end gap-2 flex-wrap">
                 <span
-                    className="text-[32px] font-bold leading-none tracking-tight tabular-nums"
+                    className="text-[26px] font-bold leading-none tracking-tight tabular-nums"
                     style={{ color: "var(--v-text-primary)" }}
                 >
                     {value}

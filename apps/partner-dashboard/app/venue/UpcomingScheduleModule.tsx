@@ -1,23 +1,27 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, Plus, ArrowUpRight } from "lucide-react";
+import { Calendar, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { motion } from "framer-motion";
 
 export default function UpcomingScheduleModule() {
-    const { profile } = useDashboardAuth();
+    const { user, profile } = useDashboardAuth();
     const venueId = profile?.activeMembership?.partnerId;
     const [events, setEvents] = useState<any[]>([]);
 
     useEffect(() => {
-        if (!venueId) return;
-        fetch(`/api/venue/events?venueId=${venueId}`)
+        if (!venueId || !user) return;
+        user.getIdToken().then(token =>
+            fetch(`/api/venue/events?venueId=${venueId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+        )
             .then(res => res.json())
             .then(data => setEvents(data.events || []))
             .catch(console.error);
-    }, [venueId]);
+    }, [venueId, user]);
 
     return (
         <div className="card p-8 min-h-[400px]">

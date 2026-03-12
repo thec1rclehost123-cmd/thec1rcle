@@ -137,18 +137,18 @@ export default function HostReviewsPage() {
     }
 
     return (
-        <div className="space-y-10 pb-20 animate-in fade-in duration-500">
+        <div className="space-y-6 pb-20 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-default pb-10">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border-default pb-6">
                 <div>
-                    <h1 className="text-4xl font-extrabold text-text-primary tracking-tight uppercase">
+                    <h1 className="text-2xl font-extrabold text-text-primary tracking-tight uppercase">
                         Past Event Reviews
                     </h1>
-                    <p className="text-text-tertiary text-lg font-medium mt-3">
+                    <p className="text-text-tertiary text-sm font-medium mt-1">
                         Analyze what worked and what didn't. Track your performance trajectory.
                     </p>
                 </div>
-                <div className="flex items-center gap-2 p-1 bg-surface-secondary rounded-xl">
+                <div className="flex items-center gap-1 p-1 bg-surface-secondary rounded-lg">
                     {[
                         { id: "all", label: "All Events" },
                         { id: "high", label: "Top Rated" },
@@ -157,7 +157,7 @@ export default function HostReviewsPage() {
                         <button
                             key={tab.id}
                             onClick={() => setFilter(tab.id as any)}
-                            className={`px-4 py-2 rounded-lg text-[11px] font-bold transition-all ${filter === tab.id
+                            className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${filter === tab.id
                                     ? "bg-surface-elevated text-text-primary shadow-sm"
                                     : "text-text-tertiary hover:text-text-secondary"
                                 }`}
@@ -170,7 +170,7 @@ export default function HostReviewsPage() {
 
             {/* Aggregate Stats */}
             {events.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <StatCard
                         label="Avg. Turnout Rate"
                         value={`${aggregateStats.avgTurnout}%`}
@@ -200,14 +200,14 @@ export default function HostReviewsPage() {
 
             {/* Events List */}
             {filteredEvents.length === 0 ? (
-                <div className="bg-surface-elevated border border-border-default rounded-[2.5rem] p-16 text-center">
-                    <div className="w-20 h-20 rounded-full bg-surface-secondary flex items-center justify-center mx-auto mb-6">
-                        <Calendar className="w-10 h-10 text-text-tertiary" />
+                <div className="bg-surface-elevated border border-border-default rounded-2xl p-10 text-center">
+                    <div className="w-14 h-14 rounded-full bg-surface-secondary flex items-center justify-center mx-auto mb-4">
+                        <Calendar className="w-7 h-7 text-text-tertiary" />
                     </div>
-                    <h3 className="text-2xl font-black text-text-primary uppercase tracking-tight mb-3">
+                    <h3 className="text-lg font-black text-text-primary uppercase tracking-tight mb-2">
                         {filter !== "all" ? "No matching events" : "No Past Events Yet"}
                     </h3>
-                    <p className="text-text-tertiary text-sm max-w-sm mx-auto mb-8">
+                    <p className="text-text-tertiary text-sm max-w-sm mx-auto mb-5">
                         {filter !== "all"
                             ? "Try adjusting your filter to see more events."
                             : "Once you run your first event, performance reviews will appear here."}
@@ -215,7 +215,7 @@ export default function HostReviewsPage() {
                     {filter === "all" && (
                         <Link
                             href="/host/create"
-                            className="inline-flex items-center gap-2 px-8 py-4 bg-surface-secondary text-text-primary rounded-2xl text-sm font-bold hover:bg-surface-tertiary transition-all"
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-surface-secondary text-text-primary rounded-xl text-sm font-bold hover:bg-surface-tertiary transition-all"
                         >
                             Create Your First Event
                             <ChevronRight className="w-4 h-4" />
@@ -223,14 +223,14 @@ export default function HostReviewsPage() {
                     )}
                 </div>
             ) : (
-                <div className="space-y-6">
+                <div className="space-y-4">
                     {filteredEvents.map((event, index) => (
                         <motion.div
                             key={event.id}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: index * 0.05 }}
-                            className="bg-surface-elevated border border-border-default rounded-[2rem] overflow-hidden hover:shadow-xl hover:shadow-slate-100/50 transition-all group"
+                            className="bg-surface-elevated border border-border-default rounded-2xl overflow-hidden hover:shadow-xl hover:shadow-slate-100/50 transition-all group"
                         >
                             <div className="flex flex-col lg:flex-row">
                                 {/* Event Poster */}
@@ -249,13 +249,13 @@ export default function HostReviewsPage() {
                                 </div>
 
                                 {/* Content */}
-                                <div className="flex-1 p-8">
-                                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
+                                <div className="flex-1 p-5">
+                                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-4">
                                         <div>
-                                            <h3 className="text-xl font-black text-text-primary uppercase tracking-tight mb-1">
+                                            <h3 className="text-base font-black text-text-primary uppercase tracking-tight mb-0.5">
                                                 {event.title}
                                             </h3>
-                                            <div className="flex items-center gap-4 text-sm text-text-tertiary">
+                                            <div className="flex items-center gap-3 text-sm text-text-tertiary">
                                                 <span className="flex items-center gap-1.5">
                                                     <Calendar className="w-3.5 h-3.5" />
                                                     {new Date(event.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
@@ -280,7 +280,7 @@ export default function HostReviewsPage() {
                                     </div>
 
                                     {/* Metrics Grid */}
-                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
                                         <MetricPill label="Tickets Sold" value={event.ticketsSold} />
                                         <MetricPill label="Checked In" value={event.checkedIn} />
                                         <MetricPill label="Turnout" value={`${event.turnoutRate}%`} />
@@ -318,17 +318,17 @@ export default function HostReviewsPage() {
 // Sub-components
 function StatCard({ label, value, icon: Icon, trend }: { label: string; value: string; icon: any; trend: "up" | "down" }) {
     return (
-        <div className="bg-surface-elevated border border-border-default rounded-[1.5rem] p-6 space-y-3">
+        <div className="bg-surface-elevated border border-border-default rounded-xl p-4 space-y-2">
             <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest">{label}</p>
-                <Icon className="w-4 h-4 text-text-tertiary" />
+                <p className="text-[9px] font-black text-text-tertiary uppercase tracking-widest">{label}</p>
+                <Icon className="w-3.5 h-3.5 text-text-tertiary" />
             </div>
             <div className="flex items-end gap-2">
-                <p className="text-2xl font-black text-text-primary">{value}</p>
+                <p className="text-lg font-black text-text-primary">{value}</p>
                 {trend === "up" ? (
-                    <ArrowUpRight className="w-4 h-4 text-emerald-500 mb-1" />
+                    <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500 mb-0.5" />
                 ) : (
-                    <ArrowDownRight className="w-4 h-4 text-red-500 mb-1" />
+                    <ArrowDownRight className="w-3.5 h-3.5 text-red-500 mb-0.5" />
                 )}
             </div>
         </div>

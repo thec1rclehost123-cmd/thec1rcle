@@ -13,7 +13,7 @@ import { resolvePoster } from "@c1rcle/core/events";
 const DashboardEventCard = ({
     event,
     index = 0,
-    height = "h-[280px] sm:h-[340px] md:h-[420px]",
+    height = "h-[260px] sm:h-[300px] md:h-[360px]",
     role = "venue", // club, host, promoter, admin
     primaryAction, // { label, onClick, icon, href }
     secondaryActions = [], // Array of { label, onClick, icon, color, href }
@@ -96,12 +96,12 @@ const DashboardEventCard = ({
 
             {/* Top Badges */}
             <div className="absolute left-6 top-6 z-10 flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                    <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest backdrop-blur-md ${status.class}`}>
+                <div className="flex items-center gap-1.5">
+                    <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest backdrop-blur-md ${status.class}`}>
                         {status.label}
                     </span>
                     {priceDisplay && (
-                        <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest backdrop-blur-md ${isFree ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-400" : "border-white/20 bg-white/10 text-white"
+                        <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest backdrop-blur-md ${isFree ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-400" : "border-white/20 bg-white/10 text-white"
                             }`}>
                             {priceDisplay}
                         </span>
@@ -110,12 +110,12 @@ const DashboardEventCard = ({
             </div>
 
             {/* Bottom Content */}
-            <div className="absolute bottom-0 left-0 right-0 z-20 p-8 space-y-4">
+            <div className="absolute bottom-0 left-0 right-0 z-20 p-6 space-y-3">
                 <div className="space-y-1">
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
                         {displayDate} {displayTime && `• ${displayTime}`}
                     </p>
-                    <h3 className="text-2xl font-black text-white uppercase tracking-tight line-clamp-2">
+                    <h3 className="text-[20px] font-black text-white uppercase tracking-tight line-clamp-2">
                         {event.title}
                     </h3>
                     <p className="text-sm font-medium text-white/40 truncate">
@@ -168,7 +168,7 @@ const DashboardEventCard = ({
                                     e.stopPropagation();
                                     primaryAction.onClick?.();
                                 }}
-                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-xs font-black uppercase tracking-widest text-black hover:bg-zinc-200 transition-all shadow-xl"
+                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-xs font-black uppercase tracking-widest text-black hover:bg-zinc-200 transition-all shadow-xl"
                             >
                                 {primaryAction.label}
                                 {primaryAction.icon || <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>}

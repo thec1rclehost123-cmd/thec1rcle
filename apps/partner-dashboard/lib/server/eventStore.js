@@ -187,6 +187,9 @@ export async function getEventInterested(eventId, limit = 20, token) {
 
 /**
  * Get the confirmed guestlist (orders) for an event.
+ * @param {string} eventId
+ * @param {number} [limit=50]
+ * @param {string} [token]
  */
 export async function getEventGuestlist(eventId, limit = 50, token) {
     const db = getAdminDb();
@@ -204,6 +207,8 @@ export async function getEventGuestlist(eventId, limit = 50, token) {
 
 /**
  * List events available for promoters.
+ * @param {{ promoterId?: string, city?: string, limit?: number }} params
+ * @param {string} [token]
  */
 export async function listEventsForPromoter({ promoterId, city, limit = 20 } = {}, token) {
     const db = getAdminDb();

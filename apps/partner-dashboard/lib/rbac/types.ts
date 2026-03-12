@@ -1,6 +1,6 @@
 export type PartnerType = 'venue' | 'host' | 'promoter' | 'club'; // Keep 'club' for backward compat during transition
 
-export type VenueRole = 'OWNER' | 'MANAGER' | 'STAFF' | 'SECURITY';
+export type VenueRole = 'OWNER' | 'MANAGER' | 'FINANCE_ADMIN' | 'STAFF' | 'SECURITY';
 export type HostRole = 'OWNER' | 'COHOST' | 'STAFF';
 export type PromoterRole = 'PROMOTER' | 'TEAM_LEAD';
 
@@ -32,6 +32,9 @@ export const VENUE_PERMISSIONS: Record<VenueRole, Permission[]> = {
     MANAGER: [
         'VIEW_FINANCIALS', 'MANAGE_EVENTS', 'EDIT_EVENT_RULES', 'MANAGE_TABLES',
         'VIEW_GUESTLIST', 'SCAN_ENTRY', 'LOG_INCIDENTS', 'VIEW_ANALYTICS', 'MANAGE_PAGE_CONTENT'
+    ],
+    FINANCE_ADMIN: [
+        'VIEW_FINANCIALS', 'MANAGE_PAYOUTS', 'VIEW_ANALYTICS'
     ],
     STAFF: [
         'VIEW_GUESTLIST', 'MANAGE_TABLES', 'LOG_INCIDENTS'
@@ -68,6 +71,7 @@ export interface PartnerMembership {
     uid: string;
     partnerId: string;
     partnerName?: string;
+    partnerLogo?: string;
     partnerType: PartnerType;
     role: StaffRole;
     permissions?: Permission[]; // Override permissions if needed

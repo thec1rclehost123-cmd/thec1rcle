@@ -40,7 +40,7 @@ export function AppleHeroStat({
 
     return (
         <div
-            className={clsx("v-hero-card w-full py-12 px-8 sm:py-16 sm:px-12", className)}
+            className={clsx("v-hero-card w-full py-8 px-6 sm:py-10 sm:px-8", className)}
             aria-busy={loading}
         >
             {loading ? (

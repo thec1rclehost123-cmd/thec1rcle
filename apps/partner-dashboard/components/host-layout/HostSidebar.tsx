@@ -15,7 +15,8 @@ import {
     ShieldCheck,
     Bell,
     Star,
-    Layout
+    Layout,
+    Banknote,
 } from "lucide-react";
 import { useDashboardAuth } from "../../components/providers/DashboardAuthProvider";
 import { cleanJargon } from "@/lib/utils/jargon";
@@ -45,6 +46,12 @@ export default function HostSidebar() {
             items: [
                 { icon: Users, label: "promoters", href: "/host/promoters" },
                 { icon: Handshake, label: "venues", href: "/host/venues" },
+            ]
+        },
+        {
+            category: "finance",
+            items: [
+                { icon: Banknote, label: "finance", href: "/host/finance" },
             ]
         },
         {

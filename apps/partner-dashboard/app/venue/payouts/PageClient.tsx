@@ -16,15 +16,15 @@ import { VenueStatStrip } from "@/components/ui/VenueStatStrip";
 import { BentoCard } from "@/components/ui/BentoCard";
 
 const MOCK_PAYOUTS = [
-    { id: "PY-88219", amount: 68400,  date: "2026-01-25", status: "completed", account: "HDFC •••• 8821"  },
-    { id: "PY-88104", amount: 42100,  date: "2026-01-18", status: "completed", account: "HDFC •••• 8821"  },
-    { id: "PY-88002", amount: 125000, date: "2026-01-11", status: "completed", account: "HDFC •••• 8821"  },
-    { id: "PY-87941", amount: 35600,  date: "2026-01-04", status: "failed",    account: "ICICI •••• 1102" },
+    { id: "PY-88219", amount: 68400, date: "2026-01-25", status: "completed", account: "HDFC •••• 8821" },
+    { id: "PY-88104", amount: 42100, date: "2026-01-18", status: "completed", account: "HDFC •••• 8821" },
+    { id: "PY-88002", amount: 125000, date: "2026-01-11", status: "completed", account: "HDFC •••• 8821" },
+    { id: "PY-87941", amount: 35600, date: "2026-01-04", status: "failed", account: "ICICI •••• 1102" },
 ];
 
 function fmtCurrency(n: number) {
     if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
-    if (n >= 1000)   return `₹${(n / 1000).toFixed(1)}K`;
+    if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
     return `₹${n}`;
 }
 
@@ -57,7 +57,7 @@ export default function PayoutsPage() {
             <VenueStatStrip
                 stats={[
                     { label: "TOTAL SETTLED (JAN)", value: fmtCurrency(totalSettled), trend: { value: "+12% vs Dec", direction: "up" } },
-                    { label: "PENDING PAYOUT",       value: "₹48,200" },
+                    { label: "PENDING PAYOUT", value: "₹48,200" },
                     {
                         label: "ACTIVE BANK",
                         value: "HDFC •••• 8821",
@@ -111,7 +111,7 @@ export default function PayoutsPage() {
                         return (
                             <div
                                 key={p.id}
-                                className="grid grid-cols-[1fr_1fr_1fr_1.5fr_1fr_40px] px-5 py-4 rounded-xl items-center transition-colors hover:brightness-125"
+                                className="grid grid-cols-[1fr_1fr_1fr_1.5fr_1fr_40px] px-5 py-3 rounded-xl items-center transition-colors hover:brightness-125"
                                 style={{ background: "var(--v-elevated)" }}
                             >
                                 <span className="text-[12px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>
@@ -135,12 +135,12 @@ export default function PayoutsPage() {
                                         className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
                                         style={{
                                             background: ok ? "var(--v-success-bg)" : "var(--v-error-bg)",
-                                            color:      ok ? "var(--v-success)"    : "var(--v-error)",
+                                            color: ok ? "var(--v-success)" : "var(--v-error)",
                                         }}
                                     >
                                         {ok
                                             ? <><CheckCircle2 className="w-2.5 h-2.5" /> Settled</>
-                                            : <><AlertCircle  className="w-2.5 h-2.5" /> Retrying</>
+                                            : <><AlertCircle className="w-2.5 h-2.5" /> Retrying</>
                                         }
                                     </span>
                                 </div>

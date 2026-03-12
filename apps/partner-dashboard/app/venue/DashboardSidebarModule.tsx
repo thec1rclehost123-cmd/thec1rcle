@@ -6,17 +6,21 @@ import Link from "next/link";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 export default function DashboardSidebarModule() {
-    const { profile } = useDashboardAuth();
+    const { user, profile } = useDashboardAuth();
     const venueId = profile?.activeMembership?.partnerId;
     const [alerts, setAlerts] = useState<any[]>([]);
 
     useEffect(() => {
-        if (!venueId) return;
-        fetch(`/api/venue/notifications?venueId=${venueId}&limit=3`)
+        if (!venueId || !user) return;
+        user.getIdToken().then(token =>
+            fetch(`/api/venue/notifications?venueId=${venueId}&limit=3`, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+        )
             .then(res => res.json())
             .then(data => setAlerts(data.notifications || []))
             .catch(console.error);
-    }, [venueId]);
+    }, [venueId, user]);
 
     return (
         <div className="space-y-6">

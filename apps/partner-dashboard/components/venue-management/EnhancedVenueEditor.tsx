@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { EventCard } from "@c1rcle/ui";
 import { useToast } from "@/components/ui/Toast";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 
 interface EnhancedVenueEditorProps {
     venueId: string;
@@ -264,7 +265,10 @@ export default function EnhancedVenueEditor({
                         <div className="py-20 border-2 border-dashed border-black/10 dark:border-border-subtle rounded-3xl flex flex-col items-center justify-center">
                             <Calendar className="w-10 h-10 mb-4 text-text-primary/20 dark:text-text-primary/20" />
                             <h3 className="text-xl font-bold uppercase tracking-widest text-text-primary/40 dark:text-text-primary/40 mb-2">No Upcoming Events</h3>
-                            <button className="btn btn-primary btn-sm">Create Event</button>
+                            <VenueActionButton variant="primary">
+                                <Plus className="w-4 h-4 mr-2" />
+                                Create Event
+                            </VenueActionButton>
                         </div>
                     )}
                 </div>
@@ -336,7 +340,9 @@ export default function EnhancedVenueEditor({
                                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
                                         <div key={day} className="flex justify-between items-center text-xs font-bold uppercase">
                                             <span className="text-text-primary/30 dark:text-text-primary/30">{day}</span>
-                                            <span className="text-text-primary/80 dark:text-text-primary/80">7:00 PM - 3:00 AM</span>
+                                            <span className="text-text-primary/80 dark:text-text-primary/80">
+                                                {venue.operatingHours?.[day] || venue.timings?.[day] || '7:00 PM - 3:00 AM'}
+                                            </span>
                                         </div>
                                     ))}
                                 </div>

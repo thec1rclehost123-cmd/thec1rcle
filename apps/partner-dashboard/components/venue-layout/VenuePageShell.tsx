@@ -31,7 +31,7 @@ export function VenuePageShell({
     return (
         <div className={clsx("mx-auto w-full pb-20", maxWidthClasses[maxWidth])}>
             {/* Page Header */}
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-4">
                 <div>
                     <h1
                         className="v-text-title font-semibold"
@@ -55,11 +55,11 @@ export function VenuePageShell({
 
             {/* Filter Bar */}
             {filterBar && (
-                <div className="mb-6">{filterBar}</div>
+                <div className="mb-4">{filterBar}</div>
             )}
 
             {/* Content */}
-            <div className={noPadding ? "" : "space-y-6"}>
+            <div className={noPadding ? "" : "space-y-4"}>
                 {children}
             </div>
         </div>

@@ -14,6 +14,7 @@ import {
     createSlotRequest as directCreateSlotRequest,
     getVenueAvailability
 } from "@c1rcle/core/calendar-engine";
+import { mapEventForClient } from "@c1rcle/core/events";
 import { getApiClient } from "./apiClient";
 
 /**
@@ -23,7 +24,13 @@ import { getApiClient } from "./apiClient";
 export async function getOperatingCalendar(partnerId, role, startDate, endDate, token) {
     const db = getAdminDb();
     try {
-        return await directGetOperatingCalendar(db, partnerId, role, startDate, endDate);
+        const data = await directGetOperatingCalendar(db, partnerId, role, startDate, endDate);
+
+        // Map events to ensure posterUrl and other standardized fields are present
+        return (data || []).map(day => ({
+            ...day,
+            events: (day.events || []).map(event => mapEventForClient(event, event.id))
+        }));
     } catch (error) {
         console.error("[CalendarStore] getOperatingCalendar failed:", error.message);
         return [];
