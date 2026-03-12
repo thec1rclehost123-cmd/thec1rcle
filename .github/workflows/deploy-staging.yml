@@ -85,6 +85,7 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ steps.vars.outputs.pid }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          vercel-version: 40.2.1
 
   deploy-services:
     needs: [validate]
