@@ -77,6 +77,8 @@ export const viewport = {
   userScalable: false,
 };
 
+export const dynamic = "force-dynamic";
+
 import Navbar from "../components/Navbar";
 import FooterContent from "../components/FooterContent";
 import ContextualFooter from "../components/ContextualFooter";
