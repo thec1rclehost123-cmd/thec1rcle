@@ -1,5 +1,3 @@
-"use client";
-
 import { TrendingUp, Calendar, Zap, Users } from "lucide-react";
 import { KPITile, KPIGrid } from "@/components/ui/KPITile";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";

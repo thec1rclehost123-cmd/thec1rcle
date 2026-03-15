@@ -1,5 +1,3 @@
-"use client";
-
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { DiscoveryView } from "@/components/discovery/DiscoveryView";
 import { Sparkles, Info } from "lucide-react";

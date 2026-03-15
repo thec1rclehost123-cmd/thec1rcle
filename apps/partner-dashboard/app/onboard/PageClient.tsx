@@ -86,8 +86,7 @@ function OnboardingContent() {
 
         try {
             const auth = getFirebaseAuth();
-            const db = getFirebaseDb();
-
+            
             let uid;
             const effectiveEmail = authUser?.email || formData.email;
 

@@ -1,5 +1,3 @@
-"use client";
-
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { ApprovalGuard } from "@/components/guards/ApprovalGuard";

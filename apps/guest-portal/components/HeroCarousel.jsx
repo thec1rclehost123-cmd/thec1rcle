@@ -3,6 +3,12 @@
 import { motion } from "framer-motion";
 import KineticCardFlow from "./KineticCardFlow";
 
+// Dynamically import the heavy 3D carousel only for desktop
+const HeroCarousel3D = dynamic(() => import("./HeroCarousel3D"), {
+    ssr: false,
+    loading: () => <div className="h-[600px] w-full bg-black/20 animate-pulse flex items-center justify-center text-white/20 uppercase tracking-widest text-xs">Initializing Experience...</div>
+});
+
 /**
  * HeroCarousel - A high-performance cinematic conveyor belt.
  * Replaced individual 3D/Mobile carousel logic with the unified KineticCardFlow
