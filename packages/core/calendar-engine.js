@@ -174,11 +174,13 @@ export async function getOperatingCalendar(db, partnerId, role, startDate, endDa
     }
 
     const eventsSnap = await eventsQuery.get();
+    const EXCLUDED_LIFECYCLE = ["draft", "deleted", "cancelled", "denied"];
     const allEvents = eventsSnap.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(event => {
             const dateStr = event.startDate ? event.startDate.substring(0, 10) : "";
-            return dateStr >= startDate && dateStr <= endDate;
+            const lifecycle = (event.lifecycle || event.status || "draft").toLowerCase();
+            return dateStr >= startDate && dateStr <= endDate && !EXCLUDED_LIFECYCLE.includes(lifecycle);
         });
 
     // 3. Fetch slots

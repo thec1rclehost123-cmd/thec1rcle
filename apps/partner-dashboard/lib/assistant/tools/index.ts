@@ -24,6 +24,7 @@ import {
     canViewStaff,
 } from '../permission-gate';
 import { formatINR, formatINRCompact, pctChange } from '@/lib/finance/definitions';
+import { findMetricDefinition } from '../metric-definitions';
 
 // ── Utility ───────────────────────────────────────────────────────────────────
 
@@ -862,8 +863,6 @@ export async function getTimeRangeComparison(
 }
 
 // ── Tool: getMetricDefinition ─────────────────────────────────────────────────
-
-import { findMetricDefinition } from '../metric-definitions';
 
 export async function getMetricDefinition(
     input: { term: string },

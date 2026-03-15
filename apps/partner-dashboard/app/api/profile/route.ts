@@ -16,18 +16,18 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "profileId and type are required" }, { status: 400 });
         }
 
-        // Potential security gap: Profile GET is usually public, so no auth check here for reading.
-        // However, if we want to restrict certain profiles, we'd add it here.
+        const authHeader = req.headers.get("Authorization") || "";
+        const token = authHeader.replace("Bearer ", "").trim();
 
-        const profile = await getProfile(profileId, type);
+        const profile = await getProfile(profileId, type, token);
         if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-        const posts = await getProfilePosts(profileId, type);
-        const highlights = await getProfileHighlights(profileId, type);
+        const posts = await getProfilePosts(profileId, type, 20, token);
+        const highlights = await getProfileHighlights(profileId, type, token);
 
         let stats = null;
         if (includeStats) {
-            stats = await getProfileStats(profileId, type);
+            stats = await getProfileStats(profileId, type, token);
         }
 
         return NextResponse.json({
@@ -61,35 +61,32 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Forbidden: No management access to this partner" }, { status: 403 });
         }
 
-        const user = {
-            uid: decodedToken.uid,
-            name: decodedToken.name || decodedToken.email || "User",
-            email: decodedToken.email
-        };
+        const authHeader = req.headers.get("Authorization") || "";
+        const token = authHeader.replace("Bearer ", "").trim();
 
         let result;
         switch (action) {
             case "updateProfile":
-                result = await updateProfile(profileId, type, data);
+                result = await updateProfile(profileId, type, data, token);
                 break;
             case "createPost":
-                result = await createPost(profileId, type, data);
+                result = await createPost(profileId, type, data, token);
                 break;
             case "createHighlight":
-                result = await createHighlight(profileId, type, data);
+                result = await createHighlight(profileId, type, data, token);
                 break;
             case "deletePost":
                 // Additional check: Ensure post belongs to this profile
-                result = await deletePost(data.postId);
+                result = await deletePost(data.postId, token);
                 break;
             case "deleteHighlight":
-                result = await deleteHighlight(data.highlightId);
+                result = await deleteHighlight(data.highlightId, token);
                 break;
             case "addPhoto":
-                result = await updateProfile(profileId, type, { [data.field]: data.url });
+                result = await updateProfile(profileId, type, { [data.field]: data.url }, token);
                 break;
             case "removePhoto":
-                result = await updateProfile(profileId, type, { [data.field]: null });
+                result = await updateProfile(profileId, type, { [data.field]: null }, token);
                 break;
             default:
                 return NextResponse.json({ error: "Invalid action" }, { status: 400 });

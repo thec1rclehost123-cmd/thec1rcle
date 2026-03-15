@@ -47,10 +47,13 @@ export async function GET(req: NextRequest) {
             }
         }
 
+        const authHeader = req.headers.get("Authorization") || "";
+        const token = authHeader.replace("Bearer ", "").trim();
+
         // Get page data
         const pageData = isDashboard
-            ? await getVenuePageDataForDashboard(venueId)
-            : await getVenuePageData(venueId);
+            ? await getVenuePageDataForDashboard(venueId, token)
+            : await getVenuePageData(venueId, token);
 
         if (!pageData) {
             return NextResponse.json({ error: "Venue not found" }, { status: 404 });
@@ -61,8 +64,8 @@ export async function GET(req: NextRequest) {
         let pastEvents = [];
         if (includeEvents) {
             [events, pastEvents] = await Promise.all([
-                getVenueUpcomingEvents(venueId),
-                getVenuePastEvents(venueId)
+                getVenueUpcomingEvents(venueId, token),
+                getVenuePastEvents(venueId, token)
             ]);
         }
 
@@ -102,12 +105,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
-        const user = {
-            uid: decodedToken.uid,
-            name: decodedToken.name || decodedToken.email || "User"
-        };
+        const authHeader = req.headers.get("Authorization") || "";
+        const token = authHeader.replace("Bearer ", "").trim();
 
-        const result = await updateVenueDetails(venueId, updates);
+        const result = await updateVenueDetails(venueId, updates, token);
 
         return NextResponse.json({ success: true, result });
     } catch (error: any) {

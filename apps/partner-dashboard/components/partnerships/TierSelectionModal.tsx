@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { X, Star, ShieldCheck, ChevronRight, Loader2 } from "lucide-react";
+import { X, Star, ShieldCheck, ChevronRight, Loader2, Handshake } from "lucide-react";
 
 export type ContractTier = "trusted" | "standard";
 
@@ -75,21 +75,23 @@ export function TierSelectionModal({
                 className="bg-surface-elevated border border-border-default rounded-[2rem] w-full max-w-lg shadow-[0_32px_80px_rgba(0,0,0,0.2)] overflow-hidden"
             >
                 {/* Header */}
-                <div className="flex items-start justify-between p-8 border-b border-border-subtle">
-                    <div>
-                        <p className="text-label font-black text-text-tertiary uppercase tracking-widest mb-2">
-                            Contract Tier
-                        </p>
-                        <h2 className="text-headline-sm font-bold text-text-primary">
-                            Approve {partnerName}
-                        </h2>
-                        <p className="text-body-sm text-text-secondary mt-1">
-                            Select the access level for this {partnerType}.
-                        </p>
+                <div className="p-8 border-b border-white/5 bg-gradient-to-br from-white/[0.02] to-transparent">
+                    <div className="flex items-center gap-4 mb-3">
+                        <div className="p-3 bg-orange-500/10 rounded-2xl">
+                            <Handshake className="w-8 h-8 text-orange-500" />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-black text-white tracking-tight">
+                                Approve Partnership
+                            </h2>
+                            <p className="text-white/40 text-sm font-medium mt-0.5">
+                                Select a partnership tier for {partnerName}
+                            </p>
+                        </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 rounded-xl text-text-tertiary hover:text-text-primary hover:bg-surface-secondary transition-all mt-1"
+                        className="absolute top-8 right-8 p-2 rounded-xl text-text-tertiary hover:text-text-primary hover:bg-surface-secondary transition-all"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -101,47 +103,54 @@ export function TierSelectionModal({
                         <button
                             key={tier.id}
                             onClick={() => setSelected(tier.id)}
-                            className={`w-full text-left rounded-2xl border-2 p-6 transition-all ${
+                            className={`w-full text-left rounded-[1.5rem] border-2 p-6 transition-all duration-300 relative overflow-hidden group ${
                                 selected === tier.id
                                     ? tier.id === "trusted"
-                                        ? "border-accent-primary bg-accent-glow"
-                                        : "border-border-strong bg-surface-tertiary"
-                                    : "border-border-default hover:border-border-strong bg-surface-secondary"
+                                        ? "border-orange-500 bg-orange-500/[0.04]"
+                                        : "border-white/20 bg-white/[0.04]"
+                                    : "border-white/5 hover:border-white/10 bg-white/[0.02]"
                             }`}
                         >
-                            <div className="flex items-center justify-between mb-3">
+                            {selected === tier.id && tier.id === "trusted" && (
+                                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/[0.05] to-transparent pointer-events-none" />
+                            )}
+                            <div className="flex items-center justify-between mb-3 relative z-10">
                                 <div className="flex items-center gap-3">
                                     {tier.id === "trusted" ? (
-                                        <Star className="w-5 h-5 text-accent-primary" />
+                                        <div className="p-2 bg-orange-500/10 rounded-xl">
+                                            <Star className="w-5 h-5 text-orange-500" />
+                                        </div>
                                     ) : (
-                                        <ShieldCheck className="w-5 h-5 text-text-secondary" />
+                                        <div className="p-2 bg-white/5 rounded-xl">
+                                            <ShieldCheck className="w-5 h-5 text-white/60" />
+                                        </div>
                                     )}
-                                    <span className="text-title font-bold text-text-primary">
+                                    <span className="text-title font-bold text-white">
                                         {tier.label}
                                     </span>
                                 </div>
                                 <span
-                                    className={`text-label px-2.5 py-1 rounded-lg font-bold ${
+                                    className={`text-[10px] px-3 py-1 rounded-lg font-black uppercase tracking-widest ${
                                         tier.id === "trusted"
-                                            ? "bg-accent-glow text-accent-primary"
-                                            : "bg-surface-base text-text-tertiary border border-border-default"
+                                            ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+                                            : "bg-white/5 text-white/40 border border-white/5"
                                     }`}
                                 >
                                     {tier.badge}
                                 </span>
                             </div>
-                            <p className="text-body-sm text-text-secondary mb-4">{tier.description}</p>
-                            <ul className="space-y-2">
+                            <p className="text-body-sm text-white/50 mb-4 relative z-10 leading-relaxed font-medium">{tier.description}</p>
+                            <ul className="space-y-2.5 relative z-10">
                                 {tier.capabilities.map((cap, i) => (
                                     <li
                                         key={i}
-                                        className="flex items-center gap-2.5 text-caption text-text-secondary"
+                                        className="flex items-center gap-3 text-[12px] text-white/40 group-hover:text-white/60 transition-colors"
                                     >
-                                        <span
+                                        <div
                                             className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                                                 tier.id === "trusted"
-                                                    ? "bg-accent-primary"
-                                                    : "bg-text-tertiary"
+                                                    ? "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.4)]"
+                                                    : "bg-white/20"
                                             }`}
                                         />
                                         {cap}
@@ -153,17 +162,21 @@ export function TierSelectionModal({
                 </div>
 
                 {/* Footer */}
-                <div className="flex gap-3 p-6 pt-0">
+                <div className="flex gap-4 p-8 pt-2">
                     <button
                         onClick={onClose}
-                        className="flex-1 py-3.5 rounded-xl border border-border-default text-text-secondary text-sm font-semibold hover:bg-surface-secondary transition-all"
+                        className="flex-1 py-4 rounded-2xl border border-white/10 text-text-secondary text-sm font-bold hover:bg-white/5 transition-all active:scale-95"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleConfirm}
                         disabled={!selected || loading}
-                        className="flex-1 py-3.5 rounded-xl bg-accent-primary text-text-inverse text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                        className={`flex-1 py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-20 disabled:cursor-not-allowed ${
+                            selected === 'trusted' 
+                                ? 'bg-gradient-to-r from-orange-500 to-rose-600 hover:shadow-lg hover:shadow-orange-500/20' 
+                                : 'bg-surface-strong border border-white/10 hover:bg-surface-strong/80'
+                        } ${!selected ? 'bg-white/5 border border-white/5 text-white/20' : ''}`}
                     >
                         {loading ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
