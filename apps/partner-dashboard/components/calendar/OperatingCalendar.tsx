@@ -12,7 +12,11 @@ import {
     User,
     Lock,
     Settings,
-    Calendar as CalendarIcon
+    Calendar as CalendarIcon,
+    Sparkles,
+    Eye,
+    MapPin,
+    Music
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { parseAsIST, toISODateIST } from "@c1rcle/core/time";
@@ -28,39 +32,20 @@ const MONTHS = [
     "July", "August", "September", "October", "November", "December"
 ];
 
-// State configuration - Canonical colors only
-const STATE_CONFIG = {
-    CONFIRMED: {
-        dot: "bg-green-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]",
-        label: "Confirmed",
-        textColor: "text-emerald-600"
-    },
-    BLOCKED: {
-        dot: "bg-gray-200",
-        label: "Blocked",
-        textColor: "text-gray-400"
-    },
-    PENDING: {
-        dot: "bg-iris shadow-[0_0_5px_rgba(244,74,34,0.5)]",
-        label: "Needs Attention",
-        textColor: "text-iris"
-    },
-    DRAFT: {
-        dot: "bg-gray-300",
-        label: "Internal Draft",
-        textColor: "text-gray-500"
-    },
-    RISK: {
-        dot: "bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.5)]",
-        label: "Operating Risk",
-        textColor: "text-rose-600"
-    },
-    OPEN: {
-        dot: "bg-gray-100",
-        label: "Open Window",
-        textColor: "text-gray-300"
-    }
-};
+// Lifecycle states that should never appear on the calendar
+const EXCLUDED_LIFECYCLE = [
+    EVENT_LIFECYCLE.DRAFT,
+    EVENT_LIFECYCLE.DELETED,
+    EVENT_LIFECYCLE.CANCELLED,
+    EVENT_LIFECYCLE.DENIED
+];
+
+function filterVisibleEvents(events: any[]) {
+    return (events || []).filter((e: any) => {
+        const lc = e.lifecycle || e.status || "draft";
+        return !EXCLUDED_LIFECYCLE.includes(lc);
+    });
+}
 
 export function OperatingCalendar() {
     const { user, profile } = useDashboardAuth();
@@ -92,7 +77,19 @@ export function OperatingCalendar() {
             const data = await res.json();
 
             if (res.ok && Array.isArray(data)) {
-                setCalendarData(data);
+                // Filter draft events from each day's event list (safety net)
+                const cleaned = data.map((day: any) => {
+                    const visibleEvents = filterVisibleEvents(day.events);
+                    return {
+                        ...day,
+                        events: visibleEvents,
+                        stats: {
+                            ...day.stats,
+                            eventCount: visibleEvents.length
+                        }
+                    };
+                });
+                setCalendarData(cleaned);
             } else {
                 setCalendarData([]);
             }
@@ -115,7 +112,7 @@ export function OperatingCalendar() {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
     const calendarGrid = useMemo(() => {
-        const grid = [];
+        const grid: any[] = [];
         for (let i = 0; i < firstDayIdx; i++) grid.push(null);
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -192,7 +189,6 @@ export function OperatingCalendar() {
             });
 
             if (res.ok) {
-                // Success: refresh data
                 await fetchCalendar();
             } else {
                 const errData = await res.json();
@@ -205,224 +201,205 @@ export function OperatingCalendar() {
         }
     };
 
-    // Calculate stats for header
+    // Stats for header badges
     const stats = useMemo(() => {
         const confirmed = calendarData.filter(d => d.state === 'CONFIRMED').length;
         const pending = calendarData.filter(d => d.state === 'PENDING' || d.stats?.pendingSlots > 0).length;
         const open = calendarData.filter(d => d.state === 'OPEN').length;
-        return { confirmed, pending, open };
+        const blocked = calendarData.filter(d => d.state === 'BLOCKED').length;
+        return { confirmed, pending, open, blocked };
     }, [calendarData]);
 
+    const todayStr = toISODateIST(parseAsIST(null));
+
     return (
-        <div className="flex flex-col w-full min-h-[calc(100vh-56px)] pb-4">
-            {/* Main Application Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start px-0">
-
-                {/* Left: Calendar Ledger (8 Cols) */}
-                <div className="lg:col-span-8 space-y-4">
-                    {/* Compact Sub-Header / Ledger Controls */}
-                    <div className="flex flex-col md:flex-row items-center justify-between py-1 px-1">
-                        <div className="flex items-center gap-6">
-                            <div className="hidden sm:block">
-                                <p className="text-[10px] font-black text-rose-500 uppercase tracking-[0.3em]">
-                                    {MONTHS[month]} {year}
-                                </p>
-                            </div>
-
-                            {/* Tighter Stats */}
-                            <div className="hidden lg:flex items-center gap-6 pl-6 border-l border-[rgba(255,255,255,0.06)]">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_#10B981]" />
-                                    <span className="text-xs font-bold text-text-primary tabular-nums">{stats.confirmed}</span>
-                                    <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-normal">Confirmed</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_#F44A22]" />
-                                    <span className="text-xs font-bold text-text-primary tabular-nums">{stats.pending}</span>
-                                    <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-normal">Pending</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                                    <span className="text-xs font-bold text-text-primary tabular-nums">{stats.open}</span>
-                                    <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-normal">Available</span>
-                                </div>
-                            </div>
+        <div className="flex flex-col w-full min-h-[calc(100vh-56px)] gap-6">
+            {/* Operational Header */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-1">
+                <div className="flex items-center gap-5">
+                    <div className="flex items-center gap-1.5 bg-surface-secondary border border-border-subtle rounded-2xl p-1.5 shadow-sm">
+                        <button
+                            onClick={() => navigateMonth(-1)}
+                            className="p-2 hover:bg-surface-elevated rounded-xl transition-all text-text-tertiary hover:text-text-primary"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <div className="px-5 text-center min-w-[150px]">
+                            <h2 className="text-sm font-black text-text-primary tracking-tight uppercase">
+                                {MONTHS[month]} {year}
+                            </h2>
                         </div>
-
-                        <div className="flex items-center gap-4">
-                            {/* Month Navigation */}
-                            <div className="flex items-center gap-1 bg-surface-secondary border border-[rgba(255,255,255,0.08)] rounded-lg p-1">
-                                <button
-                                    onClick={() => navigateMonth(-1)}
-                                    className="p-1.5 hover:bg-surface-elevated rounded transition-all text-text-tertiary hover:text-text-primary"
-                                >
-                                    <ChevronLeft className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                    onClick={() => setCurrentDate(parseAsIST(null))}
-                                    className="px-3 py-1 text-[9px] font-black text-text-tertiary hover:text-text-primary uppercase tracking-widest transition-all"
-                                >
-                                    SYNC TODAY
-                                </button>
-                                <button
-                                    onClick={() => navigateMonth(1)}
-                                    className="p-1.5 hover:bg-surface-elevated rounded transition-all text-text-tertiary hover:text-text-primary"
-                                >
-                                    <ChevronRight className="h-3.5 w-3.5" />
-                                </button>
-                            </div>
-
-                            {/* Create Event Button (Venue only) */}
-                            {role === 'venue' && (
-                                <Link
-                                    href="/venue/create"
-                                    className="bg-surface-elevated text-text-primary px-4 py-1.5 rounded-lg flex items-center justify-center gap-2 hover:bg-surface-elevated/90 transition-all font-black text-[10px] uppercase tracking-widest shadow-sm border border-white/5"
-                                >
-                                    <Plus className="h-3.5 w-3.5" />
-                                    Schedule
-                                </Link>
-                            )}
-                        </div>
-                    </div>
-                    <div className="glass-panel overflow-hidden border border-border-strong shadow-sm rounded-[32px]">
-                        <div className="grid grid-cols-7 border-b border-border-subtle bg-surface-secondary">
-                            {DAYS.map(d => (
-                                <div key={d} className="py-3 text-center text-[10px] font-black text-text-tertiary uppercase tracking-[0.2em]">
-                                    {d}
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="grid grid-cols-7 bg-[#FFFFFF]">
-                            {calendarGrid.map((cell, idx) => {
-                                if (!cell) {
-                                    return <div key={`empty-${idx}`} className="aspect-[1.3/1] bg-[#F9F9FB] border-r border-b border-[rgba(0,0,0,0.04)]" />;
-                                }
-
-                                const todayStr = toISODateIST(parseAsIST(null));
-                                const isToday = cell.dateStr === todayStr;
-                                const isSelected = cell.dateStr === selectedDateStr;
-                                const eventCount = cell.stats?.eventCount || 0;
-
-                                return (
-                                    <button
-                                        key={cell.dateStr}
-                                        onClick={() => setSelectedDateStr(cell.dateStr)}
-                                        className={`relative aspect-[1.4/1] p-2 text-left border-r border-b border-border-subtle transition-all group overflow-hidden ${isSelected ? 'bg-rose-500/10' : 'hover:bg-surface-secondary'}`}
-                                    >
-                                        <div className="flex items-center justify-between relative z-10">
-                                            <span className={`text-[11px] font-bold tabular-nums ${isToday ? 'text-rose-500 animate-pulse' : 'text-text-tertiary group-hover:text-text-primary'}`}>
-                                                {cell.day}
-                                            </span>
-                                            {isToday && <div className="w-1 h-1 rounded-full bg-iris shadow-[0_0_5px_#F44A22]" />}
-                                        </div>
-
-                                        {/* Event blocks in grid */}
-                                        {eventCount > 0 && (
-                                            <div className="mt-2 space-y-1 relative z-10">
-                                                {cell.events.slice(0, 2).map((e: any) => {
-                                                    const status = e.lifecycle || e.status;
-                                                    const isConfirmed = [
-                                                        EVENT_LIFECYCLE.SCHEDULED,
-                                                        EVENT_LIFECYCLE.LIVE,
-                                                        EVENT_LIFECYCLE.APPROVED
-                                                    ].includes(status);
-                                                    const isPending = status === EVENT_LIFECYCLE.SUBMITTED;
-
-                                                    return (
-                                                        <div
-                                                            key={e.id}
-                                                            className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tight truncate border ${isConfirmed
-                                                                ? 'bg-green-500/10 border-emerald-500/20 text-emerald-600'
-                                                                : isPending
-                                                                    ? 'bg-orange-500/10 border-orange-500/20 text-orange-600'
-                                                                    : 'bg-[#F2F2F7] border-[rgba(0,0,0,0.06)] text-[#86868B]'
-                                                                }`}
-                                                        >
-                                                            {e.isAnonymized ? 'BOOKED' : (isPending ? `Pending: ${e.title}` : e.title)}
-                                                        </div>
-                                                    );
-                                                })}
-                                                {eventCount > 2 && (
-                                                    <div className="text-[7px] font-black text-[#86868B] uppercase tracking-widest pl-1">
-                                                        + {eventCount - 2} MORE
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Blocked Indicator */}
-                                        {cell.state === 'BLOCKED' && eventCount === 0 && (
-                                            <div className="mt-2 space-y-1 relative z-10">
-                                                <div className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tight truncate border bg-gray-100 border-gray-200 text-gray-400 flex items-center justify-between">
-                                                    <span>BLOCKED</span>
-                                                    <Lock className="h-2 w-2 opacity-50" />
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Status Indicators */}
-                                        {(cell.stats?.pendingSlots > 0) && (
-                                            <div className="absolute bottom-2 right-2 w-1 h-1 rounded-full bg-iris shadow-[0_0_5px_#F44A22] animate-pulse" />
-                                        )}
-                                        {cell.state === 'BLOCKED' && eventCount === 0 && (
-                                            <div className="absolute inset-0 bg-gray-50/30 pointer-events-none" />
-                                        )}
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        <button
+                            onClick={() => navigateMonth(1)}
+                            className="p-2 hover:bg-surface-elevated rounded-xl transition-all text-text-tertiary hover:text-text-primary"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </button>
                     </div>
 
-                    {/* Legend */}
-                    <div className="flex items-center gap-8 px-2">
-                        <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_5px_#F44A22]" />
-                            <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest">Pending Review</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_#10B981]" />
-                            <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest">Confirmed Night</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                            <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest">Open Slot</span>
-                        </div>
+                    <div className="hidden lg:flex items-center gap-3 border-l border-border-subtle pl-6 ml-1">
+                        <StatBadge count={stats.confirmed} label="Booked" color="emerald" />
+                        <StatBadge count={stats.pending} label="Requests" color="amber" />
+                        <StatBadge count={stats.open} label="Open" color="gray" />
                     </div>
                 </div>
 
-                {/* Right: Inspection Panel (4 Cols) */}
-                <div className="lg:col-span-4 lg:sticky lg:top-4 z-20 lg:-mt-28">
-                    <div className="glass-panel min-h-[450px] flex flex-col overflow-hidden shadow-2xl">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setCurrentDate(parseAsIST(null))}
+                        className="px-4 py-2.5 text-[10px] font-black text-text-tertiary hover:text-text-primary uppercase tracking-widest transition-all rounded-xl border border-border-subtle hover:bg-surface-secondary"
+                    >
+                        Sync Today
+                    </button>
+                    {role === 'venue' && (
+                        <Link
+                            href="/venue/create"
+                            className="bg-text-primary text-text-inverse px-6 py-2.5 rounded-2xl flex items-center gap-2 hover:opacity-90 transition-all font-black text-[11px] uppercase tracking-widest shadow-lg"
+                        >
+                            <Plus className="h-4 w-4" />
+                            Launch Event
+                        </Link>
+                    )}
+                </div>
+            </div>
+
+            {/* Unified Calendar Block */}
+            <div className="flex flex-col lg:flex-row bg-surface-base border border-border-strong rounded-[2.5rem] overflow-hidden shadow-2xl min-h-[720px]">
+                
+                {/* Calendar Side */}
+                <div className="lg:flex-[2.2] flex flex-col border-b lg:border-b-0 lg:border-r border-border-subtle">
+                    <div className="grid grid-cols-7 border-b border-border-subtle bg-surface-secondary/40">
+                        {DAYS.map(d => (
+                            <div key={d} className="py-4 text-center text-[10px] font-black text-text-tertiary uppercase tracking-[0.2em]">
+                                {d}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="grid grid-cols-7 flex-1">
+                        {calendarGrid.map((cell, idx) => {
+                            if (!cell) {
+                                return <div key={`empty-${idx}`} className="aspect-[1.2/1] bg-surface-secondary/10 border-r border-b border-border-subtle last:border-r-0" />;
+                            }
+
+                            const isToday = cell.dateStr === todayStr;
+                            const isSelected = cell.dateStr === selectedDateStr;
+                            const eventCount = cell.stats?.eventCount || 0;
+                            const hasPending = cell.stats?.pendingSlots > 0;
+                            const isBlocked = cell.state === 'BLOCKED';
+                            const isPast = cell.dateStr < todayStr;
+
+                            return (
+                                <button
+                                    key={cell.dateStr}
+                                    onClick={() => setSelectedDateStr(cell.dateStr)}
+                                    className={`
+                                        relative aspect-[1.15/1] p-3 text-left border-r border-b border-border-subtle transition-all group overflow-hidden last:border-r-0
+                                        ${isSelected ? 'bg-iris/5' : isBlocked ? 'bg-surface-secondary/20' : 'hover:bg-surface-secondary/40'}
+                                        ${isPast && !isSelected ? 'opacity-40 grayscale-[0.8]' : ''}
+                                    `}
+                                >
+                                    {isSelected && <div className="absolute inset-x-0 top-0 h-1 bg-iris shadow-[0_4px_12px_rgba(var(--iris-rgb),0.4)] z-20" />}
+                                    
+                                    <div className="flex items-center justify-between relative z-10 mb-2">
+                                        <span className={`text-[13px] font-black tabular-nums transition-colors ${isToday ? 'text-iris flex items-center gap-1.5' : isSelected ? 'text-text-primary' : 'text-text-secondary group-hover:text-text-primary'}`}>
+                                            {cell.day}
+                                            {isToday && <span className="w-1.5 h-1.5 rounded-full bg-iris shadow-[0_0_8px_rgba(var(--iris-rgb),0.8)]" />}
+                                        </span>
+                                        {hasPending && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.6)] animate-pulse" />}
+                                    </div>
+
+                                    {eventCount > 0 && (
+                                        <div className="space-y-1 relative z-10">
+                                            {cell.events.slice(0, 3).map((e: any) => (
+                                                <div key={e.id} className={`h-1.5 rounded-full w-full ${[EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.LIVE, EVENT_LIFECYCLE.APPROVED].includes(e.lifecycle || e.status) ? 'bg-emerald-500/80' : 'bg-amber-500/80'}`} />
+                                            ))}
+                                            <p className="text-[7px] font-black text-text-tertiary uppercase tracking-widest mt-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                                {eventCount} {eventCount === 1 ? 'Booking' : 'Bookings'}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {isBlocked && eventCount === 0 && (
+                                        <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #000, #000 10px, transparent 10px, transparent 20px)' }} />
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="p-5 flex items-center gap-8 border-t border-border-subtle bg-surface-secondary/20">
+                        <LegendItem color="bg-emerald-500" label="Confirmed" />
+                        <LegendItem color="bg-amber-500" label="Request" />
+                        <LegendItem color="bg-surface-elevated" label="Blocked" icon={<Lock className="h-2.5 w-2.5 text-text-quaternary" />} />
+                    </div>
+                </div>
+
+                {/* Inspection Side (Adjacent) */}
+                <div className="lg:flex-[1] bg-surface-secondary/15 flex flex-col min-h-[500px]">
+                    <AnimatePresence mode="wait">
                         {selectedDateStr ? (
-                            <SidePanel
-                                role={role}
-                                dateStr={selectedDateStr}
-                                data={selectedDay}
-                                onClose={() => setSelectedDateStr(null)}
-                                onSlotAction={handleSlotAction}
-                                onBlockDate={handleBlockDate}
-                            />
+                            <motion.div
+                                key={selectedDateStr}
+                                initial={{ opacity: 0, x: 15 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                className="flex-1 flex flex-col"
+                            >
+                                <SidePanel
+                                    role={role}
+                                    dateStr={selectedDateStr}
+                                    data={selectedDay}
+                                    onClose={() => setSelectedDateStr(null)}
+                                    onSlotAction={handleSlotAction}
+                                    onBlockDate={handleBlockDate}
+                                />
+                            </motion.div>
                         ) : (
-                            <div className="flex-1 flex flex-col items-center justify-start p-6 text-center space-y-2 pt-24">
-                                <div className="w-10 h-10 rounded-2xl bg-[#F2F2F7] border border-[rgba(0,0,0,0.06)] flex items-center justify-center mb-1">
-                                    <CalendarIcon className="w-5 h-5 text-[#86868B]/20" />
+                            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+                                <div className="w-16 h-16 rounded-[2rem] bg-surface-base border border-border-subtle flex items-center justify-center mb-6 shadow-xl text-text-tertiary hover:scale-110 transition-transform">
+                                    <CalendarIcon className="w-6 h-6" />
                                 </div>
-                                <div>
-                                    <h3 className="text-[10px] font-black text-[#1D1D1F] uppercase tracking-[0.2em]">System Idle</h3>
-                                    <p className="text-[9px] font-bold text-[#86868B] uppercase tracking-widest mt-1">
-                                        Select a date to view daily activity
-                                    </p>
-                                </div>
+                                <h3 className="text-sm font-black text-text-primary tracking-tighter uppercase mb-2">Operational Deck</h3>
+                                <p className="text-[10px] text-text-tertiary font-medium max-w-[200px] leading-relaxed">
+                                    Select any date on the grid to manage night availability and review incoming host requests.
+                                </p>
                             </div>
                         )}
-                    </div>
+                    </AnimatePresence>
                 </div>
             </div>
         </div>
     );
 }
 
+/* ---------- Stat Badge ---------- */
+function StatBadge({ count, label, color }: { count: number; label: string; color: string }) {
+    const colorMap: Record<string, string> = {
+        emerald: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/15',
+        amber: 'bg-amber-500/10 text-amber-600 border-amber-500/15',
+        gray: 'bg-surface-elevated text-text-tertiary border-border-subtle',
+        rose: 'bg-rose-500/10 text-rose-600 border-rose-500/15',
+    };
+    return (
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border ${colorMap[color] || colorMap.gray}`}>
+            <span className="tabular-nums">{count}</span>
+            <span className="uppercase tracking-wider opacity-80">{label}</span>
+        </div>
+    );
+}
+
+/* ---------- Legend Item ---------- */
+function LegendItem({ color, label, icon }: { color: string; label: string; icon?: React.ReactNode }) {
+    return (
+        <div className="flex items-center gap-2">
+            {icon || <span className={`w-2 h-2 rounded-full ${color}`} />}
+            <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">{label}</span>
+        </div>
+    );
+}
+
+/* ---------- Side Panel ---------- */
 function SidePanel({
     role,
     dateStr,
@@ -444,7 +421,6 @@ function SidePanel({
     const [endTime, setEndTime] = useState(data?.block?.endTime || "04:00");
     const [isBlockingMode, setIsBlockingMode] = useState(false);
 
-    // Sync with data changes (e.g. after a refresh)
     useEffect(() => {
         if (!isBlockingMode) {
             setReason(data?.block?.reason || "Private Event / Maintenance");
@@ -453,21 +429,15 @@ function SidePanel({
         }
     }, [data, isBlockingMode]);
 
-    const timelineRef = useRef<HTMLDivElement>(null);
-    const [isDragging, setIsDragging] = useState(false);
-
     const d = parseAsIST(dateStr);
     const dayName = d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Kolkata' });
-    const formattedDate = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' });
+    const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' });
 
     const handleAction = async () => {
         if (isPending) return;
         setIsPending(true);
         try {
-            // If we are in blocking mode, we are ALWAYS performing a 'block' action
-            // regardless of the previous state (we might be overwriting or creating new)
-            const action = 'block';
-            await onBlockDate(dateStr, action, reason, startTime, endTime);
+            await onBlockDate(dateStr, 'block', reason, startTime, endTime);
             setIsBlockingMode(false);
         } finally {
             setIsPending(false);
@@ -485,429 +455,309 @@ function SidePanel({
         }
     };
 
-    const getTimeFromY = (y: number) => {
-        if (!timelineRef.current) return "16:00";
-        const rect = timelineRef.current.getBoundingClientRect();
-        const percent = Math.max(0, Math.min(1, (y - rect.top) / rect.height));
-        const totalMinutes = percent * 12 * 60; // 12 hours from 4 PM
-        const startMinutes = 16 * 60;
-        let finalMinutes = (startMinutes + totalMinutes) % (24 * 60);
-
-        const h = Math.floor(finalMinutes / 60);
-        const m = Math.floor((finalMinutes % 60) / 15) * 15; // Snap to 15 mins
-        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-    };
-
-    const handleMouseDown = (e: React.MouseEvent) => {
-        if (!isBlockingMode || role !== 'venue') return;
-        setIsDragging(true);
-        const time = getTimeFromY(e.clientY);
-        setStartTime(time);
-        setEndTime(time);
-    };
-
-    const handleMouseMove = (e: React.MouseEvent) => {
-        if (!isDragging) return;
-        const time = getTimeFromY(e.clientY);
-        setEndTime(time);
-    };
-
-    const handleMouseUp = () => {
-        setIsDragging(false);
-    };
-
-    const hours = Array.from({ length: 13 }, (_, i) => {
-        const h = (16 + i) % 24;
-        const label = h === 0 ? "12 AM" : (h > 12 ? `${h - 12} PM` : (h === 12 ? "12 PM" : `${h} AM`));
-        return { h, label };
-    });
-
-    const getTop = (startTime: string) => {
-        if (!startTime) return 0;
-        const [h, m] = startTime.split(':').map(Number);
-        let diff = h - 16;
-        if (diff < 0) diff += 24;
-        return (diff + m / 60) / 12 * 100;
-    };
-
-    const getHeight = (startTime: string, endTime: string) => {
-        if (!startTime || !endTime) return 10;
-        const [sh, sm] = startTime.split(':').map(Number);
-        const [eh, em] = endTime.split(':').map(Number);
-
-        let sTotal = sh * 60 + sm;
-        let eTotal = eh * 60 + em;
-
-        if (eTotal < sTotal) eTotal += 24 * 60;
-
-        const durationMin = Math.max(0, eTotal - sTotal);
-        return (durationMin / 60) / 12 * 100;
-    };
-
-    const needsAttention = data?.state === 'PENDING' || data?.stats?.pendingSlots > 0;
-
-    const visualItems = useMemo(() => {
-        const events = (data?.events || []).map((e: any) => ({ ...e, vType: 'event' }));
-        const slots = (data?.slots || []).map((s: any) => ({ ...s, vType: 'slot' }));
-        const combined = [...events, ...slots];
-
-        const getMinutes = (timeStr: string) => {
-            if (!timeStr) return 0;
-            const [h, m] = timeStr.split(':').map(Number);
-            let diff = h - 16;
-            if (diff < 0) diff += 24;
-            return diff * 60 + m;
-        };
-
-        const sorted = combined.map(item => ({
-            ...item,
-            startMin: getMinutes(item.startTime),
-            endMin: getMinutes(item.endTime)
-        })).sort((a, b) => a.startMin - b.startMin || (b.endMin - b.startMin) - (a.endMin - a.startMin));
-
-        // Group into overlapping clusters to determine column widths
-        const finalItems: any[] = [];
-        let currentCluster: any[] = [];
-        let clusterEnd = -1;
-
-        const processCluster = (cluster: any[]) => {
-            const columns: any[][] = [];
-            cluster.forEach(item => {
-                let colIdx = 0;
-                while (columns[colIdx] && columns[colIdx].some(other => item.startMin < other.endMin && item.endMin > other.startMin)) {
-                    colIdx++;
-                }
-                if (!columns[colIdx]) columns[colIdx] = [];
-                columns[colIdx].push(item);
-                item.colIdx = colIdx;
-            });
-            cluster.forEach(item => {
-                item.totalCols = columns.length;
-                finalItems.push(item);
-            });
-        };
-
-        sorted.forEach(item => {
-            if (item.startMin >= clusterEnd) {
-                if (currentCluster.length > 0) processCluster(currentCluster);
-                currentCluster = [item];
-                clusterEnd = item.endMin;
-            } else {
-                currentCluster.push(item);
-                clusterEnd = Math.max(clusterEnd, item.endMin);
-            }
-        });
-        if (currentCluster.length > 0) processCluster(currentCluster);
-
-        return finalItems;
-    }, [data]);
+    const events = filterVisibleEvents(data?.events) || [];
+    const pendingSlots = (data?.slots || []).filter((s: any) => s.status === 'pending');
+    const isBlocked = data?.state === 'BLOCKED';
+    const eventCount = events.length;
 
     return (
-        <div className="h-full flex flex-col bg-transparent select-none">
-            {/* Header */}
-            <div className="px-5 py-2.5 border-b border-border-subtle flex items-start justify-between bg-surface-secondary">
+        <div className="h-full flex flex-col">
+            {/* Panel Header */}
+            <div className="px-5 py-4 border-b border-border-subtle flex items-center justify-between">
                 <div>
-                    <h2 className="text-base font-black text-text-primary uppercase tracking-tight leading-none">{dayName}</h2>
-                    <p className="text-[8px] font-black text-text-tertiary uppercase tracking-widest mt-1 opacity-70">{formattedDate} — SYSTEM_READY</p>
+                    <h2 className="text-base font-black text-text-primary tracking-tight leading-none">{dayName}</h2>
+                    <p className="text-[11px] font-medium text-text-tertiary mt-0.5">{monthDay}</p>
                 </div>
-                <button
-                    onClick={onClose}
-                    className="p-1.5 hover:bg-surface-tertiary rounded-lg text-text-tertiary hover:text-text-primary transition-all"
-                >
-                    <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                    {/* Status chip */}
+                    {isBlocked ? (
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-surface-elevated text-text-quaternary text-[9px] font-bold uppercase tracking-wider">
+                            <Lock className="h-2.5 w-2.5" /> Blocked
+                        </span>
+                    ) : eventCount > 0 ? (
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 text-[9px] font-bold uppercase tracking-wider">
+                            <Music className="h-2.5 w-2.5" /> {eventCount} Event{eventCount > 1 ? 's' : ''}
+                        </span>
+                    ) : (
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-surface-elevated text-text-tertiary text-[9px] font-bold uppercase tracking-wider">
+                            Available
+                        </span>
+                    )}
+                    <button
+                        onClick={onClose}
+                        className="p-1.5 hover:bg-surface-elevated rounded-lg text-text-tertiary hover:text-text-primary transition-all"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
             </div>
 
+            {/* Content */}
             <div className="flex-1 overflow-y-auto custom-scrollbar scrollbar-hide">
-                {/* Timeline Section */}
-                <div className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                        <p className="text-[8px] font-black text-text-tertiary uppercase tracking-[0.2em] opacity-50">Operational Timeline</p>
-                        {isBlockingMode && (
-                            <span className="text-[8px] font-black text-rose-500 animate-pulse uppercase tracking-widest">Awaiting Selection</span>
-                        )}
-                    </div>
+                {/* Event List */}
+                {eventCount > 0 && (
+                    <div className="p-4 space-y-2">
+                        <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mb-2 px-1">Events</p>
+                        {events.map((e: any) => {
+                            const status = e.lifecycle || e.status;
+                            const isConfirmed = [
+                                EVENT_LIFECYCLE.SCHEDULED,
+                                EVENT_LIFECYCLE.LIVE,
+                                EVENT_LIFECYCLE.APPROVED
+                            ].includes(status);
+                            const isPendingEvent = status === EVENT_LIFECYCLE.SUBMITTED;
+                            const isAnonymized = role === 'host' && e.isAnonymized;
+                            const hasPoster = e.posterUrl && !e.posterUrl.includes('placeholder.svg') && !isAnonymized;
 
-                    <div className="relative min-h-[500px] flex">
-                        {/* Time Labels */}
-                        <div className="w-14 flex flex-col justify-between pr-3 py-0">
-                            {hours.map((h, i) => (
-                                <span key={i} className="text-[7px] font-black text-text-tertiary opacity-40 uppercase tracking-widest h-0 flex items-center justify-end tabular-nums">{h.label}</span>
-                            ))}
-                        </div>
-
-                        {/* Timeline Grid */}
-                        <div
-                            ref={timelineRef}
-                            onMouseDown={handleMouseDown}
-                            onMouseMove={handleMouseMove}
-                            onMouseUp={handleMouseUp}
-                            onMouseLeave={handleMouseUp}
-                            className={`flex-1 relative border-l border-[rgba(0,0,0,0.06)] ${isBlockingMode ? 'cursor-crosshair bg-black/[0.01]' : ''}`}
-                        >
-                            {/* Hour lines */}
-                            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                                {hours.map((_, i) => (
-                                    <div key={i} className="border-t border-[rgba(0,0,0,0.03)] w-full h-0" />
-                                ))}
-                            </div>
-
-                            {/* Stacked Event & Slot Blocks */}
-                            <div className="absolute inset-x-0 h-full pl-4 pointer-events-none">
-                                {visualItems.map((item: any) => {
-                                    const isEvent = item.vType === 'event';
-                                    const top = getTop(item.startTime);
-                                    const height = getHeight(item.startTime, item.endTime);
-                                    const colIdx = item.colIdx || 0;
-                                    const totalCols = item.totalCols || 1;
-
-                                    // Improved Side-by-Side column layout
-                                    const colWidth = 100 / totalCols;
-                                    const colLeft = colIdx * colWidth;
-                                    const zIndex = 10 + colIdx;
-
-                                    if (isEvent) {
-                                        const status = item.lifecycle || item.status;
-                                        const isConfirmed = [
-                                            EVENT_LIFECYCLE.SCHEDULED,
-                                            EVENT_LIFECYCLE.LIVE,
-                                            EVENT_LIFECYCLE.APPROVED
-                                        ].includes(status);
-                                        const isAnonymized = role === 'host' && item.isAnonymized;
-
-                                        return (
-                                            <Link
-                                                key={item.id}
-                                                href={isAnonymized ? '#' : (role === 'venue' ? `/venue/events/${item.id}` : `/host/events/${item.id}`)}
-                                                style={{
-                                                    top: `${top}%`,
-                                                    height: `${height}%`,
-                                                    minHeight: '60px',
-                                                    left: `calc(${colLeft}% + 4px)`,
-                                                    width: `calc(${colWidth}% - 8px)`,
-                                                    zIndex: isAnonymized ? 5 : zIndex,
-                                                    ...(item.posterUrl && !item.posterUrl.includes('placeholder.svg') && !isAnonymized ? {
-                                                        backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.85)), url(${item.posterUrl})`,
-                                                        backgroundSize: 'cover',
-                                                        backgroundPosition: 'center'
-                                                    } : {
-                                                        background: isConfirmed
-                                                            ? 'linear-gradient(135deg, #121214 0%, #064e3b 100%)'
-                                                            : 'linear-gradient(135deg, #121214 0%, #17171a 100%)'
-                                                    })
-                                                }}
-                                                className={`absolute rounded-xl p-3 flex flex-col border transition-all hover:scale-[1.05] hover:z-[100] active:scale-[0.98] shadow-2xl group overflow-hidden pointer-events-auto ${isAnonymized
-                                                    ? 'bg-surface-secondary border-border-subtle text-text-tertiary'
-                                                    : isConfirmed
-                                                        ? (item.posterUrl && !item.posterUrl.includes('placeholder.svg') ? 'border-white/10 text-white shadow-[#10B981]/20' : 'border-emerald-500/20 text-white shadow-lg')
-                                                        : (item.posterUrl && !item.posterUrl.includes('placeholder.svg') ? 'border-white/10 text-white' : 'border-border-subtle text-text-primary')
-                                                    }`}
-                                            >
-                                                {/* Ambient Glow */}
-                                                {isConfirmed && !item.posterUrl?.includes('placeholder.svg') && (
-                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[60px] pointer-events-none" />
-                                                )}
-
-                                                <div className="flex flex-col h-full relative z-10 overflow-hidden">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <div className="flex flex-col min-w-0">
-                                                            <span className={`text-[9px] font-black uppercase tracking-[0.1em] tabular-nums truncate ${item.posterUrl && !item.posterUrl.includes('placeholder.svg') && !isAnonymized ? 'text-white/90' : 'text-text-tertiary'}`}>
-                                                                {item.startTime}
-                                                            </span>
-                                                        </div>
-                                                        {isConfirmed && !isAnonymized && totalCols < 3 && (
-                                                            <div className="flex items-center gap-1.5 shrink-0">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_#10B981]" />
-                                                            </div>
-                                                        )}
+                            return (
+                                <Link
+                                    key={e.id}
+                                    href={isAnonymized ? '#' : (role === 'venue' ? `/venue/events/${e.id}` : `/host/events/${e.id}`)}
+                                    className={`
+                                        block rounded-2xl overflow-hidden border transition-all hover:shadow-xl group
+                                        ${isConfirmed
+                                            ? 'border-emerald-500/10 shadow-emerald-500/5'
+                                            : isPendingEvent
+                                                ? 'border-amber-500/10 shadow-amber-500/5'
+                                                : 'border-border-subtle'
+                                        }
+                                    `}
+                                >
+                                    <div className="flex flex-col">
+                                        {/* Full Hero Poster */}
+                                        {hasPoster && (
+                                            <div className="relative aspect-[3/4.2] w-full overflow-hidden bg-surface-secondary">
+                                                <img 
+                                                    src={e.posterUrl} 
+                                                    alt={e.title}
+                                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-active:scale-100"
+                                                />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-surface-base/80 via-transparent to-transparent" />
+                                                
+                                                <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className={`
+                                                            self-start px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest backdrop-blur-md border shadow-2xl
+                                                            ${isConfirmed
+                                                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                                                : isPendingEvent
+                                                                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                                                                    : 'bg-black/40 text-white border-white/10'
+                                                            }
+                                                        `}>
+                                                            {isConfirmed ? 'Confirmed' : isPendingEvent ? 'Awaiting Approval' : (status || 'Reserved')}
+                                                        </span>
                                                     </div>
-
-                                                    <h3 className={`text-[11px] font-black truncate leading-tight mb-1 tracking-tight ${item.posterUrl && !item.posterUrl.includes('placeholder.svg') && !isAnonymized ? 'text-white drop-shadow-lg' : 'text-text-primary'}`}>
-                                                        {isAnonymized ? 'RESERVED' : (item.title?.toUpperCase() || 'UNTITLED')}
-                                                    </h3>
-
-                                                    {!isAnonymized && totalCols < 3 && (
-                                                        <div className="flex items-center gap-2 mt-auto pt-2">
-                                                            <div className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 ${item.posterUrl && !item.posterUrl.includes('placeholder.svg') ? 'bg-black/20 border-white/20' : 'bg-surface-elevated border-border-subtle'}`}>
-                                                                <User className={`h-2.5 w-2.5 ${item.posterUrl && !item.posterUrl.includes('placeholder.svg') ? 'text-white/80' : 'text-text-tertiary'}`} />
-                                                            </div>
-                                                            <span className={`text-[9px] font-bold uppercase tracking-widest truncate ${item.posterUrl && !item.posterUrl.includes('placeholder.svg') ? 'text-white' : 'text-text-primary'}`}>
-                                                                {item.host || 'Booking'}
-                                                            </span>
-                                                        </div>
-                                                    )}
                                                 </div>
-
-                                                {/* Premium hover overlay */}
-                                                {(item.posterUrl && !item.posterUrl.includes('placeholder.svg')) && !isAnonymized && (
-                                                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                                                )}
-                                            </Link>
-                                        );
-                                    } else {
-                                        // Slot rendering
-                                        return (
-                                            <div
-                                                key={item.id}
-                                                style={{
-                                                    top: `${top}%`,
-                                                    height: `${height}%`,
-                                                    minHeight: '40px',
-                                                    left: `calc(${colLeft}% + 4px)`,
-                                                    width: `calc(${colWidth}% - 8px)`,
-                                                    zIndex: zIndex
-                                                }}
-                                                className="absolute rounded-xl p-3 border border-iris/30 bg-iris/5 flex flex-col transition-all hover:z-[100] hover:scale-[1.05] shadow-xl pointer-events-auto cursor-pointer"
-                                            >
-                                                <div className="flex items-center justify-between mb-1">
-                                                    <span className="text-[8px] font-black uppercase tracking-widest text-rose-500 tabular-nums">{item.startTime}</span>
-                                                    {totalCols < 3 && <span className="px-1 py-0.5 rounded bg-rose-500/10 text-[7px] font-black text-rose-500 uppercase tracking-widest border border-rose-500/20">REQUEST</span>}
-                                                </div>
-                                                <h3 className="text-[10px] font-bold text-text-primary uppercase tracking-tight truncate">{item.host}</h3>
                                             </div>
-                                        );
-                                    }
-                                })}
+                                        )}
 
-                                {/* Blocked Overlay */}
-                                {(data?.block || isDragging || (isBlockingMode && startTime && endTime)) && (
-                                    <div
-                                        style={{
-                                            top: `${getTop(isBlockingMode ? startTime : data?.block?.startTime || "16:00")}%`,
-                                            height: `${getHeight(isBlockingMode ? startTime : data?.block?.startTime || "16:00", isBlockingMode ? endTime : data?.block?.endTime || "04:00")}%`,
-                                        }}
-                                        className={`absolute inset-x-0 mr-4 rounded-xl border border-border-subtle flex items-center justify-center backdrop-blur-sm z-10 transition-all ${isBlockingMode ? 'bg-surface-elevated/5 border-dashed' : 'bg-black/40'}`}
-                                    >
-                                        <div className="text-center p-6 bg-surface-elevated/5 backdrop-blur-md rounded-2xl border border-border-subtle shadow-2xl">
-                                            <Lock className={`h-6 w-6 mx-auto mb-3 ${isBlockingMode ? 'text-text-primary' : 'text-text-primary/30'}`} />
-                                            <h4 className="text-[10px] font-black text-text-primary uppercase tracking-[0.2em] mb-1">
-                                                {isBlockingMode ? 'BLOCK_PENDING' : 'MANUAL_BLOCK_ACTIVE'}
-                                            </h4>
-                                            {isBlockingMode && (
-                                                <span className="text-[11px] font-black text-iris uppercase tracking-widest tabular-nums">{startTime} — {endTime}</span>
+                                        {/* Event Information Block */}
+                                        <div className="p-5 flex flex-col gap-4 bg-surface-base">
+                                            <div className="space-y-1">
+                                                <h4 className="text-sm font-black text-text-primary tracking-tight leading-tight group-hover:text-iris transition-colors">
+                                                    {isAnonymized ? 'Reserved Engagement' : (e.title || 'Untitled Event')}
+                                                </h4>
+                                                <div className="flex items-center gap-3 text-text-tertiary">
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-bold tabular-nums">
+                                                        <Clock className="h-3 w-3 text-iris/60" />
+                                                        {e.startTime || '21:00'} — {e.endTime || '04:00'}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {!isAnonymized && e.host && (
+                                                <div className="flex items-center justify-between pt-4 border-t border-border-subtle">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-full bg-surface-secondary border border-border-subtle flex items-center justify-center overflow-hidden">
+                                                            {e.hostAvatar ? (
+                                                                <img src={e.hostAvatar} alt={e.host} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <User className="h-3 w-3 text-text-tertiary" />
+                                                            )}
+                                                        </div>
+                                                        <span className="text-[10px] font-black text-text-secondary uppercase tracking-tight">{e.host}</span>
+                                                    </div>
+                                                    <div className="text-[9px] font-black text-iris uppercase tracking-widest flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        Details <ChevronRight className="h-3 w-3" />
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* Pending Slot Requests */}
+                {pendingSlots.length > 0 && (
+                    <div className="p-4 space-y-2 border-t border-border-subtle">
+                        <p className="text-[9px] font-bold text-amber-600 uppercase tracking-widest mb-2 px-1 flex items-center gap-1.5">
+                            <AlertCircle className="h-3 w-3" />
+                            Needs Your Approval ({pendingSlots.length})
+                        </p>
+                        {pendingSlots.map((s: any) => (
+                            <div key={s.id} className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                                        <CalendarIcon className="h-4 w-4 text-amber-600" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="text-xs font-bold text-text-primary">{s.host} Request</h4>
+                                        <p className="text-[10px] text-text-tertiary tabular-nums">{s.startTime} — {s.endTime}</p>
+                                    </div>
+                                </div>
+                                {role === 'venue' && (
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => onSlotAction(s.id, 'approve')}
+                                            className="flex-1 py-2 bg-text-primary text-text-inverse rounded-lg font-bold text-[10px] uppercase tracking-wider hover:opacity-90 transition-all"
+                                        >
+                                            Approve
+                                        </button>
+                                        <button
+                                            onClick={() => onSlotAction(s.id, 'reject')}
+                                            className="px-4 py-2 border border-border-default text-text-tertiary rounded-lg font-bold text-[10px] uppercase tracking-wider hover:text-text-primary hover:bg-surface-elevated transition-all"
+                                        >
+                                            Decline
+                                        </button>
+                                    </div>
                                 )}
                             </div>
-                        </div>
+                        ))}
                     </div>
+                )}
 
-                    {/* Actions Section (Pitches) */}
-                    {!isBlockingMode && needsAttention && (
-                        <div className="mt-12 space-y-4">
-                            <p className="text-[10px] font-black text-[#86868B] uppercase tracking-[0.2em]">High Priority Requests</p>
-                            {data?.slots?.filter((s: any) => s.status === 'pending').map((s: any) => (
-                                <div key={s.id} className="glass-panel p-6 border-iris/20 bg-iris/5 rounded-2xl">
-                                    <div className="flex items-start gap-4 mb-6">
-                                        <div className="w-12 h-12 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
-                                            <CalendarIcon className="h-6 w-6 text-rose-500" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="text-base font-bold text-text-primary uppercase tracking-tight">{s.host} Submission</h4>
-                                            <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest mt-1 tabular-nums">{s.startTime} — {s.endTime}</p>
-                                        </div>
-                                    </div>
-                                    {role === 'venue' && (
-                                        <div className="flex gap-4">
-                                            <button
-                                                onClick={() => onSlotAction(s.id, 'approve')}
-                                                className="flex-1 bg-text-primary text-text-inverse py-3 rounded-xl font-black text-[11px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg"
-                                            >
-                                                Confirm slot
-                                            </button>
-                                            <button
-                                                onClick={() => onSlotAction(s.id, 'reject')}
-                                                className="px-6 py-3 border border-border-default text-text-tertiary rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-text-primary hover:bg-surface-tertiary transition-all"
-                                            >
-                                                Abort
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                {/* Empty State */}
+                {eventCount === 0 && pendingSlots.length === 0 && !isBlocked && !isBlockingMode && (
+                    <div className="flex flex-col items-center justify-center p-8 text-center flex-1">
+                        <div className="w-10 h-10 rounded-xl bg-surface-elevated border border-border-subtle flex items-center justify-center mb-3">
+                            <Sparkles className="w-4 h-4 text-text-quaternary" />
                         </div>
-                    )}
-                </div>
+                        <p className="text-xs font-bold text-text-secondary mb-0.5">Night is Open</p>
+                        <p className="text-[10px] text-text-tertiary max-w-[180px]">
+                            This date is available for bookings. Create an event or block it off.
+                        </p>
+                    </div>
+                )}
+
+                {/* Blocked Info */}
+                {isBlocked && !isBlockingMode && (
+                    <div className="flex flex-col items-center justify-center p-8 text-center flex-1">
+                        <div className="w-10 h-10 rounded-xl bg-surface-elevated border border-border-subtle flex items-center justify-center mb-3">
+                            <Lock className="w-4 h-4 text-text-quaternary" />
+                        </div>
+                        <p className="text-xs font-bold text-text-secondary mb-0.5">Date Blocked</p>
+                        {data?.block?.reason && (
+                            <p className="text-[10px] text-text-tertiary">{data.block.reason}</p>
+                        )}
+                        {data?.block?.startTime && (
+                            <p className="text-[10px] text-text-tertiary tabular-nums mt-1">
+                                {data.block.startTime} — {data.block.endTime}
+                            </p>
+                        )}
+                    </div>
+                )}
             </div>
 
-            {/* Block Details Panel (Venue only) */}
+            {/* Block Settings Panel */}
             {role === 'venue' && isBlockingMode && (
-                <div className="px-8 py-8 border-t border-border-subtle bg-surface-secondary space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+                <div className="px-5 py-5 border-t border-border-subtle bg-surface-secondary space-y-4">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-[10px] font-black text-text-primary uppercase tracking-[0.2em]">Manual Block Settings</h3>
-                        <span className="text-[11px] font-black text-text-primary px-3 py-1 bg-surface-base border border-border-default rounded-lg tabular-nums shadow-sm">
+                        <h3 className="text-xs font-bold text-text-primary">Block Settings</h3>
+                        <span className="text-[10px] font-bold text-text-secondary tabular-nums bg-surface-base px-2 py-0.5 rounded border border-border-subtle">
                             {startTime} — {endTime}
                         </span>
                     </div>
 
-                    <div className="space-y-6">
-                        <div className="space-y-1.5 text-left">
-                            <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest ml-1">Reason</label>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">From</label>
                             <input
-                                type="text"
-                                value={reason}
-                                onChange={(e) => setReason(e.target.value)}
-                                placeholder="E.G. PRIVATE_PRODUCTION_UNIT_MAINT"
-                                className="w-full bg-surface-base border border-border-default rounded-xl px-4 py-3 text-sm text-text-primary focus:border-rose-500 outline-none transition-all shadow-inner"
+                                type="time"
+                                value={startTime}
+                                onChange={(e) => setStartTime(e.target.value)}
+                                className="w-full bg-surface-base border border-border-default rounded-lg px-3 py-2 text-xs text-text-primary focus:border-iris outline-none transition-all"
                             />
                         </div>
-
-                        {data?.state === 'BLOCKED' && (
-                            <button
-                                onClick={handleUnblock}
-                                disabled={isPending}
-                                className="text-[10px] font-black text-rose-500 hover:text-rose-400 transition-colors uppercase tracking-widest"
-                            >
-                                — REMOVE MANUAL BLOCK
-                            </button>
-                        )}
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">Until</label>
+                            <input
+                                type="time"
+                                value={endTime}
+                                onChange={(e) => setEndTime(e.target.value)}
+                                className="w-full bg-surface-base border border-border-default rounded-lg px-3 py-2 text-xs text-text-primary focus:border-iris outline-none transition-all"
+                            />
+                        </div>
                     </div>
+
+                    <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">Reason</label>
+                        <input
+                            type="text"
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="e.g. Private event, maintenance..."
+                            className="w-full bg-surface-base border border-border-default rounded-lg px-3 py-2.5 text-xs text-text-primary focus:border-iris outline-none transition-all placeholder:text-text-quaternary"
+                        />
+                    </div>
+
+                    {data?.state === 'BLOCKED' && (
+                        <button
+                            onClick={handleUnblock}
+                            disabled={isPending}
+                            className="text-[10px] font-bold text-rose-500 hover:text-rose-400 transition-colors"
+                        >
+                            Remove Block
+                        </button>
+                    )}
                 </div>
             )}
 
             {/* Footer Actions */}
-            <div className="p-8 border-t border-border-subtle bg-surface-secondary flex gap-4">
+            <div className="p-4 border-t border-border-subtle flex gap-3">
                 {role === 'venue' ? (
                     <>
                         {isBlockingMode ? (
                             <>
                                 <button
                                     onClick={() => setIsBlockingMode(false)}
-                                    className="flex-1 py-4 border border-border-default text-text-tertiary rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-text-primary hover:bg-surface-tertiary transition-all"
+                                    className="flex-1 py-3 border border-border-default text-text-tertiary rounded-xl font-bold text-[10px] uppercase tracking-wider hover:text-text-primary hover:bg-surface-elevated transition-all"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleAction}
                                     disabled={isPending}
-                                    className="flex-[1.5] py-4 bg-text-primary text-text-inverse rounded-xl font-black text-[11px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg"
+                                    className="flex-[1.5] py-3 bg-text-primary text-text-inverse rounded-xl font-bold text-[10px] uppercase tracking-wider hover:opacity-90 transition-all shadow-sm"
                                 >
-                                    {isPending ? "SAVING..." : "Confirm Block"}
+                                    {isPending ? "Saving..." : "Confirm Block"}
                                 </button>
                             </>
                         ) : (
                             <button
                                 onClick={() => setIsBlockingMode(true)}
-                                className="flex-1 py-4 bg-surface-base border border-border-default text-text-primary rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-surface-secondary transition-all flex items-center justify-center gap-3 shadow-sm"
+                                className="flex-1 py-3 bg-surface-elevated border border-border-subtle text-text-secondary rounded-xl font-bold text-[10px] uppercase tracking-wider hover:bg-surface-tertiary transition-all flex items-center justify-center gap-2"
                             >
-                                {data?.state === 'BLOCKED' ? <Settings className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                                {data?.state === 'BLOCKED' ? 'Edit Manual Block' : 'Add Manual Block'}
+                                {data?.state === 'BLOCKED' ? <Settings className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+                                {data?.state === 'BLOCKED' ? 'Edit Block' : 'Block Date'}
                             </button>
                         )}
                     </>
                 ) : (
                     <Link
                         href="/host/events"
-                        className="flex-1 py-4 bg-surface-base border border-border-default text-text-primary rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-surface-secondary transition-all text-center flex items-center justify-center shadow-sm"
+                        className="flex-1 py-3 bg-surface-elevated border border-border-subtle text-text-secondary rounded-xl font-bold text-[10px] uppercase tracking-wider hover:bg-surface-tertiary transition-all text-center flex items-center justify-center"
                     >
-                        Management view
+                        Event Management
                     </Link>
                 )}
                 {!isBlockingMode && (
                     <button
                         onClick={onClose}
-                        className="flex-1 py-4 border border-border-default text-text-tertiary rounded-xl font-black text-[11px] uppercase tracking-widest hover:text-text-primary hover:bg-surface-tertiary transition-all"
+                        className="py-3 px-5 border border-border-subtle text-text-tertiary rounded-xl font-bold text-[10px] uppercase tracking-wider hover:text-text-primary hover:bg-surface-elevated transition-all"
                     >
                         Close
                     </button>

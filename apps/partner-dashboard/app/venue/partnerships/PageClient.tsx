@@ -27,6 +27,7 @@ type Tab = "roster" | "pending" | "discover";
 
 interface Connection {
     id: string;
+    type: string;
     otherId: string;
     otherName: string;
     otherType: "host" | "promoter";
@@ -42,7 +43,7 @@ export default function VenuePartnershipsPage() {
     const [connections, setConnections] = useState<Connection[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<Tab>("pending");
+    const [activeTab, setActiveTab] = useState<Tab>("discover");
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [tierTarget, setTierTarget] = useState<Connection | null>(null);
     const [profileTarget, setProfileTarget] = useState<NetworkProfile | null>(null);
@@ -64,9 +65,10 @@ export default function VenuePartnershipsPage() {
             const data = await res.json();
             const all: Connection[] = (data.connections || []).map((c: any) => ({
                 id: c.id,
+                type: c.type,
                 otherId: c.otherId,
                 otherName: c.otherName,
-                otherType: c.type === "partnership" ? "host" : "promoter",
+                otherType: c.otherType || (c.type === "partnership" ? "host" : "promoter"),
                 status: c.status,
                 tier: c.tier,
                 createdAt: c.createdAt,
@@ -87,6 +89,7 @@ export default function VenuePartnershipsPage() {
     }, [fetchConnections]);
 
     const handleApproveWithTier = async (tier: ContractTier, connectionId: string) => {
+        const conn = connections.find(c => c.id === connectionId);
         try {
             const token = await user?.getIdToken();
             const res = await fetch("/api/discovery", {
@@ -98,6 +101,7 @@ export default function VenuePartnershipsPage() {
                 body: JSON.stringify({
                     connectionId,
                     action: "approve",
+                    type: conn?.type,
                     tier,
                     role: "venue",
                     partnerId: venueId,
@@ -114,6 +118,7 @@ export default function VenuePartnershipsPage() {
     };
 
     const handleDecline = async (connectionId: string) => {
+        const conn = connections.find(c => c.id === connectionId);
         setProcessingId(connectionId);
         try {
             const token = await user?.getIdToken();
@@ -126,6 +131,7 @@ export default function VenuePartnershipsPage() {
                 body: JSON.stringify({
                     connectionId,
                     action: "reject",
+                    type: conn?.type,
                     role: "venue",
                     partnerId: venueId,
                 }),
@@ -148,9 +154,9 @@ export default function VenuePartnershipsPage() {
     const pending = connections.filter((c) => c.status === "pending");
 
     const TABS: { id: Tab; label: string; count?: number }[] = [
-        { id: "roster", label: "Active Roster", count: roster.length },
-        { id: "pending", label: "Pending", count: pending.length },
         { id: "discover", label: "Discover" },
+        { id: "pending", label: "Pending", count: pending.length },
+        { id: "roster", label: "Active Roster", count: roster.length },
     ];
 
     return (

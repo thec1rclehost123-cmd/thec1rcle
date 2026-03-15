@@ -39,9 +39,9 @@ export function WizardNavigation({
     completedSteps
 }: WizardNavigationProps) {
     return (
-        <div className="mb-12">
+        <div className="mb-8">
             {/* Progress Bar */}
-            <div className="mb-6">
+            <div className="mb-4">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-label text-text-tertiary uppercase tracking-widest font-bold">Progress</span>
                     <span className="text-label text-text-tertiary font-bold">{currentStepIndex + 1} of {steps.length}</span>
@@ -72,7 +72,7 @@ export function WizardNavigation({
                             onClick={() => canClick && onStepClick(step.id)}
                             disabled={!canClick}
                             className={`
-                                flex items-center gap-2 px-4 py-2.5 rounded-full whitespace-nowrap transition-all
+                                flex items-center gap-1.5 px-3 py-2 rounded-full whitespace-nowrap transition-all
                                 ${isActive
                                     ? 'bg-text-primary text-[var(--surface-base)] shadow-xl shadow-indigo-500/10'
                                     : isComplete
@@ -101,7 +101,7 @@ export function WizardNavigation({
             </div>
 
             {/* Current Step Header */}
-            <div className="mt-8 mb-6">
+            <div className="mt-5 mb-4">
                 <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stepValidation[currentStep]?.isValid === false
                         ? 'bg-yellow-500/10 text-yellow-500'

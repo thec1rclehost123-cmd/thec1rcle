@@ -671,8 +671,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     return (
         <>
             <div className="min-h-screen bg-surface-base">
-                <div className="max-w-6xl mx-auto px-6 py-8">
-                    <div className="flex items-center justify-between mb-8">
+                <div className="max-w-6xl mx-auto px-6 py-5">
+                    <div className="flex items-center justify-between mb-5">
                         <div>
                             <h1 className="text-headline text-text-primary">Create Event</h1>
                             <p className="text-body-sm text-text-tertiary">Build something extraordinary</p>
@@ -763,7 +763,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                             </div>
                         </div>
                     ) : (
-                        <div className="flex flex-col lg:flex-row gap-12">
+                        <div className="flex flex-col lg:flex-row gap-8">
                             {/* Form Area */}
                             <div className="flex-1">
                                 <AnimatePresence mode="wait">
@@ -886,7 +886,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                         )}
 
                                         {/* Navigation Footer */}
-                                        <div className="flex items-center justify-between mt-12 pt-8 border-t border-border-subtle">
+                                        <div className="flex items-center justify-between mt-8 pt-6 border-t border-border-subtle">
                                             <div className="flex items-center gap-4">
                                                 <button
                                                     onClick={prevStep}

@@ -110,15 +110,15 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
     };
 
     return (
-        <div className="w-full max-w-[1000px] mx-auto space-y-10 pb-12">
+        <div className="w-full max-w-[1000px] mx-auto space-y-6 pb-8">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div className="space-y-1">
-                    <h2 className="text-2xl font-black tracking-tight text-[#1d1d1f]">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                    <h2 className="text-[18px] font-black tracking-tight text-[#1d1d1f]">
                         Revenue & Commission Summary
                     </h2>
-                    <p className="text-[#86868b] text-sm font-medium">
-                        Complete financial breakdown based on your ticket and table configuration
+                    <p className="text-[#86868b] text-[12px] font-medium mt-0.5">
+                        Financial breakdown based on your ticket and table configuration
                     </p>
                 </div>
                 {formData.promotersEnabled ? (
@@ -129,10 +129,10 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
                 ) : null}
             </div>
 
-            {/* Metric Cards - Exact Match to Design */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Metric Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                 {/* Inventory Value - Light Blue */}
-                <div className="p-5 rounded-[20px] bg-[#f0f9ff] border border-blue-50/50 flex flex-col justify-between h-28">
+                <div className="p-4 rounded-[16px] bg-[#f0f9ff] border border-blue-50/50 flex flex-col justify-between h-24">
                     <div className="flex items-center gap-1.5">
                         <div className="text-[#007aff] text-[10px] font-black">₹</div>
                         <span className="text-[9px] font-black uppercase tracking-widest text-[#007aff]/60">Inventory Value</span>
@@ -144,7 +144,7 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
                 </div>
 
                 {/* Buyer Discounts - Light Green */}
-                <div className="p-5 rounded-[20px] bg-[#f2fff7] border border-green-50/50 flex flex-col justify-between h-28">
+                <div className="p-4 rounded-[16px] bg-[#f2fff7] border border-green-50/50 flex flex-col justify-between h-24">
                     <div className="flex items-center gap-1.5">
                         <div className="text-[#34c759] text-[10px] font-black">%</div>
                         <span className="text-[9px] font-black uppercase tracking-widest text-[#34c759]/60">Buyer Discounts</span>
@@ -156,7 +156,7 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
                 </div>
 
                 {/* Promoter Pool - Light Orange */}
-                <div className="p-5 rounded-[20px] bg-[#fff5f2] border border-orange-50/50 flex flex-col justify-between h-28">
+                <div className="p-4 rounded-[16px] bg-[#fff5f2] border border-orange-50/50 flex flex-col justify-between h-24">
                     <div className="flex items-center gap-1.5">
                         <div className="text-[#f44a22] text-[10px] font-black">↗</div>
                         <span className="text-[9px] font-black uppercase tracking-widest text-[#f44a22]/60">Promoter Pool</span>
@@ -168,7 +168,7 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
                 </div>
 
                 {/* Net Revenue - Black */}
-                <div className="p-5 rounded-[20px] bg-[#1d1d1f] flex flex-col justify-between h-28 relative overflow-hidden group">
+                <div className="p-4 rounded-[16px] bg-[#1d1d1f] flex flex-col justify-between h-24 relative overflow-hidden group">
                     <div className="absolute top-0 right-0 w-20 h-20 bg-surface-elevated/5 rounded-full blur-2xl -mr-6 -mt-6" />
                     <div className="flex items-center gap-1.5 relative z-10">
                         <Sparkles className="w-3 h-3 text-c1rcle-orange" />
@@ -182,16 +182,16 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
             </div>
 
             {/* Revenue Distribution */}
-            <div className="bg-surface-elevated rounded-[24px] p-6 border border-[#e5e5e7] shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                    <div className="w-5 h-5 rounded-full border border-gray-200 flex items-center justify-center">
-                        <div className="w-2 h-2 rounded-full bg-gray-400" />
+            <div className="bg-surface-elevated rounded-[18px] p-4 border border-[#e5e5e7] shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                    <div className="w-4 h-4 rounded-full border border-gray-200 flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
                     </div>
-                    <h4 className="text-[13px] font-black text-[#1d1d1f]">Revenue Distribution</h4>
+                    <h4 className="text-[12px] font-black text-[#1d1d1f]">Revenue Distribution</h4>
                 </div>
 
                 {/* Bar */}
-                <div className="h-10 w-full rounded-lg overflow-hidden flex mb-4">
+                <div className="h-7 w-full rounded-lg overflow-hidden flex mb-3">
                     <div
                         className="h-full bg-[#34c759] flex items-center justify-center relative"
                         style={{ width: `${(grandTotal.net / (grandTotal.net + grandTotal.commTotal) || 1) * 100}%` }}
@@ -321,8 +321,8 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
             </div>
 
             {/* Simplified Notes */}
-            <div className="bg-[#f5f5f7] rounded-[24px] p-6">
-                <p className="text-[11px] font-bold text-[#86868b] uppercase tracking-widest mb-3">Notes:</p>
+            <div className="bg-[#f5f5f7] rounded-[18px] p-4">
+                <p className="text-[10px] font-bold text-[#86868b] uppercase tracking-widest mb-2">Notes:</p>
                 <div className="space-y-1.5">
                     <p className="text-[12px] text-[#86868b] flex gap-2">
                         <span className="text-[#1d1d1f] font-bold">• Inventory Value</span>

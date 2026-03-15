@@ -49,6 +49,8 @@
 | `partner-dashboard/components/wizard/TicketTierStep.tsx` | **UPDATED** with ScheduledPricing + PromoCodeManager | ✅ |
 | `partner-dashboard/app/api/scan/route.ts` | Enhanced QR scanning with device validation | ✅ |
 | `partner-dashboard/app/api/venue/devices/route.ts` | Device binding API | ✅ |
+| `partner-dashboard/lib/server/venuePageStore.js` | **BYPASS GATEWAY** - Direct Firestore | ✅ |
+| `partner-dashboard/lib/server/profileStore.js` | **BYPASS GATEWAY** - Direct Firestore | ✅ |
 
 ### 5. Admin Console
 

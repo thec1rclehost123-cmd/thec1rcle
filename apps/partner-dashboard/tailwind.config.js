@@ -59,6 +59,12 @@ export default {
         silver: "#FAFAFA",
         grey: "#E4E2E3",
         stone: "#A8AAAC",
+        accent: {
+          primary: "var(--accent-primary)",
+          glow: "var(--accent-glow)",
+          dim: "var(--accent-primary-dim)",
+          light: "var(--accent-primary-light)",
+        },
       },
       spacing: {
         gutter: "min(6vw, 3.5rem)",

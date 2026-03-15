@@ -19,6 +19,12 @@
   --c1rcle-orange-glow: rgba(244, 74, 34, 0.25);
   --c1rcle-orange-dim: #CC3311;
   --c1rcle-orange-light: #FF6B4A;
+  
+  /* ─── Accent Alias (Backward Compatibility) ─── */
+  --accent-primary: var(--c1rcle-orange);
+  --accent-glow: var(--c1rcle-orange-glow);
+  --accent-primary-dim: var(--c1rcle-orange-dim);
+  --accent-primary-light: var(--c1rcle-orange-light);
 
   /* ─── Light Mode Surfaces ─── */
   --surface-base: #FFFFFF;
