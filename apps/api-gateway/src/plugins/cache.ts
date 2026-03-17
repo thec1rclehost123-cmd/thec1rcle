@@ -9,7 +9,6 @@ import crypto from 'crypto';
  * Standardizes key hashing to prevent collisions and handle large query params.
  */
 class HybridCache {
-    private memoryStore = new Map<string, { value: any; expiry: number }>();
     private fastify: FastifyInstance;
 
     constructor(fastify: FastifyInstance) {
@@ -24,25 +23,18 @@ class HybridCache {
         const key = `${namespace}:${this.hashKey(rawKey)}`;
         const json = JSON.stringify(value);
 
-        // 1. Try Redis
         if (this.fastify.redis && this.fastify.redis.status === 'ready') {
             try {
                 await this.fastify.redis.set(key, json, 'EX', ttlSeconds);
-                return;
             } catch (err) {
                 this.fastify.log.warn(`Cache Set Error (Redis): ${err}`);
             }
         }
-
-        // 2. Fallback to Memory
-        const expiry = Date.now() + ttlSeconds * 1000;
-        this.memoryStore.set(key, { value, expiry });
     }
 
     async get(namespace: string, rawKey: string) {
         const key = `${namespace}:${this.hashKey(rawKey)}`;
 
-        // 1. Try Redis
         if (this.fastify.redis && this.fastify.redis.status === 'ready') {
             try {
                 const cached = await this.fastify.redis.get(key);
@@ -51,34 +43,17 @@ class HybridCache {
                 this.fastify.log.warn(`Cache Get Error (Redis): ${err}`);
             }
         }
-
-        // 2. Try Memory Fallback
-        const item = this.memoryStore.get(key);
-        if (!item) return null;
-
-        if (Date.now() > item.expiry) {
-            this.memoryStore.delete(key);
-            return null;
-        }
-
-        return item.value;
+        return null;
     }
 
     async delete(namespace: string, rawKey: string) {
         const key = `${namespace}:${this.hashKey(rawKey)}`;
-        if (this.fastify.redis) await this.fastify.redis.del(key);
-        this.memoryStore.delete(key);
+        if (this.fastify.redis && this.fastify.redis.status === 'ready') {
+            await this.fastify.redis.del(key);
+        }
     }
 
     async invalidateNamespace(namespace: string) {
-        // 1. Clear Memory
-        for (const [k] of this.memoryStore) {
-            if (k.startsWith(`${namespace}:`)) {
-                this.memoryStore.delete(k);
-            }
-        }
-
-        // 2. Clear Redis (SCAN and DEL)
         if (this.fastify.redis && this.fastify.redis.status === 'ready') {
             try {
                 let cursor = '0';

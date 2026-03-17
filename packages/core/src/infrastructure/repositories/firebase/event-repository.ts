@@ -1,25 +1,38 @@
 import { Firestore } from 'firebase-admin/firestore';
 import { IEventRepository, Event } from '../../../domain/repositories/event-repository.js';
+import { encodeGeohash, getGeohashRange, getNeighbors } from '../../utils/geohash.js';
 
 export class FirebaseEventRepository implements IEventRepository {
     constructor(private db: Firestore) { }
 
-    async getById(id: string): Promise<Event | null> {
+    async getById(id: string, workspaceId: string): Promise<Event | null> {
         const doc = await this.db.collection('events').doc(id).get();
         if (!doc.exists) return null;
-        return { id: doc.id, ...doc.data() } as Event;
+        const data = doc.data() as Event;
+        
+        // 🛡️ SaaS: Strict Partition Check
+        if (data.workspaceId !== workspaceId) return null;
+        
+        const { id: _, ...dataWithoutId } = data;
+        return { id: doc.id, ...dataWithoutId } as Event;
     }
 
-    async getBySlug(slug: string): Promise<Event | null> {
-        const snapshot = await this.db.collection('events').where('slug', '==', slug).limit(1).get();
+    async getBySlug(slug: string, workspaceId: string): Promise<Event | null> {
+        const snapshot = await this.db.collection('events')
+            .where('workspaceId', '==', workspaceId) // 🏢 SaaS: Isolated Query
+            .where('slug', '==', slug)
+            .limit(1)
+            .get();
+        
         if (snapshot.empty) return null;
         const doc = snapshot.docs[0];
-        return { id: doc.id, ...doc.data() } as Event;
+        const { id: _, ...dataWithoutId } = doc.data() as any;
+        return { id: doc.id, ...dataWithoutId } as Event;
     }
 
-    async list(filters: any): Promise<Event[]> {
+    async list(filters: any, workspaceId: string): Promise<Event[]> {
         const { city, host, venueId, lifecycle, limit = 20, lastId, sort = 'soonest' } = filters;
-        let q: any = this.db.collection('events');
+        let q: any = this.db.collection('events').where('workspaceId', '==', workspaceId); // 🛡️ SaaS: Filter by Workspace
 
         if (venueId) q = q.where('venueId', '==', venueId);
         if (lifecycle) {
@@ -34,13 +47,16 @@ export class FirebaseEventRepository implements IEventRepository {
             if (lastDoc.exists) q = q.startAfter(lastDoc);
         }
 
-        if (sort === 'soonest') q = q.orderBy('startDate', 'asc');
-        else if (sort === 'new') q = q.orderBy('createdAt', 'desc');
-        else if (sort === 'heat') q = q.orderBy('heatScore', 'desc');
+        if (sort === 'soonest') q = q.orderBy('startDate', 'asc').orderBy('__name__', 'asc');
+        else if (sort === 'new') q = q.orderBy('createdAt', 'desc').orderBy('__name__', 'desc');
+        else if (sort === 'heat') q = q.orderBy('heatScore', 'desc').orderBy('__name__', 'desc');
 
         q = q.limit(limit);
         const snapshot = await q.get();
-        return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+        return snapshot.docs.map((doc: any) => {
+            const { id: _, ...data } = doc.data();
+            return { id: doc.id, ...data };
+        });
     }
 
     /**
@@ -112,6 +128,12 @@ export class FirebaseEventRepository implements IEventRepository {
             }
         }
 
+        // Embed geohash snapshot
+        const coords = event.coordinates as any;
+        if (coords?.latitude && coords?.longitude) {
+            enriched.geohash = encodeGeohash(coords.latitude, coords.longitude, 9);
+        }
+
         return enriched;
     }
 
@@ -120,7 +142,11 @@ export class FirebaseEventRepository implements IEventRepository {
         await this.db.collection('events').doc(event.id).set(enriched);
     }
 
-    async update(id: string, updates: Partial<Event>): Promise<void> {
+    async update(id: string, updates: Partial<Event>, workspaceId: string): Promise<void> {
+        // Verify ownership before update
+        const existing = await this.getById(id, workspaceId);
+        if (!existing) throw new Error('Forbidden: Event not found in this workspace');
+
         const enriched = await this.embedHostVenueData(updates);
         await this.db.collection('events').doc(id).update({
             ...enriched,
@@ -128,7 +154,11 @@ export class FirebaseEventRepository implements IEventRepository {
         });
     }
 
-    async updateLifecycle(id: string, status: string, actorId: string): Promise<void> {
+    async updateLifecycle(id: string, status: string, actorId: string, workspaceId: string): Promise<void> {
+        // Verify ownership before update
+        const existing = await this.getById(id, workspaceId);
+        if (!existing) throw new Error('Forbidden: Event not found in this workspace');
+
         const now = new Date().toISOString();
         const updates: any = {
             lifecycle: status,
@@ -143,14 +173,29 @@ export class FirebaseEventRepository implements IEventRepository {
     }
 
     async listNearby(lat: number, lng: number, radius: number): Promise<Event[]> {
-        // Current logic uses internal Haversine filtering on a broad dump which is inefficient 
-        // but we'll maintain parity for now and just move it to repo.
+        const ranges = getNeighbors(lat, lng, radius);
         const nowIso = new Date().toISOString();
-        const snapshot = await this.db.collection('events')
-            .where('lifecycle', 'in', ['scheduled', 'live'])
-            .where('endDate', '>=', nowIso)
-            .get();
 
-        return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+        // Optimized: Queries center + 8 neighbors in parallel
+        const snapshots = await Promise.all(ranges.map(([start, end]) => {
+            return this.db.collection('events')
+                .where('geohash', '>=', start)
+                .where('geohash', '<=', end)
+                .where('lifecycle', 'in', ['scheduled', 'live'])
+                .get();
+        }));
+
+        // Merge and deduplicate (different neighbors might overlap or cover same prefix)
+        const eventMap = new Map<string, Event>();
+        for (const snap of snapshots) {
+            snap.docs.forEach(doc => {
+                const data = doc.data() as any;
+                if (data.endDate >= nowIso) {
+                    eventMap.set(doc.id, { ...data, id: doc.id });
+                }
+            });
+        }
+
+        return Array.from(eventMap.values());
     }
 }

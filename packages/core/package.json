@@ -64,7 +64,10 @@
         "./match-repo": "./dist/infrastructure/repositories/firebase/matching-repository.js",
         "./matching-service": "./dist/domain/services/matching-service.js",
         "./report-repo": "./dist/infrastructure/repositories/firebase/report-repository.js",
-        "./moderation-service": "./dist/domain/services/moderation-service.js"
+        "./moderation-service": "./dist/domain/services/moderation-service.js",
+        "./workspace-repo": "./src/infrastructure/repositories/firebase/workspace-repository.ts",
+        "./workspace-service": "./src/domain/services/workspace-service.ts",
+        "./billing-service": "./src/domain/services/billing-service.ts"
     },
     "dependencies": {
         "@c1rcle/types": "*",

@@ -1,46 +1,50 @@
+// @ts-ignore
+import { buildEvent } from '../../../event-engine.js';
 export class EventService {
     eventRepo;
     constructor(eventRepo) {
         this.eventRepo = eventRepo;
     }
-    async getEventByIdOrSlug(id) {
-        const event = await this.eventRepo.getById(id);
+    async getEventByIdOrSlug(id, workspaceId) {
+        const event = await this.eventRepo.getById(id, workspaceId);
         if (event)
             return event;
-        return this.eventRepo.getBySlug(id);
+        return this.eventRepo.getBySlug(id, workspaceId);
     }
-    async listEvents(filters) {
+    async listEvents(filters, workspaceId) {
         try {
             const { limit = 20 } = filters;
-            const events = await this.eventRepo.list({ ...filters, limit: limit + 1 });
+            // Fetch limit + 1 to determine if there's a next page
+            const events = await this.eventRepo.list({ ...filters, limit: limit + 1 }, workspaceId);
             const hasMore = events.length > limit;
             const data = events.slice(0, limit);
-            return { events: data, hasMore };
+            const nextCursor = hasMore ? data[data.length - 1].id : null;
+            return { events: data, nextCursor, hasMore };
         }
         catch (error) {
             console.error('EventService.listEvents failed:', error.message);
-            return { events: [], hasMore: false };
+            return { events: [], nextCursor: null, hasMore: false };
         }
     }
-    async createEvent(payload, actorId) {
-        // @ts-ignore
-        const { buildEvent } = await import('@c1rcle/core/event-engine');
-        const event = buildEvent({ ...payload, creatorId: actorId });
+    async createEvent(payload, actorId, workspaceId) {
+        const event = buildEvent({
+            ...payload,
+            creatorId: actorId,
+            workspaceId // 🏢 SaaS: Tag event with workspace
+        });
         await this.eventRepo.create(event);
         return event;
     }
-    async updateEvent(id, updates, actorId) {
-        const existing = await this.eventRepo.getById(id);
+    async updateEvent(id, updates, actorId, workspaceId) {
+        const existing = await this.getEventByIdOrSlug(id, workspaceId);
         if (!existing)
             return null;
-        // @ts-ignore
-        const { buildEvent } = await import('@c1rcle/core/event-engine');
         const updatedEvent = buildEvent({ ...existing, ...updates, id, updatedAt: new Date().toISOString() });
-        await this.eventRepo.update(id, updatedEvent);
+        await this.eventRepo.update(id, updatedEvent, workspaceId);
         return updatedEvent;
     }
-    async deleteEvent(id, actorId) {
-        await this.eventRepo.updateLifecycle(id, 'deleted', actorId);
+    async deleteEvent(id, actorId, workspaceId) {
+        await this.eventRepo.updateLifecycle(id, 'deleted', actorId, workspaceId);
     }
     async listNearby(lat, lng, radius, limit) {
         const events = await this.eventRepo.listNearby(lat, lng, radius);

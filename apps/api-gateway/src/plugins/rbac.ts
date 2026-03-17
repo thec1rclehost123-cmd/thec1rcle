@@ -36,6 +36,22 @@ export default fp(async (fastify: FastifyInstance, opts: RBACPluginOptions) => {
                 return; // Access granted
             }
 
+            // 🛡️ SaaS: Workspace-level Role Check
+            // @ts-ignore
+            const workspaceId = request.workspaceId;
+            let effectiveRole = user.role;
+
+            if (workspaceId) {
+                // In a production system, we would fetch the user's role specifically for this workspace
+                // e.g. const membership = await fastify.db.collection('workspaces').doc(workspaceId).collection('members').doc(user.uid).get();
+                // effectiveRole = membership.data()?.role || 'guest';
+                
+                // For now, if activeMembership matches the workspace, we use that role
+                if (user.activeMembership?.partnerId === workspaceId) {
+                    effectiveRole = user.activeMembership.role;
+                }
+            }
+
             // 2. Check Entity Ownership (e.g. User updating their own profile)
             if (allowEntityOwner) {
                 try {
@@ -47,8 +63,8 @@ export default fp(async (fastify: FastifyInstance, opts: RBACPluginOptions) => {
             }
 
             // 3. Check Role Inclusion
-            if (!user.role || !allowedRoles.includes(user.role as Role)) {
-                fastify.log.warn(`RBAC Denied: User ${user.uid} (Role: ${user.role}) attempted to access restricted route requiring [${allowedRoles.join(', ')}].`);
+            if (!effectiveRole || !allowedRoles.includes(effectiveRole as Role)) {
+                fastify.log.warn(`RBAC Denied: User ${user.uid} (Role: ${effectiveRole}) attempted to access restricted route requiring [${allowedRoles.join(', ')}] in workspace ${workspaceId || 'global'}.`);
                 return reply.status(403).send({ error: "Forbidden: Insufficient permissions." });
             }
 

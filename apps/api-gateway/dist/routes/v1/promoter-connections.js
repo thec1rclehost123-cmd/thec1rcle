@@ -8,16 +8,16 @@ const RequestBody = z.object({
     targetType: z.string(),
     targetName: z.string().optional(),
     message: z.string().optional()
-}).strict();
+});
 const PromoterIdParam = z.object({ promoterId: z.string() }).strict();
 const ConnectionIdParam = z.object({ id: z.string() }).strict();
 const StatusQuery = z.object({ status: z.string().optional() }).strict();
 const IncomingQuery = z.object({ targetId: z.string(), role: z.string().optional(), status: z.string().optional() }).strict();
 const DiscoverQuery = z.object({ type: z.string().optional(), city: z.string().optional(), search: z.string().optional(), limit: z.string().optional() }).strict();
 const ActionBody = z.object({
-    action: z.enum(['approve', 'reject', 'block']),
+    action: z.enum(['approve', 'reject', 'block', 'revoke']),
     reason: z.string().optional()
-}).strict();
+});
 const InvitesBody = z.object({
     id: z.string(),
     hostId: z.string(),
@@ -26,7 +26,7 @@ const InvitesBody = z.object({
     type: z.string().optional(),
     status: z.string().optional(),
     expiresAt: z.string().optional()
-}).strict();
+});
 const LinkClickBody = z.object({
     linkId: z.string(),
     promoterId: z.string().optional()

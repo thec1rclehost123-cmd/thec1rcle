@@ -2,7 +2,39 @@ import fp from 'fastify-plugin';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-// Environment variables are loaded via the --env-file flag or Expo runtime
+
+// @ts-ignore
+import { FirebaseAuthService } from '@c1rcle/core/auth-infra';
+// @ts-ignore
+import { FirebaseProfileRepository } from '@c1rcle/core/profile-repo';
+// @ts-ignore
+import { ProfileService } from '@c1rcle/core/profile-service';
+// @ts-ignore
+import { FirebaseEventRepository } from '@c1rcle/core/event-repo';
+// @ts-ignore
+import { EventService } from '@c1rcle/core/event-service';
+// @ts-ignore
+import { FirebaseNotificationRepository } from '@c1rcle/core/notification-repo';
+// @ts-ignore
+import { NotificationService } from '@c1rcle/core/notification-service';
+// @ts-ignore
+import { FirebaseOrderRepository } from '@c1rcle/core/order-repo';
+// @ts-ignore
+import { CheckoutService } from '@c1rcle/core/checkout-service';
+// @ts-ignore
+import { FirebaseMatchingRepository } from '@c1rcle/core/match-repo';
+// @ts-ignore
+import { MatchingService } from '@c1rcle/core/matching-service';
+// @ts-ignore
+import { FirebaseReportRepository } from '@c1rcle/core/report-repo';
+// @ts-ignore
+import { ModerationService } from '@c1rcle/core/moderation-service';
+// @ts-ignore
+import { FirebaseWorkspaceRepository } from '@c1rcle/core/workspace-repo';
+// @ts-ignore
+import { WorkspaceService } from '@c1rcle/core/workspace-service';
+// @ts-ignore
+import { BillingService } from '@c1rcle/core/billing-service';
 
 export default fp(async (fastify) => {
     if (!getApps().length) {
@@ -30,33 +62,6 @@ export default fp(async (fastify) => {
     const db = getFirestore();
     const auth = getAuth();
 
-    // @ts-ignore
-    const { FirebaseAuthService } = await import('@c1rcle/core/auth-infra');
-    // @ts-ignore
-    const { FirebaseProfileRepository } = await import('@c1rcle/core/profile-repo');
-    // @ts-ignore
-    const { ProfileService } = await import('@c1rcle/core/profile-service');
-    // @ts-ignore
-    const { FirebaseEventRepository } = await import('@c1rcle/core/event-repo');
-    // @ts-ignore
-    const { EventService } = await import('@c1rcle/core/event-service');
-    // @ts-ignore
-    const { FirebaseNotificationRepository } = await import('@c1rcle/core/notification-repo');
-    // @ts-ignore
-    const { NotificationService } = await import('@c1rcle/core/notification-service');
-    // @ts-ignore
-    const { FirebaseOrderRepository } = await import('@c1rcle/core/order-repo');
-    // @ts-ignore
-    const { CheckoutService } = await import('@c1rcle/core/checkout-service');
-    // @ts-ignore
-    const { FirebaseMatchingRepository } = await import('@c1rcle/core/match-repo');
-    // @ts-ignore
-    const { MatchingService } = await import('@c1rcle/core/matching-service');
-    // @ts-ignore
-    const { FirebaseReportRepository } = await import('@c1rcle/core/report-repo');
-    // @ts-ignore
-    const { ModerationService } = await import('@c1rcle/core/moderation-service');
-
     const authService = new FirebaseAuthService(auth);
     const profileRepo = new FirebaseProfileRepository(db);
     const profileService = new ProfileService(profileRepo);
@@ -70,6 +75,9 @@ export default fp(async (fastify) => {
     const matchingService = new MatchingService(matchingRepo, profileRepo, eventRepo);
     const reportRepo = new FirebaseReportRepository(db);
     const moderationService = new ModerationService(reportRepo);
+    const workspaceRepo = new FirebaseWorkspaceRepository(db);
+    const workspaceService = new WorkspaceService(workspaceRepo);
+    const billingService = new BillingService(db);
 
     fastify.decorate('db', db);
     fastify.decorate('auth', auth);
@@ -84,11 +92,15 @@ export default fp(async (fastify) => {
     fastify.decorate('checkoutService', checkoutService);
     fastify.decorate('matchingService', matchingService);
     fastify.decorate('moderationService', moderationService);
+    fastify.decorate('workspaceService', workspaceService);
+    fastify.decorate('billingService', billingService);
 
     fastify.log.info('Firebase Admin, AuthService, Repositories, and Services initialized');
 
-    // Simple Request-level User Decoration
+    // Simple Request-level User & Workspace Decoration
     fastify.decorateRequest('user', null);
+    fastify.decorateRequest('workspaceId', null);
+    fastify.decorateRequest('workspace', null); // 🏢 SaaS: Full workspace metadata
 
     // Global Auth Hook (Extract Token)
     fastify.addHook('onRequest', async (request, reply) => {
@@ -117,26 +129,76 @@ export default fp(async (fastify) => {
             request.log.warn('Error in auth service verification');
         }
     });
+
+    // Workspace Context Hook (Extract Header + Metadata)
+    fastify.addHook('preHandler', async (request, reply) => {
+        const workspaceId = request.headers['x-workspace-id'] as string;
+        if (workspaceId) {
+            // @ts-ignore
+            request.workspaceId = workspaceId;
+
+            // 🛡️ SaaS: Cache workspace metadata in request to avoid re-fetching
+            try {
+                const ws = await workspaceService.getWorkspace(workspaceId);
+                if (ws) {
+                    // @ts-ignore
+                    request.workspace = ws;
+                    
+                    // 📊 Usage Tracking: Increment API usage metric
+                    await billingService.incrementUsage(workspaceId, 'apiCalls');
+                }
+            } catch (e) {
+                request.log.warn(`Failed to fetch workspace ${workspaceId}`);
+            }
+        }
+    });
+
+    // Feature Gating Guard
+    fastify.decorate('requireFeature', (feature: string) => {
+        return async (request: any, reply: any) => {
+            if (!request.workspace) throw new Error('Forbidden: Workspace context required');
+            if (!request.workspace.features.includes(feature)) {
+                return reply.status(403).send({ 
+                    error: "Forbidden", 
+                    message: `Feature '${feature}' is not enabled for your current workspace plan.` 
+                });
+            }
+        };
+    });
     // Verify if user has access to a specific partnerId (Host or Venue)
     fastify.decorate('verifyPartnerAccess', async (request: any, partnerId: string) => {
         if (!request.user) throw new Error('Unauthorized');
 
         const { uid } = request.user;
 
-        // 1. Direct Ownership Check
-        const venueDoc = await db.collection("venues").doc(partnerId).get();
-        if (venueDoc.exists && venueDoc.data()?.ownerId === uid) return true;
+        // 🛡️ Reliability: Execute with timeout to prevent cascading failures
+        const timeout = <T>(promise: Promise<T>, ms: number) => {
+            return Promise.race([
+                promise,
+                new Promise<never>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), ms))
+            ]);
+        };
 
-        const hostDoc = await db.collection("hosts").doc(partnerId).get();
+        const [venueSnap, hostSnap, membershipSnapshot, adminDoc] = await timeout(Promise.all([
+            db.collection("venues").where('__name__', '==', partnerId).select('ownerId').limit(1).get(),
+            db.collection("hosts").where('__name__', '==', partnerId).select('ownerId').limit(1).get(),
+            db.collection("partner_memberships")
+                .where("partnerId", "==", partnerId)
+                .where("uid", "==", uid)
+                .select('isActive', 'status', 'role')
+                .limit(1)
+                .get(),
+            db.collection("admins").doc(uid).get()
+        ]), 5000); // 5s timeout for auth checks
+
+        const venueDoc = venueSnap.docs[0];
+        const hostDoc = hostSnap.docs[0];
+
+        // 1. Direct Ownership Check
+        if (venueDoc.exists && venueDoc.data()?.ownerId === uid) return true;
         if (hostDoc.exists && hostDoc.data()?.ownerId === uid) return true;
 
         // 2. Staff Membership Check
-        const membershipSnapshot = await db.collection("partner_memberships")
-            .where("partnerId", "==", partnerId)
-            .where("uid", "==", uid)
-            .limit(1)
-            .get();
-
         if (!membershipSnapshot.empty) {
             const membership = membershipSnapshot.docs[0].data();
             const isActive = membership?.isActive === true || membership?.status === 'active';
@@ -147,7 +209,6 @@ export default fp(async (fastify) => {
         }
 
         // 3. System Admin Check
-        const adminDoc = await db.collection("admins").doc(uid).get();
         if (adminDoc.exists) return true;
 
         throw new Error('Forbidden: No access to this partner');
@@ -174,9 +235,14 @@ declare module 'fastify' {
         matchingRepo: any;
         matchingService: any;
         moderationService: any;
+        workspaceService: any;
+        billingService: any;
         verifyPartnerAccess: (request: any, partnerId: string) => Promise<boolean>;
+        requireFeature: (feature: string) => (request: any, reply: any) => Promise<void>;
     }
     interface FastifyRequest {
         user: DecodedIdToken | null;
+        workspaceId: string | null;
+        workspace: any | null;
     }
 }

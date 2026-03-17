@@ -43,9 +43,10 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
      */
     fastify.post('/checkout/validate', {
         preHandler: [fastify.validate({ body: CheckoutValidateBody })]
-    }, async (request: { body: any, user: any }, reply) => {
+    }, async (request: any, reply) => {
         try {
-            const result = await fastify.checkoutService.validatePricing(request.body);
+            const workspaceId = request.workspaceId;
+            const result = await fastify.checkoutService.validatePricing(request.body, workspaceId);
             return result;
         } catch (error: any) {
             fastify.log.error(`Pricing validation failed: ${error.message}`);
@@ -91,7 +92,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
      */
     fastify.post('/checkout/reserve', {
         preHandler: [fastify.validate({ body: CheckoutReserveBody })]
-    }, async (request: { body: any, user: any }, reply) => {
+    }, async (request: any, reply) => {
         const { eventId, items, deviceId } = request.body;
         const userId = request.user?.uid;
         if (!userId) {
@@ -99,7 +100,10 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         }
 
         try {
-            const result = await fastify.checkoutService.reserveItems(eventId, userId, deviceId || null, items);
+            const workspaceId = request.workspaceId;
+            if (!workspaceId) return reply.status(400).send({ success: false, error: 'Missing x-workspace-id header' });
+
+            const result = await fastify.checkoutService.reserveItems(eventId, userId, deviceId || null, items, workspaceId);
             return result;
         } catch (error: any) {
             fastify.log.error(`Reservation failed: ${error.message}`);
@@ -113,17 +117,20 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
      */
     fastify.post('/checkout/initiate', {
         preHandler: [fastify.validate({ body: CheckoutInitiateBody })]
-    }, async (request: { body: any, user: any }, reply) => {
+    }, async (request: any, reply) => {
         const userId = request.user?.uid;
         if (!userId) {
             return reply.status(401).send({ success: false, error: 'Authentication required' });
         }
 
         try {
+            const workspaceId = request.workspaceId;
+            if (!workspaceId) return reply.status(400).send({ success: false, error: 'Missing x-workspace-id header' });
+
             const result = await fastify.checkoutService.initiateCheckout({
                 ...request.body,
                 userId
-            });
+            }, workspaceId);
             return result;
         } catch (error: any) {
             const isContention = error.code === 10 || error.code === 'ABORTED' ||

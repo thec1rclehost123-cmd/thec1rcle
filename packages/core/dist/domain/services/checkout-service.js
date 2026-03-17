@@ -1,3 +1,9 @@
+// @ts-ignore
+import { calculatePricing } from '@c1rcle/core/pricing-engine';
+// @ts-ignore
+import { createReservation, releaseReservation } from '@c1rcle/core/inventory-engine';
+// @ts-ignore
+import { sendEvent, Events } from '@c1rcle/core/inngest-client';
 async function fetchWithRetry(url, options, maxRetries = 3) {
     for (let i = 0; i < maxRetries; i++) {
         try {
@@ -27,16 +33,12 @@ export class CheckoutService {
         this.eventRepo = eventRepo;
     }
     async validatePricing(params) {
-        // @ts-ignore
-        const { calculatePricing } = await import('@c1rcle/core/pricing-engine');
         const event = await this.eventRepo.getById(params.eventId);
         if (!event)
             throw new Error('Event not found');
         return calculatePricing({ ...params, event });
     }
     async reserveItems(eventId, userId, deviceId, items) {
-        // @ts-ignore
-        const { createReservation } = await import('@c1rcle/core/inventory-engine');
         const event = await this.eventRepo.getById(eventId);
         if (!event)
             throw new Error('Event not found');
@@ -69,8 +71,6 @@ export class CheckoutService {
         const event = await this.eventRepo.getById(reservation.eventId);
         if (!event)
             throw new Error('Event not found');
-        // @ts-ignore
-        const { calculatePricing } = await import('@c1rcle/core/pricing-engine');
         const pricingResult = await calculatePricing({
             event,
             items: reservation.items.map((i) => ({ ...i, tierId: i.tierId || i.ticketId })),
@@ -123,8 +123,6 @@ export class CheckoutService {
         if (orderPayload.status === 'confirmed') {
             (async () => {
                 try {
-                    // @ts-ignore
-                    const { sendEvent, Events } = await import('@c1rcle/core/inngest-client');
                     sendEvent(Events.TICKET_PURCHASED, {
                         orderId: orderPayload.id,
                         userId: orderPayload.userId,
@@ -216,20 +214,20 @@ export class CheckoutService {
                 confirmedAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
-            await this.orderRepo.updateOrder(orderId, updates, transaction);
-            await this.orderRepo.updatePaymentRecord(orderId, razorpayOrderId, {
-                status: 'verified',
-                razorpayPaymentId: razorpayPaymentId,
-                verifiedAt: new Date().toISOString()
-            }, transaction);
+            await Promise.all([
+                this.orderRepo.updateOrder(orderId, updates, transaction),
+                this.orderRepo.updatePaymentRecord(orderId, razorpayOrderId, {
+                    status: 'verified',
+                    razorpayPaymentId: razorpayPaymentId,
+                    verifiedAt: new Date().toISOString()
+                }, transaction)
+            ]);
             finalOrder = { ...order, ...updates };
         });
         // Trigger fulfillment workflow (fallback for missed webhooks)
         if (finalOrder) {
             (async () => {
                 try {
-                    // @ts-ignore
-                    const { sendEvent, Events } = await import('@c1rcle/core/inngest-client');
                     sendEvent(Events.TICKET_PURCHASED, {
                         orderId: finalOrder.id,
                         userId: finalOrder.userId,
@@ -247,21 +245,22 @@ export class CheckoutService {
         }
     }
     async cancelCheckout(reservationId, orderId) {
+        const promises = [];
         if (orderId) {
-            await this.orderRepo.updateOrder(orderId, {
+            promises.push(this.orderRepo.updateOrder(orderId, {
                 status: 'cancelled',
                 updatedAt: new Date().toISOString()
-            }).catch(() => { });
+            }).catch(() => { }));
         }
-        // @ts-ignore
-        const { releaseReservation } = await import('@c1rcle/core/inventory-engine');
-        const result = await releaseReservation(reservationId);
+        promises.push(releaseReservation(reservationId));
         if (reservationId) {
-            await this.orderRepo.updateReservation(reservationId, {
+            promises.push(this.orderRepo.updateReservation(reservationId, {
                 status: 'released',
                 releasedAt: new Date().toISOString()
-            }).catch(() => { });
+            }).catch(() => { }));
         }
-        return result;
+        const results = await Promise.all(promises);
+        // Find result from releaseReservation call
+        return results[orderId ? 1 : 0];
     }
 }

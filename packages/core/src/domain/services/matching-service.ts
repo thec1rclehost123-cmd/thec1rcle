@@ -18,7 +18,7 @@ export class MatchingService {
         lng?: number,
         limit?: number,
         type?: 'user' | 'event'
-    }): Promise<any[]> {
+    }, workspaceId: string): Promise<any[]> {
         const { lat, lng, limit = 20, type = 'event' } = options;
         const redis = getRedisClient();
         const cacheKey = `match_feed:${userId}:${type}:${lat || 0}:${lng || 0}:${limit}`;
@@ -44,7 +44,7 @@ export class MatchingService {
         // 4. Fetch candidates (Broad fetch)
         let candidates: any[] = [];
         if (type === 'event') {
-            candidates = await this.eventRepo.list({ status: 'live', limit: 100 });
+            candidates = await this.eventRepo.list({ status: 'live', limit: 100 }, workspaceId);
         } else {
             // Placeholder for matching with other users if implemented
             return [];
@@ -84,13 +84,13 @@ export class MatchingService {
         lng?: number,
         limit?: number,
         type?: 'user' | 'event'
-    }): Promise<void> {
+    }, workspaceId: string): Promise<void> {
         // Simple wrapper to run getMatchFeed and let it populate the cache
         // In a real system, this would be triggered by a worker or on location change
-        await this.getMatchFeed(userId, options);
+        await this.getMatchFeed(userId, options, workspaceId);
     }
 
-    async handleSwipe(userId: string, targetId: string, targetType: 'user' | 'event', direction: 'left' | 'right' | 'up'): Promise<void> {
+    async handleSwipe(userId: string, targetId: string, targetType: 'user' | 'event', direction: 'left' | 'right' | 'up', workspaceId: string): Promise<void> {
         // 1. Safety Control: Rate Limiting (Step 2 Safety)
         // Limit to 60 swipes per minute to prevent botting/fatigue
         const rateLimit = await checkRateLimit(`swipe:${userId}`, 60, 60);
@@ -112,7 +112,7 @@ export class MatchingService {
         // 2. Adaptive Adjustments (Step 3 Retention)
         // Store recent swipe preferences in Redis for session-based scoring boost
         if (direction === 'right' || direction === 'up') {
-            await this.updateAdaptivePreferences(userId, targetId, targetType);
+            await this.updateAdaptivePreferences(userId, targetId, targetType, workspaceId);
         }
 
         // Analytics instrumentation
@@ -127,15 +127,15 @@ export class MatchingService {
         // Logic for "It's a Match!" can go here if two-way matching is needed
     }
 
-    private async updateAdaptivePreferences(userId: string, targetId: string, targetType: 'user' | 'event'): Promise<void> {
+    private async updateAdaptivePreferences(userId: string, targetId: string, targetType: 'user' | 'event', workspaceId: string): Promise<void> {
         const redis = getRedisClient();
         const prefKey = `user_prefs_boost:${userId}`;
 
         try {
             let targetGenres: string[] = [];
             if (targetType === 'event') {
-                const event = await this.eventRepo.getById(targetId);
-                targetGenres = event?.genres || [];
+            const { id: _, ...dataWithoutId } = (await this.eventRepo.getById(targetId, workspaceId)) as any;
+            targetGenres = dataWithoutId?.genres || [];
             }
 
             for (const genre of targetGenres) {

@@ -11,10 +11,11 @@ export default fp(async (fastify) => {
     try {
         const redis = new Redis(redisUrl, {
             maxRetriesPerRequest: 1,
+            connectTimeout: 2000, // ⚡ Failure Isolation: Don't hang if Redis is unreachable
             retryStrategy: (times) => {
                 if (times > 3)
                     return null; // Stop retrying after 3 attempts
-                return Math.min(times * 50, 2000);
+                return Math.min(times * 100, 2000);
             }
         });
         redis.on('error', (err) => {

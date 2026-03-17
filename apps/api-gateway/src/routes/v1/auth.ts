@@ -9,8 +9,17 @@ const OnboardSchema = z.object({
     company: z.string().optional(),
     website: z.string().optional(),
     phone: z.string().optional(),
-    instagram: z.string().optional()
-}).strict();
+    instagram: z.string().optional(),
+    contactPerson: z.string().optional(),
+    city: z.string().optional(),
+    area: z.string().optional(),
+    capacity: z.string().optional(),
+    plan: z.string().optional(),
+    role: z.string().optional(),
+    association: z.string().optional(),
+    associatedHostId: z.string().optional(),
+    bio: z.string().optional()
+});
 
 const HostVerificationSchema = z.object({
     documentType: z.string().optional(),

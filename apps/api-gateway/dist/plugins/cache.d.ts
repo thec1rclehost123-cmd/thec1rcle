@@ -6,7 +6,6 @@ import { FastifyInstance } from 'fastify';
  * Standardizes key hashing to prevent collisions and handle large query params.
  */
 declare class HybridCache {
-    private memoryStore;
     private fastify;
     constructor(fastify: FastifyInstance);
     private hashKey;

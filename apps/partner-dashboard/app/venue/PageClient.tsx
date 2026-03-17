@@ -6,6 +6,7 @@ import {
     BarChart3, Ticket, ArrowRight, ChevronRight, Sparkles
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { useQuery } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import clsx from "clsx";
@@ -47,53 +48,66 @@ export default function VenueDashboardHome() {
     const venueId = profile?.activeMembership?.partnerId;
     const shouldReduceMotion = useReducedMotion();
 
-    const [summary, setSummary] = useState<any>(null);
-    const [tonight, setTonight] = useState<any>(null);
-    const [events, setEvents] = useState<any[]>([]);
-    const [alerts, setAlerts] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        if (!venueId) return;
-        fetchDashboard();
-        fetchAlerts();
-    }, [venueId]);
-
-    async function fetchAlerts() {
-        try {
+    // ── 📊 Data Queries (Replacing useEffect) ──
+    
+    // 1. Alerts
+    const { data: alertsData } = useQuery({
+        queryKey: ['venue', venueId, 'alerts'],
+        queryFn: async () => {
             const res = await fetch(`/api/venue/notifications?venueId=${venueId}&limit=3`);
-            const data = await res.json();
-            if (res.ok && data.notifications) setAlerts(data.notifications.slice(0, 3));
-        } catch { }
-    }
+            return res.json();
+        },
+        enabled: !!venueId,
+        staleTime: 60000 // 1 min
+    });
 
-    async function fetchDashboard() {
-        setLoading(true);
-        try {
-            const [eventsRes, summaryRes] = await Promise.all([
-                fetch(`/api/venue/events?venueId=${venueId}`),
-                fetch(`/api/venue/overview/summary?venueId=${venueId}`),
-            ]);
-            const eventsData = await eventsRes.json();
-            const summaryData = await summaryRes.json();
-            const allEvents = (eventsData.events || []).map((e: any) => ({
+    // 2. Summary
+    const { data: summaryData, isLoading: summaryLoading } = useQuery({
+        queryKey: ['venue', venueId, 'summary'],
+        queryFn: async () => {
+            const res = await fetch(`/api/venue/overview/summary?venueId=${venueId}`);
+            return res.json();
+        },
+        enabled: !!venueId,
+        staleTime: 300000 // 5 mins
+    });
+
+    // 3. Events List
+    const { data: eventsData, isLoading: eventsLoading } = useQuery({
+        queryKey: ['venue', venueId, 'events'],
+        queryFn: async () => {
+            const res = await fetch(`/api/venue/events?venueId=${venueId}`);
+            const data = await res.json();
+            return (data.events || []).map((e: any) => ({
                 ...e,
                 _dateStr: e.startDate
                     ? (typeof e.startDate === "string" ? e.startDate.split("T")[0] : "")
                     : "",
             }));
-            setEvents(allEvents);
-            setSummary(summaryData);
+        },
+        enabled: !!venueId,
+        staleTime: 60000
+    });
 
-            const todayStr = new Date().toISOString().split("T")[0];
-            const tonightEvent = allEvents.find((e: any) => e._dateStr === todayStr);
-            if (tonightEvent) {
-                const tonightRes = await fetch(`/api/venue/overview/tonight?eventId=${tonightEvent.id}`);
-                if (tonightRes.ok) setTonight(await tonightRes.json());
-            }
-        } catch { }
-        finally { setLoading(false); }
-    }
+    const events = eventsData || [];
+    const todayStr = new Date().toISOString().split("T")[0];
+    const tonightEvent = events.find((e: any) => e._dateStr === todayStr);
+
+    // 4. Tonight's Pulse (Dynamic if event is live)
+    const { data: tonight, isLoading: tonightLoading } = useQuery({
+        queryKey: ['venue', venueId, 'tonight', tonightEvent?.id],
+        queryFn: async () => {
+            const res = await fetch(`/api/venue/overview/tonight?eventId=${tonightEvent.id}`);
+            return res.json();
+        },
+        enabled: !!tonightEvent?.id,
+        refetchInterval: 30000, // Poll every 30s for live data
+        staleTime: 10000
+    });
+
+    const loading = summaryLoading || eventsLoading;
+    const alerts = alertsData?.notifications?.slice(0, 3) || [];
+    const summary = summaryData;
 
     const capacityPct = tonight && tonight.expected > 0
         ? Math.round((tonight.checkedIn / tonight.expected) * 100)

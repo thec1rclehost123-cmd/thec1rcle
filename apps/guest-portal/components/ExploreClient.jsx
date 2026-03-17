@@ -218,12 +218,7 @@ export default function ExploreClient({ initialEvents = [] }) {
 
     async function setupTrendingListener() {
       try {
-        const [firebaseClient, firebaseFirestore] = await Promise.all([
-          import("../lib/firebase/client"),
-          import("firebase/firestore"),
-        ]);
-        const getFirebaseDb = firebaseClient.getFirebaseDb;
-        const { collection, query, where, orderBy, limit, onSnapshot } = firebaseFirestore;
+        const { collection, query, where, orderBy, limit, onSnapshot } = await import("firebase/firestore");
 
         const db = await getFirebaseDb();
         const q = query(

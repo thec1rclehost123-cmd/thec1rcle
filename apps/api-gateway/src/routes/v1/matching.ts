@@ -35,12 +35,15 @@ export default async function matchingRoutes(fastify: FastifyInstance) {
         const { lat, lng, limit = 20, type = 'event' } = request.query as any;
 
         try {
+            const workspaceId = request.workspaceId;
+            if (!workspaceId) return reply.status(400).send({ error: "Missing x-workspace-id header" });
+
             const feed = await fastify.matchingService.getMatchFeed(userId, {
                 lat: lat ? Number(lat) : undefined,
                 lng: lng ? Number(lng) : undefined,
                 limit: Number(limit),
                 type: type as any
-            });
+            }, workspaceId);
             return feed;
         } catch (error: any) {
             fastify.log.error(`Error in GET /matching/feed: ${error.message}`);
@@ -65,7 +68,10 @@ export default async function matchingRoutes(fastify: FastifyInstance) {
         }
 
         try {
-            await fastify.matchingService.handleSwipe(userId, targetId, targetType, direction);
+            const workspaceId = request.workspaceId;
+            if (!workspaceId) return reply.status(400).send({ error: "Missing x-workspace-id header" });
+
+            await fastify.matchingService.handleSwipe(userId, targetId, targetType, direction, workspaceId);
 
             // Analytics instrumentation (Step 4 preview)
             // @ts-ignore

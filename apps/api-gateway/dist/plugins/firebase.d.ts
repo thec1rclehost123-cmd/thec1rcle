@@ -19,10 +19,15 @@ declare module 'fastify' {
         matchingRepo: any;
         matchingService: any;
         moderationService: any;
+        workspaceService: any;
+        billingService: any;
         verifyPartnerAccess: (request: any, partnerId: string) => Promise<boolean>;
+        requireFeature: (feature: string) => (request: any, reply: any) => Promise<void>;
     }
     interface FastifyRequest {
         user: DecodedIdToken | null;
+        workspaceId: string | null;
+        workspace: any | null;
     }
 }
 //# sourceMappingURL=firebase.d.ts.map

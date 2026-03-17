@@ -46,6 +46,7 @@ import authRoutes from './routes/v1/auth';
 import adminRoutes from './routes/v1/admin';
 const server = Fastify({
     trustProxy: process.env.NODE_ENV === 'production',
+    bodyLimit: 1048576, // 🛡️ Security: Limit request body to 1MB to prevent OOM attacks
     genReqId: function (req) {
         return req.headers['x-request-id'] || crypto.randomUUID();
     },
@@ -90,16 +91,24 @@ async function main() {
         if (request.startTime) {
             const hrtime = process.hrtime(request.startTime);
             const durationMs = (hrtime[0] * 1e3 + hrtime[1] * 1e-6).toFixed(2);
-            // Log metrics for performance auditing
-            server.log.info({
+            const duration = parseFloat(durationMs);
+            // 📊 Observability: Tag performance metrics
+            const logData = {
                 requestId: request.id,
                 url: request.url,
                 route: request.routeOptions?.url || 'unknown_route',
                 method: request.method,
                 statusCode: reply.statusCode,
-                durationMs,
+                durationMs: duration,
                 cache: reply.getHeader('Cache-Control') || 'no-cache'
-            }, `Response sent in ${durationMs}ms`);
+            };
+            // 🛡️ Reliability: Log Alert for Slow Targets (> 500ms)
+            if (duration > 500 && reply.statusCode < 500) {
+                server.log.warn(logData, `🔥 SLOW API ALERT: Endpoint ${request.url} exceeded 500ms`);
+            }
+            else {
+                server.log.info(logData, `Response sent in ${durationMs}ms`);
+            }
         }
     });
     // ⚡ GLOBAL ERROR HANDLER
@@ -126,7 +135,10 @@ async function main() {
         origin: process.env.NODE_ENV === 'production' ? allowedOrigins : true,
         credentials: true
     });
-    await server.register(compress);
+    await server.register(compress, {
+        threshold: 1024, // Only compress responses larger than 1KB
+        encodings: ['gzip', 'deflate', 'br']
+    });
     await server.register(websocket);
     await server.register(firebasePlugin);
     await server.register(redisPlugin);
@@ -171,15 +183,38 @@ async function main() {
     await server.register(matchingRoutes, { prefix: '/api/v1/matching' });
     // Enhanced Database-aware Health Check
     server.get('/health', async (request, reply) => {
+        const health = {
+            status: 'ok',
+            timestamp: new Date().toISOString(),
+            uptimeSeconds: process.uptime(),
+            services: {
+                firestore: 'unknown',
+                redis: 'unknown'
+            }
+        };
         try {
-            // Validate Firestore connectivity natively
-            await server.db.collection('health_checks').doc('ping').set({ timestamp: new Date().toISOString() });
-            return { status: 'ok', database: 'connected', timestamp: new Date().toISOString() };
+            // 1. Check Firestore
+            const startStr = Date.now().toString();
+            await server.db.collection('health_checks').doc('ping').set({
+                timestamp: new Date().toISOString(),
+                id: startStr
+            });
+            health.services.firestore = 'healthy';
         }
         catch (e) {
-            server.log.error(`Healthcheck failed: ${e.message}`);
-            return reply.status(503).send({ status: 'error', database: 'disconnected', timestamp: new Date().toISOString() });
+            health.services.firestore = 'unhealthy';
+            health.status = 'error';
         }
+        // 2. Check Redis
+        if (server.redis && server.redis.status === 'ready') {
+            health.services.redis = 'healthy';
+        }
+        else {
+            health.services.redis = 'unhealthy';
+            health.status = 'error';
+        }
+        const statusCode = health.status === 'ok' ? 200 : 503;
+        return reply.status(statusCode).send(health);
     });
     // Graceful Shutdown Handlers
     const gracefulShutdown = async (signal) => {

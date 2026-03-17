@@ -184,15 +184,15 @@ export const adminStore = {
                 const venueRef = db.collection('venues').doc(partnerId);
                 transaction.set(venueRef, {
                     id: partnerId,
-                    name: data.name,
-                    city: data.city,
-                    area: data.area,
-                    capacity: data.capacity,
+                    name: data.name || "Unknown Venue",
+                    city: data.city || "Unknown",
+                    area: data.area || "Unknown",
+                    capacity: data.capacity || "0",
                     ownerUid: uid,
                     status: 'active',
                     tier: data.plan === 'diamond' ? 'premium' : 'standard',
                     platformFeeRate: data.plan === 'basic' ? 15 : (data.plan === 'silver' ? 12 : 10),
-                    subscriptionPlan: data.plan,
+                    subscriptionPlan: data.plan || "basic",
                     createdAt: now,
                     updatedAt: now,
                     isVerified: true
@@ -203,8 +203,8 @@ export const adminStore = {
                 const hostRef = db.collection('hosts').doc(partnerId);
                 transaction.set(hostRef, {
                     id: partnerId,
-                    name: data.name,
-                    role: data.role,
+                    name: data.name || "Unknown Host",
+                    role: data.role || "GENERAL",
                     ownerUid: uid,
                     status: 'active',
                     isVerified: true,
@@ -218,7 +218,7 @@ export const adminStore = {
                 const promoterRef = db.collection('promoters').doc(partnerId);
                 transaction.set(promoterRef, {
                     id: partnerId,
-                    name: data.name,
+                    name: data.name || "Unknown Promoter",
                     ownerUid: uid,
                     status: 'active',
                     createdAt: now,
@@ -609,27 +609,91 @@ export const adminStore = {
     // --- 📊 7. Read Queries (admin-console app layer delegates here) ---
     async getPlatformSnapshot() {
         const db = getAdminDb();
+        
+        // 1. Fetch precomputed global stats (O(1) read)
         const statsDoc = await db.collection('platform_stats').doc('current').get();
-        const stats = statsDoc.exists ? statsDoc.data() : { users_total: 0, events_total: 0, revenue: { total: 0 }, tickets_sold_total: 0 };
-        const [pendingReviewsCount, activeIncidentsCount, liveEvents, liveUsers, liveHosts, liveVenues, logsSnapshot] = await Promise.all([
+        const baseStats = statsDoc.exists ? statsDoc.data() : { 
+            users_total: 0, 
+            events_total: 0, 
+            revenue: { total: 0 }, 
+            tickets_sold_total: 0,
+            pendingReviewsCount: 0,
+            activeIncidentsCount: 0,
+            liveEvents: 0,
+            liveUsers: 0,
+            liveHosts: 0,
+            liveVenues: 0,
+            updatedAt: new Date().toISOString()
+        };
+
+        // 2. Detect staleness (> 30 mins)
+        const lastSyncDate = new Date(baseStats.updatedAt || 0);
+        const staleThresholdMs = 30 * 60 * 1000;
+        const isStale = (Date.now() - lastSyncDate.getTime()) > staleThresholdMs;
+
+        // 3. Fetch truly transient data that shouldn't be lagged (audit logs)
+        const logsSnapshot = await db.collection('admin_audit_logs')
+            .orderBy('timestamp', 'desc')
+            .limit(10)
+            .get();
+
+        const recentLogs = logsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                action: data.action,
+                timestamp: data.timestamp?.toDate?.() || new Date(),
+                reason: data.reason
+            };
+        });
+
+        return { 
+            stats: baseStats,
+            pendingReviewsCount: baseStats.pendingReviewsCount,
+            activeIncidentsCount: baseStats.activeIncidentsCount,
+            liveEvents: baseStats.liveEvents,
+            liveUsers: baseStats.liveUsers,
+            liveHosts: baseStats.liveHosts,
+            liveVenues: baseStats.liveVenues,
+            recentLogs,
+            lastSync: baseStats.updatedAt,
+            isStale
+        };
+    },
+
+    /**
+     * Heavy aggregation intended for background execution only.
+     * Triggered via cron/worker to update 'platform_stats/current'.
+     */
+    async computePlatformStats() {
+        const db = getAdminDb();
+        console.log('[PlatformStats] Starting heavy aggregation...');
+
+        const [
+            pendingSnap, incidentSnap, eventSnap, 
+            userSnap, hostSnap, venueSnap
+        ] = await Promise.all([
             db.collection('onboarding_requests').where('status', '==', 'pending').count().get(),
             db.collection('incidents').where('status', '==', 'active').count().get(),
             db.collection('events').where('status', '==', 'live').count().get(),
             db.collection('users').count().get(),
             db.collection('hosts').count().get(),
-            db.collection('venues').where('status', '==', 'active').count().get(),
-            db.collection('admin_audit_logs').orderBy('timestamp', 'desc').limit(5).get()
+            db.collection('venues').where('status', '==', 'active').count().get()
         ]);
-        const recentLogs = logsSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id, 
-                action: data.action,
-                timestamp: data.timestamp?.toDate?.() || new Date(), 
-                reason: data.reason
-            };
-        });
-        return { stats, pendingReviewsCount: pendingReviewsCount.data().count, activeIncidentsCount: activeIncidentsCount.data().count, liveEvents: liveEvents.data().count, liveUsers: liveUsers.data().count, liveHosts: liveHosts.data().count, liveVenues: liveVenues.data().count, recentLogs };
+
+        const stats = {
+            pendingReviewsCount: pendingSnap.data().count,
+            activeIncidentsCount: incidentSnap.data().count,
+            liveEvents: eventSnap.data().count,
+            liveUsers: userSnap.data().count,
+            liveHosts: hostSnap.data().count,
+            liveVenues: venueSnap.data().count,
+            updatedAt: new Date().toISOString()
+        };
+
+        await db.collection('platform_stats').doc('current').set(stats, { merge: true });
+        console.log('[PlatformStats] Computed and sync successfully.');
+        return stats;
     },
 
     async listCollection(collection, { status, limit, adminRole } = {}) {
