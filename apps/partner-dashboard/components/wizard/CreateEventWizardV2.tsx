@@ -154,37 +154,41 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
     // Validation per step
     const stepValidation = useMemo(() => {
-        const validation: Record<WizardStep, { isValid: boolean; issues: string[] }> = {
-            identity: { isValid: true, issues: [] },
-            scheduling: { isValid: true, issues: [] },
-            experience: { isValid: true, issues: [] },
-            ticketing: { isValid: true, issues: [] },
-            tables: { isValid: true, issues: [] },
-            promoters: { isValid: true, issues: [] },
-            media: { isValid: true, issues: [] },
-            review: { isValid: true, issues: [] }
+        const validation: Record<WizardStep, { isValid: boolean; issues: string[]; fieldErrors: Record<string, string> }> = {
+            identity: { isValid: true, issues: [], fieldErrors: {} },
+            scheduling: { isValid: true, issues: [], fieldErrors: {} },
+            experience: { isValid: true, issues: [], fieldErrors: {} },
+            ticketing: { isValid: true, issues: [], fieldErrors: {} },
+            tables: { isValid: true, issues: [], fieldErrors: {} },
+            promoters: { isValid: true, issues: [], fieldErrors: {} },
+            media: { isValid: true, issues: [], fieldErrors: {} },
+            review: { isValid: true, issues: [], fieldErrors: {} }
         };
 
         // Identity validation
         if (!formData.title) {
             validation.identity.issues.push("Event title is required");
+            validation.identity.fieldErrors.title = "Required";
             validation.identity.isValid = false;
         }
         if (role === 'host' && !formData.venueId) {
             validation.identity.issues.push("Please select a venue partner");
+            validation.identity.fieldErrors.venueId = "Required";
             validation.identity.isValid = false;
         }
 
         // Scheduling validation
         if (!formData.startDate) {
             validation.scheduling.issues.push("Event date is required");
+            validation.scheduling.fieldErrors.startDate = "Required";
             validation.scheduling.isValid = false;
         }
 
         // Ticketing validation
         const totalTickets = formData.tickets?.reduce((sum: number, t: any) => sum + (Number(t.quantity) || 0), 0) || 0;
-        if (totalTickets > formData.capacity) {
+        if (totalTickets > (formData.capacity || 0)) {
             validation.ticketing.issues.push(`Ticket quantity (${totalTickets}) exceeds capacity (${formData.capacity})`);
+            validation.ticketing.fieldErrors.tickets = "Capacity Exceeded";
             validation.ticketing.isValid = false;
         }
 
@@ -459,11 +463,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     const validateCurrentStep = (): boolean => {
         const validation = stepValidation[currentStep];
         if (!validation.isValid) {
-            const errors: Record<string, string> = {};
-            validation.issues.forEach((issue, i) => {
-                errors[`step_${i}`] = issue;
-            });
-            setValidationErrors(errors);
+            setValidationErrors(validation.fieldErrors);
             return false;
         }
         setValidationErrors({});
@@ -671,11 +671,10 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     return (
         <>
             <div className="min-h-screen bg-surface-base">
-                <div className="max-w-6xl mx-auto px-6 py-5">
-                    <div className="flex items-center justify-between mb-5">
+                <div className="max-w-6xl mx-auto px-6 pt-1 pb-4">
+                    <div className="flex items-center justify-between mb-2">
                         <div>
-                            <h1 className="text-headline text-text-primary">Create Event</h1>
-                            <p className="text-body-sm text-text-tertiary">Build something extraordinary</p>
+                            <h1 className="text-title-lg text-text-primary uppercase tracking-tight font-black">Create Event</h1>
                         </div>
                         <SaveStatus status={saveState} />
                     </div>
@@ -691,79 +690,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                     />
 
                     {/* Main Layout */}
-                    {drafts.length > 0 && !searchParams.get('id') && currentStep === 'identity' && !formData.title ? (
-                        <div className="max-w-5xl mx-auto py-16 px-4">
-                            <div className="text-center mb-16 space-y-4">
-                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-[24px] bg-indigo-50 text-indigo-600 mb-4 shadow-sm">
-                                    <Sparkles className="w-8 h-8" />
-                                </div>
-                                <h2 className="text-[32px] font-black tracking-tight text-text-primary uppercase">Draft Sessions</h2>
-                                <p className="text-text-tertiary text-sm font-medium tracking-wide uppercase opacity-60">Resume your creative sequence</p>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {drafts.map(draft => (
-                                    <div
-                                        key={draft.id}
-                                        onClick={() => {
-                                            const params = new URLSearchParams(searchParams.toString());
-                                            params.set('id', draft.id);
-                                            router.push(`${window.location.pathname}?${params.toString()}`);
-                                        }}
-                                        className="group relative overflow-hidden rounded-[32px] bg-surface-elevated border border-border-subtle p-8 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-2xl hover:border-indigo-500/30 active:scale-[0.98]"
-                                    >
-                                        <div className="flex flex-col h-full gap-6">
-                                            <div className="flex items-start justify-between">
-                                                <div className="w-14 h-14 rounded-2xl bg-surface-secondary flex items-center justify-center overflow-hidden border border-border-subtle">
-                                                    {draft.poster || draft.image ? (
-                                                        <img src={draft.poster || draft.image} className="w-full h-full object-cover" />
-                                                    ) : <Music className="w-6 h-6 text-text-tertiary" />}
-                                                </div>
-                                                <span className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-500 text-[10px] font-bold uppercase tracking-wider border border-indigo-500/20">
-                                                    Draft
-                                                </span>
-                                            </div>
-
-                                            <div>
-                                                <h3 className="text-xl font-bold text-text-primary leading-tight group-hover:text-indigo-600 transition-colors mb-2">
-                                                    {draft.title || "Untitled Sequence"}
-                                                </h3>
-                                                <div className="flex items-center gap-2 text-text-tertiary opacity-60">
-                                                    <Loader2 className="w-3 h-3" />
-                                                    <p className="text-[11px] font-bold uppercase tracking-widest">
-                                                        Edited {draft.updatedAt ? new Date(draft.updatedAt).toLocaleDateString() : 'Just now'}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <div className="pt-4 mt-auto border-t border-border-subtle flex items-center justify-between text-indigo-500">
-                                                <span className="text-[xs] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Resume Project</span>
-                                                <ChevronRight className="w-5 h-5 translate-x-[-8px] group-hover:translate-x-0 transition-transform" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-
-                                <div
-                                    onClick={() => {
-                                        const params = new URLSearchParams(searchParams.toString());
-                                        params.set('id', 'new');
-                                        router.push(`${window.location.pathname}?${params.toString()}`);
-                                    }}
-                                    className="group flex flex-col items-center justify-center gap-4 rounded-[32px] border-2 border-dashed border-border-strong p-12 cursor-pointer transition-all hover:bg-surface-secondary hover:border-indigo-500/50 hover:scale-[1.02] active:scale-[0.98]"
-                                >
-                                    <div className="w-16 h-16 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-text-primary transition-all">
-                                        <Plus className="w-8 h-8" />
-                                    </div>
-                                    <div className="text-center">
-                                        <p className="font-bold text-text-primary group-hover:text-indigo-500 transition-colors uppercase tracking-widest text-xs">Initialize New</p>
-                                        <p className="text-[10px] text-text-tertiary font-medium uppercase mt-1">From scratch</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col lg:flex-row gap-8">
+                    <div className="flex flex-col lg:flex-row gap-4">
                             {/* Form Area */}
                             <div className="flex-1">
                                 <AnimatePresence mode="wait">
@@ -886,17 +813,17 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                         )}
 
                                         {/* Navigation Footer */}
-                                        <div className="flex items-center justify-between mt-8 pt-6 border-t border-border-subtle">
+                                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-border-subtle">
                                             <div className="flex items-center gap-4">
                                                 <button
                                                     onClick={prevStep}
-                                                    className="btn btn-secondary flex items-center gap-2"
+                                                    className="btn btn-secondary btn-sm flex items-center gap-2"
                                                 >
                                                     <ChevronLeft className="w-4 h-4" /> Back
                                                 </button>
                                                 <button
                                                     onClick={() => handleSubmit(true)}
-                                                    className="text-[15px] text-text-tertiary hover:text-text-primary transition-colors font-medium"
+                                                    className="text-[13px] text-text-tertiary hover:text-text-primary transition-colors font-bold uppercase tracking-widest"
                                                 >
                                                     Save Draft
                                                 </button>
@@ -906,14 +833,14 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                                 <button
                                                     disabled={isSubmitting}
                                                     onClick={() => setShowPublishModal(true)}
-                                                    className="btn btn-primary flex items-center gap-2 disabled:opacity-50"
+                                                    className="btn btn-primary btn-sm flex items-center gap-2 disabled:opacity-50"
                                                 >
                                                     Continue <ChevronRight className="w-4 h-4" />
                                                 </button>
                                             ) : (
                                                 <button
                                                     onClick={nextStep}
-                                                    className="btn btn-primary flex items-center gap-2"
+                                                    className="btn btn-primary btn-sm flex items-center gap-2"
                                                 >
                                                     Continue <ChevronRight className="w-4 h-4" />
                                                 </button>
@@ -924,15 +851,15 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                             </div>
 
                             {/* Preview Sidebar */}
-                            <div className="w-full lg:w-[360px] lg:sticky lg:top-8 self-start space-y-6">
+                            <div className="w-full lg:w-[350px] lg:sticky lg:top-4 self-start space-y-3">
                                 <div className="flex items-center justify-between px-1">
-                                    <span className="text-label">Live Preview</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Live Preview</span>
                                     <SaveStatus status={saveState} />
                                 </div>
 
                                 <div className="flex justify-center">
                                     <div
-                                        className="w-[320px] h-[420px] rounded-[32px] overflow-hidden shadow-2xl cursor-pointer hover:scale-[1.02] transition-transform"
+                                        className="w-[300px] h-[380px] rounded-[32px] overflow-hidden shadow-2xl cursor-pointer hover:scale-[1.02] transition-transform"
                                         onClick={() => setIsFullPagePreviewOpen(true)}
                                     >
                                         <EventCard
@@ -945,14 +872,14 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                 </div>
 
                                 {/* Quick Stats */}
-                                <div className="px-2 space-y-3">
-                                    <div className="flex items-center justify-between py-2 border-b border-border-subtle">
-                                        <span className="text-caption text-text-tertiary">Inventory Value</span>
-                                        <span className="text-body font-bold text-text-primary">{formatCurrency(grandTotal.value)}</span>
+                                <div className="px-2 space-y-1">
+                                    <div className="flex items-center justify-between py-1.5 border-b border-border-subtle">
+                                        <span className="text-[11px] font-medium text-text-tertiary">Inventory Value</span>
+                                        <span className="text-[13px] font-black text-text-primary">{formatCurrency(grandTotal.value)}</span>
                                     </div>
-                                    <div className="flex items-center justify-between py-2 border-b border-border-subtle">
-                                        <span className="text-caption text-text-tertiary">Total Capacity</span>
-                                        <span className="text-body font-bold text-text-primary">{grandTotal.quantity}</span>
+                                    <div className="flex items-center justify-between py-1.5 border-b border-border-subtle">
+                                        <span className="text-[11px] font-medium text-text-tertiary">Total Capacity</span>
+                                        <span className="text-[13px] font-black text-text-primary">{grandTotal.quantity}</span>
                                     </div>
                                     <div className="flex items-center justify-between py-2">
                                         <span className="text-caption">Ticket Tiers</span>
@@ -961,7 +888,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                 </div>
                             </div>
                         </div>
-                    )}
+
                 </div>
             </div>
 

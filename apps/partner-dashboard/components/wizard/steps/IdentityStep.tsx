@@ -1,6 +1,7 @@
 "use client";
 
 import { Users, Building2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface IdentityStepProps {
     formData: any;
@@ -35,12 +36,23 @@ export function IdentityStep({
                         placeholder="Give your event a memorable name"
                         value={formData.title}
                         onChange={(e) => updateFormData({ title: e.target.value })}
-                        className="w-full px-0 py-1.5 text-[22px] font-black bg-transparent border-b-2 border-border-default focus:outline-none focus:border-indigo-500 placeholder:text-text-tertiary/30 transition-colors leading-tight"
+                        className={`w-full px-0 py-1.5 text-[22px] font-black bg-transparent border-b-2 transition-colors focus:outline-none leading-tight placeholder:text-text-tertiary/30 ${validationErrors.title
+                            ? 'border-red-500 text-red-500 focus:border-red-600'
+                            : 'border-border-default focus:border-indigo-500 text-text-primary'
+                            }`}
                         autoCapitalize="words"
                     />
-                    {validationErrors.title && (
-                        <p className="text-[11px] text-red-500 mt-1">{validationErrors.title}</p>
-                    )}
+                    <AnimatePresence>
+                        {validationErrors.title && (
+                            <motion.p
+                                initial={{ opacity: 0, x: -4 }}
+                                animate={{ opacity: 1, x: [0, -4, 4, -4, 4, 0] }}
+                                className="text-[10px] font-black tracking-widest text-red-500 mt-1.5 uppercase"
+                            >
+                                Missing Title
+                            </motion.p>
+                        )}
+                    </AnimatePresence>
                 </div>
 
                 {/* Subtitle */}
@@ -167,10 +179,10 @@ export function IdentityStep({
                         <p className="text-[10px] text-text-tertiary mt-2">Your facility is auto-linked.</p>
                     </div>
                 ) : (
-                    <div className="p-3 rounded-xl bg-surface-secondary border border-border-subtle">
+                    <div className={`p-3 rounded-xl bg-surface-secondary border transition-all ${validationErrors.venueId ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-border-subtle'}`}>
                         <div className="flex items-center gap-2 mb-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-blue-500">Venue Partner</span>
+                            <div className={`w-1.5 h-1.5 rounded-full ${validationErrors.venueId ? 'bg-red-500 grow-pulse' : 'bg-blue-500'}`} />
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${validationErrors.venueId ? 'text-red-500' : 'text-blue-500'}`}>Venue Partner</span>
                         </div>
                         {partnerships.length === 0 ? (
                             <div className="p-3 rounded-lg bg-amber-50 border border-amber-100 text-center">
@@ -189,14 +201,14 @@ export function IdentityStep({
                                             venue: venue.venueName
                                         })}
                                         className={`w-full p-2.5 rounded-lg border-2 text-left transition-all ${formData.venueId === venue.venueId
-                                            ? 'border-indigo-500 bg-indigo-500/5'
+                                            ? 'border-indigo-500 bg-indigo-500/5 shadow-sm shadow-indigo-500/10'
                                             : 'border-border-subtle hover:border-indigo-500/30 hover:bg-surface-base'
-                                        }`}
+                                        } ${validationErrors.venueId && !formData.venueId ? 'border-red-500/30' : ''}`}
                                     >
                                         <div className="flex items-center gap-2">
-                                            <Building2 className="w-3.5 h-3.5 text-text-tertiary flex-shrink-0" />
+                                            <Building2 className={`w-3.5 h-3.5 flex-shrink-0 ${formData.venueId === venue.venueId ? 'text-indigo-500' : 'text-text-tertiary'}`} />
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-[12px] font-semibold text-text-primary truncate">{venue.venueName}</p>
+                                                <p className="text-[12px] font-bold text-text-primary truncate">{venue.venueName}</p>
                                                 <p className="text-[10px] text-text-tertiary">{venue.city || 'TBD'}</p>
                                             </div>
                                             {formData.venueId === venue.venueId && (
@@ -211,9 +223,17 @@ export function IdentityStep({
                                 ))}
                             </div>
                         )}
-                        {validationErrors.venueId && (
-                            <p className="text-[11px] text-red-500 mt-1.5">{validationErrors.venueId}</p>
-                        )}
+                        <AnimatePresence>
+                            {validationErrors.venueId && (
+                                <motion.p
+                                    initial={{ opacity: 0, x: -4 }}
+                                    animate={{ opacity: 1, x: [0, -4, 4, -4, 4, 0] }}
+                                    className="text-[10px] font-black uppercase tracking-widest text-red-500 mt-2"
+                                >
+                                    Selection Required
+                                </motion.p>
+                            )}
+                        </AnimatePresence>
                     </div>
                 )}
             </div>

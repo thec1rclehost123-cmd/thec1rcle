@@ -18,16 +18,20 @@ async function gatewayRequest(url: string, init: RequestInit) {
  */
 export async function GET(req: NextRequest) {
     if (!GATEWAY_URL) {
-        return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+        return NextResponse.json({ notifications: [] });
     }
     const auth = await verifyAuth(req);
     if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
-    return gatewayRequest(
-        `${GATEWAY_URL}/api/v1/notifications?${searchParams.toString()}`,
-        { headers: { Authorization: req.headers.get("Authorization") || "" } }
-    );
+    try {
+        return await gatewayRequest(
+            `${GATEWAY_URL}/api/v1/notifications?${searchParams.toString()}`,
+            { headers: { Authorization: req.headers.get("Authorization") || "" } }
+        );
+    } catch {
+        return NextResponse.json({ notifications: [] });
+    }
 }
 
 /**
@@ -42,11 +46,15 @@ export async function PATCH(req: NextRequest) {
     if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    return gatewayRequest(`${GATEWAY_URL}/api/v1/notifications/read`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: req.headers.get("Authorization") || "" },
-        body: JSON.stringify(body)
-    });
+    try {
+        return await gatewayRequest(`${GATEWAY_URL}/api/v1/notifications/read`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", Authorization: req.headers.get("Authorization") || "" },
+            body: JSON.stringify(body)
+        });
+    } catch {
+        return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+    }
 }
 
 /**
@@ -61,9 +69,13 @@ export async function POST(req: NextRequest) {
     if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    return gatewayRequest(`${GATEWAY_URL}/api/v1/notifications/action`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: req.headers.get("Authorization") || "" },
-        body: JSON.stringify(body)
-    });
+    try {
+        return await gatewayRequest(`${GATEWAY_URL}/api/v1/notifications/action`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: req.headers.get("Authorization") || "" },
+            body: JSON.stringify(body)
+        });
+    } catch {
+        return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+    }
 }

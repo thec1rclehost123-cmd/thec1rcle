@@ -13,9 +13,9 @@ import {
     Calendar,
     FileText,
     Banknote,
-    ReceiptText,
+    ClipboardList,
     CreditCard,
-    TrendingUp,
+    Zap,
 } from "lucide-react";
 
 const menuSections = [
@@ -28,12 +28,7 @@ const menuSections = [
                 href: "/venue/analytics",
                 children: [
                     { label: "Overview", href: "/venue/analytics/overview" },
-                    { label: "Audience & Demographics", href: "/venue/analytics/audience" },
-                    { label: "Discovery & Funnel", href: "/venue/analytics/reach" },
-                    { label: "Entry & Operations", href: "/venue/analytics/ops" },
-                    { label: "Host & Promoter ROI", href: "/venue/analytics/attribution" },
-                    { label: "Revenue & Payouts", href: "/venue/analytics/revenue" },
-                    { label: "Strategy & Insights", href: "/venue/analytics/strategy" },
+                    { label: "Advanced Analytics", href: "/venue/analytics/advanced" },
                 ]
             },
         ]
@@ -46,10 +41,13 @@ const menuSections = [
                 label: "Finance",
                 href: "/venue/finance",
                 children: [
-                    { label: "Overview",        href: "/venue/finance" },
-                    { label: "Ledger",          href: "/venue/finance/ledger" },
-                    { label: "Payout Settings", href: "/venue/finance/payouts" },
-                    { label: "Reports",         href: "/venue/finance/reports" },
+                    { label: "Overview",         href: "/venue/finance" },
+                    { label: "Payments",         href: "/venue/finance/payments" },
+                    { label: "Venue Payouts",    href: "/venue/finance/venue-payouts" },
+                    { label: "Host Payouts",     href: "/venue/finance/host-payouts" },
+                    { label: "Promoter Payouts", href: "/venue/finance/promoter-payouts" },
+                    { label: "Ledger",           href: "/venue/finance/ledger" },
+                    { label: "Reports",          href: "/venue/finance/reports" },
                 ],
             },
             { icon: PlusCircle, label: "Create Event", href: "/venue/create" },
@@ -58,8 +56,18 @@ const menuSections = [
     },
     {
         items: [
+            { icon: ClipboardList, label: "Walk-ins", href: "/venue/walk-ins" },
             { icon: Users, label: "Partnerships", href: "/venue/partnerships" },
-            { icon: Shield, label: "Staff", href: "/venue/staff" },
+            {
+                icon: Shield,
+                label: "Staff",
+                href: "/venue/staff",
+                children: [
+                    { label: "Team",            href: "/venue/staff" },
+                    { label: "Access Profiles", href: "/venue/staff/profiles" },
+                    { label: "Invite",          href: "/venue/staff/invite" },
+                ],
+            },
             { icon: FileText, label: "Registers", href: "/venue/registers" },
         ]
     },

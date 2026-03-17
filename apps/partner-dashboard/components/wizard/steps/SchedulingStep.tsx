@@ -73,23 +73,33 @@ export function SchedulingStep({ formData, updateFormData, validationErrors, rol
                 {/* ─── Left: Date ─── */}
                 <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500">Event Date</span>
-                        <span className="ml-auto text-[9px] text-red-500 font-black uppercase tracking-widest">Required</span>
+                        <div className={`w-1.5 h-1.5 rounded-full ${validationErrors.startDate ? 'bg-red-500' : 'bg-indigo-500'}`} />
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${validationErrors.startDate ? 'text-red-500' : 'text-indigo-500'}`}>Event Date</span>
                     </div>
 
                     <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none" />
+                        <Calendar className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${validationErrors.startDate ? 'text-red-500' : 'text-text-tertiary'}`} />
                         <input
                             type="date"
                             value={formData.startDate || ""}
                             onChange={(e) => updateFormData({ startDate: e.target.value })}
-                            className={`w-full pl-10 pr-3 py-3 rounded-xl bg-surface-secondary border text-[14px] text-text-primary focus:outline-none transition-all ${validationErrors.startDate ? 'border-red-400 focus:border-red-400' : 'border-border-subtle focus:border-indigo-400'}`}
+                            className={`w-full pl-10 pr-3 py-3 rounded-xl bg-surface-secondary border text-[14px] text-text-primary focus:outline-none transition-all ${validationErrors.startDate
+                                ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.1)] focus:border-red-600'
+                                : 'border-border-subtle focus:border-indigo-400'
+                                }`}
                         />
                     </div>
-                    {validationErrors.startDate && (
-                        <p className="text-[11px] text-red-500">{validationErrors.startDate}</p>
-                    )}
+                    <AnimatePresence>
+                        {validationErrors.startDate && (
+                            <motion.p
+                                initial={{ opacity: 0, x: -4 }}
+                                animate={{ opacity: 1, x: [0, -4, 4, -4, 4, 0] }}
+                                className="text-[10px] font-black uppercase tracking-widest text-red-500 mt-1"
+                            >
+                                Selection Required
+                            </motion.p>
+                        )}
+                    </AnimatePresence>
 
                     {/* Conflict warning */}
                     <AnimatePresence>

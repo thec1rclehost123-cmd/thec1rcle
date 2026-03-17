@@ -4,7 +4,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { TicketValidityChip } from "@/components/guest-ops/chips/TicketValidityChip";
+import { OfflineSyncBanner } from "@/components/guest-ops/OfflineSyncBanner";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { GuestSyncEngine, type SyncState } from "@/lib/client/offlineGuestSync";
 import clsx from "clsx";
 import {
     Radio, Wifi, WifiOff, BatteryMedium, Clock, CheckCircle2, XCircle,
@@ -42,6 +44,28 @@ export default function ScannerOversightPageClient() {
     const [isLive, setIsLive] = useState(true);
 
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // ── Offline guestlist sync ─────────────────────────────────────────────────
+    const [syncState, setSyncState] = useState<SyncState>({
+        status: "idle",
+        lastSynced: null,
+        totalGuests: 0,
+        queuedCount: 0,
+        error: null,
+    });
+    const syncEngineRef = useRef<GuestSyncEngine | null>(null);
+
+    useEffect(() => {
+        if (!eventId || !venueId) return;
+        const engine = GuestSyncEngine.forEvent(eventId, venueId);
+        syncEngineRef.current = engine;
+        const unsub = engine.on("state", setSyncState);
+        engine.start();
+        return () => {
+            unsub();
+            engine.stop();
+        };
+    }, [eventId, venueId]);
 
     const authHeaders = useCallback(() => ({
         "Content-Type": "application/json",
@@ -115,6 +139,12 @@ export default function ScannerOversightPageClient() {
                 <NoEventState />
             ) : (
                 <div className="space-y-5">
+                    {/* Offline sync banner */}
+                    <OfflineSyncBanner
+                        syncState={syncState}
+                        onForceSync={() => syncEngineRef.current?.forceSync()}
+                    />
+
                     {/* Header row */}
                     <div className="flex items-center gap-3 flex-wrap">
                         <div className="flex items-center gap-2">

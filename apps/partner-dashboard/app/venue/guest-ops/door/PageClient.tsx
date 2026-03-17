@@ -6,6 +6,8 @@ import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { GuestDetailDrawer } from "@/components/guest-ops/GuestDetailDrawer";
 import { GuestSourceChip } from "@/components/guest-ops/chips/GuestSourceChip";
 import { GuestStatusChip } from "@/components/guest-ops/chips/GuestStatusChip";
+import { OfflineSyncBanner } from "@/components/guest-ops/OfflineSyncBanner";
+import { GuestSyncEngine, type SyncState } from "@/lib/client/offlineGuestSync";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VENUE_PERMISSIONS } from "@/lib/rbac/types";
 import clsx from "clsx";
@@ -52,6 +54,12 @@ export default function DoorSearchPageClient() {
         guestId: string; success: boolean; message: string;
     } | null>(null);
 
+    // Offline sync state
+    const [syncState, setSyncState] = useState<SyncState>({
+        status: "idle", lastSynced: null, totalGuests: 0, queuedCount: 0, error: null,
+    });
+    const syncEngineRef = useRef<GuestSyncEngine | null>(null);
+
     const inputRef = useRef<HTMLInputElement>(null);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -76,6 +84,16 @@ export default function DoorSearchPageClient() {
             if (excRes.ok) { const d = await excRes.json(); setOpenExceptions(d.openCount ?? 0); }
         }).finally(() => setShellLoading(false));
     }, [eventId, venueId, authHeaders]);
+
+    // Offline sync engine
+    useEffect(() => {
+        if (!eventId || !venueId) return;
+        const engine = GuestSyncEngine.forEvent(eventId, venueId);
+        syncEngineRef.current = engine;
+        const unsub = engine.on("state", setSyncState);
+        engine.start();
+        return () => { unsub(); engine.stop(); };
+    }, [eventId, venueId]);
 
     // Autofocus search input when eventId is ready
     useEffect(() => {
@@ -160,6 +178,10 @@ export default function DoorSearchPageClient() {
             isLoading={shellLoading}
         >
             <div className="max-w-2xl mx-auto space-y-4">
+                <OfflineSyncBanner
+                    syncState={syncState}
+                    onForceSync={() => syncEngineRef.current?.forceSync()}
+                />
                 {!eventId ? (
                     <NoEventState />
                 ) : (

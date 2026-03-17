@@ -17,7 +17,7 @@ export default function DashboardSidebarModule() {
                 headers: { Authorization: `Bearer ${token}` }
             })
         )
-            .then(res => res.json())
+            .then(res => res.ok ? res.json() : Promise.resolve({ notifications: [] }))
             .then(data => setAlerts(data.notifications || []))
             .catch(console.error);
     }, [venueId, user]);
@@ -52,10 +52,21 @@ export default function DashboardSidebarModule() {
                 <QuickLink icon={Sparkles} label="Marketing" href="/venue/page-management" />
             </div>
 
-            <div className="relative overflow-hidden p-6 rounded-3xl bg-text-primary text-text-inverse">
-                <h4 className="text-title text-text-inverse mb-2">C1RCLE PRO</h4>
-                <p className="text-body-sm opacity-70 mb-5">Upgrade for deeper insights.</p>
-                <button className="btn btn-primary btn-sm">Upgrade Now</button>
+            <div className="relative overflow-hidden p-6 rounded-[2rem] bg-text-primary text-text-inverse border border-border-default shadow-sm group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-orange-500/20 transition-all duration-500" />
+                
+                <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Sparkles className="w-4 h-4 text-orange-500" />
+                        <h4 className="text-[11px] font-black tracking-[0.2em] text-text-inverse uppercase">C1RCLE PRO</h4>
+                    </div>
+                    <p className="text-[14px] text-text-inverse/90 leading-relaxed font-medium mb-5 lowercase first-letter:uppercase">
+                        Upgrade for deeper insights.
+                    </p>
+                    <button className="w-full py-3.5 px-4 rounded-xl bg-[#F44A22] text-white text-[11px] font-black uppercase tracking-[0.2em] hover:bg-[#CC3311] transition-all shadow-lg shadow-orange-500/20 active:scale-[0.98]">
+                        Upgrade Now
+                    </button>
+                </div>
             </div>
         </div>
     );

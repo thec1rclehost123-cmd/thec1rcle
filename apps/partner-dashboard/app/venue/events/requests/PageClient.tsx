@@ -297,7 +297,7 @@ export default function VenueEventRequestsPage() {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-start justify-between mb-2">
                                         <div>
-                                            <h3 className="text-headline-sm">{request.title}</h3>
+                                            <h3 className="text-headline-sm uppercase">{request.title}</h3>
                                             <p className="text-caption flex items-center gap-2">
                                                 <User className="w-3.5 h-3.5" />
                                                 by {request.hostName}

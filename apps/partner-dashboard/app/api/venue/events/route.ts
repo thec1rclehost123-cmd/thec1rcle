@@ -27,6 +27,11 @@ export async function GET(req: NextRequest) {
         const result = await listEvents(params, token);
         let events: any[] = result.events || result || [];
 
+        // Exclude draft events unless explicitly requested
+        if (!status || status === "all") {
+            events = events.filter((e: any) => e.lifecycle !== "draft" && e.status !== "draft");
+        }
+
         // Server-side date filtering
         if (date) {
             const targetDate = date === "today" ? new Date().toISOString().split('T')[0] : date;
