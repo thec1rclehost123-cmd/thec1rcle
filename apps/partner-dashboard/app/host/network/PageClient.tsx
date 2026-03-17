@@ -1,0 +1,503 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import {
+    Building2,
+    Users,
+    Search,
+    MapPin,
+    ArrowRight,
+    ChevronRight,
+    Plus,
+    CheckCircle2,
+    Clock,
+    XCircle,
+    Handshake,
+    BarChart3,
+    CalendarDays,
+    Send,
+    Compass,
+    TrendingUp,
+} from "lucide-react";
+import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type NetworkTab = "venues" | "promoters" | "requests";
+
+interface VenuePartner {
+    id: string;
+    name: string;
+    city: string;
+    capacity?: number;
+    style?: string;
+    coverImage?: string;
+    partnershipStatus: "active" | "pending" | "rejected" | "none";
+    eventsHosted?: number;
+}
+
+interface PromoterPartner {
+    id: string;
+    displayName: string;
+    handle?: string;
+    photoURL?: string;
+    cities?: string[];
+    partnershipStatus: "active" | "pending" | "none";
+    totalGuestsBrought?: number;
+    conversionRate?: number;
+    eventsSupported?: number;
+}
+
+interface PartnershipRequest {
+    id: string;
+    type: "venue" | "promoter";
+    direction: "incoming" | "outgoing";
+    partnerName: string;
+    partnerCity?: string;
+    status: "pending" | "approved" | "rejected";
+    createdAt: string;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const statusConfig: Record<string, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
+    active: { label: "Active", color: "var(--v-success)", icon: CheckCircle2 },
+    pending: { label: "Pending", color: "var(--v-warning)", icon: Clock },
+    rejected: { label: "Rejected", color: "var(--v-error)", icon: XCircle },
+    none: { label: "Connect", color: "var(--v-orange)", icon: Plus },
+};
+
+// ─── Venue card ───────────────────────────────────────────────────────────────
+
+function VenueCard({ venue, onRequest }: { venue: VenuePartner; onRequest: (id: string) => void }) {
+    const cfg = statusConfig[venue.partnershipStatus] || statusConfig.none;
+    const StatusIcon = cfg.icon;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="group relative rounded-[32px] bg-[var(--v-card)] border border-[var(--v-border)] hover:bg-[var(--v-elevated)] transition-all overflow-hidden"
+        >
+            {/* Cover */}
+            <div className="h-40 bg-white/5 relative overflow-hidden">
+                {venue.coverImage ? (
+                    <img src={venue.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <Building2 className="w-12 h-12 text-white/5" />
+                    </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                {/* Status badge */}
+                <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-black uppercase tracking-widest border border-white/10 backdrop-blur-md"
+                    style={{ color: cfg.color, background: "rgba(0,0,0,0.4)" }}>
+                    <StatusIcon className="w-3.5 h-3.5" />
+                    {cfg.label}
+                </div>
+            </div>
+
+            <div className="p-7">
+                <h3 className="text-[18px] font-black text-white tracking-tight truncate">{venue.name}</h3>
+                <div className="flex items-center gap-2 text-[14px] text-[var(--v-text-tertiary)] font-bold mt-2 mb-6">
+                    <MapPin className="w-4 h-4 shrink-0" />
+                    <span>{venue.city}</span>
+                    {venue.style && <><span className="opacity-30">·</span><span>{venue.style}</span></>}
+                </div>
+
+                <div className="flex flex-col gap-4">
+                    {venue.eventsHosted !== undefined && venue.eventsHosted > 0 && (
+                        <div className="flex items-center gap-2.5 text-[12px] text-[var(--v-text-muted)] font-black uppercase tracking-widest">
+                            <CalendarDays className="w-4 h-4" />
+                            {venue.eventsHosted} Production Windows
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-3">
+                        {venue.partnershipStatus === "active" ? (
+                            <Link href="/host/calendar" className="flex-1">
+                                <VenueActionButton variant="secondary" className="w-full h-11 text-[12px]">
+                                    Browse Slots
+                                </VenueActionButton>
+                            </Link>
+                        ) : venue.partnershipStatus === "pending" ? (
+                            <div className="flex-1 flex items-center justify-center gap-2.5 h-11 rounded-2xl text-[12px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500/40 border border-amber-500/10 cursor-not-allowed">
+                                <Clock className="w-4 h-4" /> Status Pending
+                            </div>
+                        ) : venue.partnershipStatus === "none" ? (
+                            <button
+                                onClick={() => onRequest(venue.id)}
+                                className="flex-1 flex items-center justify-center gap-2.5 h-11 rounded-2xl text-[12px] font-black uppercase tracking-widest bg-[var(--v-orange)]/10 hover:bg-[var(--v-orange)] text-[var(--v-orange)] hover:text-white border border-[var(--v-orange)]/20 transition-all active:scale-95">
+                                <Send className="w-4 h-4" /> Request Access
+                            </button>
+                        ) : null}
+                    </div>
+                </div>
+            </div>
+        </motion.div>
+    );
+}
+
+// ─── Promoter card ─────────────────────────────────────────────────────────────
+
+function PromoterCard({ promoter, onInvite }: { promoter: PromoterPartner; onInvite: (id: string) => void }) {
+    const cfg = statusConfig[promoter.partnershipStatus] || statusConfig.none;
+    const initials = promoter.displayName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="group rounded-[32px] bg-[var(--v-card)] border border-[var(--v-border)] hover:bg-[var(--v-elevated)] transition-all p-8"
+        >
+            <div className="flex items-center gap-5 mb-8">
+                <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-white font-black text-[20px] shrink-0 overflow-hidden border border-white/5 relative">
+                    {promoter.photoURL ? <img src={promoter.photoURL} alt="" className="w-full h-full object-cover" /> : initials}
+                    <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-transparent" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <h3 className="text-[17px] font-black text-white truncate tracking-tight">{promoter.displayName}</h3>
+                    {promoter.handle && <p className="text-[13px] text-[var(--v-text-tertiary)] font-bold">@{promoter.handle}</p>}
+                </div>
+                <div className="px-3 py-1.5 rounded-xl text-[12px] font-black uppercase tracking-widest border shrink-0"
+                    style={{ color: cfg.color, borderColor: `${cfg.color}20`, background: `${cfg.color}05` }}>
+                    {cfg.label}
+                </div>
+            </div>
+
+            {/* Stats */}
+            {promoter.partnershipStatus === "active" && (
+                <div className="grid grid-cols-3 gap-3 mb-8">
+                    <div className="text-center p-4 rounded-2xl bg-white/5 border border-white/5">
+                        <p className="text-[18px] font-black text-white tabular-nums">{promoter.totalGuestsBrought ?? 0}</p>
+                        <p className="text-[12px] text-[var(--v-text-muted)] uppercase tracking-widest font-black mt-1">Guests</p>
+                    </div>
+                    <div className="text-center p-4 rounded-2xl bg-white/5 border border-white/5">
+                        <p className="text-[18px] font-black text-white tabular-nums">{promoter.conversionRate ? `${promoter.conversionRate.toFixed(0)}%` : "—"}</p>
+                        <p className="text-[12px] text-[var(--v-text-muted)] uppercase tracking-widest font-black mt-1">ROI</p>
+                    </div>
+                    <div className="text-center p-4 rounded-2xl bg-white/5 border border-white/5">
+                        <p className="text-[18px] font-black text-white tabular-nums">{promoter.eventsSupported ?? 0}</p>
+                        <p className="text-[12px] text-[var(--v-text-muted)] uppercase tracking-widest font-black mt-1">Windows</p>
+                    </div>
+                </div>
+            )}
+
+            <div className="flex gap-3">
+                {promoter.partnershipStatus === "active" ? (
+                    <Link href="/host/events" className="flex-1">
+                        <VenueActionButton variant="secondary" className="w-full h-11 text-[12px]">
+                            Assign To Production
+                        </VenueActionButton>
+                    </Link>
+                ) : promoter.partnershipStatus === "none" ? (
+                    <button
+                        onClick={() => onInvite(promoter.id)}
+                                className="flex-1 flex items-center justify-center gap-2.5 h-11 rounded-2xl text-[12px] font-black uppercase tracking-widest bg-[var(--v-orange)]/10 hover:bg-[var(--v-orange)] text-[var(--v-orange)] hover:text-white border border-[var(--v-orange)]/20 transition-all active:scale-95">
+                        <Send className="w-4 h-4" /> Issue Invite
+                    </button>
+                ) : (
+                    <div className="flex-1 flex items-center justify-center gap-2.5 h-11 rounded-2xl text-[12px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500/40 border border-amber-500/10 cursor-not-allowed">
+                        <Clock className="w-4 h-4" /> Invite Sent
+                    </div>
+                )}
+            </div>
+        </motion.div>
+    );
+}
+
+// ─── Request row ──────────────────────────────────────────────────────────────
+
+function RequestRow({ req }: { req: PartnershipRequest }) {
+    const statusStyle: Record<string, { color: string; label: string }> = {
+        pending: { color: "var(--v-warning)", label: "Pending" },
+        approved: { color: "var(--v-success)", label: "Approved" },
+        rejected: { color: "var(--v-error)", label: "Rejected" },
+    };
+    const s = statusStyle[req.status] || statusStyle.pending;
+    const date = new Date(req.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
+    return (
+        <div className="flex items-center gap-6 px-7 py-5 rounded-[24px] bg-[var(--v-card)] border border-[var(--v-border)] hover:bg-[var(--v-elevated)] transition-all">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border border-white/5" style={{ background: `${s.color}08` }}>
+                {req.type === "venue" ? <Building2 className="w-6 h-6" style={{ color: s.color }} /> : <Users className="w-6 h-6" style={{ color: s.color }} />}
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-[16px] font-black text-white truncate tracking-tight">{req.partnerName}</p>
+                <div className="flex items-center gap-3 text-[13px] text-[var(--v-text-tertiary)] font-bold mt-1">
+                    <span className="capitalize">{req.type}</span>
+                    <span className="opacity-20">·</span>
+                    <span>{req.direction === "outgoing" ? "Outgoing Audit" : "Incoming Proposal"}</span>
+                    <span className="opacity-20">·</span>
+                    <span>{date}</span>
+                </div>
+            </div>
+            <span className="shrink-0 px-4 py-1.5 rounded-xl text-[12px] font-black uppercase tracking-widest border"
+                style={{ color: s.color, borderColor: `${s.color}20`, background: `${s.color}05` }}>
+                {s.label}
+            </span>
+        </div>
+    );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+export default function HostNetworkPage() {
+    const { profile, getIdToken } = useDashboardAuth() as any;
+    const hostId = profile?.activeMembership?.partnerId;
+
+    const [tab, setTab] = useState<NetworkTab>("venues");
+    const [search, setSearch] = useState("");
+    const [venues, setVenues] = useState<VenuePartner[]>([]);
+    const [promoters, setPromoters] = useState<PromoterPartner[]>([]);
+    const [requests, setRequests] = useState<PartnershipRequest[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchData = useCallback(async () => {
+        if (!hostId) { setLoading(false); return; }
+        setLoading(true);
+        try {
+            const token = typeof getIdToken === "function" ? await getIdToken() : "";
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+            const [partnershipRes, promoterRes] = await Promise.allSettled([
+                fetch(`/api/venue/partnerships?hostId=${hostId}`, { headers }),
+                fetch(`/api/host/promoter-requests?hostId=${hostId}`, { headers }),
+            ]);
+
+            if (partnershipRes.status === "fulfilled" && partnershipRes.value.ok) {
+                const d = await partnershipRes.value.json();
+                const allPartners = d.partnerships || d.partners || [];
+                const venuePartners = allPartners.filter((p: any) => p.type === "venue" || !p.type);
+                const reqList = allPartners.map((p: any) => ({
+                    id: p.id,
+                    type: "venue" as const,
+                    direction: "outgoing" as const,
+                    partnerName: p.name || p.venueName || "Venue",
+                    partnerCity: p.city,
+                    status: (p.status || p.partnershipStatus || "pending") as any,
+                    createdAt: p.requestedAt || p.createdAt || new Date().toISOString(),
+                }));
+                setVenues(venuePartners.map((p: any) => ({
+                    id: p.venueId || p.id,
+                    name: p.name || p.venueName || "Venue",
+                    city: p.city || "",
+                    capacity: p.capacity,
+                    style: p.style,
+                    coverImage: p.coverImage || p.coverURL,
+                    partnershipStatus: p.status || p.partnershipStatus || "none",
+                    eventsHosted: p.eventsHosted,
+                })));
+                setRequests(reqList);
+            }
+            if (promoterRes.status === "fulfilled" && promoterRes.value.ok) {
+                const d = await promoterRes.value.json();
+                setPromoters(d.promoters || d.connections || []);
+            }
+        } catch { /* */ }
+        finally { setLoading(false); }
+    }, [hostId, getIdToken]);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    const handleVenueRequest = async (venueId: string) => {
+        try {
+            const token = typeof getIdToken === "function" ? await getIdToken() : "";
+            await fetch("/api/host/partnerships/request", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ hostId, targetId: venueId, type: "venue" }),
+            });
+            fetchData();
+        } catch { /* */ }
+    };
+
+    const handlePromoterInvite = async (promoterId: string) => {
+        try {
+            const token = typeof getIdToken === "function" ? await getIdToken() : "";
+            await fetch("/api/host/promoters/invite", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ hostId, promoterId }),
+            });
+            fetchData();
+        } catch { /* */ }
+    };
+
+    const filteredVenues = venues.filter(v =>
+        !search || v.name.toLowerCase().includes(search.toLowerCase()) || v.city.toLowerCase().includes(search.toLowerCase())
+    );
+    const filteredPromoters = promoters.filter(p =>
+        !search || p.displayName.toLowerCase().includes(search.toLowerCase())
+    );
+    const pendingRequestCount = requests.filter(r => r.status === "pending").length;
+
+    const tabs: { id: NetworkTab; label: string; count?: number }[] = [
+        { id: "venues", label: "Infrastructure", count: venues.filter(v => v.partnershipStatus === "active").length },
+        { id: "promoters", label: "Distribution", count: promoters.filter(p => p.partnershipStatus === "active").length },
+        { id: "requests", label: "Audit Log", count: pendingRequestCount || undefined },
+    ];
+
+    return (
+        <VenuePageShell
+            title="Partnership Hub"
+            subtitle="Coordinate with venues and distribution networks"
+            actions={
+                <Link href="/host/discover">
+                    <VenueActionButton variant="primary">
+                        <Compass className="w-5 h-5 mr-2" />
+                        Explore Network
+                    </VenueActionButton>
+                </Link>
+            }
+        >
+            <div className="space-y-10">
+                {/* Stats strip */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[
+                        { icon: Building2, label: "Infrastructure", value: venues.filter(v => v.partnershipStatus === "active").length, color: "var(--v-info)" },
+                        { icon: Users, label: "Distribution", value: promoters.filter(p => p.partnershipStatus === "active").length, color: "var(--v-orange)" },
+                        { icon: TrendingUp, label: "Network Effect", value: promoters.reduce((acc, p) => acc + (p.totalGuestsBrought ?? 0), 0), color: "var(--v-success)" },
+                    ].map(stat => {
+                        const Icon = stat.icon;
+                        return (
+                            <div key={stat.label} className="flex items-center gap-5 p-8 rounded-[32px] bg-[var(--v-card)] border border-[var(--v-border)]">
+                                <div className="w-14 h-14 rounded-2xl flex items-center justify-center border border-white/5 shadow-xl" style={{ background: `${stat.color}10` }}>
+                                    <Icon className="w-7 h-7" style={{ color: stat.color }} />
+                                </div>
+                                <div>
+                                    <p className="text-3xl font-black text-white tabular-nums tracking-tight">{stat.value.toLocaleString()}</p>
+                                    <p className="text-[13px] text-[var(--v-text-tertiary)] font-black uppercase tracking-[0.1em]">{stat.label}</p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* Tab bar + search */}
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8">
+                    <div className="flex p-2 bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] w-fit gap-2">
+                        {tabs.map(t => (
+                            <button
+                                key={t.id}
+                                onClick={() => setTab(t.id)}
+                                className={`px-7 py-3 rounded-[16px] text-[13px] font-black uppercase tracking-wider transition-all flex items-center gap-3 ${tab === t.id ? "bg-[var(--v-elevated)] text-white shadow-lg" : "text-[var(--v-text-tertiary)] hover:text-white"}`}
+                            >
+                                {t.label}
+                                {t.count !== undefined && t.count > 0 && (
+                                    <span className={`px-2 py-0.5 rounded-md text-[12px] font-black tabular-nums ${tab === t.id ? "bg-white/10 text-white" : "bg-white/5 text-[var(--v-text-muted)]"}`}>
+                                        {t.count}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                    {tab !== "requests" && (
+                        <div className="relative group w-full xl:w-96">
+                            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--v-text-muted)] group-focus-within:text-[var(--v-orange)] transition-colors" />
+                            <input
+                                type="text"
+                                placeholder={tab === "venues" ? "Locate infrastructure..." : "Locate distribution..."}
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                className="w-full bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] pl-14 pr-6 py-4 text-[15px] text-white placeholder:text-[var(--v-text-muted)] focus:outline-none focus:border-[var(--v-orange)]/50 transition-all font-bold tracking-tight shadow-sm"
+                            />
+                        </div>
+                    )}
+                </div>
+
+                {/* Tab content */}
+                <AnimatePresence mode="wait">
+                    {tab === "venues" && (
+                        <motion.div key="venues" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: [0.25, 1, 0.5, 1] }}>
+                            {loading ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-72 rounded-[40px] animate-pulse bg-[var(--v-card)] border border-[var(--v-border)]" />)}
+                                </div>
+                            ) : filteredVenues.length === 0 ? (
+                                <div className="py-32 rounded-[56px] bg-[var(--v-card)] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-12">
+                                    <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-8">
+                                        <Building2 className="w-10 h-10 text-white/10" />
+                                    </div>
+                                    <h3 className="text-2xl font-black text-white">No infrastructure connections</h3>
+                                    <p className="text-[15px] text-[var(--v-text-tertiary)] mt-3 mb-10 max-w-sm leading-relaxed">Discover venues across the network and request production access to their calendar.</p>
+                                    <Link href="/host/discover">
+                                        <VenueActionButton variant="primary" className="h-12 px-8">
+                                            Explore Venues
+                                        </VenueActionButton>
+                                    </Link>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    {filteredVenues.map(v => (
+                                        <VenueCard key={v.id} venue={v} onRequest={handleVenueRequest} />
+                                    ))}
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+
+                    {tab === "promoters" && (
+                        <motion.div key="promoters" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+                            {loading ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    {[1, 2, 3, 4].map(i => <div key={i} className="h-64 rounded-[40px] animate-pulse bg-[var(--v-card)] border border-[var(--v-border)]" />)}
+                                </div>
+                            ) : filteredPromoters.length === 0 ? (
+                                <div className="py-32 rounded-[56px] bg-[var(--v-card)] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-12">
+                                    <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-8">
+                                        <Users className="w-10 h-10 text-white/10" />
+                                    </div>
+                                    <h3 className="text-2xl font-black text-white">No distribution network</h3>
+                                    <p className="text-[15px] text-[var(--v-text-tertiary)] mt-3 mb-10 max-w-sm leading-relaxed">Invite promoters to amplify your productions and drive verified attendance.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    {filteredPromoters.map(p => (
+                                        <PromoterCard key={p.id} promoter={p} onInvite={handlePromoterInvite} />
+                                    ))}
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+
+                    {tab === "requests" && (
+                        <motion.div key="requests" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+                            {loading ? (
+                                <div className="space-y-4">
+                                    {[1, 2, 3].map(i => <div key={i} className="h-24 rounded-[32px] animate-pulse bg-[var(--v-card)] border border-[var(--v-border)]" />)}
+                                </div>
+                            ) : requests.length === 0 ? (
+                                <div className="py-32 rounded-[56px] bg-[var(--v-card)] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-12">
+                                    <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-8">
+                                        <Handshake className="w-10 h-10 text-white/10" />
+                                    </div>
+                                    <h3 className="text-2xl font-black text-white">Audit log empty</h3>
+                                    <p className="text-[15px] text-[var(--v-text-tertiary)] mt-3">Active partnership audits will appear here for verification.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {requests.filter(r => r.status === "pending").length > 0 && (
+                                        <>
+                                            <p className="text-[12px] font-black uppercase tracking-[0.2em] text-[var(--v-text-muted)] border-l-4 border-l-[var(--v-warning)] pl-4">In Review</p>
+                                            {requests.filter(r => r.status === "pending").map(r => <RequestRow key={r.id} req={r} />)}
+                                        </>
+                                    )}
+                                    {requests.filter(r => r.status !== "pending").length > 0 && (
+                                        <>
+                                            <p className="text-[12px] font-black uppercase tracking-[0.2em] text-[var(--v-text-muted)] border-l-4 border-l-[var(--v-border)] pl-4 mt-12">Audit History</p>
+                                            {requests.filter(r => r.status !== "pending").map(r => <RequestRow key={r.id} req={r} />)}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+        </VenuePageShell>
+    );
+}

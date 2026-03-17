@@ -282,8 +282,8 @@ export default function HostProfilePage() {
     if (isLoading) {
         return (
             <div className="py-24 flex flex-col items-center justify-center">
-                <Loader2 className="h-10 w-10 text-text-placeholder animate-spin mb-4" />
-                <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Syncing Public Presence...</p>
+                <Loader2 className="h-10 w-10 text-violet-400 animate-spin mb-4" />
+                <p className="text-white/30 font-bold uppercase tracking-widest text-[10px]">Syncing Public Presence...</p>
             </div>
         );
     }
@@ -291,19 +291,23 @@ export default function HostProfilePage() {
     return (
         <div className="space-y-6 pb-20 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border-default pb-6">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-5 border-b border-white/[0.05] pb-8">
                 <div>
-                    <h1 className="text-2xl font-extrabold text-text-primary tracking-tight flex items-center gap-3 uppercase">
-                        Public Page
-                    </h1>
-                    <p className="text-text-tertiary text-sm font-medium mt-1">Curate how your host profile appears to guests and potential partners.</p>
+                    <div className="flex items-center gap-3 mb-3 text-violet-400">
+                        <div className="p-2 bg-violet-500/10 rounded-xl">
+                            <Sparkles className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-widest">Brand Studio</span>
+                    </div>
+                    <h1 className="text-3xl font-black text-white tracking-tight">Public Persona</h1>
+                    <p className="text-white/40 text-[13px] font-medium mt-2 max-w-xl">Control how your host brand appears to guests and partner venues on the C1RCLE platform.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     {data?.profile?.slug && (
                         <a
                             href={`/host/${data.profile.slug}`}
                             target="_blank"
-                            className="flex items-center gap-2 px-4 py-2.5 bg-surface-tertiary text-text-tertiary rounded-xl text-[10px] font-black uppercase tracking-widest border border-border-default hover:bg-surface-secondary transition-all group"
+                            className="flex items-center gap-2 px-4 py-2.5 bg-white/[0.03] text-white/50 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/[0.06] hover:bg-white/[0.06] hover:text-white transition-all group"
                         >
                             <span className="h-1.5 w-1.5 rounded-full bg-green-500 group-hover:animate-pulse" />
                             Live on Website
@@ -312,7 +316,7 @@ export default function HostProfilePage() {
                     <button
                         onClick={() => handleUpdateProfile({})}
                         disabled={isSaving}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-surface-secondary text-text-primary rounded-xl text-sm font-bold shadow-xl hover:bg-surface-tertiary transition-all disabled:opacity-50"
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-violet-500/20 transition-all disabled:opacity-50 active:scale-95"
                     >
                         {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                         Save Changes
@@ -322,30 +326,25 @@ export default function HostProfilePage() {
 
             {/* Stats Overview */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-surface-elevated p-4 rounded-xl border border-border-default shadow-sm">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-text-tertiary mb-1">Followers</p>
-                    <p className="text-lg font-black text-text-primary">{data?.stats?.followersCount || 0}</p>
-                </div>
-                <div className="bg-surface-elevated p-4 rounded-xl border border-border-default shadow-sm">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-text-tertiary mb-1">Posts</p>
-                    <p className="text-lg font-black text-text-primary">{data?.stats?.postsCount || 0}</p>
-                </div>
-                <div className="bg-surface-elevated p-4 rounded-xl border border-border-default shadow-sm">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-text-tertiary mb-1">Total Highs</p>
-                    <p className="text-lg font-black text-text-primary">{data?.stats?.totalLikes || 0}</p>
-                </div>
-                <div className="bg-surface-elevated p-4 rounded-xl border border-border-default shadow-sm">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-text-tertiary mb-1">Page Views</p>
-                    <p className="text-lg font-black text-text-primary">{data?.stats?.totalViews || 0}</p>
-                </div>
+                {[
+                    { label: "Followers", value: data?.stats?.followersCount || 0, color: "#818CF8" },
+                    { label: "Posts", value: data?.stats?.postsCount || 0, color: "#38BDF8" },
+                    { label: "Reactions", value: data?.stats?.totalLikes || 0, color: "#FB923C" },
+                    { label: "Page Views", value: data?.stats?.totalViews || 0, color: "#22C55E" },
+                ].map(stat => (
+                    <div key={stat.label} className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.05] hover:bg-white/[0.04] transition-all">
+                        <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: `${stat.color}80` }}>{stat.label}</p>
+                        <p className="text-2xl font-black text-white tabular-nums">{stat.value.toLocaleString()}</p>
+                    </div>
+                ))}
             </div>
 
             {/* Main Editor */}
-            <div className="bg-surface-elevated rounded-2xl border border-border-default shadow-sm overflow-hidden min-h-[500px]">
-                <div className="flex border-b border-border-subtle bg-surface-tertiary/30">
-                    <TabButton active={activeTab === "details"} onClick={() => setActiveTab("details")} icon={Layout} label="Core Details" />
-                    <TabButton active={activeTab === "posts"} onClick={() => setActiveTab("posts")} icon={FileText} label="Posts & Updates" />
-                    <TabButton active={activeTab === "highlights"} onClick={() => setActiveTab("highlights")} icon={Camera} label="Highlights" />
+            <div className="bg-white/[0.02] rounded-[2rem] border border-white/[0.05] overflow-hidden min-h-[500px]">
+                <div className="flex border-b border-white/[0.05] bg-white/[0.01] overflow-x-auto scrollbar-hide">
+                    <TabButton active={activeTab === "details"} onClick={() => setActiveTab("details")} icon={Layout} label="Identity" />
+                    <TabButton active={activeTab === "posts"} onClick={() => setActiveTab("posts")} icon={FileText} label="Posts" />
+                    <TabButton active={activeTab === "highlights"} onClick={() => setActiveTab("highlights")} icon={Camera} label="Gallery" />
                     <TabButton active={activeTab === "followers"} onClick={() => setActiveTab("followers")} icon={Users} label="Followers" />
                 </div>
 
@@ -803,12 +802,12 @@ function TabButton({ active, icon: Icon, label, onClick }: any) {
     return (
         <button
             onClick={onClick}
-            className={`flex-1 py-3.5 flex flex-col items-center gap-1.5 border-b-2 transition-all ${active
-                ? "border-slate-900 bg-surface-elevated"
-                : "border-transparent text-text-tertiary hover:text-text-primary hover:bg-surface-tertiary/50"
+            className={`flex-1 min-w-[90px] py-4 flex flex-col items-center gap-1.5 border-b-2 transition-all ${active
+                ? "border-violet-500 bg-violet-500/[0.06] text-white"
+                : "border-transparent text-white/30 hover:text-white/60 hover:bg-white/[0.02]"
                 }`}
         >
-            <Icon className={`h-4 w-4 ${active ? "text-text-primary" : "text-text-placeholder"}`} />
+            <Icon className={`h-4 w-4 ${active ? "text-violet-400" : "text-white/20"}`} />
             <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
         </button>
     );

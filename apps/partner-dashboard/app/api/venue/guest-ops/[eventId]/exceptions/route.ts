@@ -13,7 +13,7 @@ export async function GET(req: NextRequest, context: { params: { eventId: string
 
         const status = (searchParams.get("status") as any) ?? "open";
         const type = searchParams.get("type") ?? undefined;
-        const result = await getExceptions(eventId, { status, type });
+        const result = await getExceptions(eventId, { status, type } as any);
         return NextResponse.json(result);
     } catch (err: any) {
         console.error("GET exceptions error", err);

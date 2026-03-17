@@ -108,7 +108,11 @@ export async function POST(req: NextRequest) {
         const authHeader = req.headers.get("Authorization") || "";
         const token = authHeader.replace("Bearer ", "").trim();
 
+<<<<<<< HEAD
+        const result = await updateVenueDetails(venueId, updates);
+=======
         const result = await updateVenueDetails(venueId, updates, token);
+>>>>>>> 6ccfad5 (feat: UI improvements and bug fixes)
 
         return NextResponse.json({ success: true, result });
     } catch (error: any) {

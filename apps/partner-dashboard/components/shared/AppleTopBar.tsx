@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Search, X, Command, ChevronDown } from "lucide-react";
+import { Bell, Search, X, Command, ChevronDown, LogOut } from "lucide-react";
 import { NotificationCenter } from "./NotificationCenter";
 import { useDashboardAuth } from "../providers/DashboardAuthProvider";
 import { usePathname, useRouter } from "next/navigation";
@@ -13,10 +13,11 @@ interface AppleTopBarProps {
 }
 
 export function AppleTopBar({ title }: AppleTopBarProps) {
-    const { profile } = useDashboardAuth();
+    const { profile, signOut } = useDashboardAuth();
     const pathname = usePathname();
     const router = useRouter();
     const [searchOpen, setSearchOpen] = useState(false);
+    const [dropdownOpen, setDropdownOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [currentTime, setCurrentTime] = useState<Date | null>(null);
 
@@ -116,20 +117,56 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
                     <div className="w-px h-8 bg-border-subtle hidden lg:block" />
 
                     {/* Profile */}
-                    <button className="flex items-center gap-3 pl-2 group">
-                        <div className="w-10 h-10 rounded-xl bg-text-primary flex items-center justify-center text-text-inverse text-[14px] font-bold shadow-sm">
-                            {profile?.displayName?.charAt(0)?.toUpperCase() || "U"}
-                        </div>
-                        <div className="hidden lg:block text-left">
-                            <p className="text-[13px] font-semibold text-text-primary leading-tight">
-                                {profile?.displayName?.split(' ')[0] || "User"}
-                            </p>
-                            <p className="text-[10px] font-semibold text-c1rcle-orange uppercase tracking-widest">
-                                {roleContext}
-                            </p>
-                        </div>
-                        <ChevronDown className="hidden lg:block w-4 h-4 text-text-tertiary" />
-                    </button>
+                    <div className="relative">
+                        <button 
+                            onClick={() => setDropdownOpen(!dropdownOpen)}
+                            className="flex items-center gap-3 pl-2 group"
+                        >
+                            <div className="w-10 h-10 rounded-xl bg-text-primary flex items-center justify-center text-text-inverse text-[14px] font-bold shadow-sm">
+                                {profile?.displayName?.charAt(0)?.toUpperCase() || "U"}
+                            </div>
+                            <div className="hidden lg:block text-left">
+                                <p className="text-[13px] font-semibold text-text-primary leading-tight">
+                                    {profile?.displayName?.split(' ')[0] || "User"}
+                                </p>
+                                <p className="text-[10px] font-semibold text-c1rcle-orange uppercase tracking-widest">
+                                    {roleContext}
+                                </p>
+                            </div>
+                            <ChevronDown className={`hidden lg:block w-4 h-4 text-text-tertiary transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        <AnimatePresence>
+                            {dropdownOpen && (
+                                <>
+                                    <div 
+                                        className="fixed inset-0 z-40" 
+                                        onClick={() => setDropdownOpen(false)} 
+                                    />
+                                    <motion.div 
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        transition={{ duration: 0.15, ease: "easeOut" }}
+                                        className="absolute right-0 top-full mt-2 w-48 bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl p-1.5 overflow-hidden z-50 mr-[-8px]"
+                                    >
+                                        <button 
+                                            onClick={() => {
+                                                setDropdownOpen(false);
+                                                signOut();
+                                            }}
+                                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-red-500 hover:bg-red-500/5 transition-colors group/logout"
+                                        >
+                                            <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center group-hover/logout:bg-red-500/20 transition-colors">
+                                                <LogOut className="w-4 h-4" />
+                                            </div>
+                                            <span className="text-[12px] font-black uppercase tracking-widest">Logout</span>
+                                        </button>
+                                    </motion.div>
+                                </>
+                            )}
+                        </AnimatePresence>
+                    </div>
                 </div>
             </header>
 

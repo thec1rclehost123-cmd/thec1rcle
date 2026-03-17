@@ -47,7 +47,7 @@ export async function GET(req: NextRequest, { params }: { params: { eventId: str
         // Log the export request
         await writeSecurityAuditLog({
             venueId: venueId!, actorUid: user.uid, actorRole: membership.role,
-            action: "export_requested", eventId,
+            action: "export_requested", eventId, queryHash: undefined,
             metadata: { format, piiLevel, reason: reason.substring(0, 200) },
         });
 

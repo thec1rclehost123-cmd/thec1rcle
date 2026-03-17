@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: { eventId: st
         if (!body.reason) return NextResponse.json({ error: "REASON_REQUIRED" }, { status: 400 });
 
         const actor = { uid: user.uid, name: user.name || user.email, role: membership.role };
-        await flagGuest(eventId, guestId, actor, { reason: body.reason, severity: body.severity, notes: body.notes });
+        await flagGuest(eventId, guestId, actor, { reason: body.reason, severity: body.severity, notes: body.notes } as any);
         return NextResponse.json({ success: true });
     } catch (err: any) {
         if (err.code) return NextResponse.json({ error: err.code, message: err.message }, { status: 409 });

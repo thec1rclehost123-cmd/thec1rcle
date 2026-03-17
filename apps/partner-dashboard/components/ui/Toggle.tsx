@@ -16,7 +16,7 @@ export interface ToggleProps {
     mode?: string;
 }
 
-export default function Toggle({
+export function Toggle({
     label,
     value,
     checked,
@@ -73,3 +73,5 @@ export default function Toggle({
         </button>
     );
 }
+
+export default Toggle;

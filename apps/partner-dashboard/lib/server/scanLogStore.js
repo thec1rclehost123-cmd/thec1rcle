@@ -6,6 +6,7 @@
  */
 
 import { getAdminDb } from '../firebase/admin';
+export { getGuestRules } from './guestListStore.js';
 
 const DEVICE_ONLINE_THRESHOLD_SECS = 90;
 

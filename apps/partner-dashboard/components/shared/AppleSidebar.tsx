@@ -215,7 +215,7 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath, 
                     className="flex items-center justify-center gap-2.5 w-full py-3 rounded-2xl bg-surface-secondary/50 hover:bg-red-500/5 text-text-tertiary hover:text-red-500 transition-all border border-border-subtle hover:border-red-500/20 text-[13px] font-black uppercase tracking-widest"
                 >
                     <LogOut className="w-4 h-4" />
-                    <span>Term Sesson</span>
+                    <span>Logout</span>
                 </button>
             </div>
         </aside>

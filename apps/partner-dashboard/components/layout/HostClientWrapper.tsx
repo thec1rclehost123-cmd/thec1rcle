@@ -20,7 +20,7 @@ export function HostClientWrapper({ children, menuSections }: HostClientWrapperP
     return (
         <ApprovalGuard>
             <RoleGuard allowedType="host">
-                <div className="min-h-screen bg-surface-base">
+                <div className="venue-shell dark min-h-screen bg-[var(--v-canvas)]">
                     {/* Desktop Sidebar */}
                     <div className="hidden lg:block fixed left-0 top-0 bottom-0 h-full z-50">
                         <AppleSidebar
@@ -40,8 +40,8 @@ export function HostClientWrapper({ children, menuSections }: HostClientWrapperP
                             <Menu className="h-5 w-5 text-text-primary" />
                         </button>
                         <div className="flex items-center gap-2">
-                            <span className="w-7 h-7 rounded-lg bg-text-primary flex items-center justify-center text-text-inverse text-[11px] font-bold">H</span>
-                            <span className="text-[13px] font-bold text-text-primary tracking-wide">C1RCLE</span>
+                            <span className="w-8 h-8 rounded-lg bg-text-primary flex items-center justify-center text-text-inverse text-[13px] font-bold">H</span>
+                            <span className="text-[15px] font-bold text-text-primary tracking-wide">C1RCLE</span>
                         </div>
                         <div className="w-9" />
                     </header>

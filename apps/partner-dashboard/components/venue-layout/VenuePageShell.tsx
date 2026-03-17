@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { type ReactNode, type ElementType } from "react";
 import clsx from "clsx";
 
 interface VenuePageShellProps {
@@ -97,7 +97,7 @@ export function VenueActionButton({
 
     return (
         <button onClick={onClick} disabled={disabled} className={clsx(base, variants[variant], className)}>
-            {Icon && <Icon className="h-4 w-4" />}
+            {Icon && <Icon className="h-4 w-4 flex-shrink-0" />}
             {children}
         </button>
     );

@@ -126,7 +126,7 @@ export function applyPIIMask<T extends Record<string, unknown>>(
     record: T,
     policy: PIIPolicy
 ): T {
-    const out = { ...record };
+    const out: Record<string, unknown> = { ...record };
 
     if (!policy.showPhone) {
         if ("phoneFull" in out && typeof out.phoneFull === "string") {
@@ -157,7 +157,7 @@ export function applyPIIMask<T extends Record<string, unknown>>(
         (out as any).netPaise = undefined;
     }
 
-    return out;
+    return out as T;
 }
 
 /** Check if request is from an OWNER or MANAGER (for management-only endpoints) */

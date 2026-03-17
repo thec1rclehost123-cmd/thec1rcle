@@ -2,17 +2,10 @@ import { HostClientWrapper } from "@/components/layout/HostClientWrapper";
 import {
     LayoutDashboard,
     CalendarDays,
-    PlusCircle,
     BarChart3,
-    Users,
-    Settings,
-    Layout,
-    ShieldCheck,
-    Building,
-    Clock,
-    Star,
-    Compass,
+    Network,
     Banknote,
+    Zap,
 } from "lucide-react";
 
 const menuSections = [
@@ -25,10 +18,9 @@ const menuSections = [
                 href: "/host/analytics",
                 children: [
                     { label: "Overview", href: "/host/analytics/overview" },
-                    { label: "Performance", href: "/host/analytics/performance" },
-                    { label: "Audience Quality", href: "/host/analytics/audience" },
-                    { label: "Trust & Reliability", href: "/host/analytics/reliability" },
-                    { label: "Venue ROI", href: "/host/analytics/partners" },
+                    { label: "Yield", href: "/host/analytics/performance" },
+                    { label: "Audience", href: "/host/analytics/audience" },
+                    { label: "Partners", href: "/host/analytics/partners" },
                     { label: "Strategy", href: "/host/analytics/strategy" },
                 ]
             },
@@ -36,25 +28,14 @@ const menuSections = [
     },
     {
         items: [
-            { icon: CalendarDays, label: "Events", href: "/host/events" },
+            { icon: Zap, label: "Events", href: "/host/events" },
             { icon: Banknote, label: "Finance", href: "/host/finance" },
-            { icon: PlusCircle, label: "Create Event", href: "/host/create" },
-            { icon: Clock, label: "Slot Requests", href: "/host/events/requests" },
-            { icon: ShieldCheck, label: "Entry Control", href: "/host/ops" },
-            { icon: Star, label: "Reviews", href: "/host/reviews" },
+            { icon: CalendarDays, label: "Calendar", href: "/host/calendar" },
         ]
     },
     {
         items: [
-            { icon: Users, label: "Promoters", href: "/host/promoters" },
-            { icon: Building, label: "Venues", href: "/host/partnerships" },
-            { icon: Compass, label: "Discover", href: "/host/discover" },
-        ]
-    },
-    {
-        items: [
-            { icon: Layout, label: "Page Management", href: "/host/page-management" },
-            { icon: Settings, label: "Settings", href: "/host/settings" },
+            { icon: Network, label: "Network", href: "/host/network" },
         ]
     },
 ];

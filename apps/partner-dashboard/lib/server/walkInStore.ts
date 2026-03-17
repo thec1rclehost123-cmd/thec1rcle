@@ -258,7 +258,7 @@ async function getByIdempotencyKey(
     key: string
 ): Promise<WalkInEntry | null> {
     if (!isFirebaseConfigured()) {
-        for (const e of _entries.values()) {
+        for (const e of Array.from(_entries.values())) {
             if (e.eventId === eventId && e.idempotencyKey === key) return e;
         }
         return null;
