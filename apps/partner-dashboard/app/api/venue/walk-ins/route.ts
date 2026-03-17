@@ -72,7 +72,7 @@ export async function POST(request: Request) {
                 note: body.note ?? "",
                 idempotencyKey: body.idempotencyKey,
             },
-            { uid: user!.uid, name: user!.displayName ?? "Operator" },
+            { uid: user!.uid, name: user!.name ?? "Operator" },
             ctx.piiPolicy.showPhone
         );
 

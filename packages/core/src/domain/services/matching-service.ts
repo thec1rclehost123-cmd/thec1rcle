@@ -31,24 +31,17 @@ export class MatchingService {
             console.warn('Redis cache read failed:', e);
         }
 
-        // 2. Get user profile for interest matching
-        const userProfile = await this.profileRepo.getById(userId, 'user');
+        // 2-4. Parallelize independent fetches (Optimization Fix)
+        const [userProfile, adaptiveBoosts, excludedIds, candidates] = await Promise.all([
+            this.profileRepo.getById(userId, 'user'),
+            this.getAdaptiveBoosts(userId),
+            this.matchingRepo.getInteractedIds(userId, type),
+            type === 'event' 
+                ? this.eventRepo.list({ status: 'live', limit: 100 }, workspaceId)
+                : Promise.resolve([])
+        ]);
+
         if (!userProfile) throw new Error('User profile not found');
-
-        // 2.1 Get adaptive boosts (Step 3 Retention)
-        const adaptiveBoosts = await this.getAdaptiveBoosts(userId);
-
-        // 3. Get already interacted IDs to exclude them
-        const excludedIds = await this.matchingRepo.getInteractedIds(userId, type);
-
-        // 4. Fetch candidates (Broad fetch)
-        let candidates: any[] = [];
-        if (type === 'event') {
-            candidates = await this.eventRepo.list({ status: 'live', limit: 100 }, workspaceId);
-        } else {
-            // Placeholder for matching with other users if implemented
-            return [];
-        }
 
         // 5. Weighting & Scoring Model V1 + Adaptive Boost
         // Score = (Interests * 40%) + (Proximity * 40%) + (Activity * 20%)

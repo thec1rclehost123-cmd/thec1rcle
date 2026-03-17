@@ -8,19 +8,23 @@ import clsx from "clsx";
 
 export interface ToggleProps {
     label?: string;
-    value: boolean;
+    value?: boolean;
+    checked?: boolean;
     onChange: (value: boolean) => void;
     disabled?: boolean;
     size?: "sm" | "md";
+    mode?: string;
 }
 
 export default function Toggle({
     label,
     value,
+    checked,
     onChange,
     disabled = false,
-    size = "md"
+    size = "md",
 }: ToggleProps) {
+    const isChecked = checked ?? value ?? false;
     const sizeStyles = {
         sm: {
             track: "w-9 h-5",
@@ -40,9 +44,9 @@ export default function Toggle({
         <button
             type="button"
             role="switch"
-            aria-checked={value}
+            aria-checked={isChecked}
             disabled={disabled}
-            onClick={() => onChange(!value)}
+            onClick={() => onChange(!isChecked)}
             className={clsx(
                 "flex items-center gap-3",
                 disabled && "opacity-50 cursor-not-allowed"
@@ -52,14 +56,14 @@ export default function Toggle({
                 className={clsx(
                     "relative inline-flex items-center rounded-full transition-colors duration-150",
                     s.track,
-                    value ? "bg-green-500" : "bg-surface-tertiary"
+                    isChecked ? "bg-green-500" : "bg-surface-tertiary"
                 )}
             >
                 <span
                     className={clsx(
                         "absolute left-0.5 inline-block rounded-full bg-surface-elevated shadow-sm transition-transform duration-150",
                         s.knob,
-                        value && s.translate
+                        isChecked && s.translate
                     )}
                 />
             </span>

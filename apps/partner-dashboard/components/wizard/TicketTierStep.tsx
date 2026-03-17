@@ -551,12 +551,12 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
         updateFormData(updates);
     };
 
-    const TABS: { id: ActiveTab; label: string; icon: any; badge?: number; dot?: boolean; hidden?: boolean }[] = [
+    const TABS = [
         { id: 'tiers', label: 'Tiers', icon: Layers, badge: tickets.length },
         { id: 'pricing', label: 'Pricing', icon: Clock, dot: formData.scheduledPricingEnabled, hidden: formData.isRSVP },
         { id: 'promoters', label: 'Promoters', icon: Percent, dot: formData.promotersEnabled },
         { id: 'settings', label: 'Settings', icon: Settings2 },
-    ].filter(t => !t.hidden);
+    ].filter(t => !t.hidden) as { id: ActiveTab; label: string; icon: any; badge?: number; dot?: boolean; hidden?: boolean }[];
 
     const QUICK_PRESETS = [
         {

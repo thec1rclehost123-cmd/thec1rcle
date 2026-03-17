@@ -129,32 +129,32 @@ export function applyPIIMask<T extends Record<string, unknown>>(
     const out = { ...record };
 
     if (!policy.showPhone) {
-        if (typeof out.phoneFull === "string") {
-            out.phoneFull = undefined as any;
+        if ("phoneFull" in out && typeof out.phoneFull === "string") {
+            (out as any).phoneFull = undefined;
         }
-        if (typeof out.phone === "string") {
+        if ("phone" in out && typeof out.phone === "string") {
             const p = out.phone as string;
-            out.phone = `****${p.slice(-4)}` as any;
+            (out as any).phone = `****${p.slice(-4)}`;
         }
     }
 
-    if (!policy.showEmail && typeof out.email === "string") {
+    if (!policy.showEmail && "email" in out && typeof out.email === "string") {
         const parts = (out.email as string).split("@");
-        out.email = `${parts[0].slice(0, 2)}****@${parts[1]}` as any;
+        (out as any).email = `${parts[0].slice(0, 2)}****@${parts[1]}`;
     }
 
-    if (!policy.showLastName && typeof out.guestName === "string") {
+    if (!policy.showLastName && "guestName" in out && typeof out.guestName === "string") {
         const parts = (out.guestName as string).split(" ");
         if (parts.length > 1) {
-            out.guestName = `${parts[0]} ${parts[1][0]}.` as any;
+            (out as any).guestName = `${parts[0]} ${parts[1][0]}.`;
         }
     }
 
     if (!policy.showOrderAmount) {
-        out.amountPaise = undefined as any;
-        out.amount = undefined as any;
-        out.grossPaise = undefined as any;
-        out.netPaise = undefined as any;
+        (out as any).amountPaise = undefined;
+        (out as any).amount = undefined;
+        (out as any).grossPaise = undefined;
+        (out as any).netPaise = undefined;
     }
 
     return out;

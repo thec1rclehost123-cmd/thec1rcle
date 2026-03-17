@@ -20,7 +20,7 @@ import {
     LayoutDashboard,
 } from "lucide-react";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
-import { Toggle } from "@/components/ui/Toggle";
+import Toggle from "@/components/ui/Toggle";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -141,7 +141,7 @@ export function StaffProfileEditorClient({ profileId }: { profileId: string }) {
     const [guestlistScope, setGuestlistScope] = useState<GuestlistScope>("read_only");
 
     // Load existing profile
-    const { isLoading } = useQuery({
+    const { data, isLoading } = useQuery({
         queryKey: ["staff-profile", venueId, profileId],
         queryFn: async () => {
             const res = await fetch(
@@ -153,15 +153,18 @@ export function StaffProfileEditorClient({ profileId }: { profileId: string }) {
         },
         enabled: !!venueId && !isNew,
         staleTime: 30_000,
-        onSuccess: (p) => {
-            setProfileName(p.profileName);
-            setBaseRole(p.baseRole);
-            setTabs(p.tabVisibility);
-            setActions(p.actionPermissions);
-            setPii(p.piiPolicy);
-            setGuestlistScope(p.guestlistScope);
-        },
     });
+
+    useEffect(() => {
+        if (data) {
+            setProfileName(data.profileName);
+            setBaseRole(data.baseRole);
+            setTabs(data.tabVisibility);
+            setActions(data.actionPermissions);
+            setPii(data.piiPolicy);
+            setGuestlistScope(data.guestlistScope);
+        }
+    }, [data]);
 
     // When base role changes in new mode, seed defaults
     const handleBaseRoleChange = (role: VenueRole) => {

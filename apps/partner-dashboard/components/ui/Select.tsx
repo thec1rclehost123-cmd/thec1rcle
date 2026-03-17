@@ -16,12 +16,13 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   error?: string;
   hint?: string;
-  options: SelectOption[];
+  options?: SelectOption[];
   placeholder?: string;
+  children?: React.ReactNode;
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, error, hint, options, placeholder, className, ...rest }, ref) => {
+  ({ label, error, hint, options, placeholder, children, className, ...rest }, ref) => {
     const hasError = !!error;
 
     return (
@@ -50,7 +51,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                 {placeholder}
               </option>
             )}
-            {options.map((opt) => (
+            {children}
+            {options?.map((opt) => (
               <option
                 key={opt.value}
                 value={opt.value}

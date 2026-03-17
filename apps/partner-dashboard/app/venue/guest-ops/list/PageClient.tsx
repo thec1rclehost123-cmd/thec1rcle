@@ -216,7 +216,7 @@ export default function GuestListPageClient() {
                     ) : guests.length === 0 ? (
                         <EmptyGuestList filter={filter} />
                     ) : (
-                        <div className="divide-y" style={{ divideColor: "var(--v-border)" }}>
+                        <div className="divide-y" style={{ borderColor: "var(--v-border)" }}>
                             {guests.map(guest => (
                                 <GuestRow
                                     key={guest.guestId}
@@ -317,7 +317,7 @@ function GuestRow({ guest, isLocked, canManage, onSelect, onCheckIn, onDeny }: {
 
 function GuestTableSkeleton() {
     return (
-        <div className="divide-y" style={{ divideColor: "var(--v-border)" }}>
+        <div className="divide-y" style={{ borderColor: "var(--v-border)" }}>
             {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="grid items-center px-4 py-3 animate-pulse"
                     style={{ gridTemplateColumns: "1fr 100px 100px 100px 100px 140px 120px 80px" }}>

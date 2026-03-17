@@ -132,7 +132,7 @@ export default function VenueAnalyticsPage() {
             onEventChange={(eId) => setSelectedEventId(eId)}
         >
             <div className="space-y-4 pb-20">
-                <PremiumGate featureName={categoryLabels[category]} minPlan={minPlan}>
+                <PremiumGate featureName={categoryLabels[category]} minPlan={minPlan as any}>
                     {category === "overview" && <OverviewView stats={safeStats} />}
                     {category === "reach" && <ReachView stats={safeStats} />}
                     {category === "engagement" && <EngagementView stats={safeStats} />}

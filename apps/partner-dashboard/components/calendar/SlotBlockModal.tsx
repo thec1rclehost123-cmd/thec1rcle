@@ -7,7 +7,7 @@ import { X, Lock, Unlock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TextArea } from "@/components/ui/TextArea";
-import { Toggle } from "@/components/ui/Toggle";
+import Toggle from "@/components/ui/Toggle";
 
 interface SlotBlockModalProps {
     venueId: string;

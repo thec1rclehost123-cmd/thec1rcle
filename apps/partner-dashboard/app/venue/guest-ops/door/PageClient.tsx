@@ -305,7 +305,7 @@ export default function DoorSearchPageClient() {
                     isLocked={isLocked}
                     canManage={canManage}
                     onClose={() => setSelectedGuest(null)}
-                    onAction={handleAction}
+                    onAction={(action, body) => handleAction(action, selectedGuest.guestId, body)}
                 />
             )}
         </GuestOpsShell>

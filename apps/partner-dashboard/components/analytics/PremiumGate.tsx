@@ -9,7 +9,7 @@ interface PremiumGateProps {
     children: React.ReactNode;
     featureName: string;
     description?: string;
-    minPlan?: "silver" | "gold" | "diamond";
+    minPlan?: "basic" | "silver" | "gold" | "diamond";
 }
 
 const PLAN_HIERARCHY = {

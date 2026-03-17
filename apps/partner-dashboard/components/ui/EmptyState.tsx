@@ -8,29 +8,34 @@ import { type ReactNode } from "react";
  */
 
 export interface EmptyStateProps {
-    icon?: ReactNode;
+    icon?: any; // Supporting LucideIcon components or element nodes
     title: string;
     description?: string;
-    action?: ReactNode;
+    action?: React.ReactNode;
     className?: string;
 }
 
 export function EmptyState({
-    icon,
+    icon: Icon,
     title,
     description,
     action,
     className,
 }: EmptyStateProps) {
+    const isComponent = typeof Icon === "function" || (typeof Icon === "object" && Icon !== null && "render" in (Icon as any));
     return (
         <div className={clsx(
             "flex flex-col items-center justify-center text-center py-12 px-6",
             className
         )}>
-            {icon && (
+            {Icon && (
                 <div className="w-14 h-14 rounded-xl bg-surface-secondary flex items-center justify-center mb-4">
                     <div className="text-text-tertiary">
-                        {icon}
+                        {isComponent ? (
+                            <Icon className="h-6 w-6" />
+                        ) : (
+                            Icon as React.ReactNode
+                        )}
                     </div>
                 </div>
             )}

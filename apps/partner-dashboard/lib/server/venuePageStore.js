@@ -194,10 +194,62 @@ export async function getVenuePastEvents(venueId, token) {
  */
 export async function initializeFacilities(venueId, token) {
     const client = getApiClient(token);
-    return client.request('/cms/facilities/init', {
-        method: 'POST',
-        body: JSON.stringify({ venueId })
-    });
+    return client.initVenueFacilities(venueId);
+}
+
+export async function addFacility(venueId, name, icon, token) {
+    const client = getApiClient(token);
+    return client.addFacility(venueId, name, icon);
+}
+
+export async function updateFacility(facilityId, updates, token) {
+    const client = getApiClient(token);
+    return client.updateFacility(facilityId, updates);
+}
+
+export async function deleteFacility(facilityId, token) {
+    const client = getApiClient(token);
+    return client.deleteFacility(facilityId);
+}
+
+export async function toggleFacility(facilityId, isEnabled, token) {
+    const client = getApiClient(token);
+    return client.toggleFacility(facilityId, isEnabled);
+}
+
+export async function reorderFacilities(venueId, orderedIds, token) {
+    const client = getApiClient(token);
+    return client.reorderFacilities(venueId, orderedIds);
+}
+
+export async function reorderGalleryPhotos(venueId, orderedIds, token) {
+    const client = getApiClient(token);
+    return client.reorderGalleryPhotos(venueId, orderedIds);
+}
+
+export async function reorderMenuImages(venueId, orderedIds, token) {
+    const client = getApiClient(token);
+    return client.reorderMenuImages(venueId, orderedIds);
+}
+
+export async function addImageToHighlight(highlightId, imageUrl, venueId, token) {
+    const client = getApiClient(token);
+    return client.addImageToHighlight(highlightId, imageUrl, venueId);
+}
+
+export async function removeImageFromHighlight(highlightId, imageId, venueId, token) {
+    const client = getApiClient(token);
+    return client.removeImageFromHighlight(highlightId, imageId, venueId);
+}
+
+export async function reorderHighlightImages(highlightId, orderedIds, venueId, token) {
+    const client = getApiClient(token);
+    return client.reorderHighlightImages(highlightId, orderedIds, venueId);
+}
+
+export async function reorderHighlights(venueId, orderedIds, token) {
+    const client = getApiClient(token);
+    return client.reorderHighlights(venueId, orderedIds);
 }
 
 export default {
@@ -214,5 +266,16 @@ export default {
     removeMenuImage,
     getVenueUpcomingEvents,
     getVenuePastEvents,
-    initializeFacilities
+    initializeFacilities,
+    addFacility,
+    updateFacility,
+    deleteFacility,
+    toggleFacility,
+    reorderFacilities,
+    reorderGalleryPhotos,
+    reorderMenuImages,
+    addImageToHighlight,
+    removeImageFromHighlight,
+    reorderHighlightImages,
+    reorderHighlights
 };

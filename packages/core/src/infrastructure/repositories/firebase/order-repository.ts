@@ -24,13 +24,18 @@ export class FirebaseOrderRepository implements IOrderRepository {
         }
     }
 
-    async updateOrder(id: string, updates: Partial<Order>, transaction?: Transaction): Promise<void> {
-        // We need to know if it's RSVP or not to update the correct collection
-        // Or we just check both. For simplicity in this implementation:
-        const order = await this.getOrderById(id);
-        if (!order) throw new Error('Order not found');
+    async updateOrder(id: string, updates: Partial<Order>, isRSVP?: boolean, transaction?: Transaction): Promise<void> {
+        // 🚀 Optimization: Eliminate diagnostic read if isRSVP is provided
+        let coll: string;
+        if (isRSVP !== undefined) {
+            coll = isRSVP ? 'rsvp_orders' : 'orders';
+        } else {
+            // Fallback: check only if necessary (legacy/unknown calls)
+            const order = await this.getOrderById(id);
+            if (!order) throw new Error('Order not found');
+            coll = order.isRSVP ? 'rsvp_orders' : 'orders';
+        }
 
-        const coll = order.isRSVP ? 'rsvp_orders' : 'orders';
         const ref = this.db.collection(coll).doc(id);
         if (transaction) {
             transaction.update(ref, updates as any);

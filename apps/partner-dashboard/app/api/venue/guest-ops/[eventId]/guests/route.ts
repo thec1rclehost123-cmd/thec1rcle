@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireGuestOpsAccess } from "@/lib/server/guestOpsMiddleware";
 import { listGuests, addGuest, getGuestRules } from "@/lib/server/guestListStore";
 
-export async function GET(req: NextRequest, { params }: { params: { eventId: string } }) {
+export async function GET(req: NextRequest, context: { params: { eventId: string } }) {
     try {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
-        const { eventId } = params;
+        const eventId = context.params.eventId;
 
         const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["VIEW_GUESTLIST"]);
         if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -33,11 +33,11 @@ export async function GET(req: NextRequest, { params }: { params: { eventId: str
     }
 }
 
-export async function POST(req: NextRequest, { params }: { params: { eventId: string } }) {
+export async function POST(req: NextRequest, context: { params: { eventId: string } }) {
     try {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
-        const { eventId } = params;
+        const eventId = context.params.eventId;
 
         const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["VIEW_GUESTLIST"]);
         if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });

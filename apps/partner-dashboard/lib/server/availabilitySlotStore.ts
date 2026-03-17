@@ -169,7 +169,7 @@ export async function blockSlot(
         req.date,
         req.startTime ?? null,
         req.endTime ?? null,
-        ["booked", "event_hold"]
+        ["booked", "hold"]
     );
     if (conflicts.length > 0) {
         throw new Error(
@@ -225,6 +225,10 @@ export async function unblockSlot(
     await slotsRef(venueId).doc(slotId).delete();
 }
 
+/**
+ * Updates the status of an availability slot.
+ * @param {{ linkedEventId?: string; note?: string }} [opts]
+ */
 export async function updateSlotStatus(
     venueId: string,
     slotId: string,

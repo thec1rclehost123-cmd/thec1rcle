@@ -452,6 +452,10 @@ export async function denyGuest(eventId, guestId, actor, { reason, notes } = {})
 
 /**
  * Flag a guest.
+ * @param {string} eventId
+ * @param {string} guestId
+ * @param {any} actor
+ * @param {{ reason: string, severity?: string, notes?: string }} [options]
  */
 export async function flagGuest(eventId, guestId, actor, { reason, severity = 'medium', notes } = {}) {
     const db = getAdminDb();

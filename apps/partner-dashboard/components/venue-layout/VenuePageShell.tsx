@@ -71,12 +71,14 @@ export function VenuePageShell({
 export function VenueActionButton({
     children,
     onClick,
+    icon: Icon,
     variant = "primary",
     disabled = false,
     className,
 }: {
-    children: ReactNode;
+    children: React.ReactNode;
     onClick?: () => void;
+    icon?: React.ElementType;
     variant?: "primary" | "secondary" | "ghost";
     disabled?: boolean;
     className?: string;
@@ -95,6 +97,7 @@ export function VenueActionButton({
 
     return (
         <button onClick={onClick} disabled={disabled} className={clsx(base, variants[variant], className)}>
+            {Icon && <Icon className="h-4 w-4" />}
             {children}
         </button>
     );

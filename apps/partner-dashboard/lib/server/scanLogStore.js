@@ -143,7 +143,18 @@ export async function getGuestOpsSummary(eventId, venueId) {
 }
 
 /**
+ * Get guest rules for an event.
+ */
+export async function getGuestRules(eventId) {
+    const db = getAdminDb();
+    const doc = await db.collection('event_guest_rules').doc(eventId).get();
+    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+}
+
+/**
  * Get open exceptions for an event.
+ * @param {string} eventId
+ * @param {{ status?: string, type?: string }} options
  */
 export async function getExceptions(eventId, { status = 'open', type } = {}) {
     const db = getAdminDb();

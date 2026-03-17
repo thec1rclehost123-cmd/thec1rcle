@@ -53,9 +53,10 @@ export class EventService {
     }
 
     async listNearby(lat: number, lng: number, radius: number, limit: number): Promise<any[]> {
-        const events = await this.eventRepo.listNearby(lat, lng, radius);
+        // Enforce limit at repository level
+        const events = await this.eventRepo.listNearby(lat, lng, radius, limit);
 
-        // Maintain Haversine parity
+        // Maintain Haversine parity for exact distance sorting
         const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
             const R = 6371;
             const dLat = (lat2 - lat1) * (Math.PI / 180);

@@ -282,7 +282,7 @@ function fmt(n: number, type: "currency" | "percent" | "number" = "number"): str
 
 // ── Main client ───────────────────────────────────────────────────────────────
 
-export default function AnalyticsOverviewClient() {
+export default function AnalyticsOverviewClient({ mode = "basic" }: { mode?: "basic" | "advanced" }) {
     const { user, profile } = useDashboardAuth();
     const [range, setRange] = useState("30d");
     const [eventId, setEventId] = useState<string | null>(null);

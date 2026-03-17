@@ -61,15 +61,16 @@ export async function requirePromoterAccess(
     }
 
     // 2. Fast path — check JWT custom claims
+    const claims = decodedToken as any;
     if (
-        decodedToken.partnerType === "promoter" &&
-        decodedToken.partnerId
+        claims.partnerType === "promoter" &&
+        claims.partnerId
     ) {
         return {
             uid,
-            promoterId: decodedToken.partnerId as string,
-            role: (decodedToken.partnerRole as PromoterRole) || "PROMOTER",
-            displayName: decodedToken.name || decodedToken.email || uid,
+            promoterId: claims.partnerId as string,
+            role: (claims.partnerRole as PromoterRole) || "PROMOTER",
+            displayName: claims.name || claims.email || uid,
         };
     }
 

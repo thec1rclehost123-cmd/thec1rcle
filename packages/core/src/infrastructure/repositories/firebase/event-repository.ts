@@ -172,7 +172,7 @@ export class FirebaseEventRepository implements IEventRepository {
         await this.db.collection('events').doc(id).update(updates);
     }
 
-    async listNearby(lat: number, lng: number, radius: number): Promise<Event[]> {
+    async listNearby(lat: number, lng: number, radius: number, limit: number = 20): Promise<Event[]> {
         const ranges = getNeighbors(lat, lng, radius);
         const nowIso = new Date().toISOString();
 
@@ -182,6 +182,7 @@ export class FirebaseEventRepository implements IEventRepository {
                 .where('geohash', '>=', start)
                 .where('geohash', '<=', end)
                 .where('lifecycle', 'in', ['scheduled', 'live'])
+                .limit(limit) // 🛡️ Safe Guard: Apply limit at query level
                 .get();
         }));
 
@@ -192,10 +193,12 @@ export class FirebaseEventRepository implements IEventRepository {
                 const data = doc.data() as any;
                 if (data.endDate >= nowIso) {
                     eventMap.set(doc.id, { ...data, id: doc.id });
+                    if (eventMap.size >= limit) return; // Break early if limit reached
                 }
             });
+            if (eventMap.size >= limit) break;
         }
 
-        return Array.from(eventMap.values());
+        return Array.from(eventMap.values()).slice(0, limit);
     }
 }

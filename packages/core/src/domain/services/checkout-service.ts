@@ -244,7 +244,7 @@ export class CheckoutService {
             };
 
             await Promise.all([
-                this.orderRepo.updateOrder(orderId, updates, transaction),
+                this.orderRepo.updateOrder(orderId, updates, order.isRSVP, transaction),
                 this.orderRepo.updatePaymentRecord(orderId, razorpayOrderId, {
                     status: 'verified',
                     razorpayPaymentId: razorpayPaymentId,
@@ -279,6 +279,7 @@ export class CheckoutService {
         const promises: Promise<any>[] = [];
 
         if (orderId) {
+            // Use legacy fallback if isRSVP is unknown during cancellation
             promises.push(this.orderRepo.updateOrder(orderId, {
                 status: 'cancelled',
                 updatedAt: new Date().toISOString()

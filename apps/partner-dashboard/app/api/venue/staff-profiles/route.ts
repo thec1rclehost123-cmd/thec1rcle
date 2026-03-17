@@ -51,7 +51,7 @@ export async function POST(request: Request) {
                 eventScope: body.eventScope ?? null,
                 guestlistScope: body.guestlistScope ?? "read_only",
             },
-            { uid: user!.uid, name: user!.displayName ?? "" }
+            { uid: user!.uid, name: user!.name ?? "" }
         );
 
         return NextResponse.json({ profile }, { status: 201 });

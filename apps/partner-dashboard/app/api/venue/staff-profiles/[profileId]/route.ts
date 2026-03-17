@@ -71,7 +71,7 @@ export async function PATCH(
             ctx.venueId,
             params.profileId,
             updates as any,
-            { uid: user!.uid, name: user!.displayName ?? "" }
+            { uid: user!.uid, name: user!.name ?? "" }
         );
 
         return NextResponse.json({ profile });
@@ -95,7 +95,7 @@ export async function DELETE(
         const user = await verifyAuth(request);
         await deleteStaffProfile(ctx.venueId, params.profileId, {
             uid: user!.uid,
-            name: user!.displayName ?? "",
+            name: user!.name ?? "",
         });
 
         return NextResponse.json({ ok: true });

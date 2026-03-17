@@ -353,6 +353,40 @@ export class C1rcleApiClient {
         });
     }
 
+    async addFacility(venueId, name, icon) {
+        return this.request('/cms/facilities', {
+            method: 'POST',
+            body: JSON.stringify({ venueId, name, icon })
+        });
+    }
+
+    async updateFacility(facilityId, updates) {
+        return this.request(`/cms/facilities/${facilityId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(updates)
+        });
+    }
+
+    async deleteFacility(facilityId) {
+        return this.request(`/cms/facilities/${facilityId}`, {
+            method: 'DELETE'
+        });
+    }
+
+    async toggleFacility(facilityId, isEnabled) {
+        return this.request(`/cms/facilities/${facilityId}/toggle`, {
+            method: 'PATCH',
+            body: JSON.stringify({ isEnabled })
+        });
+    }
+
+    async reorderFacilities(venueId, orderedIds) {
+        return this.request('/cms/facilities/reorder', {
+            method: 'POST',
+            body: JSON.stringify({ venueId, orderedIds })
+        });
+    }
+
     // ─── Staff Management (Enhanced) ──────────────────────────────
 
     async listStaff(venueId, isActive = true) {
