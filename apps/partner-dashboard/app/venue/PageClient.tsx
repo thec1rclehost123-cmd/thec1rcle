@@ -416,7 +416,7 @@ function EventMiniCard({ event }: { event: any }) {
             <p className="text-[11px] font-medium" style={{ color: "var(--v-text-tertiary)" }}>
                 {dateStr ? formatDate(dateStr) : "—"}
             </p>
-            <p className="text-[14px] font-semibold line-clamp-2 leading-tight" style={{ color: "var(--v-text-primary)" }}>
+            <p className="text-[14px] font-semibold line-clamp-2 leading-tight uppercase" style={{ color: "var(--v-text-primary)" }}>
                 {event.title}
             </p>
             <span className="v-status-pill self-start text-[10px]" style={{ color: cfg.color, background: cfg.bg }}>

@@ -23,13 +23,15 @@ import {
     Edit,
     AlertCircle,
     Ban,
-    AlertTriangle
+    AlertTriangle,
+    Copy,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import AuditTrail from "@/components/shared/AuditTrail";
 import CancelEventModal from "@/components/event-detail/CancelEventModal";
+import { DuplicateEventModal } from "@/components/events/DuplicateEventModal";
 import { useCancelEvent } from "@/lib/hooks/useCancelEvent";
 import { EVENT_LIFECYCLE, isPublicLifecycle } from "@c1rcle/core/events";
 
@@ -77,6 +79,7 @@ export default function EventManagementPage() {
     const [guestSearch, setGuestSearch] = useState("");
     const debouncedGuestSearch = useDebounce(guestSearch, 300);
     const [showCancelModal, setShowCancelModal] = useState(false);
+    const [showDuplicateModal, setShowDuplicateModal] = useState(false);
 
     const actor = {
         uid: profile?.uid || "",
@@ -296,7 +299,7 @@ export default function EventManagementPage() {
                                     <span className="text-text-placeholder">•</span>
                                     <span className="text-[12px] text-text-tertiary">{event.date}</span>
                                 </div>
-                                <h1 className="text-2xl font-bold text-text-primary tracking-tight">{event.title}</h1>
+                                <h1 className="text-2xl font-bold text-text-primary tracking-tight uppercase">{event.title}</h1>
                             </div>
                         </div>
 
@@ -429,7 +432,7 @@ export default function EventManagementPage() {
                                         <div className="bg-surface-elevated rounded-3xl border border-border-default overflow-hidden shadow-sm">
                                             <img src={event.image} className="w-full aspect-video object-cover" alt="" />
                                             <div className="p-6">
-                                                <h4 className="font-bold mb-2">{event.title}</h4>
+                                                <h4 className="font-bold mb-2 uppercase">{event.title}</h4>
                                                 <div className="space-y-3">
                                                     <div className="flex items-center gap-2 text-xs text-text-tertiary">
                                                         <Calendar className="h-3.5 w-3.5" /> {event.date}
@@ -723,6 +726,16 @@ export default function EventManagementPage() {
                             totalRevenue: event.stats?.revenue || 0,
                         }}
                     />
+
+                    {/* Duplicate Event Modal */}
+                    {showDuplicateModal && (
+                        <DuplicateEventModal
+                            eventId={event.id || (id as string)}
+                            eventTitle={event.title}
+                            venueId={profile?.activeMembership?.partnerId ?? ""}
+                            onClose={() => setShowDuplicateModal(false)}
+                        />
+                    )}
                 </>
             )}
         </div>

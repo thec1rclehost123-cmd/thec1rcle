@@ -39,12 +39,12 @@ export function WizardNavigation({
     completedSteps
 }: WizardNavigationProps) {
     return (
-        <div className="mb-8">
+        <div className="mb-4">
             {/* Progress Bar */}
-            <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-label text-text-tertiary uppercase tracking-widest font-bold">Progress</span>
-                    <span className="text-label text-text-tertiary font-bold">{currentStepIndex + 1} of {steps.length}</span>
+            <div className="mb-2">
+                <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-text-tertiary uppercase tracking-widest font-black">Progress</span>
+                    <span className="text-[10px] text-text-tertiary font-bold">{currentStepIndex + 1} / {steps.length}</span>
                 </div>
                 <div className="h-1.5 bg-surface-tertiary rounded-full overflow-hidden">
                     <motion.div
@@ -101,20 +101,20 @@ export function WizardNavigation({
             </div>
 
             {/* Current Step Header */}
-            <div className="mt-5 mb-4">
-                <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stepValidation[currentStep]?.isValid === false
+            <div className="mt-4 mb-3">
+                <div className="flex items-center gap-2.5">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${stepValidation[currentStep]?.isValid === false
                         ? 'bg-yellow-500/10 text-yellow-500'
                         : 'bg-indigo-500/10 text-indigo-500'
                         }`}>
                         {(() => {
                             const CurrentIcon = steps[currentStepIndex]?.icon;
-                            return CurrentIcon ? <CurrentIcon className="w-5 h-5" /> : null;
+                            return CurrentIcon ? <CurrentIcon className="w-4 h-4" /> : null;
                         })()}
                     </div>
                     <div>
-                        <h2 className="text-headline-sm">{steps[currentStepIndex]?.label}</h2>
-                        <p className="text-caption">{steps[currentStepIndex]?.description}</p>
+                        <h2 className="text-[15px] font-black uppercase tracking-tight leading-tight">{steps[currentStepIndex]?.label}</h2>
+                        <p className="text-[11px] text-text-tertiary font-medium">{steps[currentStepIndex]?.description}</p>
                     </div>
                 </div>
             </div>
@@ -122,17 +122,17 @@ export function WizardNavigation({
             {/* Validation Issues Banner */}
             {stepValidation[currentStep] && !stepValidation[currentStep].isValid && stepValidation[currentStep].issues.length > 0 && (
                 <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-4 rounded-xl bg-amber-50 border border-amber-100 mb-6"
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10 mb-4"
                 >
-                    <div className="flex items-start gap-3">
-                        <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-                        <div>
-                            <p className="text-body font-bold text-yellow-500 uppercase tracking-wider">Please complete the following:</p>
-                            <ul className="mt-2 space-y-1">
+                    <div className="flex items-start gap-2.5">
+                        <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                            <p className="text-[11px] font-black text-amber-500 uppercase tracking-wider">Validation Required:</p>
+                            <ul className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                 {stepValidation[currentStep].issues.map((issue, i) => (
-                                    <li key={i} className="text-body-sm text-yellow-500 opacity-80 font-medium">• {issue}</li>
+                                    <li key={i} className="text-[11px] text-amber-500/80 font-bold">• {issue}</li>
                                 ))}
                             </ul>
                         </div>

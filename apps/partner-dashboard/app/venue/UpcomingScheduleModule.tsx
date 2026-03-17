@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, ArrowUpRight } from "lucide-react";
+import { Calendar, ArrowUpRight, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { motion } from "framer-motion";
@@ -43,19 +43,40 @@ export default function UpcomingScheduleModule() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.05 }}
-                        className="p-5 rounded-2xl bg-surface-secondary border border-border-subtle hover:border-border-default transition-all cursor-pointer group"
+                        className="rounded-2xl bg-surface-secondary border border-border-subtle hover:border-border-default transition-all cursor-pointer group overflow-hidden flex flex-col"
                     >
-                        <p className="text-label-sm text-text-tertiary mb-2">
-                            {event.startDate ? new Date(event.startDate).toLocaleDateString('en-IN', {
-                                weekday: 'short', day: 'numeric', month: 'short'
-                            }) : 'No Date'}
-                        </p>
-                        <h4 className="text-title-sm text-text-primary line-clamp-1 mb-3 group-hover:text-accent-primary transition-colors">
-                            {event.title}
-                        </h4>
-                        <div className="flex items-center gap-2">
-                            <span className={`status-dot ${(event.lifecycle === 'scheduled' || event.lifecycle === 'live') ? 'status-dot-success' : 'status-dot-neutral'}`} />
-                            <span className="text-caption capitalize">{event.lifecycle}</span>
+                        {/* Event Poster */}
+                        <div className="relative aspect-[16/9] overflow-hidden bg-surface-tertiary">
+                            {event.poster ? (
+                                <img
+                                    src={event.poster}
+                                    alt={event.title}
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                    <ImageIcon className="w-8 h-8 text-text-placeholder" />
+                                </div>
+                            )}
+                            {/* Overlay Gradient */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        </div>
+
+                        <div className="p-5 flex-1 flex flex-col justify-between">
+                            <div>
+                                <p className="text-label-sm text-text-tertiary mb-2">
+                                    {event.startDate ? new Date(event.startDate).toLocaleDateString('en-IN', {
+                                        weekday: 'short', day: 'numeric', month: 'short'
+                                    }) : 'No Date'}
+                                </p>
+                                <h4 className="text-title-sm text-text-primary line-clamp-1 mb-3 group-hover:text-accent-primary transition-colors uppercase">
+                                    {event.title}
+                                </h4>
+                            </div>
+                            <div className="flex items-center gap-2 mt-auto">
+                                <span className={`status-dot ${(event.lifecycle === 'scheduled' || event.lifecycle === 'live') ? 'status-dot-success' : 'status-dot-neutral'}`} />
+                                <span className="text-caption capitalize font-medium">{event.lifecycle}</span>
+                            </div>
                         </div>
                     </motion.div>
                 ))}

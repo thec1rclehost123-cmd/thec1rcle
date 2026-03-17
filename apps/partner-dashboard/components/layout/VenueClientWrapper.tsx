@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Menu, X } from "lucide-react";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
@@ -8,14 +8,90 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AssistantButton } from "@/components/assistant/AssistantButton";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import type { VenueTab } from "@/lib/types/staffProfile";
 
 interface VenueClientWrapperProps {
     children: React.ReactNode;
     menuSections: any[];
 }
 
+// ── Tab-to-href mapping ────────────────────────────────────────────────────────
+// Maps the first path segment after /venue to a VenueTab key.
+const HREF_TO_TAB: Record<string, VenueTab> = {
+    "/venue":              "overview",
+    "/venue/analytics":    "analytics",
+    "/venue/events":       "events",
+    "/venue/create":       "events",
+    "/venue/finance":      "finance",
+    "/venue/calendar":     "calendar",
+    "/venue/walk-ins":     "walk_ins",
+    "/venue/guest-ops":    "guest_ops",
+    "/venue/partnerships": "partnerships",
+    "/venue/connections":  "partnerships",
+    "/venue/staff":        "staff",
+    "/venue/registers":    "registers",
+    "/venue/page-management": "page_management",
+    "/venue/settings":     "settings",
+};
+
+function itemTab(href: string): VenueTab | null {
+    // Exact match first
+    if (HREF_TO_TAB[href]) return HREF_TO_TAB[href];
+    // Prefix match (e.g. /venue/finance/payments → finance)
+    for (const [prefix, tab] of Object.entries(HREF_TO_TAB)) {
+        if (href.startsWith(prefix + "/")) return tab;
+    }
+    return null;
+}
+
+function applyTabVisibility(
+    sections: any[],
+    tabVisibility: Partial<Record<VenueTab, boolean>> | null
+): any[] {
+    // If no profile or no visibility rules, return all sections unchanged
+    if (!tabVisibility || Object.keys(tabVisibility).length === 0) return sections;
+
+    return sections
+        .map((section) => ({
+            ...section,
+            items: section.items.filter((item: any) => {
+                const tab = itemTab(item.href);
+                if (!tab) return true; // unknown tab → show by default
+                // undefined in tabVisibility → default true (show)
+                return tabVisibility[tab] !== false;
+            }),
+        }))
+        .filter((section) => section.items.length > 0);
+}
+
 export function VenueClientWrapper({ children, menuSections }: VenueClientWrapperProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const { profile } = useDashboardAuth();
+
+    // Load staff profile tab visibility if member has a custom profile assigned
+    const [tabVisibility, setTabVisibility] = useState<Partial<Record<VenueTab, boolean>> | null>(null);
+
+    useEffect(() => {
+        const membership = profile?.activeMembership;
+        if (!membership?.staffProfileId || !membership.partnerId) return;
+
+        fetch(
+            `/api/venue/staff-profiles/${membership.staffProfileId}?venueId=${membership.partnerId}`
+        )
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data) => {
+                if (data?.profile?.tabVisibility) {
+                    setTabVisibility(data.profile.tabVisibility);
+                }
+            })
+            .catch(() => {/* fail silently — use full menu */});
+    }, [profile?.activeMembership?.staffProfileId, profile?.activeMembership?.partnerId]);
+
+    const filteredSections = useMemo(
+        () => applyTabVisibility(menuSections, tabVisibility),
+        [menuSections, tabVisibility]
+    );
 
     return (
         <ApprovalGuard>
@@ -26,7 +102,7 @@ export function VenueClientWrapper({ children, menuSections }: VenueClientWrappe
                         <AppleSidebar
                             brandLetter="C"
                             brandLabel="Venue"
-                            menuSections={menuSections}
+                            menuSections={filteredSections}
                             basePath="/venue"
                         />
                     </div>
@@ -75,7 +151,7 @@ export function VenueClientWrapper({ children, menuSections }: VenueClientWrappe
                                     <AppleSidebar
                                         brandLetter="C"
                                         brandLabel="Venue"
-                                        menuSections={menuSections}
+                                        menuSections={filteredSections}
                                         basePath="/venue"
                                     />
                                 </motion.div>

@@ -221,4 +221,3 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath, 
         </aside>
     );
 }
-

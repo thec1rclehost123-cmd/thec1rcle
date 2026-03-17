@@ -8,7 +8,6 @@ import {
     Activity,
     ChevronRight,
     Loader2,
-    BarChart3,
     Target,
     Zap,
     ShieldAlert,
@@ -16,7 +15,7 @@ import {
 } from "lucide-react";
 
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import Link from "next/link";
+import { PremiumGate } from "@/components/analytics/PremiumGate";
 import { useParams } from "next/navigation";
 import StudioShell from "@/components/studio/StudioShell";
 import { EventTimeline, InsightsPanel } from "@/components/studio/EventStudio";
@@ -107,34 +106,22 @@ export default function VenueAnalyticsPage() {
         );
     }
 
-    if (!stats || !stats.dataReady) {
-        return (
-            <div
-                className="py-24 flex flex-col items-center text-center rounded-[32px]"
-                style={{ background: "var(--v-card)" }}
-            >
-                <div
-                    className="w-20 h-20 rounded-2xl flex items-center justify-center mb-8"
-                    style={{ background: "var(--v-elevated)" }}
-                >
-                    <BarChart3 className="w-10 h-10" style={{ color: "var(--v-text-muted)" }} />
-                </div>
-                <h3 className="text-[20px] font-bold mb-3" style={{ color: "var(--v-text-primary)" }}>
-                    No Data Yet
-                </h3>
-                <p className="text-[14px] mb-10 max-w-sm" style={{ color: "var(--v-text-tertiary)" }}>
-                    Complete your first event to see {(categoryLabels[category] || category).toLowerCase()} analytics.
-                </p>
-                <Link
-                    href="/venue/create"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all hover:brightness-110"
-                    style={{ background: "var(--v-orange)", color: "#fff" }}
-                >
-                    Create Your First Event
-                </Link>
-            </div>
-        );
-    }
+    // Always render the full analytics UI. Zero values and flat timeseries
+    // keep every chart and card visible even on brand-new accounts.
+    const FEATURE_MIN_PLANS: Record<string, "basic" | "silver" | "gold" | "diamond"> = {
+        overview: "basic",
+        reach: "basic",
+        engagement: "basic",
+        revenue: "silver",
+        audience: "silver",
+        ops: "gold",
+        attribution: "gold",
+        timeline: "basic",
+        strategy: "diamond",
+    };
+
+    const safeStats = stats ?? {};
+    const minPlan = FEATURE_MIN_PLANS[category] || "basic";
 
     return (
         <StudioShell
@@ -145,15 +132,17 @@ export default function VenueAnalyticsPage() {
             onEventChange={(eId) => setSelectedEventId(eId)}
         >
             <div className="space-y-4 pb-20">
-                {category === "overview" && <OverviewView stats={stats} />}
-                {category === "reach" && <ReachView stats={stats} />}
-                {category === "engagement" && <EngagementView stats={stats} />}
-                {category === "revenue" && <RevenueView stats={stats} />}
-                {category === "audience" && <AudienceView stats={stats} />}
-                {category === "ops" && <OpsView stats={stats} />}
-                {category === "attribution" && <AttributionView stats={stats} />}
-                {category === "timeline" && <TimelineView stats={stats} />}
-                {category === "strategy" && <StrategyView stats={stats} />}
+                <PremiumGate featureName={categoryLabels[category]} minPlan={minPlan}>
+                    {category === "overview" && <OverviewView stats={safeStats} />}
+                    {category === "reach" && <ReachView stats={safeStats} />}
+                    {category === "engagement" && <EngagementView stats={safeStats} />}
+                    {category === "revenue" && <RevenueView stats={safeStats} />}
+                    {category === "audience" && <AudienceView stats={safeStats} />}
+                    {category === "ops" && <OpsView stats={safeStats} />}
+                    {category === "attribution" && <AttributionView stats={safeStats} />}
+                    {category === "timeline" && <TimelineView stats={safeStats} />}
+                    {category === "strategy" && <StrategyView stats={safeStats} />}
+                </PremiumGate>
             </div>
         </StudioShell>
     );

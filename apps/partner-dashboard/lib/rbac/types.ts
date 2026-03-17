@@ -77,6 +77,8 @@ export interface PartnerMembership {
     permissions?: Permission[]; // Override permissions if needed
     joinedAt: number;
     isActive: boolean;
+    /** v2: reference to a custom staff access profile */
+    staffProfileId?: string | null;
 }
 
 export interface DashboardProfile {

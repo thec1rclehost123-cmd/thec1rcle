@@ -1,3 +1,5 @@
+"use client";
+
 import React, { Suspense } from "react";
 import { SkeletonKPIGrid, SkeletonCard } from "@/components/ui/Skeleton";
 import dynamic from "next/dynamic";
@@ -18,9 +20,9 @@ const UpcomingScheduleModule = dynamic(() => import("./UpcomingScheduleModule"),
     loading: () => <SkeletonCard className="h-[400px]" /> 
 });
 
-const DashboardSidebarModule = dynamic(() => import("./DashboardSidebarModule"), { 
-    ssr: false, 
-    loading: () => <SkeletonCard className="h-[600px]" /> 
+const DashboardSidebarModule = dynamic(() => import("./DashboardSidebarModule"), {
+    ssr: false,
+    loading: () => <SkeletonCard className="h-[600px]" />
 });
 
 export default function VenueDashboardStreaming() {
