@@ -67,19 +67,6 @@ export async function POST(req: NextRequest) {
         let result;
         switch (action) {
             case "updateProfile":
-<<<<<<< HEAD
-                result = await updateProfile(profileId, type, data);
-                break;
-            case "createPost":
-                result = await createPost(profileId, type, data);
-                break;
-            case "createHighlight":
-                result = await createHighlight(profileId, type, data);
-                break;
-            case "deletePost":
-                // Additional check: Ensure post belongs to this profile
-                result = await deletePost(data.postId);
-=======
                 result = await updateProfile(profileId, type, data, token);
                 break;
             case "createPost":
@@ -91,23 +78,15 @@ export async function POST(req: NextRequest) {
             case "deletePost":
                 // Additional check: Ensure post belongs to this profile
                 result = await deletePost(data.postId, token);
->>>>>>> 6ccfad5 (feat: UI improvements and bug fixes)
                 break;
             case "deleteHighlight":
                 result = await deleteHighlight(data.highlightId, token);
                 break;
             case "addPhoto":
-<<<<<<< HEAD
-                result = await updateProfile(profileId, type, { [data.field]: data.url });
-                break;
-            case "removePhoto":
-                result = await updateProfile(profileId, type, { [data.field]: null });
-=======
                 result = await updateProfile(profileId, type, { [data.field]: data.url }, token);
                 break;
             case "removePhoto":
                 result = await updateProfile(profileId, type, { [data.field]: null }, token);
->>>>>>> 6ccfad5 (feat: UI improvements and bug fixes)
                 break;
             default:
                 return NextResponse.json({ error: "Invalid action" }, { status: 400 });
