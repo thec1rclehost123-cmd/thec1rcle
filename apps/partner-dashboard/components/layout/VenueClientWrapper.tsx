@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Menu, X } from "lucide-react";
 import {
     LayoutDashboard,
@@ -136,22 +136,14 @@ interface VenueClientWrapperProps {
 export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
-    const { profile } = useDashboardAuth();
-    const [tabVisibility, setTabVisibility] = useState<Partial<Record<VenueTab, boolean>> | null>(null);
+    const { tabVisibility: ctxTabVisibility } = useDashboardAuth();
 
-    useEffect(() => {
-        const membership = profile?.activeMembership;
-        if (!membership?.staffProfileId || !membership.partnerId) return;
-        fetch(`/api/venue/staff-profiles/${membership.staffProfileId}?venueId=${membership.partnerId}`)
-            .then((r) => (r.ok ? r.json() : null))
-            .then((data) => {
-                if (data?.profile?.tabVisibility) setTabVisibility(data.profile.tabVisibility);
-            })
-            .catch(() => {/* fail silently */});
-    }, [profile?.activeMembership?.staffProfileId, profile?.activeMembership?.partnerId]);
+    // Use server-resolved tabVisibility from auth context (works for all staff roles)
+    // Falls back to null (show all) for owners who have no tab restrictions
+    const tabVisibility = ctxTabVisibility ?? null;
 
     const filteredSections = useMemo(
-        () => applyTabVisibility(MENU_SECTIONS, tabVisibility),
+        () => applyTabVisibility(MENU_SECTIONS, tabVisibility as Partial<Record<VenueTab, boolean>> | null),
         [tabVisibility]
     );
 

@@ -37,9 +37,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "profileName and baseRole are required" }, { status: 422 });
         }
 
-        const { verifyAuth } = await import("@/lib/server/auth");
-        const user = await verifyAuth(request);
-
         const profile = await createStaffProfile(
             ctx.venueId,
             {
@@ -51,7 +48,7 @@ export async function POST(request: Request) {
                 eventScope: body.eventScope ?? null,
                 guestlistScope: body.guestlistScope ?? "read_only",
             },
-            { uid: user!.uid, name: user!.name ?? "" }
+            { uid: ctx.uid, name: "" }
         );
 
         return NextResponse.json({ profile }, { status: 201 });

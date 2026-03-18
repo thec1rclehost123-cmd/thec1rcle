@@ -68,6 +68,27 @@ const ROLE_PRESETS = {
         permissions: [
             '*' // All permissions
         ]
+    },
+    // VenueRole-aligned presets (used by partner dashboard invite flow)
+    STAFF: {
+        name: 'Employee',
+        description: 'Can manage guest list, tables, and log incidents',
+        permissions: [
+            'guestlist:read',
+            'guestlist:notes',
+            'incidents:create',
+            'incidents:read',
+            'calendar:read',
+            'events:read'
+        ]
+    },
+    FINANCE_ADMIN: {
+        name: 'Finance',
+        description: 'Can view financial data, reports, and payouts',
+        permissions: [
+            'calendar:read',
+            'events:read'
+        ]
     }
 };
 
@@ -163,10 +184,20 @@ export async function inviteStaff(venueId, inviteData, invitedBy) {
         return { success: false, error: `Invalid role: ${role}` };
     }
 
-    // Check if already invited
+    // Check if already invited (allow re-invite if previously removed)
     const existing = await getStaffByEmail(venueId, email);
     if (existing) {
-        return { success: false, error: 'Staff member already exists with this email' };
+        if (existing.status === 'removed') {
+            // Delete the old record so a fresh invite can be created
+            if (isFirebaseConfigured()) {
+                const db = getAdminDb();
+                await db.collection(CLUB_STAFF_COLLECTION).doc(existing.id).delete();
+            } else {
+                fallbackStaff.delete(existing.id);
+            }
+        } else {
+            return { success: false, error: 'Staff member already exists with this email' };
+        }
     }
 
     const now = new Date().toISOString();

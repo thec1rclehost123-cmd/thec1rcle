@@ -62,6 +62,22 @@ export async function requireVenueAccess(
         };
     }
 
+    // Owners have JWT claims (partnerId/partnerRole) but no partner_memberships doc
+    const claimsPartnerId = (user as any).partnerId;
+    const claimsRole = (user as any).partnerRole;
+    if (claimsPartnerId === venueId && claimsRole === "OWNER") {
+        return {
+            uid: user.uid,
+            venueId,
+            membershipId: "owner-claims",
+            baseRole: "OWNER",
+            piiPolicy: OWNER_PII_POLICY,
+            guestlistScope: "editable",
+            eventScope: null,
+            canDo: () => true,
+        };
+    }
+
     const db = getAdminDb();
 
     // Find active membership for this user + venue
@@ -74,7 +90,24 @@ export async function requireVenueAccess(
         .limit(1)
         .get();
 
-    if (snap.empty) return { error: "No active venue membership", status: 403 };
+    if (snap.empty) {
+        // Fallback: check users doc activeMembership (for owners without JWT claims)
+        const userDoc = await db.collection("users").doc(user.uid).get();
+        const userData = userDoc.exists ? userDoc.data() : null;
+        if (userData?.activeMembership?.partnerId === venueId) {
+            return {
+                uid: user.uid,
+                venueId,
+                membershipId: "owner-doc",
+                baseRole: "OWNER",
+                piiPolicy: OWNER_PII_POLICY,
+                guestlistScope: "editable",
+                eventScope: null,
+                canDo: () => true,
+            };
+        }
+        return { error: "No active venue membership", status: 403 };
+    }
 
     const memberDoc = snap.docs[0];
     const membershipId = memberDoc.id;

@@ -12,7 +12,6 @@ import {
     deleteStaffProfile,
     listProfileAudit,
 } from "@/lib/server/staffProfileStore";
-import { verifyAuth } from "@/lib/server/auth";
 
 export async function GET(
     request: Request,
@@ -49,7 +48,6 @@ export async function PATCH(
         const ctx = await requireManagementRole(request);
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-        const user = await verifyAuth(request);
         const body = await request.json();
 
         const allowed = [
@@ -71,7 +69,7 @@ export async function PATCH(
             ctx.venueId,
             params.profileId,
             updates as any,
-            { uid: user!.uid, name: user!.name ?? "" }
+            { uid: ctx.uid, name: "" }
         );
 
         return NextResponse.json({ profile });
@@ -92,10 +90,9 @@ export async function DELETE(
         const ctx = await requireManagementRole(request);
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-        const user = await verifyAuth(request);
         await deleteStaffProfile(ctx.venueId, params.profileId, {
-            uid: user!.uid,
-            name: user!.name ?? "",
+            uid: ctx.uid,
+            name: "",
         });
 
         return NextResponse.json({ ok: true });

@@ -94,6 +94,12 @@ function LoginForm() {
                 else if (userData.role === 'promoter') assignedType = 'promoter';
                 else if (userData.role === 'partner' || userData.venueId) assignedType = 'venue';
 
+                // Staff users have no role/venueId — /api/auth/me synthesizes activeMembership for them
+                if (!assignedType && userData.activeMembership?.partnerType) {
+                    const pt = userData.activeMembership.partnerType;
+                    assignedType = (pt === 'venue' || pt === 'club') ? 'venue' : pt;
+                }
+
                 if (!assignedType && onboardingRequest) {
                     assignedType = onboardingRequest.type;
                 }

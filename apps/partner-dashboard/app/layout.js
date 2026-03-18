@@ -16,6 +16,9 @@ export const metadata = {
   applicationName: "THE C1RCLE Partner Dashboard",
   keywords: ["nightclub", "venue management", "event management", "nightlife", "partner dashboard"],
   authors: [{ name: "THE C1RCLE" }],
+};
+
+export const viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
     { media: "(prefers-color-scheme: dark)", color: "#0A0A0B" }

@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowLeft, Moon, Search } from "lucide-react";

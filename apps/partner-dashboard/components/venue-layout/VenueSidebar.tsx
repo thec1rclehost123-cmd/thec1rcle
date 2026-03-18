@@ -44,6 +44,7 @@ type NavItem = {
     icon: React.ElementType;
     minPlan: string;
     badge: string | null;
+    tabKey?: string;
 };
 
 type AnalyticsSubGroup = {
@@ -80,20 +81,20 @@ const ANALYTICS_SUB: AnalyticsSubGroup[] = [
         key: "analytics-operational",
         label: "Operations (Daily)",
         items: [
-            { label: "Dashboard",   href: "/venue/analytics/overview",   icon: LayoutDashboard, minPlan: "basic", badge: null   },
-            { label: "Live Event",  href: "/venue/analytics/live",       icon: Radio,           minPlan: "basic", badge: "Live" },
-            { label: "Pace & Goals",href: "/venue/analytics/reach",      icon: TrendingUp,      minPlan: "basic", badge: null   },
+            { label: "Dashboard",   href: "/venue/analytics/overview",   icon: LayoutDashboard, minPlan: "basic", badge: null,   tabKey: "analytics" },
+            { label: "Live Event",  href: "/venue/analytics/live",       icon: Radio,           minPlan: "basic", badge: "Live", tabKey: "analytics" },
+            { label: "Pace & Goals",href: "/venue/analytics/reach",      icon: TrendingUp,      minPlan: "basic", badge: null,   tabKey: "analytics" },
         ],
     },
     {
         key: "analytics-premium",
         label: "Strategic (Premium)",
         items: [
-            { label: "Revenue Waterfall",href: "/venue/analytics/revenue",    icon: Banknote,        minPlan: "silver", badge: null },
-            { label: "Audience Intelligence", href: "/venue/analytics/audience",     icon: Users,        minPlan: "silver", badge: null },
-            { label: "Gate Performance", href: "/venue/analytics/ops",          icon: ShieldCheck,  minPlan: "gold", badge: null },
-            { label: "ROI & Partners",  href: "/venue/analytics/attribution",  icon: Handshake,    minPlan: "gold", badge: null },
-            { label: "AI Predictions",  href: "/venue/analytics/strategy",     icon: Sparkles,     minPlan: "diamond", badge: "AI"  },
+            { label: "Revenue Waterfall",     href: "/venue/analytics/revenue",     icon: Banknote,   minPlan: "silver",  badge: null, tabKey: "analytics" },
+            { label: "Audience Intelligence", href: "/venue/analytics/audience",    icon: Users,      minPlan: "silver",  badge: null, tabKey: "analytics" },
+            { label: "Gate Performance",      href: "/venue/analytics/ops",         icon: ShieldCheck,minPlan: "gold",    badge: null, tabKey: "analytics" },
+            { label: "ROI & Partners",        href: "/venue/analytics/attribution", icon: Handshake,  minPlan: "gold",    badge: null, tabKey: "analytics" },
+            { label: "AI Predictions",        href: "/venue/analytics/strategy",    icon: Sparkles,   minPlan: "diamond", badge: "AI", tabKey: "analytics" },
         ],
     },
 ];
@@ -106,7 +107,7 @@ const MENU_GROUPS: MenuGroup[] = [
         icon: Zap,
         collapsible: false,
         items: [
-            { label: "Overview", href: "/venue", icon: LayoutDashboard, minPlan: "basic", badge: null },
+            { label: "Overview", href: "/venue", icon: LayoutDashboard, minPlan: "basic", badge: null, tabKey: "overview" },
         ],
     },
     {
@@ -120,13 +121,13 @@ const MENU_GROUPS: MenuGroup[] = [
         icon: GlassWater,
         collapsible: true,
         items: [
-            { label: "My Events",        href: "/venue/events",           icon: GlassWater,  minPlan: "basic",  badge: null },
-            { label: "Finance Overview", href: "/venue/finance",          icon: Banknote,    minPlan: "basic",  badge: null },
-            { label: "Ledger",           href: "/venue/finance/ledger",   icon: ReceiptText, minPlan: "basic",  badge: null },
-            { label: "Payout Settings",  href: "/venue/finance/payouts",  icon: CreditCard,  minPlan: "basic",  badge: null },
-            { label: "Reports",          href: "/venue/finance/reports",  icon: TrendingUp,  minPlan: "basic",  badge: null },
-            { label: "Create Event",     href: "/venue/create",           icon: Sparkles,    minPlan: "basic",  badge: null },
-            { label: "Calendar",         href: "/venue/calendar",         icon: CalendarDays,minPlan: "basic",  badge: null },
+            { label: "My Events",        href: "/venue/events",           icon: GlassWater,  minPlan: "basic",  badge: null, tabKey: "events"   },
+            { label: "Finance Overview", href: "/venue/finance",          icon: Banknote,    minPlan: "basic",  badge: null, tabKey: "finance"  },
+            { label: "Ledger",           href: "/venue/finance/ledger",   icon: ReceiptText, minPlan: "basic",  badge: null, tabKey: "finance"  },
+            { label: "Payout Settings",  href: "/venue/finance/payouts",  icon: CreditCard,  minPlan: "basic",  badge: null, tabKey: "finance"  },
+            { label: "Reports",          href: "/venue/finance/reports",  icon: TrendingUp,  minPlan: "basic",  badge: null, tabKey: "finance"  },
+            { label: "Create Event",     href: "/venue/create",           icon: Sparkles,    minPlan: "basic",  badge: null, tabKey: "events"   },
+            { label: "Calendar",         href: "/venue/calendar",         icon: CalendarDays,minPlan: "basic",  badge: null, tabKey: "calendar" },
         ],
     },
     {
@@ -134,11 +135,11 @@ const MENU_GROUPS: MenuGroup[] = [
         icon: ShieldCheck,
         collapsible: true,
         items: [
-            { label: "Connections", href: "/venue/connections", icon: Handshake,    minPlan: "basic",  badge: null },
-            { label: "Staff",       href: "/venue/staff",       icon: Users,        minPlan: "basic",  badge: null },
-            { label: "Registers",   href: "/venue/registers",   icon: ClipboardList,minPlan: "silver", badge: null },
-            { label: "Security",    href: "/venue/security",    icon: ShieldCheck,  minPlan: "silver", badge: null },
-            { label: "Tables",      href: "/venue/tables",      icon: Armchair,     minPlan: "gold",   badge: null },
+            { label: "Connections", href: "/venue/connections", icon: Handshake,    minPlan: "basic",  badge: null, tabKey: "partnerships" },
+            { label: "Staff",       href: "/venue/staff",       icon: Users,        minPlan: "basic",  badge: null, tabKey: "staff"        },
+            { label: "Registers",   href: "/venue/registers",   icon: ClipboardList,minPlan: "silver", badge: null, tabKey: "registers"    },
+            { label: "Security",    href: "/venue/security",    icon: ShieldCheck,  minPlan: "silver", badge: null, tabKey: "guest_ops"    },
+            { label: "Tables",      href: "/venue/tables",      icon: Armchair,     minPlan: "gold",   badge: null, tabKey: "guest_ops"    },
         ],
     },
     {
@@ -146,8 +147,8 @@ const MENU_GROUPS: MenuGroup[] = [
         icon: TrendingUp,
         collapsible: true,
         items: [
-            { label: "Venue Page",    href: "/venue/page-management", icon: Building2, minPlan: "basic", badge: null },
-            { label: "Digital Menu",  href: "/venue/menu",            icon: Utensils,  minPlan: "basic", badge: null },
+            { label: "Venue Page",   href: "/venue/page-management", icon: Building2, minPlan: "basic", badge: null, tabKey: "page_management" },
+            { label: "Digital Menu", href: "/venue/menu",            icon: Utensils,  minPlan: "basic", badge: null, tabKey: "page_management" },
         ],
     },
 ];
@@ -175,7 +176,7 @@ export function VenueSidebar({
     onToggleCollapse?: () => void;
 }) {
     const pathname = usePathname();
-    const { signOut, profile, subscriptionPlan } = useDashboardAuth();
+    const { signOut, profile, subscriptionPlan, tabVisibility } = useDashboardAuth();
 
     // Top-level section collapse state — "Core" + "Analytics" both open by default
     const [expandedSections, setExpandedSections] = useState<string[]>(["Core", "Analytics", "Events"]);
@@ -184,6 +185,14 @@ export function VenueSidebar({
 
     const currentPlanLevel = PLAN_HIERARCHY[subscriptionPlan || "basic"] ?? 0;
     const planStyle = PLAN_COLORS[subscriptionPlan || "basic"];
+
+    // Returns true if the item should be visible for this user's role.
+    // tabVisibility null means owner (show everything).
+    const isTabAllowed = (item: NavItem) => {
+        if (!tabVisibility) return true;
+        if (!item.tabKey) return true;
+        return tabVisibility[item.tabKey] === true;
+    };
 
     const isActive = (path: string) => {
         if (path === "/venue" && pathname === "/venue") return true;
@@ -369,7 +378,7 @@ export function VenueSidebar({
                                             <div className="mt-0.5 space-y-1 pl-2">
                                                 {group.subGroups.map((sg) => {
                                                     const visibleItems = sg.items.filter(
-                                                        item => PLAN_HIERARCHY[item.minPlan] <= currentPlanLevel
+                                                        item => PLAN_HIERARCHY[item.minPlan] <= currentPlanLevel && isTabAllowed(item)
                                                     );
                                                     if (visibleItems.length === 0) return null;
 
@@ -424,7 +433,7 @@ export function VenueSidebar({
 
                         // ── Flat group (Core, Events, Operations, Presence) ───────
                         const visibleItems = (group.items ?? []).filter(
-                            item => PLAN_HIERARCHY[item.minPlan] <= currentPlanLevel
+                            item => PLAN_HIERARCHY[item.minPlan] <= currentPlanLevel && isTabAllowed(item)
                         );
                         if (visibleItems.length === 0) return null;
 

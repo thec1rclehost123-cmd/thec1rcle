@@ -21,6 +21,14 @@ interface AuthContextValue {
     isApproved: boolean;
     onboardingStatus: string | null;
     subscriptionPlan: string | null;
+    /** Resolved tab visibility for non-OWNER staff; null means show all tabs */
+    tabVisibility: Partial<Record<string, boolean>> | null;
+    /** Resolved action permissions for non-OWNER staff; null means all allowed */
+    actionPermissions: Partial<Record<string, boolean>> | null;
+    /** Resolved PII policy for non-OWNER staff; null means full visibility */
+    piiPolicy: Partial<Record<string, boolean>> | null;
+    /** Returns true if owner (null) or the specific action is permitted */
+    canDo: (action: string) => boolean;
     signIn: (email: string, password: string) => Promise<void>;
     signUp: (email: string, password: string, displayName: string) => Promise<void>;
     signInWithGoogle: () => Promise<void>;
@@ -37,6 +45,9 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     const [isApproved, setIsApproved] = useState(false);
     const [onboardingStatus, setOnboardingStatus] = useState<string | null>(null);
     const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
+    const [tabVisibility, setTabVisibility] = useState<Partial<Record<string, boolean>> | null>(null);
+    const [actionPermissions, setActionPermissions] = useState<Partial<Record<string, boolean>> | null>(null);
+    const [piiPolicy, setPiiPolicy] = useState<Partial<Record<string, boolean>> | null>(null);
 
     useEffect(() => {
         const auth = getFirebaseAuth();
@@ -47,6 +58,9 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 setIsApproved(false);
                 setOnboardingStatus(null);
                 setSubscriptionPlan(null);
+                setTabVisibility(null);
+                setActionPermissions(null);
+                setPiiPolicy(null);
                 setLoading(false);
             }
         });
@@ -125,6 +139,11 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                     plan = userData.subscriptionPlan || userData.tier || 'basic';
                     setSubscriptionPlan(plan);
                 }
+
+                // Resolved permissions (server-side; null for owners = show/allow all)
+                setTabVisibility(userData._staffTabVisibility ?? null);
+                setActionPermissions(userData._staffActionPermissions ?? null);
+                setPiiPolicy(userData._staffPiiPolicy ?? null);
 
                 setProfile({
                     uid: user.uid,
@@ -211,8 +230,11 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         console.log("Switching to partner:", partnerId);
     };
 
+    const canDo = (action: string) =>
+        !actionPermissions || actionPermissions[action] === true;
+
     return (
-        <AuthContext.Provider value={{ user, profile, loading, isApproved, onboardingStatus, subscriptionPlan, signIn, signUp, signInWithGoogle, signOut, switchPartner }}>
+        <AuthContext.Provider value={{ user, profile, loading, isApproved, onboardingStatus, subscriptionPlan, tabVisibility, actionPermissions, piiPolicy, canDo, signIn, signUp, signInWithGoogle, signOut, switchPartner }}>
             {children}
         </AuthContext.Provider>
     );
