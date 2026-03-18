@@ -24,7 +24,6 @@ const nextConfig = {
   },
   eslint: {
     // Enforce linting during build for production safety
-    dirs: ['app', 'components', 'lib'],
     ignoreDuringBuilds: false,
   },
   images: {
