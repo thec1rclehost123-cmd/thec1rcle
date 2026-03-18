@@ -38,7 +38,8 @@ export default async function checkoutRoutes(fastify) {
         preHandler: [fastify.validate({ body: CheckoutValidateBody })]
     }, async (request, reply) => {
         try {
-            const result = await fastify.checkoutService.validatePricing(request.body);
+            const workspaceId = request.workspaceId;
+            const result = await fastify.checkoutService.validatePricing(request.body, workspaceId);
             return result;
         }
         catch (error) {
@@ -91,7 +92,10 @@ export default async function checkoutRoutes(fastify) {
             return reply.status(401).send({ success: false, error: 'Authentication required to reserve tickets' });
         }
         try {
-            const result = await fastify.checkoutService.reserveItems(eventId, userId, deviceId || null, items);
+            const workspaceId = request.workspaceId;
+            if (!workspaceId)
+                return reply.status(400).send({ success: false, error: 'Missing x-workspace-id header' });
+            const result = await fastify.checkoutService.reserveItems(eventId, userId, deviceId || null, items, workspaceId);
             return result;
         }
         catch (error) {
@@ -111,10 +115,13 @@ export default async function checkoutRoutes(fastify) {
             return reply.status(401).send({ success: false, error: 'Authentication required' });
         }
         try {
+            const workspaceId = request.workspaceId;
+            if (!workspaceId)
+                return reply.status(400).send({ success: false, error: 'Missing x-workspace-id header' });
             const result = await fastify.checkoutService.initiateCheckout({
                 ...request.body,
                 userId
-            });
+            }, workspaceId);
             return result;
         }
         catch (error) {

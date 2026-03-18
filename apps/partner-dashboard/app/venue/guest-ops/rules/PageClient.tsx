@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VENUE_PERMISSIONS } from "@/lib/rbac/types";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import {
     Settings2, Save, Loader2, AlertTriangle, CheckCircle2, Lock,
     Users, Plus, Minus, ScanLine,
@@ -359,7 +359,7 @@ export default function GuestRulesPageClient() {
                                                 </div>
                                                 <div className="text-center font-bold text-[var(--v-text-primary)] tabular-nums">{alloc.allocatedCount}</div>
                                                 <div className="text-center font-bold text-green-600 dark:text-green-400 tabular-nums">{alloc.usedCount}</div>
-                                                <div className={clsx(
+                                                <div className={cn(
                                                     "text-center font-bold tabular-nums",
                                                     alloc.remaining === 0 ? "text-red-500" : "text-[var(--v-text-primary)]"
                                                 )}>
@@ -421,14 +421,14 @@ function ToggleRow({ label, description, checked, onChange, disabled }: {
                 aria-checked={checked}
                 onClick={() => !disabled && onChange(!checked)}
                 disabled={disabled}
-                className={clsx(
+                className={cn(
                     "relative w-10 h-5.5 rounded-full transition-all shrink-0 disabled:opacity-40 disabled:cursor-not-allowed",
                     checked ? "bg-[var(--v-orange)]" : "bg-[var(--v-elevated)]"
                 )}
                 style={{ height: "22px", width: "40px" }}
             >
                 <span
-                    className={clsx(
+                    className={cn(
                         "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
                         checked ? "translate-x-5" : "translate-x-0.5"
                     )}

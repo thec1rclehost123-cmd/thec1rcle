@@ -1,4 +1,4 @@
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { type ReactNode } from "react";
 
 /**
@@ -46,7 +46,7 @@ export const Badge = ({
 }: BadgeProps) => {
   return (
     <span
-      className={clsx(
+      className={cn(
         "inline-flex items-center border font-semibold rounded-full whitespace-nowrap",
         toneStyles[tone],
         sizeStyles[size],
@@ -55,7 +55,7 @@ export const Badge = ({
       {...rest}
     >
       {dot && (
-        <span className={clsx(
+        <span className={cn(
           "w-1.5 h-1.5 rounded-full flex-shrink-0",
           tone === "success" && "bg-green-500",
           tone === "warning" && "bg-[var(--state-warning)]",

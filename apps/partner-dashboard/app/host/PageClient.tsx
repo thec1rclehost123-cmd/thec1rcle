@@ -29,7 +29,7 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { formatINRCompact } from "@/lib/finance/definitions";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 import { KPIBento } from "@/components/ui/BentoCard";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 // ─── Types and Formatters ────────────────────────────────────────────────────────
 
@@ -226,8 +226,8 @@ export default function HostOverviewPage() {
                     <div className="rounded-[32px] bg-[var(--v-card)] border border-[var(--v-border)] p-8 flex flex-col justify-center min-h-[140px]">
                         <span className="text-[12px] font-black uppercase tracking-widest text-[var(--v-text-tertiary)]">PARTNER STATUS</span>
                         <div className="flex items-center gap-3 mt-3">
-                            <div className={clsx("w-3 h-3 rounded-full animate-pulse", summary?.verificationStatus === "verified" ? "bg-[var(--v-success)]" : "bg-amber-500")} />
-                            <span className={clsx("text-[15px] font-black uppercase tracking-widest", summary?.verificationStatus === "verified" ? "text-[var(--v-success)]" : "text-amber-500")}>
+                            <div className={cn("w-3 h-3 rounded-full animate-pulse", summary?.verificationStatus === "verified" ? "bg-[var(--v-success)]" : "bg-amber-500")} />
+                            <span className={cn("text-[15px] font-black uppercase tracking-widest", summary?.verificationStatus === "verified" ? "text-[var(--v-success)]" : "text-amber-500")}>
                                 {summary?.verificationStatus === "verified" ? "Elite Tier" : "Validation"}
                             </span>
                         </div>

@@ -29,6 +29,7 @@ import {
 
 import Link from "next/link";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 import { DashboardEventCard } from "@c1rcle/ui";
 import { mapEventForClient } from "@c1rcle/core/events";
 
@@ -51,7 +52,7 @@ const ItemContainer = forwardRef<HTMLDivElement>((props, ref) => (
 ));
 ItemContainer.displayName = "ItemContainer";
 
-const MemoizedLinkCard = memo(({ campaign, index, promoterId, links }: any) => {
+const MemoizedLinkCard = memo(({ campaign, index, promoterId, promoterUsername, links }: any) => {
     const [showChannels, setShowChannels] = useState(false);
     const [copiedChannel, setCopiedChannel] = useState<string | null>(null);
 
@@ -59,9 +60,15 @@ const MemoizedLinkCard = memo(({ campaign, index, promoterId, links }: any) => {
     const existingLink = links?.find((l: any) => l.eventId === campaign.id);
     const promoCode = existingLink?.code || null;
 
+    const eventSlug = campaign.slug || campaign.id;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://c1rcle.app';
+
     const buildLink = (source?: string) => {
-        const base = `${typeof window !== 'undefined' ? window.location.origin : ''}/e/${campaign.slug || campaign.id}?p=${promoterId}`;
-        return source ? `${base}&s=${source}` : base;
+        // Use vanity URL if username is set, otherwise fall back to /e/ short URL
+        const base = promoterUsername
+            ? `${origin}/${promoterUsername}/${eventSlug}`
+            : `${origin}/e/${eventSlug}?p=${promoterId}`;
+        return source ? `${base}${promoterUsername ? '?' : '&'}s=${source}` : base;
     };
 
     const copyChannelLink = (channel: string) => {
@@ -91,7 +98,9 @@ const MemoizedLinkCard = memo(({ campaign, index, promoterId, links }: any) => {
                         }
                     }] : []),
                     {
-                        label: "Copy Direct Link",
+                        label: promoterUsername
+                            ? `c1rcle.app/${promoterUsername}/…`
+                            : "Copy Direct Link",
                         icon: <Copy size={16} />,
                         onClick: () => {
                             navigator.clipboard.writeText(buildLink());
@@ -168,6 +177,7 @@ export default function PromoLinksPage() {
     const [links, setLinks] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+    const [promoterUsername, setPromoterUsername] = useState<string | null>(null);
 
     const promoterId = profile?.activeMembership?.partnerId;
 
@@ -177,9 +187,10 @@ export default function PromoLinksPage() {
             const token = await user?.getIdToken();
             const headers: any = token ? { Authorization: `Bearer ${token}` } : {};
 
-            const [eventsRes, linksRes] = await Promise.all([
+            const [eventsRes, linksRes, profileRes] = await Promise.all([
                 fetch(`/api/promoter/events?promoterId=${promoterId}&limit=20`),
-                fetch(`/api/promoter/links?promoterId=${promoterId}&isActive=true`, { headers })
+                fetch(`/api/promoter/links?promoterId=${promoterId}&isActive=true`, { headers }),
+                fetch(`/api/profile?profileId=${promoterId}&type=promoter`)
             ]);
 
             if (eventsRes.ok) {
@@ -191,6 +202,11 @@ export default function PromoLinksPage() {
             if (linksRes.ok) {
                 const linkData = await linksRes.json();
                 setLinks(linkData.links || linkData || []);
+            }
+
+            if (profileRes.ok) {
+                const { profile: pData } = await profileRes.json();
+                if (pData?.username) setPromoterUsername(pData.username);
             }
         } catch (e) {
             console.error("[Promoter Links] Error:", e);
@@ -225,18 +241,10 @@ export default function PromoLinksPage() {
     }, [links]);
 
     return (
-        <div className="space-y-10 pb-20 animate-in fade-in duration-500">
-            {/* Page Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-default pb-10">
-                <div className="max-w-2xl">
-                    <h1 className="text-4xl font-extrabold text-text-primary tracking-tight">
-                        Sales Arsenal
-                    </h1>
-                    <p className="text-text-tertiary text-lg font-medium mt-3 leading-relaxed">
-                        Generate channel-specific tracking links to measure which platform drives the most conversions.
-                    </p>
-                </div>
-            </div>
+        <VenuePageShell
+            title="MyLinks"
+            subtitle="Generate channel-specific tracking links to measure conversions"
+        >
 
             {/* Core Tools */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -314,6 +322,7 @@ export default function PromoLinksPage() {
                                     campaign={campaign}
                                     index={index}
                                     promoterId={promoterId}
+                                    promoterUsername={promoterUsername}
                                     links={links}
                                 />
                             );
@@ -321,7 +330,7 @@ export default function PromoLinksPage() {
                     />
                 )}
             </div>
-        </div>
+        </VenuePageShell>
     );
 }
 

@@ -7,7 +7,7 @@ import { TicketValidityChip } from "@/components/guest-ops/chips/TicketValidityC
 import { OfflineSyncBanner } from "@/components/guest-ops/OfflineSyncBanner";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { GuestSyncEngine, type SyncState } from "@/lib/client/offlineGuestSync";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import {
     Radio, Wifi, WifiOff, BatteryMedium, Clock, CheckCircle2, XCircle,
     AlertTriangle, Activity, ScanLine, Loader2, RefreshCw,
@@ -159,7 +159,7 @@ export default function ScannerOversightPageClient() {
                             )}
                             <button
                                 onClick={() => setIsLive(l => !l)}
-                                className={clsx(
+                                className={cn(
                                     "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium transition-all",
                                     isLive
                                         ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
@@ -258,7 +258,7 @@ function ScanKPI({ label, value, color, icon }: {
             className="p-4 rounded-xl border flex flex-col gap-2"
             style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
         >
-            <div className={clsx("w-7 h-7 rounded-lg flex items-center justify-center", colorMap[color])}>
+            <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", colorMap[color])}>
                 {icon}
             </div>
             <div>
@@ -276,7 +276,7 @@ function DeviceCard({ device }: { device: ScannerDevice }) {
 
     return (
         <div
-            className={clsx(
+            className={cn(
                 "p-3 rounded-xl border transition-all",
                 device.isOnline
                     ? "border-green-200 dark:border-green-800/50"
@@ -285,7 +285,7 @@ function DeviceCard({ device }: { device: ScannerDevice }) {
             style={device.isOnline ? {} : { borderColor: "var(--v-border)" }}
         >
             <div className="flex items-start gap-2.5">
-                <div className={clsx(
+                <div className={cn(
                     "w-2 h-2 rounded-full mt-1.5 shrink-0",
                     device.isOnline ? "bg-green-400" : "bg-slate-400"
                 )} />

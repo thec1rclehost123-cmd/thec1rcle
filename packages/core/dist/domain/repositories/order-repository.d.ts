@@ -54,7 +54,7 @@ export interface PaymentRecord {
 export interface IOrderRepository {
     getOrderById(id: string): Promise<Order | null>;
     createOrder(order: Order, transaction?: any): Promise<void>;
-    updateOrder(id: string, updates: Partial<Order>, transaction?: any): Promise<void>;
+    updateOrder(id: string, updates: Partial<Order>, isRSVP?: boolean, transaction?: any): Promise<void>;
     getReservationById(id: string): Promise<Reservation | null>;
     createReservation(reservation: Reservation): Promise<void>;
     updateReservation(id: string, updates: Partial<Reservation>, transaction?: any): Promise<void>;

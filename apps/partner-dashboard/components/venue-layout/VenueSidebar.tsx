@@ -26,11 +26,15 @@ import {
     CreditCard,
     Activity,
     Radio,
+    PanelLeftClose,
+    PanelLeftOpen,
+    Moon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDashboardAuth } from "../providers/DashboardAuthProvider";
 import { motion, AnimatePresence } from "framer-motion";
+import { ThemeToggleCompact } from "../ThemeToggle";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -161,7 +165,15 @@ const PLAN_COLORS: Record<string, { bg: string; text: string; glow: string }> = 
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function VenueSidebar({ className = "" }: { className?: string }) {
+export function VenueSidebar({
+    className = "",
+    isCollapsed = false,
+    onToggleCollapse
+}: {
+    className?: string;
+    isCollapsed?: boolean;
+    onToggleCollapse?: () => void;
+}) {
     const pathname = usePathname();
     const { signOut, profile, subscriptionPlan } = useDashboardAuth();
 
@@ -215,7 +227,7 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                 )}
 
                 {/* Icon */}
-                <div className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-300
+                <div className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-300 shrink-0
                     ${active
                         ? "bg-gradient-to-br from-orange-500/20 to-rose-600/20 border border-orange-500/20"
                         : "bg-white/[0.02] group-hover:bg-white/[0.05]"
@@ -225,9 +237,11 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                 </div>
 
                 {/* Label */}
-                <span className={`text-[14px] font-black tracking-tight ${active ? "text-white" : ""}`}>
-                    {item.label}
-                </span>
+                {!isCollapsed && (
+                    <span className={`text-[14px] font-black tracking-tight ${active ? "text-white" : ""}`}>
+                        {item.label}
+                    </span>
+                )}
 
                 {/* Badge — "Live" uses red pulse, others use orange */}
                 {item.badge && (
@@ -255,13 +269,13 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
     };
 
     return (
-        <aside className={`flex flex-col h-full bg-[#0D0D0F] w-[260px] shrink-0 ${className}`}>
+        <aside className={`flex flex-col h-full bg-[#0D0D0F] ${isCollapsed ? "w-[80px]" : "w-[260px]"} shrink-0 transition-all duration-300 ease-in-out ${className}`}>
             {/* Header / Brand */}
-            <div className="p-5 border-b border-white/[0.06]">
+            <div className={`p-5 border-b border-white/[0.06] ${isCollapsed ? "px-3" : "p-5"}`}>
                 <div className="flex items-center gap-3">
-                    <div className="relative">
+                    <div className="relative shrink-0">
                         <div className="absolute inset-0 bg-gradient-to-br from-orange-500/30 to-rose-600/20 rounded-xl blur-lg" />
-                        <div className="relative h-12 w-12 rounded-xl bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] flex items-center justify-center border border-white/10 shadow-xl overflow-hidden shrink-0">
+                        <div className="relative h-12 w-12 rounded-xl bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] flex items-center justify-center border border-white/10 shadow-xl overflow-hidden">
                             {(profile?.activeMembership as any)?.partnerLogo ? (
                                 <img src={(profile.activeMembership as any).partnerLogo} alt="Logo" className="h-full w-full object-cover" />
                             ) : (
@@ -271,24 +285,38 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                             )}
                         </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                        <h1 className="font-black text-text-primary text-sm tracking-tight truncate leading-tight">
-                            {profile?.activeMembership?.partnerName || "THE C1RCLE"}
-                        </h1>
-                        <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] text-orange-500/60 font-black uppercase tracking-widest">Venue Host</span>
+                    {!isCollapsed && (
+                        <div className="min-w-0 flex-1">
+                            <h1 className="font-black text-text-primary text-sm tracking-tight truncate leading-tight">
+                                {profile?.activeMembership?.partnerName || "THE C1RCLE"}
+                            </h1>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] text-orange-500/60 font-black uppercase tracking-widest">Venue Host</span>
+                            </div>
                         </div>
-                    </div>
+                    )}
                     {/* Plan badge */}
-                    <div className={`px-2.5 py-1 rounded-lg ${planStyle.bg} ${planStyle.glow} border border-white/5 bg-opacity-20`}>
-                        <div className="flex items-center gap-1.5">
-                            <Crown className={`h-3 w-3 ${planStyle.text}`} />
-                            <span className={`text-[9px] font-black uppercase tracking-wider ${planStyle.text}`}>
-                                {subscriptionPlan || "Basic"}
-                            </span>
+                    {subscriptionPlan && !isCollapsed && (
+                        <div className={`px-2.5 py-1 rounded-lg ${planStyle.bg} ${planStyle.glow} border border-white/5 bg-opacity-20`}>
+                            <div className="flex items-center gap-1.5">
+                                <Crown className={`h-3 w-3 ${planStyle.text}`} />
+                                <span className={`text-[9px] font-black uppercase tracking-wider ${planStyle.text}`}>
+                                    {subscriptionPlan || "Basic"}
+                                </span>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
+                {onToggleCollapse && (
+                    <div className={`flex mt-4 ${isCollapsed ? "justify-center" : "justify-end"}`}>
+                        <button
+                            onClick={onToggleCollapse}
+                            className="p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-text-primary/40 hover:text-text-primary hover:bg-white/[0.08] transition-all"
+                        >
+                            {isCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Navigation */}
@@ -394,65 +422,70 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
                         );
                     }
 
-                    // ── Flat group (Core, Events, Operations, Presence) ───────
-                    const visibleItems = (group.items ?? []).filter(
-                        item => PLAN_HIERARCHY[item.minPlan] <= currentPlanLevel
-                    );
-                    if (visibleItems.length === 0) return null;
+                        // ── Flat group (Core, Events, Operations, Presence) ───────
+                        const visibleItems = (group.items ?? []).filter(
+                            item => PLAN_HIERARCHY[item.minPlan] <= currentPlanLevel
+                        );
+                        if (visibleItems.length === 0) return null;
 
-                    const expanded = !group.collapsible || isExpanded(group.label);
-                    const hasActiveItem = visibleItems.some(item => isActive(item.href));
+                        const expanded = (!group.collapsible || isExpanded(group.label)) && !isCollapsed;
+                        const hasActiveItem = visibleItems.some(item => isActive(item.href));
 
-                    return (
-                        <div key={idx} className="mb-1">
-                            {/* Section header */}
-                            {group.collapsible ? (
-                                <button
-                                    onClick={() => toggleSection(group.label)}
-                                    className={`w-full flex items-center justify-between px-3 py-3 rounded-xl transition-all duration-300 group
-                                        ${hasActiveItem ? "text-text-primary" : "text-text-primary/30 hover:text-text-primary/60"}`}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <GroupIcon className={`h-4 w-4 ${hasActiveItem ? "text-orange-500" : ""}`} />
-                                        <span className="text-[12px] font-black uppercase tracking-[0.15em]">{group.label}</span>
-                                    </div>
-                                    <motion.div
-                                        animate={{ rotate: expanded ? 180 : 0 }}
-                                        transition={{ duration: 0.2 }}
+                        return (
+                            <div key={idx} className="mb-1">
+                                {/* Section header */}
+                                {group.collapsible && !isCollapsed ? (
+                                    <button
+                                        onClick={() => toggleSection(group.label)}
+                                        className={`w-full flex items-center justify-between px-3 py-3 rounded-xl transition-all duration-300 group
+                                            ${hasActiveItem ? "text-text-primary" : "text-text-primary/30 hover:text-text-primary/60"}`}
                                     >
-                                        <ChevronDown className="h-3.5 w-3.5 opacity-40 group-hover:opacity-100" />
-                                    </motion.div>
-                                </button>
-                            ) : (
-                                <div className="flex items-center gap-3 px-3 py-3 text-text-primary/30">
-                                    <GroupIcon className="h-4 w-4" />
-                                    <span className="text-[12px] font-black uppercase tracking-[0.15em]">{group.label}</span>
-                                </div>
-                            )}
-
-                            {/* Section items */}
-                            <AnimatePresence initial={false}>
-                                {expanded && (
-                                    <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: "auto", opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        transition={{ duration: 0.2, ease: "easeInOut" }}
-                                        className="overflow-hidden"
-                                    >
-                                        <div className="mt-0.5 space-y-0.5 pl-4">
-                                            {visibleItems.map(renderNavItem)}
+                                        <div className="flex items-center gap-3">
+                                            <GroupIcon className={`h-4 w-4 ${hasActiveItem ? "text-orange-500" : ""}`} />
+                                            <span className="text-[12px] font-black uppercase tracking-[0.15em]">{group.label}</span>
                                         </div>
-                                    </motion.div>
+                                        <motion.div
+                                            animate={{ rotate: expanded ? 180 : 0 }}
+                                            transition={{ duration: 0.2 }}
+                                        >
+                                            <ChevronDown className="h-3.5 w-3.5 opacity-40 group-hover:opacity-100" />
+                                        </motion.div>
+                                    </button>
+                                ) : (
+                                    <div className={`flex items-center gap-3 px-3 py-3 text-text-primary/30 ${isCollapsed ? "justify-center" : ""}`}>
+                                        <GroupIcon className="h-4 w-4" />
+                                        {!isCollapsed && <span className="text-[12px] font-black uppercase tracking-[0.15em]">{group.label}</span>}
+                                    </div>
                                 )}
-                            </AnimatePresence>
-                        </div>
-                    );
+
+                                {/* Section items */}
+                                <AnimatePresence initial={false}>
+                                    {expanded && (
+                                        <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            transition={{ duration: 0.2, ease: "easeInOut" }}
+                                            className="overflow-hidden"
+                                        >
+                                            <div className="mt-0.5 space-y-0.5 pl-4">
+                                                {visibleItems.map(renderNavItem)}
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                                {isCollapsed && hasActiveItem && !expanded && (
+                                    <div className="mt-0.5 space-y-0.5">
+                                        {visibleItems.filter(i => isActive(i.href)).map(renderNavItem)}
+                                    </div>
+                                )}
+                            </div>
+                        );
                 })}
             </nav>
 
             {/* Upgrade CTA */}
-            {subscriptionPlan !== "diamond" && (
+            {subscriptionPlan !== "diamond" && !isCollapsed && (
                 <div className="px-4 pb-4">
                     <div className="relative overflow-hidden rounded-[1.5rem] p-5 bg-gradient-to-br from-orange-500/10 via-rose-500/5 to-transparent border border-white/[0.06] group/cta">
                         <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-500/20 to-transparent rounded-full blur-2xl group-hover/cta:scale-125 transition-transform duration-500" />
@@ -473,32 +506,37 @@ export function VenueSidebar({ className = "" }: { className?: string }) {
             )}
 
             {/* Footer / User */}
-            <div className="p-3 border-t border-white/[0.06]">
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-elevated/[0.02] hover:bg-surface-elevated/[0.04] transition-all cursor-pointer group">
-                    <div className="relative">
+            <div className={`p-3 border-t border-white/[0.06] ${isCollapsed ? "px-2" : "p-3"}`}>
+                <div className={`flex items-center gap-3 p-2 rounded-xl bg-surface-elevated/[0.02] hover:bg-surface-elevated/[0.04] transition-all cursor-pointer group ${isCollapsed ? "flex-col" : ""}`}>
+                    <div className="relative shrink-0">
                         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500/20 to-rose-600/20 flex items-center justify-center font-black text-text-primary text-sm border border-white/5">
                             {profile?.displayName?.[0]?.toUpperCase() || "A"}
                         </div>
                         <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 rounded-full border-[3px] border-[#0D0D0F]" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-text-primary/90 truncate">
-                            {profile?.displayName || "Administrator"}
-                        </p>
-                        <p className="text-[10px] text-text-primary/40 truncate">
-                            {profile?.email || "admin@venue.com"}
-                        </p>
+                    {!isCollapsed && (
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-text-primary/90 truncate">
+                                {profile?.displayName || "Administrator"}
+                            </p>
+                            <p className="text-[10px] text-text-primary/40 truncate">
+                                {profile?.email || "admin@venue.com"}
+                            </p>
+                        </div>
+                    )}
+                    {!isCollapsed && <ChevronRight className="h-4 w-4 text-text-primary/20 group-hover:text-text-primary/40 transition-colors" />}
+                    
+                    <div className={`flex ${isCollapsed ? "flex-col" : "items-center"} gap-2`}>
+                        <ThemeToggleCompact />
+                        <button
+                            onClick={() => signOut()}
+                            className="w-9 h-9 flex items-center justify-center rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 transition-all"
+                            title="Sign Out"
+                        >
+                            <LogOut className="h-4 w-4" />
+                        </button>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-text-primary/20 group-hover:text-text-primary/40 transition-colors" />
                 </div>
-
-                <button
-                    onClick={() => signOut()}
-                    className="mt-2 flex items-center justify-center gap-2 w-full py-2.5 rounded-lg text-text-primary/40 hover:text-red-400 hover:bg-red-500/10 transition-all text-xs font-medium"
-                >
-                    <LogOut className="h-3.5 w-3.5" />
-                    Sign Out
-                </button>
             </div>
         </aside>
     );

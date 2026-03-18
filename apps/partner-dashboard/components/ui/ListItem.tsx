@@ -1,6 +1,6 @@
 "use client";
 
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { type ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
@@ -37,7 +37,7 @@ export function ListItem({
     const content = (
         <>
             {icon && (
-                <div className={clsx(
+                <div className={cn(
                     "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0",
                     iconBg
                 )}>
@@ -61,7 +61,7 @@ export function ListItem({
         </>
     );
 
-    const baseStyles = clsx(
+    const baseStyles = cn(
         "flex items-center gap-3 p-3 -mx-3 rounded-lg transition-colors",
         "hover:bg-surface-tertiary",
         href || onClick ? "cursor-pointer" : "",
@@ -78,14 +78,14 @@ export function ListItem({
 
     if (onClick) {
         return (
-            <button onClick={onClick} className={clsx(baseStyles, "w-full text-left")}>
+            <button onClick={onClick} className={cn(baseStyles, "w-full text-left")}>
                 {content}
             </button>
         );
     }
 
     return (
-        <div className={clsx(baseStyles, "cursor-default")}>
+        <div className={cn(baseStyles, "cursor-default")}>
             {content}
         </div>
     );

@@ -205,7 +205,7 @@ export default function ProfilePage() {
                                     <div className="space-y-3">
                                         <label className="text-[11px] font-bold text-[#86868b] uppercase tracking-widest">Username</label>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-sm font-medium text-[#86868b]">c1rcle.app/p/</span>
+                                            <span className="text-sm font-medium text-[#86868b]">c1rcle.app/</span>
                                             <input
                                                 className="flex-1 bg-surface-elevated border-0 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-[#007aff] outline-none"
                                                 value={formData.username}
@@ -214,17 +214,17 @@ export default function ProfilePage() {
                                                 maxLength={30}
                                             />
                                         </div>
-                                        <p className="text-[10px] text-[#86868b]">Letters, numbers, and underscores only. This is your permanent public URL.</p>
+                                        <p className="text-[10px] text-[#86868b]">Letters, numbers, and underscores only. Your link: c1rcle.app/{formData.username || "yourhandle"}</p>
                                     </div>
                                 ) : formData.username ? (
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <Globe className="w-4 h-4 text-[#86868b]" />
-                                            <span className="text-sm font-semibold text-[#1d1d1f]">c1rcle.app/p/{formData.username}</span>
+                                            <span className="text-sm font-semibold text-[#1d1d1f]">c1rcle.app/{formData.username}</span>
                                         </div>
                                         <button
                                             onClick={() => {
-                                                navigator.clipboard.writeText(`https://c1rcle.app/p/${formData.username}`);
+                                                navigator.clipboard.writeText(`https://c1rcle.app/${formData.username}`);
                                                 setLinkCopied(true);
                                                 setTimeout(() => setLinkCopied(false), 1500);
                                             }}

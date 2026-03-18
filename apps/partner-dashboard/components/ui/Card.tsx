@@ -1,4 +1,4 @@
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { forwardRef, type HTMLAttributes } from "react";
 
 /**
@@ -29,7 +29,7 @@ const CardComponent = forwardRef<HTMLDivElement, CardProps>(
     return (
       <div
         ref={ref}
-        className={clsx(
+        className={cn(
           "rounded-2xl border transition-all duration-200",
           // Base styles
           glass
@@ -64,7 +64,7 @@ export interface CardHeaderProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export const CardHeader = ({ title, subtitle, action, className, ...rest }: CardHeaderProps) => (
-  <div className={clsx("flex items-start justify-between mb-5", className)} {...rest as any}>
+  <div className={cn("flex items-start justify-between mb-5", className)} {...rest as any}>
     <div>
       <h3 className="text-title text-text-primary">{title}</h3>
       {subtitle && <p className="text-caption text-text-tertiary mt-1">{subtitle}</p>}
@@ -96,7 +96,7 @@ export const CardMedia = ({
 
   return (
     <div
-      className={clsx(
+      className={cn(
         "relative overflow-hidden rounded-xl -mx-5 -mt-5 mb-5 first:mt-0",
         aspectStyles[aspectRatio],
         className
@@ -125,7 +125,7 @@ export const CardStat = ({ label, value, change }: CardStatProps) => (
     <span className="text-label-sm text-text-tertiary mb-1">{label}</span>
     <span className="text-stat text-text-primary leading-none">{value}</span>
     {change && (
-      <span className={clsx(
+      <span className={cn(
         "text-[12px] font-semibold mt-2 flex items-center gap-1",
         change.direction === "up" && "text-[var(--trend-up)]",
         change.direction === "down" && "text-[var(--trend-down)]",
@@ -141,17 +141,17 @@ export const CardStat = ({ label, value, change }: CardStatProps) => (
 
 // Card Body
 export const CardBody = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => (
-  <div className={clsx("flex flex-col gap-4", className)} {...rest as any} />
+  <div className={cn("flex flex-col gap-4", className)} {...rest as any} />
 );
 
 // Card Footer
 export const CardFooter = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => (
-  <div className={clsx("mt-auto flex flex-wrap items-center gap-3 pt-5 border-t border-border-subtle", className)} {...rest as any} />
+  <div className={cn("mt-auto flex flex-wrap items-center gap-3 pt-5 border-t border-border-subtle", className)} {...rest as any} />
 );
 
 // Card Section divider
 export const CardDivider = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => (
-  <div className={clsx("h-px bg-border-subtle my-4 -mx-5", className)} {...rest as any} />
+  <div className={cn("h-px bg-border-subtle my-4 -mx-5", className)} {...rest as any} />
 );
 
 // Export compound component

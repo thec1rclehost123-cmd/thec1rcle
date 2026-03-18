@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 interface StatItem {
     label: string;
@@ -27,7 +27,7 @@ const colClasses: Record<number, string> = {
 export function VenueStatStrip({ stats, columns = 3, className }: VenueStatStripProps) {
     return (
         <div
-            className={clsx("grid divide-x divide-[var(--v-border)] rounded-[var(--v-r-xl)] overflow-hidden", colClasses[columns], className)}
+            className={cn("grid divide-x divide-[var(--v-border)] rounded-[var(--v-r-xl)] overflow-hidden", colClasses[columns], className)}
             style={{ background: "var(--v-card)" }}
         >
             {stats.map((stat, i) => (
@@ -71,7 +71,7 @@ function StatCell({ stat }: { stat: StatItem }) {
 
                 {stat.trend && (
                     <span
-                        className={clsx(
+                        className={cn(
                             "v-trend-chip text-[11px]",
                             stat.trend.direction === "up" && "v-trend-up",
                             stat.trend.direction === "down" && "v-trend-down",

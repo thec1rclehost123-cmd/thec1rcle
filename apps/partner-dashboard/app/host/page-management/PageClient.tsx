@@ -38,8 +38,10 @@ import {
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { AnimatePresence, motion } from "framer-motion";
+import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 import { getFirebaseStorage } from "@/lib/firebase/client";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { formatDate, formatNumber } from "@/lib/utils/format";
 
 // Genre options for hosts
 const GENRE_OPTIONS = [
@@ -288,96 +290,43 @@ export default function HostPageManagement() {
     if (isLoading) {
         return (
             <div className="py-24 flex flex-col items-center justify-center">
-                <Loader2 className="h-8 w-8 text-text-tertiary animate-spin mb-4" />
-                <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Syncing Page Presence...</p>
+                <Loader2 className="h-8 w-8 animate-spin mb-4" style={{ color: "var(--v-orange)" }} />
+                <p className="font-bold uppercase tracking-widest text-[10px]" style={{ color: "var(--v-text-tertiary)" }}>Syncing Page Presence...</p>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6 pb-12 max-w-7xl mx-auto">
-            {/* Premium Header */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 md:p-8">
-                <div className="absolute inset-0 bg-[url('data:image/svg+xml,...')] opacity-5" />
-                <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-orange-500/20 to-transparent rounded-full blur-3xl" />
-
-                <div className="relative flex flex-col md:flex-row md:items-end justify-between gap-4">
-                    <div className="flex items-start gap-4 md:gap-6">
-                        {/* Profile Avatar */}
-                        <div
-                            onClick={() => { setPhotoModal({ field: "photoURL", currentUrl: data?.profile?.photoURL }); setPhotoInputUrl(data?.profile?.photoURL || ""); }}
-                            className="relative w-20 h-20 md:w-28 md:h-28 rounded-2xl overflow-hidden border-2 border-white/20 cursor-pointer group shrink-0"
+        <VenuePageShell
+            title="Page Management"
+            subtitle={data?.profile?.tagline || "Curate how your public profile appears to guests and partners"}
+            actions={
+                <div className="flex items-center gap-3">
+                    {data?.profile?.slug && (
+                        <a
+                            href={`${process.env.NEXT_PUBLIC_GUEST_PORTAL_URL || ''}/host/${data.profile.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
                         >
-                            {data?.profile?.photoURL ? (
-                                <img src={data.profile.photoURL} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="" />
-                            ) : (
-                                <div className="w-full h-full bg-surface-elevated/10 flex items-center justify-center">
-                                    <Upload className="w-6 h-6 md:w-8 md:h-8 text-text-primary/40" />
-                                </div>
-                            )}
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Camera className="w-5 h-5 md:w-6 md:h-6 text-text-primary" />
-                            </div>
-                        </div>
-
-                        <div className="space-y-2 md:space-y-3">
-                            <div className="flex items-center gap-2 md:gap-3">
-                                <span className="px-2.5 py-1 bg-surface-elevated/10 rounded-full text-[9px] md:text-[10px] font-bold text-text-primary/60 uppercase tracking-widest">
-                                    {data?.profile?.role || "Host"}
-                                </span>
-                                {data?.profile?.isVerified && (
-                                    <span className="flex items-center gap-1 px-2.5 py-1 bg-green-500/20 rounded-full text-[9px] md:text-[10px] font-bold text-accent-primary uppercase tracking-widest">
-                                        <CheckCircle2 className="w-2.5 h-2.5 md:w-3 md:h-3" /> Verified
-                                    </span>
-                                )}
-                            </div>
-                            <h1 className="text-2xl md:text-3xl font-black text-text-primary tracking-tight">
-                                {data?.profile?.displayName || data?.profile?.name || "Your Page"}
-                            </h1>
-                            <p className="text-text-primary/50 text-xs md:text-sm font-medium max-w-md">
-                                {data?.profile?.tagline || "Curate how your public profile appears to guests and partners."}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        {data?.profile?.slug && (
-                            <a
-                                href={`${process.env.NEXT_PUBLIC_GUEST_PORTAL_URL || ''}/host/${data.profile.slug}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 px-4 py-2 bg-surface-elevated/10 backdrop-blur-sm text-text-primary rounded-lg text-[10px] font-bold border border-border-subtle hover:bg-surface-elevated/20 transition-all group"
-                            >
-                                <Globe className="w-3.5 h-3.5" />
-                                <span>View Live</span>
-                                <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </a>
-                        )}
-                        <div className="flex items-center gap-2">
-                            {saveStatus === "saved" && (
-                                <span className="flex items-center gap-1 text-accent-primary text-[9px] font-bold uppercase tracking-widest">
-                                    <CheckCircle2 className="w-2.5 h-2.5" /> Saved
-                                </span>
-                            )}
-                            <button
-                                onClick={() => handleUpdateProfile({})}
-                                disabled={isSaving}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-surface-elevated text-text-primary rounded-xl text-[10px] font-bold shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-50"
-                            >
-                                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                                Publish
-                            </button>
-                        </div>
-                    </div>
+                            <VenueActionButton variant="secondary">
+                                <Globe className="w-4 h-4 mr-2" /> View Live
+                                <ExternalLink className="w-3 h-3 ml-1" />
+                            </VenueActionButton>
+                        </a>
+                    )}
+                    <VenueActionButton variant="primary" onClick={() => handleUpdateProfile({})} disabled={isSaving}>
+                        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                        <span className="ml-2">{saveStatus === "saved" ? "Saved" : "Publish"}</span>
+                    </VenueActionButton>
                 </div>
-
-                {/* Quick Stats */}
-                <div className="relative mt-6 pt-6 border-t border-border-subtle grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <QuickStat value={data?.stats?.followersCount || 0} label="Followers" icon={Users} />
-                    <QuickStat value={data?.stats?.postsCount || 0} label="Posts" icon={FileText} />
-                    <QuickStat value={data?.stats?.totalLikes || 0} label="Total Engagement" icon={Heart} />
-                    <QuickStat value={data?.stats?.totalViews || 0} label="Page Views" icon={Eye} />
-                </div>
+            }
+        >
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 rounded-[32px] p-6 border" style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}>
+                <QuickStat value={data?.stats?.followersCount || 0} label="Followers" icon={Users} />
+                <QuickStat value={data?.stats?.postsCount || 0} label="Posts" icon={FileText} />
+                <QuickStat value={data?.stats?.totalLikes || 0} label="Total Engagement" icon={Heart} />
+                <QuickStat value={data?.stats?.totalViews || 0} label="Page Views" icon={Eye} />
             </div>
 
             {/* Tab Navigation */}
@@ -803,7 +752,7 @@ export default function HostPageManagement() {
                                                                     style={{ height: `${Math.max(8, pct * 1.4)}px` }}
                                                                 />
                                                                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-surface-base rounded-lg text-[9px] font-bold text-text-primary shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-border-subtle">
-                                                                    {val.toLocaleString()}
+                                                                    {formatNumber(val)}
                                                                 </div>
                                                             </div>
                                                             <span className="text-[9px] font-bold text-text-tertiary uppercase">{m}</span>
@@ -1181,7 +1130,7 @@ export default function HostPageManagement() {
                     </Modal>
                 )}
             </AnimatePresence>
-        </div>
+        </VenuePageShell>
     );
 }
 
@@ -1193,7 +1142,7 @@ function QuickStat({ value, label, icon: Icon }: { value: number | string; label
                 <Icon className="w-4 h-4 text-text-primary/60" />
             </div>
             <div>
-                <p className="text-xl font-bold text-text-primary">{typeof value === 'number' ? value.toLocaleString() : value}</p>
+                <p className="text-xl font-bold text-text-primary">{typeof value === 'number' ? formatNumber(value) : value}</p>
                 <p className="text-[9px] font-bold text-text-primary/40 uppercase tracking-widest">{label}</p>
             </div>
         </div>
@@ -1276,7 +1225,7 @@ function PostCard({ post, onDelete }: { post: any; onDelete: () => void }) {
             <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest">
-                        {new Date(post.createdAt).toLocaleDateString()}
+                        {formatDate(post.createdAt)}
                     </span>
                     <button onClick={onDelete} className="p-1 text-text-placeholder hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
                         <Trash2 className="h-3.5 w-3.5" />
@@ -1340,7 +1289,7 @@ function EngagementStat({ label, value, change, positive }: { label: string; val
     return (
         <div className="p-3 bg-surface-secondary/50 rounded-xl border border-border-subtle">
             <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mb-1">{label}</p>
-            <p className="text-xl font-bold text-text-primary mb-0.5">{typeof value === 'number' ? value.toLocaleString() : value}</p>
+            <p className="text-xl font-bold text-text-primary mb-0.5">{typeof value === 'number' ? formatNumber(value) : value}</p>
             <span className={`text-[9px] font-bold ${positive ? "text-emerald-500" : "text-red-500"}`}>{change}</span>
         </div>
     );

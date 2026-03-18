@@ -25,6 +25,8 @@ import { FirebaseMatchingRepository } from '@c1rcle/core/match-repo';
 // @ts-ignore
 import { MatchingService } from '@c1rcle/core/matching-service';
 // @ts-ignore
+import { FirebaseReportRepository } from '@c1rcle/core/report-repo';
+// @ts-ignore
 import { ModerationService } from '@c1rcle/core/moderation-service';
 // @ts-ignore
 import { FirebaseWorkspaceRepository } from '@c1rcle/core/workspace-repo';

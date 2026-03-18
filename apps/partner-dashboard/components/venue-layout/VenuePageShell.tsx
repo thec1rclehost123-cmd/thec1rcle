@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, type ElementType } from "react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 interface VenuePageShellProps {
     title: string;
@@ -29,7 +29,7 @@ export function VenuePageShell({
     noPadding = false,
 }: VenuePageShellProps) {
     return (
-        <div className={clsx("mx-auto w-full pb-20", maxWidthClasses[maxWidth])}>
+        <div className={cn("mx-auto w-full pb-20", maxWidthClasses[maxWidth])}>
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-4">
                 <div>
@@ -96,7 +96,7 @@ export function VenueActionButton({
     };
 
     return (
-        <button onClick={onClick} disabled={disabled} className={clsx(base, variants[variant], className)}>
+        <button onClick={onClick} disabled={disabled} className={cn(base, variants[variant], className)}>
             {Icon && <Icon className="h-4 w-4 flex-shrink-0" />}
             {children}
         </button>
@@ -120,7 +120,7 @@ export function VenueFilterTabs({ tabs, active, onChange }: VenueFilterTabsProps
                     <button
                         key={tab.value}
                         onClick={() => onChange(tab.value)}
-                        className={clsx(
+                        className={cn(
                             "px-4 py-2 rounded-xl text-[13px] font-medium transition-all duration-150",
                             isActive
                                 ? "bg-[var(--v-card)] text-[var(--v-text-primary)] shadow-sm"
@@ -130,7 +130,7 @@ export function VenueFilterTabs({ tabs, active, onChange }: VenueFilterTabsProps
                         {tab.label}
                         {tab.count !== undefined && (
                             <span
-                                className={clsx(
+                                className={cn(
                                     "ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold",
                                     isActive
                                         ? "bg-[var(--v-orange)] text-white"

@@ -1,4 +1,4 @@
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { forwardRef, type InputHTMLAttributes, type ReactNode } from "react";
 
 /**
@@ -53,7 +53,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           )}
           <input
             ref={ref}
-            className={clsx(
+            className={cn(
               "w-full bg-surface-secondary border text-text-primary placeholder:text-text-placeholder transition-all duration-200 outline-none",
               sizeStyles[inputSize],
               // Hover state
@@ -78,7 +78,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           )}
         </div>
         {(error || hint) && (
-          <p className={clsx(
+          <p className={cn(
             "mt-2 text-[12px] font-medium",
             hasError ? "text-red-500" : "text-text-tertiary"
           )}>

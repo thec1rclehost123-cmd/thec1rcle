@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import {
     LayoutGrid, ListChecks, Search, Radio, AlertTriangle as ExcIcon, Settings2,
     ChevronDown, Circle, Wifi, WifiOff, AlertTriangle, Zap, Users, CheckCircle2,
@@ -81,7 +81,7 @@ export function GuestOpsShell({
     const venueId = profile?.activeMembership?.partnerId;
 
     return (
-        <div className={clsx("flex flex-col min-h-0", compactMode && "compact-mode")}>
+        <div className={cn("flex flex-col min-h-0", compactMode && "compact-mode")}>
             {/* ── Sticky top bar ── */}
             <div
                 className="sticky top-0 z-30 border-b"
@@ -130,7 +130,7 @@ export function GuestOpsShell({
                     {/* Event Night Mode toggle */}
                     <button
                         onClick={toggleCompact}
-                        className={clsx(
+                        className={cn(
                             "ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all shrink-0",
                             compactMode
                                 ? "bg-[var(--v-orange)] text-white"
@@ -176,7 +176,7 @@ export function GuestOpsShell({
                             <Link
                                 key={tab.href}
                                 href={href}
-                                className={clsx(
+                                className={cn(
                                     "relative flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium rounded-t-lg whitespace-nowrap transition-all",
                                     isActive
                                         ? "text-[var(--v-orange)] border-b-2 border-[var(--v-orange)]"
@@ -197,7 +197,7 @@ export function GuestOpsShell({
             </div>
 
             {/* ── Main content ── */}
-            <div className={clsx("flex-1 min-h-0 overflow-auto", compactMode ? "p-3" : "p-4 md:p-6")}>
+            <div className={cn("flex-1 min-h-0 overflow-auto", compactMode ? "p-3" : "p-4 md:p-6")}>
                 {summary?.isLocked && (
                     <div
                         className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium"
@@ -255,14 +255,14 @@ function EventSelector({ events, selectedId, onChange }: {
                         <button
                             key={event.id}
                             onClick={() => { onChange(event.id); setOpen(false); }}
-                            className={clsx(
+                            className={cn(
                                 "w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] hover:bg-[var(--v-card-hover)] transition-colors",
                                 event.id === selectedId && "bg-[var(--v-elevated)]"
                             )}
                         >
                             <Circle
                                 size={8}
-                                className={clsx(event.status === "live" ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400")}
+                                className={cn(event.status === "live" ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400")}
                             />
                             <div>
                                 <div className="font-medium text-[var(--v-text-primary)]">{event.title}</div>
@@ -284,13 +284,13 @@ function KPIBadge({ icon, label, value, total, emphasis }: {
     icon: ReactNode; label: string; value: number; total?: number; emphasis?: boolean;
 }) {
     return (
-        <div className={clsx(
+        <div className={cn(
             "flex items-center gap-1.5 px-2 py-1 rounded-lg",
             emphasis ? "bg-green-50 dark:bg-green-900/20" : "bg-[var(--v-elevated)]"
         )}>
             {icon}
             <span className="text-[11px] text-[var(--v-text-muted)]">{label}</span>
-            <span className={clsx("text-[13px] font-bold tabular-nums", emphasis ? "text-green-600 dark:text-green-400" : "text-[var(--v-text-primary)]")}>
+            <span className={cn("text-[13px] font-bold tabular-nums", emphasis ? "text-green-600 dark:text-green-400" : "text-[var(--v-text-primary)]")}>
                 {value.toLocaleString()}
             </span>
             {total !== undefined && (
@@ -304,9 +304,9 @@ function DoorStatusBadge({ status }: { status: DoorStatus }) {
     const cfg = DOOR_STATUS_CONFIG[status] ?? { label: status.toUpperCase(), color: "text-slate-400" };
     return (
         <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[var(--v-elevated)]">
-            <Circle size={7} className={clsx("fill-current", cfg.color)} />
+            <Circle size={7} className={cn("fill-current", cfg.color)} />
             <span className="text-[11px] text-[var(--v-text-muted)]">Door</span>
-            <span className={clsx("text-[12px] font-bold", cfg.color)}>{cfg.label}</span>
+            <span className={cn("text-[12px] font-bold", cfg.color)}>{cfg.label}</span>
         </div>
     );
 }

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { motion } from "framer-motion";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { useParallaxTilt } from "../lib/hooks/useParallaxTilt";
 import { gradients } from "../lib/designSystem";
 
@@ -18,7 +18,7 @@ export default function EventPoster({ event, className }: EventPosterProps) {
 
   return (
     <motion.div
-      className={clsx(
+      className={cn(
         "relative overflow-hidden rounded-[36px] border border-border-subtle bg-surface-elevated/5 p-2 shadow-[0_40px_120px_rgba(0,0,0,0.4)]",
         className
       )}

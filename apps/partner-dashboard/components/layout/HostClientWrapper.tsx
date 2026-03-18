@@ -2,6 +2,15 @@
 
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import {
+    LayoutDashboard,
+    CalendarDays,
+    Zap,
+    FileText,
+    Users,
+    Settings,
+    BarChart2,
+} from "lucide-react";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,13 +18,43 @@ import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AssistantButton } from "@/components/assistant/AssistantButton";
 
+const MENU_SECTIONS = [
+    {
+        items: [
+            { icon: LayoutDashboard, label: "Overview", href: "/host" },
+        ],
+    },
+    {
+        items: [
+            { icon: Zap,         label: "Events",   href: "/host/events" },
+            { icon: CalendarDays, label: "Calendar", href: "/host/calendar" },
+        ],
+    },
+    {
+        items: [
+            { icon: BarChart2, label: "Analytics",       href: "/host/analytics" },
+        ],
+    },
+    {
+        items: [
+            { icon: FileText, label: "Page Management", href: "/host/page-management" },
+            { icon: Users,    label: "Partnerships",    href: "/host/partnerships" },
+        ],
+    },
+    {
+        items: [
+            { icon: Settings, label: "Settings", href: "/host/settings" },
+        ],
+    },
+];
+
 interface HostClientWrapperProps {
     children: React.ReactNode;
-    menuSections: any[];
 }
 
-export function HostClientWrapper({ children, menuSections }: HostClientWrapperProps) {
+export function HostClientWrapper({ children }: HostClientWrapperProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
     return (
         <ApprovalGuard>
@@ -26,8 +65,10 @@ export function HostClientWrapper({ children, menuSections }: HostClientWrapperP
                         <AppleSidebar
                             brandLetter="H"
                             brandLabel="Host"
-                            menuSections={menuSections}
+                            menuSections={MENU_SECTIONS}
                             basePath="/host"
+                            isCollapsed={isCollapsed}
+                            onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
                         />
                     </div>
 
@@ -75,7 +116,7 @@ export function HostClientWrapper({ children, menuSections }: HostClientWrapperP
                                     <AppleSidebar
                                         brandLetter="H"
                                         brandLabel="Host"
-                                        menuSections={menuSections}
+                                        menuSections={MENU_SECTIONS}
                                         basePath="/host"
                                     />
                                 </motion.div>
@@ -84,11 +125,10 @@ export function HostClientWrapper({ children, menuSections }: HostClientWrapperP
                     </AnimatePresence>
 
                     {/* Main Content */}
-                    <div className="lg:pl-[280px] flex flex-col min-h-screen pt-14 lg:pt-0">
+                    <div className={`${isCollapsed ? "lg:pl-[80px]" : "lg:pl-[280px]"} flex flex-col min-h-screen pt-14 lg:pt-0 transition-all duration-300 ease-in-out`}>
                         <div className="hidden lg:block sticky top-0 z-40">
                             <AppleTopBar />
                         </div>
-
                         <main className="flex-1 p-4 sm:p-6 lg:p-8 xl:p-10">
                             <motion.div
                                 initial={{ opacity: 0, y: 10 }}

@@ -9,7 +9,7 @@ import { GuestDetailDrawer } from "@/components/guest-ops/GuestDetailDrawer";
 import { AddGuestModal } from "@/components/guest-ops/modals/AddGuestModal";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VENUE_PERMISSIONS } from "@/lib/rbac/types";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import {
     Plus, Search, Loader2, AlertTriangle, ChevronDown, ChevronUp, Download,
     UserPlus, Filter, Check,
@@ -182,7 +182,7 @@ export default function GuestListPageClient() {
                         <button
                             key={tab.value}
                             onClick={() => { setFilter(tab.value); setGuests([]); setNextCursor(null); }}
-                            className={clsx(
+                            className={cn(
                                 "px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap transition-all",
                                 filter === tab.value
                                     ? "bg-[var(--v-orange)] text-white"

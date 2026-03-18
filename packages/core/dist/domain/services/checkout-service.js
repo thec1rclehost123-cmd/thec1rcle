@@ -32,14 +32,14 @@ export class CheckoutService {
         this.orderRepo = orderRepo;
         this.eventRepo = eventRepo;
     }
-    async validatePricing(params) {
-        const event = await this.eventRepo.getById(params.eventId);
+    async validatePricing(params, workspaceId) {
+        const event = await this.eventRepo.getById(params.eventId, workspaceId);
         if (!event)
             throw new Error('Event not found');
         return calculatePricing({ ...params, event });
     }
-    async reserveItems(eventId, userId, deviceId, items) {
-        const event = await this.eventRepo.getById(eventId);
+    async reserveItems(eventId, userId, deviceId, items, workspaceId) {
+        const event = await this.eventRepo.getById(eventId, workspaceId);
         if (!event)
             throw new Error('Event not found');
         const result = await createReservation(event, userId, deviceId, items);
@@ -57,7 +57,7 @@ export class CheckoutService {
         }
         return result;
     }
-    async initiateCheckout(params) {
+    async initiateCheckout(params, workspaceId) {
         const { reservationId, userId, userName, userEmail, userPhone, promoCode, promoterCode } = params;
         const reservation = await this.orderRepo.getReservationById(reservationId);
         if (!reservation)
@@ -68,7 +68,7 @@ export class CheckoutService {
             await this.orderRepo.updateReservation(reservationId, { status: 'expired' });
             throw new Error('Reservation has expired');
         }
-        const event = await this.eventRepo.getById(reservation.eventId);
+        const event = await this.eventRepo.getById(reservation.eventId, workspaceId);
         if (!event)
             throw new Error('Event not found');
         const pricingResult = await calculatePricing({
@@ -215,7 +215,7 @@ export class CheckoutService {
                 updatedAt: new Date().toISOString()
             };
             await Promise.all([
-                this.orderRepo.updateOrder(orderId, updates, transaction),
+                this.orderRepo.updateOrder(orderId, updates, order.isRSVP, transaction),
                 this.orderRepo.updatePaymentRecord(orderId, razorpayOrderId, {
                     status: 'verified',
                     razorpayPaymentId: razorpayPaymentId,
@@ -247,6 +247,7 @@ export class CheckoutService {
     async cancelCheckout(reservationId, orderId) {
         const promises = [];
         if (orderId) {
+            // Use legacy fallback if isRSVP is unknown during cancellation
             promises.push(this.orderRepo.updateOrder(orderId, {
                 status: 'cancelled',
                 updatedAt: new Date().toISOString()

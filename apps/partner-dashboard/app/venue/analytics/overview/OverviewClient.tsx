@@ -9,6 +9,7 @@ import {
     Sparkles, ArrowUpRight, Target, Shield, Zap, Award,
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { formatINR, formatINRCompact, formatPercent, formatNumberCompact } from "@/lib/utils/format";
 import StudioShell from "@/components/studio/StudioShell";
 import { BentoCard, KPIBento } from "@/components/ui/BentoCard";
 import { VenueChart, ChartSkeleton } from "@/components/ui/VenueChart";
@@ -205,7 +206,7 @@ const LazyScatter = lazy(() =>
                                 cursor={{ strokeDasharray: "3 3", stroke: "rgba(255,255,255,0.15)" }}
                                 formatter={(val: any, name: any) =>
                                     name === "Revenue"
-                                        ? [`₹${Number(val).toLocaleString("en-IN")}`, name]
+                                        ? [formatINR(Number(val)), name]
                                         : [val, name]
                                 }
                             />
@@ -268,16 +269,9 @@ const LazyRadialBar = lazy(() =>
 // ── Formatter ─────────────────────────────────────────────────────────────────
 
 function fmt(n: number, type: "currency" | "percent" | "number" = "number"): string {
-    if (type === "currency") {
-        if (n >= 10_00_000) return `₹${(n / 10_00_000).toFixed(2)}Cr`;
-        if (n >= 1_00_000) return `₹${(n / 1_00_000).toFixed(1)}L`;
-        if (n >= 1_000) return `₹${(n / 1_000).toFixed(1)}K`;
-        return `₹${n}`;
-    }
-    if (type === "percent") return `${n.toFixed(1)}%`;
-    if (n >= 1_00_000) return `${(n / 1_00_000).toFixed(1)}L`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-    return n.toLocaleString("en-IN");
+    if (type === "currency") return formatINRCompact(n);
+    if (type === "percent")  return formatPercent(n);
+    return formatNumberCompact(n);
 }
 
 // ── Main client ───────────────────────────────────────────────────────────────

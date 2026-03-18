@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import Link from "next/link";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { motion, useReducedMotion } from "framer-motion";
 import { AlertCircle, RefreshCw } from "lucide-react";
 
@@ -99,7 +99,7 @@ export function BentoCard({
 
     const inner = (
         <div
-            className={clsx(
+            className={cn(
                 "v-bento flex flex-col overflow-hidden",
                 paddingClasses[padding],
                 colSpanClass,
@@ -144,7 +144,7 @@ export function BentoCard({
         return (
             <Link
                 href={href}
-                className={clsx(
+                className={cn(
                     "v-bento flex flex-col overflow-hidden block no-underline",
                     paddingClasses[padding],
                     colSpanClass,
@@ -290,7 +290,7 @@ export function KPIBento({
 
                 {trend && (
                     <span
-                        className={clsx(
+                        className={cn(
                             "v-trend-chip mb-1",
                             trend.direction === "up" && "v-trend-up",
                             trend.direction === "down" && "v-trend-down",

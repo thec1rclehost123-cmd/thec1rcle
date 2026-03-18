@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useDashboardAuth } from "../../../components/providers/DashboardAuthProvider";
+import { formatDate } from "@/lib/utils/format";
 import {
     Users,
     UserPlus,
@@ -146,7 +147,6 @@ export default function PromotersPage() {
 
             if (!res.ok) throw new Error("Failed to update request");
 
-            console.log(`[Host] ${action}d connection ${connectionId}`);
             // To simulate realtime update until full refetch, we can update local state:
             setConnectionRequests(prev => prev.filter(r => r.id !== connectionId || action === 'approve'));
             if (action === 'approve') {
@@ -171,16 +171,6 @@ export default function PromotersPage() {
 
     const pendingRequests = connectionRequests.filter(r => r.status === "pending");
     const approvedConnections = connectionRequests.filter(r => r.status === "approved");
-
-    const formatDate = (timestamp: any) => {
-        if (!timestamp) return "";
-        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-        return date.toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-            year: "numeric"
-        });
-    };
 
     return (
         <div className="space-y-6">

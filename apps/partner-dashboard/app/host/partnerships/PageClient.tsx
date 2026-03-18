@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { VenueCalendarPreview } from "@/components/host/VenueCalendarPreview";
+import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 
 export default function PartnershipsPage() {
     const router = useRouter();
@@ -63,32 +64,25 @@ export default function PartnershipsPage() {
     const pendingPartnerships = partnerships.filter(p => p.status === 'pending');
 
     return (
-        <div className="space-y-4 pb-16 animate-in fade-in duration-500">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/[0.04] pb-8">
-                <div>
-                    <h1 className="text-3xl font-black text-white tracking-tight uppercase">Venue Network</h1>
-                    <p className="text-white/40 text-[13px] font-medium mt-2 max-w-xl">Manage your verified venue partnerships and slot permissions.</p>
-                </div>
+        <VenuePageShell
+            title="Partnerships"
+            subtitle="Manage your verified venue partnerships and slot permissions"
+            actions={
                 <div className="flex items-center gap-3">
-                    <Link
-                        href="/host/events/requests"
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.04] text-white transition-all active:scale-95 shadow-sm"
-                    >
-                        <Clock className="w-3.5 h-3.5 opacity-60" />
-                        My Requests
+                    <Link href="/host/events/requests">
+                        <VenueActionButton variant="secondary">
+                            <Clock className="w-4 h-4 mr-2" /> My Requests
+                        </VenueActionButton>
                     </Link>
-                    <Link
-                        href="/host/discover"
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider bg-gradient-to-r from-orange-500 to-rose-600 hover:from-orange-400 hover:to-rose-500 text-white shadow-lg shadow-orange-500/20 transition-all active:scale-95"
-                    >
-                        <Plus className="w-3.5 h-3.5" />
-                        Discover Venues
+                    <Link href="/host/discover">
+                        <VenueActionButton variant="primary">
+                            <Plus className="w-4 h-4 mr-2" /> Discover Venues
+                        </VenueActionButton>
                     </Link>
                 </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-6">
+            }
+        >
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Active Partnerships */}
                 <div className="lg:col-span-2 space-y-4">
                     <div className="flex items-center gap-2 px-2">
@@ -222,6 +216,6 @@ export default function PartnershipsPage() {
                     />
                 )}
             </AnimatePresence>
-        </div>
+        </VenuePageShell>
     );
 }

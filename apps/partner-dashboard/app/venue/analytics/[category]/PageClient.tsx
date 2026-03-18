@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { formatINRCompact, formatPercent, formatNumberCompact } from "@/lib/utils/format";
 import { PremiumGate } from "@/components/analytics/PremiumGate";
 import { useParams } from "next/navigation";
 import StudioShell from "@/components/studio/StudioShell";
@@ -27,13 +28,9 @@ import { VenueStatStrip } from "@/components/ui/VenueStatStrip";
 // ── Formatters ──
 function fmt(n: number | undefined | null, type: "currency" | "percent" | "number" = "number"): string {
     if (n == null) return type === "currency" ? "₹--" : type === "percent" ? "--%" : "--";
-    if (type === "currency") {
-        if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
-        if (n >= 1000) return `₹${(n / 1000).toFixed(1)}K`;
-        return `₹${n}`;
-    }
-    if (type === "percent") return `${n.toFixed(1)}%`;
-    return n.toLocaleString();
+    if (type === "currency") return formatINRCompact(n);
+    if (type === "percent") return formatPercent(n);
+    return formatNumberCompact(n);
 }
 
 export default function VenueAnalyticsPage() {

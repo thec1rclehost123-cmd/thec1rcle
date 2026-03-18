@@ -3,7 +3,7 @@
 import { useState, useEffect, createContext, useContext, useCallback, ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from "lucide-react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 /**
  * Toast Notification System
@@ -98,7 +98,7 @@ export function ToastProvider({ children, position = "bottom-right" }: ToastProv
     return (
         <ToastContext.Provider value={{ toasts, addToast, removeToast, success, error, warning, info }}>
             {children}
-            <div className={clsx("fixed z-[200] flex flex-col gap-3", positionClasses[position])}>
+            <div className={cn("fixed z-[200] flex flex-col gap-3", positionClasses[position])}>
                 <AnimatePresence mode="popLayout">
                     {toasts.map((toast) => (
                         <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
@@ -141,12 +141,12 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className={clsx(
+            className={cn(
                 "toast min-w-[320px] max-w-[420px] border-l-4",
                 typeStyles[toast.type]
             )}
         >
-            <div className={clsx("flex-shrink-0 mt-0.5", iconStyles[toast.type])}>
+            <div className={cn("flex-shrink-0 mt-0.5", iconStyles[toast.type])}>
                 <Icon className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
@@ -211,8 +211,8 @@ export default function Toast({
     };
 
     return (
-        <div className={clsx("toast border-l-4", typeStyles[type], className)}>
-            <div className={clsx("flex-shrink-0 mt-0.5", iconStyles[type])}>
+        <div className={cn("toast border-l-4", typeStyles[type], className)}>
+            <div className={cn("flex-shrink-0 mt-0.5", iconStyles[type])}>
                 <Icon className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">

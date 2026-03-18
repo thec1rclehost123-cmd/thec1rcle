@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 function FilterPill({ label, value, options, onChange, icon: Icon }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -24,7 +24,7 @@ function FilterPill({ label, value, options, onChange, icon: Icon }) {
         <div className="relative" ref={containerRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className={clsx(
+                className={cn(
                     "group flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-full transition-all duration-300",
                     isActive
                         ? "text-white bg-[#F44A22] shadow-[0_0_20px_rgba(244,74,34,0.3)]"
@@ -34,7 +34,7 @@ function FilterPill({ label, value, options, onChange, icon: Icon }) {
                 {Icon && <Icon className="w-4 h-4" />}
                 <span className="uppercase tracking-widest text-[10px]">{value || label}</span>
                 <svg
-                    className={clsx("w-3 h-3 transition-transform duration-300 opacity-50 group-hover:opacity-100", isOpen && "rotate-180")}
+                    className={cn("w-3 h-3 transition-transform duration-300 opacity-50 group-hover:opacity-100", isOpen && "rotate-180")}
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -61,7 +61,7 @@ function FilterPill({ label, value, options, onChange, icon: Icon }) {
                                         onChange(option.value);
                                         setIsOpen(false);
                                     }}
-                                    className={clsx(
+                                    className={cn(
                                         "flex w-full items-center justify-between px-4 py-3 rounded-xl text-left text-xs font-bold uppercase tracking-wider transition-all duration-200",
                                         value === option.label
                                             ? "bg-black/5 dark:bg-white/10 text-black dark:text-white"

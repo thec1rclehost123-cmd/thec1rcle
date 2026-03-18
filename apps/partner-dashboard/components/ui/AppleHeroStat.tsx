@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import Link from "next/link";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { useReducedMotion, motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 
@@ -40,7 +40,7 @@ export function AppleHeroStat({
 
     return (
         <div
-            className={clsx("v-hero-card w-full py-8 px-6 sm:py-10 sm:px-8", className)}
+            className={cn("v-hero-card w-full py-8 px-6 sm:py-10 sm:px-8", className)}
             aria-busy={loading}
         >
             {loading ? (
@@ -73,7 +73,7 @@ export function AppleHeroStat({
                         <div className="flex items-center flex-wrap gap-3 mt-3">
                             {trend && !noData && (
                                 <span
-                                    className={clsx(
+                                    className={cn(
                                         "v-trend-chip text-[12px] px-3 py-1",
                                         trend.direction === "up" && "v-trend-up",
                                         trend.direction === "down" && "v-trend-down",

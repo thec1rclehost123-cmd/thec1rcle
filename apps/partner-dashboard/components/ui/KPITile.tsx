@@ -3,7 +3,7 @@
 import { ReactNode } from "react";
 import { motion } from "framer-motion";
 import { ArrowUp, ArrowDown, Minus } from "lucide-react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 /**
  * KPI Tile Component — Bloomberg-Style Metric Display
@@ -104,7 +104,7 @@ export function KPITile({
             onClick={interactive ? onClick : undefined}
             whileHover={interactive ? { scale: 1.01, y: -2 } : undefined}
             whileTap={interactive ? { scale: 0.99 } : undefined}
-            className={clsx(
+            className={cn(
                 "kpi-tile group text-left w-full",
                 state !== "default" && styles.border,
                 interactive && "cursor-pointer hover:shadow-md",
@@ -114,7 +114,7 @@ export function KPITile({
         >
             {/* Icon */}
             {icon && (
-                <div className={clsx(
+                <div className={cn(
                     "kpi-icon transition-transform group-hover:scale-105",
                     compact ? "w-10 h-10 mb-3" : "w-12 h-12 mb-4",
                     styles.icon
@@ -124,7 +124,7 @@ export function KPITile({
             )}
 
             {/* Label */}
-            <p className={clsx(
+            <p className={cn(
                 "kpi-label",
                 compact ? "text-[11px] mb-2" : "text-[13px] mb-3"
             )}>
@@ -133,7 +133,7 @@ export function KPITile({
 
             {/* Value + Trend */}
             <div className="flex items-end gap-3 flex-wrap">
-                <h3 className={clsx(
+                <h3 className={cn(
                     "kpi-value font-semibold tracking-tight text-text-primary",
                     compact ? "text-2xl" : "text-[32px]"
                 )}>
@@ -141,7 +141,7 @@ export function KPITile({
                 </h3>
 
                 {trend && (
-                    <span className={clsx(
+                    <span className={cn(
                         "inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold",
                         getTrendColor()
                     )}>
@@ -181,7 +181,7 @@ export function KPIGrid({ children, columns = 4, className }: KPIGridProps) {
     };
 
     return (
-        <div className={clsx("grid gap-4 md:gap-6", colClasses[columns], className)}>
+        <div className={cn("grid gap-4 md:gap-6", colClasses[columns], className)}>
             {children}
         </div>
     );
@@ -206,7 +206,7 @@ export function MiniStat({ label, value, trend, trendValue }: MiniStatProps) {
                     {value}
                 </span>
                 {trend && trendValue && (
-                    <span className={clsx(
+                    <span className={cn(
                         "text-[11px] font-medium flex items-center gap-0.5",
                         trend === "up" && "text-[var(--trend-up)]",
                         trend === "down" && "text-[var(--trend-down)]",
@@ -248,7 +248,7 @@ export function HeroStat({
     className
 }: HeroStatProps) {
     return (
-        <div className={clsx("text-center py-8", className)}>
+        <div className={cn("text-center py-8", className)}>
             <p className="text-label-sm text-text-tertiary mb-4 uppercase tracking-widest">
                 {label}
             </p>
@@ -270,7 +270,7 @@ export function HeroStat({
             </div>
             {trend && (
                 <div className="flex justify-center mt-4">
-                    <span className={clsx(
+                    <span className={cn(
                         "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold",
                         trend.direction === "up" && "bg-[var(--trend-up-bg)] text-[var(--trend-up)]",
                         trend.direction === "down" && "bg-[var(--trend-down-bg)] text-[var(--trend-down)]",
@@ -335,7 +335,7 @@ export function ProgressStat({
             </div>
             <div className="progress-bar">
                 <motion.div
-                    className={clsx("progress-bar-fill", colorClasses[color])}
+                    className={cn("progress-bar-fill", colorClasses[color])}
                     initial={{ width: 0 }}
                     animate={{ width: `${percentage}%` }}
                     transition={{ duration: 0.8, ease: "easeOut" }}

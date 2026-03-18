@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { X, Loader2, AlertTriangle, UserPlus } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import type { AddGuestBody } from "@/lib/types/guestOps";
@@ -164,7 +164,7 @@ export function AddGuestModal({ eventId, venueId, onClose, onSuccess }: AddGuest
                                         key={gt.value}
                                         type="button"
                                         onClick={() => setGuestType(gt.value)}
-                                        className={clsx(
+                                        className={cn(
                                             "py-2 px-2 rounded-xl text-[12px] font-medium text-center transition-all border",
                                             guestType === gt.value
                                                 ? "bg-[var(--v-orange)] text-white border-[var(--v-orange)]"

@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VENUE_PERMISSIONS } from "@/lib/rbac/types";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import {
     AlertTriangle, CheckCircle2, XCircle, Flag, Clock, Loader2,
     ScanLine, ArrowRight, X, ChevronDown,
@@ -180,7 +180,7 @@ export default function ExceptionsPageClient() {
                                 <button
                                     key={tab.value}
                                     onClick={() => setStatusFilter(tab.value)}
-                                    className={clsx(
+                                    className={cn(
                                         "px-3 py-1.5 rounded-xl text-[12px] font-medium whitespace-nowrap transition-all",
                                         statusFilter === tab.value
                                             ? "bg-[var(--v-orange)] text-white"
@@ -255,7 +255,7 @@ function ExceptionCard({
 
     return (
         <div
-            className={clsx("rounded-2xl border overflow-hidden transition-all", isOpen ? cfg.border : "")}
+            className={cn("rounded-2xl border overflow-hidden transition-all", isOpen ? cfg.border : "")}
             style={!isOpen ? { borderColor: "var(--v-border)" } : {}}
         >
             {/* Summary row */}
@@ -264,7 +264,7 @@ function ExceptionCard({
                 style={{ background: "var(--v-card)" }}
                 onClick={onToggle}
             >
-                <span className={clsx("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide", cfg.badge)}>
+                <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide", cfg.badge)}>
                     {severity}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -293,7 +293,7 @@ function ExceptionCard({
                 <StatusBadge status={exception.status} />
                 <ChevronDown
                     size={14}
-                    className={clsx("text-[var(--v-text-muted)] shrink-0 transition-transform", isExpanded && "rotate-180")}
+                    className={cn("text-[var(--v-text-muted)] shrink-0 transition-transform", isExpanded && "rotate-180")}
                 />
             </button>
 
@@ -344,7 +344,7 @@ function ExceptionCard({
                                     <button
                                         key={action.value}
                                         onClick={() => onResolveFormChange({ ...resolveForm, action: action.value })}
-                                        className={clsx(
+                                        className={cn(
                                             "py-2 rounded-xl text-[12px] font-medium transition-all border",
                                             resolveForm.action === action.value
                                                 ? action.color === "green" ? "bg-green-500 text-white border-green-500" :
@@ -413,7 +413,7 @@ function StatusBadge({ status }: { status: ExceptionStatus }) {
     };
     const c = cfg[status] ?? cfg.dismissed;
     return (
-        <span className={clsx("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide shrink-0", c.className)}>
+        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide shrink-0", c.className)}>
             {c.label}
         </span>
     );

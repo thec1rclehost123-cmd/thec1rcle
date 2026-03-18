@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import {
     X, CheckCircle2, XCircle, Flag, RotateCcw, User, Phone, Ticket,
     Clock, MapPin, Loader2, AlertTriangle, MessageSquare, ChevronRight,
@@ -230,7 +230,7 @@ export function GuestDetailDrawer({
                                                 <button
                                                     key={s}
                                                     onClick={() => setFlagSeverity(s)}
-                                                    className={clsx(
+                                                    className={cn(
                                                         "flex-1 py-1.5 rounded-lg text-[12px] font-medium transition-all capitalize",
                                                         flagSeverity === s
                                                             ? s === "high" ? "bg-red-500 text-white"
@@ -291,7 +291,7 @@ export function GuestDetailDrawer({
                             <button
                                 onClick={handleSubmitAction}
                                 disabled={isSubmitting}
-                                className={clsx(
+                                className={cn(
                                     "w-full py-2.5 rounded-lg text-[13px] font-semibold flex items-center justify-center gap-2 transition-all",
                                     activeAction === "check-in" ? "bg-green-500 hover:bg-green-600 text-white" :
                                     activeAction === "deny" ? "bg-red-500 hover:bg-red-600 text-white" :
@@ -427,7 +427,7 @@ function DetailRow({ icon, label, value, mono }: {
         <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: "var(--v-elevated)" }}>
             <span className="text-[var(--v-text-muted)] shrink-0">{icon}</span>
             <span className="text-[12px] text-[var(--v-text-muted)] w-24 shrink-0">{label}</span>
-            <span className={clsx(
+            <span className={cn(
                 "text-[13px] text-[var(--v-text-primary)] truncate",
                 mono && "font-mono text-[12px]"
             )}>
@@ -453,7 +453,7 @@ function ActionButton({ icon, label, color, onClick }: {
     return (
         <button
             onClick={onClick}
-            className={clsx(
+            className={cn(
                 "flex items-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all",
                 colorMap[color]
             )}

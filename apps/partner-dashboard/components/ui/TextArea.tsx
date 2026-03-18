@@ -1,4 +1,4 @@
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { forwardRef, type TextareaHTMLAttributes } from "react";
 
 /**
@@ -25,7 +25,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
         <textarea
           ref={ref}
           rows={rows}
-          className={clsx(
+          className={cn(
             "w-full bg-surface-tertiary border rounded-lg px-4 py-3 text-[14px] text-text-primary placeholder:text-text-tertiary transition-all duration-150 outline-none resize-y",
             "hover:bg-surface-secondary",
             "focus:bg-surface-elevated focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10",
@@ -37,7 +37,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
           {...rest}
         />
         {(error || hint) && (
-          <p className={clsx(
+          <p className={cn(
             "mt-1.5 text-[12px]",
             hasError ? "text-red-600" : "text-text-tertiary"
           )}>

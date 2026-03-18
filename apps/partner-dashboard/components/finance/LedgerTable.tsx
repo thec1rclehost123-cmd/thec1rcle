@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import {
     Search, Download, Filter, ChevronDown, ChevronRight,
     ArrowUpRight, ArrowDownLeft, Clock, ExternalLink,
@@ -351,7 +351,7 @@ function LedgerRow({
 
                 {/* Expand toggle */}
                 <ChevronRight
-                    className={clsx("w-4 h-4 transition-transform duration-200", expanded && "rotate-90")}
+                    className={cn("w-4 h-4 transition-transform duration-200", expanded && "rotate-90")}
                     style={{ color: "var(--v-text-muted)" }}
                 />
             </div>
@@ -391,7 +391,7 @@ function DetailCell({ label, value, mono = false }: { label: string; value: stri
                 {label}
             </p>
             <p
-                className={clsx("text-[12px]", mono && "font-mono")}
+                className={cn("text-[12px]", mono && "font-mono")}
                 style={{ color: "var(--v-text-secondary)" }}
             >
                 {value}

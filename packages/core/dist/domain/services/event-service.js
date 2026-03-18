@@ -47,8 +47,9 @@ export class EventService {
         await this.eventRepo.updateLifecycle(id, 'deleted', actorId, workspaceId);
     }
     async listNearby(lat, lng, radius, limit) {
-        const events = await this.eventRepo.listNearby(lat, lng, radius);
-        // Maintain Haversine parity
+        // Enforce limit at repository level
+        const events = await this.eventRepo.listNearby(lat, lng, radius, limit);
+        // Maintain Haversine parity for exact distance sorting
         const haversine = (lat1, lon1, lat2, lon2) => {
             const R = 6371;
             const dLat = (lat2 - lat1) * (Math.PI / 180);

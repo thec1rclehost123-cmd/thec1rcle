@@ -4,17 +4,12 @@ import { ProgressStat } from "@/components/ui/KPITile";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useTonightEvent } from "@/lib/hooks/useVenueQueries";
 import { motion } from "framer-motion";
+import { formatINRCompact } from "@/lib/utils/format";
 
 export default function TonightOpsModule() {
     const { profile } = useDashboardAuth();
     const venueId = profile?.activeMembership?.partnerId;
     const { tonight } = useTonightEvent(venueId);
-
-    const formatRevenue = (amount: number) => {
-        if (amount >= 100000) return `₹${(amount / 100000).toFixed(2)}L`;
-        if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}K`;
-        return `₹${amount}`;
-    };
 
     return (
         <div className="card p-8 min-h-[400px]">
@@ -53,7 +48,7 @@ export default function TonightOpsModule() {
                         <div>
                             <p className="text-label-sm text-text-tertiary mb-2">Live Revenue</p>
                             <p className="text-stat-lg text-text-primary">
-                                {formatRevenue(tonight.revenue)}
+                                {formatINRCompact(tonight.revenue)}
                             </p>
                             <p className="text-caption text-text-tertiary">Tonight's sales</p>
                         </div>

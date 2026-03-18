@@ -1,4 +1,4 @@
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { forwardRef, type SelectHTMLAttributes } from "react";
 import { ChevronDown } from "lucide-react";
 
@@ -35,7 +35,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         <div className="relative">
           <select
             ref={ref}
-            className={clsx(
+            className={cn(
               "w-full appearance-none bg-surface-tertiary border rounded-lg px-4 py-3 pr-10 text-[14px] text-text-primary transition-all duration-150 outline-none cursor-pointer",
               "hover:bg-surface-secondary",
               "focus:bg-surface-elevated focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10",
@@ -65,7 +65,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none" />
         </div>
         {(error || hint) && (
-          <p className={clsx(
+          <p className={cn(
             "mt-1.5 text-[12px]",
             hasError ? "text-red-600" : "text-text-tertiary"
           )}>

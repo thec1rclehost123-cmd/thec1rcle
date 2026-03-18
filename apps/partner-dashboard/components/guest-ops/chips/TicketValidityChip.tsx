@@ -1,6 +1,6 @@
 "use client";
 
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { CheckCircle2, AlertTriangle, XCircle, RefreshCcw } from "lucide-react";
 
 type ValidityResult = "valid" | "already_scanned" | "invalid" | "cancelled" | "not_found" | "re_entry";
@@ -23,7 +23,7 @@ export function TicketValidityChip({ result, size = "sm" }: Props) {
     const config = VALIDITY_CONFIG[result as ValidityResult] ?? { label: result, icon: AlertTriangle, className: "bg-gray-100 text-gray-600" };
     const Icon = config.icon;
     return (
-        <span className={clsx(
+        <span className={cn(
             "inline-flex items-center gap-1 rounded-full font-medium",
             size === "xs" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]",
             config.className

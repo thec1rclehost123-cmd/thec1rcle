@@ -1,6 +1,6 @@
 "use client";
 
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { ArrowUpRight, ArrowDownLeft, ExternalLink } from "lucide-react";
 import type { RevenueBreakdownItem } from "@/lib/finance/definitions";
@@ -21,7 +21,7 @@ export function RevenueBreakdown({ items, loading = false, grossRevenue, classNa
             : "flex flex-col gap-2";
 
         return (
-            <div className={clsx(skeletonClasses, className)}>
+            <div className={cn(skeletonClasses, className)}>
                 {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="v-bento p-4 rounded-[var(--v-r-xl)] animate-pulse" style={{ background: "var(--v-card)", minHeight: layout === "grid" ? 120 : 60 }}>
                         <div className="v-skeleton h-2 w-16 rounded mb-2" />
@@ -35,7 +35,7 @@ export function RevenueBreakdown({ items, loading = false, grossRevenue, classNa
     if (!items || items.length === 0) {
         return (
             <div
-                className={clsx("rounded-[var(--v-r-xl)] flex items-center justify-center py-8", className)}
+                className={cn("rounded-[var(--v-r-xl)] flex items-center justify-center py-8", className)}
                 style={{ background: "var(--v-card)", border: "1px dashed var(--v-border)" }}
             >
                 <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>
@@ -47,7 +47,7 @@ export function RevenueBreakdown({ items, loading = false, grossRevenue, classNa
 
     if (layout === "list") {
         return (
-            <div className={clsx("flex flex-col gap-2", className)}>
+            <div className={cn("flex flex-col gap-2", className)}>
                 {items.map((item) => (
                     <BreakdownListItem key={item.category} item={item} />
                 ))}
@@ -56,7 +56,7 @@ export function RevenueBreakdown({ items, loading = false, grossRevenue, classNa
     }
 
     return (
-        <div className={clsx("grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3", className)}>
+        <div className={cn("grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3", className)}>
             {items.map((item) => (
                 <BreakdownTile key={item.category} item={item} />
             ))}
@@ -90,7 +90,7 @@ function BreakdownListItem({ item }: { item: RevenueBreakdownItem }) {
                     }
                 </div>
                 {item.trend.value !== "—" && (
-                    <span className={clsx("text-[9px] font-bold", item.trend.direction === "up" ? "text-emerald-500" : "text-rose-500")}>
+                    <span className={cn("text-[9px] font-bold", item.trend.direction === "up" ? "text-emerald-500" : "text-rose-500")}>
                         {item.trend.direction === "up" ? "↑" : "↓"} {item.trend.value}
                     </span>
                 )}
@@ -146,7 +146,7 @@ function BreakdownTile({ item }: { item: RevenueBreakdownItem }) {
             {/* Trend chip */}
             {item.trend.value !== "—" && (
                 <span
-                    className={clsx(
+                    className={cn(
                         "v-trend-chip text-[10px] mt-2 w-fit",
                         isPositive && "v-trend-up",
                         isNegative && "v-trend-down",

@@ -4,8 +4,8 @@ export declare class CheckoutService {
     private orderRepo;
     private eventRepo;
     constructor(orderRepo: IOrderRepository, eventRepo: IEventRepository);
-    validatePricing(params: any): Promise<any>;
-    reserveItems(eventId: string, userId: string, deviceId: string | null, items: any[]): Promise<any>;
+    validatePricing(params: any, workspaceId: string): Promise<any>;
+    reserveItems(eventId: string, userId: string, deviceId: string | null, items: any[], workspaceId: string): Promise<any>;
     initiateCheckout(params: {
         reservationId: string;
         userId: string;
@@ -14,7 +14,7 @@ export declare class CheckoutService {
         userPhone: string;
         promoCode?: string;
         promoterCode?: string;
-    }): Promise<any>;
+    }, workspaceId: string): Promise<any>;
     preparePayment(orderId: string, userId: string, razorpayConfig: any): Promise<any>;
     verifyPayment(params: {
         orderId: string;

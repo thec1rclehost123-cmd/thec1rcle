@@ -1,4 +1,4 @@
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { type ReactNode } from "react";
 
 /**
@@ -68,14 +68,14 @@ export function StatCard({
     const changeIsPositive = change?.isPositive ?? (change?.direction === "up");
 
     return (
-        <div className={clsx(
+        <div className={cn(
             "bg-surface-elevated rounded-2xl border border-border-subtle transition-all hover:border-border-default hover:shadow-md",
             compact ? "p-4" : "p-6",
             styles.card,
             className
         )}>
             {icon && (
-                <div className={clsx(
+                <div className={cn(
                     "rounded-xl flex items-center justify-center mb-4",
                     compact ? "w-10 h-10" : "w-12 h-12",
                     styles.icon
@@ -87,14 +87,14 @@ export function StatCard({
             <p className="text-label text-text-tertiary mb-2">{label}</p>
 
             <div className="flex items-baseline gap-3 flex-wrap">
-                <p className={clsx(
+                <p className={cn(
                     "font-semibold text-text-primary leading-none tracking-tight",
                     compact ? "text-[24px]" : "text-[32px]"
                 )}>
                     {value}
                 </p>
                 {change && (
-                    <span className={clsx(
+                    <span className={cn(
                         "text-[11px] font-semibold flex items-center gap-1 px-2 py-1 rounded-full",
                         change.direction === "neutral"
                             ? "bg-surface-tertiary text-text-tertiary"

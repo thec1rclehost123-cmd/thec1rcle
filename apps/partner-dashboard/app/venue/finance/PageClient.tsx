@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import {
     Banknote, TrendingUp, TrendingDown, AlertCircle, CheckCircle2,
     Clock, RefreshCw, ArrowRight, Wallet, ShieldAlert, Building2,
@@ -139,7 +139,7 @@ export default function VenueFinancePageClient() {
                         <div className="flex justify-between items-start">
                             <span className="v-label">GROSS REVENUE</span>
                             {grossTrend && (
-                                <span className={clsx("v-trend-chip text-[9px]", grossTrend.direction === "up" ? "v-trend-up" : "v-trend-down")}>
+                                <span className={cn("v-trend-chip text-[9px]", grossTrend.direction === "up" ? "v-trend-up" : "v-trend-down")}>
                                     {grossTrend.direction === "up" ? "↑ " : "↓ "}{grossTrend.value}
                                 </span>
                             )}
@@ -156,7 +156,7 @@ export default function VenueFinancePageClient() {
                         <div className="flex justify-between items-start">
                             <span className="v-label">NET REVENUE</span>
                             {netTrend && (
-                                <span className={clsx("v-trend-chip text-[9px]", netTrend.direction === "up" ? "v-trend-up" : "v-trend-down")}>
+                                <span className={cn("v-trend-chip text-[9px]", netTrend.direction === "up" ? "v-trend-up" : "v-trend-down")}>
                                     {netTrend.direction === "up" ? "↑ " : "↓ "}{netTrend.value}
                                 </span>
                             )}

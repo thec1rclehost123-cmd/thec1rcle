@@ -2,6 +2,20 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Menu, X } from "lucide-react";
+import {
+    LayoutDashboard,
+    CalendarDays,
+    PlusCircle,
+    BarChart3,
+    Users,
+    Shield,
+    Settings,
+    Building2,
+    Calendar,
+    FileText,
+    Banknote,
+    ClipboardList,
+} from "lucide-react";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,34 +25,87 @@ import { AssistantButton } from "@/components/assistant/AssistantButton";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import type { VenueTab } from "@/lib/types/staffProfile";
 
-interface VenueClientWrapperProps {
-    children: React.ReactNode;
-    menuSections: any[];
-}
+const MENU_SECTIONS = [
+    {
+        items: [
+            { icon: LayoutDashboard, label: "Overview",  href: "/venue" },
+            {
+                icon: BarChart3,
+                label: "Analytics",
+                href: "/venue/analytics",
+                children: [
+                    { label: "Overview",           href: "/venue/analytics/overview" },
+                    { label: "Advanced Analytics", href: "/venue/analytics/advanced" },
+                ],
+            },
+        ],
+    },
+    {
+        items: [
+            { icon: CalendarDays, label: "Events",       href: "/venue/events" },
+            {
+                icon: Banknote,
+                label: "Finance",
+                href: "/venue/finance",
+                children: [
+                    { label: "Overview",         href: "/venue/finance" },
+                    { label: "Payments",         href: "/venue/finance/payments" },
+                    { label: "Venue Payouts",    href: "/venue/finance/venue-payouts" },
+                    { label: "Host Payouts",     href: "/venue/finance/host-payouts" },
+                    { label: "Promoter Payouts", href: "/venue/finance/promoter-payouts" },
+                    { label: "Ledger",           href: "/venue/finance/ledger" },
+                    { label: "Reports",          href: "/venue/finance/reports" },
+                ],
+            },
+            { icon: PlusCircle, label: "Create Event", href: "/venue/create" },
+            { icon: Calendar,   label: "Calendar",     href: "/venue/calendar" },
+        ],
+    },
+    {
+        items: [
+            { icon: ClipboardList, label: "Walk-ins",     href: "/venue/walk-ins" },
+            { icon: Users,         label: "Partnerships", href: "/venue/partnerships" },
+            {
+                icon: Shield,
+                label: "Staff",
+                href: "/venue/staff",
+                children: [
+                    { label: "Team",            href: "/venue/staff" },
+                    { label: "Access Profiles", href: "/venue/staff/profiles" },
+                    { label: "Invite",          href: "/venue/staff/invite" },
+                ],
+            },
+            { icon: FileText, label: "Registers", href: "/venue/registers" },
+        ],
+    },
+    {
+        items: [
+            { icon: Building2, label: "Venue Page", href: "/venue/page-management" },
+            { icon: Settings,  label: "Settings",   href: "/venue/settings" },
+        ],
+    },
+];
 
 // ── Tab-to-href mapping ────────────────────────────────────────────────────────
-// Maps the first path segment after /venue to a VenueTab key.
 const HREF_TO_TAB: Record<string, VenueTab> = {
-    "/venue":              "overview",
-    "/venue/analytics":    "analytics",
-    "/venue/events":       "events",
-    "/venue/create":       "events",
-    "/venue/finance":      "finance",
-    "/venue/calendar":     "calendar",
-    "/venue/walk-ins":     "walk_ins",
-    "/venue/guest-ops":    "guest_ops",
-    "/venue/partnerships": "partnerships",
-    "/venue/connections":  "partnerships",
-    "/venue/staff":        "staff",
-    "/venue/registers":    "registers",
+    "/venue":                 "overview",
+    "/venue/analytics":       "analytics",
+    "/venue/events":          "events",
+    "/venue/create":          "events",
+    "/venue/finance":         "finance",
+    "/venue/calendar":        "calendar",
+    "/venue/walk-ins":        "walk_ins",
+    "/venue/guest-ops":       "guest_ops",
+    "/venue/partnerships":    "partnerships",
+    "/venue/connections":     "partnerships",
+    "/venue/staff":           "staff",
+    "/venue/registers":       "registers",
     "/venue/page-management": "page_management",
-    "/venue/settings":     "settings",
+    "/venue/settings":        "settings",
 };
 
 function itemTab(href: string): VenueTab | null {
-    // Exact match first
     if (HREF_TO_TAB[href]) return HREF_TO_TAB[href];
-    // Prefix match (e.g. /venue/finance/payments → finance)
     for (const [prefix, tab] of Object.entries(HREF_TO_TAB)) {
         if (href.startsWith(prefix + "/")) return tab;
     }
@@ -46,51 +113,46 @@ function itemTab(href: string): VenueTab | null {
 }
 
 function applyTabVisibility(
-    sections: any[],
+    sections: typeof MENU_SECTIONS,
     tabVisibility: Partial<Record<VenueTab, boolean>> | null
-): any[] {
-    // If no profile or no visibility rules, return all sections unchanged
+): typeof MENU_SECTIONS {
     if (!tabVisibility || Object.keys(tabVisibility).length === 0) return sections;
-
     return sections
         .map((section) => ({
             ...section,
-            items: section.items.filter((item: any) => {
+            items: section.items.filter((item) => {
                 const tab = itemTab(item.href);
-                if (!tab) return true; // unknown tab → show by default
-                // undefined in tabVisibility → default true (show)
+                if (!tab) return true;
                 return tabVisibility[tab] !== false;
             }),
         }))
-        .filter((section) => section.items.length > 0);
+        .filter((section) => section.items.length > 0) as typeof MENU_SECTIONS;
 }
 
-export function VenueClientWrapper({ children, menuSections }: VenueClientWrapperProps) {
-    const [sidebarOpen, setSidebarOpen] = useState(false);
-    const { profile } = useDashboardAuth();
+interface VenueClientWrapperProps {
+    children: React.ReactNode;
+}
 
-    // Load staff profile tab visibility if member has a custom profile assigned
+export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
+    const { profile } = useDashboardAuth();
     const [tabVisibility, setTabVisibility] = useState<Partial<Record<VenueTab, boolean>> | null>(null);
 
     useEffect(() => {
         const membership = profile?.activeMembership;
         if (!membership?.staffProfileId || !membership.partnerId) return;
-
-        fetch(
-            `/api/venue/staff-profiles/${membership.staffProfileId}?venueId=${membership.partnerId}`
-        )
+        fetch(`/api/venue/staff-profiles/${membership.staffProfileId}?venueId=${membership.partnerId}`)
             .then((r) => (r.ok ? r.json() : null))
             .then((data) => {
-                if (data?.profile?.tabVisibility) {
-                    setTabVisibility(data.profile.tabVisibility);
-                }
+                if (data?.profile?.tabVisibility) setTabVisibility(data.profile.tabVisibility);
             })
-            .catch(() => {/* fail silently — use full menu */});
+            .catch(() => {/* fail silently */});
     }, [profile?.activeMembership?.staffProfileId, profile?.activeMembership?.partnerId]);
 
     const filteredSections = useMemo(
-        () => applyTabVisibility(menuSections, tabVisibility),
-        [menuSections, tabVisibility]
+        () => applyTabVisibility(MENU_SECTIONS, tabVisibility),
+        [tabVisibility]
     );
 
     return (
@@ -104,6 +166,8 @@ export function VenueClientWrapper({ children, menuSections }: VenueClientWrappe
                             brandLabel="Venue"
                             menuSections={filteredSections}
                             basePath="/venue"
+                            isCollapsed={isCollapsed}
+                            onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
                         />
                     </div>
 
@@ -160,11 +224,10 @@ export function VenueClientWrapper({ children, menuSections }: VenueClientWrappe
                     </AnimatePresence>
 
                     {/* Main Content */}
-                    <div className="lg:pl-[280px] flex flex-col min-h-screen pt-14 lg:pt-0">
+                    <div className={`${isCollapsed ? "lg:pl-[80px]" : "lg:pl-[280px]"} flex flex-col min-h-screen pt-14 lg:pt-0 transition-all duration-300 ease-in-out`}>
                         <div className="hidden lg:block sticky top-0 z-40">
                             <AppleTopBar />
                         </div>
-
                         <main className="flex-1 p-4 sm:p-6 lg:p-8 xl:p-10">
                             <motion.div
                                 initial={{ opacity: 0, y: 10 }}

@@ -19,6 +19,7 @@ import {
     ChevronRight
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
 import { CITY_MAP } from "@c1rcle/core/events";
 
 interface PromoterEvent {
@@ -68,12 +69,12 @@ const MemoizedPromoterEventCard = memo(({ event, myLinks, generateLink, generati
     return (
         <motion.div
             layout
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className="card overflow-hidden group"
+            className="rounded-[32px] bg-surface-elevated border border-border-default overflow-hidden group hover:border-border-strong transition-all duration-200"
         >
             {/* Image */}
-            <div className="aspect-[4/3] bg-[#f5f5f7] relative overflow-hidden">
+            <div className="aspect-[4/3] bg-surface-tertiary relative overflow-hidden">
                 {event.image ? (
                     <img
                         src={event.image}
@@ -82,62 +83,51 @@ const MemoizedPromoterEventCard = memo(({ event, myLinks, generateLink, generati
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                        <Calendar className="w-12 h-12 text-[#86868b]" />
+                        <Calendar className="w-12 h-12 text-text-placeholder" />
                     </div>
                 )}
-
                 {/* Commission Badge */}
-                <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-[#34c759] text-text-primary text-[13px] font-semibold shadow-lg">
+                <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold backdrop-blur-sm">
                     {event.commissionRate}% Commission
                 </div>
-
-                {/* Active Link Indicator */}
                 {hasExistingLink && (
-                    <div className="absolute top-3 left-3 px-3 py-1.5 rounded-full bg-[#007aff] text-text-primary text-[11px] font-semibold shadow-lg flex items-center gap-1">
+                    <div className="absolute top-3 left-3 px-3 py-1.5 rounded-full bg-violet-500/20 border border-violet-500/30 text-violet-300 text-[11px] font-bold backdrop-blur-sm flex items-center gap-1">
                         <Check className="w-3 h-3" /> Active Link
                     </div>
                 )}
             </div>
 
             {/* Content */}
-            <div className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                    <div>
-                        <span className="text-[11px] font-medium text-[#007aff] uppercase tracking-wide">
-                            {event.category}
-                        </span>
-                        <h3 className="text-[17px] font-semibold text-[#1d1d1f] mt-1 line-clamp-1">
-                            {event.title}
-                        </h3>
-                    </div>
-                </div>
+            <div className="p-5">
+                <span className="text-[10px] font-black uppercase tracking-widest text-violet-400">
+                    {event.category}
+                </span>
+                <h3 className="text-base font-bold text-text-primary mt-1 mb-3 line-clamp-1">
+                    {event.title}
+                </h3>
 
                 <div className="space-y-1.5 mb-4">
-                    <div className="flex items-center gap-2 text-[13px] text-[#6e6e73]">
-                        <Calendar className="w-3.5 h-3.5" />
-                        {new Date(event.startDate).toLocaleDateString("en-IN", {
-                            weekday: "short",
-                            day: "numeric",
-                            month: "short"
-                        })} • {event.time}
+                    <div className="flex items-center gap-2 text-[12px] text-text-tertiary font-medium">
+                        <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                        {new Date(event.startDate).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })} · {event.time}
                     </div>
-                    <div className="flex items-center gap-2 text-[13px] text-[#6e6e73]">
-                        <MapPin className="w-3.5 h-3.5" />
+                    <div className="flex items-center gap-2 text-[12px] text-text-tertiary font-medium">
+                        <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
                         {event.venue}, {event.city}
                     </div>
-                    <div className="flex items-center gap-2 text-[13px] text-[#6e6e73]">
-                        <Ticket className="w-3.5 h-3.5" />
-                        ₹{event.priceRange.min}+
+                    <div className="flex items-center gap-2 text-[12px] text-text-tertiary font-medium">
+                        <Ticket className="w-3.5 h-3.5 flex-shrink-0" />
+                        ₹{event.priceRange.min}+ entry
                     </div>
                 </div>
 
-                {/* Stats */}
-                <div className="flex items-center gap-4 py-3 border-t border-[rgba(0,0,0,0.06)]">
-                    <div className="flex items-center gap-1.5 text-[13px] text-[#86868b]">
+                {/* Stats strip */}
+                <div className="flex items-center gap-4 py-3 border-t border-border-subtle">
+                    <div className="flex items-center gap-1.5 text-[12px] text-text-tertiary font-medium">
                         <Users className="w-3.5 h-3.5" />
                         {event.stats.interested} interested
                     </div>
-                    <div className="flex items-center gap-1.5 text-[13px] text-[#34c759]">
+                    <div className="flex items-center gap-1.5 text-[12px] text-emerald-500 font-bold">
                         <Percent className="w-3.5 h-3.5" />
                         {event.commissionRate}% per sale
                     </div>
@@ -145,50 +135,48 @@ const MemoizedPromoterEventCard = memo(({ event, myLinks, generateLink, generati
 
                 {/* Action */}
                 {hasExistingLink && eventLink ? (
-                    <div className="space-y-2">
-                        <div className="flex items-center gap-2 p-2 rounded-lg bg-[#f5f5f7]">
-                            <LinkIcon className="w-4 h-4 text-[#007aff]" />
-                            <span className="flex-1 text-[13px] font-mono text-[#1d1d1f]">
+                    <div className="space-y-2 mt-3">
+                        <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-surface-secondary border border-border-subtle">
+                            <LinkIcon className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                            <span className="flex-1 text-[12px] font-mono text-text-secondary truncate">
                                 {eventLink.code}
                             </span>
                             <button
                                 onClick={() => copyLink(eventLink.code)}
-                                className="p-1.5 rounded-md hover:bg-surface-elevated text-[#86868b] hover:text-[#007aff] transition-colors"
+                                className="p-1.5 rounded-xl hover:bg-surface-tertiary text-text-tertiary hover:text-violet-400 transition-colors"
                             >
                                 {copiedCode === eventLink.code ? (
-                                    <Check className="w-4 h-4 text-[#34c759]" />
+                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
                                 ) : (
-                                    <Copy className="w-4 h-4" />
+                                    <Copy className="w-3.5 h-3.5" />
                                 )}
                             </button>
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-center">
-                            <div className="p-2 rounded-lg bg-[#f5f5f7]">
-                                <p className="text-[15px] font-semibold text-[#1d1d1f]">{eventLink.clicks}</p>
-                                <p className="text-[11px] text-[#86868b]">Clicks</p>
-                            </div>
-                            <div className="p-2 rounded-lg bg-[#f5f5f7]">
-                                <p className="text-[15px] font-semibold text-[#1d1d1f]">{eventLink.conversions}</p>
-                                <p className="text-[11px] text-[#86868b]">Sales</p>
-                            </div>
-                            <div className="p-2 rounded-lg bg-[#34c759]/10">
-                                <p className="text-[15px] font-semibold text-[#34c759]">₹{eventLink.commission}</p>
-                                <p className="text-[11px] text-[#34c759]">Earned</p>
-                            </div>
+                            {[
+                                { label: "Clicks", value: eventLink.clicks, color: "text-text-primary" },
+                                { label: "Sales", value: eventLink.conversions, color: "text-text-primary" },
+                                { label: "Earned", value: `₹${eventLink.commission}`, color: "text-emerald-400" },
+                            ].map(({ label, value, color }) => (
+                                <div key={label} className="py-2 rounded-2xl bg-surface-secondary">
+                                    <p className={`text-sm font-black tabular-nums ${color}`}>{value}</p>
+                                    <p className="text-[10px] text-text-placeholder uppercase tracking-wider mt-0.5">{label}</p>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 ) : (
                     <button
                         onClick={() => generateLink(event.id)}
                         disabled={generatingLink === event.id}
-                        className="w-full btn btn-primary flex items-center justify-center gap-2"
+                        className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white text-[12px] font-black uppercase tracking-wide disabled:opacity-50 transition-colors"
                     >
                         {generatingLink === event.id ? (
                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         ) : (
                             <LinkIcon className="w-4 h-4" />
                         )}
-                        {generatingLink === event.id ? "Generating..." : "Get Your Link"}
+                        {generatingLink === event.id ? "Generating…" : "Get Your Link"}
                     </button>
                 )}
             </div>
@@ -294,63 +282,54 @@ export default function PromoterEventsPage() {
     }, [events, searchQuery]);
 
     return (
-        <div className="space-y-8">
-            {/* Header */}
-            <div>
-                <h1 className="text-headline">Discover Events</h1>
-                <p className="text-body-sm text-[#86868b] mt-1">
-                    Find events to promote and earn commission on every sale
-                </p>
-            </div>
-
-            {/* Search and Filters */}
-            <div className="flex items-center gap-4">
-                <div className="flex-1 relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#86868b]" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search events..."
-                        className="w-full pl-11 pr-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all"
-                    />
+        <VenuePageShell
+            title="Discover Events"
+            subtitle="Find events to promote and earn commission on every sale"
+            filterBar={
+                <div className="flex items-center gap-3 w-full">
+                    <div className="flex-1 relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search events or venues..."
+                            className="w-full pl-11 pr-4 py-2.5 rounded-2xl bg-surface-secondary border border-border-default text-sm text-text-primary placeholder:text-text-placeholder focus:outline-none focus:border-violet-500/50 transition-all"
+                        />
+                    </div>
+                    <select
+                        value={selectedCity}
+                        onChange={(e) => { setSelectedCity(e.target.value); fetchEvents(); }}
+                        className="px-4 py-2.5 rounded-2xl bg-surface-secondary border border-border-default text-sm text-text-primary focus:outline-none focus:border-violet-500/50 transition-all appearance-none cursor-pointer"
+                    >
+                        <option value="">All Cities</option>
+                        {CITY_MAP.map(city => (
+                            <option key={city.key} value={city.label.split(',')[0]}>{city.label}</option>
+                        ))}
+                    </select>
                 </div>
-                <select
-                    value={selectedCity}
-                    onChange={(e) => {
-                        setSelectedCity(e.target.value);
-                        fetchEvents();
-                    }}
-                    className="px-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all appearance-none cursor-pointer"
-                >
-                    <option value="">All Cities</option>
-                    {CITY_MAP.map(city => (
-                        <option key={city.key} value={city.label.split(',')[0]}>{city.label}</option>
-                    ))}
-                </select>
-            </div>
-
-            {/* Events Grid */}
+            }
+        >
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[1, 2, 3, 4, 5, 6].map(i => (
-                        <div key={i} className="card animate-pulse">
-                            <div className="aspect-[4/3] bg-[#f5f5f7]" />
-                            <div className="p-4 space-y-3">
-                                <div className="h-5 w-3/4 bg-[#f5f5f7] rounded" />
-                                <div className="h-4 w-1/2 bg-[#f5f5f7] rounded" />
+                        <div key={i} className="rounded-[32px] bg-surface-elevated border border-border-default animate-pulse">
+                            <div className="aspect-[4/3] bg-surface-tertiary rounded-t-[32px]" />
+                            <div className="p-5 space-y-3">
+                                <div className="h-4 w-3/4 bg-surface-tertiary rounded-lg" />
+                                <div className="h-3 w-1/2 bg-surface-tertiary rounded-lg" />
                             </div>
                         </div>
                     ))}
                 </div>
             ) : filteredEvents.length === 0 ? (
-                <div className="card p-12 text-center">
-                    <div className="w-16 h-16 rounded-full bg-[#f5f5f7] flex items-center justify-center mx-auto mb-4">
-                        <Calendar className="w-8 h-8 text-[#86868b]" />
+                <div className="py-24 flex flex-col items-center text-center rounded-[32px] bg-surface-elevated border border-border-default border-dashed">
+                    <div className="w-16 h-16 rounded-3xl bg-surface-tertiary flex items-center justify-center mb-5">
+                        <Calendar className="w-7 h-7 text-text-placeholder" />
                     </div>
-                    <h3 className="text-headline-sm mb-2">No Events Available</h3>
-                    <p className="text-body-sm text-[#86868b]">
-                        Check back later for new events to promote.
+                    <h3 className="text-lg font-bold text-text-primary mb-2">No Events Available</h3>
+                    <p className="text-sm text-text-tertiary max-w-xs leading-relaxed">
+                        Connect with hosts and venues to get assigned to events and start earning commission.
                     </p>
                 </div>
             ) : (
@@ -371,6 +350,6 @@ export default function PromoterEventsPage() {
                     )}
                 />
             )}
-        </div>
+        </VenuePageShell>
     );
 }

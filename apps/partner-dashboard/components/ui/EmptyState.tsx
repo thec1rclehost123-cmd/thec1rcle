@@ -1,4 +1,4 @@
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { type ReactNode } from "react";
 
 /**
@@ -24,7 +24,7 @@ export function EmptyState({
 }: EmptyStateProps) {
     const isComponent = typeof Icon === "function" || (typeof Icon === "object" && Icon !== null && "render" in (Icon as any));
     return (
-        <div className={clsx(
+        <div className={cn(
             "flex flex-col items-center justify-center text-center py-12 px-6",
             className
         )}>

@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { motion, AnimatePresence } from "framer-motion";
+import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 
 export default function HostSettingsPage() {
     const { profile } = useDashboardAuth();
@@ -141,32 +142,23 @@ export default function HostSettingsPage() {
     if (isLoading) {
         return (
             <div className="py-24 flex flex-col items-center justify-center">
-                <Loader2 className="h-10 w-10 text-text-placeholder animate-spin mb-4" />
-                <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Loading Console...</p>
+                <Loader2 className="h-10 w-10 animate-spin mb-4" style={{ color: "var(--v-orange)" }} />
+                <p className="font-bold uppercase tracking-widest text-[10px]" style={{ color: "var(--v-text-tertiary)" }}>Loading Console...</p>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6 pb-20 animate-in fade-in duration-500">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border-default pb-6">
-                <div>
-                    <h1 className="text-2xl font-black text-text-primary tracking-tight flex items-center gap-3 uppercase">
-                        Console Prefs
-                    </h1>
-                    <p className="text-text-tertiary text-sm font-medium mt-1">Operational parameters and payout anchors.</p>
-                </div>
-                <button
-                    onClick={() => handleSave({})}
-                    disabled={isSaving}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-surface-secondary text-text-primary rounded-xl text-xs font-bold shadow-lg active:scale-95 transition-all"
-                >
+        <VenuePageShell
+            title="Settings"
+            subtitle="Operational parameters and payout anchors"
+            actions={
+                <VenueActionButton variant="primary" onClick={() => handleSave({})} disabled={isSaving}>
                     {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Sync Settings
-                </button>
-            </div>
-
+                    <span className="ml-2">Sync Settings</span>
+                </VenueActionButton>
+            }
+        >
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 {/* Navigation */}
                 <div className="space-y-1.5">
@@ -514,7 +506,7 @@ export default function HostSettingsPage() {
                     </div>
                 )}
             </AnimatePresence>
-        </div>
+        </VenuePageShell>
     );
 }
 

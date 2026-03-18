@@ -2,28 +2,18 @@ import { TrendingUp, Calendar, Zap, Users } from "lucide-react";
 import { KPITile, KPIGrid } from "@/components/ui/KPITile";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useVenueOverviewSummary } from "@/lib/hooks/useVenueQueries";
+import { formatINRCompact, formatNumberCompact } from "@/lib/utils/format";
 
 export default function KPIGridModule() {
     const { profile } = useDashboardAuth();
     const venueId = profile?.activeMembership?.partnerId;
     const { data: summary } = useVenueOverviewSummary(venueId);
 
-    const formatRevenue = (amount: number) => {
-        if (amount >= 100000) return `₹${(amount / 100000).toFixed(2)}L`;
-        if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}K`;
-        return `₹${amount}`;
-    };
-
-    const formatCount = (count: number) => {
-        if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
-        return count.toString();
-    };
-
     return (
         <KPIGrid columns={4}>
             <KPITile
                 label="Weekend Revenue"
-                value={formatRevenue(summary?.weekendRevenue || 0)}
+                value={formatINRCompact(summary?.weekendRevenue || 0)}
                 trend={summary?.revenueTrend && summary.weekendRevenue > 0 ? {
                     value: summary.revenueTrend,
                     direction: summary.revenueTrendDirection || "up"
@@ -48,7 +38,7 @@ export default function KPIGridModule() {
             />
             <KPITile
                 label="Guest Profiles"
-                value={formatCount(summary?.totalGuestProfiles || 0)}
+                value={formatNumberCompact(summary?.totalGuestProfiles || 0)}
                 trend={summary?.newGuestsThisWeek ? {
                     value: `+${summary.newGuestsThisWeek}`,
                     direction: "up"

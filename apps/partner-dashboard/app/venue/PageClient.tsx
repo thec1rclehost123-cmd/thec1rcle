@@ -9,17 +9,15 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 import { KPIBento } from "@/components/ui/BentoCard";
 import { AppleHeroStat } from "@/components/ui/AppleHeroStat";
+import { formatINRCompact } from "@/lib/utils/format";
 
-// ── Formatters ──
 function formatRevenue(amount: number | null | undefined): string {
     if (amount == null) return "₹—";
-    if (amount >= 100000) return `₹${(amount / 100000).toFixed(2)}L`;
-    if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}K`;
-    return `₹${amount}`;
+    return formatINRCompact(amount);
 }
 
 function formatDate(dateStr: string): string {
@@ -197,7 +195,7 @@ export default function VenueDashboardHome() {
                         </div>
                         <div className="flex items-center gap-2 mt-2">
                             {summary?.revenueTrend && (
-                                <span className={clsx("v-trend-chip text-[10px]", summary.revenueTrendDirection === "down" ? "v-trend-down" : "v-trend-up")}>
+                                <span className={cn("v-trend-chip text-[10px]", summary.revenueTrendDirection === "down" ? "v-trend-down" : "v-trend-up")}>
                                     {summary.revenueTrendDirection === "down" ? "↓ " : "↑ "}{summary.revenueTrend}
                                 </span>
                             )}

@@ -18,6 +18,7 @@ import {
     Smartphone
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 
 interface SettingsSection {
     id: string;
@@ -115,14 +116,16 @@ export default function SettingsPage() {
     );
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
-            {/* Header */}
-            <div className="border-b border-border-default pb-8">
-                <h1 className="text-3xl font-extrabold text-text-primary tracking-tight">Settings</h1>
-                <p className="text-text-tertiary text-base font-medium mt-2">
-                    Customize your promoter experience, notifications, and preferences.
-                </p>
-            </div>
+        <VenuePageShell
+            title="Settings"
+            subtitle="Customize your promoter experience, notifications, and preferences"
+            actions={
+                <VenueActionButton variant="primary" onClick={handleSave} disabled={saving}>
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4" /> : null}
+                    <span className="ml-2">{saved ? "Saved!" : saving ? "Saving..." : "Save Settings"}</span>
+                </VenueActionButton>
+            }
+        >
 
             {/* Notifications */}
             <SettingsCard title="Notifications" icon={Bell} description="Control which alerts you receive">
@@ -202,22 +205,7 @@ export default function SettingsPage() {
                 </SettingsRow>
             </SettingsCard>
 
-            {/* Save Button */}
-            <div className="flex justify-end pt-4">
-                <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="flex items-center gap-2.5 px-10 py-3.5 bg-text-primary text-surface-elevated rounded-2xl font-bold text-sm hover:opacity-90 transition-all disabled:opacity-50 shadow-lg"
-                >
-                    {saving ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : saved ? (
-                        <CheckCircle2 className="w-4 h-4" />
-                    ) : null}
-                    {saved ? "Saved!" : saving ? "Saving..." : "Save Settings"}
-                </button>
-            </div>
-        </div>
+        </VenuePageShell>
     );
 }
 

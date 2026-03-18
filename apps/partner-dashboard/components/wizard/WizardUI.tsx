@@ -1,6 +1,6 @@
 import React from "react";
 import { CheckCircle2, AlertCircle } from "lucide-react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 interface SectionProps {
     title: string;
@@ -11,7 +11,7 @@ interface SectionProps {
 
 export function Section({ title, description, children, className }: SectionProps) {
     return (
-        <div className={clsx("rounded-[2rem] border border-border-subtle bg-surface-base p-8 shadow-sm", className)}>
+        <div className={cn("rounded-[2rem] border border-border-subtle bg-surface-base p-8 shadow-sm", className)}>
             <div className="mb-6 space-y-1">
                 <h3 className="text-headline-xs text-text-primary">{title}</h3>
                 {description && <p className="text-body-sm text-text-tertiary uppercase tracking-widest font-bold">{description}</p>}
@@ -22,7 +22,7 @@ export function Section({ title, description, children, className }: SectionProp
 }
 
 export function FieldGroup({ children, className }: { children: React.ReactNode; className?: string }) {
-    return <div className={clsx("space-y-4", className)}>{children}</div>;
+    return <div className={cn("space-y-4", className)}>{children}</div>;
 }
 
 interface WizardInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -47,7 +47,7 @@ export function WizardInput({ label, hint, error, className, icon: Icon, ...prop
                     </div>
                 )}
                 <input
-                    className={clsx(
+                    className={cn(
                         "w-full rounded-[1.25rem] border bg-surface-secondary px-4 py-3.5 text-[15px] font-medium text-text-primary transition-all placeholder:text-text-tertiary/50 focus:border-indigo-500/50 focus:bg-surface-base focus:outline-none focus:ring-4 focus:ring-indigo-500/5",
                         Icon ? "pl-11" : "",
                         error
@@ -85,7 +85,7 @@ export function WizardSelect({ label, options, hint, className, ...props }: Wiza
             )}
             <div className="relative group">
                 <select
-                    className={clsx(
+                    className={cn(
                         "w-full appearance-none rounded-[1.25rem] border border-border-subtle bg-surface-secondary px-4 py-3.5 text-[15px] font-medium text-text-primary transition-all focus:border-indigo-500/50 focus:bg-surface-base focus:outline-none focus:ring-4 focus:ring-indigo-500/5 cursor-pointer uppercase tracking-wider",
                         className
                     )}

@@ -1,4 +1,4 @@
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 /**
  * Avatar Component — User Representation
@@ -39,7 +39,7 @@ export const Avatar = ({
 
   return (
     <div
-      className={clsx(
+      className={cn(
         "relative overflow-hidden flex items-center justify-center rounded-full bg-surface-secondary text-stone-600 font-medium",
         sizeMap[size],
         className

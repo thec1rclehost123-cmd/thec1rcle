@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import {
     Users, CheckCircle2, XCircle, Flag, AlertTriangle, ScanLine,
     Wifi, Crown, Gift, Armchair, TicketIcon, List, Loader2,
@@ -181,18 +181,18 @@ function KPICard({ icon: Icon, label, value, color, emphasis }: {
     const { icon: iconColor, bg } = COLOR_MAP[color] ?? COLOR_MAP.slate;
     return (
         <div
-            className={clsx(
+            className={cn(
                 "p-4 rounded-xl border flex flex-col gap-2 transition-all",
                 emphasis ? "border-green-300 dark:border-green-700" : ""
             )}
             style={{ background: "var(--v-card)", borderColor: emphasis ? undefined : "var(--v-border)" }}
         >
-            <div className={clsx("w-8 h-8 rounded-lg flex items-center justify-center", bg)}>
+            <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", bg)}>
                 <Icon size={16} className={iconColor} />
             </div>
             <div>
                 <div className="text-[11px] text-[var(--v-text-muted)] mb-0.5">{label}</div>
-                <div className={clsx("text-2xl font-bold tabular-nums", emphasis ? "text-green-600 dark:text-green-400" : "text-[var(--v-text-primary)]")}>
+                <div className={cn("text-2xl font-bold tabular-nums", emphasis ? "text-green-600 dark:text-green-400" : "text-[var(--v-text-primary)]")}>
                     {value.toLocaleString()}
                 </div>
             </div>
@@ -206,7 +206,7 @@ function DeviceCard({ device }: { device: ScannerDevice }) {
             className="flex items-center gap-3 p-3 rounded-lg border"
             style={{ background: "var(--v-elevated)", borderColor: "var(--v-border)" }}
         >
-            <div className={clsx(
+            <div className={cn(
                 "w-2 h-2 rounded-full shrink-0",
                 device.isOnline ? "bg-green-400" : "bg-red-400"
             )} />

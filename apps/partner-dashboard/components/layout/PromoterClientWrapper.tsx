@@ -14,6 +14,7 @@ interface PromoterClientWrapperProps {
 
 export function PromoterClientWrapper({ children, menuSections }: PromoterClientWrapperProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
     return (
         <RoleGuard allowedType="promoter">
@@ -25,6 +26,8 @@ export function PromoterClientWrapper({ children, menuSections }: PromoterClient
                         brandLabel="Promoter"
                         menuSections={menuSections}
                         basePath="/promoter"
+                        isCollapsed={isCollapsed}
+                        onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
                     />
                 </div>
 
@@ -81,7 +84,7 @@ export function PromoterClientWrapper({ children, menuSections }: PromoterClient
                 </AnimatePresence>
 
                 {/* Main Content */}
-                <div className="lg:pl-[280px] flex flex-col min-h-screen pt-14 lg:pt-0">
+                <div className={`${isCollapsed ? "lg:pl-[80px]" : "lg:pl-[280px]"} flex flex-col min-h-screen pt-14 lg:pt-0 transition-all duration-300 ease-in-out`}>
                     <div className="hidden lg:block sticky top-0 z-40">
                         <AppleTopBar />
                     </div>

@@ -1,4 +1,4 @@
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { ReactNode } from "react";
 
 /**
@@ -16,7 +16,7 @@ interface SkeletonProps {
 export function Skeleton({ className, animate = true, style }: SkeletonProps) {
     return (
         <div
-            className={clsx(
+            className={cn(
                 "skeleton bg-surface-tertiary rounded-lg",
                 animate && "relative overflow-hidden",
                 className
@@ -29,12 +29,12 @@ export function Skeleton({ className, animate = true, style }: SkeletonProps) {
 
 // Text Line
 export function SkeletonText({ width = "100%", className }: { width?: string; className?: string }) {
-    return <Skeleton className={clsx("h-4", className)} style={{ width }} />;
+    return <Skeleton className={cn("h-4", className)} style={{ width }} />;
 }
 
 // Title
 export function SkeletonTitle({ width = "60%", className }: { width?: string; className?: string }) {
-    return <Skeleton className={clsx("h-7", className)} style={{ width }} />;
+    return <Skeleton className={cn("h-7", className)} style={{ width }} />;
 }
 
 // Avatar
@@ -45,7 +45,7 @@ export function SkeletonAvatar({ size = "md" }: { size?: "sm" | "md" | "lg" | "x
         lg: "w-14 h-14",
         xl: "w-20 h-20",
     };
-    return <Skeleton className={clsx(sizes[size], "rounded-full")} />;
+    return <Skeleton className={cn(sizes[size], "rounded-full")} />;
 }
 
 // Stat Value
@@ -65,13 +65,13 @@ export function SkeletonButton({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
         md: "h-11 w-28",
         lg: "h-14 w-36",
     };
-    return <Skeleton className={clsx(sizes[size], "rounded-xl")} />;
+    return <Skeleton className={cn(sizes[size], "rounded-xl")} />;
 }
 
 // Card
 export function SkeletonCard({ children, className }: { children?: ReactNode; className?: string }) {
     return (
-        <div className={clsx(
+        <div className={cn(
             "bg-surface-elevated border border-border-subtle rounded-2xl p-6",
             className
         )}>
@@ -98,11 +98,11 @@ export function SkeletonCard({ children, className }: { children?: ReactNode; cl
 // KPI Tile Skeleton
 export function SkeletonKPI({ compact = false }: { compact?: boolean }) {
     return (
-        <div className={clsx(
+        <div className={cn(
             "kpi-tile",
             compact ? "p-4" : "p-6"
         )}>
-            <Skeleton className={clsx(compact ? "w-10 h-10 mb-3" : "w-12 h-12 mb-4", "rounded-xl")} />
+            <Skeleton className={cn(compact ? "w-10 h-10 mb-3" : "w-12 h-12 mb-4", "rounded-xl")} />
             <SkeletonText width="40%" className="mb-3" />
             <SkeletonStat size={compact ? "sm" : "md"} />
         </div>
@@ -191,7 +191,7 @@ export function SkeletonEventCard() {
 // Chart Skeleton
 export function SkeletonChart({ height = "h-64" }: { height?: string }) {
     return (
-        <div className={clsx("relative bg-surface-secondary rounded-xl overflow-hidden", height)}>
+        <div className={cn("relative bg-surface-secondary rounded-xl overflow-hidden", height)}>
             {/* Fake bar chart lines */}
             <div className="absolute inset-0 flex items-end justify-around p-6 gap-3">
                 {[40, 65, 45, 80, 55, 70, 50, 75, 60, 85, 45, 70].map((height, i) => (

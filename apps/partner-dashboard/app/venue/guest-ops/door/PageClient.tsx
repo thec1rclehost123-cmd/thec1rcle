@@ -10,7 +10,7 @@ import { OfflineSyncBanner } from "@/components/guest-ops/OfflineSyncBanner";
 import { GuestSyncEngine, type SyncState } from "@/lib/client/offlineGuestSync";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VENUE_PERMISSIONS } from "@/lib/rbac/types";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import {
     Search, Loader2, CheckCircle2, XCircle, AlertTriangle, ScanLine,
     User, Phone, Hash, FileText,
@@ -194,7 +194,7 @@ export default function DoorSearchPageClient() {
                                     <button
                                         key={tab.value}
                                         onClick={() => handleTabChange(tab.value)}
-                                        className={clsx(
+                                        className={cn(
                                             "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium transition-all",
                                             searchField === tab.value
                                                 ? "bg-[var(--v-orange)] text-white"
@@ -236,7 +236,7 @@ export default function DoorSearchPageClient() {
                         {/* Action result toast */}
                         {lastActionResult && (
                             <div
-                                className={clsx(
+                                className={cn(
                                     "flex items-center gap-2.5 px-4 py-3 rounded-xl text-[13px] font-medium",
                                     lastActionResult.success
                                         ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400"
@@ -328,7 +328,7 @@ function DoorSearchResultCard({ guest, isLocked, canManage, isActing, lastAction
 
     return (
         <div
-            className={clsx(
+            className={cn(
                 "p-4 rounded-2xl border transition-all cursor-pointer hover:shadow-md",
                 guest.status === "checked_in"
                     ? "border-green-200 dark:border-green-800"
@@ -343,7 +343,7 @@ function DoorSearchResultCard({ guest, isLocked, canManage, isActing, lastAction
         >
             <div className="flex items-start gap-3">
                 {/* Avatar */}
-                <div className={clsx(
+                <div className={cn(
                     "w-10 h-10 rounded-xl flex items-center justify-center text-[15px] font-bold shrink-0",
                     guest.status === "checked_in" ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" :
                     guest.status === "denied" ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" :

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Suspense, useState } from "react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import type { CashflowDataPoint } from "@/lib/finance/definitions";
 import { formatINRCompact } from "@/lib/finance/definitions";
 import { ChartSkeleton } from "@/components/ui/VenueChart";
@@ -224,7 +224,7 @@ export function CashflowChart({
     };
 
     return (
-        <div className={clsx("flex flex-col gap-4", className)}>
+        <div className={cn("flex flex-col gap-4", className)}>
             {/* Controls row */}
             {(showSeriesToggle || showTimeRangePicker) && (
                 <div className="flex items-center justify-between flex-wrap gap-3">

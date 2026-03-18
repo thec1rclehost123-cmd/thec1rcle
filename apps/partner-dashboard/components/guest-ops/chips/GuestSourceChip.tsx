@@ -1,6 +1,6 @@
 "use client";
 
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import type { GuestSource } from "@/lib/types/guestOps";
 
 const SOURCE_CONFIG: Record<GuestSource, { label: string; className: string }> = {
@@ -24,7 +24,7 @@ interface Props {
 export function GuestSourceChip({ source, size = "sm" }: Props) {
     const config = SOURCE_CONFIG[source as GuestSource] ?? { label: source, className: "bg-gray-100 text-gray-600" };
     return (
-        <span className={clsx(
+        <span className={cn(
             "inline-flex items-center rounded-full font-medium",
             size === "xs" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]",
             config.className

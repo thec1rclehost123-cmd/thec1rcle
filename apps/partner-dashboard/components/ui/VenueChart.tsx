@@ -1,7 +1,7 @@
 "use client";
 
 import React, { Suspense, lazy, ReactNode } from "react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { useReducedMotion } from "framer-motion";
 
 // ── Lazy-load recharts to keep it out of non-analytics bundles ──
@@ -249,7 +249,7 @@ export function VenueChart({
     };
 
     return (
-        <div className={clsx("w-full", className)}>
+        <div className={cn("w-full", className)}>
             <Suspense fallback={<ChartSkeleton height={height} />}>
                 {type === "area" && <RechartsArea {...chartProps} />}
                 {type === "bar" && <RechartsBar {...chartProps} />}
@@ -263,7 +263,7 @@ export function VenueChart({
 export function ChartSkeleton({ height = 240, className }: { height?: number; className?: string }) {
     return (
         <div
-            className={clsx("v-skeleton w-full rounded-2xl", className)}
+            className={cn("v-skeleton w-full rounded-2xl", className)}
             style={{ height }}
             aria-label="Loading chart..."
         />
@@ -274,7 +274,7 @@ export function ChartSkeleton({ height = 240, className }: { height?: number; cl
 function ChartEmpty({ height = 240, label, className }: { height?: number; label: string; className?: string }) {
     return (
         <div
-            className={clsx(
+            className={cn(
                 "w-full rounded-2xl flex items-center justify-center",
                 className
             )}

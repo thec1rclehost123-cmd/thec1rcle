@@ -28,6 +28,8 @@ interface AppleSidebarProps {
     menuSections: MenuSection[];
     basePath: string;
     subscriptionPlan?: string;
+    isCollapsed?: boolean;
+    onToggleCollapse?: () => void;
 }
 
 const PLAN_HIERARCHY: Record<string, number> = {
@@ -37,7 +39,15 @@ const PLAN_HIERARCHY: Record<string, number> = {
     'diamond': 3
 };
 
-export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath, subscriptionPlan: propPlan }: AppleSidebarProps) {
+export function AppleSidebar({
+    brandLetter,
+    brandLabel,
+    menuSections,
+    basePath,
+    subscriptionPlan: propPlan,
+    isCollapsed = false,
+    onToggleCollapse
+}: AppleSidebarProps) {
     const pathname = usePathname();
     const { signOut, profile, subscriptionPlan: contextPlan } = useDashboardAuth();
     const [expandedItems, setExpandedItems] = useState<string[]>([]);
@@ -70,27 +80,33 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath, 
     })).filter(section => section.items.length > 0);
 
     return (
-        <aside className="w-[280px] bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] flex flex-col h-full overflow-hidden z-50 shrink-0">
+        <aside className={`relative ${isCollapsed ? "w-[80px]" : "w-[280px]"} bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] flex flex-col h-full z-50 shrink-0 transition-all duration-300 ease-in-out`}>
             {/* Brand Header */}
-            <div className="p-7">
+            <div className={`p-6 ${isCollapsed ? "px-4" : "p-7"}`}>
                 <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-2xl bg-text-primary flex items-center justify-center text-text-inverse font-bold text-xl shadow-lg ring-1 ring-white/10">
+                    <div className="w-11 h-11 min-w-[44px] rounded-2xl bg-text-primary flex items-center justify-center text-text-inverse font-bold text-xl shadow-lg ring-1 ring-white/10 shrink-0">
                         {brandLetter}
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <h1 className="text-[17px] font-bold text-text-primary tracking-tight leading-tight uppercase">THE C1RCLE</h1>
-                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-tertiary truncate mt-0.5 opacity-60">
-                            {brandLabel} Dashboard
-                        </p>
-                    </div>
+                    {!isCollapsed && (
+                        <motion.div
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="flex-1 min-w-0"
+                        >
+                            <h1 className="text-[17px] font-bold text-text-primary tracking-tight leading-tight uppercase">THE C1RCLE</h1>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-tertiary truncate mt-0.5 opacity-60">
+                                {brandLabel} Dashboard
+                            </p>
+                        </motion.div>
+                    )}
                 </div>
             </div>
 
             {/* Navigation - Continuous Flow */}
-            <nav className="flex-1 overflow-y-auto px-5 space-y-1 scrollbar-hide">
+            <nav className={`flex-1 overflow-y-auto ${isCollapsed ? "px-3" : "px-5"} space-y-1 scrollbar-hide`}>
                 {visibleSections.map((section, idx) => (
                     <div key={idx} className="pt-0">
-                        {section.label && (
+                        {section.label && !isCollapsed && (
                              <p className="px-5 pb-2 pt-4 text-[10px] font-black text-text-tertiary uppercase tracking-[0.25em] opacity-30">
                                 {section.label}
                              </p>
@@ -133,18 +149,22 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath, 
                                                         />
                                                     )}
 
-                                                    <div className="relative z-10 flex items-center gap-4 w-full">
-                                                        <Icon className={`w-5 h-5 transition-colors ${active ? "text-text-primary" : "text-text-tertiary/60 group-hover:text-text-primary/70"}`} />
-                                                        <span className="flex-1 text-left">{item.label}</span>
+                                                    <div className="relative z-10 flex items-center gap-4 w-full justify-center lg:justify-start">
+                                                        <Icon className={`w-5 h-5 min-w-[20px] transition-colors ${active ? "text-text-primary" : "text-text-tertiary/60 group-hover:text-text-primary/70"}`} />
+                                                        {!isCollapsed && <span className="flex-1 text-left">{item.label}</span>}
                                                         
-                                                        {item.badge && (
+                                                        {item.badge && !isCollapsed && (
                                                             <span className="px-2 py-0.5 rounded-full bg-c1rcle-orange/10 text-c1rcle-orange text-[9px] font-black uppercase tracking-widest ring-1 ring-c1rcle-orange/20">
                                                                 {item.badge}
                                                             </span>
                                                         )}
 
-                                                        {active && (
+                                                        {active && !isCollapsed && (
                                                             <div className="w-1.5 h-1.5 rounded-full bg-c1rcle-orange shadow-[0_0_12px_var(--c1rcle-orange)]" />
+                                                        )}
+
+                                                        {active && isCollapsed && (
+                                                            <div className="absolute right-0 w-1 h-4 bg-c1rcle-orange rounded-full" />
                                                         )}
                                                     </div>
                                                 </Link>
@@ -193,30 +213,44 @@ export function AppleSidebar({ brandLetter, brandLabel, menuSections, basePath, 
                 ))}
             </nav>
 
+            {/* Collapse Toggle — edge handle */}
+            {onToggleCollapse && (
+                <button
+                    onClick={onToggleCollapse}
+                    title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                    className="absolute right-0 translate-x-1/2 top-[52px] z-50 w-5 h-5 rounded-full bg-[var(--sidebar-bg)] border border-[var(--sidebar-border)] flex items-center justify-center text-text-tertiary hover:text-text-primary hover:border-text-tertiary/40 shadow-sm transition-all duration-200"
+                >
+                    <ChevronRight className={`h-3 w-3 transition-transform duration-300 ${isCollapsed ? "" : "rotate-180"}`} />
+                </button>
+            )}
+
             {/* Account Footer */}
-            <div className="p-6 border-t border-border-subtle bg-surface-tertiary/10">
-                <div className="flex items-center gap-4 mb-5">
-                    <div className="h-10 w-10 rounded-full bg-surface-secondary border border-border-subtle flex items-center justify-center text-text-primary font-bold text-base shadow-inner">
+            <div className={`p-4 ${isCollapsed ? "px-2" : "p-6"} border-t border-border-subtle bg-surface-tertiary/10`}>
+                <div className={`flex items-center ${isCollapsed ? "flex-col gap-4" : "gap-4"} mb-2`}>
+                    <div className="h-10 w-10 min-w-[40px] rounded-full bg-surface-secondary border border-border-subtle flex items-center justify-center text-text-primary font-bold text-base shadow-inner shrink-0">
                         {profile?.displayName?.charAt(0)?.toUpperCase() || "U"}
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-[14px] font-bold text-text-primary truncate">
-                            {profile?.displayName || "Operator"}
-                        </p>
-                        <p className="text-[10px] font-bold text-text-tertiary/60 uppercase tracking-widest mt-0.5">
-                            {currentPlan} membership
-                        </p>
+                    {!isCollapsed && (
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[14px] font-bold text-text-primary truncate">
+                                {profile?.displayName || "Operator"}
+                            </p>
+                            <p className="text-[10px] font-bold text-text-tertiary/60 uppercase tracking-widest mt-0.5">
+                                {currentPlan} membership
+                            </p>
+                        </div>
+                    )}
+                    <div className={`flex ${isCollapsed ? "flex-col" : "items-center"} gap-2`}>
+                        <ThemeToggleCompact />
+                        <button
+                            onClick={() => signOut()}
+                            className="w-9 h-9 flex items-center justify-center rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 transition-all"
+                            title="Sign Out"
+                        >
+                            <LogOut className="h-4 w-4" />
+                        </button>
                     </div>
-                    <ThemeToggleCompact />
                 </div>
-
-                <button
-                    onClick={() => signOut()}
-                    className="flex items-center justify-center gap-2.5 w-full py-3 rounded-2xl bg-surface-secondary/50 hover:bg-red-500/5 text-text-tertiary hover:text-red-500 transition-all border border-border-subtle hover:border-red-500/20 text-[13px] font-black uppercase tracking-widest"
-                >
-                    <LogOut className="w-4 h-4" />
-                    <span>Logout</span>
-                </button>
             </div>
         </aside>
     );

@@ -169,7 +169,7 @@ export class FirebaseEventRepository {
         }
         await this.db.collection('events').doc(id).update(updates);
     }
-    async listNearby(lat, lng, radius) {
+    async listNearby(lat, lng, radius, limit = 20) {
         const ranges = getNeighbors(lat, lng, radius);
         const nowIso = new Date().toISOString();
         // Optimized: Queries center + 8 neighbors in parallel
@@ -178,6 +178,7 @@ export class FirebaseEventRepository {
                 .where('geohash', '>=', start)
                 .where('geohash', '<=', end)
                 .where('lifecycle', 'in', ['scheduled', 'live'])
+                .limit(limit) // 🛡️ Safe Guard: Apply limit at query level
                 .get();
         }));
         // Merge and deduplicate (different neighbors might overlap or cover same prefix)
@@ -187,9 +188,13 @@ export class FirebaseEventRepository {
                 const data = doc.data();
                 if (data.endDate >= nowIso) {
                     eventMap.set(doc.id, { ...data, id: doc.id });
+                    if (eventMap.size >= limit)
+                        return; // Break early if limit reached
                 }
             });
+            if (eventMap.size >= limit)
+                break;
         }
-        return Array.from(eventMap.values());
+        return Array.from(eventMap.values()).slice(0, limit);
     }
 }

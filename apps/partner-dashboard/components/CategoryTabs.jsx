@@ -1,6 +1,6 @@
 "use client";
 
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
 export default function CategoryTabs({ tabs = [], active, onChange }) {
@@ -13,7 +13,7 @@ export default function CategoryTabs({ tabs = [], active, onChange }) {
             key={tab}
             type="button"
             onClick={() => onChange(tab)}
-            className={clsx(
+            className={cn(
               "relative rounded-full px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest transition-all duration-300",
               isActive ? "text-white dark:text-black" : "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white"
             )}

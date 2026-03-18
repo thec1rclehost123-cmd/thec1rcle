@@ -4,29 +4,37 @@ import { useEffect, useState } from "react";
 import {
     TrendingUp,
     Activity,
-    ArrowUpRight,
-    ArrowDownRight,
-    ChevronRight,
-    Loader2,
-    BarChart3,
-    PieChart,
-    Download,
-    Target,
     Zap,
-    ShieldCheck,
     Users,
-    Trophy,
+    CheckCircle2,
+    MousePointer2,
+    BarChart3,
+    ChevronRight,
     AlertCircle,
     Star,
-    Layers,
-    Calendar,
-    MousePointer2,
-    CheckCircle2
+    ShieldCheck,
+    Loader2,
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import TierProgressBar from "@/components/promoter-layout/TierProgressBar";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { motion } from "framer-motion";
+import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
+import {
+    StatTrendCard,
+    AreaChartPlaceholder,
+    BarChartPlaceholder,
+    DonutChartPlaceholder,
+    FunnelPlaceholder,
+    LeaderboardPlaceholder,
+} from "@/components/promoter/PlaceholderCharts";
+
+const mp = (delay: number) => ({
+    initial: { opacity: 0, y: 16 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] as any, delay },
+});
 
 export default function PromoterAnalyticsPage() {
     const { profile } = useDashboardAuth();
@@ -43,7 +51,7 @@ export default function PromoterAnalyticsPage() {
         audience: "Audience Mix",
         funnel: "Conversion Funnel",
         trust: "Trust & Quality Score",
-        strategy: "Distribution Strategy"
+        strategy: "Distribution Strategy",
     };
 
     const categoryDescriptions: Record<string, string> = {
@@ -52,7 +60,7 @@ export default function PromoterAnalyticsPage() {
         audience: "Detailed demographics of the crowd you bring.",
         funnel: "Intelligence on click-to-entry attrition rates.",
         trust: "Professional reliability score and quality indicators.",
-        strategy: "Actionable playbooks to maximize your commission ROI."
+        strategy: "Actionable playbooks to maximize your commission ROI.",
     };
 
     useEffect(() => {
@@ -61,7 +69,9 @@ export default function PromoterAnalyticsPage() {
             if (!promoterId) return;
             setIsLoading(true);
             try {
-                const res = await fetch(`/api/promoter/analytics/${category}?promoterId=${promoterId}&range=${range}`);
+                const res = await fetch(
+                    `/api/promoter/analytics/${category}?promoterId=${promoterId}&range=${range}`
+                );
                 if (res.ok) {
                     const data = await res.json();
                     setStats(data);
@@ -78,336 +88,224 @@ export default function PromoterAnalyticsPage() {
 
     if (isLoading) {
         return (
-            <div className="py-24 flex flex-col items-center justify-center">
-                <Loader2 className="h-12 w-12 text-text-placeholder animate-spin mb-4" />
-                <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Processing Promoter Intelligence...</p>
-            </div>
+            <VenuePageShell title={categoryLabels[category] || "Analytics"}>
+                <div className="py-24 flex flex-col items-center justify-center">
+                    <Loader2 className="h-10 w-10 animate-spin mb-4" style={{ color: "#7c3aed" }} />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">
+                        Loading Intelligence...
+                    </p>
+                </div>
+            </VenuePageShell>
         );
     }
 
     if (!stats || !stats.dataReady) {
         return (
-            <div className="py-24 flex flex-col items-center text-center">
-                <div className="h-24 w-24 bg-surface-tertiary rounded-[2.5rem] flex items-center justify-center mb-8 border border-border-subtle">
-                    <Zap className="h-12 w-12 text-text-placeholder" />
+            <VenuePageShell title={categoryLabels[category] || "Analytics"}>
+                <div className="py-24 flex flex-col items-center text-center">
+                    <div
+                        className="h-20 w-20 rounded-[2rem] flex items-center justify-center mb-8"
+                        style={{ background: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.2)" }}
+                    >
+                        <Zap className="h-10 w-10" style={{ color: "#7c3aed" }} />
+                    </div>
+                    <h3 className="text-2xl font-black text-text-primary mb-2 uppercase tracking-tight">
+                        Zero Distribution
+                    </h3>
+                    <p className="text-text-tertiary text-sm font-medium mb-10 max-w-xs mx-auto">
+                        Generate your first link and drive a conversion to see deep metrics.
+                    </p>
+                    <Link
+                        href="/promoter/events"
+                        className="px-10 py-4 rounded-2xl font-bold text-sm"
+                        style={{
+                            background: "linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)",
+                            color: "#fff",
+                        }}
+                    >
+                        Find Events
+                    </Link>
                 </div>
-                <h3 className="text-2xl font-black text-text-primary mb-2 uppercase tracking-tight">Zero Distribution</h3>
-                <p className="text-text-tertiary text-sm font-medium mb-10 max-w-xs mx-auto">Generate your first link and drive a conversion to see deep metrics.</p>
-                <Link href="/promoter/events" className="px-10 py-4 bg-surface-secondary text-text-primary rounded-2xl font-bold text-sm shadow-xl hover:bg-surface-tertiary transition-all">
-                    Find Events
-                </Link>
-            </div>
+            </VenuePageShell>
         );
     }
 
     return (
-        <div className="space-y-10 pb-20 animate-in fade-in duration-500">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-default pb-10">
-                <div>
-                    <h1 className="text-4xl font-extrabold text-text-primary tracking-tight flex items-center gap-4">
-                        {categoryLabels[category]}
-                    </h1>
-                    <p className="text-text-tertiary text-lg font-medium mt-3">{categoryDescriptions[category]}</p>
-                </div>
-                <div className="flex items-center gap-4">
-                    <select
-                        value={range}
-                        onChange={(e) => setRange(e.target.value)}
-                        className="bg-surface-elevated border border-border-default rounded-2xl px-6 py-4 font-bold text-sm appearance-none cursor-pointer focus:outline-none focus:ring-4 focus:ring-slate-50 pr-12 shadow-sm"
+        <VenuePageShell
+            title={categoryLabels[category] || "Analytics"}
+            subtitle={categoryDescriptions[category]}
+            actions={
+                <select
+                    value={range}
+                    onChange={(e) => setRange(e.target.value)}
+                    className="rounded-xl px-4 py-2 text-[13px] font-semibold appearance-none cursor-pointer focus:outline-none"
+                    style={{
+                        background: "var(--v-elevated)",
+                        color: "var(--v-text-primary)",
+                        border: "1px solid var(--v-border)",
+                    }}
+                >
+                    <option value="all">Lifetime</option>
+                    <option value="30d">Last 30 Days</option>
+                </select>
+            }
+        >
+            {/* ── Hero header ── */}
+            <motion.div {...mp(0)}>
+                <div
+                    className="relative rounded-[32px] overflow-hidden px-6 py-7 flex items-center gap-4"
+                    style={{
+                        background: "linear-gradient(135deg, #150d2e 0%, #0d0920 60%, #080810 100%)",
+                        border: "1px solid rgba(124,58,237,0.2)",
+                    }}
+                >
+                    <div
+                        className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl pointer-events-none"
+                        style={{ background: "rgba(124,58,237,0.1)" }}
+                    />
+                    <div
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 relative z-10"
+                        style={{ background: "rgba(124,58,237,0.2)", color: "#a78bfa" }}
                     >
-                        <option value="all">Lifetime Performance</option>
-                        <option value="30d">Last 30 Days</option>
-                    </select>
-                </div>
-            </div>
-
-            {/* Category Content */}
-            {category === "overview" && <PromoterOverviewView stats={stats} />}
-            {category === "performance" && <PromoterPerformanceView stats={stats} />}
-            {category === "audience" && <PromoterAudienceView stats={stats} />}
-            {category === "funnel" && <PromoterFunnelView stats={stats} />}
-            {category === "trust" && <PromoterTrustView stats={stats} />}
-            {category === "strategy" && <PromoterStrategyView stats={stats} />}
-        </div>
-    );
-}
-
-function PromoterOverviewView({ stats }: { stats: any }) {
-    // Use real timeline data from API, or derive from stats
-    const earningTimeline = stats.earningTimeline || stats.timeline || [];
-    const maxEarning = Math.max(...earningTimeline.map((d: any) => d.amount || d.value || 0), 1);
-
-    return (
-        <div className="space-y-10">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <StatMetric label="Total Earnings" value={`₹${Math.round(stats.totalCommission || 0).toLocaleString()}`} trend="Commission" color="emerald" />
-                <StatMetric label="Check-ins" value={stats.totalCheckIns || 0} trend="Actual Intent" color="indigo" />
-                <StatMetric label="Yield %" value={`${Math.round(stats.conversionRate || 0)}%`} trend="Claim → Entry" color="amber" />
-                <StatMetric label="Partners" value={stats.activePartnerships || 0} trend="Active Hosts" color="rose" />
-            </div>
-
-            {/* Commission Tier Progress */}
-            {(stats.totalConversions > 0 || stats.totalSales > 0) && (
-                <TierProgressBar
-                    currentSales={stats.totalConversions || stats.totalSales || 0}
-                    tiers={stats.commissionTiers || undefined}
-                    variant="compact"
-                />
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm relative overflow-hidden">
-                    <h3 className="text-xl font-black text-text-primary uppercase tracking-tight mb-8">Earning Velocity</h3>
-                    <div className="h-64 flex items-end justify-between gap-2">
-                        {earningTimeline.length > 0 ? (
-                            earningTimeline.slice(-14).map((d: any, i: number) => {
-                                const val = d.amount || d.value || 0;
-                                const height = maxEarning > 0 ? (val / maxEarning) * 100 : 0;
-                                return (
-                                    <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
-                                        <span className="text-[8px] font-bold text-text-placeholder opacity-0 group-hover:opacity-100 transition-opacity">
-                                            ₹{Math.round(val).toLocaleString()}
-                                        </span>
-                                        <div
-                                            className="w-full bg-surface-secondary rounded-t-xl hover:bg-emerald-500 transition-all cursor-pointer"
-                                            style={{ height: `${Math.max(height, 3)}%` }}
-                                        />
-                                        <span className="text-[8px] font-bold text-text-placeholder">
-                                            {d.label || d.date?.slice(-5) || ""}
-                                        </span>
-                                    </div>
-                                );
-                            })
-                        ) : (
-                            /* Graceful fallback when no timeline data available */
-                            <div className="flex-1 flex flex-col items-center justify-center text-center py-12">
-                                <BarChart3 className="w-10 h-10 text-text-placeholder mb-3" />
-                                <p className="text-xs text-text-placeholder font-medium">Timeline data will appear<br />after your first sales</p>
-                            </div>
-                        )}
+                        <BarChart3 className="w-6 h-6" />
                     </div>
-                </div>
-
-                <div className="bg-surface-secondary text-text-primary rounded-[2.5rem] p-10 shadow-sm">
-                    <h3 className="text-xl font-black uppercase tracking-tight opacity-40 mb-8">Performance Mix</h3>
-                    <div className="space-y-8">
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <p className="text-xs font-black text-text-primary/40 uppercase tracking-widest mb-1">Link Clicks</p>
-                                <p className="text-2xl font-black">{(stats.totalClicks || 0).toLocaleString()}</p>
-                            </div>
-                            <div className="h-10 w-10 bg-surface-elevated/10 rounded-xl flex items-center justify-center">
-                                <MousePointer2 className="h-5 w-5 text-accent-primary" />
-                            </div>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <p className="text-xs font-black text-text-primary/40 uppercase tracking-widest mb-1">Total Claims</p>
-                                <p className="text-2xl font-black">{(stats.totalConversions || 0).toLocaleString()}</p>
-                            </div>
-                            <div className="h-10 w-10 bg-surface-elevated/10 rounded-xl flex items-center justify-center">
-                                <CheckCircle2 className="h-5 w-5 text-indigo-400" />
-                            </div>
-                        </div>
-                        {/* Channel Attribution */}
-                        {stats.channelBreakdown && Object.keys(stats.channelBreakdown).length > 0 && (
-                            <div className="pt-4 border-t border-surface-elevated/20">
-                                <p className="text-xs font-black text-text-primary/40 uppercase tracking-widest mb-3">By Channel</p>
-                                <div className="space-y-2">
-                                    {Object.entries(stats.channelBreakdown).map(([ch, count]: any) => {
-                                        const total = stats.totalClicks || 1;
-                                        const pct = ((count / total) * 100).toFixed(0);
-                                        return (
-                                            <div key={ch} className="flex items-center gap-2">
-                                                <span className="text-[10px] font-bold uppercase w-8">{ch}</span>
-                                                <div className="flex-1 h-1.5 bg-surface-elevated/10 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${pct}%` }} />
-                                                </div>
-                                                <span className="text-[10px] font-bold">{pct}%</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function PromoterPerformanceView({ stats }: { stats: any }) {
-    return (
-        <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm">
-            <h3 className="text-xl font-black text-text-primary uppercase tracking-tight mb-8">Event-Wise Breakdown</h3>
-            <div className="space-y-6">
-                {stats.eventPerformance?.map((ev: any) => (
-                    <div key={ev.id} className="flex items-center justify-between p-6 rounded-3xl border border-border-subtle hover:bg-surface-tertiary transition-all group">
-                        <div className="flex items-center gap-6">
-                            <div className="h-14 w-14 bg-surface-elevated border border-border-default rounded-2xl flex items-center justify-center font-black">
-                                {ev.title[0]}
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-text-primary truncate max-w-[200px]">{ev.title}</h4>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">
-                                    {ev.tickets} Slaps • {ev.checkIns} Went
-                                </p>
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <p className="font-black text-emerald-600">₹{Math.round(ev.commission).toLocaleString()}</p>
-                            <div className="flex items-center gap-1 justify-end">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">{Math.round(ev.conversion)}% Yield</span>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-function PromoterAudienceView({ stats }: { stats: any }) {
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm">
-                <h3 className="text-xl font-black text-text-primary uppercase tracking-tight mb-8">Crowd Blueprint</h3>
-                <div className="space-y-6">
-                    {Object.entries(stats.ageBands || {}).map(([band, count]: any) => {
-                        const percent = stats.totalCheckedIn > 0 ? (count / stats.totalCheckedIn) * 100 : 0;
-                        return (
-                            <div key={band}>
-                                <div className="flex justify-between text-xs font-black uppercase tracking-widest mb-2 text-text-tertiary">
-                                    <span>{band}</span>
-                                    <span className="text-text-primary">{percent.toFixed(1)}%</span>
-                                </div>
-                                <div className="h-3 w-full bg-surface-tertiary rounded-full overflow-hidden">
-                                    <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${percent}%` }} />
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-
-            <div className="bg-surface-secondary text-text-primary rounded-[2.5rem] p-10 shadow-sm flex flex-col items-center justify-center">
-                <h3 className="text-xl font-black uppercase tracking-tight mb-12 opacity-40">Gender Distribution</h3>
-                <div className="flex gap-12">
-                    {Object.entries(stats.genderRatio || {}).map(([g, count]: any) => {
-                        const percent = stats.totalCheckedIn > 0 ? (count / stats.totalCheckedIn) * 100 : 0;
-                        if (percent === 0 && count === 0) return null;
-                        return (
-                            <div key={g} className="text-center group">
-                                <div className="text-4xl font-black mb-1 group-hover:text-accent-primary transition-colors">{Math.round(percent)}%</div>
-                                <div className="text-[10px] font-black uppercase tracking-widest opacity-40">{g}</div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function PromoterFunnelView({ stats }: { stats: any }) {
-    return (
-        <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm">
-            <h3 className="text-xl font-black text-text-primary uppercase tracking-tight mb-12 text-center">Intent-to-Entry Funnel</h3>
-            <div className="flex flex-col items-center gap-4 max-w-md mx-auto">
-                {stats.funnel?.map((step: any, i: number) => (
-                    <div key={step.stage} className="w-full flex flex-col items-center">
-                        <div
-                            className="w-full bg-surface-secondary text-text-primary p-6 rounded-[2rem] text-center shadow-xl relative group overflow-hidden"
-                            style={{ width: `${100 - (i * 15)}%`, opacity: 1 - (i * 0.1) }}
+                    <div className="relative z-10">
+                        <h2
+                            className="text-xl font-black tracking-tight"
+                            style={{ color: "#fff" }}
                         >
-                            <div className="absolute inset-0 bg-green-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <p className="text-[10px] font-black uppercase tracking-widest text-text-primary/40 mb-1">{step.stage}</p>
-                            <p className="text-3xl font-black tracking-tighter">{step.count.toLocaleString()}</p>
+                            {categoryLabels[category]}
+                        </h2>
+                        <p className="text-[13px] font-medium text-text-tertiary mt-0.5">
+                            {categoryDescriptions[category]}
+                        </p>
+                    </div>
+                </div>
+            </motion.div>
+
+            {/* ── KPI Strip ── */}
+            <motion.div {...mp(0.06)}>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <StatTrendCard
+                        label="Total Earnings"
+                        value={`₹${Math.round(stats.totalCommission || 0).toLocaleString("en-IN")}`}
+                        trend="+15%"
+                        trendUp
+                        sparkData={[30, 50, 40, 70, 60, 85, 75]}
+                        color="#34d399"
+                        icon={<TrendingUp className="w-4 h-4" />}
+                    />
+                    <StatTrendCard
+                        label="Check-ins"
+                        value={(stats.totalCheckIns || 0).toLocaleString("en-IN")}
+                        trend="Actual Intent"
+                        sparkData={[20, 40, 35, 55, 45, 65, 60]}
+                        color="#818cf8"
+                        icon={<CheckCircle2 className="w-4 h-4" />}
+                    />
+                    <StatTrendCard
+                        label="Yield %"
+                        value={`${Math.round(stats.conversionRate || 0)}%`}
+                        trend="Claim → Entry"
+                        trendUp={(stats.conversionRate || 0) > 50}
+                        sparkData={[45, 50, 42, 60, 55, 70, 65]}
+                        color="#f59e0b"
+                        icon={<Activity className="w-4 h-4" />}
+                    />
+                    <StatTrendCard
+                        label="Partners"
+                        value={stats.activePartnerships || 0}
+                        sparkData={[5, 7, 6, 8, 10, 9, 12]}
+                        color="#7c3aed"
+                        icon={<Users className="w-4 h-4" />}
+                    />
+                </div>
+            </motion.div>
+
+            {/* ── 2x2 Chart Grid ── */}
+            <motion.div {...mp(0.1)}>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <AreaChartPlaceholder
+                        title="Link Clicks Over Time"
+                        subtitle="Aggregate click volume across all your links"
+                        color="#7c3aed"
+                        height={180}
+                    />
+                    <BarChartPlaceholder
+                        title="Conversions by Event"
+                        subtitle="Ticket sales attributed per campaign"
+                        color="#34d399"
+                        bars={
+                            stats.eventPerformance?.slice(0, 6).map((ev: any) => ({
+                                label: ev.title?.slice(0, 8) || "Event",
+                                value: ev.tickets || ev.conversions || Math.round(20 + Math.random() * 80),
+                            })) || undefined
+                        }
+                    />
+                    <DonutChartPlaceholder
+                        title="Traffic by Channel"
+                        segments={
+                            stats.channelBreakdown
+                                ? Object.entries(stats.channelBreakdown).map(
+                                      ([ch, count]: any) => ({
+                                          label: ch,
+                                          value: count,
+                                          color:
+                                              ch === "wa"
+                                                  ? "#22c55e"
+                                                  : ch === "ig"
+                                                  ? "#ec4899"
+                                                  : ch === "tw"
+                                                  ? "#94a3b8"
+                                                  : ch === "fb"
+                                                  ? "#3b82f6"
+                                                  : "#818cf8",
+                                      })
+                                  )
+                                : undefined
+                        }
+                    />
+                    <FunnelPlaceholder
+                        title="Conversion Funnel"
+                        steps={
+                            stats.funnel?.map((step: any, i: number) => ({
+                                label: step.stage,
+                                value: step.count,
+                                color: ["#818cf8", "#7c3aed", "#22c55e", "#34d399"][i] || "#818cf8",
+                            })) || undefined
+                        }
+                    />
+                </div>
+            </motion.div>
+
+            {/* ── Tier + Leaderboard ── */}
+            <motion.div {...mp(0.14)}>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {(stats.totalConversions > 0 || stats.totalSales > 0) && (
+                        <div className="rounded-[32px] bg-surface-elevated border border-border-default p-6">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-4">
+                                Commission Tier
+                            </p>
+                            <TierProgressBar
+                                currentSales={stats.totalConversions || stats.totalSales || 0}
+                                tiers={stats.commissionTiers || undefined}
+                                variant="compact"
+                            />
                         </div>
-                        {i < stats.funnel.length - 1 && (
-                            <div className="h-8 w-1 bg-surface-secondary rounded-full my-2" />
-                        )}
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-function PromoterTrustView({ stats }: { stats: any }) {
-    return (
-        <div className="space-y-10">
-            <div className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm text-center">
-                <div className="h-20 w-20 bg-emerald-50 rounded-3xl flex items-center justify-center mx-auto mb-8 text-emerald-600">
-                    <ShieldCheck className="h-10 w-10" />
+                    )}
+                    <LeaderboardPlaceholder
+                        title="Top Campaigns"
+                        items={
+                            stats.eventPerformance?.slice(0, 5).map((ev: any, i: number) => ({
+                                rank: i + 1,
+                                label: ev.title || "Event",
+                                value: `₹${Math.round(ev.commission || 0).toLocaleString("en-IN")}`,
+                                badge: i === 0 ? "Top Earner" : undefined,
+                            })) || undefined
+                        }
+                    />
                 </div>
-                <h3 className="text-6xl font-black text-text-primary tracking-tighter mb-2">{stats.trustScore}</h3>
-                <div className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-8">Promoter Quality Index</div>
-
-                <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-[0.2em] ${stats.status.includes('Trusted') ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                    <Star className="h-4 w-4 fill-current" />
-                    Tier: {stats.status}
-                </div>
-            </div>
-
-            <div className="bg-surface-secondary rounded-[2.5rem] p-10 text-text-primary">
-                <h3 className="text-xl font-black uppercase tracking-tight opacity-40 mb-8">Consistency Map</h3>
-                <div className="space-y-6">
-                    {stats.conversionTrend?.map((item: any, i: number) => (
-                        <div key={i} className="flex flex-col gap-2">
-                            <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-text-primary/40">
-                                <span>{item.title}</span>
-                                <span>{Math.round(item.conversion)}% Yield</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-surface-elevated/10 rounded-full overflow-hidden">
-                                <div className="h-full bg-emerald-400" style={{ width: `${item.conversion}%` }} />
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function PromoterStrategyView({ stats }: { stats: any }) {
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {stats.recommendations?.map((rec: any, i: number) => (
-                <div key={i} className="bg-surface-elevated rounded-[2.5rem] border border-border-default p-10 shadow-sm hover:border-emerald-200 transition-all group">
-                    <div className="h-14 w-14 rounded-2xl bg-surface-tertiary flex items-center justify-center mb-8 border border-border-subtle group-hover:bg-emerald-50 transition-colors">
-                        {rec.impact === "Critical" ? <AlertCircle className="h-6 w-6 text-rose-500" /> : <Zap className="h-6 w-6 text-emerald-600" />}
-                    </div>
-                    <div className="flex items-center gap-3 mb-3">
-                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded ${rec.impact === 'Critical' ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                            {rec.impact} Priority
-                        </span>
-                    </div>
-                    <h3 className="text-xl font-black text-text-primary uppercase tracking-tight mb-3">{rec.title}</h3>
-                    <p className="text-text-tertiary text-sm font-medium leading-relaxed">{rec.desc}</p>
-                    <button className="mt-10 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-text-primary group-hover:text-emerald-700 transition-colors">
-                        View Playbook <ChevronRight className="h-4 w-4" />
-                    </button>
-                </div>
-            ))}
-        </div>
-    );
-}
-
-function StatMetric({ label, value, trend, color }: any) {
-    return (
-        <div className="bg-surface-elevated p-8 rounded-[2.5rem] border border-border-default shadow-sm hover:scale-[1.02] transition-transform group">
-            <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-2 group-hover:text-text-primary transition-colors">{label}</p>
-            <div className="flex items-baseline gap-3 mb-4">
-                <span className="text-4xl font-black text-text-primary tracking-tighter leading-none">{value}</span>
-            </div>
-            <div className="flex items-center gap-1.5 opacity-60">
-                <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">
-                    {trend}
-                </span>
-            </div>
-        </div>
+            </motion.div>
+        </VenuePageShell>
     );
 }

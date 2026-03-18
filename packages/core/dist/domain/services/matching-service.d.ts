@@ -11,14 +11,14 @@ export declare class MatchingService {
         lng?: number;
         limit?: number;
         type?: 'user' | 'event';
-    }): Promise<any[]>;
+    }, workspaceId: string): Promise<any[]>;
     precomputeMatchFeed(userId: string, options: {
         lat?: number;
         lng?: number;
         limit?: number;
         type?: 'user' | 'event';
-    }): Promise<void>;
-    handleSwipe(userId: string, targetId: string, targetType: 'user' | 'event', direction: 'left' | 'right' | 'up'): Promise<void>;
+    }, workspaceId: string): Promise<void>;
+    handleSwipe(userId: string, targetId: string, targetType: 'user' | 'event', direction: 'left' | 'right' | 'up', workspaceId: string): Promise<void>;
     private updateAdaptivePreferences;
     private getAdaptiveBoosts;
     private calculateInterestScore;

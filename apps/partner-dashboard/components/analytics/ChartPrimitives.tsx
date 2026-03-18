@@ -18,7 +18,7 @@
  */
 
 import { lazy, Suspense, type CSSProperties } from "react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 // ── Shared tooltip style ───────────────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ export const TOOLTIP_STYLE = {
 export function ChartSkeleton({ height = 200, className }: { height?: number; className?: string }) {
     return (
         <div
-            className={clsx("rounded-2xl animate-pulse", className)}
+            className={cn("rounded-2xl animate-pulse", className)}
             style={{ height, background: "rgba(255,255,255,0.04)" }}
             aria-label="Loading chart..."
         />
@@ -91,7 +91,7 @@ export function SparkLine({ data, color = "var(--v-orange)", height = 40, classN
     if (allZero) {
         return (
             <div
-                className={clsx("w-full", className)}
+                className={cn("w-full", className)}
                 style={{ height }}
                 aria-hidden="true"
             >
@@ -106,7 +106,7 @@ export function SparkLine({ data, color = "var(--v-orange)", height = 40, classN
         );
     }
     return (
-        <div className={clsx("w-full", className)} style={{ height }}>
+        <div className={cn("w-full", className)} style={{ height }}>
             <Suspense fallback={<div style={{ height }} />}>
                 <LazySparkLine data={data} color={color} height={height} />
             </Suspense>
@@ -143,7 +143,7 @@ export function FunnelWaterfall({ stages, className }: FunnelWaterfallProps) {
     const maxCount = Math.max(...stages.map(s => s.count), 1);
 
     return (
-        <div className={clsx("space-y-2", className)} role="img" aria-label="Conversion funnel">
+        <div className={cn("space-y-2", className)} role="img" aria-label="Conversion funnel">
             {stages.map((stage, i) => {
                 const widthPct = maxCount > 0 ? Math.max((stage.count / maxCount) * 100, 4) : 4;
                 const color = FUNNEL_COLORS[i % FUNNEL_COLORS.length];
@@ -237,7 +237,7 @@ export function HeatmapGrid({ data, days, hours, label = "Activity Heatmap", cla
     }
 
     return (
-        <div className={clsx("overflow-x-auto", className)} role="img" aria-label={label}>
+        <div className={cn("overflow-x-auto", className)} role="img" aria-label={label}>
             <div className="min-w-[440px]">
                 {/* Hour labels */}
                 <div className="flex items-center mb-1.5 pl-9">
@@ -324,7 +324,7 @@ export function HorizRankBars({ rows, maxValue, showRank = true, className }: Ho
     const max = maxValue ?? Math.max(...rows.map(r => r.value), 1);
 
     return (
-        <div className={clsx("space-y-3", className)}>
+        <div className={cn("space-y-3", className)}>
             {rows.map((row, i) => {
                 const widthPct = max > 0 ? Math.max((row.value / max) * 100, 2) : 2;
                 const color = row.color ?? `var(--v-chart-${(i % 5) + 1})`;
@@ -485,7 +485,7 @@ export function DonutSplit({
     className,
 }: DonutSplitProps) {
     return (
-        <div className={clsx("relative", className)} style={{ height }}>
+        <div className={cn("relative", className)} style={{ height }}>
             <Suspense fallback={<ChartSkeleton height={height} />}>
                 <LazyDonutSplit
                     data={data}
@@ -588,7 +588,7 @@ export function StackedAreaChart({
     data, keys, colors = DEFAULT_DONUT_COLORS, xKey = "date", height = 180, className,
 }: StackedAreaProps) {
     return (
-        <div className={clsx("w-full", className)}>
+        <div className={cn("w-full", className)}>
             <Suspense fallback={<ChartSkeleton height={height} />}>
                 <LazyStacked data={data} keys={keys} colors={colors} xKey={xKey} height={height} />
             </Suspense>
@@ -612,7 +612,7 @@ interface CohortGridProps {
 
 export function CohortGrid({ cohorts, className }: CohortGridProps) {
     return (
-        <div className={clsx("space-y-2", className)}>
+        <div className={cn("space-y-2", className)}>
             {cohorts.map((cohort) => {
                 const pct = Math.min(Math.max(cohort.returnRatePct, 0), 100);
                 const color = pct >= 60
@@ -677,7 +677,7 @@ export function ScoreRing({ score, label, size = 64, strokeWidth = 5, className 
             : "var(--v-error)";
 
     return (
-        <div className={clsx("relative flex items-center justify-center", className)} style={{ width: size, height: size }}>
+        <div className={cn("relative flex items-center justify-center", className)} style={{ width: size, height: size }}>
             <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
                 <circle
                     cx={size / 2} cy={size / 2} r={radius}

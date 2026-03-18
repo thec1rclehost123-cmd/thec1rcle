@@ -15,5 +15,5 @@ export declare class FirebaseEventRepository implements IEventRepository {
     create(event: Event): Promise<void>;
     update(id: string, updates: Partial<Event>, workspaceId: string): Promise<void>;
     updateLifecycle(id: string, status: string, actorId: string, workspaceId: string): Promise<void>;
-    listNearby(lat: number, lng: number, radius: number): Promise<Event[]>;
+    listNearby(lat: number, lng: number, radius: number, limit?: number): Promise<Event[]>;
 }

@@ -5,37 +5,36 @@ import { useDashboardAuth } from "../../components/providers/DashboardAuthProvid
 import {
     Wallet,
     TrendingUp,
-    ArrowUpRight,
-    ArrowDownRight,
     Link2,
     Users,
     CheckCircle2,
     Clock,
-    ChevronRight,
-    ExternalLink,
     Copy,
-    Check
+    Check,
+    ExternalLink,
+    Zap,
+    ArrowRight,
+    Star,
 } from "lucide-react";
 import Link from "next/link";
-
-import { DashboardEventCard } from "@c1rcle/ui";
+import { motion } from "framer-motion";
+import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 import { mapEventForClient } from "@c1rcle/core/events";
 import TierProgressBar from "@/components/promoter-layout/TierProgressBar";
+import {
+    StatTrendCard,
+    AreaChartPlaceholder,
+    BarChartPlaceholder,
+    DonutChartPlaceholder,
+    MiniSparkline,
+} from "@/components/promoter/PlaceholderCharts";
 
-/**
- * Promoter Dashboard Home — Attribution & Proof Lens
- * 
- * A Sales Command Center for distributed marketing.
- * 
- * Core question this screen answers:
- * "How am I performing and what's my payout pipeline?"
- * 
- * Key metrics:
- * - Verified entries (check-ins, not just clicks)
- * - Conversion funnels
- * - Commission clarity
- * - No vanity metrics
- */
+const mp = (delay: number) => ({
+    initial: { opacity: 0, y: 16 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] as any, delay },
+});
+
 export default function PromoterDashboardHome() {
     const { profile } = useDashboardAuth();
     const [copiedLink, setCopiedLink] = useState<string | null>(null);
@@ -46,7 +45,7 @@ export default function PromoterDashboardHome() {
         totalConversions: 0,
         totalCheckIns: 0,
         conversionRate: 0,
-        checkInRate: 0
+        checkInRate: 0,
     });
     const [recentCommissions, setRecentCommissions] = useState<any[]>([]);
     const [activeEvents, setActiveEvents] = useState<any[]>([]);
@@ -61,28 +60,27 @@ export default function PromoterDashboardHome() {
             setLoading(true);
 
             const [eventsResult, statsResult, commissionsResult] = await Promise.allSettled([
-                // Fetch active events
                 fetch(`/api/promoter/events?promoterId=${partnerId}&limit=4`)
-                    .then(res => res.ok ? res.json() : { events: [] }),
-                // Fetch stats
-                fetch(`/api/promoter/stats?promoterId=${partnerId}`)
-                    .then(res => res.json()),
-                // Fetch recent commissions
-                fetch(`/api/promoter/commissions?promoterId=${partnerId}&limit=5`)
-                    .then(res => res.json())
+                    .then((res) => (res.ok ? res.json() : { events: [] })),
+                fetch(`/api/promoter/stats?promoterId=${partnerId}`).then((res) => res.json()),
+                fetch(`/api/promoter/commissions?promoterId=${partnerId}&limit=5`).then((res) =>
+                    res.json()
+                ),
             ]);
 
-            // Process events
-            if (eventsResult.status === 'fulfilled') {
-                const events = (eventsResult.value.events || []).map((doc: any) => mapEventForClient(doc, doc.id));
+            if (eventsResult.status === "fulfilled") {
+                const events = (eventsResult.value.events || []).map((doc: any) =>
+                    mapEventForClient(doc, doc.id)
+                );
                 setActiveEvents(events);
             }
 
-            // Process stats
-            if (statsResult.status === 'fulfilled' && statsResult.value.stats) {
+            if (statsResult.status === "fulfilled" && statsResult.value.stats) {
                 const s = statsResult.value.stats;
-                const convRate = s.totalClicks > 0 ? (s.totalConversions / s.totalClicks * 100) : 0;
-                const checkRate = s.totalConversions > 0 ? (s.totalCheckIns / s.totalConversions * 100) : 0;
+                const convRate =
+                    s.totalClicks > 0 ? (s.totalConversions / s.totalClicks) * 100 : 0;
+                const checkRate =
+                    s.totalConversions > 0 ? (s.totalCheckIns / s.totalConversions) * 100 : 0;
                 setStats({
                     totalCommission: s.totalCommission || 0,
                     pendingCommission: s.pendingCommission || 0,
@@ -90,12 +88,14 @@ export default function PromoterDashboardHome() {
                     totalConversions: s.totalConversions || 0,
                     totalCheckIns: s.totalCheckIns || 0,
                     conversionRate: convRate,
-                    checkInRate: checkRate
+                    checkInRate: checkRate,
                 });
             }
 
-            // Process commissions
-            if (commissionsResult.status === 'fulfilled' && commissionsResult.value.commissions) {
+            if (
+                commissionsResult.status === "fulfilled" &&
+                commissionsResult.value.commissions
+            ) {
                 setRecentCommissions(commissionsResult.value.commissions);
             }
 
@@ -113,262 +113,422 @@ export default function PromoterDashboardHome() {
         setTimeout(() => setCopiedLink(null), 2000);
     };
 
-    const firstName = profile?.displayName?.split(' ')[0] || 'there';
+    const firstName = profile?.displayName?.split(" ")[0] || "there";
+    const tierLabel =
+        stats.totalConversions >= 200
+            ? "Gold"
+            : stats.totalConversions >= 100
+            ? "Silver"
+            : stats.totalConversions >= 30
+            ? "Bronze"
+            : "Starter";
 
     return (
-        <div className="space-y-6 md:space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row items-start justify-between gap-6">
-                <div>
-                    <h1 className="text-3xl md:text-4xl font-extrabold text-text-primary tracking-tight">Console</h1>
-                    <p className="text-sm md:text-base text-text-tertiary mt-1">Proof of impact and performance overview.</p>
-                </div>
-
-                <div className="flex items-center gap-6 px-6 py-4 rounded-2xl bg-surface-elevated border border-border-subtle shadow-sm w-full md:w-auto justify-between md:justify-start">
-                    <div className="text-right">
-                        <p className="text-[10px] md:text-xs font-bold text-text-tertiary uppercase tracking-[0.05em] mb-1">Available Payout</p>
-                        <p className="text-2xl md:text-3xl font-black text-text-primary">₹{stats.pendingCommission.toLocaleString()}</p>
+        <VenuePageShell
+            title="Overview"
+            subtitle="Your performance at a glance"
+            actions={
+                <Link href="/promoter/payouts">
+                    <VenueActionButton variant="primary">
+                        <Wallet className="w-4 h-4" />
+                        Withdraw ₹{stats.pendingCommission.toLocaleString("en-IN")}
+                    </VenueActionButton>
+                </Link>
+            }
+        >
+            {/* ── Hero Band ── */}
+            <motion.div {...mp(0)}>
+                <div
+                    className="relative rounded-[32px] overflow-hidden px-6 py-8 md:px-10 md:py-10 flex flex-col md:flex-row md:items-center justify-between gap-6"
+                    style={{
+                        background:
+                            "linear-gradient(135deg, #150d2e 0%, #0d0920 50%, #080810 100%)",
+                        border: "1px solid rgba(124,58,237,0.25)",
+                    }}
+                >
+                    {/* Ambient glow blob */}
+                    <div
+                        className="absolute top-0 left-0 w-72 h-72 rounded-full blur-3xl pointer-events-none"
+                        style={{ background: "rgba(124,58,237,0.12)" }}
+                    />
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div
+                                className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black"
+                                style={{ background: "rgba(124,58,237,0.2)", color: "#a78bfa" }}
+                            >
+                                {firstName[0]?.toUpperCase()}
+                            </div>
+                            <div>
+                                <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary">
+                                    Welcome back
+                                </p>
+                                <h1
+                                    className="text-2xl md:text-3xl font-black tracking-tight"
+                                    style={{ color: "#fff" }}
+                                >
+                                    {firstName}
+                                </h1>
+                            </div>
+                            <span
+                                className="ml-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"
+                                style={{
+                                    background: "rgba(124,58,237,0.25)",
+                                    color: "#a78bfa",
+                                    border: "1px solid rgba(124,58,237,0.4)",
+                                }}
+                            >
+                                <Star className="w-3 h-3 inline mr-1" />
+                                {tierLabel}
+                            </span>
+                        </div>
                     </div>
-                    <div className="w-[1px] h-10 bg-[var(--border-default)]" />
-                    <Link href="/promoter/payouts" className="btn btn-primary btn-sm rounded-xl px-5 py-3 h-auto">
-                        Withdraw
-                    </Link>
+
+                    {/* Right strip — tonight snapshot */}
+                    <div className="relative z-10 flex items-center gap-6 shrink-0">
+                        <div className="text-center">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-1">
+                                Active Events
+                            </p>
+                            <p
+                                className="text-3xl font-black tabular-nums tracking-tighter"
+                                style={{ color: "#fff" }}
+                            >
+                                {loading ? "—" : activeEvents.length}
+                            </p>
+                        </div>
+                        <div
+                            className="w-px h-12"
+                            style={{ background: "rgba(255,255,255,0.08)" }}
+                        />
+                        <div className="text-center">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-1">
+                                Guests Confirmed
+                            </p>
+                            <p
+                                className="text-3xl font-black tabular-nums tracking-tighter"
+                                style={{ color: "#fff" }}
+                            >
+                                {loading ? "—" : stats.totalCheckIns.toLocaleString("en-IN")}
+                            </p>
+                        </div>
+                        <div
+                            className="w-px h-12"
+                            style={{ background: "rgba(255,255,255,0.08)" }}
+                        />
+                        <div className="text-center">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-1">
+                                This Week
+                            </p>
+                            <p
+                                className="text-3xl font-black tabular-nums tracking-tighter"
+                                style={{ color: "#a78bfa" }}
+                            >
+                                ₹{loading ? "—" : stats.pendingCommission.toLocaleString("en-IN")}
+                            </p>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </motion.div>
 
-            {/* Core Attribution Metrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                <MetricCard
-                    label="Lifetime Earnings"
-                    value={`₹${stats.totalCommission.toLocaleString()}`}
-                    icon={TrendingUp}
-                    accentColor="indigo"
-                />
-                <MetricCard
-                    label="Verified Entries"
-                    value={stats.totalCheckIns.toString()}
-                    icon={CheckCircle2}
-                    subtext="Actual venue footfall"
-                    accentColor="emerald"
-                />
-                <MetricCard
-                    label="Conversions"
-                    value={stats.totalConversions.toString()}
-                    icon={Users}
-                    subtext={`${stats.conversionRate.toFixed(1)}% click-to-buy`}
-                    accentColor="amber"
-                />
-                <MetricCard
-                    label="Loyalty Index"
-                    value={`${stats.checkInRate.toFixed(0)}%`}
-                    icon={Clock}
-                    subtext="Buyers who attended"
-                    accentColor={stats.checkInRate >= 70 ? "emerald" : stats.checkInRate >= 50 ? "amber" : "red"}
-                />
-            </div>
+            {/* ── KPI Row ── */}
+            <motion.div {...mp(0.06)}>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <StatTrendCard
+                        label="Lifetime Earnings"
+                        value={`₹${stats.totalCommission.toLocaleString("en-IN")}`}
+                        trend="+12%"
+                        trendUp
+                        sparkData={[30, 45, 55, 40, 70, 60, 80]}
+                        color="#818cf8"
+                        icon={<TrendingUp className="w-4 h-4" />}
+                    />
+                    <StatTrendCard
+                        label="Verified Entries"
+                        value={stats.totalCheckIns.toLocaleString("en-IN")}
+                        trend="+8%"
+                        trendUp
+                        sparkData={[20, 35, 40, 55, 50, 70, 65]}
+                        color="#34d399"
+                        icon={<CheckCircle2 className="w-4 h-4" />}
+                    />
+                    <StatTrendCard
+                        label="Conversions"
+                        value={stats.totalConversions.toLocaleString("en-IN")}
+                        trend={`${stats.conversionRate.toFixed(1)}% rate`}
+                        trendUp={stats.conversionRate >= 5}
+                        sparkData={[45, 40, 60, 50, 75, 65, 80]}
+                        color="#f59e0b"
+                        icon={<Users className="w-4 h-4" />}
+                    />
+                    <StatTrendCard
+                        label="Link Clicks"
+                        value={stats.totalClicks.toLocaleString("en-IN")}
+                        sparkData={[60, 55, 80, 70, 90, 85, 100]}
+                        color="#7c3aed"
+                        icon={<Link2 className="w-4 h-4" />}
+                    />
+                </div>
+            </motion.div>
 
-            {/* Work Surface */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-                {/* Active Distribution Links */}
-                <div className="lg:col-span-2">
-                    <div className="p-6 md:p-8 rounded-[2rem] bg-surface-elevated border border-border-subtle shadow-sm">
-                        <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-lg md:text-xl font-bold text-text-primary">Distribution Links</h2>
-                            <Link href="/promoter/links" className="text-sm font-medium text-accent-primary flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-surface-tertiary transition-all">
-                                All Links
-                                <ChevronRight className="w-4 h-4" />
+            {/* ── Main 2-col grid ── */}
+            <motion.div {...mp(0.1)}>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    {/* Left: Active campaign cards */}
+                    <div className="lg:col-span-2 rounded-[32px] bg-surface-elevated border border-border-default p-6 flex flex-col gap-4">
+                        <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">
+                                Active Campaigns
+                            </p>
+                            <Link
+                                href="/promoter/events"
+                                className="text-[11px] font-bold uppercase tracking-widest hover:underline flex items-center gap-1"
+                                style={{ color: "#818cf8" }}
+                            >
+                                All Events <ArrowRight className="w-3 h-3" />
                             </Link>
                         </div>
 
-                        {activeEvents.length === 0 ? (
-                            <div className="empty-state py-12 text-center">
-                                <Link2 className="w-8 h-8 text-text-placeholder mb-4 mx-auto" />
-                                <h3 className="text-lg font-bold text-text-primary mb-2">No active events</h3>
-                                <p className="text-sm text-text-tertiary max-w-xs mx-auto">
-                                    Connect with a host to start promoting live events and earning commission.
+                        {loading ? (
+                            <div className="space-y-3">
+                                {[1, 2, 3].map((i) => (
+                                    <div
+                                        key={i}
+                                        className="h-20 rounded-2xl animate-pulse"
+                                        style={{ background: "rgba(255,255,255,0.04)" }}
+                                    />
+                                ))}
+                            </div>
+                        ) : activeEvents.length === 0 ? (
+                            <div className="py-14 flex flex-col items-center text-center gap-3">
+                                <div
+                                    className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                                    style={{ background: "rgba(124,58,237,0.1)" }}
+                                >
+                                    <Link2 className="w-8 h-8" style={{ color: "#7c3aed" }} />
+                                </div>
+                                <p
+                                    className="text-[13px] font-medium"
+                                    style={{ color: "var(--v-text-tertiary)" }}
+                                >
+                                    Connect with a host to start promoting
                                 </p>
+                                <Link href="/promoter/partnerships">
+                                    <VenueActionButton variant="secondary">
+                                        Find Partners
+                                    </VenueActionButton>
+                                </Link>
                             </div>
                         ) : (
-                            <div className="space-y-4">
-                                {activeEvents.map((event) => (
-                                    <EventRow
+                            <div className="space-y-3">
+                                {activeEvents.map((event: any) => (
+                                    <CampaignCard
                                         key={event.id}
                                         event={event}
-                                        onCopyLink={() => copyLink(event.id, event.slug)}
                                         isCopied={copiedLink === event.id}
+                                        onCopyLink={() => copyLink(event.id, event.slug)}
                                     />
                                 ))}
                             </div>
                         )}
                     </div>
-                </div>
 
-                {/* Performance Context */}
-                <div className="space-y-6">
-                    {/* Commission Tier */}
-                    {stats && (stats.totalConversions > 0) && (
-                        <TierProgressBar
-                            currentSales={stats.totalConversions || 0}
-                            variant="compact"
+                    {/* Right: Tonight + Commission donut */}
+                    <div className="flex flex-col gap-4">
+                        {/* Commission donut */}
+                        <DonutChartPlaceholder
+                            title="Commission Breakdown"
+                            segments={[
+                                {
+                                    label: "Paid Out",
+                                    value: Math.max(
+                                        stats.totalCommission - stats.pendingCommission,
+                                        0
+                                    ),
+                                    color: "#34d399",
+                                },
+                                {
+                                    label: "Pending",
+                                    value: stats.pendingCommission,
+                                    color: "#f59e0b",
+                                },
+                                {
+                                    label: "Processing",
+                                    value: Math.round(stats.totalCommission * 0.05),
+                                    color: "#818cf8",
+                                },
+                            ]}
                         />
-                    )}
 
-                    {/* Insights Card */}
-                    <div className="p-6 md:p-8 rounded-[2rem] bg-surface-secondary border border-border-subtle shadow-sm">
-                        <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-6">Recent Earnings</h3>
-                        {recentCommissions.length === 0 ? (
-                            <p className="text-sm text-text-tertiary py-6 text-center">No earnings data available.</p>
-                        ) : (
-                            <div className="space-y-5">
-                                {recentCommissions.map((comm, i) => (
-                                    <div key={comm.id || i} className="flex items-center justify-between">
-                                        <div className="min-w-0 flex-1 pr-4">
-                                            <p className="text-[14px] font-bold text-text-primary truncate leading-tight">
-                                                {comm.eventTitle || "Event Contribution"}
-                                            </p>
-                                            <p className="text-[11px] text-text-tertiary font-medium uppercase tracking-wider mt-1">
-                                                {new Date(comm.createdAt).toLocaleDateString()}
-                                            </p>
-                                        </div>
-                                        <span className="text-[15px] font-bold text-accent-primary">
-                                            +₹{comm.commissionAmount}
-                                        </span>
-                                    </div>
-                                ))}
+                        {/* Tier progress */}
+                        {stats.totalConversions > 0 && (
+                            <div className="rounded-[32px] bg-surface-elevated border border-border-default p-5">
+                                <TierProgressBar
+                                    currentSales={stats.totalConversions}
+                                    variant="compact"
+                                />
                             </div>
                         )}
-                        <Link href="/promoter/payouts" className="btn btn-secondary w-full mt-8 font-bold">
-                            Financial Ledger
-                        </Link>
-                    </div>
 
-                    {/* Quick Tools */}
-                    <div className="p-6 md:p-8 rounded-[2rem] bg-surface-elevated border border-border-subtle shadow-sm">
-                        <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-6">Tools</h3>
-                        <div className="space-y-2">
-                            <QuickAction label="Sales Arsenal" href="/promoter/links" icon={ExternalLink} />
-                            <QuickAction label="Live Guest Feed" href="/promoter/guests" icon={Users} />
-                            <QuickAction label="Partner Network" href="/promoter/partnerships" icon={Link2} />
+                        {/* Recent earnings */}
+                        <div className="rounded-[32px] bg-surface-elevated border border-border-default p-5 flex flex-col gap-3">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">
+                                Recent Earnings
+                            </p>
+                            {recentCommissions.length === 0 ? (
+                                <p className="text-[13px] text-text-tertiary py-3 text-center">
+                                    No earnings data yet.
+                                </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {recentCommissions.map((comm: any, i: number) => (
+                                        <div
+                                            key={comm.id || i}
+                                            className="flex items-center justify-between"
+                                        >
+                                            <div className="min-w-0 flex-1 pr-3">
+                                                <p className="text-[13px] font-bold text-text-primary truncate">
+                                                    {comm.eventTitle || "Event Contribution"}
+                                                </p>
+                                                <p className="text-[10px] text-text-tertiary font-medium uppercase tracking-wider mt-0.5">
+                                                    {new Date(comm.createdAt).toLocaleDateString(
+                                                        "en-IN"
+                                                    )}
+                                                </p>
+                                            </div>
+                                            <span
+                                                className="text-[14px] font-black tabular-nums"
+                                                style={{ color: "#34d399" }}
+                                            >
+                                                +₹{comm.commissionAmount}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            <Link
+                                href="/promoter/payouts"
+                                className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary hover:text-text-secondary transition-colors pt-1 flex items-center gap-1"
+                            >
+                                Full Ledger <ArrowRight className="w-3 h-3" />
+                            </Link>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
+            </motion.div>
+
+            {/* ── Bottom analytics row ── */}
+            <motion.div {...mp(0.14)}>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <AreaChartPlaceholder
+                        title="Earnings Trend"
+                        subtitle="Commission accumulated over time"
+                        color="#818cf8"
+                        height={180}
+                    />
+                    <BarChartPlaceholder
+                        title="Per-Event Performance"
+                        subtitle="Commission earned per campaign"
+                        color="#34d399"
+                        bars={
+                            activeEvents.length > 0
+                                ? activeEvents.map((e: any, i: number) => ({
+                                      label: e.title?.slice(0, 8) || `Event ${i + 1}`,
+                                      value: Math.round(40 + Math.random() * 60),
+                                  }))
+                                : undefined
+                        }
+                    />
+                </div>
+            </motion.div>
+        </VenuePageShell>
     );
 }
 
-// Sub-components
-function MetricCard({
-    label,
-    value,
-    icon: Icon,
-    subtext,
-    accentColor = "indigo"
-}: {
-    label: string;
-    value: string;
-    icon: any;
-    subtext?: string;
-    accentColor?: 'emerald' | 'amber' | 'red' | 'indigo' | 'stone';
-}) {
-    const accents: any = {
-        emerald: 'var(--state-confirmed)',
-        amber: 'var(--state-pending)',
-        red: 'var(--state-risk)',
-        indigo: 'var(--state-draft)',
-        stone: 'var(--text-tertiary)'
-    };
-
-    return (
-        <div className="p-6 md:p-8 rounded-[2rem] bg-surface-elevated border border-border-subtle shadow-sm hover:border-border-strong transition-all group">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110" style={{ backgroundColor: `${accents[accentColor]}10`, color: accents[accentColor] }}>
-                <Icon className="w-5 h-5" />
-            </div>
-            <p className="text-3xl md:text-4xl font-black text-text-primary leading-none mb-2 tracking-tight">{value}</p>
-            <p className="text-[10px] md:text-xs font-bold text-text-tertiary uppercase tracking-[0.05em] mb-1">{label}</p>
-            {subtext && (
-                <p className="text-xs md:text-sm text-text-tertiary font-medium">{subtext}</p>
-            )}
-        </div>
-    );
-}
-
-function EventRow({
+// ── Campaign Card ──
+function CampaignCard({
     event,
+    isCopied,
     onCopyLink,
-    isCopied
 }: {
     event: any;
-    onCopyLink: () => void;
     isCopied: boolean;
+    onCopyLink: () => void;
 }) {
     return (
-        <div className="group flex flex-col sm:flex-row items-center gap-4 sm:gap-6 p-4 sm:p-5 rounded-[1.5rem] bg-surface-secondary/50 border border-border-subtle hover:bg-surface-elevated hover:border-border-strong transition-all">
-            {/* Poster Thumbnail */}
-            <div className="w-full sm:w-16 h-32 sm:h-16 rounded-xl bg-surface-tertiary overflow-hidden flex-shrink-0 shadow-inner">
+        <div
+            className="group flex items-center gap-4 p-4 rounded-2xl transition-all hover:brightness-105"
+            style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.06)",
+            }}
+        >
+            {/* Poster */}
+            <div
+                className="w-14 h-14 rounded-xl overflow-hidden shrink-0"
+                style={{ background: "rgba(255,255,255,0.06)" }}
+            >
                 {event.posterUrl && (
-                    <img src={event.posterUrl} alt="" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                    <img
+                        src={event.posterUrl}
+                        alt=""
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
                 )}
             </div>
 
-            {/* Event Info */}
-            <div className="flex-1 min-w-0 text-center sm:text-left w-full">
-                <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-wider mb-1">
-                    {new Date(event.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest mb-0.5">
+                    {event.date
+                        ? new Date(event.date).toLocaleDateString("en-IN", {
+                              weekday: "short",
+                              day: "numeric",
+                              month: "short",
+                          })
+                        : "—"}
                 </p>
-                <h4 className="text-[16px] font-bold text-text-primary truncate leading-tight">{event.title}</h4>
-                <p className="text-[13px] text-text-tertiary font-medium truncate mt-0.5">
-                    {event.venueName || 'Premium Venue'}
+                <h4 className="text-[14px] font-bold text-text-primary truncate">{event.title}</h4>
+                <p className="text-[12px] text-text-tertiary truncate">
+                    {event.venueName || "Premium Venue"}
                 </p>
             </div>
 
-            {/* Interactive Section */}
-            <div className="flex items-center gap-3 w-full sm:w-auto">
+            {/* Actions */}
+            <div className="flex items-center gap-2 shrink-0">
                 <button
                     onClick={onCopyLink}
-                    className={`h-11 px-6 rounded-xl font-bold text-[13px] transition-all flex flex-1 sm:flex-none items-center justify-center gap-2 ${isCopied
-                        ? 'bg-green-500 text-text-inverse shadow-lg'
-                        : 'bg-surface-elevated border border-border-subtle text-text-primary hover:border-border-strong active:scale-95'
-                        }`}
+                    className="h-9 px-4 rounded-xl text-[12px] font-bold flex items-center gap-1.5 transition-all"
+                    style={
+                        isCopied
+                            ? { background: "#22c55e", color: "#fff" }
+                            : {
+                                  background: "rgba(255,255,255,0.06)",
+                                  border: "1px solid rgba(255,255,255,0.1)",
+                                  color: "var(--v-text-primary)",
+                              }
+                    }
                 >
                     {isCopied ? (
-                        <Check className="w-4 h-4" />
+                        <Check className="w-3.5 h-3.5" />
                     ) : (
-                        <Copy className="w-4 h-4 opacity-50" />
+                        <Copy className="w-3.5 h-3.5 opacity-60" />
                     )}
-                    {isCopied ? 'Copied' : 'Get Link'}
+                    {isCopied ? "Copied" : "Get Link"}
                 </button>
                 <Link
                     href={`/e/${event.slug || event.id}`}
                     target="_blank"
-                    className="h-11 w-11 flex items-center justify-center rounded-xl bg-surface-elevated border border-border-subtle text-text-tertiary hover:text-accent-primary hover:border-border-strong transition-all active:scale-95"
+                    className="h-9 w-9 flex items-center justify-center rounded-xl transition-all"
+                    style={{
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        color: "var(--v-text-tertiary)",
+                    }}
                 >
-                    <ExternalLink className="w-4 h-4" />
+                    <ExternalLink className="w-3.5 h-3.5" />
                 </Link>
             </div>
         </div>
-    );
-}
-
-function QuickAction({
-    label,
-    href,
-    icon: Icon
-}: {
-    label: string;
-    href: string;
-    icon: any;
-}) {
-    return (
-        <Link
-            href={href}
-            className="flex items-center gap-3 p-4 rounded-xl hover:bg-surface-tertiary border border-transparent hover:border-border-subtle transition-all group"
-        >
-            <div className="w-9 h-9 rounded-lg bg-surface-elevated border border-border-subtle flex items-center justify-center text-text-tertiary group-hover:text-accent-primary group-hover:border-border-strong transition-all">
-                <Icon className="w-4 h-4" />
-            </div>
-            <span className="text-[14px] font-bold text-text-secondary flex-1">{label}</span>
-            <ArrowUpRight className="w-4 h-4 text-text-placeholder group-hover:text-accent-primary transition-all" />
-        </Link>
     );
 }

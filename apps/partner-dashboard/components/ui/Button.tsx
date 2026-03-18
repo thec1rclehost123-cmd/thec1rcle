@@ -1,4 +1,4 @@
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { forwardRef, type ReactNode } from "react";
 
 /**
@@ -32,7 +32,7 @@ const Spinner = ({ size = "md" }: { size?: ButtonSize }) => {
 
   return (
     <span
-      className={clsx(
+      className={cn(
         "inline-flex animate-spin rounded-full border-current/30 border-t-current",
         sizeClasses[size]
       )}
@@ -77,7 +77,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         ref={ref}
-        className={clsx(
+        className={cn(
           "inline-flex items-center justify-center font-semibold tracking-tight",
           "transition-all duration-150 ease-out outline-none",
           "focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/30 focus-visible:ring-offset-2",
@@ -129,7 +129,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
     return (
       <button
         ref={ref}
-        className={clsx(
+        className={cn(
           "inline-flex items-center justify-center",
           "transition-all duration-150 ease-out outline-none",
           "focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]/30 focus-visible:ring-offset-2",
@@ -160,7 +160,7 @@ export function ButtonGroup({
   className?: string;
 }) {
   return (
-    <div className={clsx(
+    <div className={cn(
       "inline-flex",
       attached ? "rounded-xl overflow-hidden divide-x divide-[var(--border-subtle)]" : "gap-2",
       attached && "[&>button]:rounded-none [&>button:first-child]:rounded-l-xl [&>button:last-child]:rounded-r-xl",

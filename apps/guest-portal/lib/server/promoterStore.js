@@ -35,6 +35,86 @@ export async function getPromoterLinkByCode(code) {
 /**
  * Record a conversion (sale) on a promoter link
  */
+/**
+ * Get a promoter profile by their public username/handle
+ */
+export async function getPromoterByUsername(username) {
+    if (!username) return null;
+
+    if (!isFirebaseConfigured()) return null;
+
+    const db = getAdminDb();
+    const snapshot = await db.collection("promoters")
+        .where("username", "==", username.toLowerCase())
+        .limit(1)
+        .get();
+
+    if (snapshot.empty) return null;
+    const doc = snapshot.docs[0];
+    const data = doc.data();
+
+    // Serialize timestamps
+    const serialized = { id: doc.id, ...data };
+    Object.keys(serialized).forEach(key => {
+        if (serialized[key] && typeof serialized[key].toDate === "function") {
+            serialized[key] = serialized[key].toDate().toISOString();
+        }
+    });
+    return serialized;
+}
+
+/**
+ * Get active events a promoter is currently promoting
+ */
+export async function getPromoterActiveEvents(promoterId) {
+    if (!promoterId) return [];
+
+    if (!isFirebaseConfigured()) return [];
+
+    const db = getAdminDb();
+
+    // Find active links for this promoter
+    const linksSnap = await db.collection(LINKS_COLLECTION)
+        .where("promoterId", "==", promoterId)
+        .where("isActive", "==", true)
+        .limit(20)
+        .get();
+
+    if (linksSnap.empty) return [];
+
+    const eventIds = [...new Set(linksSnap.docs.map(d => d.data().eventId).filter(Boolean))];
+    if (eventIds.length === 0) return [];
+
+    // Batch fetch events (Firestore limits to 10 per `in` query)
+    const chunks = [];
+    for (let i = 0; i < eventIds.length; i += 10) {
+        chunks.push(eventIds.slice(i, i + 10));
+    }
+
+    const eventDocs = (await Promise.all(
+        chunks.map(chunk =>
+            db.collection("events").where("__name__", "in", chunk).get()
+        )
+    )).flatMap(snap => snap.docs);
+
+    const now = new Date();
+    const PUBLIC_STATES = ["scheduled", "live"];
+
+    return eventDocs
+        .map(doc => {
+            const data = doc.data();
+            const serialized = { id: doc.id, ...data };
+            Object.keys(serialized).forEach(key => {
+                if (serialized[key] && typeof serialized[key].toDate === "function") {
+                    serialized[key] = serialized[key].toDate().toISOString();
+                }
+            });
+            return serialized;
+        })
+        .filter(e => PUBLIC_STATES.includes(e.lifecycle))
+        .sort((a, b) => new Date(a.startDate || 0) - new Date(b.startDate || 0));
+}
+
 export async function recordConversion(linkId, orderId, orderAmount, ticketTierId) {
     if (!linkId) return null;
 
