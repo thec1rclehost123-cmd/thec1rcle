@@ -9,7 +9,7 @@
     "dev:prod": "node -e \"require('fs').copyFileSync('.env.production', '.env.local')\" && next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "npx next lint --dir app --dir components --dir lib --dir store",
+    "lint": "npx next lint app components lib store",
     "type-check": "npx tsc --noEmit"
   },
   "dependencies": {
