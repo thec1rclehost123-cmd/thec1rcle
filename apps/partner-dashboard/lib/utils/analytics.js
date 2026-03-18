@@ -8,9 +8,6 @@
 export const trackEvent = (eventName, properties = {}) => {
     if (typeof window === "undefined") return;
 
-    console.log(`[Analytics] ${eventName}:`, properties);
-
-    // If a real analytics provider (like Segment, PostHog, or GA4) is added later, 
-    // it can be initialized and called here.
+    // TODO: wire real analytics provider (Segment, PostHog, GA4)
     // Example: window.posthog?.capture(eventName, properties);
 };

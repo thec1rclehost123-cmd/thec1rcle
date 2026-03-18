@@ -6,8 +6,7 @@ import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import type { PartnerSettlement, PartnerPayoutsPageData } from "@/lib/types/splitFinance";
-
-function formatINR(p: number) { return `₹${(p / 100).toLocaleString("en-IN")}`; }
+import { formatINRFromPaise } from "@/lib/utils/format";
 
 const STATUS_CHIPS: Record<string, string> = {
     pending: "bg-amber-500/15 text-amber-400 border-amber-500/20",
@@ -47,13 +46,13 @@ export function PromoterPayoutsClient() {
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
                     <p className="text-xs text-zinc-500 mb-1">Total Owed to Promoters</p>
                     <p className="text-3xl font-semibold text-white tabular-nums">
-                        {formatINR(data?.totalOwedPaise ?? 0)}
+                        {formatINRFromPaise(data?.totalOwedPaise ?? 0)}
                     </p>
                 </div>
                 <div className="rounded-xl border border-amber-500/10 bg-amber-500/[0.03] p-5">
                     <p className="text-xs text-zinc-500 mb-1">On Hold</p>
                     <p className="text-3xl font-semibold text-amber-300 tabular-nums">
-                        {formatINR(data?.totalHeldPaise ?? 0)}
+                        {formatINRFromPaise(data?.totalHeldPaise ?? 0)}
                     </p>
                 </div>
             </div>
@@ -83,7 +82,7 @@ export function PromoterPayoutsClient() {
                                 <td className="py-3 px-4 text-sm text-white">{s.partnerName}</td>
                                 <td className="py-3 px-4 text-xs text-zinc-400 truncate max-w-[140px]">{s.eventName}</td>
                                 <td className="py-3 px-4 text-xs text-zinc-500">{s.eventDate?.slice(0, 10)}</td>
-                                <td className="py-3 px-4 text-sm tabular-nums text-white">{formatINR(s.netPaise)}</td>
+                                <td className="py-3 px-4 text-sm tabular-nums text-white">{formatINRFromPaise(s.netPaise)}</td>
                                 <td className="py-3 px-4">
                                     <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium capitalize ${STATUS_CHIPS[s.status]}`}>
                                         {s.status}

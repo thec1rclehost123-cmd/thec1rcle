@@ -20,7 +20,7 @@ Notifications.setNotificationHandler({
 // Request notification permissions
 export async function requestNotificationPermissions(): Promise<boolean> {
     if (!Device.isDevice) {
-        console.log("Push notifications only work on physical devices");
+        if (__DEV__) console.log("Push notifications only work on physical devices");
         return false;
     }
 
@@ -33,7 +33,7 @@ export async function requestNotificationPermissions(): Promise<boolean> {
     }
 
     if (finalStatus !== "granted") {
-        console.log("Failed to get push notification permissions");
+        if (__DEV__) console.log("Failed to get push notification permissions");
         return false;
     }
 

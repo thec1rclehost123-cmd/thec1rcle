@@ -7,7 +7,7 @@ import * as Sentry from '@sentry/node';
 const CheckoutValidateBody = z.object({
     eventId: z.string(),
     items: z.array(z.any()).optional()
-}).catchall(z.any());
+}).strict();
 
 const CheckoutPromoBody = z.object({
     eventId: z.string(),
@@ -26,15 +26,19 @@ const CheckoutInitiateBody = z.object({
     items: z.array(z.any()).optional(),
     reservationId: z.string().optional(),
     promoCode: z.string().optional(),
+    promoterCode: z.string().optional(),
     deviceId: z.string().optional(),
     guestInputs: z.any().optional(),
-    userId: z.string().optional()
-}).catchall(z.any());
+    userId: z.string().optional(),
+    userName: z.string().optional(),
+    userEmail: z.string().optional(),
+    userPhone: z.string().optional(),
+}).strict();
 
 const CheckoutCancelBody = z.object({
     reservationId: z.string().optional(),
     orderId: z.string().optional()
-}).catchall(z.any());
+}).strict();
 
 export default async function checkoutRoutes(fastify: FastifyInstance) {
     /**

@@ -10,6 +10,15 @@
 
 export { formatINR, formatINRCompact } from '@/lib/finance/definitions';
 
+/** Converts paise (smallest INR unit) to rupees and formats as ₹1,23,456 */
+export function formatINRFromPaise(paise: number): string {
+    return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0,
+    }).format(paise / 100);
+}
+
 // ── Date / Time ──────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

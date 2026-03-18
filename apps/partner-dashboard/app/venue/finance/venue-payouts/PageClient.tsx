@@ -9,10 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import type { PayoutRequest } from "@/lib/types/splitFinance";
 import { randomUUID } from "@/lib/utils/uuid";
-
-function formatINR(paise: number) {
-    return `₹${(paise / 100).toLocaleString("en-IN")}`;
-}
+import { formatINRFromPaise } from "@/lib/utils/format";
 
 const STATUS_CONFIG: Record<string, { icon: React.ElementType; color: string; label: string }> = {
     pending: { icon: Clock, color: "text-amber-400", label: "Pending" },
@@ -28,7 +25,7 @@ function PayoutRow({ payout }: { payout: PayoutRequest }) {
     const Icon = cfg.icon;
     return (
         <tr className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
-            <td className="py-3 px-4 text-sm text-white tabular-nums">{formatINR(payout.amountPaise)}</td>
+            <td className="py-3 px-4 text-sm text-white tabular-nums">{formatINRFromPaise(payout.amountPaise)}</td>
             <td className="py-3 px-4 text-xs text-zinc-400 capitalize">{payout.method}</td>
             <td className="py-3 px-4 text-xs text-zinc-500">{payout.methodDetail}</td>
             <td className="py-3 px-4">
@@ -89,7 +86,7 @@ export function VenuePayoutsClient() {
                         <Skeleton className="h-8 w-32" />
                     ) : (
                         <p className="text-3xl font-semibold text-white tabular-nums">
-                            {formatINR(balance?.withdrawablePaise ?? 0)}
+                            {formatINRFromPaise(balance?.withdrawablePaise ?? 0)}
                         </p>
                     )}
                 </div>
@@ -99,7 +96,7 @@ export function VenuePayoutsClient() {
                         <Skeleton className="h-8 w-32" />
                     ) : (
                         <p className="text-3xl font-semibold text-zinc-300 tabular-nums">
-                            {formatINR(balance?.pendingSettlementPaise ?? 0)}
+                            {formatINRFromPaise(balance?.pendingSettlementPaise ?? 0)}
                         </p>
                     )}
                 </div>

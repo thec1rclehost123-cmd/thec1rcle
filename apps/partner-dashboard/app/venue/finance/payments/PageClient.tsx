@@ -8,10 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import type { PaymentsPageData } from "@/lib/types/splitFinance";
-
-function formatINR(paise: number) {
-    return `₹${(paise / 100).toLocaleString("en-IN")}`;
-}
+import { formatINRFromPaise } from "@/lib/utils/format";
 
 const PLAN_COLORS: Record<string, string> = {
     basic: "bg-zinc-500/15 text-zinc-400",
@@ -59,19 +56,19 @@ export function PaymentsClient() {
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
                     <p className="text-xs text-zinc-500 mb-1">Available</p>
                     <p className="text-2xl font-semibold text-white tabular-nums">
-                        {formatINR(wallet?.availablePaise ?? 0)}
+                        {formatINRFromPaise(wallet?.availablePaise ?? 0)}
                     </p>
                 </div>
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
                     <p className="text-xs text-zinc-500 mb-1">Pending</p>
                     <p className="text-2xl font-semibold text-zinc-300 tabular-nums">
-                        {formatINR(wallet?.pendingPaise ?? 0)}
+                        {formatINRFromPaise(wallet?.pendingPaise ?? 0)}
                     </p>
                 </div>
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
                     <p className="text-xs text-zinc-500 mb-1">On Hold</p>
                     <p className="text-2xl font-semibold text-zinc-400 tabular-nums">
-                        {formatINR(wallet?.heldPaise ?? 0)}
+                        {formatINRFromPaise(wallet?.heldPaise ?? 0)}
                     </p>
                 </div>
             </div>
@@ -92,7 +89,7 @@ export function PaymentsClient() {
                         </div>
                         <div>
                             <p className="text-xs text-zinc-600">Amount</p>
-                            <p className="text-sm text-white tabular-nums">{formatINR(sub.amountPaise)}/mo</p>
+                            <p className="text-sm text-white tabular-nums">{formatINRFromPaise(sub.amountPaise)}/mo</p>
                         </div>
                         <div>
                             <p className="text-xs text-zinc-600">Next Billing</p>

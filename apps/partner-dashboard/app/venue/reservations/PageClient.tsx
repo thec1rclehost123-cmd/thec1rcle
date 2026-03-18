@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { formatDate } from "@/lib/utils/format";
 
 export default function ReservationsPage() {
     const [filter, setFilter] = useState("pending");
@@ -99,18 +100,6 @@ export default function ReservationsPage() {
         .filter(r => r.status === "approved" && r.totalAmount)
         .reduce((sum, r) => sum + (r.totalAmount || 0), 0);
 
-    const formatDate = (date: string) => {
-        if (!date) return "N/A";
-        try {
-            return new Date(date).toLocaleDateString("en-IN", {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-            });
-        } catch {
-            return date;
-        }
-    };
 
     const formatTime = (time: string) => {
         if (!time) return "";

@@ -219,7 +219,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         const tiers = (event?.tickets || []).map((t: any) => ({ id: t.id || t.ticketId, name: t.name, price: t.price || 0, entryType: t.entryType || 'general', available: (t.remaining || t.quantity || 0) > 0 }));
 
         return {
-            valid: true, code: normalizedCode,
+            valid: true, code: normalizedCode, codeId: codeDoc.id,
             event: { id: eventDoc.id, title: event?.title, venue: event?.venueName, venueId: event?.venueId, date: event?.date, startTime: event?.startTime, endTime: event?.endTime, capacity: event?.capacity || 500, imageUrl: event?.coverImage },
             permissions: {
                 canScan: codeData.type === 'full' || codeData.type === 'scan_only',
@@ -254,7 +254,12 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         const { code } = request.query as any;
         if (!code) return reply.status(400).send({ error: 'code required' });
 
-        const codeSnap = await fastify.db.collection('event_codes').where('code', '==', code.toUpperCase().trim()).limit(1).get();
+        const normalizedCode = code.toUpperCase().trim();
+        const cacheKey = `scan:stats:${normalizedCode}`;
+        const cached = await fastify.cache.get('scan:stats', cacheKey);
+        if (cached) return cached;
+
+        const codeSnap = await fastify.db.collection('event_codes').where('code', '==', normalizedCode).limit(1).get();
         if (codeSnap.empty) return reply.status(404).send({ error: 'Invalid event code' });
         const codeData = codeSnap.docs[0].data();
         if (codeData.isRevoked) return reply.status(403).send({ error: 'Code revoked' });
@@ -268,7 +273,9 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         const byEntryType: Record<string, number> = {};
         scansSnap.docs.forEach((d: any) => { const et = d.data().entryType || 'general'; byEntryType[et] = (byEntryType[et] || 0) + (d.data().quantity || 1); });
         const totalEntered = prebookedScans.reduce((s: number, d: any) => s + (d.data().quantity || 1), 0) + doorSnap.docs.length;
-        return { totalEntered, prebooked: prebookedScans.length, doorEntries: doorSnap.docs.length, doorRevenue, byEntryType };
+        const result = { totalEntered, prebooked: prebookedScans.length, doorEntries: doorSnap.docs.length, doorRevenue, byEntryType };
+        await fastify.cache.set('scan:stats', cacheKey, result, 20); // 20s TTL — fresh enough for scanner UI
+        return result;
     });
 
     // ── Guest List ────────────────────────────────────────────────────────────

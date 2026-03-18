@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import {
     Users,
     Clock,
@@ -16,11 +16,13 @@ import {
     Zap,
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { usePromoterPartnerships } from "@/lib/hooks/usePromoterQueries";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 import { DiscoverDirectory } from "@/components/partnerships/DiscoverDirectory";
 import { NetworkProfileModal, NetworkProfile } from "@/components/partnerships/NetworkProfileModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { StatTrendCard } from "@/components/promoter/PlaceholderCharts";
+import { formatDate } from "@/lib/utils/format";
 
 type Tab = "discover" | "pending" | "active" | "declined";
 
@@ -42,45 +44,15 @@ const mp = (delay: number) => ({
 });
 
 export default function PromoterPartnershipsPage() {
-    const { profile, user } = useDashboardAuth();
-    const [partnerships, setPartnerships] = useState<Partnership[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { profile } = useDashboardAuth();
     const [activeTab, setActiveTab] = useState<Tab>("discover");
     const [profileTarget, setProfileTarget] = useState<NetworkProfile | null>(null);
 
     const promoterId = profile?.activeMembership?.partnerId;
 
-    const fetchPartnerships = useCallback(async () => {
-        if (!promoterId) return;
-        setLoading(true);
-        try {
-            const token = await user?.getIdToken();
-            const res = await fetch(
-                `/api/discovery?partnerId=${promoterId}&role=promoter&action=list`,
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            const data = await res.json();
-            setPartnerships(data.connections || []);
-        } catch (err) {
-            console.error("[Promoter Partnerships] fetch error:", err);
-        } finally {
-            setLoading(false);
-        }
-    }, [promoterId, user]);
+    const { data, isLoading: loading } = usePromoterPartnerships(promoterId);
+    const partnerships: Partnership[] = data?.connections || [];
 
-    useEffect(() => {
-        if (promoterId) fetchPartnerships();
-    }, [promoterId, fetchPartnerships]);
-
-    const formatDate = (ts: any) => {
-        if (!ts) return "";
-        const d = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
-        return d.toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-        });
-    };
 
     const pending = partnerships.filter((p) => p.status === "pending");
     const active = partnerships.filter(

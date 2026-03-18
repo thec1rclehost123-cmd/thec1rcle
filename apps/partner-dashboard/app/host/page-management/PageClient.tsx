@@ -27,7 +27,6 @@ import {
     Play,
     Video,
     Link2,
-    Award,
     Quote,
     Disc3,
     Headphones,
@@ -72,7 +71,6 @@ export default function HostPageManagement() {
     const [broadcastMessage, setBroadcastMessage] = useState("");
     const [isBroadcasting, setIsBroadcasting] = useState(false);
     const [broadcastStatus, setBroadcastStatus] = useState<"idle" | "success" | "error">("idle");
-    const [broadcastHistory, setBroadcastHistory] = useState<any[]>([]);
     const [broadcastError, setBroadcastError] = useState<string>("");
 
     // Modal states

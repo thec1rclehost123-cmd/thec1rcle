@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import {
     Users,
     Check,
@@ -23,8 +23,10 @@ import {
     ShieldCheck,
     ShieldAlert
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-
+import { useVenueConnections } from "@/lib/hooks/useVenueQueries";
+import { formatDate } from "@/lib/utils/format";
 import { DiscoveryView } from "@/components/discovery/DiscoveryView";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -52,65 +54,33 @@ interface HostPartnership {
 
 export default function VenueConnectionsPage() {
     const { profile, user } = useDashboardAuth();
-    const [hostPartnerships, setHostPartnerships] = useState<HostPartnership[]>([]);
-    const [promoterRequests, setPromoterRequests] = useState<PromoterRequest[]>([]);
-    const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'hosts' | 'promoters' | 'discover'>('promoters');
     const [processingRequest, setProcessingRequest] = useState<string | null>(null);
+    const queryClient = useQueryClient();
 
     const venueId = profile?.activeMembership?.partnerId;
     const venueName = profile?.displayName;
 
-    // Fetch connections from the internal API
-    useEffect(() => {
-        if (!venueId || !user) return;
-        setLoading(true);
+    const { data: connectionsData, isLoading: loading } = useVenueConnections(venueId);
+    const allConnections = connectionsData?.connections || [];
 
-        const fetchConnections = async () => {
-            try {
-                const token = await user.getIdToken();
-                const res = await fetch(`/api/discovery?action=list&partnerId=${venueId}&role=venue`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+    const promoterRequests: PromoterRequest[] = allConnections
+        .filter((c: any) => c.type === "promoter_connection")
+        .map((c: any) => ({
+            id: c.id,
+            promoterId: c.otherId,
+            promoterName: c.otherName,
+            ...c,
+        }));
 
-                if (!res.ok) throw new Error("Failed to fetch connections");
-
-                const data = await res.json();
-                const allConnections = data.connections || [];
-
-                // Map API normalized formats back to what the UI expects
-                const promoters = allConnections
-                    .filter((c: any) => c.type === "promoter_connection")
-                    .map((c: any) => ({
-                        id: c.id,
-                        promoterId: c.otherId,
-                        promoterName: c.otherName,
-                        ...c,
-                        status: c.status,
-                        createdAt: c.createdAt
-                    }));
-
-                const hosts = allConnections
-                    .filter((c: any) => c.type === "partnership")
-                    .map((c: any) => ({
-                        id: c.id,
-                        hostId: c.otherId,
-                        hostName: c.otherName,
-                        ...c,
-                        status: c.status,
-                        createdAt: c.createdAt
-                    }));
-
-                setPromoterRequests(promoters);
-                setHostPartnerships(hosts);
-            } catch (error) {
-                console.error("[Venue Connections] Fetch error:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchConnections();
-    }, [venueId, user]);
+    const hostPartnerships: HostPartnership[] = allConnections
+        .filter((c: any) => c.type === "partnership")
+        .map((c: any) => ({
+            id: c.id,
+            hostId: c.otherId,
+            hostName: c.otherName,
+            ...c,
+        }));
 
     const handleAction = async (connectionId: string, action: 'approve' | 'reject' | 'block', type: 'host' | 'promoter') => {
         setProcessingRequest(connectionId);
@@ -133,6 +103,7 @@ export default function VenueConnectionsPage() {
 
             if (!res.ok) throw new Error("Failed to process request");
 
+            await queryClient.invalidateQueries({ queryKey: ["venue-connections", venueId] });
         } catch (err: any) {
             console.error(`Failed to ${action} request:`, err);
             alert(err.message || `Failed to ${action} request`);
@@ -146,15 +117,6 @@ export default function VenueConnectionsPage() {
     const pendingHostRequests = hostPartnerships.filter(h => h.status === 'pending');
     const approvedHostPartnerships = hostPartnerships.filter(h => h.status === 'approved' || h.status === 'active');
 
-    const formatDate = (timestamp: any) => {
-        if (!timestamp) return "";
-        const date = timestamp.toDate ? timestamp.toDate() : (timestamp.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp));
-        return date.toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-            year: "numeric"
-        });
-    };
 
     return (
         <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in duration-700">

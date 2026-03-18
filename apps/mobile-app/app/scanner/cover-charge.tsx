@@ -17,6 +17,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import NetInfo from '@react-native-community/netinfo';
+import { useScannerStore } from '@/store/scannerStore';
+import { getFirebaseAuth } from '@/lib/firebase/client';
 import { PresetGrid, PresetItem } from '../../components/scanner/PresetGrid';
 import { formatPaise } from '@c1rcle/core/cover-charge-engine';
 
@@ -71,11 +73,12 @@ interface Props {
 
 export default function CoverChargeScreen() {
     const router = useRouter();
+    const { eventData } = useScannerStore();
 
-    // In production these come from route params / context
-    const operatorId = ''; // TODO: inject from scanner session
-    const deviceId = ''; // TODO: inject from scanner session
-    const eventCodeId = ''; // TODO: inject from scanner session
+    const currentUser = getFirebaseAuth().currentUser;
+    const operatorId = currentUser?.uid ?? '';
+    const deviceId = `mobile-${operatorId}`;
+    const eventCodeId = eventData?.codeId ?? '';
     const gatewayUrl = process.env.EXPO_PUBLIC_GATEWAY_URL || 'http://localhost:4000';
 
     const [state, setState] = useState<ScreenState>('IDLE');

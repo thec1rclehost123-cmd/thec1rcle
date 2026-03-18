@@ -11,6 +11,7 @@ export interface EventTier {
 export interface ScannerEventData {
     valid: boolean;
     code: string;
+    codeId?: string;
     event: {
         id: string;
         title: string;

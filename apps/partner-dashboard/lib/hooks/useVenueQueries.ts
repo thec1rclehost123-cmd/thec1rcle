@@ -41,6 +41,18 @@ export function useVenueOverviewSummary(venueId: string | undefined) {
 }
 
 /**
+ * Hook: Venue connections (host partnerships + promoter requests)
+ * Used by venue/connections/requests/PageClient.tsx
+ */
+export function useVenueConnections(venueId: string | undefined) {
+    return useAuthenticatedQuery(
+        ["venue-connections", venueId || ""],
+        `/api/discovery?action=list&partnerId=${venueId}&role=venue`,
+        { enabled: !!venueId }
+    );
+}
+
+/**
  * Hook: Tonight's event data
  * Used by TonightOpsModule — refetches every 30s for live ops
  */

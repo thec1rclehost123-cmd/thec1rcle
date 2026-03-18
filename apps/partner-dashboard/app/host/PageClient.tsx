@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+
 import {
     CalendarDays,
     TrendingUp,
@@ -26,6 +26,7 @@ import {
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { useHostOverviewSummary } from "@/lib/hooks/useHostQueries";
 import { formatINRCompact } from "@/lib/finance/definitions";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 import { KPIBento } from "@/components/ui/BentoCard";
@@ -82,30 +83,13 @@ const LIFECYCLE_CONFIG: Record<string, { label: string; color: string; bg: strin
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export default function HostOverviewPage() {
-    const { profile, getIdToken } = useDashboardAuth() as any;
+    const { profile } = useDashboardAuth() as any;
     const hostId = profile?.activeMembership?.partnerId;
     const displayName = profile?.displayName || "Host";
     const shouldReduceMotion = useReducedMotion();
 
-    const [summary, setSummary] = useState<OverviewSummary | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    const fetchSummary = useCallback(async () => {
-        if (!hostId) { setLoading(false); return; }
-        try {
-            const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            const res = await fetch(`/api/host/overview/summary?hostId=${hostId}`, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
-            });
-            if (res.ok) {
-                const d = await res.json();
-                setSummary(d.summary || d);
-            }
-        } catch { /* keep defaults */ }
-        finally { setLoading(false); }
-    }, [hostId, getIdToken]);
-
-    useEffect(() => { fetchSummary(); }, [fetchSummary]);
+    const { data: rawData, isLoading: loading } = useHostOverviewSummary(hostId);
+    const summary: OverviewSummary | null = rawData ? (rawData.summary || rawData) : null;
 
     const mp = (delay: number) =>
         shouldReduceMotion

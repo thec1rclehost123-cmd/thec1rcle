@@ -22,6 +22,7 @@ import { DiscoverDirectory } from "@/components/partnerships/DiscoverDirectory";
 import { TierSelectionModal, ContractTier } from "@/components/partnerships/TierSelectionModal";
 import { NetworkProfileModal, NetworkProfile } from "@/components/partnerships/NetworkProfileModal";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatDate } from "@/lib/utils/format";
 
 type Tab = "roster" | "pending" | "discover";
 
@@ -144,11 +145,6 @@ export default function VenuePartnershipsPage() {
         }
     };
 
-    const formatDate = (ts: any) => {
-        if (!ts) return "";
-        const d = ts.toDate ? ts.toDate() : ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
-        return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-    };
 
     const roster = connections.filter((c) => c.status === "approved" || c.status === "active");
     const pending = connections.filter((c) => c.status === "pending");

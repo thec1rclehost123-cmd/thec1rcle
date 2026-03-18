@@ -121,7 +121,7 @@ export default function RootLayout() {
     // Handle deep links
     useEffect(() => {
         const unsubscribe = subscribeToDeepLinks((url) => {
-            console.log("[DeepLink] Received:", url);
+            if (__DEV__) console.log("[DeepLink] Received:", url);
             const { type, params } = parseDeepLink(url);
 
             // Regex for UUID validation (v4)
@@ -145,7 +145,7 @@ export default function RootLayout() {
                     }
                     break;
                 default:
-                    console.log("[DeepLink] Unknown type:", type);
+                    if (__DEV__) console.log("[DeepLink] Unknown type:", type);
             }
         });
 
@@ -155,7 +155,7 @@ export default function RootLayout() {
     // Handle push notification taps
     useEffect(() => {
         const receivedSub = addNotificationReceivedListener((notification) => {
-            console.log("[Notification] Received:", notification.request.content.title);
+            if (__DEV__) console.log("[Notification] Received:", notification.request.content.title);
         });
 
         const responseSub = addNotificationResponseListener((response) => {

@@ -67,7 +67,7 @@ async function apiFetch<T = any>(
 
         // Handle 401 Unauthorized — potentially expired token
         if (response.status === 401 && requireAuth && !_retry) {
-            console.log("[API] 401 detected, attempting token refresh retry...");
+            if (__DEV__) console.log("[API] 401 detected, attempting token refresh retry...");
             return apiFetch<T>(path, { ...options, _retry: true });
         }
 

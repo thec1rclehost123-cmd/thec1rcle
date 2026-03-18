@@ -27,7 +27,7 @@ export default function VenuePayoutsSettingsClient() {
     const { profile, getIdToken } = useDashboardAuth() as any;
     const venueId = profile?.activeMembership?.partnerId;
 
-    const [settingsState]    = useState<PayoutSettingsState>("unconnected"); // TODO: fetch from API
+    const [settingsState, setSettingsState] = useState<PayoutSettingsState>("unconnected");
     const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [totalSettled, setTotalSettled] = useState(0);
@@ -45,6 +45,9 @@ export default function VenuePayoutsSettingsClient() {
                 const data = await res.json();
                 setAvailableBalance(data.metrics?.availableBalance || 0);
                 setTotalSettled(data.metrics?.settledPayouts || 0);
+                // payoutState is returned by the gateway's finance/summary as part of metrics
+                const rawPayoutState = (data.metrics as any)?.payoutState as PayoutSettingsState | undefined;
+                if (rawPayoutState) setSettingsState(rawPayoutState);
             }
         } catch {
             // keep defaults

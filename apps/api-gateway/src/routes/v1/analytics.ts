@@ -66,28 +66,11 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
 
     /**
      * GET /api/v1/analytics/:type/:id/:subCategory
+     * NOTE: This catch-all route is not actively used by any frontend. Subcategory analytics
+     * are served by the explicit /venue/:id, /host/:id, /promoter/:id routes above.
+     * Returns 404 to prevent silent failures from dynamic method dispatch.
      */
-    fastify.get('/:type/:id/:subCategory', async (request, reply) => {
-        const { type, id, subCategory } = request.params as any;
-        try {
-            const engine = await import('@c1rcle/core/analytics-engine');
-            const methodName = `get${type.charAt(0).toUpperCase() + type.slice(1)}${subCategory.charAt(0).toUpperCase() + subCategory.slice(1)}Analytics`;
-
-            if (typeof (engine as any)[methodName] === 'function') {
-                return await (engine as any)[methodName](fastify.db, id);
-            }
-
-            // Fallback for overview if named different
-            if (subCategory === 'overview') {
-                const overviewMethod = `get${type.charAt(0).toUpperCase() + type.slice(1)}OverviewStats`;
-                if (typeof (engine as any)[overviewMethod] === 'function') {
-                    return await (engine as any)[overviewMethod](fastify.db, id);
-                }
-            }
-
-            reply.status(404).send({ error: `Analytics subcategory ${subCategory} not found for ${type}` });
-        } catch (error: any) {
-            reply.status(500).send({ error: error.message });
-        }
+    fastify.get('/:type/:id/:subCategory', async (_request, reply) => {
+        reply.status(404).send({ error: 'Use /analytics/venue/:id, /analytics/host/:id, or /analytics/promoter/:id' });
     });
 }
