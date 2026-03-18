@@ -7,7 +7,7 @@
     "dev": "next dev --turbo -p 3005",
     "build": "next build",
     "start": "next start",
-    "lint": "npx next lint app components lib",
+    "lint": "npx next lint",
     "type-check": "npx tsc --noEmit"
   },
   "dependencies": {

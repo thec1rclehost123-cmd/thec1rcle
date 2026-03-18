@@ -23,6 +23,7 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
   eslint: {
+    dirs: ['app', 'components', 'lib'],
     ignoreDuringBuilds: true,
   },
   images: {
