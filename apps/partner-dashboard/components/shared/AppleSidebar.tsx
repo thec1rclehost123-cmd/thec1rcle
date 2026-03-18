@@ -188,9 +188,10 @@ export function AppleSidebar({
                                                                     key={child.href}
                                                                     href={child.href}
                                                                     className={`block px-4 py-3 rounded-xl text-[15px] font-semibold transition-all ${childActive
-                                                                        ? "text-text-primary bg-surface-tertiary/50 dark:bg-white/[0.05]"
-                                                                        : "text-text-tertiary/70 hover:text-text-primary hover:bg-surface-tertiary/30"
+                                                                        ? "text-white bg-white/[0.1]"
+                                                                        : "text-white/80 hover:text-white hover:bg-white/[0.05]"
                                                                         }`}
+
                                                                 >
                                                                     <div className="flex items-center justify-between">
                                                                         <span>{child.label}</span>

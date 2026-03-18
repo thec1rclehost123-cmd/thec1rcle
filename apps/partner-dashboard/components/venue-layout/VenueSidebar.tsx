@@ -222,8 +222,8 @@ export function VenueSidebar({
                 href={item.href}
                 className={`relative flex items-center gap-4 px-3 py-2.5 rounded-xl transition-all duration-300 group
                     ${active
-                        ? "text-text-primary bg-white/[0.03]"
-                        : "text-text-primary/50 hover:text-text-primary/90 hover:bg-white/[0.02]"
+                        ? "text-white bg-white/[0.03]"
+                        : "text-white/50 hover:text-white/90 hover:bg-white/[0.02]"
                     }`}
             >
                 {/* Active indicator */}
@@ -351,7 +351,7 @@ export function VenueSidebar({
                                 <button
                                     onClick={() => toggleSection(group.label)}
                                     className={`w-full flex items-center justify-between px-3 py-3 rounded-xl transition-all duration-300 group
-                                        ${hasActiveItem ? "text-text-primary" : "text-text-primary/30 hover:text-text-primary/60"}`}
+                                        ${hasActiveItem ? "text-white" : "text-white/30 hover:text-white/60"}`}
                                 >
                                     <div className="flex items-center gap-3">
                                         <GroupIcon className={`h-4 w-4 ${hasActiveItem ? "text-orange-500" : ""}`} />
@@ -391,7 +391,7 @@ export function VenueSidebar({
                                                             <button
                                                                 onClick={() => toggleSubSection(sg.key)}
                                                                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200
-                                                                    ${sgHasActive ? "text-text-primary/60" : "text-text-primary/20 hover:text-text-primary/40"}`}
+                                                                    ${sgHasActive ? "text-white/60" : "text-white/20 hover:text-white/40"}`}
                                                             >
                                                                 <span className="text-[10px] font-black uppercase tracking-[0.2em]">
                                                                     {sg.label}
