@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ profile }, { status: 201 });
     } catch (err: any) {
-        console.error("[staff-profiles POST]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        console.error("[staff-profiles POST]", err);
+        return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
     }
 }

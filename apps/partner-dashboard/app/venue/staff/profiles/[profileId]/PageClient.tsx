@@ -128,9 +128,14 @@ const ROLES: VenueRole[] = ["OWNER", "MANAGER", "FINANCE_ADMIN", "STAFF", "SECUR
 export function StaffProfileEditorClient({ profileId }: { profileId: string }) {
     const isNew = profileId === "new";
     const router = useRouter();
-    const { profile: dashProfile } = useDashboardAuth();
+    const { profile: dashProfile, user } = useDashboardAuth();
     const venueId = dashProfile?.activeMembership?.partnerId;
     const qc = useQueryClient();
+
+    const authHeaders = async (): Promise<HeadersInit> => {
+        const token = user ? await user.getIdToken() : null;
+        return token ? { Authorization: `Bearer ${token}` } : {};
+    };
 
     // Form state
     const [profileName, setProfileName] = useState("");
@@ -145,7 +150,8 @@ export function StaffProfileEditorClient({ profileId }: { profileId: string }) {
         queryKey: ["staff-profile", venueId, profileId],
         queryFn: async () => {
             const res = await fetch(
-                `/api/venue/staff-profiles/${profileId}?venueId=${venueId}`
+                `/api/venue/staff-profiles/${profileId}?venueId=${venueId}`,
+                { headers: await authHeaders() }
             );
             if (!res.ok) throw new Error("Not found");
             const { profile } = await res.json();
@@ -183,7 +189,7 @@ export function StaffProfileEditorClient({ profileId }: { profileId: string }) {
             const method = isNew ? "POST" : "PATCH";
             const res = await fetch(url, {
                 method,
-                headers: { "Content-Type": "application/json" },
+                headers: { ...(await authHeaders()), "Content-Type": "application/json" },
                 body: JSON.stringify({
                     profileName,
                     baseRole,

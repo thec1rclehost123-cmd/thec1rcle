@@ -77,8 +77,8 @@ export async function PATCH(
         if (err.message === "Staff profile not found") {
             return NextResponse.json({ error: "Not found" }, { status: 404 });
         }
-        console.error("[staff-profiles/:id PATCH]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        console.error("[staff-profiles/:id PATCH]", err);
+        return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
     }
 }
 
