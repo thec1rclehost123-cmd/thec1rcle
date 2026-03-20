@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { LogOut, ChevronDown, ChevronRight } from "lucide-react";
 import { useDashboardAuth } from "../providers/DashboardAuthProvider";
 import { motion, AnimatePresence } from "framer-motion";
@@ -49,15 +49,33 @@ export function AppleSidebar({
     onToggleCollapse
 }: AppleSidebarProps) {
     const pathname = usePathname();
+    const searchParams = useSearchParams();
     const { signOut, profile, subscriptionPlan: contextPlan } = useDashboardAuth();
     const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
     const currentPlan = (propPlan || contextPlan || 'basic').toLowerCase();
     const currentPlanLevel = PLAN_HIERARCHY[currentPlan] ?? 0;
 
+    const currentTab = searchParams.get("tab") || searchParams.get("view");
+
     const isActive = (path: string) => {
         if (path === basePath && pathname === basePath) return true;
-        if (path !== basePath && pathname.startsWith(path)) return true;
+        
+        // Handle explicit tab matches (e.g. /venue/events?tab=calendar matched by /venue/calendar)
+        if (currentTab === 'calendar') {
+            if (path.includes('/calendar') || path.includes('tab=calendar')) return true;
+            // If we are on the calendar tab, don't highlight the parent 'events' path
+            if (pathname.includes('/events') && (path.endsWith('/events') || path.endsWith('/events/'))) return false;
+        }
+
+        if (path !== basePath && pathname.startsWith(path)) {
+            // If we are on a page with tabs, only highlight the item if it doesn't have a different tab requirement
+            const itemUrl = new URL(path, 'http://localhost');
+            const itemTab = itemUrl.searchParams.get("tab") || itemUrl.searchParams.get("view");
+            if (itemTab && itemTab !== currentTab) return false;
+            
+            return true;
+        }
         return false;
     };
 

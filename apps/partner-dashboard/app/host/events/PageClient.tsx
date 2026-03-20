@@ -38,6 +38,7 @@ import CalendarClient from "../calendar/PageClient";
 
 const HUB_TABS = [
     { key: "events", label: "Events", icon: List },
+    { key: "calendar", label: "Calendar", icon: CalendarDays },
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -149,126 +150,133 @@ export default function HostEventsPage() {
 
     return (
         <VenuePageShell
-            title="Events"
-            subtitle="Architect and manage your production roster"
+            title={hubTab === "calendar" ? "Calendar" : "Events"}
+            subtitle={hubTab === "calendar" ? "Architect and manage your production roster" : "Architect and manage your production roster"}
         >
             <div className="space-y-8">
                 <HubTabBar tabs={HUB_TABS} activeTab={hubTab} onTabChange={setHubTab} />
-                {/* Stats Summary Panel */}
-                <div className="rounded-[40px] bg-[var(--v-card)] border border-[var(--v-border)] p-10 flex flex-wrap items-center gap-12">
-                    {TAB_DEFS.filter(t => t.id !== "all").map(t => {
-                        const count = tabCounts[t.id];
-                        if (count === 0 && t.id !== 'live') return null;
-                        return (
-                            <div key={t.id} className="flex flex-col gap-3">
-                                <span className="text-[13px] font-black uppercase tracking-[0.2em] text-[var(--v-text-tertiary)]">{t.label}</span>
-                                <div className="flex items-center gap-4">
-                                    <span className="text-4xl font-black tracking-tight text-text-primary tabular-nums">{count}</span>
-                                    <div className="p-2 rounded-xl bg-surface-tertiary border border-border-subtle">
-                                        <t.icon className="w-5 h-5" style={{ color: t.color }} />
+
+                {hubTab === "calendar" ? (
+                    <CalendarClient />
+                ) : (
+                    <>
+                        {/* Stats Summary Panel */}
+                        <div className="rounded-[40px] bg-[var(--v-card)] border border-[var(--v-border)] p-10 flex flex-wrap items-center gap-12">
+                            {TAB_DEFS.filter(t => t.id !== "all").map(t => {
+                                const count = tabCounts[t.id];
+                                if (count === 0 && t.id !== 'live') return null;
+                                return (
+                                    <div key={t.id} className="flex flex-col gap-3">
+                                        <span className="text-[13px] font-black uppercase tracking-[0.2em] text-[var(--v-text-tertiary)]">{t.label}</span>
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-4xl font-black tracking-tight text-text-primary tabular-nums">{count}</span>
+                                            <div className="p-2 rounded-xl bg-surface-tertiary border border-border-subtle">
+                                                <t.icon className="w-5 h-5" style={{ color: t.color }} />
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                )
+                            })}
+                        </div>
+
+                        {/* Filters & Search Row */}
+                        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8">
+                            <div className="flex p-2 bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] overflow-x-auto scrollbar-hide gap-2">
+                                {TAB_DEFS.map(t => {
+                                    const Icon = t.icon;
+                                    return (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => setActiveTab(t.id)}
+                                            className={`px-6 py-3 rounded-[16px] text-[13px] font-black uppercase tracking-wider transition-all flex items-center gap-3 whitespace-nowrap shrink-0 ${activeTab === t.id ? "bg-[var(--v-elevated)] text-text-primary shadow-lg" : "text-[var(--v-text-tertiary)] hover:text-text-primary hover:bg-surface-tertiary"}`}
+                                        >
+                                            <Icon className="w-4 h-4" style={activeTab === t.id ? { color: t.color } : {}} />
+                                            {t.label}
+                                            {tabCounts[t.id] > 0 && (
+                                                <span className={`ml-2 px-2 py-0.5 rounded-md text-[11px] font-black tabular-nums ${activeTab === t.id ? "bg-surface-elevated text-text-primary" : "bg-surface-secondary text-text-tertiary"}`}>{tabCounts[t.id]}</span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
                             </div>
-                        )
-                    })}
-                </div>
 
-                {/* Filters & Search Row */}
-                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8">
-                    <div className="flex p-2 bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] overflow-x-auto scrollbar-hide gap-2">
-                        {TAB_DEFS.map(t => {
-                             const Icon = t.icon;
-                             return (
-                                 <button
-                                     key={t.id}
-                                     onClick={() => setActiveTab(t.id)}
-                                     className={`px-6 py-3 rounded-[16px] text-[13px] font-black uppercase tracking-wider transition-all flex items-center gap-3 whitespace-nowrap shrink-0 ${activeTab === t.id ? "bg-[var(--v-elevated)] text-text-primary shadow-lg" : "text-[var(--v-text-tertiary)] hover:text-text-primary hover:bg-surface-tertiary"}`}
-                                 >
-                                     <Icon className="w-4 h-4" style={activeTab === t.id ? { color: t.color } : {}} />
-                                     {t.label}
-                                     {tabCounts[t.id] > 0 && (
-                                         <span className={`ml-2 px-2 py-0.5 rounded-md text-[11px] font-black tabular-nums ${activeTab === t.id ? "bg-surface-elevated text-text-primary" : "bg-surface-secondary text-text-tertiary"}`}>{tabCounts[t.id]}</span>
-                                     )}
-                                 </button>
-                             );
-                        })}
-                    </div>
-
-                    <div className="relative group w-full xl:w-96">
-                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--v-text-muted)] group-focus-within:text-[var(--v-orange)] transition-colors" />
-                        <input
-                            type="text"
-                            placeholder="Locate production..."
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            className="w-full bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] pl-14 pr-6 py-4 text-[15px] text-text-primary placeholder:text-[var(--v-text-muted)] focus:outline-none focus:border-[var(--v-orange)]/50 transition-all font-bold tracking-tight shadow-sm"
-                        />
-                    </div>
-                </div>
-
-                {/* Grid */}
-                <AnimatePresence mode="wait">
-                    {loading ? (
-                        <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
-                                <div key={i} className="h-80 rounded-[40px] animate-pulse bg-[var(--v-card)] border border-[var(--v-border)]" />
-                            ))}
-                        </motion.div>
-                    ) : filteredEvents.length === 0 ? (
-                        <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                            className="py-32 bg-[var(--v-card)] rounded-[56px] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-12">
-                            <div className="p-6 rounded-full bg-surface-tertiary mb-8">
-                                <CalendarDays className="w-12 h-12 text-[var(--v-text-muted)]" />
+                            <div className="relative group w-full xl:w-96">
+                                <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--v-text-muted)] group-focus-within:text-[var(--v-orange)] transition-colors" />
+                                <input
+                                    type="text"
+                                    placeholder="Locate production..."
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    className="w-full bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] pl-14 pr-6 py-4 text-[15px] text-text-primary placeholder:text-[var(--v-text-muted)] focus:outline-none focus:border-[var(--v-orange)]/50 transition-all font-bold tracking-tight shadow-sm"
+                                />
                             </div>
-                            <h3 className="text-3xl font-black text-text-primary tracking-tight">
-                                {searchQuery ? "No matches in roster" : "Roster empty"}
-                            </h3>
-                            <p className="text-[var(--v-text-tertiary)] text-[16px] font-bold mt-4 mb-10 max-w-md leading-relaxed">
-                                {searchQuery ? "Try refining your search terms for the current filter." : "Schedule your next production by securing a venue slot in the calendar."}
-                            </p>
-                            <Link href="/host/calendar">
-                                <VenueActionButton variant="primary" className="h-14 px-10 text-[14px]">
-                                    Browse Network Calendar
-                                </VenueActionButton>
-                            </Link>
-                        </motion.div>
-                    ) : (
-                        <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                            <VirtuosoGrid
-                                useWindowScroll
-                                data={filteredEvents}
-                                components={{
-                                    List: forwardRef<HTMLDivElement>(function VList(props, ref) {
-                                        return <div {...props} ref={ref} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8" />;
-                                    }),
-                                    Item: forwardRef<HTMLDivElement>(function VItem(props, ref) {
-                                        return <div {...props} ref={ref} className="h-full w-full" />;
-                                    }),
-                                }}
-                                itemContent={(index, event) => (
-                                    <DashboardEventCard
-                                        event={event}
-                                        index={index}
-                                        role="host"
-                                        primaryAction={getPrimaryAction(event)}
-                                        secondaryActions={[
-                                            { label: "Configure", icon: <Edit3 size={16} />, href: `/host/create?id=${event.id}` },
-                                            { label: "Analytics", icon: <BarChart3 size={16} />, href: `/host/analytics/overview?eventId=${event.id}` },
-                                            {
-                                                label: "Copy URL",
-                                                icon: <Share2 size={16} />,
-                                                onClick: () => {
-                                                    const url = `${window.location.origin}/event/${event.slug || event.id}`;
-                                                    navigator.clipboard.writeText(url);
-                                                },
-                                            },
-                                        ]}
+                        </div>
+
+                        {/* Grid */}
+                        <AnimatePresence mode="wait">
+                            {loading ? (
+                                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                                    {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                                        <div key={i} className="h-80 rounded-[40px] animate-pulse bg-[var(--v-card)] border border-[var(--v-border)]" />
+                                    ))}
+                                </motion.div>
+                            ) : filteredEvents.length === 0 ? (
+                                <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                    className="py-32 bg-[var(--v-card)] rounded-[56px] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-12">
+                                    <div className="p-6 rounded-full bg-surface-tertiary mb-8">
+                                        <CalendarDays className="w-12 h-12 text-[var(--v-text-muted)]" />
+                                    </div>
+                                    <h3 className="text-3xl font-black text-text-primary tracking-tight">
+                                        {searchQuery ? "No matches in roster" : "Roster empty"}
+                                    </h3>
+                                    <p className="text-[var(--v-text-tertiary)] text-[16px] font-bold mt-4 mb-10 max-w-md leading-relaxed">
+                                        {searchQuery ? "Try refining your search terms for the current filter." : "Schedule your next production by securing a venue slot in the calendar."}
+                                    </p>
+                                    <Link href="/host/calendar">
+                                        <VenueActionButton variant="primary" className="h-14 px-10 text-[14px]">
+                                            Browse Network Calendar
+                                        </VenueActionButton>
+                                    </Link>
+                                </motion.div>
+                            ) : (
+                                <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                                    <VirtuosoGrid
+                                        useWindowScroll
+                                        data={filteredEvents}
+                                        components={{
+                                            List: forwardRef<HTMLDivElement>(function VList(props, ref) {
+                                                return <div {...props} ref={ref} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8" />;
+                                            }),
+                                            Item: forwardRef<HTMLDivElement>(function VItem(props, ref) {
+                                                return <div {...props} ref={ref} className="h-full w-full" />;
+                                            }),
+                                        }}
+                                        itemContent={(index, event) => (
+                                            <DashboardEventCard
+                                                event={event}
+                                                index={index}
+                                                role="host"
+                                                primaryAction={getPrimaryAction(event)}
+                                                secondaryActions={[
+                                                    { label: "Configure", icon: <Edit3 size={16} />, href: `/host/create?id=${event.id}` },
+                                                    { label: "Analytics", icon: <BarChart3 size={16} />, href: `/host/analytics/overview?eventId=${event.id}` },
+                                                    {
+                                                        label: "Copy URL",
+                                                        icon: <Share2 size={16} />,
+                                                        onClick: () => {
+                                                            const url = `${window.location.origin}/event/${event.slug || event.id}`;
+                                                            navigator.clipboard.writeText(url);
+                                                        },
+                                                    },
+                                                ]}
+                                            />
+                                        )}
                                     />
-                                )}
-                            />
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </>
+                )}
             </div>
         </VenuePageShell>
     );

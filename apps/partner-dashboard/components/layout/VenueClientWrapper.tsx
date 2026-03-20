@@ -52,7 +52,7 @@ const HREF_TO_TAB: Record<string, VenueTab> = {
     "/venue/settings":    "settings",
     // Legacy hrefs — kept as aliases so active-state still highlights correctly
     "/venue/create":          "events",
-    "/venue/calendar":        "events",
+    "/venue/calendar":        "calendar",
     "/venue/walk-ins":        "door",
     "/venue/guest-ops":       "door",
     "/venue/registers":       "door",

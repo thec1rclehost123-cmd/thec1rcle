@@ -11,6 +11,9 @@ export default function TonightOpsModule() {
     const venueId = profile?.activeMembership?.partnerId;
     const { tonight } = useTonightEvent(venueId);
 
+    // Only show live operations if there is an actual event with expectations or check-ins.
+    const hasActiveEvent = tonight && (tonight.expected > 0 || tonight.checkedIn > 0);
+
     return (
         <div className="card p-8 min-h-[400px]">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -18,17 +21,17 @@ export default function TonightOpsModule() {
                     <h2 className="text-headline-sm text-text-primary mb-1">Tonight</h2>
                     <p className="text-body-sm text-text-tertiary">Real-time venue operations</p>
                 </div>
-                {tonight ? (
+                {hasActiveEvent ? (
                     <div className="badge badge-success">
                         <span className="status-dot status-dot-success status-dot-pulse" />
                         Live: {tonight.checkedIn} Guests In
                     </div>
                 ) : (
-                    <div className="badge badge-neutral">No Event Tonight</div>
+                    <div className="badge badge-neutral">No Event Today</div>
                 )}
             </div>
 
-            {tonight ? (
+            {hasActiveEvent ? (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div className="space-y-6">
                         <div>
@@ -48,7 +51,7 @@ export default function TonightOpsModule() {
                         <div>
                             <p className="text-label-sm text-text-tertiary mb-2">Live Revenue</p>
                             <p className="text-stat-lg text-text-primary">
-                                {formatINRCompact(tonight.revenue)}
+                                {formatINRCompact(tonight.revenue || 0)}
                             </p>
                             <p className="text-caption text-text-tertiary">Tonight's sales</p>
                         </div>
@@ -69,7 +72,7 @@ export default function TonightOpsModule() {
             ) : (
                 <div className="py-16 text-center border-2 border-dashed border-border-subtle rounded-2xl">
                     <Clock className="mx-auto mb-4 text-text-placeholder" size={48} />
-                    <p className="text-body text-text-tertiary">Your venue is quiet tonight.</p>
+                    <p className="text-body text-text-tertiary">No event today</p>
                 </div>
             )}
         </div>

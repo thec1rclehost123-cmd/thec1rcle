@@ -20,6 +20,7 @@ import CalendarClient from "../calendar/PageClient";
 
 const HUB_TABS = [
     { key: "events",   label: "Events",   icon: List },
+    { key: "calendar", label: "Calendar", icon: CalendarDays },
 ];
 
 interface Event {
@@ -211,103 +212,110 @@ export default function EventsManagementPage() {
 
     return (
         <VenuePageShell
-            title="Events"
-            subtitle="Manage every event from draft to post-event review"
+            title={hubTab === "calendar" ? "Calendar" : "Events"}
+            subtitle={hubTab === "calendar" ? "View and manage your venue schedule" : "Manage every event from draft to post-event review"}
         >
             <HubTabBar tabs={HUB_TABS} activeTab={hubTab} onTabChange={setHubTab} />
-            {/* ── KPI Strip ── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                    { label: "LIVE NOW", value: loading ? "—" : liveCount, color: "var(--v-success)", bg: "var(--v-success-bg)", icon: Play },
-                    { label: "REQUESTS", value: loading ? "—" : pendingCount, color: "var(--v-warning)", bg: "var(--v-warning-bg)", icon: AlertCircle },
-                    { label: "PUBLISHED", value: loading ? "—" : publishedCount, color: "var(--v-info)", bg: "var(--v-info-bg)", icon: CheckCircle2 },
-                    {
-                        label: "REVENUE",
-                        value: loading ? "—" : totalRevenue >= 100000
-                            ? `₹${(totalRevenue / 100000).toFixed(1)}L`
-                            : `₹${(totalRevenue / 1000).toFixed(1)}K`,
-                        color: "var(--v-orange)",
-                        bg: "var(--v-orange-dim)",
-                        icon: DollarSign,
-                    },
-                ].map((stat, i) => (
-                    <div key={i} className="rounded-2xl p-4 flex items-center gap-3 border border-border-subtle" style={{ background: "var(--v-card)" }}>
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: stat.bg }}>
-                            <stat.icon className="w-3.5 h-3.5" style={{ color: stat.color }} />
+
+            {hubTab === "calendar" ? (
+                <CalendarClient />
+            ) : (
+                <div className="space-y-6 mt-6">
+                    {/* ── KPI Strip ── */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {[
+                            { label: "LIVE NOW", value: loading ? "—" : liveCount, color: "var(--v-success)", bg: "var(--v-success-bg)", icon: Play },
+                            { label: "REQUESTS", value: loading ? "—" : pendingCount, color: "var(--v-warning)", bg: "var(--v-warning-bg)", icon: AlertCircle },
+                            { label: "PUBLISHED", value: loading ? "—" : publishedCount, color: "var(--v-info)", bg: "var(--v-info-bg)", icon: CheckCircle2 },
+                            {
+                                label: "REVENUE",
+                                value: loading ? "—" : totalRevenue >= 100000
+                                    ? `₹${(totalRevenue / 100000).toFixed(1)}L`
+                                    : `₹${(totalRevenue / 1000).toFixed(1)}K`,
+                                color: "var(--v-orange)",
+                                bg: "var(--v-orange-dim)",
+                                icon: DollarSign,
+                            },
+                        ].map((stat, i) => (
+                            <div key={i} className="rounded-2xl p-4 flex items-center gap-3 border border-border-subtle" style={{ background: "var(--v-card)" }}>
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: stat.bg }}>
+                                    <stat.icon className="w-3.5 h-3.5" style={{ color: stat.color }} />
+                                </div>
+                                <div>
+                                    <p className="v-label text-[9px] mb-0">{stat.label}</p>
+                                    <p className="text-[18px] font-black leading-tight tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                        {stat.value}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* ── Filter bar ── */}
+                    <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                        <VenueFilterTabs tabs={filterTabs} active={filter} onChange={setFilter} />
+                        <div className="relative flex-1 sm:max-w-xs">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--v-text-muted)" }} />
+                            <input
+                                type="text"
+                                placeholder="Search events or hosts..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2.5 rounded-xl text-[13px] outline-none focus:ring-1"
+                                style={{
+                                    background: "var(--v-card)",
+                                    color: "var(--v-text-primary)",
+                                    border: "1px solid var(--v-border)",
+                                }}
+                            />
                         </div>
-                        <div>
-                            <p className="v-label text-[9px] mb-0">{stat.label}</p>
-                            <p className="text-[18px] font-black leading-tight tabular-nums" style={{ color: "var(--v-text-primary)" }}>
-                                {stat.value}
+                    </div>
+
+                    {/* ── Events Grid ── */}
+                    {loading ? (
+                        <div className="rounded-[32px] py-24 flex flex-col items-center gap-4" style={{ background: "var(--v-card)" }}>
+                            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--v-orange)" }} />
+                            <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
+                                Loading events...
                             </p>
                         </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* ── Filter bar ── */}
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                <VenueFilterTabs tabs={filterTabs} active={filter} onChange={setFilter} />
-                <div className="relative flex-1 sm:max-w-xs">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--v-text-muted)" }} />
-                    <input
-                        type="text"
-                        placeholder="Search events or hosts..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2.5 rounded-xl text-[13px] outline-none focus:ring-1"
-                        style={{
-                            background: "var(--v-card)",
-                            color: "var(--v-text-primary)",
-                            border: "1px solid var(--v-border)",
-                        }}
-                    />
-                </div>
-            </div>
-
-            {/* ── Events Grid ── */}
-            {loading ? (
-                <div className="rounded-[32px] py-24 flex flex-col items-center gap-4" style={{ background: "var(--v-card)" }}>
-                    <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--v-orange)" }} />
-                    <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
-                        Loading events...
-                    </p>
-                </div>
-            ) : filteredEvents.length === 0 ? (
-                <div className="rounded-[32px] py-24 flex flex-col items-center text-center gap-4" style={{ background: "var(--v-card)" }}>
-                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "var(--v-elevated)" }}>
-                        <Calendar className="w-8 h-8" style={{ color: "var(--v-text-muted)" }} />
-                    </div>
-                    <div>
-                        <h3 className="text-[17px] font-semibold mb-1" style={{ color: "var(--v-text-primary)" }}>
-                            No events found
-                        </h3>
-                        <p className="text-[13px]" style={{ color: "var(--v-text-tertiary)" }}>
-                            Try adjusting your filters or search terms.
-                        </p>
-                    </div>
-                    <button
-                        onClick={() => { setFilter("all"); setSearchQuery(""); }}
-                        className="text-[13px] font-semibold underline"
-                        style={{ color: "var(--v-orange)" }}
-                    >
-                        Reset filters
-                    </button>
-                </div>
-            ) : (
-                <VirtuosoGrid
-                    useWindowScroll
-                    data={filteredEvents}
-                    components={{ List: GridList, Item: GridItem }}
-                    itemContent={(index, event) => (
-                        <MemoizedVenueEventCard
-                            key={event.id}
-                            event={event}
-                            index={index}
-                            handleEventUpdate={handleEventUpdate}
+                    ) : filteredEvents.length === 0 ? (
+                        <div className="rounded-[32px] py-24 flex flex-col items-center text-center gap-4" style={{ background: "var(--v-card)" }}>
+                            <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "var(--v-elevated)" }}>
+                                <Calendar className="w-8 h-8" style={{ color: "var(--v-text-muted)" }} />
+                            </div>
+                            <div>
+                                <h3 className="text-[17px] font-semibold mb-1" style={{ color: "var(--v-text-primary)" }}>
+                                    No events found
+                                </h3>
+                                <p className="text-[13px]" style={{ color: "var(--v-text-tertiary)" }}>
+                                    Try adjusting your filters or search terms.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => { setFilter("all"); setSearchQuery(""); }}
+                                className="text-[13px] font-semibold underline"
+                                style={{ color: "var(--v-orange)" }}
+                            >
+                                Reset filters
+                            </button>
+                        </div>
+                    ) : (
+                        <VirtuosoGrid
+                            useWindowScroll
+                            data={filteredEvents}
+                            components={{ List: GridList, Item: GridItem }}
+                            itemContent={(index, event) => (
+                                <MemoizedVenueEventCard
+                                    key={event.id}
+                                    event={event}
+                                    index={index}
+                                    handleEventUpdate={handleEventUpdate}
+                                />
+                            )}
                         />
                     )}
-                />
+                </div>
             )}
 
             {selectedEvent && (
