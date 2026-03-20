@@ -1,7 +1,5 @@
-import { WalkInsClient } from "./PageClient";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Walk-ins — Venue" };
-
-export default function WalkInsPage() {
-    return <WalkInsClient />;
+export default function Page() {
+    redirect("/venue/door?tab=walkins");
 }

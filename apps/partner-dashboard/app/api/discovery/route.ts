@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
 import { discoverPartners } from "@/lib/server/promoterConnectionStore";
 import { createRequest, approveRequest, rejectRequest, blockRequest, listConnections } from "@/lib/server/connectionService";
+import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
 
 /**
  * GET /api/discovery
@@ -74,6 +75,18 @@ export async function GET(req: NextRequest) {
                 const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
                 const connections = await listConnections(partnerId, role, status, token);
                 return NextResponse.json({ connections });
+            }
+
+            case "auditlog": {
+                if (!isFirebaseConfigured()) return NextResponse.json({ entries: [] });
+                const db = getAdminDb();
+                const auditSnap = await db.collection("partnership_audit_log")
+                    .where("actorId", "==", partnerId)
+                    .orderBy("timestamp", "desc")
+                    .limit(100)
+                    .get();
+                const entries = auditSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                return NextResponse.json({ entries });
             }
 
             default:

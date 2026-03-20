@@ -1,20 +1,17 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, PlusCircle } from "lucide-react";
 import {
     LayoutDashboard,
-    CalendarDays,
-    PlusCircle,
-    BarChart3,
-    Users,
-    Shield,
-    Settings,
-    Building2,
+    Zap,
     Calendar,
-    FileText,
+    DoorOpen,
+    Handshake,
+    BarChart3,
     Banknote,
-    ClipboardList,
+    Globe,
+    Settings,
 } from "lucide-react";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
@@ -23,85 +20,48 @@ import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AssistantButton } from "@/components/assistant/AssistantButton";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { usePathname } from "next/navigation";
 import type { VenueTab } from "@/lib/types/staffProfile";
 
 const MENU_SECTIONS = [
     {
         items: [
             { icon: LayoutDashboard, label: "Overview",  href: "/venue" },
-            {
-                icon: BarChart3,
-                label: "Analytics",
-                href: "/venue/analytics",
-                children: [
-                    { label: "Overview",           href: "/venue/analytics/overview" },
-                    { label: "Advanced Analytics", href: "/venue/analytics/advanced" },
-                ],
-            },
-        ],
-    },
-    {
-        items: [
-            { icon: CalendarDays, label: "Events",       href: "/venue/events" },
-            {
-                icon: Banknote,
-                label: "Finance",
-                href: "/venue/finance",
-                children: [
-                    { label: "Overview",         href: "/venue/finance" },
-                    { label: "Payments",         href: "/venue/finance/payments" },
-                    { label: "Venue Payouts",    href: "/venue/finance/venue-payouts" },
-                    { label: "Host Payouts",     href: "/venue/finance/host-payouts" },
-                    { label: "Promoter Payouts", href: "/venue/finance/promoter-payouts" },
-                    { label: "Ledger",           href: "/venue/finance/ledger" },
-                    { label: "Reports",          href: "/venue/finance/reports" },
-                ],
-            },
-            { icon: PlusCircle, label: "Create Event", href: "/venue/create" },
-            { icon: Calendar,   label: "Calendar",     href: "/venue/calendar" },
-        ],
-    },
-    {
-        items: [
-            { icon: ClipboardList, label: "Walk-ins",     href: "/venue/walk-ins" },
-            { icon: Users,         label: "Partnerships", href: "/venue/partnerships" },
-            {
-                icon: Shield,
-                label: "Staff",
-                href: "/venue/staff",
-                children: [
-                    { label: "Team",            href: "/venue/staff" },
-                    { label: "Access Profiles", href: "/venue/staff/profiles" },
-                    { label: "Invite",          href: "/venue/staff/invite" },
-                ],
-            },
-            { icon: FileText, label: "Registers", href: "/venue/registers" },
-        ],
-    },
-    {
-        items: [
-            { icon: Building2, label: "Venue Page", href: "/venue/page-management" },
-            { icon: Settings,  label: "Settings",   href: "/venue/settings" },
+            { icon: Zap,             label: "Events",    href: "/venue/events" },
+            { icon: Calendar,        label: "Calendar",  href: "/venue/calendar" },
+            { icon: DoorOpen,        label: "Door",      href: "/venue/door" },
+            { icon: Handshake,       label: "Partners",  href: "/venue/partners" },
+            { icon: BarChart3,       label: "Analytics", href: "/venue/analytics" },
+            { icon: Banknote,        label: "Finance",   href: "/venue/finance" },
+            { icon: Globe,           label: "Presence",  href: "/venue/presence" },
+            { icon: Settings,        label: "Settings",  href: "/venue/settings" },
         ],
     },
 ];
 
 // ── Tab-to-href mapping ────────────────────────────────────────────────────────
 const HREF_TO_TAB: Record<string, VenueTab> = {
-    "/venue":                 "overview",
-    "/venue/analytics":       "analytics",
-    "/venue/events":          "events",
+    // New hub hrefs
+    "/venue":             "overview",
+    "/venue/events":      "events",
+    "/venue/door":        "door",
+    "/venue/partners":    "partners",
+    "/venue/analytics":   "analytics",
+    "/venue/finance":     "finance",
+    "/venue/presence":    "presence",
+    "/venue/settings":    "settings",
+    // Legacy hrefs — kept as aliases so active-state still highlights correctly
     "/venue/create":          "events",
-    "/venue/finance":         "finance",
-    "/venue/calendar":        "calendar",
-    "/venue/walk-ins":        "walk_ins",
-    "/venue/guest-ops":       "guest_ops",
-    "/venue/partnerships":    "partnerships",
-    "/venue/connections":     "partnerships",
-    "/venue/staff":           "staff",
-    "/venue/registers":       "registers",
-    "/venue/page-management": "page_management",
-    "/venue/settings":        "settings",
+    "/venue/calendar":        "events",
+    "/venue/walk-ins":        "door",
+    "/venue/guest-ops":       "door",
+    "/venue/registers":       "door",
+    "/venue/partnerships":    "partners",
+    "/venue/connections":     "partners",
+    "/venue/page-management": "presence",
+    "/venue/menu":            "presence",
+    "/venue/staff":           "settings",
+    "/venue/security":        "settings",
 };
 
 function itemTab(href: string): VenueTab | null {
@@ -137,6 +97,9 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const { tabVisibility: ctxTabVisibility } = useDashboardAuth();
+    const pathname = usePathname();
+
+    const venuePrimaryAction = { label: "+ Create Event", href: "/venue/create", icon: PlusCircle };
 
     // Use server-resolved tabVisibility from auth context (works for all staff roles)
     // Falls back to null (show all) for owners who have no tab restrictions
@@ -150,7 +113,7 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
     return (
         <ApprovalGuard>
             <RoleGuard allowedType="venue">
-                <div className="venue-shell dark min-h-screen bg-[var(--v-canvas)]">
+                <div className="venue-shell min-h-screen bg-[var(--v-canvas)]">
                     {/* Desktop Sidebar */}
                     <div className="hidden lg:block fixed left-0 top-0 bottom-0 h-full z-50">
                         <AppleSidebar
@@ -186,7 +149,7 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     exit={{ opacity: 0 }}
-                                    className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                                    className="absolute inset-0 bg-black/30 dark:bg-black/60 backdrop-blur-sm"
                                     onClick={() => setSidebarOpen(false)}
                                 />
                                 <motion.div
@@ -218,7 +181,7 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
                     {/* Main Content */}
                     <div className={`${isCollapsed ? "lg:pl-[80px]" : "lg:pl-[280px]"} flex flex-col min-h-screen pt-14 lg:pt-0 transition-all duration-300 ease-in-out`}>
                         <div className="hidden lg:block sticky top-0 z-40">
-                            <AppleTopBar />
+                            <AppleTopBar primaryAction={venuePrimaryAction} />
                         </div>
                         <main className="flex-1 p-4 sm:p-6 lg:p-8 xl:p-10">
                             <motion.div

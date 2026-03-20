@@ -44,24 +44,24 @@ const RechartsArea = lazy(() =>
                             </Defs>
                             <XAxis
                                 dataKey={xKey}
-                                tick={{ fontSize: 10, fill: "rgba(255,255,255,0.30)" }}
+                                tick={{ fontSize: 10, fill: "#9B9B9F" }}
                                 axisLine={false}
                                 tickLine={false}
                             />
                             <YAxis
-                                tick={{ fontSize: 10, fill: "rgba(255,255,255,0.30)" }}
+                                tick={{ fontSize: 10, fill: "#9B9B9F" }}
                                 axisLine={false}
                                 tickLine={false}
                             />
                             <Tooltip
                                 contentStyle={{
-                                    background: "#1a1a1d",
-                                    border: "1px solid rgba(255,255,255,0.08)",
+                                    background: "var(--v-card)",
+                                    border: "1px solid var(--v-border)",
                                     borderRadius: 12,
                                     fontSize: 12,
-                                    color: "rgba(255,255,255,0.9)",
+                                    color: "var(--v-text-primary)",
                                 }}
-                                cursor={{ stroke: "rgba(255,255,255,0.1)" }}
+                                cursor={{ stroke: "rgba(128,128,128,0.20)" }}
                             />
                             <Area
                                 type="monotone"
@@ -121,7 +121,7 @@ const RechartsBar = lazy(() =>
                                     fontSize: 12,
                                     color: "rgba(255,255,255,0.9)",
                                 }}
-                                cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                                cursor={{ fill: "rgba(128,128,128,0.08)" }}
                             />
                             <Bar dataKey={dataKey} fill={color} radius={[4, 4, 0, 0]} isAnimationActive={true}>
                                 {data.map((_, index) => (
@@ -161,24 +161,24 @@ const RechartsLine = lazy(() =>
                         <LineChart data={data} margin={{ top: 8, right: 0, left: -20, bottom: 0 }}>
                             <XAxis
                                 dataKey={xKey}
-                                tick={{ fontSize: 10, fill: "rgba(255,255,255,0.30)" }}
+                                tick={{ fontSize: 10, fill: "#9B9B9F" }}
                                 axisLine={false}
                                 tickLine={false}
                             />
                             <YAxis
-                                tick={{ fontSize: 10, fill: "rgba(255,255,255,0.30)" }}
+                                tick={{ fontSize: 10, fill: "#9B9B9F" }}
                                 axisLine={false}
                                 tickLine={false}
                             />
                             <Tooltip
                                 contentStyle={{
-                                    background: "#1a1a1d",
-                                    border: "1px solid rgba(255,255,255,0.08)",
+                                    background: "var(--v-card)",
+                                    border: "1px solid var(--v-border)",
                                     borderRadius: 12,
                                     fontSize: 12,
-                                    color: "rgba(255,255,255,0.9)",
+                                    color: "var(--v-text-primary)",
                                 }}
-                                cursor={{ stroke: "rgba(255,255,255,0.1)" }}
+                                cursor={{ stroke: "rgba(128,128,128,0.20)" }}
                             />
                             <Line
                                 type="monotone"
@@ -280,8 +280,8 @@ function ChartEmpty({ height = 240, label, className }: { height?: number; label
             )}
             style={{
                 height,
-                background: "rgba(255,255,255,0.03)",
-                border: "1px dashed rgba(255,255,255,0.08)",
+                background: "var(--v-neutral-bg)",
+                border: "1px dashed var(--v-border)",
             }}
             role="img"
             aria-label={`${label}: No data for this period`}

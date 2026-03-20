@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listPartnerships, approvePartnership, rejectPartnership } from "@/lib/server/partnershipStore";
+import { verifyAuth } from "@/lib/server/auth";
 
 export async function GET(req: NextRequest) {
     try {
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
         const hostId = searchParams.get("hostId");
@@ -22,6 +26,9 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
     try {
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
         const { partnershipId, action } = await req.json();
 
         if (!partnershipId || !action) {

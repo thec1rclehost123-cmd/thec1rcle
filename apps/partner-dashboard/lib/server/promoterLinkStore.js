@@ -82,6 +82,16 @@ export async function listPromoterCommissions(promoterId, token) {
     }
 }
 
+export async function getPromoterLinkAnalytics(linkId, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.request(`/promoter-links/${linkId}/analytics`);
+    } catch (error) {
+        console.error("[PromoterLinkStore] getPromoterLinkAnalytics failed:", error.message);
+        return { link: null, funnel: { clicks: 0, conversions: 0, revenue: 0 }, commissions: [] };
+    }
+}
+
 export default {
     createPromoterLink,
     getPromoterLinkByCode,
@@ -90,7 +100,8 @@ export default {
     getEventPromoterSummary,
     deactivateLink,
     recordLinkClick,
-    listPromoterCommissions
+    listPromoterCommissions,
+    getPromoterLinkAnalytics
 };
 
 

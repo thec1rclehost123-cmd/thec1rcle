@@ -45,7 +45,7 @@ export function TeaserCard({
                 </div>
                 <div
                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border"
-                    style={{ background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.08)" }}
+                    style={{ background: "var(--v-neutral-bg)", borderColor: "var(--v-border)" }}
                 >
                     <Lock className="w-2.5 h-2.5" style={{ color: accentColor, opacity: 0.8 }} />
                     <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: accentColor, opacity: 0.8 }}>Pro</span>

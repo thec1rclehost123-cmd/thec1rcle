@@ -92,7 +92,7 @@ export function PromoterFinanceClient() {
                              <p className="text-sm font-semibold text-emerald-500 flex items-center gap-2">
                                  Available Balance
                              </p>
-                             <span className="text-4xl font-black tabular-nums tracking-tighter text-white mt-1">
+                             <span className="text-4xl font-black tabular-nums tracking-tighter text-text-primary mt-1">
                                  {formatCurrencyInline(data.overview.availableBalance)}
                              </span>
                              <p className="text-xs text-text-tertiary mt-2 font-medium">

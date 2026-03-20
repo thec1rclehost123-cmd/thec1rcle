@@ -10,6 +10,7 @@ import {
     XCircle, Flag, ScanLine, Loader2,
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { useDoorHub } from "@/lib/context/DoorHubContext";
 import type { GuestOpsOverview, DoorStatus } from "@/lib/types/guestOps";
 
 const SUBNAV = [
@@ -37,7 +38,19 @@ interface GuestOpsShellProps {
     onEventChange?: (eventId: string) => void;
 }
 
-export function GuestOpsShell({
+/**
+ * GuestOpsShell — wraps guest-ops sub-pages.
+ * When inside DoorHubContext the hub already renders the event bar + nav, so we
+ * skip the standalone sticky shell and just render children directly.
+ */
+export function GuestOpsShell(props: GuestOpsShellProps) {
+    const hubCtx = useDoorHub();
+    // In hub mode the hub owns the event bar — skip the shell entirely
+    if (hubCtx) return <>{props.children}</>;
+    return <StandaloneGuestOpsShell {...props} />;
+}
+
+function StandaloneGuestOpsShell({
     children,
     events = [],
     summary,
@@ -177,10 +190,10 @@ export function GuestOpsShell({
                                 key={tab.href}
                                 href={href}
                                 className={cn(
-                                    "relative flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium rounded-t-lg whitespace-nowrap transition-all",
+                                    "relative flex items-center gap-1.5 px-3 py-2 text-[13px] whitespace-nowrap transition-all",
                                     isActive
-                                        ? "text-[var(--v-orange)] border-b-2 border-[var(--v-orange)]"
-                                        : "text-[var(--v-text-secondary)] hover:text-[var(--v-text-primary)]"
+                                        ? "font-black text-[var(--v-orange)] border-b-2 border-[var(--v-orange)] tracking-wide"
+                                        : "font-medium text-[var(--v-text-secondary)] hover:text-[var(--v-text-primary)]"
                                 )}
                             >
                                 <tab.icon size={14} />
@@ -288,6 +301,16 @@ function KPIBadge({ icon, label, value, total, emphasis }: {
             "flex items-center gap-1.5 px-2 py-1 rounded-lg",
             emphasis ? "bg-green-50 dark:bg-green-900/20" : "bg-[var(--v-elevated)]"
         )}>
+            {emphasis && (
+                <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{
+                        background: "#34D399",
+                        boxShadow: "0 0 6px rgba(52,211,153,0.8)",
+                        animation: "pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite",
+                    }}
+                />
+            )}
             {icon}
             <span className="text-[11px] text-[var(--v-text-muted)]">{label}</span>
             <span className={cn("text-[13px] font-bold tabular-nums", emphasis ? "text-green-600 dark:text-green-400" : "text-[var(--v-text-primary)]")}>
@@ -302,9 +325,13 @@ function KPIBadge({ icon, label, value, total, emphasis }: {
 
 function DoorStatusBadge({ status }: { status: DoorStatus }) {
     const cfg = DOOR_STATUS_CONFIG[status] ?? { label: status.toUpperCase(), color: "text-slate-400" };
+    const isLive = status === "open";
     return (
         <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[var(--v-elevated)]">
-            <Circle size={7} className={cn("fill-current", cfg.color)} />
+            <Circle
+                size={7}
+                className={cn("fill-current", cfg.color, isLive && "animate-pulse")}
+            />
             <span className="text-[11px] text-[var(--v-text-muted)]">Door</span>
             <span className={cn("text-[12px] font-bold", cfg.color)}>{cfg.label}</span>
         </div>

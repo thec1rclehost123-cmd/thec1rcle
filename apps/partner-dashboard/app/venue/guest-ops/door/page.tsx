@@ -1,12 +1,5 @@
-import { Suspense } from "react";
-import DoorSearchPageClient from "./PageClient";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Door Search — Guest Ops" };
-
-export default function DoorSearchPage() {
-    return (
-        <Suspense>
-            <DoorSearchPageClient />
-        </Suspense>
-    );
+export default function Page() {
+    redirect("/venue/door?tab=door");
 }

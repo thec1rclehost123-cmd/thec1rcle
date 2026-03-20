@@ -120,222 +120,100 @@ export default function VenueConnectionsPage() {
 
     return (
         <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in duration-700">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div>
-                    <div className="flex items-center gap-3 mb-2 text-accent-primary">
-                        <div className="p-2 bg-accent-glow rounded-xl">
-                            <Users className="w-5 h-5" />
-                        </div>
-                        <span className="text-label">NETWORK</span>
+            {/* Content only - Header and Tabs removed for consistency with parent wrapper */}
+            <div className="min-h-[600px] max-w-4xl mx-auto">
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between px-2">
+                        <h3 className="text-body-sm font-semibold text-text-primary flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-text-tertiary" />
+                            Pending Connection Requests
+                        </h3>
+                        <span className="text-label text-text-tertiary bg-surface-secondary px-2 py-1 rounded-md">
+                            {(pendingPromoterRequests.length + pendingHostRequests.length)} Incoming
+                        </span>
                     </div>
-                    <h1 className="text-display-sm text-text-primary">Connections</h1>
-                    <p className="text-body text-text-tertiary mt-2 max-w-xl">
-                        Manage your verified host partnerships and sales network.
-                    </p>
-                </div>
 
-                {/* Tabs */}
-                <div className="flex items-center p-1.5 bg-surface-secondary backdrop-blur-sm rounded-2xl w-fit border border-border-subtle">
-                    <button
-                        onClick={() => setActiveTab('promoters')}
-                        className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2.5 ${activeTab === 'promoters' ? 'bg-surface-elevated text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'
-                            }`}
-                    >
-                        <Zap className={`w-4 h-4 ${activeTab === 'promoters' ? 'text-accent-primary' : ''}`} />
-                        Promoters
-                        {pendingPromoterRequests.length > 0 && (
-                            <span className="ml-1 px-1.5 py-0.5 bg-accent-primary text-text-primary rounded-md text-[10px] font-bold">
-                                {pendingPromoterRequests.length}
-                            </span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('hosts')}
-                        className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2.5 ${activeTab === 'hosts' ? 'bg-surface-elevated text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'
-                            }`}
-                    >
-                        <UserCircle className={`w-4 h-4 ${activeTab === 'hosts' ? 'text-indigo-500' : ''}`} />
-                        Hosts
-                        {pendingHostRequests.length > 0 && (
-                            <span className="ml-1 px-1.5 py-0.5 bg-indigo-500 text-text-primary rounded-md text-[10px] font-bold">
-                                {pendingHostRequests.length}
-                            </span>
-                        )}
-                    </button>
-                    <div className="w-px h-4 bg-border-subtle mx-1" />
-                    <button
-                        onClick={() => setActiveTab('discover')}
-                        className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2.5 ${activeTab === 'discover' ? 'bg-surface-elevated text-text-primary shadow-sm' : 'text-text-tertiary hover:text-text-secondary'
-                            }`}
-                    >
-                        <Search className="w-4 h-4" />
-                        Discover
-                    </button>
-                </div>
-            </div>
-
-            {/* Content Container */}
-            <div className="min-h-[600px]">
-                {activeTab === 'discover' ? (
-                    <DiscoveryView
-                        allowedTypes={["host", "promoter"]}
-                        partnerId={venueId}
-                        role="venue"
-                    />
-                ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                        {/* Requests Column */}
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between px-2">
-                                <h3 className="text-body-sm font-semibold text-text-primary flex items-center gap-2">
-                                    <Clock className="w-4 h-4 text-text-tertiary" />
-                                    {activeTab === 'promoters' ? 'Promoter Requests' : 'Host Requests'}
-                                </h3>
-                                <span className="text-label text-text-tertiary bg-surface-secondary px-2 py-1 rounded-md">
-                                    {activeTab === 'promoters' ? pendingPromoterRequests.length : pendingHostRequests.length} Incoming
-                                </span>
-                            </div>
-
-                            <AnimatePresence mode="popLayout">
-                                {loading ? (
-                                    <div className="p-20 flex justify-center"><Loader2 className="w-8 h-8 text-text-placeholder animate-spin" /></div>
-                                ) : (activeTab === 'promoters' ? pendingPromoterRequests : pendingHostRequests).length === 0 ? (
-                                    <motion.div
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        className="py-16 card border-2 border-dashed border-border-default flex flex-col items-center text-center px-10"
-                                    >
-                                        <div className="w-14 h-14 rounded-2xl bg-accent-glow flex items-center justify-center mb-4">
-                                            <Clock className="w-7 h-7 text-accent-primary" />
-                                        </div>
-                                        <h4 className="text-title text-text-primary font-semibold">Quiet for now</h4>
-                                        <p className="text-body-sm text-text-secondary mt-2">Pending connection requests will appear here.</p>
-                                    </motion.div>
-                                ) : (activeTab === 'promoters' ? pendingPromoterRequests : pendingHostRequests).map((request: any) => (
+                    <AnimatePresence mode="popLayout">
+                        {loading ? (
+                            <div className="p-20 flex justify-center"><Loader2 className="w-8 h-8 text-text-placeholder animate-spin" /></div>
+                        ) : (pendingPromoterRequests.length + pendingHostRequests.length) === 0 ? (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="py-24 bg-surface-secondary border-2 border-dashed border-border-default rounded-[3rem] flex flex-col items-center text-center px-10"
+                            >
+                                <div className="w-16 h-16 rounded-2xl bg-accent-glow flex items-center justify-center mb-6">
+                                    <Clock className="w-8 h-8 text-accent-primary" />
+                                </div>
+                                <h4 className="text-title text-text-primary font-bold uppercase tracking-tight">Quiet for now</h4>
+                                <p className="text-body-sm text-text-secondary mt-2 max-w-xs">Incoming partnership requests from hosts and promoters will appear here.</p>
+                            </motion.div>
+                        ) : (
+                            <div className="space-y-4">
+                                {[...pendingPromoterRequests, ...pendingHostRequests]
+                                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                                    .map((request: any) => (
                                     <motion.div
                                         key={request.id}
                                         layout
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
                                         exit={{ opacity: 0, scale: 0.95 }}
-                                        className="group card p-6 pr-4 hover:shadow-md transition-all"
+                                        className="group relative overflow-hidden bg-surface-secondary border border-border-subtle p-6 rounded-[2rem]"
                                     >
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div className="flex items-start gap-4">
-                                                <div className="h-14 w-14 rounded-2xl bg-surface-tertiary flex items-center justify-center text-xl font-bold text-text-tertiary shrink-0">
-                                                    {(activeTab === 'promoters' ? (request.promoterName?.[0] || 'P') : (request.hostName?.[0] || 'H'))}
+                                        <div className="absolute inset-0 bg-gradient-to-r from-accent-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        
+                                        <div className="relative flex items-center justify-between">
+                                            <div className="flex items-center gap-5">
+                                                <div className="w-14 h-14 rounded-2xl bg-surface-tertiary flex items-center justify-center text-xl font-black text-text-primary shadow-sm border border-border-subtle">
+                                                    {(request.promoterName?.[0] || request.hostName?.[0] || '?')}
                                                 </div>
-                                                <div className="pt-0.5">
-                                                    <h4 className="text-title text-text-primary group-hover:text-accent-primary transition-colors">
-                                                        {activeTab === 'promoters' ? request.promoterName : request.hostName}
-                                                    </h4>
-                                                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                                                        <span className="text-caption text-text-tertiary flex items-center gap-1.5">
-                                                            <Clock className="w-3.5 h-3.5" /> {formatDate(request.createdAt)}
+                                                <div>
+                                                    <h3 className="text-xl font-black text-text-primary tracking-tight">
+                                                        {request.promoterName || request.hostName}
+                                                    </h3>
+                                                    <div className="flex items-center gap-3 mt-1.5">
+                                                        <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-accent-primary">
+                                                            {request.type === 'promoter_connection' ? <Zap className="w-3.5 h-3.5" /> : <UserCircle className="w-3.5 h-3.5" />}
+                                                            {request.type === 'promoter_connection' ? 'Promoter' : 'Host'}
                                                         </span>
-                                                        {(activeTab === 'promoters' ? request.promoterEmail : request.hostEmail) && (
-                                                            <span className="text-caption text-text-tertiary flex items-center gap-1.5">
-                                                                <Mail className="w-3.5 h-3.5" /> {activeTab === 'promoters' ? request.promoterEmail : request.hostEmail}
-                                                            </span>
-                                                        )}
+                                                        <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">•</span>
+                                                        <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">
+                                                            Received {formatDate(request.createdAt)}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div className="flex gap-2 p-1">
+                                            <div className="flex items-center gap-3">
                                                 <button
-                                                    onClick={() => handleAction(request.id, 'approve', activeTab === 'promoters' ? 'promoter' : 'host')}
+                                                    onClick={() => handleAction(request.id, 'approve', request.type === 'promoter_connection' ? 'promoter' : 'host')}
                                                     disabled={!!processingRequest}
-                                                    className="btn btn-primary h-10 px-4"
+                                                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-rose-600 hover:from-orange-400 hover:to-rose-500 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-orange-500/20 transition-all active:scale-95 disabled:opacity-50"
                                                 >
                                                     {processingRequest === request.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Approve'}
                                                 </button>
                                                 <button
-                                                    onClick={() => handleAction(request.id, 'reject', activeTab === 'promoters' ? 'promoter' : 'host')}
+                                                    onClick={() => handleAction(request.id, 'reject', request.type === 'promoter_connection' ? 'promoter' : 'host')}
                                                     disabled={!!processingRequest}
-                                                    className="h-10 w-10 rounded-xl bg-surface-tertiary text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-500 transition-all active:scale-95 disabled:opacity-50"
-                                                    title="Reject"
+                                                    className="h-12 w-12 rounded-xl bg-surface-tertiary border border-border-subtle text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
                                                 >
                                                     <X className="w-5 h-5" />
                                                 </button>
-                                                <button
-                                                    onClick={() => {
-                                                        const reason = window.prompt("Reason for blocking (optional):");
-                                                        if (reason !== null) handleAction(request.id, 'block', activeTab === 'promoters' ? 'promoter' : 'host');
-                                                    }}
-                                                    disabled={!!processingRequest}
-                                                    className="h-10 w-10 rounded-xl bg-surface-tertiary text-text-tertiary flex items-center justify-center hover:bg-text-primary hover:text-text-inverse transition-all active:scale-95 disabled:opacity-50"
-                                                    title="Block"
-                                                >
-                                                    <ShieldAlert className="w-5 h-5" />
-                                                </button>
                                             </div>
                                         </div>
+
                                         {request.message && (
-                                            <div className="mt-5 p-4 bg-surface-secondary rounded-2xl border border-border-subtle">
-                                                <p className="text-body-sm text-text-secondary italic">"{request.message}"</p>
+                                            <div className="mt-5 p-4 bg-surface-tertiary/50 rounded-2xl border border-border-subtle">
+                                                <p className="text-[13px] text-text-secondary italic">"{request.message}"</p>
                                             </div>
                                         )}
                                     </motion.div>
-                                ))
-                                }
-                            </AnimatePresence>
-                        </div>
-
-                        {/* Approved Column */}
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between px-2">
-                                <h3 className="text-body-sm font-semibold text-text-primary flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4 text-accent-primary" />
-                                    {activeTab === 'promoters' ? 'Partnered Promoters' : 'Verified Hosts'}
-                                </h3>
-                                <span className="text-label text-accent-primary bg-green-500/10 px-2 py-1 rounded-md">
-                                    {activeTab === 'promoters' ? approvedPromoterConnections.length : approvedHostPartnerships.length} Active
-                                </span>
+                                ))}
                             </div>
-
-                            <div className="space-y-3">
-                                {(activeTab === 'promoters' ? approvedPromoterConnections : approvedHostPartnerships).length === 0 ? (
-                                    <div className="py-16 card border-2 border-dashed border-border-default flex flex-col items-center text-center px-10">
-                                        <div className="w-14 h-14 rounded-2xl bg-green-500/10 flex items-center justify-center mb-4">
-                                            <CheckCircle2 className="w-7 h-7 text-accent-primary" />
-                                        </div>
-                                        <h4 className="text-title text-text-primary font-semibold">No active network</h4>
-                                        <p className="text-body-sm text-text-secondary mt-2">Once approved, partners will appear here.</p>
-                                    </div>
-                                ) : (activeTab === 'promoters' ? approvedPromoterConnections : approvedHostPartnerships).map((conn: any) => (
-                                    <motion.div
-                                        key={conn.id}
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        className="card p-5 flex items-center justify-between hover:shadow-md transition-all group"
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-12 w-12 rounded-2xl bg-surface-tertiary flex items-center justify-center text-lg font-bold text-text-tertiary">
-                                                {(activeTab === 'promoters' ? (conn.promoterName?.[0] || 'P') : (conn.hostName?.[0] || 'H'))}
-                                            </div>
-                                            <div>
-                                                <h4 className="font-semibold text-text-primary group-hover:text-accent-primary transition-colors">
-                                                    {activeTab === 'promoters' ? conn.promoterName : conn.hostName}
-                                                </h4>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className="text-caption text-text-tertiary">Since {formatDate(conn.updatedAt || conn.createdAt)}</span>
-                                                    <span className="h-1 w-1 rounded-full bg-green-500" />
-                                                    <span className="text-caption font-semibold text-accent-primary">Active</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button className="h-10 w-10 bg-surface-tertiary rounded-xl flex items-center justify-center text-text-tertiary hover:bg-surface-elevated hover:text-text-primary transition-all active:scale-95">
-                                            <ChevronRight className="w-5 h-5" />
-                                        </button>
-                                    </motion.div>
-                                ))
-                                }
-                            </div>
-                        </div>
-                    </div>
-                )}
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
         </div>
     );

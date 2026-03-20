@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { useGuestOpsShellData } from "@/lib/hooks/useGuestOpsShellData";
 import { VENUE_PERMISSIONS } from "@/lib/rbac/types";
 import { cn } from "@/lib/utils";
 import {
     Settings2, Save, Loader2, AlertTriangle, CheckCircle2, Lock,
     Users, Plus, Minus, ScanLine,
 } from "lucide-react";
-import type { GuestRules, GuestAllocation, GuestOpsOverview } from "@/lib/types/guestOps";
+import type { GuestRules, GuestAllocation } from "@/lib/types/guestOps";
 
 type ToggleField =
     | "entryCutoffEnabled"
@@ -23,16 +23,12 @@ type ToggleField =
 
 export default function GuestRulesPageClient() {
     const { profile } = useDashboardAuth();
-    const searchParams = useSearchParams();
-    const venueId = profile?.activeMembership?.partnerId ?? "";
-    const eventId = searchParams.get("eventId") ?? "";
     const role = profile?.activeMembership?.role ?? "";
 
-    // Shell state
-    const [events, setEvents] = useState<any[]>([]);
-    const [summary, setSummary] = useState<GuestOpsOverview | null>(null);
-    const [openExceptions, setOpenExceptions] = useState(0);
-    const [shellLoading, setShellLoading] = useState(true);
+    const {
+        eventId, venueId, events, summary, openExceptions,
+        isLoading: shellLoading, authHeaders,
+    } = useGuestOpsShellData();
 
     // Rules state
     const [rules, setRules] = useState<GuestRules | null>(null);
@@ -49,23 +45,12 @@ export default function GuestRulesPageClient() {
     const canManage = permissions.includes("MANAGE_GUEST_OPS");
     const isOwner = role === "OWNER";
 
-    const authHeaders = useCallback(() => ({
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${(profile as any)?._token ?? ""}`,
-    }), [profile]);
-
-    const fetchAll = useCallback(async () => {
+    const fetchRulesAndAllocations = useCallback(async () => {
         if (!eventId || !venueId) return;
-        const [evRes, sumRes, excRes, rulesRes, allocRes] = await Promise.all([
-            fetch(`/api/venue/events?venueId=${venueId}`, { headers: authHeaders() }),
-            fetch(`/api/venue/guest-ops/${eventId}/summary?venueId=${venueId}`, { headers: authHeaders() }),
-            fetch(`/api/venue/guest-ops/${eventId}/exceptions?venueId=${venueId}&status=open`, { headers: authHeaders() }),
+        const [rulesRes, allocRes] = await Promise.all([
             fetch(`/api/venue/guest-ops/${eventId}/guest-rules?venueId=${venueId}`, { headers: authHeaders() }),
             fetch(`/api/venue/guest-ops/${eventId}/host-allocations/all?venueId=${venueId}`, { headers: authHeaders() }),
         ]);
-        if (evRes.ok) { const d = await evRes.json(); setEvents(d.events ?? []); }
-        if (sumRes.ok) setSummary(await sumRes.json());
-        if (excRes.ok) { const d = await excRes.json(); setOpenExceptions(d.openCount ?? 0); }
         if (rulesRes.ok) {
             const d = await rulesRes.json();
             setRules(d);
@@ -78,10 +63,8 @@ export default function GuestRulesPageClient() {
     }, [eventId, venueId, authHeaders]);
 
     useEffect(() => {
-        if (!eventId) { setShellLoading(false); return; }
-        setShellLoading(true);
-        fetchAll().finally(() => setShellLoading(false));
-    }, [eventId, fetchAll]);
+        fetchRulesAndAllocations();
+    }, [fetchRulesAndAllocations]);
 
     const updateDraft = useCallback(<K extends keyof GuestRules>(key: K, value: GuestRules[K]) => {
         setDraftRules(prev => ({ ...prev, [key]: value }));

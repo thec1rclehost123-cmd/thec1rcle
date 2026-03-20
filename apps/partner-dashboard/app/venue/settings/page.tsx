@@ -1,5 +1,12 @@
-import PageClient from './PageClient';
+import { Suspense } from "react";
+import SettingsHub from "./SettingsHub";
 
-export default function Page(props: any) {
-  return <PageClient {...props} />;
+export const metadata = { title: "Settings — Venue" };
+
+export default function SettingsPage() {
+    return (
+        <Suspense>
+            <SettingsHub />
+        </Suspense>
+    );
 }

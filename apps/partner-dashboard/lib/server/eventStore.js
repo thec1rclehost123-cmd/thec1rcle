@@ -232,12 +232,40 @@ export async function getEventGuestlist(eventId, limit = 50, token) {
 export async function listEventsForPromoter({ promoterId, city, limit = 20 } = {}, token) {
     const db = getAdminDb();
     try {
-        const snapshot = await db.collection(EVENT_COLLECTION)
-            .where("promotersEnabled", "==", true)
-            .where("lifecycle", "in", ["scheduled", "live"])
-            .limit(limit)
-            .get();
+        // Fetch events and approved partner IDs in parallel
+        const [snapshot, connectionsSnap] = await Promise.all([
+            db.collection(EVENT_COLLECTION)
+                .where("promotersEnabled", "==", true)
+                .where("lifecycle", "in", ["scheduled", "live"])
+                .limit(limit * 5) // Fetch extra before filtering by partnership
+                .get(),
+            promoterId
+                ? db.collection("promoter_connections")
+                    .where("promoterId", "==", promoterId)
+                    .where("status", "in", ["approved", "active"])
+                    .get()
+                : Promise.resolve({ docs: [] })
+        ]);
+
+        // Build a set of approved partner IDs (hostId or venueId)
+        const approvedTargetIds = new Set(
+            connectionsSnap.docs.map(d => d.data().targetId)
+        );
+
         let events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Gate: only show events from approved partners
+        if (promoterId && approvedTargetIds.size > 0) {
+            events = events.filter(e =>
+                approvedTargetIds.has(e.hostId) ||
+                approvedTargetIds.has(e.venueId) ||
+                approvedTargetIds.has(e.creatorId)
+            );
+        } else if (promoterId) {
+            // Promoter has no approved connections — show nothing
+            events = [];
+        }
+
         if (city) {
             const c = city.toLowerCase();
             events = events.filter(e =>
@@ -249,7 +277,7 @@ export async function listEventsForPromoter({ promoterId, city, limit = 20 } = {
             const dateB = b.startDate ? new Date(b.startDate) : new Date(0);
             return dateA - dateB;
         });
-        return serialize(events);
+        return serialize(events.slice(0, limit));
     } catch (error) {
         console.error("[EventStore] listEventsForPromoter failed:", error.message);
         return [];

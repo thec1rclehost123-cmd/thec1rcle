@@ -1,12 +1,14 @@
+"use client";
+
 import { PromoterClientWrapper } from "@/components/layout/PromoterClientWrapper";
 import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
 import {
     LayoutDashboard,
     Ticket,
-    Calendar,
     Link2,
-    Fingerprint,
+    Calendar,
     Handshake,
+    BarChart3,
     Wallet,
     Settings,
 } from "lucide-react";
@@ -15,21 +17,13 @@ const MENU_SECTIONS = [
     {
         items: [
             { icon: LayoutDashboard, label: "Overview",  href: "/promoter" },
+            { icon: Link2,           label: "Links",     href: "/promoter/links" },
             { icon: Ticket,          label: "Events",    href: "/promoter/events" },
-            { icon: Calendar,        label: "Calendar",  href: "/promoter/calendar" },
-        ],
-    },
-    {
-        items: [
-            { icon: Link2,        label: "MyLinks",      href: "/promoter/links" },
-            { icon: Fingerprint,  label: "Persona",      href: "/promoter/persona" },
-            { icon: Handshake,    label: "Partnerships", href: "/promoter/partnerships" },
-        ],
-    },
-    {
-        items: [
-            { icon: Wallet,   label: "Finance",  href: "/promoter/finance" },
-            { icon: Settings, label: "Settings", href: "/promoter/settings" },
+            { icon: Calendar,        label: "Calendar",  href: "/promoter/events?view=calendar" },
+            { icon: Handshake,       label: "Partners",  href: "/promoter/partners" },
+            { icon: BarChart3,       label: "Analytics", href: "/promoter/analytics" },
+            { icon: Wallet,          label: "Finance",   href: "/promoter/finance" },
+            { icon: Settings,        label: "Settings",  href: "/promoter/settings" },
         ],
     },
 ];

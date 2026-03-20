@@ -18,7 +18,11 @@ export type VenueTab =
     | "registers"
     | "page_management"
     | "settings"
-    | "guest_ops";
+    | "guest_ops"
+    // Hub tabs (new nav structure)
+    | "door"
+    | "partners"
+    | "presence";
 
 // ── Action-level permissions ──────────────────────────────────────────────────
 export type StaffAction =
@@ -138,6 +142,10 @@ export const MANAGER_TABS: Partial<Record<VenueTab, boolean>> = {
     page_management: true,
     settings: false,
     finance: false,
+    // Hub tabs
+    door: true,
+    partners: true,
+    presence: true,
 };
 
 export const STAFF_TABS: Partial<Record<VenueTab, boolean>> = {
@@ -151,6 +159,10 @@ export const STAFF_TABS: Partial<Record<VenueTab, boolean>> = {
     calendar: false,
     staff: false,
     settings: false,
+    // Hub tabs
+    door: true,
+    partners: false,
+    presence: false,
 };
 
 export const SECURITY_TABS: Partial<Record<VenueTab, boolean>> = {
@@ -164,6 +176,10 @@ export const SECURITY_TABS: Partial<Record<VenueTab, boolean>> = {
     calendar: false,
     staff: false,
     settings: false,
+    // Hub tabs
+    door: true,
+    partners: false,
+    presence: false,
 };
 
 export const FINANCE_ADMIN_TABS: Partial<Record<VenueTab, boolean>> = {
@@ -176,6 +192,10 @@ export const FINANCE_ADMIN_TABS: Partial<Record<VenueTab, boolean>> = {
     staff: false,
     guest_ops: false,
     settings: false,
+    // Hub tabs
+    door: false,
+    partners: false,
+    presence: false,
 };
 
 export const ROLE_DEFAULT_TABS: Record<VenueRole, Partial<Record<VenueTab, boolean>>> = {

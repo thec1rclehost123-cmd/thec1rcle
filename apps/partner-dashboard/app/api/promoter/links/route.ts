@@ -56,6 +56,8 @@ export async function POST(req: NextRequest) {
             promoterId,
             promoterName,
             eventId,
+            campaignLabel,
+            channel,
             ticketTierIds,
             customCommission
         } = body;
@@ -109,17 +111,25 @@ export async function POST(req: NextRequest) {
             promoterName: promoterName || "Promoter",
             eventId,
             eventTitle: event.title,
+            campaignLabel: campaignLabel || undefined,
+            channel: channel || undefined,
             ticketTierIds: ticketTierIds || [],
             commissionRate,
             commissionType: "percentage"
         });
 
-        return NextResponse.json({ link }, { status: 201 });
+        // 409 from gateway = duplicate — return existing link with flag
+        return NextResponse.json({ link, duplicate: false }, { status: 201 });
     } catch (error: any) {
         console.error("[Promoter Links API] POST Error:", error);
+        if (error.status === 409 || error.message?.includes("already") || error.message?.includes("exists")) {
+            // Gateway returned existing link in error body
+            const existingLink = error.data?.link || null;
+            return NextResponse.json({ link: existingLink, duplicate: true }, { status: 200 });
+        }
         return NextResponse.json(
             { error: error.message || "Failed to create promoter link" },
-            { status: error.message?.includes("already have") ? 409 : 500 }
+            { status: 500 }
         );
     }
 }

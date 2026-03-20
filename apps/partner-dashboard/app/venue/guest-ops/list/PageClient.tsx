@@ -1,20 +1,20 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams } from "next/navigation";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { GuestSourceChip } from "@/components/guest-ops/chips/GuestSourceChip";
 import { GuestStatusChip } from "@/components/guest-ops/chips/GuestStatusChip";
 import { GuestDetailDrawer } from "@/components/guest-ops/GuestDetailDrawer";
 import { AddGuestModal } from "@/components/guest-ops/modals/AddGuestModal";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { useGuestOpsShellData } from "@/lib/hooks/useGuestOpsShellData";
 import { VENUE_PERMISSIONS } from "@/lib/rbac/types";
 import { cn } from "@/lib/utils";
 import {
     Plus, Search, Loader2, AlertTriangle, ChevronDown, ChevronUp, Download,
     UserPlus, Filter, Check,
 } from "lucide-react";
-import type { GuestRecord, GuestOpsOverview } from "@/lib/types/guestOps";
+import type { GuestRecord } from "@/lib/types/guestOps";
 
 const FILTER_TABS = [
     { label: "All",        value: "all" },
@@ -41,10 +41,11 @@ const TABLE_COLS = [
 
 export default function GuestListPageClient() {
     const { profile } = useDashboardAuth();
-    const searchParams = useSearchParams();
-    const venueId = profile?.activeMembership?.partnerId ?? "";
-    const eventId = searchParams.get("eventId") ?? "";
     const role = profile?.activeMembership?.role ?? "";
+
+    const {
+        eventId, venueId, events, summary, openExceptions, authHeaders,
+    } = useGuestOpsShellData();
 
     const [guests, setGuests] = useState<GuestRecord[]>([]);
     const [total, setTotal] = useState(0);
@@ -56,9 +57,6 @@ export default function GuestListPageClient() {
     const [search, setSearch] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
-    const [events, setEvents] = useState<any[]>([]);
-    const [summary, setSummary] = useState<GuestOpsOverview | null>(null);
-    const [openExceptions, setOpenExceptions] = useState(0);
     const [selectedGuest, setSelectedGuest] = useState<GuestRecord | null>(null);
     const [showAddModal, setShowAddModal] = useState(false);
     const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -66,11 +64,6 @@ export default function GuestListPageClient() {
     const permissions = VENUE_PERMISSIONS[role as keyof typeof VENUE_PERMISSIONS] ?? [];
     const canManage = permissions.includes("MANAGE_GUEST_OPS");
     const canExport = permissions.includes("EXPORT_GUESTS");
-
-    const authHeaders = useCallback(() => ({
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${(profile as any)?._token ?? ""}`,
-    }), [profile]);
 
     const fetchGuests = useCallback(async (cursor?: string) => {
         if (!eventId || !venueId) return;
@@ -96,19 +89,6 @@ export default function GuestListPageClient() {
         }
     }, [eventId, venueId, filter, sortField, sortDir, authHeaders]);
 
-    const fetchContext = useCallback(async () => {
-        if (!eventId || !venueId) return;
-        const [sumRes, excRes, eventsRes] = await Promise.all([
-            fetch(`/api/venue/guest-ops/${eventId}/summary?venueId=${venueId}`, { headers: authHeaders() }),
-            fetch(`/api/venue/guest-ops/${eventId}/exceptions?venueId=${venueId}&status=open`, { headers: authHeaders() }),
-            fetch(`/api/venue/events?venueId=${venueId}`, { headers: authHeaders() }),
-        ]);
-        if (sumRes.ok) setSummary(await sumRes.json());
-        if (excRes.ok) { const d = await excRes.json(); setOpenExceptions(d.openCount ?? 0); }
-        if (eventsRes.ok) { const d = await eventsRes.json(); setEvents(d.events ?? []); }
-    }, [eventId, venueId, authHeaders]);
-
-    useEffect(() => { fetchContext(); }, [fetchContext]);
     useEffect(() => { fetchGuests(); }, [fetchGuests]);
 
     // Search debounce — triggers a separate search query

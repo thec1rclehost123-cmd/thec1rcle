@@ -83,12 +83,12 @@ function VenueCard({ venue, onRequest }: { venue: VenuePartner; onRequest: (id: 
             className="group relative rounded-[32px] bg-[var(--v-card)] border border-[var(--v-border)] hover:bg-[var(--v-elevated)] transition-all overflow-hidden"
         >
             {/* Cover */}
-            <div className="h-40 bg-white/5 relative overflow-hidden">
+            <div className="h-40 bg-surface-tertiary relative overflow-hidden">
                 {venue.coverImage ? (
                     <img src={venue.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                 ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <Building2 className="w-12 h-12 text-white/5" />
+                        <Building2 className="w-12 h-12 text-text-tertiary" />
                     </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
@@ -101,7 +101,7 @@ function VenueCard({ venue, onRequest }: { venue: VenuePartner; onRequest: (id: 
             </div>
 
             <div className="p-7">
-                <h3 className="text-[18px] font-black text-white tracking-tight truncate">{venue.name}</h3>
+                <h3 className="text-[18px] font-black text-text-primary tracking-tight truncate">{venue.name}</h3>
                 <div className="flex items-center gap-2 text-[14px] text-[var(--v-text-tertiary)] font-bold mt-2 mb-6">
                     <MapPin className="w-4 h-4 shrink-0" />
                     <span>{venue.city}</span>
@@ -154,12 +154,12 @@ function PromoterCard({ promoter, onInvite }: { promoter: PromoterPartner; onInv
             className="group rounded-[32px] bg-[var(--v-card)] border border-[var(--v-border)] hover:bg-[var(--v-elevated)] transition-all p-8"
         >
             <div className="flex items-center gap-5 mb-8">
-                <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-white font-black text-[20px] shrink-0 overflow-hidden border border-white/5 relative">
+                <div className="w-16 h-16 rounded-2xl bg-surface-tertiary flex items-center justify-center text-text-primary font-black text-[20px] shrink-0 overflow-hidden border border-border-subtle relative">
                     {promoter.photoURL ? <img src={promoter.photoURL} alt="" className="w-full h-full object-cover" /> : initials}
                     <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-transparent" />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <h3 className="text-[17px] font-black text-white truncate tracking-tight">{promoter.displayName}</h3>
+                    <h3 className="text-[17px] font-black text-text-primary truncate tracking-tight">{promoter.displayName}</h3>
                     {promoter.handle && <p className="text-[13px] text-[var(--v-text-tertiary)] font-bold">@{promoter.handle}</p>}
                 </div>
                 <div className="px-3 py-1.5 rounded-xl text-[12px] font-black uppercase tracking-widest border shrink-0"
@@ -171,16 +171,16 @@ function PromoterCard({ promoter, onInvite }: { promoter: PromoterPartner; onInv
             {/* Stats */}
             {promoter.partnershipStatus === "active" && (
                 <div className="grid grid-cols-3 gap-3 mb-8">
-                    <div className="text-center p-4 rounded-2xl bg-white/5 border border-white/5">
-                        <p className="text-[18px] font-black text-white tabular-nums">{promoter.totalGuestsBrought ?? 0}</p>
+                    <div className="text-center p-4 rounded-2xl bg-surface-tertiary border border-border-subtle">
+                        <p className="text-[18px] font-black text-text-primary tabular-nums">{promoter.totalGuestsBrought ?? 0}</p>
                         <p className="text-[12px] text-[var(--v-text-muted)] uppercase tracking-widest font-black mt-1">Guests</p>
                     </div>
-                    <div className="text-center p-4 rounded-2xl bg-white/5 border border-white/5">
-                        <p className="text-[18px] font-black text-white tabular-nums">{promoter.conversionRate ? `${promoter.conversionRate.toFixed(0)}%` : "—"}</p>
+                    <div className="text-center p-4 rounded-2xl bg-surface-tertiary border border-border-subtle">
+                        <p className="text-[18px] font-black text-text-primary tabular-nums">{promoter.conversionRate ? `${promoter.conversionRate.toFixed(0)}%` : "—"}</p>
                         <p className="text-[12px] text-[var(--v-text-muted)] uppercase tracking-widest font-black mt-1">ROI</p>
                     </div>
-                    <div className="text-center p-4 rounded-2xl bg-white/5 border border-white/5">
-                        <p className="text-[18px] font-black text-white tabular-nums">{promoter.eventsSupported ?? 0}</p>
+                    <div className="text-center p-4 rounded-2xl bg-surface-tertiary border border-border-subtle">
+                        <p className="text-[18px] font-black text-text-primary tabular-nums">{promoter.eventsSupported ?? 0}</p>
                         <p className="text-[12px] text-[var(--v-text-muted)] uppercase tracking-widest font-black mt-1">Windows</p>
                     </div>
                 </div>
@@ -222,11 +222,11 @@ function RequestRow({ req }: { req: PartnershipRequest }) {
 
     return (
         <div className="flex items-center gap-6 px-7 py-5 rounded-[24px] bg-[var(--v-card)] border border-[var(--v-border)] hover:bg-[var(--v-elevated)] transition-all">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border border-white/5" style={{ background: `${s.color}08` }}>
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border border-border-subtle" style={{ background: `${s.color}08` }}>
                 {req.type === "venue" ? <Building2 className="w-6 h-6" style={{ color: s.color }} /> : <Users className="w-6 h-6" style={{ color: s.color }} />}
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-[16px] font-black text-white truncate tracking-tight">{req.partnerName}</p>
+                <p className="text-[16px] font-black text-text-primary truncate tracking-tight">{req.partnerName}</p>
                 <div className="flex items-center gap-3 text-[13px] text-[var(--v-text-tertiary)] font-bold mt-1">
                     <span className="capitalize">{req.type}</span>
                     <span className="opacity-20">·</span>
@@ -365,11 +365,11 @@ export default function HostNetworkPage() {
                         const Icon = stat.icon;
                         return (
                             <div key={stat.label} className="flex items-center gap-5 p-8 rounded-[32px] bg-[var(--v-card)] border border-[var(--v-border)]">
-                                <div className="w-14 h-14 rounded-2xl flex items-center justify-center border border-white/5 shadow-xl" style={{ background: `${stat.color}10` }}>
+                                <div className="w-14 h-14 rounded-2xl flex items-center justify-center border border-border-subtle shadow-xl" style={{ background: `${stat.color}10` }}>
                                     <Icon className="w-7 h-7" style={{ color: stat.color }} />
                                 </div>
                                 <div>
-                                    <p className="text-3xl font-black text-white tabular-nums tracking-tight">{stat.value.toLocaleString()}</p>
+                                    <p className="text-3xl font-black text-text-primary tabular-nums tracking-tight">{stat.value.toLocaleString()}</p>
                                     <p className="text-[13px] text-[var(--v-text-tertiary)] font-black uppercase tracking-[0.1em]">{stat.label}</p>
                                 </div>
                             </div>
@@ -384,11 +384,11 @@ export default function HostNetworkPage() {
                             <button
                                 key={t.id}
                                 onClick={() => setTab(t.id)}
-                                className={`px-7 py-3 rounded-[16px] text-[13px] font-black uppercase tracking-wider transition-all flex items-center gap-3 ${tab === t.id ? "bg-[var(--v-elevated)] text-white shadow-lg" : "text-[var(--v-text-tertiary)] hover:text-white"}`}
+                                className={`px-7 py-3 rounded-[16px] text-[13px] font-black uppercase tracking-wider transition-all flex items-center gap-3 ${tab === t.id ? "bg-[var(--v-elevated)] text-text-primary shadow-lg" : "text-[var(--v-text-tertiary)] hover:text-text-primary"}`}
                             >
                                 {t.label}
                                 {t.count !== undefined && t.count > 0 && (
-                                    <span className={`px-2 py-0.5 rounded-md text-[12px] font-black tabular-nums ${tab === t.id ? "bg-white/10 text-white" : "bg-white/5 text-[var(--v-text-muted)]"}`}>
+                                    <span className={`px-2 py-0.5 rounded-md text-[12px] font-black tabular-nums ${tab === t.id ? "bg-surface-elevated text-text-primary" : "bg-surface-tertiary text-text-tertiary"}`}>
                                         {t.count}
                                     </span>
                                 )}
@@ -403,7 +403,7 @@ export default function HostNetworkPage() {
                                 placeholder={tab === "venues" ? "Locate infrastructure..." : "Locate distribution..."}
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                className="w-full bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] pl-14 pr-6 py-4 text-[15px] text-white placeholder:text-[var(--v-text-muted)] focus:outline-none focus:border-[var(--v-orange)]/50 transition-all font-bold tracking-tight shadow-sm"
+                                className="w-full bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] pl-14 pr-6 py-4 text-[15px] text-text-primary placeholder:text-[var(--v-text-muted)] focus:outline-none focus:border-[var(--v-orange)]/50 transition-all font-bold tracking-tight shadow-sm"
                             />
                         </div>
                     )}
@@ -419,10 +419,10 @@ export default function HostNetworkPage() {
                                 </div>
                             ) : filteredVenues.length === 0 ? (
                                 <div className="py-32 rounded-[56px] bg-[var(--v-card)] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-12">
-                                    <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-8">
-                                        <Building2 className="w-10 h-10 text-white/10" />
+                                    <div className="w-20 h-20 rounded-full bg-surface-tertiary flex items-center justify-center mb-8">
+                                        <Building2 className="w-10 h-10 text-text-tertiary" />
                                     </div>
-                                    <h3 className="text-2xl font-black text-white">No infrastructure connections</h3>
+                                    <h3 className="text-2xl font-black text-text-primary">No infrastructure connections</h3>
                                     <p className="text-[15px] text-[var(--v-text-tertiary)] mt-3 mb-10 max-w-sm leading-relaxed">Discover venues across the network and request production access to their calendar.</p>
                                     <Link href="/host/discover">
                                         <VenueActionButton variant="primary" className="h-12 px-8">
@@ -448,10 +448,10 @@ export default function HostNetworkPage() {
                                 </div>
                             ) : filteredPromoters.length === 0 ? (
                                 <div className="py-32 rounded-[56px] bg-[var(--v-card)] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-12">
-                                    <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-8">
-                                        <Users className="w-10 h-10 text-white/10" />
+                                    <div className="w-20 h-20 rounded-full bg-surface-tertiary flex items-center justify-center mb-8">
+                                        <Users className="w-10 h-10 text-text-tertiary" />
                                     </div>
-                                    <h3 className="text-2xl font-black text-white">No distribution network</h3>
+                                    <h3 className="text-2xl font-black text-text-primary">No distribution network</h3>
                                     <p className="text-[15px] text-[var(--v-text-tertiary)] mt-3 mb-10 max-w-sm leading-relaxed">Invite promoters to amplify your productions and drive verified attendance.</p>
                                 </div>
                             ) : (
@@ -472,10 +472,10 @@ export default function HostNetworkPage() {
                                 </div>
                             ) : requests.length === 0 ? (
                                 <div className="py-32 rounded-[56px] bg-[var(--v-card)] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-12">
-                                    <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-8">
-                                        <Handshake className="w-10 h-10 text-white/10" />
+                                    <div className="w-20 h-20 rounded-full bg-surface-tertiary flex items-center justify-center mb-8">
+                                        <Handshake className="w-10 h-10 text-text-tertiary" />
                                     </div>
-                                    <h3 className="text-2xl font-black text-white">Audit log empty</h3>
+                                    <h3 className="text-2xl font-black text-text-primary">Audit log empty</h3>
                                     <p className="text-[15px] text-[var(--v-text-tertiary)] mt-3">Active partnership audits will appear here for verification.</p>
                                 </div>
                             ) : (

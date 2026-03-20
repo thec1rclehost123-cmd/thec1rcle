@@ -5,6 +5,7 @@ import {
     rejectConnectionRequest,
     revokeConnection
 } from "@/lib/server/promoterConnectionStore";
+import { verifyAuth } from "@/lib/server/auth";
 
 /**
  * GET /api/host/promoter-requests
@@ -12,6 +13,9 @@ import {
  */
 export async function GET(req: NextRequest) {
     try {
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
         const { searchParams } = new URL(req.url);
         const hostId = searchParams.get("hostId");
         const status = searchParams.get("status");
@@ -45,6 +49,9 @@ export async function GET(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
     try {
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
         const body = await req.json();
         const { connectionId, action, hostId, hostName, reason } = body;
 

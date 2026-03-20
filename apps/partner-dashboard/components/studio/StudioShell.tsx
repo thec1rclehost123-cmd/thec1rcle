@@ -8,7 +8,7 @@ import {
     BarChart3, CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams, useRouter } from "next/navigation";
 
 interface StudioShellProps {
     children: ReactNode;
@@ -28,9 +28,13 @@ export default function StudioShell({
     onEventChange,
 }: StudioShellProps) {
     const pathname = usePathname();
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const urlEventId = searchParams.get("eventId");
+
     const { user, profile } = useDashboardAuth();
     const [range, setRange] = useState("30d");
-    const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+    const [selectedEventId, setSelectedEventId] = useState<string | null>(urlEventId);
     const [isEventSelectorOpen, setIsEventSelectorOpen] = useState(false);
     const [venueEvents, setVenueEvents] = useState<{ id: string; title: string }[]>([]);
     const [eventSearch, setEventSearch] = useState("");
@@ -54,6 +58,14 @@ export default function StudioShell({
             })
             .catch(() => {});
     }, [profile, user]);
+
+    // Deep-sync selectedEventId with URL on mount/change
+    useEffect(() => {
+        if (urlEventId && urlEventId !== selectedEventId) {
+            setSelectedEventId(urlEventId);
+            onEventChange?.(urlEventId);
+        }
+    }, [urlEventId]);
 
     // Close dropdown on outside click
     useEffect(() => {
@@ -104,82 +116,90 @@ export default function StudioShell({
     ];
 
     return (
-        <div style={{ minHeight: "100vh", background: "var(--v-bg, #0e0e10)" }}>
+        <div style={{ minHeight: "100vh", background: "var(--v-canvas, #111113)" }}>
 
             {/* ── Sticky header ──────────────────────────────────────────── */}
             <div
                 className="sticky top-0 z-30"
                 style={{
-                    background: "rgba(14,14,16,0.85)",
-                    backdropFilter: "blur(20px)",
-                    WebkitBackdropFilter: "blur(20px)",
-                    borderBottom: "1px solid var(--v-border)",
+                    background: "rgba(10,10,11,0.92)",
+                    backdropFilter: "blur(24px)",
+                    WebkitBackdropFilter: "blur(24px)",
+                    borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 8px 32px rgba(0,0,0,0.4)",
                 }}
             >
                 {/* Top bar */}
-                <div className="px-8 py-3.5 flex items-center justify-between gap-4">
+                <div className="px-6 py-3 flex items-center justify-between gap-4">
 
                     {/* Left: wordmark + status + event picker */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
 
                         {/* Wordmark */}
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2.5 shrink-0">
                             <div
-                                className="w-7 h-7 rounded-lg flex items-center justify-center"
-                                style={{ background: "var(--v-orange)", boxShadow: "0 0 12px rgba(244,74,34,0.4)" }}
+                                className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                                style={{
+                                    background: "linear-gradient(135deg, var(--v-orange) 0%, #cc3311 100%)",
+                                    boxShadow: "0 0 16px rgba(244,74,34,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
+                                }}
                             >
-                                <Activity className="w-3.5 h-3.5 text-white" />
+                                <Activity className="w-4 h-4 text-white" />
                             </div>
                             <span
-                                className="text-[15px] font-black tracking-tight"
-                                style={{ color: "var(--v-text-primary)" }}
+                                className="text-[14px] font-black tracking-[0.12em] uppercase"
+                                style={{ color: "var(--v-text-primary)", letterSpacing: "0.12em" }}
                             >
-                                STATS
+                                Stats
                             </span>
                         </div>
 
                         {/* Separator */}
-                        <div className="w-px h-5" style={{ background: "var(--v-border)" }} />
+                        <div className="w-px h-5 shrink-0 opacity-20" style={{ background: "linear-gradient(180deg, transparent, #FFF, transparent)" }} />
 
                         {/* Running Well pill */}
                         <div
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full shrink-0"
                             style={{
-                                background: "rgba(52,211,153,0.10)",
-                                border: "1px solid rgba(52,211,153,0.22)",
+                                background: "rgba(52,211,153,0.08)",
+                                border: "1px solid rgba(52,211,153,0.18)",
                             }}
                         >
                             <span
-                                className="w-1.5 h-1.5 rounded-full animate-pulse"
-                                style={{ background: "var(--v-success)" }}
+                                className="w-1.5 h-1.5 rounded-full"
+                                style={{
+                                    background: "#34D399",
+                                    boxShadow: "0 0 6px rgba(52,211,153,0.7)",
+                                    animation: "pulse 2s cubic-bezier(0.4,0,0.6,1) infinite",
+                                }}
                             />
                             <span
-                                className="text-[10px] font-black uppercase tracking-widest"
-                                style={{ color: "var(--v-success)" }}
+                                className="text-[9px] font-black uppercase tracking-[0.14em]"
+                                style={{ color: "#34D399" }}
                             >
                                 Running Well
                             </span>
                         </div>
 
                         {/* Separator */}
-                        <div className="w-px h-5" style={{ background: "var(--v-border)" }} />
+                        <div className="w-px h-5 shrink-0 opacity-20" style={{ background: "linear-gradient(180deg, transparent, #FFF, transparent)" }} />
 
                         {/* Event selector */}
                         <div className="relative" ref={dropdownRef}>
                             <button
                                 onClick={() => setIsEventSelectorOpen(v => !v)}
-                                className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl transition-all"
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all"
                                 style={{
                                     background: isEventSelectorOpen
-                                        ? "var(--v-card)"
-                                        : "var(--v-elevated)",
-                                    border: `1px solid ${isEventSelectorOpen ? "var(--v-orange)" : "var(--v-border)"}`,
+                                        ? "rgba(244,74,34,0.08)"
+                                        : "rgba(255,255,255,0.04)",
+                                    border: `1px solid ${isEventSelectorOpen ? "rgba(244,74,34,0.35)" : "rgba(255,255,255,0.08)"}`,
                                     color: "var(--v-text-primary)",
                                 }}
                             >
                                 <div
                                     className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
-                                    style={{ background: "var(--v-orange-dim)" }}
+                                    style={{ background: "rgba(244,74,34,0.15)" }}
                                 >
                                     <Play
                                         className="w-2.5 h-2.5"
@@ -187,13 +207,13 @@ export default function StudioShell({
                                         fill="currentColor"
                                     />
                                 </div>
-                                <span className="text-[13px] font-semibold max-w-[180px] truncate">
+                                <span className="text-[12px] font-semibold max-w-[160px] truncate">
                                     {currentEvent.title}
                                 </span>
                                 <ChevronDown
-                                    className="w-3.5 h-3.5 shrink-0 transition-transform"
+                                    className="w-3 h-3 shrink-0 transition-transform"
                                     style={{
-                                        color: "var(--v-text-muted)",
+                                        color: "rgba(255,255,255,0.3)",
                                         transform: isEventSelectorOpen ? "rotate(180deg)" : "rotate(0deg)",
                                     }}
                                 />
@@ -203,16 +223,16 @@ export default function StudioShell({
                                 <div
                                     className="absolute top-full left-0 mt-2 w-72 rounded-2xl p-2 z-50"
                                     style={{
-                                        background: "var(--v-card)",
-                                        border: "1px solid var(--v-border)",
-                                        boxShadow: "0 24px 48px rgba(0,0,0,0.5)",
+                                        background: "#18181b",
+                                        border: "1px solid rgba(255,255,255,0.08)",
+                                        boxShadow: "0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.02)",
                                     }}
                                 >
                                     <div className="p-2 pb-1">
                                         <div className="relative mb-2">
                                             <Search
                                                 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5"
-                                                style={{ color: "var(--v-text-muted)" }}
+                                                style={{ color: "rgba(255,255,255,0.25)" }}
                                             />
                                             <input
                                                 type="text"
@@ -222,8 +242,8 @@ export default function StudioShell({
                                                 autoFocus
                                                 className="w-full pl-9 pr-3 py-2 rounded-xl text-[12px] font-medium focus:outline-none"
                                                 style={{
-                                                    background: "var(--v-elevated)",
-                                                    border: "1px solid var(--v-border)",
+                                                    background: "rgba(255,255,255,0.04)",
+                                                    border: "1px solid rgba(255,255,255,0.08)",
                                                     color: "var(--v-text-primary)",
                                                 }}
                                             />
@@ -238,11 +258,11 @@ export default function StudioShell({
                                                         className="w-full text-left px-3 py-2.5 rounded-xl text-[13px] font-semibold flex items-center justify-between transition-all"
                                                         style={{
                                                             background: isSelected
-                                                                ? "var(--v-orange-dim)"
+                                                                ? "rgba(244,74,34,0.12)"
                                                                 : "transparent",
                                                             color: isSelected
                                                                 ? "var(--v-orange)"
-                                                                : "var(--v-text-secondary)",
+                                                                : "rgba(255,255,255,0.55)",
                                                         }}
                                                     >
                                                         {event.title}
@@ -263,29 +283,29 @@ export default function StudioShell({
                     </div>
 
                     {/* Right: range picker + calendar */}
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-2.5 shrink-0">
                         <div
-                            className="flex items-center gap-0.5 p-1 rounded-xl"
+                            className="flex items-center gap-0.5 p-[3px] rounded-xl"
                             style={{
-                                background: "var(--v-elevated)",
-                                border: "1px solid var(--v-border)",
+                                background: "rgba(255,255,255,0.04)",
+                                border: "1px solid rgba(255,255,255,0.07)",
                             }}
                         >
                             {RANGES.map(r => (
                                 <button
                                     key={r.id}
                                     onClick={() => handleRangeChange(r.id)}
-                                    className="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
+                                    className="px-3 py-1.5 rounded-[10px] text-[9px] font-black uppercase tracking-widest transition-all"
                                     style={
                                         range === r.id
                                             ? {
                                                 background: "var(--v-orange)",
                                                 color: "#fff",
-                                                boxShadow: "0 2px 8px rgba(244,74,34,0.35)",
+                                                boxShadow: "0 2px 12px rgba(244,74,34,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
                                             }
                                             : {
                                                 background: "transparent",
-                                                color: "var(--v-text-muted)",
+                                                color: "rgba(255,255,255,0.35)",
                                             }
                                     }
                                 >
@@ -295,22 +315,25 @@ export default function StudioShell({
                         </div>
 
                         <button
-                            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105"
+                            className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-105"
                             style={{
-                                background: "var(--v-elevated)",
-                                border: "1px solid var(--v-border)",
-                                color: "var(--v-text-secondary)",
+                                background: "rgba(255,255,255,0.04)",
+                                border: "1px solid rgba(255,255,255,0.07)",
+                                color: "rgba(255,255,255,0.4)",
                             }}
                         >
-                            <Calendar className="w-4 h-4" />
+                            <Calendar className="w-3.5 h-3.5" />
                         </button>
                     </div>
                 </div>
 
                 {/* Tab bar */}
                 <div
-                    className="px-8 flex items-center gap-0"
-                    style={{ borderTop: "1px solid var(--v-border)" }}
+                    className="px-6 flex items-end gap-1.5 overflow-x-auto scrollbar-hide relative min-h-[58px]"
+                    style={{ 
+                        borderTop: "1px solid rgba(255,255,255,0.06)",
+                        background: "linear-gradient(180deg, rgba(255,255,255,0.012) 0%, transparent 100%)",
+                    }}
                 >
                     {tabs.map(tab => {
                         const active = pathname === tab.href;
@@ -319,20 +342,52 @@ export default function StudioShell({
                             <Link
                                 key={tab.href}
                                 href={tab.href}
-                                className="relative flex items-center gap-2 px-4 py-3 text-[11px] font-black uppercase tracking-widest transition-all group"
+                                className="relative flex items-center gap-2.5 px-6 py-4.5 text-[10px] uppercase transition-all shrink-0 group rounded-t-xl"
                                 style={{
-                                    color: active ? "var(--v-orange)" : "var(--v-text-muted)",
+                                    color: active ? "#FFF" : "rgba(255,255,255,0.35)",
+                                    background: active ? "rgba(244,74,34,0.03)" : "transparent",
+                                    letterSpacing: "0.14em"
                                 }}
                             >
                                 <Icon
-                                    className="w-3 h-3"
-                                    style={{ opacity: active ? 1 : 0.5 }}
+                                    className="w-3.5 h-3.5 transition-all duration-300 transform"
+                                    style={{
+                                        color: active ? "var(--v-orange)" : "rgba(255,255,255,0.25)",
+                                        filter: active ? "drop-shadow(0 0 8px rgba(244,74,34,0.45))" : "none",
+                                        transform: active ? "scale(1.15)" : "scale(1)",
+                                    }}
                                 />
-                                {tab.label}
+                                <span 
+                                    className="relative z-10 transition-all duration-300"
+                                    style={{
+                                        fontWeight: active ? 900 : 700,
+                                        opacity: active ? 1 : 0.8
+                                    }}
+                                >
+                                    {tab.label}
+                                </span>
+                                
+                                {/* Active indicator line - premium double line glow */}
                                 {active && (
-                                    <span
-                                        className="absolute bottom-0 left-0 w-full h-[2px] rounded-t-full"
-                                        style={{ background: "var(--v-orange)", boxShadow: "0 0 8px rgba(244,74,34,0.5)" }}
+                                    <>
+                                        <div
+                                            className="absolute bottom-0 left-0 right-0 h-[2.5px] z-20"
+                                            style={{
+                                                background: "var(--v-orange)",
+                                                boxShadow: "0 -4px 12px rgba(244,74,34,0.5), 0 0 24px rgba(244,74,34,0.25)",
+                                            }}
+                                        />
+                                        <div 
+                                            className="absolute inset-0 bg-gradient-to-t from-[rgba(244,74,34,0.05)] to-transparent opacity-100 transition-opacity duration-300"
+                                        />
+                                    </>
+                                )}
+
+                                {/* Hover state */}
+                                {!active && (
+                                    <div 
+                                        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                                        style={{ background: "rgba(255,255,255,0.02)" }}
                                     />
                                 )}
                             </Link>
@@ -343,26 +398,32 @@ export default function StudioShell({
 
             {/* ── Page header ────────────────────────────────────────────── */}
             <div
-                className="px-8 pt-8 pb-6"
-                style={{ borderBottom: "1px solid var(--v-border)" }}
+                className="px-8 pt-7 pb-5"
+                style={{ 
+                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    background: "linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.01) 100%)"
+                }}
             >
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
                     <div>
-                        <div className="flex items-center gap-3 mb-1">
+                        <div className="flex items-center gap-3 mb-1.5">
                             <div
-                                className="w-1 h-6 rounded-full"
-                                style={{ background: "var(--v-orange)", boxShadow: "0 0 8px rgba(244,74,34,0.4)" }}
+                                className="w-[3px] h-7 rounded-full"
+                                style={{
+                                    background: "linear-gradient(180deg, var(--v-orange), rgba(244,74,34,0.2))",
+                                    boxShadow: "0 0 10px rgba(244,74,34,0.5)",
+                                }}
                             />
                             <h1
-                                className="text-[28px] font-black tracking-tight leading-none"
+                                className="text-[26px] font-black tracking-tight leading-none"
                                 style={{ color: "var(--v-text-primary)" }}
                             >
                                 {title}
                             </h1>
                         </div>
                         <p
-                            className="text-[13px] font-medium ml-4"
-                            style={{ color: "var(--v-text-muted)" }}
+                            className="text-[12px] font-medium ml-[15px]"
+                            style={{ color: "rgba(255,255,255,0.28)" }}
                         >
                             {description}
                         </p>
@@ -371,7 +432,7 @@ export default function StudioShell({
             </div>
 
             {/* ── Main content ───────────────────────────────────────────── */}
-            <main className="px-8 pt-6">
+            <main className="px-6 pt-6">
                 <div className="max-w-7xl mx-auto">
                     {children}
                 </div>

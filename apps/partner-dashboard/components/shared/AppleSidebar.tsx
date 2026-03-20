@@ -188,10 +188,9 @@ export function AppleSidebar({
                                                                     key={child.href}
                                                                     href={child.href}
                                                                     className={`block px-4 py-3 rounded-xl text-[15px] font-semibold transition-all ${childActive
-                                                                        ? "text-white bg-white/[0.1]"
-                                                                        : "text-white/80 hover:text-white hover:bg-white/[0.05]"
+                                                                        ? "text-[var(--v-text-primary)] bg-[var(--v-border)]"
+                                                                        : "text-[var(--v-text-secondary)] hover:text-[var(--v-text-primary)] hover:bg-[var(--v-border)]"
                                                                         }`}
-
                                                                 >
                                                                     <div className="flex items-center justify-between">
                                                                         <span>{child.label}</span>
@@ -235,9 +234,6 @@ export function AppleSidebar({
                         <div className="flex-1 min-w-0">
                             <p className="text-[14px] font-bold text-text-primary truncate">
                                 {profile?.displayName || "Operator"}
-                            </p>
-                            <p className="text-[10px] font-bold text-text-tertiary/60 uppercase tracking-widest mt-0.5">
-                                {currentPlan} membership
                             </p>
                         </div>
                     )}

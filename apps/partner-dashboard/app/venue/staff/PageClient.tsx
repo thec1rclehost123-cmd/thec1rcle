@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Users,
     UserPlus,
@@ -16,12 +16,15 @@ import {
     PlayCircle,
     Clock,
     ChevronDown,
+    Plus,
 } from "lucide-react";
 import type { StaffProfile } from "@/lib/types/staffProfile";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { cleanJargon } from "@/lib/utils/jargon";
-import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
+import { VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 import { BentoCard } from "@/components/ui/BentoCard";
+import ProfilesView from "@/app/venue/staff/StaffProfilesView";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 interface StaffMember {
     id: string;
@@ -47,44 +50,33 @@ const ROLE_LABELS: Record<string, string> = {
     owner: "Owner",
 };
 
-const ROLE_DESCRIPTIONS: Record<string, string> = {
-    STAFF: "Can manage guest list, tables, and log incidents",
-    FINANCE_ADMIN: "Can view financial data, reports, and payouts",
-    manager: "Full operations access including staff management",
-    security: "Entry scanning and guest list access",
+const ACTION_ICON_MAP: Record<string, any> = {
+    verify: ShieldCheck,
+    suspend: PauseCircle,
+    reactivate: PlayCircle,
+    remove: Trash2
 };
 
-const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
-    STAFF: { bg: "var(--v-info-bg)", text: "var(--v-info)" },
-    FINANCE_ADMIN: { bg: "var(--v-success-bg)", text: "var(--v-success)" },
-    manager: { bg: "var(--v-orange-dim)", text: "var(--v-orange)" },
-    supervisor: { bg: "var(--v-info-bg)", text: "var(--v-info)" },
-    security: { bg: "var(--v-warning-bg)", text: "var(--v-warning)" },
-    scanner: { bg: "var(--v-elevated)", text: "var(--v-text-muted)" },
-};
-
-const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
-    active: { label: "Active", bg: "var(--v-success-bg)", text: "var(--v-success)" },
-    invited: { label: "Invited", bg: "var(--v-info-bg)", text: "var(--v-info)" },
-    pending_verification: { label: "Pending", bg: "var(--v-warning-bg)", text: "var(--v-warning)" },
-    suspended: { label: "Suspended", bg: "var(--v-error-bg)", text: "var(--v-error)" },
-    removed: { label: "Removed", bg: "var(--v-elevated)", text: "var(--v-text-muted)" },
-};
-
-export default function VenueStaffPage() {
+export default function VenueStaffPage({ setActions }: { setActions: (actions: React.ReactNode) => void }) {
     const { profile, user } = useDashboardAuth();
     const [staff, setStaff] = useState<StaffMember[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
-    const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
+    const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [profiles, setProfiles] = useState<StaffProfile[]>([]);
-    const [assignedProfileId, setAssignedProfileId] = useState<string | null>(null);
-    const [selectedProfileId, setSelectedProfileId] = useState<string>("");
-    const [profileLoading, setProfileLoading] = useState(false);
-    const [assigning, setAssigning] = useState(false);
+    const [activeView, setActiveView] = useState<"members" | "profiles">("members");
 
     const venueId = profile?.activeMembership?.partnerId;
+
+    useEffect(() => {
+        setActions(
+            <VenueActionButton variant="primary" onClick={() => setShowAddModal(true)} className="shadow-lg shadow-accent-primary/20">
+                <Plus className="w-4 h-4 mr-2" /> Add Team Member
+            </VenueActionButton>
+        );
+        return () => setActions(null);
+    }, [setActions]);
 
     useEffect(() => {
         if (venueId) {
@@ -92,15 +84,6 @@ export default function VenueStaffPage() {
             fetchProfiles();
         }
     }, [venueId]);
-
-    useEffect(() => {
-        if (selectedStaff?.userId && venueId) {
-            fetchAssignment(selectedStaff.userId);
-        } else {
-            setAssignedProfileId(null);
-            setSelectedProfileId("");
-        }
-    }, [selectedStaff?.id]);
 
     const fetchStaff = async () => {
         try {
@@ -130,58 +113,6 @@ export default function VenueStaffPage() {
         } catch {}
     };
 
-    const fetchAssignment = async (staffUserId: string) => {
-        setProfileLoading(true);
-        try {
-            const token = user ? await user.getIdToken() : null;
-            const headers: HeadersInit = {};
-            if (token) headers["Authorization"] = `Bearer ${token}`;
-            const res = await fetch(`/api/venue/staff-profiles/assign?venueId=${venueId}&staffUserId=${staffUserId}`, { headers });
-            if (!res.ok) return;
-            const data = await res.json();
-            setAssignedProfileId(data.staffProfileId ?? null);
-            setSelectedProfileId(data.staffProfileId ?? "");
-        } catch {} finally {
-            setProfileLoading(false);
-        }
-    };
-
-    const handleAssign = async () => {
-        if (!selectedStaff?.userId || !selectedProfileId) return;
-        setAssigning(true);
-        try {
-            const token = user ? await user.getIdToken() : null;
-            const headers: HeadersInit = { "Content-Type": "application/json" };
-            if (token) headers["Authorization"] = `Bearer ${token}`;
-            const res = await fetch(`/api/venue/staff-profiles/assign?venueId=${venueId}`, {
-                method: "POST",
-                headers,
-                body: JSON.stringify({ staffUserId: selectedStaff.userId, profileId: selectedProfileId }),
-            });
-            if (res.ok) setAssignedProfileId(selectedProfileId);
-        } catch {} finally {
-            setAssigning(false);
-        }
-    };
-
-    const handleRevokeProfile = async () => {
-        if (!selectedStaff?.userId) return;
-        setAssigning(true);
-        try {
-            const token = user ? await user.getIdToken() : null;
-            const headers: HeadersInit = { "Content-Type": "application/json" };
-            if (token) headers["Authorization"] = `Bearer ${token}`;
-            const res = await fetch(`/api/venue/staff-profiles/assign?venueId=${venueId}`, {
-                method: "DELETE",
-                headers,
-                body: JSON.stringify({ staffUserId: selectedStaff.userId }),
-            });
-            if (res.ok) { setAssignedProfileId(null); setSelectedProfileId(""); }
-        } catch {} finally {
-            setAssigning(false);
-        }
-    };
-
     const handleAddStaff = async (formData: { email: string; name: string; role: string }) => {
         try {
             const token = user ? await user.getIdToken() : null;
@@ -207,6 +138,8 @@ export default function VenueStaffPage() {
     };
 
     const handleAction = async (staffId: string, action: string) => {
+        if (action === "remove" && !confirm("Are you sure? This will permanently revoke all access for this user.")) return;
+        
         setActionLoading(staffId + action);
         try {
             const token = user ? await user.getIdToken() : null;
@@ -221,7 +154,6 @@ export default function VenueStaffPage() {
             });
             if (res.ok) {
                 fetchStaff();
-                if (selectedStaff?.id === staffId) setSelectedStaff(null);
             }
         } catch (err) {
             console.error(`Failed to ${action} staff:`, err);
@@ -230,500 +162,283 @@ export default function VenueStaffPage() {
         }
     };
 
+    if (loading && staff.length === 0) {
+        return (
+            <div className="py-32 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-700">
+                <div className="relative">
+                    <div className="absolute inset-0 bg-accent-primary/20 blur-2xl rounded-full" />
+                    <Loader2 className="h-12 w-12 text-accent-primary animate-spin relative" />
+                </div>
+                <p className="text-text-tertiary font-black uppercase tracking-[0.2em] text-[10px] mt-8">Synchronizing Force Registry</p>
+            </div>
+        );
+    }
+
     const activeStaff = staff.filter(s => s.status === "active" || s.status === "pending_verification" || s.status === "invited");
-    const inactiveStaff = staff.filter(s => s.status === "suspended" || s.status === "removed");
-    // Verified = accepted invite & set password (pending_verification or fully active)
-    const verifiedCount = staff.filter(s => s.status === "pending_verification" || s.status === "active").length;
-    // Pending = invite sent but not yet accepted
-    const pendingCount = staff.filter(s => s.status === "invited").length;
-    const uniqueRoles = new Set(staff.filter(s => s.status !== "removed").map(s => s.role)).size;
+    const suspendedStaff = staff.filter(s => s.status === "suspended");
 
     return (
-        <VenuePageShell
-            title={cleanJargon("management")}
-            subtitle="Staff registry and access control"
-            actions={
-                <VenueActionButton variant="primary" onClick={() => setShowAddModal(true)}>
-                    <UserPlus className="w-4 h-4" /> Add Member
-                </VenueActionButton>
-            }
-        >
-            {/* KPI strip */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* View Architecture Switcher */}
+            <div className="flex p-1.5 bg-surface-secondary/50 backdrop-blur-md rounded-2xl gap-1 border border-border-subtle inline-flex shadow-inner">
                 {[
-                    { label: "ACTIVE", value: loading ? "—" : staff.filter(s => s.status === "active").length, icon: Users, bg: "var(--v-success-bg)", text: "var(--v-success)" },
-                    { label: "VERIFIED", value: loading ? "—" : verifiedCount, icon: ShieldCheck, bg: "var(--v-info-bg)", text: "var(--v-info)" },
-                    { label: "PENDING", value: loading ? "—" : pendingCount, icon: Clock, bg: "var(--v-warning-bg)", text: "var(--v-warning)" },
-                    { label: "ROLES", value: loading ? "—" : uniqueRoles, icon: Shield, bg: "var(--v-elevated)", text: "var(--v-text-muted)" },
-                ].map((stat, i) => (
-                    <div key={i} className="rounded-2xl p-3 flex items-center gap-3 border border-white/[0.04]" style={{ background: "var(--v-card)" }}>
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: stat.bg }}>
-                            <stat.icon className="w-3.5 h-3.5" style={{ color: stat.text }} />
-                        </div>
-                        <div>
-                            <p className="v-label text-[9px] mb-0">{stat.label}</p>
-                            <p className="text-[18px] font-black leading-tight tabular-nums" style={{ color: "var(--v-text-primary)" }}>
-                                {stat.value}
-                            </p>
-                        </div>
-                    </div>
+                    { id: "members", label: "Operational Team", icon: Users },
+                    { id: "profiles", label: "Access Profiles", icon: ShieldCheck }
+                ].map(view => (
+                    <button
+                        key={view.id}
+                        onClick={() => setActiveView(view.id as any)}
+                        className={cn(
+                            "flex items-center gap-2.5 px-6 py-3 rounded-xl text-sm font-bold transition-all",
+                            activeView === view.id
+                                ? "bg-surface-elevated text-text-primary shadow-lg border border-border-default scale-[1.02]"
+                                : "text-text-tertiary hover:text-text-secondary hover:bg-surface-tertiary"
+                        )}
+                    >
+                        <view.icon className={cn("w-4 h-4", activeView === view.id ? "text-accent-primary" : "text-text-tertiary")} />
+                        <span>{view.label}</span>
+                    </button>
                 ))}
             </div>
 
-            {/* Main layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-
-                {/* Staff ledger */}
-                <div className="lg:col-span-8 space-y-3">
-                    <BentoCard
-                        loading={loading}
-                        empty={!loading && activeStaff.length === 0}
-                        emptyIcon={<Users className="w-8 h-8" />}
-                        emptyTitle="Registry empty. Add your first staff member."
-                        emptyAction={
-                            <button
-                                onClick={() => setShowAddModal(true)}
-                                className="text-[12px] font-semibold px-4 py-2 rounded-xl mt-2"
-                                style={{ background: "var(--v-orange)", color: "#fff" }}
-                            >
-                                Add Member
-                            </button>
-                        }
-                        header={
-                            <>
-                                <span className="v-label">STAFF REGISTRY</span>
-                                <span className="text-[11px] font-bold tabular-nums" style={{ color: "var(--v-text-muted)" }}>
-                                    {staff.filter(s => s.status === "active").length} ACTIVE
-                                </span>
-                            </>
-                        }
-                        padding="sm"
+            <AnimatePresence mode="wait">
+                {activeView === "members" ? (
+                    <motion.div
+                        key="members"
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.98 }}
+                        className="space-y-10"
                     >
-                        <div className="divide-y" style={{ borderColor: "var(--v-border)" }}>
-                            {activeStaff.map(member => (
-                                <StaffRow
-                                    key={member.id}
-                                    member={member}
-                                    isSelected={selectedStaff?.id === member.id}
-                                    actionLoading={actionLoading}
-                                    onSelect={() => setSelectedStaff(prev => prev?.id === member.id ? null : member)}
-                                    onVerify={() => handleAction(member.id, "verify")}
-                                    onSuspend={() => handleAction(member.id, "suspend")}
-                                    onRemove={() => handleAction(member.id, "remove")}
-                                />
+                        {/* Summary Metrics */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            {[
+                                { label: "Force Strength", value: staff.filter(s => s.status === 'active').length, icon: Users, color: "text-accent-primary" },
+                                { label: "Verified Key", value: staff.filter(s => s.verified).length, icon: ShieldCheck, color: "text-emerald-500" },
+                                { label: "Pending Entry", value: staff.filter(s => s.status === 'invited').length, icon: Clock, color: "text-amber-500" },
+                                { label: "Security Tier", value: "Level 4", icon: Shield, color: "text-text-primary" },
+                            ].map((kpi, i) => (
+                                <BentoCard key={i} padding="lg" className="relative group overflow-hidden">
+                                     <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity rotate-12">
+                                        <kpi.icon size={120} />
+                                    </div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-text-tertiary mb-2">{kpi.label}</p>
+                                    <div className="flex items-end justify-between">
+                                        <h4 className={cn("text-4xl font-black tabular-nums tracking-tighter", kpi.color)}>{kpi.value}</h4>
+                                        <kpi.icon size={20} className={cn("opacity-40 mb-1", kpi.color)} />
+                                    </div>
+                                </BentoCard>
                             ))}
                         </div>
-                    </BentoCard>
 
-                    {inactiveStaff.length > 0 && (
-                        <BentoCard
-                            header={<span className="v-label">INACTIVE / SUSPENDED</span>}
-                            padding="sm"
-                            style={{ opacity: 0.7 }}
-                        >
-                            <div className="divide-y" style={{ borderColor: "var(--v-border)" }}>
-                                {inactiveStaff.map(member => (
-                                    <StaffRow
-                                        key={member.id}
-                                        member={member}
-                                        actionLoading={actionLoading}
-                                        onReactivate={member.status === "suspended" ? () => handleAction(member.id, "reactivate") : undefined}
-                                    />
-                                ))}
+                        {/* Staff Ledger */}
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between px-2">
+                                <h3 className="text-sm font-black uppercase tracking-[0.3em] text-text-tertiary">Active Personnel Registry</h3>
+                                <div className="h-px flex-1 mx-6 bg-border-subtle" />
+                                <span className="text-[10px] font-bold text-text-placeholder italic">Showing {activeStaff.length} entities</span>
                             </div>
-                        </BentoCard>
-                    )}
-                </div>
 
-                {/* Detail panel */}
-                <div className="lg:col-span-4 lg:sticky lg:top-28">
-                    <BentoCard>
-                        {selectedStaff ? (
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <div
-                                        className="w-10 h-10 rounded-xl flex items-center justify-center text-[14px] font-black"
-                                        style={{ background: "var(--v-elevated)", color: "var(--v-text-primary)" }}
-                                    >
-                                        {selectedStaff.name.charAt(0).toUpperCase()}
-                                    </div>
-                                    <div>
-                                        <h4 className="text-[13px] font-bold" style={{ color: "var(--v-text-primary)" }}>
-                                            {selectedStaff.name}
-                                        </h4>
-                                        <span
-                                            className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-                                            style={{
-                                                background: (ROLE_COLORS[selectedStaff.role] || ROLE_COLORS.scanner).bg,
-                                                color: (ROLE_COLORS[selectedStaff.role] || ROLE_COLORS.scanner).text,
-                                            }}
-                                        >
-                                            {ROLE_LABELS[selectedStaff.role] || selectedStaff.role}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <div className="flex items-center gap-3 px-3 py-2 rounded-xl border border-white/[0.03]" style={{ background: "var(--v-elevated)" }}>
-                                        <Mail className="w-3 h-3 flex-shrink-0" style={{ color: "var(--v-text-muted)" }} />
-                                        <span className="text-[11px] truncate" style={{ color: "var(--v-text-secondary)" }}>{selectedStaff.email}</span>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <p className="v-label text-[9px] mb-1.5">STATUS</p>
-                                    <span
-                                        className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full"
-                                        style={{
-                                            background: (STATUS_CONFIG[selectedStaff.status] || STATUS_CONFIG.invited).bg,
-                                            color: (STATUS_CONFIG[selectedStaff.status] || STATUS_CONFIG.invited).text,
-                                        }}
-                                    >
-                                        {STATUS_CONFIG[selectedStaff.status]?.label || selectedStaff.status}
-                                    </span>
-                                </div>
-
-                                {ROLE_DESCRIPTIONS[selectedStaff.role] && (
-                                    <div className="p-3 rounded-xl" style={{ background: "var(--v-elevated)" }}>
-                                        <p className="text-[10px]" style={{ color: "var(--v-text-secondary)" }}>
-                                            {ROLE_DESCRIPTIONS[selectedStaff.role]}
-                                        </p>
-                                    </div>
-                                )}
-
-                                {/* Access Profile Assignment — only for staff who have accepted invite */}
-                                {selectedStaff.userId && (
-                                    <div className="space-y-2">
-                                        <p className="v-label text-[9px]">ACCESS PROFILE</p>
-                                        {profileLoading ? (
-                                            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "var(--v-elevated)" }}>
-                                                <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--v-text-muted)" }} />
-                                                <span className="text-[11px]" style={{ color: "var(--v-text-muted)" }}>Loading…</span>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {assignedProfileId && (
-                                                    <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "var(--v-elevated)" }}>
-                                                        <span className="text-[11px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
-                                                            {profiles.find(p => p.id === assignedProfileId)?.profileName ?? "Unknown profile"}
-                                                        </span>
-                                                        <button
-                                                            onClick={handleRevokeProfile}
-                                                            disabled={assigning}
-                                                            className="text-[10px] font-bold hover:brightness-125 disabled:opacity-50"
-                                                            style={{ color: "var(--v-error)" }}
-                                                        >
-                                                            {assigning ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Remove"}
-                                                        </button>
-                                                    </div>
-                                                )}
-
-                                                {profiles.length === 0 ? (
-                                                    <p className="text-[10px] px-1" style={{ color: "var(--v-text-muted)" }}>
-                                                        No profiles yet. Create one in <strong>Staff → Access Profiles</strong>.
-                                                    </p>
-                                                ) : (
-                                                    <div className="flex gap-2">
-                                                        <div className="relative flex-1">
-                                                            <select
-                                                                value={selectedProfileId}
-                                                                onChange={e => setSelectedProfileId(e.target.value)}
-                                                                className="w-full appearance-none pr-7 text-[12px] font-medium rounded-xl px-3 py-2"
-                                                                style={{
-                                                                    background: "var(--v-elevated)",
-                                                                    color: selectedProfileId ? "var(--v-text-primary)" : "var(--v-text-muted)",
-                                                                    border: "1px solid var(--v-border)",
-                                                                    outline: "none",
-                                                                }}
-                                                            >
-                                                                <option value="">
-                                                                    {assignedProfileId ? "Change profile…" : "Select profile…"}
-                                                                </option>
-                                                                {profiles.map(p => (
-                                                                    <option key={p.id} value={p.id}>{p.profileName}</option>
-                                                                ))}
-                                                            </select>
-                                                            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--v-text-muted)" }} />
+                            <BentoCard padding="none" className="overflow-hidden shadow-2xl border-border-default">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="bg-surface-secondary/40 border-b border-border-subtle text-[10px] font-black uppercase tracking-[0.2em] text-text-tertiary">
+                                                <th className="px-8 py-5">Personnel ID & Role</th>
+                                                <th className="px-8 py-5">Verified Status</th>
+                                                <th className="px-8 py-5">Communication</th>
+                                                <th className="px-8 py-5 text-right">System Management</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border-subtle">
+                                            {activeStaff.map((member) => (
+                                                <tr key={member.id} className="group hover:bg-surface-secondary/40 transition-all duration-300">
+                                                    <td className="px-8 py-6">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-12 h-12 rounded-2xl bg-surface-tertiary border border-border-default flex items-center justify-center font-black text-xs text-text-primary group-hover:scale-105 transition-transform group-hover:shadow-lg group-hover:border-accent-primary/20">
+                                                                {member.name.charAt(0)}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-base font-bold text-text-primary mb-0.5 leading-tight group-hover:text-accent-primary transition-colors">{member.name}</p>
+                                                                <span className="px-2 py-0.5 rounded-lg bg-surface-elevated border border-border-subtle text-[10px] font-black uppercase tracking-wider text-text-tertiary">
+                                                                    {ROLE_LABELS[member.role] || member.role}
+                                                                </span>
+                                                            </div>
                                                         </div>
-                                                        <button
-                                                            onClick={handleAssign}
-                                                            disabled={!selectedProfileId || selectedProfileId === assignedProfileId || assigning}
-                                                            className="px-3 py-2 rounded-xl text-[12px] font-bold hover:brightness-110 disabled:opacity-40 transition-all flex items-center gap-1"
-                                                            style={{ background: "var(--v-orange)", color: "#fff" }}
-                                                        >
-                                                            {assigning ? <Loader2 className="w-3 h-3 animate-spin" /> : "Assign"}
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={cn(
+                                                                "w-2 h-2 rounded-full",
+                                                                member.status === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 
+                                                                member.status === 'invited' ? 'bg-amber-500' : 'bg-text-placeholder'
+                                                            )} />
+                                                            <span className="text-sm font-bold text-text-secondary capitalize">{member.status.replace('_', ' ')}</span>
+                                                            {member.verified && <ShieldCheck size={14} className="text-emerald-500" />}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <p className="text-sm font-medium text-text-tertiary">{member.email}</p>
+                                                    </td>
+                                                    <td className="px-8 py-6 text-right">
+                                                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                                                            {member.status === 'active' && (
+                                                                <button 
+                                                                    onClick={() => handleAction(member.id, 'suspend')}
+                                                                    disabled={actionLoading === member.id + 'suspend'}
+                                                                    className="p-2.5 hover:bg-amber-500/10 rounded-xl text-text-tertiary hover:text-amber-500 transition-all"
+                                                                    title="Suspend Access"
+                                                                >
+                                                                    {actionLoading === member.id + 'suspend' ? <Loader2 size={16} className="animate-spin" /> : <PauseCircle size={18} />}
+                                                                </button>
+                                                            )}
+                                                            <button 
+                                                                onClick={() => handleAction(member.id, 'remove')}
+                                                                disabled={actionLoading === member.id + 'remove'}
+                                                                className="p-2.5 hover:bg-red-500/10 rounded-xl text-text-tertiary hover:text-red-500 transition-all"
+                                                                title="Revoke Permission"
+                                                            >
+                                                                {actionLoading === member.id + 'remove' ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={18} />}
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </BentoCard>
+
+                            {suspendedStaff.length > 0 && (
+                                <div className="pt-8 opacity-60 hover:opacity-100 transition-opacity">
+                                    <div className="flex items-center justify-between px-2 mb-4">
+                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-red-500">Deactivated Personnel</h3>
+                                        <div className="h-px flex-1 mx-6 bg-red-500/10" />
                                     </div>
-                                )}
-
-                                <button
-                                    onClick={() => setSelectedStaff(null)}
-                                    className="w-full py-2 text-[11px] font-bold uppercase tracking-widest rounded-xl transition-colors"
-                                    style={{ color: "var(--v-text-muted)", background: "var(--v-elevated)" }}
-                                >
-                                    Close Panel
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="py-10 flex flex-col items-center text-center gap-2">
-                                <Shield className="w-6 h-6" style={{ color: "var(--v-text-muted)" }} />
-                                <p className="text-[12px]" style={{ color: "var(--v-text-muted)" }}>
-                                    Select a member to view details
-                                </p>
-                            </div>
-                        )}
-                    </BentoCard>
-                </div>
-            </div>
-
-            {showAddModal && (
-                <AddStaffModal
-                    onClose={() => setShowAddModal(false)}
-                    onSubmit={handleAddStaff}
-                />
-            )}
-        </VenuePageShell>
-    );
-}
-
-function StaffRow({
-    member,
-    isSelected = false,
-    actionLoading,
-    onSelect,
-    onVerify,
-    onSuspend,
-    onRemove,
-    onReactivate,
-}: {
-    member: StaffMember;
-    isSelected?: boolean;
-    actionLoading?: string | null;
-    onSelect?: () => void;
-    onVerify?: () => void;
-    onSuspend?: () => void;
-    onRemove?: () => void;
-    onReactivate?: () => void;
-}) {
-    const [showActions, setShowActions] = useState(false);
-    const roleStyle = ROLE_COLORS[member.role] || ROLE_COLORS.scanner;
-    const statusCfg = STATUS_CONFIG[member.status] || STATUS_CONFIG.invited;
-    const isInactive = member.status === "suspended" || member.status === "removed";
-
-    return (
-        <div
-            onClick={onSelect}
-            className="px-4 py-2.5 flex items-center justify-between transition-colors"
-            style={{
-                cursor: isInactive ? "default" : "pointer",
-                background: isSelected ? "var(--v-elevated)" : "transparent",
-                opacity: isInactive ? 0.55 : 1,
-            }}
-        >
-            <div className="flex items-center gap-3">
-                <div
-                    className="h-8 w-8 rounded-lg flex items-center justify-center text-[11px] font-bold flex-shrink-0"
-                    style={{ background: "var(--v-elevated)", color: "var(--v-text-primary)" }}
-                >
-                    {member.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
-                </div>
-                <div>
-                    <div className="flex items-center gap-2">
-                        <h4 className="text-[12px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
-                            {member.name}
-                        </h4>
-                        {member.status === "active" && member.verified
-                            ? <ShieldCheck className="w-3 h-3" style={{ color: "var(--v-success)" }} />
-                            : member.status === "pending_verification"
-                            ? <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--v-warning)" }} />
-                            : null
-                        }
-                    </div>
-                    <p className="text-[10px]" style={{ color: "var(--v-text-muted)" }}>{member.email}</p>
-                </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-                {/* Status badge */}
-                <span
-                    className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full hidden md:inline-flex"
-                    style={{ background: statusCfg.bg, color: statusCfg.text }}
-                >
-                    {statusCfg.label}
-                </span>
-
-                {/* Role badge */}
-                <span
-                    className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full hidden sm:inline-flex"
-                    style={{ background: roleStyle.bg, color: roleStyle.text }}
-                >
-                    {ROLE_LABELS[member.role] || member.role}
-                </span>
-
-                {/* Action menu for active/pending */}
-                {!isInactive && onSelect && (
-                    <div className="relative">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); setShowActions(!showActions); }}
-                            className="p-1.5 rounded-lg transition-colors"
-                            style={{ color: "var(--v-text-muted)" }}
-                            aria-label="Staff actions"
-                        >
-                            <MoreHorizontal className="w-4 h-4" />
-                        </button>
-
-                        {showActions && (
-                            <div
-                                className="absolute right-0 top-full mt-1 rounded-xl shadow-2xl py-1 z-50 min-w-[160px] animate-in fade-in slide-in-from-top-2"
-                                style={{ background: "var(--v-elevated)", border: "1px solid var(--v-border)" }}
-                            >
-                                {member.status === "pending_verification" && onVerify && (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); onVerify(); setShowActions(false); }}
-                                        className="w-full px-3 py-2 text-left text-[12px] flex items-center gap-2 hover:brightness-125"
-                                        style={{ color: "var(--v-success)" }}
-                                    >
-                                        <ShieldCheck className="w-3.5 h-3.5" /> Verify User
-                                    </button>
-                                )}
-                                {member.status === "active" && onSuspend && (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); onSuspend(); setShowActions(false); }}
-                                        className="w-full px-3 py-2 text-left text-[12px] flex items-center gap-2 hover:brightness-125"
-                                        style={{ color: "var(--v-warning)" }}
-                                    >
-                                        <PauseCircle className="w-3.5 h-3.5" /> Suspend
-                                    </button>
-                                )}
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onRemove?.(); setShowActions(false); }}
-                                    className="w-full px-3 py-2 text-left text-[12px] flex items-center gap-2 hover:brightness-125"
-                                    style={{ color: "var(--v-error)" }}
-                                >
-                                    <Trash2 className="w-3.5 h-3.5" /> Remove User
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Reactivate for suspended */}
-                {member.status === "suspended" && onReactivate && (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onReactivate(); }}
-                        className="p-1.5 rounded-lg transition-colors"
-                        style={{ color: "var(--v-success)" }}
-                        title="Reactivate"
+                                    <BentoCard padding="none" className="overflow-hidden bg-red-500/[0.02] border-red-500/10">
+                                        <div className="divide-y divide-red-500/5">
+                                            {suspendedStaff.map(member => (
+                                                <div key={member.id} className="px-8 py-4 flex items-center justify-between group">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 rounded-xl bg-surface-tertiary border border-border-default flex items-center justify-center font-black text-[10px] text-text-placeholder">
+                                                            {member.name.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-bold text-text-secondary line-through">{member.name}</p>
+                                                            <p className="text-[10px] text-text-placeholder">{member.email}</p>
+                                                        </div>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => handleAction(member.id, 'reactivate')}
+                                                        className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all"
+                                                    >
+                                                        Reactivate
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </BentoCard>
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="profiles"
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.98 }}
                     >
-                        <PlayCircle className="w-4 h-4" />
-                    </button>
+                        <ProfilesView profiles={profiles} venueId={venueId!} onRefresh={fetchProfiles} />
+                    </motion.div>
                 )}
-            </div>
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {showAddModal && <AddStaffModal onClose={() => setShowAddModal(false)} onSubmit={handleAddStaff} />}
+            </AnimatePresence>
         </div>
     );
 }
 
-function AddStaffModal({
-    onClose,
-    onSubmit,
-}: {
-    onClose: () => void;
-    onSubmit: (data: { email: string; name: string; role: string }) => void;
-}) {
-    const [email, setEmail] = useState("");
-    const [name, setName] = useState("");
-    const [role, setRole] = useState("STAFF");
-    const [submitting, setSubmitting] = useState(false);
+function AddStaffModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (data: any) => void }) {
+    const [formData, setFormData] = useState({ name: "", email: "", role: "STAFF" });
+    const [busy, setBusy] = useState(false);
 
-    const inputStyle: React.CSSProperties = {
-        background: "var(--v-elevated)",
-        color: "var(--v-text-primary)",
-        border: "1px solid var(--v-border)",
-        borderRadius: 12,
-        padding: "10px 14px",
-        fontSize: 13,
-        outline: "none",
-        width: "100%",
-    };
-
-    const INVITE_ROLES = [
-        { value: "STAFF", label: "Employee", desc: "Can manage guest list, tables, and log incidents" },
-        { value: "FINANCE_ADMIN", label: "Finance", desc: "Can view financial data, reports, and payouts" },
-        { value: "manager", label: "Manager", desc: "Full operations access" },
-        { value: "security", label: "Security", desc: "Entry scanning and guest list access" },
-    ];
-
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: any) => {
         e.preventDefault();
-        setSubmitting(true);
-        await onSubmit({ email, name, role });
-        setSubmitting(false);
+        setBusy(true);
+        await onSubmit(formData);
+        setBusy(false);
     };
-
-    const selectedRole = INVITE_ROLES.find(r => r.value === role);
 
     return (
-        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-[100] p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
-            <div
-                className="max-w-md w-full p-6 space-y-5 animate-in zoom-in-95 duration-200 rounded-[28px]"
-                style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                className="max-w-md w-full bg-surface-elevated rounded-[2.5rem] border border-border-default shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden"
             >
-                <div className="flex items-center justify-between">
+                <div className="p-8 border-b border-border-subtle flex items-center justify-between bg-surface-secondary/30">
                     <div>
-                        <h3 className="text-[16px] font-bold" style={{ color: "var(--v-text-primary)" }}>Add Staff Member</h3>
-                        <p className="text-[11px] mt-0.5" style={{ color: "var(--v-text-tertiary)" }}>An invite link will be sent to their email</p>
+                        <h3 className="text-xl font-bold text-text-primary tracking-tight">Recruit Team Member</h3>
+                        <p className="text-sm text-text-tertiary mt-1">Issue a secure platform invitation</p>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-xl hover:brightness-125" style={{ color: "var(--v-text-muted)", background: "var(--v-elevated)" }}>
-                        <X className="w-4 h-4" />
+                    <button onClick={onClose} className="p-2 hover:bg-surface-tertiary rounded-2xl transition-all">
+                        <X size={20} />
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-3">
-                    <div>
-                        <label className="v-label mb-1 block">FULL NAME</label>
-                        <input type="text" value={name} onChange={e => setName(e.target.value)} required style={inputStyle} placeholder="Staff member name" />
+                <form onSubmit={handleSubmit} className="p-8 space-y-6">
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary ml-1">Full Legal Name</label>
+                        <input 
+                            required
+                            type="text" 
+                            className="w-full bg-surface-secondary border border-border-default rounded-2xl px-5 py-4 text-base font-bold text-text-primary focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10 transition-all outline-none"
+                            placeholder="John Doe"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        />
                     </div>
-                    <div>
-                        <label className="v-label mb-1 block">EMAIL ADDRESS</label>
-                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required style={inputStyle} placeholder="email@example.com" />
+
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary ml-1">Work Email Address</label>
+                        <input 
+                            required
+                            type="email" 
+                            className="w-full bg-surface-secondary border border-border-default rounded-2xl px-5 py-4 text-base font-bold text-text-primary focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10 transition-all outline-none"
+                            placeholder="john@venue.com"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        />
                     </div>
-                    <div>
-                        <label className="v-label mb-1 block">ROLE</label>
-                        <select
-                            value={role}
-                            onChange={e => setRole(e.target.value)}
-                            style={{ ...inputStyle, paddingRight: 40, cursor: "pointer" }}
+
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary ml-1">Deployment Role</label>
+                        <select 
+                            className="w-full bg-surface-secondary border border-border-default rounded-2xl px-5 py-4 text-base font-bold text-text-primary focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10 transition-all outline-none"
+                            value={formData.role}
+                            onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                         >
-                            {INVITE_ROLES.map(r => (
-                                <option key={r.value} value={r.value}>{r.label}</option>
+                            {Object.entries(ROLE_LABELS).map(([key, label]) => (
+                                <option key={key} value={key}>{label}</option>
                             ))}
                         </select>
-                        {selectedRole && (
-                            <p className="text-[10px] mt-1.5 px-1" style={{ color: "var(--v-text-muted)" }}>{selectedRole.desc}</p>
-                        )}
                     </div>
 
-                    <div className="flex items-start gap-2.5 p-3 rounded-xl" style={{ background: "var(--v-info-bg)", border: "1px solid rgba(129,140,248,0.2)" }}>
-                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: "var(--v-info)" }} />
-                        <p className="text-[11px] leading-relaxed" style={{ color: "var(--v-text-secondary)" }}>
-                            An invite link will be emailed to them. They'll set their own password and activate their account.
-                        </p>
-                    </div>
-
-                    <div className="flex gap-3 pt-1">
-                        <button type="button" onClick={onClose} className="flex-1 py-2 rounded-xl text-[13px] font-semibold" style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)" }}>
-                            Cancel
-                        </button>
-                        <button type="submit" disabled={submitting} className="flex-1 py-2 rounded-xl text-[13px] font-semibold hover:brightness-110 flex items-center justify-center gap-2" style={{ background: "var(--v-orange)", color: "#fff" }}>
-                            {submitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending...</> : "Send Invite"}
+                    <div className="pt-4 flex gap-4">
+                        <button type="button" onClick={onClose} className="flex-1 py-4 text-sm font-bold text-text-secondary hover:text-text-primary uppercase tracking-[0.1em] transition-colors">Discard</button>
+                        <button 
+                            type="submit" 
+                            disabled={busy}
+                            className="flex-[2] bg-accent-primary text-white py-4 rounded-2xl text-sm font-black uppercase tracking-[0.2em] shadow-xl shadow-accent-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                        >
+                            {busy ? "Deploying..." : "Send Secure Invitation"}
                         </button>
                     </div>
                 </form>
-            </div>
+            </motion.div>
         </div>
     );
 }

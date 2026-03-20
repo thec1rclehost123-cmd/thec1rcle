@@ -1,10 +1,5 @@
-import OverviewClient from "../overview/OverviewClient";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-    title: "Advanced Analytics — Pro | Partner Dashboard",
-    description: "Revenue intelligence, audience cohorts, operational integrity, and predictive insights.",
-};
-
-export default function AdvancedAnalyticsPage() {
-    return <OverviewClient mode="advanced" />;
+export default function Page() {
+    redirect("/venue/analytics?tab=advanced");
 }

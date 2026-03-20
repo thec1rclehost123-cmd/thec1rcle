@@ -6,6 +6,7 @@ import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { RoleGuard } from "@/components/auth/RoleGuard";
+import { usePathname } from "next/navigation";
 
 interface PromoterClientWrapperProps {
     children: React.ReactNode;
@@ -15,10 +16,13 @@ interface PromoterClientWrapperProps {
 export function PromoterClientWrapper({ children, menuSections }: PromoterClientWrapperProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const pathname = usePathname();
+
+    const promoterPrimaryAction = { label: "+ New Link", href: "/promoter/links" };
 
     return (
         <RoleGuard allowedType="promoter">
-            <div className="promoter-shell dark min-h-screen bg-[var(--v-canvas)]">
+            <div className="venue-shell min-h-screen bg-[var(--v-canvas)]">
                 {/* Desktop Sidebar */}
                 <div className="hidden lg:block fixed left-0 top-0 bottom-0 h-full z-50">
                     <AppleSidebar
@@ -54,7 +58,7 @@ export function PromoterClientWrapper({ children, menuSections }: PromoterClient
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                                className="absolute inset-0 bg-black/30 dark:bg-black/60 backdrop-blur-sm"
                                 onClick={() => setSidebarOpen(false)}
                             />
                             <motion.div
@@ -86,7 +90,7 @@ export function PromoterClientWrapper({ children, menuSections }: PromoterClient
                 {/* Main Content */}
                 <div className={`${isCollapsed ? "lg:pl-[80px]" : "lg:pl-[280px]"} flex flex-col min-h-screen pt-14 lg:pt-0 transition-all duration-300 ease-in-out`}>
                     <div className="hidden lg:block sticky top-0 z-40">
-                        <AppleTopBar />
+                        <AppleTopBar primaryAction={promoterPrimaryAction} />
                     </div>
 
                     <main className="flex-1 p-4 sm:p-6 lg:p-8 xl:p-10">

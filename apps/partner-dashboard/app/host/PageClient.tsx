@@ -73,8 +73,8 @@ const LIFECYCLE_CONFIG: Record<string, { label: string; color: string; bg: strin
     published: { label: "Live", color: "var(--v-success)", bg: "var(--v-success-bg)" },
     live: { label: "Live", color: "var(--v-success)", bg: "var(--v-success-bg)" },
     pending: { label: "Pending", color: "var(--v-warning)", bg: "var(--v-warning-bg)" },
-    draft: { label: "Draft", color: "var(--v-text-tertiary)", bg: "rgba(255,255,255,0.06)" },
-    completed: { label: "Done", color: "var(--v-text-secondary)", bg: "rgba(255,255,255,0.06)" },
+    draft: { label: "Draft", color: "var(--v-text-tertiary)", bg: "var(--v-neutral-bg)" },
+    completed: { label: "Done", color: "var(--v-text-secondary)", bg: "var(--v-neutral-bg)" },
     cancelled: { label: "Cancelled", color: "var(--v-error)", bg: "var(--v-error-bg)" },
     scheduled: { label: "Scheduled", color: "var(--v-info)", bg: "var(--v-info-bg)" },
     approved:  { label: "Approved", color: "var(--v-info)", bg: "var(--v-info-bg)" },
@@ -134,7 +134,7 @@ export default function HostOverviewPage() {
                                     )}
                                 </div>
                                 <div className="min-w-0">
-                                    <h2 className="text-4xl font-black tracking-tighter text-white">
+                                    <h2 className="text-4xl font-black tracking-tighter text-text-primary">
                                         {displayName}
                                     </h2>
                                     <p className="text-[16px] font-bold mt-2 text-[var(--v-text-tertiary)]">
@@ -152,10 +152,10 @@ export default function HostOverviewPage() {
                             </Link>
                             
                             {summary?.hostScore !== undefined && summary.hostScore > 0 && (
-                                <div className="flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-white/5 border border-white/[0.08] backdrop-blur-md">
+                                <div className="flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-surface-tertiary border border-border-default backdrop-blur-md">
                                     <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
                                     <span className="text-[16px] font-black tabular-nums">{summary.hostScore.toFixed(1)}</span>
-                                    <span className="text-[12px] font-black text-white/20 ml-1 uppercase">Rating</span>
+                                    <span className="text-[12px] font-black text-text-tertiary ml-1 uppercase">Rating</span>
                                 </div>
                             )}
                         </div>
@@ -167,7 +167,7 @@ export default function HostOverviewPage() {
                         <div>
                             <span className="text-[13px] font-black uppercase tracking-[0.2em] text-[var(--v-text-tertiary)]">Operating Revenue (30D)</span>
                             <div className="mt-4">
-                                <span className="text-5xl font-black tracking-tighter text-white tabular-nums">
+                                <span className="text-5xl font-black tracking-tighter text-text-primary tabular-nums">
                                     {loading ? "—" : formatINRCompact(summary?.recentEarnings ?? 0)}
                                 </span>
                             </div>
@@ -224,7 +224,7 @@ export default function HostOverviewPage() {
                 {/* Upcoming schedule */}
                 <div className="xl:col-span-2 rounded-[40px] bg-[var(--v-card)] border border-[var(--v-border)] p-10 sm:p-12">
                     <div className="flex items-center justify-between mb-10">
-                        <h2 className="text-[24px] font-black text-white tracking-tight">
+                        <h2 className="text-[24px] font-black text-text-primary tracking-tight">
                             Production Schedule
                         </h2>
                         <Link href="/host/events">
@@ -240,11 +240,11 @@ export default function HostOverviewPage() {
                         </div>
                     ) : !summary?.upcomingEvents?.length ? (
                         <div className="py-24 flex flex-col items-center text-center gap-6">
-                            <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center">
+                            <div className="w-20 h-20 rounded-full bg-surface-tertiary flex items-center justify-center">
                                 <CalendarDays className="w-10 h-10 text-[var(--v-text-muted)]" />
                             </div>
                             <div>
-                                <h3 className="text-xl font-black text-white">No active schedule</h3>
+                                <h3 className="text-xl font-black text-text-primary">No active schedule</h3>
                                 <p className="text-[15px] text-[var(--v-text-tertiary)] mt-2">Initialize your production window by claiming a slot.</p>
                             </div>
                             <Link href="/host/calendar" className="mt-4">
@@ -266,7 +266,7 @@ export default function HostOverviewPage() {
                 <div className="space-y-8">
                     {/* Insights / Quick Actions */}
                     <div className="rounded-[40px] bg-[var(--v-card)] border border-[var(--v-border)] p-10">
-                        <h3 className="text-[18px] font-black text-white mb-8">
+                        <h3 className="text-[18px] font-black text-text-primary mb-8">
                             Network Audit
                         </h3>
                         <div className="space-y-8">
@@ -277,7 +277,7 @@ export default function HostOverviewPage() {
                                     </div>
                                     <span className="text-[15px] font-bold text-[var(--v-text-secondary)]">Pending Access</span>
                                 </div>
-                                <span className="text-[20px] font-black text-white tabular-nums">{summary?.pendingEventApprovals || 0}</span>
+                                <span className="text-[20px] font-black text-text-primary tabular-nums">{summary?.pendingEventApprovals || 0}</span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-5">
@@ -286,7 +286,7 @@ export default function HostOverviewPage() {
                                     </div>
                                     <span className="text-[15px] font-bold text-[var(--v-text-secondary)]">Infrastructure</span>
                                 </div>
-                                <span className="text-[20px] font-black text-white tabular-nums">{summary?.activeVenuePartnerships || 0}</span>
+                                <span className="text-[20px] font-black text-text-primary tabular-nums">{summary?.activeVenuePartnerships || 0}</span>
                             </div>
                         </div>
                         <Link href="/host/network" className="block mt-10">
@@ -303,11 +303,11 @@ export default function HostOverviewPage() {
                     </div>
 
                     {/* Brand Boost upsell */}
-                    <div className="relative overflow-hidden rounded-[40px] p-10 bg-gradient-to-br from-[#1A1A24] to-[#0A0A10] border border-white/5 shadow-2xl">
+                    <div className="relative overflow-hidden rounded-[40px] p-10 bg-surface-secondary dark:bg-gradient-to-br dark:from-[#1A1A24] dark:to-[#0A0A10] border border-border-subtle shadow-2xl">
                         <div className="relative z-10">
                             <div className="flex items-center gap-3 mb-6">
                                 <Sparkles className="w-6 h-6 text-[var(--v-orange)]" />
-                                <span className="text-[15px] font-black uppercase tracking-[0.2em] text-white">Elite Access</span>
+                                <span className="text-[15px] font-black uppercase tracking-[0.2em] text-text-primary">Elite Access</span>
                             </div>
                             <p className="text-[14px] leading-relaxed mb-8 text-[var(--v-text-tertiary)] font-medium">
                                 Unlock priority slot acquisition and verification badges across the network.
@@ -334,18 +334,18 @@ function EventMiniCard({ event }: { event: UpcomingEvent }) {
             href={`/host/events/${event.id}`}
             className="group p-6 rounded-[24px] flex items-center gap-6 transition-all hover:bg-[var(--v-elevated)] bg-[var(--v-canvas)] border border-[var(--v-border)]"
         >
-            <div className="w-16 h-16 rounded-[18px] bg-[var(--v-card)] border border-white/5 flex items-center justify-center shrink-0 overflow-hidden relative shadow-lg">
+            <div className="w-16 h-16 rounded-[18px] bg-[var(--v-card)] border border-border-subtle flex items-center justify-center shrink-0 overflow-hidden relative shadow-lg">
                 {event.coverImage ? (
                     <img src={event.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                 ) : (
-                    <CalendarDays className="w-6 h-6 text-white/10" />
+                    <CalendarDays className="w-6 h-6 text-text-tertiary" />
                 )}
             </div>
             <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-bold text-[var(--v-text-tertiary)] uppercase tracking-tight">
                     {formatDate(event.startDate)} · {event.venueName}
                 </p>
-                <p className="text-[16px] font-black text-white line-clamp-1 leading-tight uppercase mt-1 tracking-tight">
+                <p className="text-[16px] font-black text-text-primary line-clamp-1 leading-tight uppercase mt-1 tracking-tight">
                     {event.title}
                 </p>
                 <div className="mt-3 flex">
@@ -354,7 +354,7 @@ function EventMiniCard({ event }: { event: UpcomingEvent }) {
                     </span>
                 </div>
             </div>
-            <ChevronRight className="w-6 h-6 text-white/10 group-hover:text-white group-hover:translate-x-1 transition-all" />
+            <ChevronRight className="w-6 h-6 text-text-tertiary group-hover:text-text-primary group-hover:translate-x-1 transition-all" />
         </Link>
     );
 }
@@ -365,10 +365,10 @@ function QuickLink({ icon: Icon, label, href }: { icon: any; label: string; href
             href={href}
             className="group flex flex-col items-center justify-center p-8 rounded-[32px] transition-all hover:bg-[var(--v-elevated)] bg-[var(--v-card)] border border-[var(--v-border)] gap-4"
         >
-            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <div className="w-12 h-12 rounded-2xl bg-surface-tertiary flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Icon className="w-6 h-6 text-[var(--v-text-tertiary)] group-hover:text-[var(--v-orange)] transition-colors" />
             </div>
-            <span className="text-[13px] font-black text-center uppercase tracking-widest text-[var(--v-text-tertiary)] group-hover:text-white transition-colors">{label}</span>
+            <span className="text-[13px] font-black text-center uppercase tracking-widest text-[var(--v-text-tertiary)] group-hover:text-text-primary transition-colors">{label}</span>
         </Link>
     );
 }

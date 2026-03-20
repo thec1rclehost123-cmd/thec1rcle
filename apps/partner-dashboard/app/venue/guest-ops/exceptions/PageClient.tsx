@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { useGuestOpsShellData } from "@/lib/hooks/useGuestOpsShellData";
 import { VENUE_PERMISSIONS } from "@/lib/rbac/types";
 import { cn } from "@/lib/utils";
 import {
     AlertTriangle, CheckCircle2, XCircle, Flag, Clock, Loader2,
     ScanLine, ArrowRight, X, ChevronDown,
 } from "lucide-react";
-import type { ExceptionRecord, ExceptionType, ExceptionStatus, GuestOpsOverview, ResolveExceptionBody } from "@/lib/types/guestOps";
+import type { ExceptionRecord, ExceptionType, ExceptionStatus, ResolveExceptionBody } from "@/lib/types/guestOps";
 
 const STATUS_TABS: { value: ExceptionStatus | "all"; label: string }[] = [
     { value: "all",       label: "All" },
@@ -57,16 +57,12 @@ const RESOLVE_ACTIONS: { value: ResolveExceptionBody["action"]; label: string; c
 
 export default function ExceptionsPageClient() {
     const { profile } = useDashboardAuth();
-    const searchParams = useSearchParams();
-    const venueId = profile?.activeMembership?.partnerId ?? "";
-    const eventId = searchParams.get("eventId") ?? "";
     const role = profile?.activeMembership?.role ?? "";
 
-    // Shell state
-    const [events, setEvents] = useState<any[]>([]);
-    const [summary, setSummary] = useState<GuestOpsOverview | null>(null);
-    const [openExceptions, setOpenExceptions] = useState(0);
-    const [shellLoading, setShellLoading] = useState(true);
+    const {
+        eventId, venueId, events, summary, openExceptions,
+        isLoading: shellLoading, authHeaders,
+    } = useGuestOpsShellData();
 
     // Exception state
     const [exceptions, setExceptions] = useState<ExceptionRecord[]>([]);
@@ -81,21 +77,6 @@ export default function ExceptionsPageClient() {
 
     const permissions = VENUE_PERMISSIONS[role as keyof typeof VENUE_PERMISSIONS] ?? [];
     const canManage = permissions.includes("MANAGE_GUEST_OPS");
-
-    const authHeaders = useCallback(() => ({
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${(profile as any)?._token ?? ""}`,
-    }), [profile]);
-
-    const fetchShell = useCallback(async () => {
-        if (!eventId || !venueId) return;
-        const [evRes, sumRes] = await Promise.all([
-            fetch(`/api/venue/events?venueId=${venueId}`, { headers: authHeaders() }),
-            fetch(`/api/venue/guest-ops/${eventId}/summary?venueId=${venueId}`, { headers: authHeaders() }),
-        ]);
-        if (evRes.ok) { const d = await evRes.json(); setEvents(d.events ?? []); }
-        if (sumRes.ok) setSummary(await sumRes.json());
-    }, [eventId, venueId, authHeaders]);
 
     const fetchExceptions = useCallback(async () => {
         if (!eventId || !venueId) return;
@@ -113,12 +94,6 @@ export default function ExceptionsPageClient() {
             setIsLoading(false);
         }
     }, [eventId, venueId, statusFilter, authHeaders]);
-
-    useEffect(() => {
-        if (!eventId) { setShellLoading(false); return; }
-        setShellLoading(true);
-        Promise.all([fetchShell(), fetchExceptions()]).finally(() => setShellLoading(false));
-    }, [eventId, fetchShell, fetchExceptions]);
 
     useEffect(() => {
         fetchExceptions();

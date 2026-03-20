@@ -1,18 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { TicketValidityChip } from "@/components/guest-ops/chips/TicketValidityChip";
 import { OfflineSyncBanner } from "@/components/guest-ops/OfflineSyncBanner";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { useGuestOpsShellData } from "@/lib/hooks/useGuestOpsShellData";
 import { GuestSyncEngine, type SyncState } from "@/lib/client/offlineGuestSync";
 import { cn } from "@/lib/utils";
 import {
     Radio, Wifi, WifiOff, BatteryMedium, Clock, CheckCircle2, XCircle,
     AlertTriangle, Activity, ScanLine, Loader2, RefreshCw,
 } from "lucide-react";
-import type { ScannerDevice, ScanEvent, GuestOpsOverview } from "@/lib/types/guestOps";
+import type { ScannerDevice, ScanEvent } from "@/lib/types/guestOps";
 
 const RESULT_COLORS: Record<string, string> = {
     valid:          "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20",
@@ -24,16 +24,10 @@ const RESULT_COLORS: Record<string, string> = {
 };
 
 export default function ScannerOversightPageClient() {
-    const { profile } = useDashboardAuth();
-    const searchParams = useSearchParams();
-    const venueId = profile?.activeMembership?.partnerId ?? "";
-    const eventId = searchParams.get("eventId") ?? "";
-
-    // Shell state
-    const [events, setEvents] = useState<any[]>([]);
-    const [summary, setSummary] = useState<GuestOpsOverview | null>(null);
-    const [openExceptions, setOpenExceptions] = useState(0);
-    const [shellLoading, setShellLoading] = useState(true);
+    const {
+        eventId, venueId, events, summary, openExceptions,
+        isLoading: shellLoading, authHeaders,
+    } = useGuestOpsShellData();
 
     // Scanner state
     const [devices, setDevices] = useState<ScannerDevice[]>([]);
@@ -67,23 +61,6 @@ export default function ScannerOversightPageClient() {
         };
     }, [eventId, venueId]);
 
-    const authHeaders = useCallback(() => ({
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${(profile as any)?._token ?? ""}`,
-    }), [profile]);
-
-    const fetchShellData = useCallback(async () => {
-        if (!eventId || !venueId) return;
-        const [evRes, sumRes, excRes] = await Promise.all([
-            fetch(`/api/venue/events?venueId=${venueId}`, { headers: authHeaders() }),
-            fetch(`/api/venue/guest-ops/${eventId}/summary?venueId=${venueId}`, { headers: authHeaders() }),
-            fetch(`/api/venue/guest-ops/${eventId}/exceptions?venueId=${venueId}&status=open`, { headers: authHeaders() }),
-        ]);
-        if (evRes.ok) { const d = await evRes.json(); setEvents(d.events ?? []); }
-        if (sumRes.ok) setSummary(await sumRes.json());
-        if (excRes.ok) { const d = await excRes.json(); setOpenExceptions(d.openCount ?? 0); }
-    }, [eventId, venueId, authHeaders]);
-
     const fetchDevices = useCallback(async () => {
         if (!eventId || !venueId) return;
         setDevicesLoading(true);
@@ -109,11 +86,10 @@ export default function ScannerOversightPageClient() {
 
     // Initial load
     useEffect(() => {
-        if (!eventId) { setShellLoading(false); return; }
-        setShellLoading(true);
-        Promise.all([fetchShellData(), fetchDevices(), fetchStream()])
-            .finally(() => setShellLoading(false));
-    }, [eventId, fetchShellData, fetchDevices, fetchStream]);
+        if (!eventId) return;
+        fetchDevices();
+        fetchStream();
+    }, [eventId, fetchDevices, fetchStream]);
 
     // Live polling every 8s
     useEffect(() => {

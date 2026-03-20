@@ -23,11 +23,11 @@ import { cn } from "@/lib/utils";
 // ── Shared tooltip style ───────────────────────────────────────────────────────
 
 export const TOOLTIP_STYLE = {
-    background: "#1a1a1d",
-    border: "1px solid rgba(255,255,255,0.08)",
+    background: "var(--v-card)",
+    border: "1px solid var(--v-border)",
     borderRadius: 12,
     fontSize: 12,
-    color: "rgba(255,255,255,0.9)",
+    color: "var(--v-text-primary)",
     padding: "8px 12px",
 };
 
@@ -37,7 +37,7 @@ export function ChartSkeleton({ height = 200, className }: { height?: number; cl
     return (
         <div
             className={cn("rounded-2xl animate-pulse", className)}
-            style={{ height, background: "rgba(255,255,255,0.04)" }}
+            style={{ height, background: "var(--v-skeleton)" }}
             aria-label="Loading chart..."
         />
     );
@@ -98,7 +98,7 @@ export function SparkLine({ data, color = "var(--v-orange)", height = 40, classN
                 <svg width="100%" height={height}>
                     <line
                         x1="0" y1={height / 2} x2="100%" y2={height / 2}
-                        stroke="rgba(255,255,255,0.08)" strokeWidth={1.5}
+                        stroke="rgba(128,128,128,0.20)" strokeWidth={1.5}
                         strokeDasharray="3 3"
                     />
                 </svg>
@@ -136,7 +136,7 @@ const FUNNEL_COLORS = [
     "var(--v-chart-3)",
     "var(--v-chart-4)",
     "var(--v-chart-5)",
-    "rgba(255,255,255,0.35)",
+    "var(--v-text-tertiary)",
 ];
 
 export function FunnelWaterfall({ stages, className }: FunnelWaterfallProps) {
@@ -167,7 +167,7 @@ export function FunnelWaterfall({ stages, className }: FunnelWaterfallProps) {
                                     style={{
                                         width: `${widthPct}%`,
                                         background: stage.count === 0
-                                            ? "rgba(255,255,255,0.05)"
+                                            ? "var(--v-neutral-bg)"
                                             : color,
                                         opacity: stage.count === 0 ? 0.4 : 1,
                                     }}
@@ -273,7 +273,7 @@ export function HeatmapGrid({ data, days, hours, label = "Activity Heatmap", cla
                                         style={{
                                             height: 22,
                                             background: `rgba(244, 74, 34, ${opacity})`,
-                                            border: "1px solid rgba(255,255,255,0.04)",
+                                            border: "1px solid var(--v-divider)",
                                         }}
                                         title={val > 0 ? `${day} ${hour}: ${val} guests` : undefined}
                                     />
@@ -353,7 +353,7 @@ export function HorizRankBars({ rows, maxValue, showRank = true, className }: Ho
                                         style={{
                                             background: row.badgeColor
                                                 ? `${row.badgeColor}22`
-                                                : "rgba(255,255,255,0.08)",
+                                                : "var(--v-neutral-bg)",
                                             color: row.badgeColor ?? "var(--v-text-muted)",
                                         }}
                                     >
@@ -381,14 +381,14 @@ export function HorizRankBars({ rows, maxValue, showRank = true, className }: Ho
 
                         <div
                             className="w-full rounded-full overflow-hidden"
-                            style={{ height: 4, background: "rgba(255,255,255,0.06)" }}
+                            style={{ height: 4, background: "var(--v-border)" }}
                         >
                             <div
                                 className="h-full rounded-full transition-all duration-700"
                                 style={{
                                     width: `${widthPct}%`,
                                     background: row.value === 0
-                                        ? "rgba(255,255,255,0.08)"
+                                        ? "var(--v-neutral-bg)"
                                         : color,
                                     opacity: row.value === 0 ? 0.5 : 1,
                                 }}
@@ -418,7 +418,7 @@ const LazyDonutSplit = lazy(() =>
             const { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } = m;
             const hasData = data.some(d => d.value > 0);
             const chartData = hasData ? data : [{ name: "No data", value: 1 }];
-            const chartColors = hasData ? colors : ["rgba(255,255,255,0.06)"];
+            const chartColors = hasData ? colors : ["var(--v-border)"];
 
             return (
                 <ResponsiveContainer width="100%" height={height}>
@@ -538,15 +538,15 @@ const LazyStacked = lazy(() =>
             return (
                 <ResponsiveContainer width="100%" height={height}>
                     <AreaChart data={data} margin={{ top: 8, right: 0, left: -20, bottom: 0 }} stackOffset="expand">
-                        <CartesianGrid stroke="rgba(255,255,255,0.03)" vertical={false} />
+                        <CartesianGrid stroke="rgba(128,128,128,0.12)" vertical={false} />
                         <XAxis
                             dataKey={xKey}
-                            tick={{ fontSize: 10, fill: "rgba(255,255,255,0.25)" }}
+                            tick={{ fontSize: 10, fill: "#9B9B9F" }}
                             axisLine={false} tickLine={false}
                         />
                         <YAxis
                             tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
-                            tick={{ fontSize: 10, fill: "rgba(255,255,255,0.25)" }}
+                            tick={{ fontSize: 10, fill: "#9B9B9F" }}
                             axisLine={false} tickLine={false}
                         />
                         <Tooltip
@@ -631,13 +631,13 @@ export function CohortGrid({ cohorts, className }: CohortGridProps) {
                         </span>
                         <div
                             className="flex-1 rounded-full overflow-hidden"
-                            style={{ height: 8, background: "rgba(255,255,255,0.06)" }}
+                            style={{ height: 8, background: "var(--v-border)" }}
                         >
                             <div
                                 className="h-full rounded-full transition-all duration-700"
                                 style={{
                                     width: `${pct === 0 ? 2 : pct}%`,
-                                    background: pct === 0 ? "rgba(255,255,255,0.08)" : color,
+                                    background: pct === 0 ? "var(--v-neutral-bg)" : color,
                                 }}
                             />
                         </div>
@@ -682,13 +682,13 @@ export function ScoreRing({ score, label, size = 64, strokeWidth = 5, className 
                 <circle
                     cx={size / 2} cy={size / 2} r={radius}
                     fill="none"
-                    stroke="rgba(255,255,255,0.06)"
+                    stroke="var(--v-border)"
                     strokeWidth={strokeWidth}
                 />
                 <circle
                     cx={size / 2} cy={size / 2} r={radius}
                     fill="none"
-                    stroke={score === 0 ? "rgba(255,255,255,0.06)" : color}
+                    stroke={score === 0 ? "var(--v-border)" : color}
                     strokeWidth={strokeWidth}
                     strokeDasharray={circumference}
                     strokeDashoffset={offset}

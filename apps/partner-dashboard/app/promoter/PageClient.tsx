@@ -295,7 +295,7 @@ export default function PromoterDashboardHome() {
                                     <div
                                         key={i}
                                         className="h-20 rounded-2xl animate-pulse"
-                                        style={{ background: "rgba(255,255,255,0.04)" }}
+                                        style={{ background: "var(--v-skeleton)" }}
                                     />
                                 ))}
                             </div>
@@ -459,14 +459,14 @@ function CampaignCard({
         <div
             className="group flex items-center gap-4 p-4 rounded-2xl transition-all hover:brightness-105"
             style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                background: "var(--v-neutral-bg)",
+                border: "1px solid var(--v-border)",
             }}
         >
             {/* Poster */}
             <div
                 className="w-14 h-14 rounded-xl overflow-hidden shrink-0"
-                style={{ background: "rgba(255,255,255,0.06)" }}
+                style={{ background: "var(--v-border)" }}
             >
                 {event.posterUrl && (
                     <img
@@ -503,8 +503,8 @@ function CampaignCard({
                         isCopied
                             ? { background: "#22c55e", color: "#fff" }
                             : {
-                                  background: "rgba(255,255,255,0.06)",
-                                  border: "1px solid rgba(255,255,255,0.1)",
+                                  background: "var(--v-neutral-bg)",
+                                  border: "1px solid var(--v-border)",
                                   color: "var(--v-text-primary)",
                               }
                     }
@@ -521,8 +521,8 @@ function CampaignCard({
                     target="_blank"
                     className="h-9 w-9 flex items-center justify-center rounded-xl transition-all"
                     style={{
-                        background: "rgba(255,255,255,0.04)",
-                        border: "1px solid rgba(255,255,255,0.08)",
+                        background: "var(--v-neutral-bg)",
+                        border: "1px solid var(--v-border)",
                         color: "var(--v-text-tertiary)",
                     }}
                 >

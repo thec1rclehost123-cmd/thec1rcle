@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, PlusCircle } from "lucide-react";
 import {
     LayoutDashboard,
-    CalendarDays,
     Zap,
-    FileText,
+    Calendar,
+    Network,
     Users,
-    Settings,
     BarChart2,
+    Banknote,
+    Settings,
 } from "lucide-react";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
@@ -17,33 +18,19 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AssistantButton } from "@/components/assistant/AssistantButton";
+import { usePathname } from "next/navigation";
 
 const MENU_SECTIONS = [
     {
         items: [
-            { icon: LayoutDashboard, label: "Overview", href: "/host" },
-        ],
-    },
-    {
-        items: [
-            { icon: Zap,         label: "Events",   href: "/host/events" },
-            { icon: CalendarDays, label: "Calendar", href: "/host/calendar" },
-        ],
-    },
-    {
-        items: [
-            { icon: BarChart2, label: "Analytics",       href: "/host/analytics" },
-        ],
-    },
-    {
-        items: [
-            { icon: FileText, label: "Page Management", href: "/host/page-management" },
-            { icon: Users,    label: "Partnerships",    href: "/host/partnerships" },
-        ],
-    },
-    {
-        items: [
-            { icon: Settings, label: "Settings", href: "/host/settings" },
+            { icon: LayoutDashboard, label: "Overview",  href: "/host" },
+            { icon: Zap,             label: "Events",    href: "/host/events" },
+            { icon: Calendar,        label: "Calendar",  href: "/host/calendar" },
+            { icon: Network,         label: "Network",   href: "/host/network" },
+            { icon: Users,           label: "Audience",  href: "/host/audience" },
+            { icon: BarChart2,       label: "Analytics", href: "/host/analytics" },
+            { icon: Banknote,        label: "Finance",   href: "/host/finance" },
+            { icon: Settings,        label: "Settings",  href: "/host/settings" },
         ],
     },
 ];
@@ -55,11 +42,14 @@ interface HostClientWrapperProps {
 export function HostClientWrapper({ children }: HostClientWrapperProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const pathname = usePathname();
+
+    const hostPrimaryAction = { label: "+ Create Event", href: "/host/create", icon: PlusCircle };
 
     return (
         <ApprovalGuard>
             <RoleGuard allowedType="host">
-                <div className="venue-shell dark min-h-screen bg-[var(--v-canvas)]">
+                <div className="venue-shell min-h-screen bg-[var(--v-canvas)]">
                     {/* Desktop Sidebar */}
                     <div className="hidden lg:block fixed left-0 top-0 bottom-0 h-full z-50">
                         <AppleSidebar
@@ -95,7 +85,7 @@ export function HostClientWrapper({ children }: HostClientWrapperProps) {
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     exit={{ opacity: 0 }}
-                                    className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                                    className="absolute inset-0 bg-black/30 dark:bg-black/60 backdrop-blur-sm"
                                     onClick={() => setSidebarOpen(false)}
                                 />
                                 <motion.div
@@ -127,7 +117,7 @@ export function HostClientWrapper({ children }: HostClientWrapperProps) {
                     {/* Main Content */}
                     <div className={`${isCollapsed ? "lg:pl-[80px]" : "lg:pl-[280px]"} flex flex-col min-h-screen pt-14 lg:pt-0 transition-all duration-300 ease-in-out`}>
                         <div className="hidden lg:block sticky top-0 z-40">
-                            <AppleTopBar />
+                            <AppleTopBar primaryAction={hostPrimaryAction} />
                         </div>
                         <main className="flex-1 p-4 sm:p-6 lg:p-8 xl:p-10">
                             <motion.div

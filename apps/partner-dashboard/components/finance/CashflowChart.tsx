@@ -53,40 +53,40 @@ const RechartsComposed = dynamic(() =>
 
                         <CartesianGrid
                             strokeDasharray="3 3"
-                            stroke="rgba(255,255,255,0.04)"
+                            stroke="rgba(128,128,128,0.12)"
                             vertical={false}
                         />
                         <XAxis
                             dataKey="date"
-                            tick={{ fontSize: 10, fill: "rgba(255,255,255,0.28)" }}
+                            tick={{ fontSize: 10, fill: "#9B9B9F" }}
                             axisLine={false}
                             tickLine={false}
                             interval="preserveStartEnd"
                         />
                         <YAxis
-                            tick={{ fontSize: 10, fill: "rgba(255,255,255,0.28)" }}
+                            tick={{ fontSize: 10, fill: "#9B9B9F" }}
                             axisLine={false}
                             tickLine={false}
                             tickFormatter={formatINRCompact}
                         />
                         <Tooltip
                             contentStyle={{
-                                background: "#14141A",
-                                border: "1px solid rgba(255,255,255,0.08)",
+                                background: "var(--v-card)",
+                                border: "1px solid var(--v-border)",
                                 borderRadius: 14,
                                 fontSize: 12,
-                                color: "rgba(255,255,255,0.9)",
-                                boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+                                color: "var(--v-text-primary)",
+                                boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
                                 padding: "10px 14px",
                             }}
-                            labelStyle={{ color: "rgba(255,255,255,0.5)", marginBottom: 6, fontSize: 10 }}
-                            cursor={{ stroke: "rgba(255,255,255,0.08)" }}
+                            labelStyle={{ color: "var(--v-text-tertiary)", marginBottom: 6, fontSize: 10 }}
+                            cursor={{ stroke: "rgba(128,128,128,0.20)" }}
                             formatter={(value: number) => formatINRCompact(value)}
                         />
                         <Legend
                             wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
                             formatter={(label) => (
-                                <span style={{ color: "rgba(255,255,255,0.55)", fontWeight: 600, letterSpacing: "0.04em" }}>
+                                <span style={{ color: "var(--v-text-secondary)", fontWeight: 600, letterSpacing: "0.04em" }}>
                                     {label}
                                 </span>
                             )}
@@ -239,14 +239,14 @@ export function CashflowChart({
                                         onClick={() => toggleSeries(opt.key)}
                                         className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-wide transition-all duration-150"
                                         style={{
-                                            background: active ? `${opt.color}18` : "rgba(255,255,255,0.04)",
-                                            color: active ? opt.color : "rgba(255,255,255,0.28)",
+                                            background: active ? `${opt.color}18` : "var(--v-neutral-bg)",
+                                            color: active ? opt.color : "var(--v-text-tertiary)",
                                             border: `1px solid ${active ? `${opt.color}30` : "transparent"}`,
                                         }}
                                     >
                                         <span
                                             className="w-2 h-2 rounded-full"
-                                            style={{ background: active ? opt.color : "rgba(255,255,255,0.15)" }}
+                                            style={{ background: active ? opt.color : "var(--v-border-strong)" }}
                                         />
                                         {opt.label}
                                     </button>
@@ -284,8 +284,8 @@ export function CashflowChart({
                     className="w-full rounded-2xl flex items-center justify-center"
                     style={{
                         height,
-                        background: "rgba(255,255,255,0.02)",
-                        border: "1px dashed rgba(255,255,255,0.06)",
+                        background: "var(--v-neutral-bg)",
+                        border: "1px dashed var(--v-border)",
                     }}
                 >
                     <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>

@@ -1,207 +1,533 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
     Building2,
+    Users,
+    Search,
+    MapPin,
+    Send,
     CheckCircle2,
     Clock,
-    ArrowUpRight,
-    MoreHorizontal,
+    XCircle,
+    Handshake,
+    CalendarDays,
+    TrendingUp,
+    Compass,
     Plus,
-    AlertCircle,
-    ChevronRight,
-    MapPin,
-    Calendar,
-    Eye
 } from "lucide-react";
-import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { AnimatePresence } from "framer-motion";
-import { VenueCalendarPreview } from "@/components/host/VenueCalendarPreview";
+import { motion, AnimatePresence } from "framer-motion";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
+import { VenueCalendarPreview } from "@/components/host/VenueCalendarPreview";
+import { useRouter } from "next/navigation";
 
-export default function PartnershipsPage() {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type NetworkTab = "venues" | "promoters" | "requests";
+
+interface VenuePartner {
+    id: string;
+    name: string;
+    city: string;
+    capacity?: number;
+    style?: string;
+    coverImage?: string;
+    partnershipStatus: "active" | "pending" | "rejected" | "none";
+    eventsHosted?: number;
+}
+
+interface PromoterPartner {
+    id: string;
+    displayName: string;
+    handle?: string;
+    photoURL?: string;
+    cities?: string[];
+    partnershipStatus: "active" | "pending" | "none";
+    totalGuestsBrought?: number;
+    conversionRate?: number;
+    eventsSupported?: number;
+}
+
+interface PartnershipRequest {
+    id: string;
+    type: "venue" | "promoter";
+    direction: "incoming" | "outgoing";
+    partnerName: string;
+    partnerCity?: string;
+    status: "pending" | "approved" | "rejected";
+    createdAt: string;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const statusConfig: Record<string, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
+    active: { label: "Active", color: "var(--v-success)", icon: CheckCircle2 },
+    pending: { label: "Pending", color: "var(--v-warning)", icon: Clock },
+    rejected: { label: "Rejected", color: "var(--v-error)", icon: XCircle },
+    none: { label: "Connect", color: "var(--v-orange)", icon: Plus },
+};
+
+// ─── Venue card ───────────────────────────────────────────────────────────────
+
+function VenueCard({
+    venue,
+    onRequest,
+    onSelectSlot,
+}: {
+    venue: VenuePartner;
+    onRequest: (id: string) => void;
+    onSelectSlot: (venue: { id: string; name: string }) => void;
+}) {
+    const cfg = statusConfig[venue.partnershipStatus] || statusConfig.none;
+    const StatusIcon = cfg.icon;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="group relative rounded-[32px] bg-[var(--v-card)] border border-[var(--v-border)] hover:bg-[var(--v-elevated)] transition-all overflow-hidden"
+        >
+            <div className="h-40 bg-surface-tertiary relative overflow-hidden">
+                {venue.coverImage ? (
+                    <img src={venue.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <Building2 className="w-12 h-12 text-text-tertiary" />
+                    </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] font-black uppercase tracking-widest border border-white/10 backdrop-blur-md"
+                    style={{ color: cfg.color, background: "rgba(0,0,0,0.4)" }}>
+                    <StatusIcon className="w-3.5 h-3.5" />
+                    {cfg.label}
+                </div>
+            </div>
+
+            <div className="p-7">
+                <h3 className="text-[18px] font-black text-text-primary tracking-tight truncate">{venue.name}</h3>
+                <div className="flex items-center gap-2 text-[14px] text-[var(--v-text-tertiary)] font-bold mt-2 mb-6">
+                    <MapPin className="w-4 h-4 shrink-0" />
+                    <span>{venue.city}</span>
+                    {venue.style && <><span className="opacity-30">·</span><span>{venue.style}</span></>}
+                </div>
+
+                <div className="flex flex-col gap-4">
+                    {venue.eventsHosted !== undefined && venue.eventsHosted > 0 && (
+                        <div className="flex items-center gap-2.5 text-[12px] text-[var(--v-text-muted)] font-black uppercase tracking-widest">
+                            <CalendarDays className="w-4 h-4" />
+                            {venue.eventsHosted} Production Windows
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-3">
+                        {venue.partnershipStatus === "active" ? (
+                            <button
+                                onClick={() => onSelectSlot({ id: venue.id, name: venue.name })}
+                                className="flex-1 flex items-center justify-center gap-2.5 h-11 rounded-2xl text-[12px] font-black uppercase tracking-widest bg-[var(--v-orange)]/10 hover:bg-[var(--v-orange)] text-[var(--v-orange)] hover:text-white border border-[var(--v-orange)]/20 transition-all active:scale-95"
+                            >
+                                <CalendarDays className="w-4 h-4" /> Request Slot
+                            </button>
+                        ) : venue.partnershipStatus === "pending" ? (
+                            <div className="flex-1 flex items-center justify-center gap-2.5 h-11 rounded-2xl text-[12px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500/40 border border-amber-500/10 cursor-not-allowed">
+                                <Clock className="w-4 h-4" /> Status Pending
+                            </div>
+                        ) : venue.partnershipStatus === "none" ? (
+                            <button
+                                onClick={() => onRequest(venue.id)}
+                                className="flex-1 flex items-center justify-center gap-2.5 h-11 rounded-2xl text-[12px] font-black uppercase tracking-widest bg-[var(--v-orange)]/10 hover:bg-[var(--v-orange)] text-[var(--v-orange)] hover:text-white border border-[var(--v-orange)]/20 transition-all active:scale-95">
+                                <Send className="w-4 h-4" /> Request Access
+                            </button>
+                        ) : null}
+                    </div>
+                </div>
+            </div>
+        </motion.div>
+    );
+}
+
+// ─── Promoter card ─────────────────────────────────────────────────────────────
+
+function PromoterCard({ promoter, onInvite }: { promoter: PromoterPartner; onInvite: (id: string) => void }) {
+    const cfg = statusConfig[promoter.partnershipStatus] || statusConfig.none;
+    const initials = promoter.displayName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="group rounded-[32px] bg-[var(--v-card)] border border-[var(--v-border)] hover:bg-[var(--v-elevated)] transition-all p-8"
+        >
+            <div className="flex items-center gap-5 mb-8">
+                <div className="w-16 h-16 rounded-2xl bg-surface-tertiary flex items-center justify-center text-text-primary font-black text-[20px] shrink-0 overflow-hidden border border-border-subtle relative">
+                    {promoter.photoURL ? <img src={promoter.photoURL} alt="" className="w-full h-full object-cover" /> : initials}
+                    <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-transparent" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <h3 className="text-[17px] font-black text-text-primary truncate tracking-tight">{promoter.displayName}</h3>
+                    {promoter.handle && <p className="text-[13px] text-[var(--v-text-tertiary)] font-bold">@{promoter.handle}</p>}
+                </div>
+                <div className="px-3 py-1.5 rounded-xl text-[12px] font-black uppercase tracking-widest border shrink-0"
+                    style={{ color: cfg.color, borderColor: `${cfg.color}20`, background: `${cfg.color}05` }}>
+                    {cfg.label}
+                </div>
+            </div>
+
+            {promoter.partnershipStatus === "active" && (
+                <div className="grid grid-cols-3 gap-3 mb-8">
+                    <div className="text-center p-4 rounded-2xl bg-surface-tertiary border border-border-subtle">
+                        <p className="text-[18px] font-black text-text-primary tabular-nums">{promoter.totalGuestsBrought ?? 0}</p>
+                        <p className="text-[12px] text-[var(--v-text-muted)] uppercase tracking-widest font-black mt-1">Guests</p>
+                    </div>
+                    <div className="text-center p-4 rounded-2xl bg-surface-tertiary border border-border-subtle">
+                        <p className="text-[18px] font-black text-text-primary tabular-nums">{promoter.conversionRate ? `${promoter.conversionRate.toFixed(0)}%` : "—"}</p>
+                        <p className="text-[12px] text-[var(--v-text-muted)] uppercase tracking-widest font-black mt-1">ROI</p>
+                    </div>
+                    <div className="text-center p-4 rounded-2xl bg-surface-tertiary border border-border-subtle">
+                        <p className="text-[18px] font-black text-text-primary tabular-nums">{promoter.eventsSupported ?? 0}</p>
+                        <p className="text-[12px] text-[var(--v-text-muted)] uppercase tracking-widest font-black mt-1">Windows</p>
+                    </div>
+                </div>
+            )}
+
+            <div className="flex gap-3">
+                {promoter.partnershipStatus === "active" ? (
+                    <Link href="/host/events" className="flex-1">
+                        <VenueActionButton variant="secondary" className="w-full h-11 text-[12px]">
+                            Assign To Production
+                        </VenueActionButton>
+                    </Link>
+                ) : promoter.partnershipStatus === "none" ? (
+                    <button
+                        onClick={() => onInvite(promoter.id)}
+                        className="flex-1 flex items-center justify-center gap-2.5 h-11 rounded-2xl text-[12px] font-black uppercase tracking-widest bg-[var(--v-orange)]/10 hover:bg-[var(--v-orange)] text-[var(--v-orange)] hover:text-white border border-[var(--v-orange)]/20 transition-all active:scale-95">
+                        <Send className="w-4 h-4" /> Issue Invite
+                    </button>
+                ) : (
+                    <div className="flex-1 flex items-center justify-center gap-2.5 h-11 rounded-2xl text-[12px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500/40 border border-amber-500/10 cursor-not-allowed">
+                        <Clock className="w-4 h-4" /> Invite Sent
+                    </div>
+                )}
+            </div>
+        </motion.div>
+    );
+}
+
+// ─── Request row ──────────────────────────────────────────────────────────────
+
+function RequestRow({ req }: { req: PartnershipRequest }) {
+    const statusStyle: Record<string, { color: string; label: string }> = {
+        pending: { color: "var(--v-warning)", label: "Pending" },
+        approved: { color: "var(--v-success)", label: "Approved" },
+        rejected: { color: "var(--v-error)", label: "Rejected" },
+    };
+    const s = statusStyle[req.status] || statusStyle.pending;
+    const date = new Date(req.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
+    return (
+        <div className="flex items-center gap-6 px-7 py-5 rounded-[24px] bg-[var(--v-card)] border border-[var(--v-border)] hover:bg-[var(--v-elevated)] transition-all">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border border-border-subtle" style={{ background: `${s.color}08` }}>
+                {req.type === "venue" ? <Building2 className="w-6 h-6" style={{ color: s.color }} /> : <Users className="w-6 h-6" style={{ color: s.color }} />}
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-[16px] font-black text-text-primary truncate tracking-tight">{req.partnerName}</p>
+                <div className="flex items-center gap-3 text-[13px] text-[var(--v-text-tertiary)] font-bold mt-1">
+                    <span className="capitalize">{req.type}</span>
+                    <span className="opacity-20">·</span>
+                    <span>{req.direction === "outgoing" ? "Outgoing" : "Incoming"}</span>
+                    <span className="opacity-20">·</span>
+                    <span>{date}</span>
+                </div>
+            </div>
+            <span className="shrink-0 px-4 py-1.5 rounded-xl text-[12px] font-black uppercase tracking-widest border"
+                style={{ color: s.color, borderColor: `${s.color}20`, background: `${s.color}05` }}>
+                {s.label}
+            </span>
+        </div>
+    );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+export default function HostPartnershipsPage() {
     const router = useRouter();
-    const { profile } = useDashboardAuth();
-    const [partnerships, setPartnerships] = useState<any[]>([]);
+    const { profile, getIdToken } = useDashboardAuth() as any;
+    const hostId = profile?.activeMembership?.partnerId;
+
+    const [tab, setTab] = useState<NetworkTab>("venues");
+    const [search, setSearch] = useState("");
+    const [venues, setVenues] = useState<VenuePartner[]>([]);
+    const [promoters, setPromoters] = useState<PromoterPartner[]>([]);
+    const [requests, setRequests] = useState<PartnershipRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedVenue, setSelectedVenue] = useState<{ id: string; name: string } | null>(null);
 
-    useEffect(() => {
-        if (!profile?.activeMembership?.partnerId) return;
-        fetchPartnerships();
-    }, [profile]);
-
-    const fetchPartnerships = async () => {
+    const fetchData = useCallback(async () => {
+        if (!hostId) { setLoading(false); return; }
+        setLoading(true);
         try {
-            const res = await fetch(`/api/venue/partnerships?hostId=${profile?.activeMembership?.partnerId}`);
-            const data = await res.json();
-            setPartnerships(data.partnerships || []);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
+            const token = typeof getIdToken === "function" ? await getIdToken() : "";
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+
+            const [partnershipRes, promoterRes] = await Promise.allSettled([
+                fetch(`/api/venue/partnerships?hostId=${hostId}`, { headers }),
+                fetch(`/api/host/promoter-requests?hostId=${hostId}`, { headers }),
+            ]);
+
+            if (partnershipRes.status === "fulfilled" && partnershipRes.value.ok) {
+                const d = await partnershipRes.value.json();
+                const allPartners = d.partnerships || d.partners || [];
+                const venuePartners = allPartners.filter((p: any) => p.type === "venue" || !p.type);
+                const reqList: PartnershipRequest[] = allPartners.map((p: any) => ({
+                    id: p.id,
+                    type: "venue" as const,
+                    direction: "outgoing" as const,
+                    partnerName: p.name || p.venueName || "Venue",
+                    partnerCity: p.city,
+                    status: (p.status || p.partnershipStatus || "pending") as any,
+                    createdAt: p.requestedAt || p.createdAt || new Date().toISOString(),
+                }));
+                setVenues(venuePartners.map((p: any) => ({
+                    id: p.venueId || p.id,
+                    name: p.name || p.venueName || "Venue",
+                    city: p.city || "",
+                    capacity: p.capacity,
+                    style: p.style,
+                    coverImage: p.coverImage || p.coverURL,
+                    partnershipStatus: p.status || p.partnershipStatus || "none",
+                    eventsHosted: p.eventsHosted,
+                })));
+                setRequests(prev => {
+                    const existingIds = new Set(prev.map(r => r.id));
+                    const newItems = reqList.filter(r => !existingIds.has(r.id));
+                    return [...reqList, ...prev.filter(r => !reqList.find(n => n.id === r.id))];
+                });
+            }
+
+            if (promoterRes.status === "fulfilled" && promoterRes.value.ok) {
+                const d = await promoterRes.value.json();
+                const promoterRequests: PartnershipRequest[] = (d.requests || []).map((r: any) => ({
+                    id: r.id,
+                    type: "promoter" as const,
+                    direction: "incoming" as const,
+                    partnerName: r.promoterName || r.name || "Promoter",
+                    status: (r.status || "pending") as any,
+                    createdAt: r.createdAt || new Date().toISOString(),
+                }));
+                setPromoters(d.promoters || d.connections || []);
+                setRequests(prev => {
+                    const venueReqs = prev.filter(r => r.type === "venue");
+                    return [...venueReqs, ...promoterRequests];
+                });
+            }
+        } catch { /* silent — data remains from last successful fetch */ }
+        finally { setLoading(false); }
+    }, [hostId, getIdToken]);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    const handleVenueRequest = async (venueId: string) => {
+        try {
+            const token = typeof getIdToken === "function" ? await getIdToken() : "";
+            await fetch("/api/host/partnerships/request", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ hostId, venueId, type: "venue" }),
+            });
+            fetchData();
+        } catch { /* */ }
+    };
+
+    const handlePromoterInvite = async (promoterId: string) => {
+        try {
+            const token = typeof getIdToken === "function" ? await getIdToken() : "";
+            await fetch("/api/host/promoters/invite", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ hostId, promoterId }),
+            });
+            fetchData();
+        } catch { /* */ }
     };
 
     const handleSelectSlot = (date: string, startTime: string, endTime: string) => {
         if (!selectedVenue) return;
-
-        // Navigate to create event wizard with pre-filled venue and slot info
-        const params = new URLSearchParams({
-            venue: selectedVenue.id,
-            venueName: selectedVenue.name,
-            date,
-            startTime,
-            endTime
-        });
-
+        const params = new URLSearchParams({ venue: selectedVenue.id, venueName: selectedVenue.name, date, startTime, endTime });
         router.push(`/host/create?${params.toString()}`);
     };
 
-    const activePartnerships = partnerships.filter(p => p.status === 'active');
-    const pendingPartnerships = partnerships.filter(p => p.status === 'pending');
+    const filteredVenues = venues.filter(v =>
+        !search || v.name.toLowerCase().includes(search.toLowerCase()) || v.city.toLowerCase().includes(search.toLowerCase())
+    );
+    const filteredPromoters = promoters.filter(p =>
+        !search || p.displayName.toLowerCase().includes(search.toLowerCase())
+    );
+    const pendingRequestCount = requests.filter(r => r.status === "pending").length;
+
+    const tabs: { id: NetworkTab; label: string; count?: number }[] = [
+        { id: "venues", label: "Infrastructure", count: venues.filter(v => v.partnershipStatus === "active").length },
+        { id: "promoters", label: "Distribution", count: promoters.filter(p => p.partnershipStatus === "active").length },
+        { id: "requests", label: "Audit Log", count: pendingRequestCount || undefined },
+    ];
 
     return (
         <VenuePageShell
-            title="Partnerships"
-            subtitle="Manage your verified venue partnerships and slot permissions"
+            title="Partnership Hub"
+            subtitle="Coordinate with venues and distribution networks"
             actions={
-                <div className="flex items-center gap-3">
-                    <Link href="/host/events/requests">
-                        <VenueActionButton variant="secondary">
-                            <Clock className="w-4 h-4 mr-2" /> My Requests
-                        </VenueActionButton>
-                    </Link>
-                    <Link href="/host/discover">
-                        <VenueActionButton variant="primary">
-                            <Plus className="w-4 h-4 mr-2" /> Discover Venues
-                        </VenueActionButton>
-                    </Link>
-                </div>
+                <Link href="/host/discover">
+                    <VenueActionButton variant="primary">
+                        <Compass className="w-5 h-5 mr-2" />
+                        Explore Network
+                    </VenueActionButton>
+                </Link>
             }
         >
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Active Partnerships */}
-                <div className="lg:col-span-2 space-y-4">
-                    <div className="flex items-center gap-2 px-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        <h2 className="text-[11px] font-black text-white uppercase tracking-widest">
-                            Active Partners ({activePartnerships.length})
-                        </h2>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {activePartnerships.map(p => (
-                            <div key={p.id} className="relative overflow-hidden bg-[#121216] border border-white/[0.04] rounded-[2rem] p-6 group transition-all duration-300 hover:border-orange-500/20 hover:shadow-2xl hover:shadow-orange-500/5">
-                                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                                
-                                <div className="relative flex items-start justify-between mb-5">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] border border-white/5 rounded-2xl flex items-center justify-center text-text-tertiary shadow-lg group-hover:text-orange-500 transition-colors">
-                                        <Building2 className="w-5 h-5" />
-                                    </div>
-                                    <button className="h-8 w-8 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-white/40 flex items-center justify-center transition-all">
-                                        <MoreHorizontal className="w-4 h-4" />
-                                    </button>
-                                </div>
-                                <h3 className="relative text-lg font-black text-white uppercase tracking-tight mb-1">{p.venueName}</h3>
-                                <div className="relative flex items-center gap-1.5 text-[11px] font-bold text-text-tertiary mb-5">
-                                    <MapPin className="w-3 h-3 text-orange-500/60" /> {p.venueCity || "Pune"}, IN
-                                </div>
-                                <div className="relative flex gap-2">
-                                    <button
-                                        onClick={() => setSelectedVenue({ id: p.venueId, name: p.venueName })}
-                                        className="flex-1 py-3 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.04] text-white rounded-xl text-[10px] font-black uppercase tracking-widest text-center flex items-center justify-center gap-2 transition-all group/btn"
-                                    >
-                                        <Calendar className="w-3.5 h-3.5 text-orange-500" />
-                                        Request Slot
-                                    </button>
-                                    <button className="h-[42px] px-3 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.04] text-white rounded-xl transition-all flex items-center justify-center">
-                                        <ArrowUpRight className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                        {activePartnerships.length === 0 && (
-                            <div className="md:col-span-2 py-16 bg-[#0D0D0F] rounded-[2rem] border border-dashed border-white/[0.08] flex flex-col items-center text-center px-8 relative overflow-hidden group">
-                                <div className="absolute inset-0 bg-gradient-to-b from-orange-500/[0.02] to-transparent pointer-events-none" />
-                                <div className="absolute inset-0 bg-orange-500/10 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 rounded-full" />
-                                
-                                <div className="relative w-16 h-16 bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] border border-white/5 rounded-2xl flex items-center justify-center text-white/40 shadow-2xl mb-4 group-hover:scale-110 transition-transform duration-500 group-hover:text-orange-500">
-                                    <Building2 className="w-6 h-6" />
-                                </div>
-                                <h4 className="relative text-xl font-black text-white tracking-tight uppercase">No active venues</h4>
-                                <p className="relative text-white/40 text-[13px] font-medium mt-2 max-w-sm leading-relaxed">You need a verified partnership to see club calendars and book slots.</p>
-                                <Link
-                                    href="/host/discover"
-                                    className="relative mt-6 px-6 py-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all"
-                                >
-                                    Find Venues
-                                </Link>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Pending Requests & Sidebar */}
-                <div className="space-y-6">
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-2 px-2">
-                            <Clock className="w-4 h-4 text-orange-500" />
-                            <h2 className="text-[11px] font-black text-white uppercase tracking-widest">
-                                Pending ({pendingPartnerships.length})
-                            </h2>
-                        </div>
-
-                        <div className="space-y-3">
-                            {pendingPartnerships.map(p => (
-                                <div key={p.id} className="bg-[#121216] border border-white/[0.04] rounded-[1.5rem] p-4 flex items-center justify-between border-l-4 border-l-orange-500 shadow-xl group hover:border-orange-500/20 transition-colors">
-                                    <div>
-                                        <h4 className="font-black text-white uppercase text-[13px] tracking-tight">{p.venueName}</h4>
-                                        <p className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest mt-1">Requested {new Date(p.createdAt?.toDate?.() || p.createdAt).toLocaleDateString()}</p>
-                                    </div>
-                                    <AlertCircle className="w-4 h-4 text-orange-500/60 group-hover:text-orange-500 transition-colors" />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Quick Actions Card */}
-                    <div className="p-5 bg-[#121216] border border-white/[0.04] rounded-[2rem] space-y-4 shadow-xl">
-                        <h4 className="font-black uppercase tracking-widest text-[10px] text-text-tertiary px-2">Quick Actions</h4>
-                        <Link
-                            href="/host/events/requests"
-                            className="flex items-center justify-between p-4 bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.02] hover:border-white/[0.06] rounded-[1.5rem] transition-all group"
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-[12px] bg-orange-500/10 flex items-center justify-center shadow-lg shadow-orange-500/5">
-                                    <Eye className="w-4 h-4 text-orange-500" />
+            <div className="space-y-10">
+                {/* Stats strip */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[
+                        { icon: Building2, label: "Infrastructure", value: venues.filter(v => v.partnershipStatus === "active").length, color: "var(--v-info)" },
+                        { icon: Users, label: "Distribution", value: promoters.filter(p => p.partnershipStatus === "active").length, color: "var(--v-orange)" },
+                        { icon: TrendingUp, label: "Network Effect", value: promoters.reduce((acc, p) => acc + (p.totalGuestsBrought ?? 0), 0), color: "var(--v-success)" },
+                    ].map(stat => {
+                        const Icon = stat.icon;
+                        return (
+                            <div key={stat.label} className="flex items-center gap-5 p-8 rounded-[32px] bg-[var(--v-card)] border border-[var(--v-border)]">
+                                <div className="w-14 h-14 rounded-2xl flex items-center justify-center border border-border-subtle shadow-xl" style={{ background: `${stat.color}10` }}>
+                                    <Icon className="w-7 h-7" style={{ color: stat.color }} />
                                 </div>
                                 <div>
-                                    <p className="text-[13px] font-black text-white tracking-tight">View Slot Requests</p>
-                                    <p className="text-[11px] text-white/40 font-medium leading-none mt-1">Track pending approvals</p>
+                                    <p className="text-3xl font-black text-text-primary tabular-nums tracking-tight">{stat.value.toLocaleString()}</p>
+                                    <p className="text-[13px] text-[var(--v-text-tertiary)] font-black uppercase tracking-[0.1em]">{stat.label}</p>
                                 </div>
                             </div>
-                            <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/60 group-hover:translate-x-1 transition-all" />
-                        </Link>
-                    </div>
-
-                    <div className="relative overflow-hidden p-6 bg-gradient-to-br from-[#121216] to-[#0D0D0F] border border-white/[0.05] rounded-[2rem] shadow-2xl group">
-                        <div className="absolute inset-0 bg-gradient-to-r from-orange-500/10 to-rose-600/10 pointer-events-none" />
-                        <div className="absolute -top-10 -right-10 w-32 h-32 bg-orange-500/20 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-                        
-                        <h4 className="relative font-black uppercase tracking-widest text-[10px] text-orange-500 mb-3 flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" /> Pro Tip
-                        </h4>
-                        <p className="relative text-[13px] font-medium leading-relaxed italic text-white/80">
-                            "Venues prefer hosts with completed profiles and verified history."
-                        </p>
-                        <Link href="/host/profile" className="relative mt-5 inline-flex items-center gap-2 px-4 py-2 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] rounded-xl text-[10px] font-black uppercase tracking-widest text-white group/btn transition-all">
-                            Polish Profile <ChevronRight className="w-3.5 h-3.5 opacity-40 group-hover/btn:opacity-100 group-hover/btn:translate-x-1 transition-all" />
-                        </Link>
-                    </div>
+                        );
+                    })}
                 </div>
+
+                {/* Tab bar + search */}
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8">
+                    <div className="flex p-2 bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] w-fit gap-2">
+                        {tabs.map(t => (
+                            <button
+                                key={t.id}
+                                onClick={() => setTab(t.id)}
+                                className={`px-7 py-3 rounded-[16px] text-[13px] font-black uppercase tracking-wider transition-all flex items-center gap-3 ${tab === t.id ? "bg-[var(--v-elevated)] text-text-primary shadow-lg" : "text-[var(--v-text-tertiary)] hover:text-text-primary"}`}
+                            >
+                                {t.label}
+                                {t.count !== undefined && t.count > 0 && (
+                                    <span className={`px-2 py-0.5 rounded-md text-[12px] font-black tabular-nums ${tab === t.id ? "bg-surface-elevated text-text-primary" : "bg-surface-tertiary text-text-tertiary"}`}>
+                                        {t.count}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                    {tab !== "requests" && (
+                        <div className="relative group w-full xl:w-96">
+                            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--v-text-muted)] group-focus-within:text-[var(--v-orange)] transition-colors" />
+                            <input
+                                type="text"
+                                placeholder={tab === "venues" ? "Locate infrastructure..." : "Locate distribution..."}
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                className="w-full bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] pl-14 pr-6 py-4 text-[15px] text-text-primary placeholder:text-[var(--v-text-muted)] focus:outline-none focus:border-[var(--v-orange)]/50 transition-all font-bold tracking-tight shadow-sm"
+                            />
+                        </div>
+                    )}
+                </div>
+
+                {/* Tab content */}
+                <AnimatePresence mode="wait">
+                    {tab === "venues" && (
+                        <motion.div key="venues" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: [0.25, 1, 0.5, 1] }}>
+                            {loading ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-72 rounded-[40px] animate-pulse bg-[var(--v-card)] border border-[var(--v-border)]" />)}
+                                </div>
+                            ) : filteredVenues.length === 0 ? (
+                                <div className="py-32 rounded-[56px] bg-[var(--v-card)] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-12">
+                                    <div className="w-20 h-20 rounded-full bg-surface-tertiary flex items-center justify-center mb-8">
+                                        <Building2 className="w-10 h-10 text-text-tertiary" />
+                                    </div>
+                                    <h3 className="text-2xl font-black text-text-primary">No infrastructure connections</h3>
+                                    <p className="text-[15px] text-[var(--v-text-tertiary)] mt-3 mb-10 max-w-sm leading-relaxed">Discover venues across the network and request production access to their calendar.</p>
+                                    <Link href="/host/discover">
+                                        <VenueActionButton variant="primary" className="h-12 px-8">
+                                            Explore Venues
+                                        </VenueActionButton>
+                                    </Link>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    {filteredVenues.map(v => (
+                                        <VenueCard key={v.id} venue={v} onRequest={handleVenueRequest} onSelectSlot={setSelectedVenue} />
+                                    ))}
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+
+                    {tab === "promoters" && (
+                        <motion.div key="promoters" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+                            {loading ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    {[1, 2, 3, 4].map(i => <div key={i} className="h-64 rounded-[40px] animate-pulse bg-[var(--v-card)] border border-[var(--v-border)]" />)}
+                                </div>
+                            ) : filteredPromoters.length === 0 ? (
+                                <div className="py-32 rounded-[56px] bg-[var(--v-card)] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-12">
+                                    <div className="w-20 h-20 rounded-full bg-surface-tertiary flex items-center justify-center mb-8">
+                                        <Users className="w-10 h-10 text-text-tertiary" />
+                                    </div>
+                                    <h3 className="text-2xl font-black text-text-primary">No distribution network</h3>
+                                    <p className="text-[15px] text-[var(--v-text-tertiary)] mt-3 mb-10 max-w-sm leading-relaxed">Invite promoters to amplify your productions and drive verified attendance.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    {filteredPromoters.map(p => (
+                                        <PromoterCard key={p.id} promoter={p} onInvite={handlePromoterInvite} />
+                                    ))}
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+
+                    {tab === "requests" && (
+                        <motion.div key="requests" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+                            {loading ? (
+                                <div className="space-y-4">
+                                    {[1, 2, 3].map(i => <div key={i} className="h-24 rounded-[32px] animate-pulse bg-[var(--v-card)] border border-[var(--v-border)]" />)}
+                                </div>
+                            ) : requests.length === 0 ? (
+                                <div className="py-32 rounded-[56px] bg-[var(--v-card)] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-12">
+                                    <div className="w-20 h-20 rounded-full bg-surface-tertiary flex items-center justify-center mb-8">
+                                        <Handshake className="w-10 h-10 text-text-tertiary" />
+                                    </div>
+                                    <h3 className="text-2xl font-black text-text-primary">Audit log empty</h3>
+                                    <p className="text-[15px] text-[var(--v-text-tertiary)] mt-3">Active partnership audits will appear here for verification.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {requests.filter(r => r.status === "pending").length > 0 && (
+                                        <>
+                                            <p className="text-[12px] font-black uppercase tracking-[0.2em] text-[var(--v-text-muted)] border-l-4 border-l-[var(--v-warning)] pl-4">In Review</p>
+                                            {requests.filter(r => r.status === "pending").map(r => <RequestRow key={r.id} req={r} />)}
+                                        </>
+                                    )}
+                                    {requests.filter(r => r.status !== "pending").length > 0 && (
+                                        <>
+                                            <p className="text-[12px] font-black uppercase tracking-[0.2em] text-[var(--v-text-muted)] border-l-4 border-l-[var(--v-border)] pl-4 mt-12">Audit History</p>
+                                            {requests.filter(r => r.status !== "pending").map(r => <RequestRow key={r.id} req={r} />)}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* Venue Calendar Preview Modal */}
@@ -210,7 +536,7 @@ export default function PartnershipsPage() {
                     <VenueCalendarPreview
                         venueId={selectedVenue.id}
                         venueName={selectedVenue.name}
-                        hostId={profile?.activeMembership?.partnerId || ""}
+                        hostId={hostId || ""}
                         onSelectSlot={handleSelectSlot}
                         onClose={() => setSelectedVenue(null)}
                     />

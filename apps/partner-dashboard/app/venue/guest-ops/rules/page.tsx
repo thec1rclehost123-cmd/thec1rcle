@@ -1,12 +1,5 @@
-import { Suspense } from "react";
-import GuestRulesPageClient from "./PageClient";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Guest Rules — Guest Ops" };
-
-export default function GuestRulesPage() {
-    return (
-        <Suspense>
-            <GuestRulesPageClient />
-        </Suspense>
-    );
+export default function Page() {
+    redirect("/venue/door?tab=rules");
 }

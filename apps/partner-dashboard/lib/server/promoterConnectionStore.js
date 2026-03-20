@@ -135,6 +135,22 @@ export async function cancelConnectionRequest(id, promoterId, token) {
     });
 }
 
+export async function pauseConnection(id, token) {
+    const client = getApiClient(token);
+    return client.request(`/promoter-connections/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'pause' })
+    });
+}
+
+export async function resumeConnection(id, token) {
+    const client = getApiClient(token);
+    return client.request(`/promoter-connections/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'resume' })
+    });
+}
+
 /**
  * Get IDs of hosts/venues the promoter is officially connected to
  */

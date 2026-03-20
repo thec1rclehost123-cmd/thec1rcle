@@ -157,65 +157,7 @@ export default function VenuePartnershipsPage() {
 
     return (
         <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in duration-500">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-default pb-8">
-                <div>
-                    <div className="flex items-center gap-3 mb-3 text-accent-primary">
-                        <div className="p-2 bg-accent-glow rounded-xl">
-                            <Users className="w-5 h-5" />
-                        </div>
-                        <span className="text-label font-black uppercase tracking-widest">Network</span>
-                    </div>
-                    <h1 className="text-display-sm font-bold text-text-primary tracking-tight">
-                        Partnerships
-                    </h1>
-                    <p className="text-body text-text-tertiary mt-2 max-w-xl">
-                        Manage your approved agents, review incoming requests, and discover new partners.
-                    </p>
-                </div>
-
-                {/* KPI chips */}
-                <div className="flex gap-3">
-                    <div className="px-5 py-3 bg-surface-elevated border border-border-default rounded-2xl text-center">
-                        <p className="text-stat-xs font-bold text-text-primary">{roster.length}</p>
-                        <p className="text-label text-text-tertiary mt-0.5">Active</p>
-                    </div>
-                    <div className="px-5 py-3 bg-surface-elevated border border-border-default rounded-2xl text-center">
-                        <p className="text-stat-xs font-bold text-accent-primary">{pending.length}</p>
-                        <p className="text-label text-text-tertiary mt-0.5">Pending</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex items-center p-1.5 bg-surface-secondary rounded-2xl w-fit border border-border-subtle">
-                {TABS.map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2 ${
-                            activeTab === tab.id
-                                ? "bg-surface-elevated text-text-primary shadow-sm"
-                                : "text-text-tertiary hover:text-text-secondary"
-                        }`}
-                    >
-                        {tab.label}
-                        {tab.count !== undefined && tab.count > 0 && (
-                            <span
-                                className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
-                                    activeTab === tab.id
-                                        ? "bg-accent-primary text-text-inverse"
-                                        : "bg-surface-tertiary text-text-tertiary"
-                                }`}
-                            >
-                                {tab.count}
-                            </span>
-                        )}
-                    </button>
-                ))}
-            </div>
-
-            {/* Content */}
+            {/* Content only - Header and Tabs removed for consistency with parent wrapper */}
             <div className="min-h-[500px]">
                 {error ? (
                     <div className="py-24 bg-surface-elevated rounded-[3rem] border border-dashed border-error/50 flex flex-col items-center text-center px-10">
@@ -232,61 +174,21 @@ export default function VenuePartnershipsPage() {
                         </button>
                     </div>
                 ) : (
-                    <AnimatePresence mode="wait">
-                        {activeTab === "discover" ? (
-                            <motion.div
-                                key="discover"
-                                initial={{ opacity: 0, y: 8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0 }}
-                            >
-                                <DiscoverDirectory
-                                    allowedTypes={["host", "promoter"]}
-                                    partnerId={venueId}
-                                    role="venue"
-                                />
-                            </motion.div>
-                        ) : activeTab === "roster" ? (
-                            <motion.div
-                                key="roster"
-                                initial={{ opacity: 0, y: 8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0 }}
-                            >
-                                <ActiveRoster
-                                    connections={roster}
-                                    loading={loading}
-                                    formatDate={formatDate}
-                                    onViewProfile={(conn) =>
-                                        setProfileTarget({
-                                            id: conn.otherId,
-                                            type: conn.otherType,
-                                            name: conn.otherName,
-                                            city: "",
-                                            connectionStatus:
-                                                conn.status === "active" ? "active" : "approved",
-                                        })
-                                    }
-                                />
-                            </motion.div>
-                        ) : (
-                            <motion.div
-                                key="pending"
-                                initial={{ opacity: 0, y: 8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0 }}
-                            >
-                                <PendingRequests
-                                    requests={pending}
-                                    loading={loading}
-                                    processingId={processingId}
-                                    formatDate={formatDate}
-                                    onAccept={(conn) => setTierTarget(conn)}
-                                    onDecline={handleDecline}
-                                />
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                    <ActiveRoster
+                        connections={roster}
+                        loading={loading}
+                        formatDate={formatDate}
+                        onViewProfile={(conn) =>
+                            setProfileTarget({
+                                id: conn.otherId,
+                                type: conn.otherType,
+                                name: conn.otherName,
+                                city: "",
+                                connectionStatus:
+                                    conn.status === "active" ? "active" : "approved",
+                            })
+                        }
+                    />
                 )}
             </div>
 
@@ -357,7 +259,7 @@ function ActiveRoster({
                     layout
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="group relative overflow-hidden bg-[#121216] border border-white/[0.04] rounded-[2.5rem] p-7 hover:border-orange-500/30 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/5"
+                    className="group relative overflow-hidden bg-surface-secondary dark:bg-[#121216] border border-border-subtle rounded-[2.5rem] p-7 hover:border-orange-500/30 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/5"
                 >
                     {/* Background Shine */}
                     <div className="absolute inset-0 bg-gradient-to-br from-orange-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
@@ -366,12 +268,12 @@ function ActiveRoster({
                         <div className="flex items-center gap-4">
                             <div className="relative">
                                 <div className="absolute inset-0 bg-orange-500/20 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] border border-white/5 flex items-center justify-center text-2xl font-black text-white">
+                                <div className="relative w-14 h-14 rounded-2xl bg-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-text-primary">
                                     {conn.otherName[0]}
                                 </div>
                             </div>
                             <div>
-                                <h3 className="text-lg font-black text-white tracking-tight group-hover:text-orange-500 transition-colors">
+                                <h3 className="text-lg font-black text-text-primary tracking-tight group-hover:text-orange-500 transition-colors">
                                     {conn.otherName}
                                 </h3>
                                 <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-text-tertiary mt-1">
@@ -393,7 +295,7 @@ function ActiveRoster({
                                 className={`text-[10px] px-3 py-1.5 rounded-xl font-black uppercase tracking-widest ${
                                     conn.tier === "trusted"
                                         ? "bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-lg shadow-orange-500/20"
-                                        : "bg-white/5 text-text-tertiary border border-white/5"
+                                        : "bg-surface-tertiary text-text-tertiary border border-border-subtle"
                                 }`}
                             >
                                 {conn.tier === "trusted" ? "Trusted" : "Standard"}
@@ -401,7 +303,7 @@ function ActiveRoster({
                         )}
                     </div>
 
-                    <div className="relative flex items-center justify-between py-4 border-y border-white/[0.04] mb-6">
+                    <div className="relative flex items-center justify-between py-4 border-y border-border-subtle mb-6">
                         <span className="flex items-center gap-1.5 text-[11px] font-medium text-text-tertiary">
                             <Clock className="w-3.5 h-3.5 opacity-40" />
                             Partner since {formatDate(conn.updatedAt || conn.createdAt)}
@@ -413,7 +315,7 @@ function ActiveRoster({
 
                     <button
                         onClick={() => onViewProfile(conn)}
-                        className="relative w-full py-3.5 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.04] rounded-2xl text-[11px] font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2 group/btn overflow-hidden"
+                        className="relative w-full py-3.5 bg-surface-secondary hover:bg-surface-tertiary border border-border-subtle rounded-2xl text-[11px] font-black uppercase tracking-widest text-text-primary transition-all flex items-center justify-center gap-2 group/btn overflow-hidden"
                     >
                         <span className="relative z-10 flex items-center gap-2">
                             View Network Profile <ChevronRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
@@ -470,17 +372,17 @@ function PendingRequests({
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95, x: 20 }}
-                        className="relative overflow-hidden bg-[#121216] border border-white/[0.04] p-6 rounded-[2rem] group"
+                        className="relative overflow-hidden bg-surface-secondary dark:bg-[#121216] border border-border-subtle p-6 rounded-[2rem] group"
                     >
                         <div className="absolute inset-0 bg-gradient-to-r from-orange-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                         
                         <div className="relative flex items-center justify-between">
                             <div className="flex items-center gap-5">
-                                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] border border-white/5 flex items-center justify-center text-2xl font-black text-white shadow-xl">
+                                <div className="w-14 h-14 rounded-2xl bg-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-text-primary shadow-xl">
                                     {req.otherName[0]}
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-black text-white tracking-tight">{req.otherName}</h3>
+                                    <h3 className="text-xl font-black text-text-primary tracking-tight">{req.otherName}</h3>
                                     <div className="flex items-center gap-3 mt-1.5">
                                         <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-orange-500">
                                             {req.otherType === "host" ? <UserCircle className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
@@ -509,7 +411,7 @@ function PendingRequests({
                                 <button
                                     onClick={() => onDecline(req.id)}
                                     disabled={!!processingId}
-                                    className="h-12 w-12 rounded-xl bg-white/[0.04] border border-white/[0.06] text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
+                                    className="h-12 w-12 rounded-xl bg-surface-secondary border border-border-default text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
                                     title="Decline"
                                 >
                                     <X className="w-5 h-5" />
@@ -518,11 +420,11 @@ function PendingRequests({
                         </div>
 
                         {req.message && (
-                            <div className="mt-5 p-5 bg-white/[0.02] rounded-2xl border border-white/[0.02] relative">
+                            <div className="mt-5 p-5 bg-surface-secondary rounded-2xl border border-border-subtle relative">
                                 <div className="absolute top-4 left-4 text-orange-500/20">
                                     <Quote size={16} />
                                 </div>
-                                <p className="text-[13px] text-white/60 italic pl-8 leading-relaxed">"{req.message}"</p>
+                                <p className="text-[13px] text-text-tertiary italic pl-8 leading-relaxed">"{req.message}"</p>
                             </div>
                         )}
                     </motion.div>
@@ -542,20 +444,20 @@ function EmptyState({
     subtitle: string;
 }) {
     return (
-        <div className="py-32 relative overflow-hidden bg-[#0D0D0F] border border-dashed border-white/[0.08] rounded-[3rem] flex flex-col items-center text-center px-10 group">
+        <div className="py-32 relative overflow-hidden bg-surface-secondary dark:bg-[#0D0D0F] border border-dashed border-border-default rounded-[3rem] flex flex-col items-center text-center px-10 group">
             <div className="absolute inset-0 bg-gradient-to-b from-orange-500/[0.02] to-transparent pointer-events-none" />
             
             <div className="relative mb-6">
                 <div className="absolute inset-0 bg-orange-500/20 rounded-[2rem] blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                <div className="relative w-20 h-20 bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] border border-white/5 rounded-[2rem] flex items-center justify-center text-white shadow-2xl transition-transform duration-500 group-hover:scale-110">
+                <div className="relative w-20 h-20 bg-surface-tertiary border border-border-subtle rounded-[2rem] flex items-center justify-center text-text-primary shadow-2xl transition-transform duration-500 group-hover:scale-110">
                     <div className="text-orange-500">
                         {icon}
                     </div>
                 </div>
             </div>
 
-            <h4 className="relative text-2xl font-black text-white tracking-tight mb-2 uppercase">{title}</h4>
-            <p className="relative text-[14px] text-white/40 font-medium max-w-xs leading-relaxed">{subtitle}</p>
+            <h4 className="relative text-2xl font-black text-text-primary tracking-tight mb-2 uppercase">{title}</h4>
+            <p className="relative text-[14px] text-text-tertiary font-medium max-w-xs leading-relaxed">{subtitle}</p>
         </div>
     );
 }

@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listEventsForPromoter } from "@/lib/server/eventStore";
+import { verifyAuth } from "@/lib/server/auth";
 
 /**
  * GET /api/promoter/events
- * List events available for promoters to sell
- * Only shows events from connected hosts/venues with promoter commissions enabled
+ * List events available for promoters to sell.
+ * Scoped to events from active partnerships only.
  */
 export async function GET(req: NextRequest) {
     try {
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
         const { searchParams } = new URL(req.url);
         const city = searchParams.get("city") || undefined;
         const limit = parseInt(searchParams.get("limit") || "20");

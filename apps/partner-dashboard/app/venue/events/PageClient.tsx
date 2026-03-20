@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, forwardRef, memo, useCallback, useMemo } from "react";
+import { useState, useEffect, forwardRef, memo, useCallback, useMemo, Suspense } from "react";
 import { VirtuosoGrid } from "react-virtuoso";
 import {
     Calendar, DollarSign, Search, Plus, CheckCircle2,
-    AlertCircle, Edit, Loader2, BarChart3, ShieldCheck, Play, Pause
+    AlertCircle, Edit, Loader2, BarChart3, ShieldCheck, Play, Pause, List, CalendarDays,
 } from "lucide-react";
 import Link from "next/link";
 import { DashboardEventCard } from "@c1rcle/ui";
@@ -13,6 +13,14 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { mapEventForClient, EVENT_LIFECYCLE } from "@c1rcle/core/events";
 import { parseAsIST } from "@c1rcle/core/time";
 import { VenuePageShell, VenueActionButton, VenueFilterTabs } from "@/components/venue-layout/VenuePageShell";
+import { HubTabBar } from "@/components/shared/HubTabBar";
+import { useHubTab } from "@/lib/hooks/useHubTab";
+import { Skeleton } from "@/components/ui/Skeleton";
+import CalendarClient from "../calendar/PageClient";
+
+const HUB_TABS = [
+    { key: "events",   label: "Events",   icon: List },
+];
 
 interface Event {
     id: string;
@@ -59,7 +67,7 @@ const MemoizedVenueEventCard = memo(({ event, index, handleEventUpdate }: any) =
 
     const getPrimaryAction = (e: any) => {
         if (e.canApprove) return { label: "Review Submission", href: `/venue/events/${e.id}`, icon: <ShieldCheck size={16} /> };
-        return { label: "View Analytics", href: `/venue/events/${e.id}`, icon: <BarChart3 size={16} /> };
+        return { label: "View Analytics", href: `/venue/analytics/overview?eventId=${e.id}`, icon: <BarChart3 size={16} /> };
     };
 
     const secondaryActions: any[] = [];
@@ -83,6 +91,7 @@ MemoizedVenueEventCard.displayName = "MemoizedVenueEventCard";
 
 // ── Page ──
 export default function EventsManagementPage() {
+    const { activeTab: hubTab, setTab: setHubTab } = useHubTab("events");
     const { profile, user } = useDashboardAuth();
     const [events, setEvents] = useState<Event[]>([]);
     const [loading, setLoading] = useState(true);
@@ -199,18 +208,13 @@ export default function EventsManagementPage() {
         { label: "Completed", value: "completed" },
     ];
 
+
     return (
         <VenuePageShell
             title="Events"
             subtitle="Manage every event from draft to post-event review"
-            actions={
-                <Link href="/venue/create">
-                    <VenueActionButton variant="primary">
-                        <Plus className="w-4 h-4" /> Create Event
-                    </VenueActionButton>
-                </Link>
-            }
         >
+            <HubTabBar tabs={HUB_TABS} activeTab={hubTab} onTabChange={setHubTab} />
             {/* ── KPI Strip ── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
@@ -227,7 +231,7 @@ export default function EventsManagementPage() {
                         icon: DollarSign,
                     },
                 ].map((stat, i) => (
-                    <div key={i} className="rounded-2xl p-4 flex items-center gap-3 border border-white/[0.04]" style={{ background: "var(--v-card)" }}>
+                    <div key={i} className="rounded-2xl p-4 flex items-center gap-3 border border-border-subtle" style={{ background: "var(--v-card)" }}>
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: stat.bg }}>
                             <stat.icon className="w-3.5 h-3.5" style={{ color: stat.color }} />
                         </div>

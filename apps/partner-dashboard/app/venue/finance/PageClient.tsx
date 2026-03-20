@@ -5,10 +5,10 @@ import { cn } from "@/lib/utils";
 import {
     Banknote, TrendingUp, TrendingDown, AlertCircle, CheckCircle2,
     Clock, RefreshCw, ArrowRight, Wallet, ShieldAlert, Building2,
-    ReceiptText, ArrowUpRight,
+    ReceiptText, ArrowUpRight, ChevronDown, Calendar,
 } from "lucide-react";
 import Link from "next/link";
-import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
+import { VenuePageShell, VenueActionButton, VenueFilterTabs } from "@/components/venue-layout/VenuePageShell";
 import { AppleHeroStat } from "@/components/ui/AppleHeroStat";
 import { VenueStatStrip } from "@/components/ui/VenueStatStrip";
 import { BentoCard } from "@/components/ui/BentoCard";
@@ -30,11 +30,19 @@ type Period = "7d" | "30d" | "90d" | "ytd";
 
 // ── Finance Overview Page ─────────────────────────────────────────────────────
 
-export default function VenueFinancePageClient() {
+export default function VenueFinancePageClient({ 
+    period: externalPeriod, 
+    onPeriodChange 
+}: { 
+    period?: Period; 
+    onPeriodChange?: (p: Period) => void;
+}) {
     const { profile, getIdToken } = useDashboardAuth() as any;
     const venueId = profile?.activeMembership?.partnerId;
 
-    const [period, setPeriod] = useState<Period>("30d");
+    const [internalPeriod, setInternalPeriod] = useState<Period>("30d");
+    const period = externalPeriod || internalPeriod;
+    const setPeriod = onPeriodChange || setInternalPeriod;
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
     const [metrics, setMetrics] = useState<FinanceOverviewMetrics | null>(null);
@@ -86,24 +94,33 @@ export default function VenueFinancePageClient() {
     // ── Payout alert banner ───────────────────────────────────────────────────
     const showPayoutAlert = !loading && !error && metrics && metrics.payoutFailures > 0;
 
+    const dynamicSubtitle = loading
+        ? "Revenue, cashflow, and payout status for your venue"
+        : metrics
+            ? `${formatINR(metrics.grossRevenue)} collected${metrics.pendingPayouts > 0 ? ` · ${metrics.pendingPayouts} payout${metrics.pendingPayouts > 1 ? "s" : ""} pending` : " · all payouts clear"}`
+            : "Revenue, cashflow, and payout status for your venue";
+
     return (
         <VenuePageShell
             title="Finance"
-            subtitle="Revenue, cashflow, and payout status for your venue"
-            actions={
-                <>
-                    <VenueActionButton variant="ghost" onClick={() => fetchOverview(period)}>
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        Refresh
-                    </VenueActionButton>
-                    <Link href="/venue/finance/reports">
-                        <VenueActionButton variant="secondary">
-                            <ReceiptText className="w-3.5 h-3.5" />
-                            Reports
-                        </VenueActionButton>
-                    </Link>
-                </>
+            subtitle={
+                <div className="flex items-center gap-2">
+                    <span>{dynamicSubtitle}</span>
+                    {!loading && (
+                        <button 
+                            onClick={() => fetchOverview(period)}
+                            disabled={loading}
+                            className="p-1 rounded-full hover:bg-[var(--v-elevated)] transition-all active:scale-90 opacity-60 hover:opacity-100"
+                            title="Refresh"
+                        >
+                            <RefreshCw className={cn("w-3 h-3", loading && "animate-spin")} />
+                        </button>
+                    )}
+                </div>
             }
+            pageAccent="#34D399"
+            filterBar={null}
+            actions={null}
         >
             {/* Payout failure alert */}
             {showPayoutAlert && (

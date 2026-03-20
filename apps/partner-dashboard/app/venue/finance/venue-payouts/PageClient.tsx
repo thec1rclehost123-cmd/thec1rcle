@@ -24,20 +24,20 @@ function PayoutRow({ payout }: { payout: PayoutRequest }) {
     const cfg = STATUS_CONFIG[payout.status] ?? STATUS_CONFIG["pending"];
     const Icon = cfg.icon;
     return (
-        <tr className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
-            <td className="py-3 px-4 text-sm text-white tabular-nums">{formatINRFromPaise(payout.amountPaise)}</td>
-            <td className="py-3 px-4 text-xs text-zinc-400 capitalize">{payout.method}</td>
-            <td className="py-3 px-4 text-xs text-zinc-500">{payout.methodDetail}</td>
+        <tr className="border-b border-border-subtle hover:bg-surface-secondary transition-colors">
+            <td className="py-3 px-4 text-sm text-text-primary tabular-nums">{formatINRFromPaise(payout.amountPaise)}</td>
+            <td className="py-3 px-4 text-xs text-text-secondary capitalize">{payout.method}</td>
+            <td className="py-3 px-4 text-xs text-text-tertiary">{payout.methodDetail}</td>
             <td className="py-3 px-4">
                 <span className={`flex items-center gap-1.5 text-xs ${cfg.color}`}>
                     <Icon className="h-3.5 w-3.5" />
                     {cfg.label}
                 </span>
             </td>
-            <td className="py-3 px-4 text-xs text-zinc-500">
+            <td className="py-3 px-4 text-xs text-text-tertiary">
                 {new Date(payout.requestedAt).toLocaleDateString("en-IN")}
             </td>
-            <td className="py-3 px-4 text-xs text-zinc-500">
+            <td className="py-3 px-4 text-xs text-text-tertiary">
                 {payout.settledAt ? new Date(payout.settledAt).toLocaleDateString("en-IN") : "—"}
             </td>
         </tr>
@@ -80,22 +80,22 @@ export function VenuePayoutsClient() {
         >
             {/* Balance cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
-                    <p className="text-xs text-zinc-500 mb-1">Withdrawable Balance</p>
+                <div className="dash-card p-5">
+                    <p className="text-xs text-text-tertiary mb-1">Withdrawable Balance</p>
                     {isLoading ? (
                         <Skeleton className="h-8 w-32" />
                     ) : (
-                        <p className="text-3xl font-semibold text-white tabular-nums">
+                        <p className="text-3xl font-semibold text-text-primary tabular-nums">
                             {formatINRFromPaise(balance?.withdrawablePaise ?? 0)}
                         </p>
                     )}
                 </div>
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
-                    <p className="text-xs text-zinc-500 mb-1">Pending Settlement</p>
+                <div className="dash-card p-5">
+                    <p className="text-xs text-text-tertiary mb-1">Pending Settlement</p>
                     {isLoading ? (
                         <Skeleton className="h-8 w-32" />
                     ) : (
-                        <p className="text-3xl font-semibold text-zinc-300 tabular-nums">
+                        <p className="text-3xl font-semibold text-text-secondary tabular-nums">
                             {formatINRFromPaise(balance?.pendingSettlementPaise ?? 0)}
                         </p>
                     )}
@@ -103,15 +103,15 @@ export function VenuePayoutsClient() {
             </div>
 
             {/* History table */}
-            <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-                <div className="px-4 py-3 border-b border-white/[0.06]">
-                    <h3 className="text-sm font-semibold text-zinc-300">Withdrawal History</h3>
+            <div className="rounded-xl border border-border-default overflow-hidden">
+                <div className="px-4 py-3 border-b border-border-default">
+                    <h3 className="text-sm font-semibold text-text-secondary">Withdrawal History</h3>
                 </div>
                 <table className="w-full">
                     <thead>
-                        <tr className="border-b border-white/[0.04]">
+                        <tr className="border-b border-border-subtle">
                             {["Amount", "Method", "Account", "Status", "Requested", "Settled"].map((h) => (
-                                <th key={h} className="py-2.5 px-4 text-left text-xs font-medium text-zinc-500">
+                                <th key={h} className="py-2.5 px-4 text-left text-xs font-medium text-text-tertiary">
                                     {h}
                                 </th>
                             ))}
@@ -119,7 +119,7 @@ export function VenuePayoutsClient() {
                     </thead>
                     <tbody>
                         {isLoading && [...Array(3)].map((_, i) => (
-                            <tr key={i} className="border-b border-white/[0.04]">
+                            <tr key={i} className="border-b border-border-subtle">
                                 {[...Array(6)].map((_, j) => (
                                     <td key={j} className="py-3 px-4">
                                         <Skeleton className="h-4 w-full" />
@@ -130,7 +130,7 @@ export function VenuePayoutsClient() {
                         {history.map((p) => <PayoutRow key={p.id} payout={p} />)}
                         {!isLoading && history.length === 0 && (
                             <tr>
-                                <td colSpan={6} className="py-12 text-center text-sm text-zinc-600">
+                                <td colSpan={6} className="py-12 text-center text-sm text-text-tertiary">
                                     No payout history yet
                                 </td>
                             </tr>

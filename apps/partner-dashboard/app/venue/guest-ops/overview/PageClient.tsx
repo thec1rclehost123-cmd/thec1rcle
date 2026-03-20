@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
-import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { useGuestOpsShellData } from "@/lib/hooks/useGuestOpsShellData";
 import { cn } from "@/lib/utils";
 import {
     Users, CheckCircle2, XCircle, Flag, AlertTriangle, ScanLine,
@@ -13,53 +12,31 @@ import {
 import type { GuestOpsOverview, ScannerDevice } from "@/lib/types/guestOps";
 
 export default function GuestOpsOverviewPageClient() {
-    const { profile } = useDashboardAuth();
-    const searchParams = useSearchParams();
-    const venueId = profile?.activeMembership?.partnerId;
-    const eventId = searchParams.get("eventId") ?? "";
+    const {
+        eventId, venueId, events, summary: shellSummary,
+        openExceptions, isLoading: shellLoading, authHeaders,
+    } = useGuestOpsShellData();
 
-    const [events, setEvents] = useState<any[]>([]);
+    // Overview keeps its own live summary for the KPI grid + 15s polling
     const [summary, setSummary] = useState<GuestOpsOverview | null>(null);
     const [devices, setDevices] = useState<ScannerDevice[]>([]);
-    const [openExceptions, setOpenExceptions] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    const authHeader = useCallback(() => {
-        return profile ? { Authorization: `Bearer ${(profile as any)._token ?? ""}` } : {};
-    }, [profile]);
-
-    const fetchEvents = useCallback(async () => {
-        if (!venueId) return;
-        try {
-            const res = await fetch(`/api/venue/events?venueId=${venueId}`, { headers: authHeader() });
-            if (res.ok) {
-                const data = await res.json();
-                setEvents(data.events ?? []);
-            }
-        } catch (_) {}
-    }, [venueId, authHeader]);
-
     const fetchSummary = useCallback(async (eid: string) => {
         if (!eid || !venueId) return;
         try {
-            const [sumRes, excRes, devRes] = await Promise.all([
-                fetch(`/api/venue/guest-ops/${eid}/summary?venueId=${venueId}`, { headers: authHeader() }),
-                fetch(`/api/venue/guest-ops/${eid}/exceptions?venueId=${venueId}&status=open`, { headers: authHeader() }),
-                fetch(`/api/venue/guest-ops/${eid}/scanner/devices?venueId=${venueId}`, { headers: authHeader() }),
+            const [sumRes, devRes] = await Promise.all([
+                fetch(`/api/venue/guest-ops/${eid}/summary?venueId=${venueId}`, { headers: authHeaders() }),
+                fetch(`/api/venue/guest-ops/${eid}/scanner/devices?venueId=${venueId}`, { headers: authHeaders() }),
             ]);
             if (sumRes.ok) setSummary(await sumRes.json());
-            if (excRes.ok) { const d = await excRes.json(); setOpenExceptions(d.openCount ?? 0); }
             if (devRes.ok) { const d = await devRes.json(); setDevices(d.devices ?? []); }
         } catch (_) {
             setError("Failed to load operations data");
         }
-    }, [venueId, authHeader]);
-
-    useEffect(() => {
-        fetchEvents();
-    }, [fetchEvents]);
+    }, [venueId, authHeaders]);
 
     useEffect(() => {
         if (!eventId) { setIsLoading(false); return; }
@@ -74,19 +51,20 @@ export default function GuestOpsOverviewPageClient() {
         return () => { if (pollRef.current) clearInterval(pollRef.current); };
     }, [eventId, fetchSummary]);
 
-    const kpis = summary?.kpis;
+    const liveSummary = summary ?? shellSummary;
+    const kpis = liveSummary?.kpis;
 
     return (
         <GuestOpsShell
             events={events}
-            summary={summary}
+            summary={liveSummary}
             openExceptions={openExceptions}
-            isLoading={isLoading && !summary}
+            isLoading={shellLoading && !liveSummary}
         >
             {!eventId ? (
                 <EmptyState />
             ) : error ? (
-                <ErrorState message={error} onRetry={() => fetchSummary(eventId)} />
+                <ErrorState message={error} onRetry={() => { setError(null); fetchSummary(eventId); }} />
             ) : (
                 <div className="space-y-6">
                     {/* KPI Grid */}

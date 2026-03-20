@@ -54,9 +54,9 @@ const SLOT_CONFIG: Record<SlotState, { label: string; color: string; bgClass: st
     open: { label: "Available", color: "var(--v-orange)", bgClass: "bg-[var(--v-orange)]/10", borderClass: "border-[var(--v-orange)]/30", textClass: "text-[var(--v-orange)]", icon: Plus },
     pending_mine: { label: "Requested", color: "#F59E0B", bgClass: "bg-amber-500/10", borderClass: "border-amber-500/30", textClass: "text-amber-400", icon: Clock },
     approved_mine: { label: "Confirmed", color: "var(--v-success)", bgClass: "bg-[var(--v-success)]/10", borderClass: "border-[var(--v-success)]/30", textClass: "text-[var(--v-success)]", icon: CheckCircle2 },
-    occupied_other: { label: "Occupied", color: "var(--v-text-muted)", bgClass: "bg-white/[0.03]", borderClass: "border-white/[0.06]", textClass: "text-white/30", icon: CircleDot },
+    occupied_other: { label: "Occupied", color: "var(--v-text-muted)", bgClass: "bg-surface-secondary", borderClass: "border-border-default", textClass: "text-text-tertiary", icon: CircleDot },
     blocked: { label: "Venue Blocked", color: "var(--v-error)", bgClass: "bg-[var(--v-error)]/10", borderClass: "border-[var(--v-error)]/20", textClass: "text-[var(--v-error)]", icon: Lock },
-    unavailable: { label: "Off-Grid", color: "#1E293B", bgClass: "bg-white/[0.01]", borderClass: "border-white/[0.03]", textClass: "text-white/20", icon: X },
+    unavailable: { label: "Off-Grid", color: "#1E293B", bgClass: "bg-surface-secondary", borderClass: "border-border-subtle", textClass: "text-text-tertiary", icon: X },
 };
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -93,14 +93,14 @@ function SlotDetailPanel({
                             <Icon className="w-3.5 h-3.5" />
                             {cfg.label}
                         </div>
-                        <h3 className="text-[20px] font-black text-white leading-tight">{dateLabel}</h3>
+                        <h3 className="text-[20px] font-black text-text-primary leading-tight">{dateLabel}</h3>
                         {slot.startTime && (
                             <p className="text-[14px] text-[var(--v-text-tertiary)] font-bold mt-1 uppercase tracking-tight">
                                 Slot: {slot.startTime}{slot.endTime ? ` – ${slot.endTime}` : ""}
                             </p>
                         )}
                     </div>
-                    <button onClick={onClose} className="p-2.5 rounded-xl bg-[var(--v-elevated)] hover:bg-[var(--v-canvas)] transition-all text-[var(--v-text-muted)] hover:text-white">
+                    <button onClick={onClose} className="p-2.5 rounded-xl bg-[var(--v-elevated)] hover:bg-[var(--v-canvas)] transition-all text-[var(--v-text-muted)] hover:text-text-primary">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
@@ -113,14 +113,14 @@ function SlotDetailPanel({
                     </div>
                     <div>
                         <p className="text-[12px] font-bold text-[var(--v-text-tertiary)] uppercase tracking-widest mb-0.5">Production Venue</p>
-                        <p className="text-[16px] font-black text-white">{venueName}</p>
+                        <p className="text-[16px] font-black text-text-primary">{venueName}</p>
                     </div>
                 </div>
 
                 {(slot.state === "approved_mine" || slot.state === "pending_mine") && slot.eventTitle && (
                     <div className="p-6 rounded-2xl bg-[var(--v-elevated)] border border-[var(--v-border)]">
                         <p className="text-[12px] font-bold uppercase tracking-widest text-[var(--v-text-tertiary)] mb-3">Linked Production</p>
-                        <p className="text-[18px] font-bold text-white leading-tight">{slot.eventTitle}</p>
+                        <p className="text-[18px] font-bold text-text-primary leading-tight">{slot.eventTitle}</p>
                         {slot.eventLifecycle && (
                             <p className="text-[13px] mt-2 font-black uppercase tracking-widest" style={{ color: cfg.color }}>{slot.eventLifecycle.replace("_", " ")}</p>
                         )}
@@ -211,13 +211,13 @@ function DayCell({
             className={`relative min-h-[100px] p-4 rounded-2xl border text-left transition-all group ${isSelected
                 ? "bg-[var(--v-elevated)] border-[var(--v-orange)] ring-1 ring-[var(--v-orange)]/20"
                 : isPast
-                    ? "bg-transparent border-white/[0.03] opacity-30 cursor-default"
+                    ? "bg-transparent border-border-subtle opacity-30 cursor-default"
                     : hasOpen
                         ? "bg-[var(--v-card)] border-[var(--v-orange)]/20 hover:border-[var(--v-orange)]/40 cursor-pointer"
                         : "bg-[var(--v-card)] border-[var(--v-border)] hover:bg-[var(--v-elevated)] cursor-pointer"
             }`}
         >
-            <div className={`text-[16px] font-black mb-3 ${isToday ? "inline-flex w-8 h-8 rounded-full bg-[var(--v-orange)] text-white items-center justify-center -ml-1 -mt-1" : isPast ? "text-white/20" : "text-white/80"}`}>
+            <div className={`text-[16px] font-black mb-3 ${isToday ? "inline-flex w-8 h-8 rounded-full bg-[var(--v-orange)] text-white items-center justify-center -ml-1 -mt-1" : isPast ? "text-text-tertiary" : "text-text-primary"}`}>
                 {day}
             </div>
 
@@ -225,7 +225,7 @@ function DayCell({
                 {hasApproved && <div className="w-2.5 h-2.5 rounded-full bg-[var(--v-success)]" title="Confirmed Production" />}
                 {hasPending && <div className="w-2.5 h-2.5 rounded-full bg-amber-400" title="Request Pending" />}
                 {hasOpen && <div className="w-2.5 h-2.5 rounded-full bg-[var(--v-orange)] ring-1 ring-[var(--v-orange)]/40" title="Open Slot" />}
-                {hasOccupied && <div className="w-2.5 h-2.5 rounded-full bg-white/10" />}
+                {hasOccupied && <div className="w-2.5 h-2.5 rounded-full bg-surface-elevated" />}
                 {hasBlocked && <div className="w-2.5 h-2.5 rounded-full bg-[var(--v-error)]/40" title="Blocked" />}
             </div>
 
@@ -416,7 +416,7 @@ export default function HostCalendarPage() {
                 {venues.length === 0 ? (
                     <div className="py-24 rounded-[40px] bg-[var(--v-card)] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-10">
                         <Building2 className="w-16 h-16 text-[var(--v-text-muted)] mb-8" />
-                        <h3 className="text-3xl font-black text-white mb-4">Zero Active Partnerships</h3>
+                        <h3 className="text-3xl font-black text-text-primary mb-4">Zero Active Partnerships</h3>
                         <p className="text-[16px] text-[var(--v-text-tertiary)] mb-10 max-w-sm leading-relaxed">
                             You need verified venue partnerships to access their production windows. Request access via the network portal.
                         </p>
@@ -434,8 +434,8 @@ export default function HostCalendarPage() {
                                     key={v.id}
                                     onClick={() => { setSelectedVenueId(v.id); setSelectedSlot(null); }}
                                     className={`flex items-center gap-3 px-6 py-3.5 rounded-2xl text-[13px] font-black tracking-widest uppercase transition-all border ${selectedVenueId === v.id
-                                        ? "bg-[var(--v-elevated)] border-[var(--v-orange)] text-white shadow-lg"
-                                        : "bg-[var(--v-card)] border-[var(--v-border)] text-[var(--v-text-tertiary)] hover:border-white/20"
+                                        ? "bg-[var(--v-elevated)] border-[var(--v-orange)] text-text-primary shadow-lg"
+                                        : "bg-[var(--v-card)] border-[var(--v-border)] text-[var(--v-text-tertiary)] hover:border-border-default"
                                     }`}
                                 >
                                     <Building2 className="w-4 h-4" />
@@ -448,7 +448,7 @@ export default function HostCalendarPage() {
                             <div className="lg:col-span-2 space-y-6">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-6">
-                                        <h2 className="text-[28px] font-black text-white tracking-tighter">{MONTHS[month]} {year}</h2>
+                                        <h2 className="text-[28px] font-black text-text-primary tracking-tighter">{MONTHS[month]} {year}</h2>
                                         <div className="flex items-center gap-2">
                                             <button onClick={() => navigate(-1)} className="w-12 h-12 rounded-2xl bg-[var(--v-card)] border border-[var(--v-border)] flex items-center justify-center hover:bg-[var(--v-elevated)] transition-all">
                                                 <ChevronLeft className="w-6 h-6" />

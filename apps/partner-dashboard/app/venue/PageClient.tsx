@@ -35,8 +35,8 @@ const LIFECYCLE_CONFIG: Record<string, { label: string; color: string; bg: strin
     published: { label: "Live", color: "var(--v-success)", bg: "var(--v-success-bg)" },
     live: { label: "Live", color: "var(--v-success)", bg: "var(--v-success-bg)" },
     pending: { label: "Pending", color: "var(--v-warning)", bg: "var(--v-warning-bg)" },
-    draft: { label: "Draft", color: "var(--v-text-tertiary)", bg: "rgba(255,255,255,0.06)" },
-    completed: { label: "Done", color: "var(--v-text-secondary)", bg: "rgba(255,255,255,0.06)" },
+    draft: { label: "Draft", color: "var(--v-text-tertiary)", bg: "var(--v-neutral-bg)" },
+    completed: { label: "Done", color: "var(--v-text-secondary)", bg: "var(--v-neutral-bg)" },
     cancelled: { label: "Cancelled", color: "var(--v-error)", bg: "var(--v-error-bg)" },
     scheduled: { label: "Scheduled", color: "var(--v-info)", bg: "var(--v-info-bg)" },
 };
@@ -451,7 +451,7 @@ function AlertRow({ alert }: { alert: any }) {
     const href = ALERT_HREF[alert.type];
     const Wrapper = href ? Link : ("div" as any);
     return (
-        <Wrapper href={href} className="flex items-start gap-3 p-3 rounded-xl hover:bg-white/[0.03] transition-colors">
+        <Wrapper href={href} className="flex items-start gap-3 p-3 rounded-xl hover:bg-surface-secondary transition-colors">
             <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ background: !alert.isRead ? "var(--v-orange)" : "var(--v-text-muted)" }} />
             <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-medium truncate" style={{ color: "var(--v-text-primary)" }}>{alert.title}</p>

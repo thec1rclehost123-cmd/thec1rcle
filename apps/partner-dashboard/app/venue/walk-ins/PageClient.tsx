@@ -137,8 +137,8 @@ function QuickEntryRow({
     };
 
     return (
-        <div className="rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] p-4">
-            <p className="text-xs text-zinc-500 mb-3">New entry — press Enter to add</p>
+        <div className="rounded-xl border border-dashed border-border-default bg-surface-secondary p-4">
+            <p className="text-xs text-text-tertiary mb-3">New entry — press Enter to add</p>
             <div className="grid grid-cols-2 sm:grid-cols-[2fr_1fr_0.8fr_1fr_1fr_1fr_auto] gap-2 items-start">
                 <Input
                     ref={nameRef}
@@ -190,7 +190,7 @@ function QuickEntryRow({
                 <Button
                     onClick={() => mut.mutate()}
                     disabled={mut.isPending || !form.guestName.trim()}
-                    className="h-9 px-4 bg-white/[0.08] hover:bg-white/[0.12] text-white border border-white/[0.1]"
+                    className="h-9 px-4 bg-surface-elevated hover:bg-surface-elevated text-text-primary border border-border-default"
                 >
                     {mut.isPending ? "…" : <Plus className="h-4 w-4" />}
                 </Button>
@@ -222,34 +222,34 @@ function WalkInRow({
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 8 }}
-            className="group border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors"
+            className="group border-b border-border-subtle hover:bg-surface-secondary transition-colors"
         >
-            <td className="py-2.5 px-3 text-xs text-zinc-600 w-10">{index + 1}</td>
-            <td className="py-2.5 px-3 text-sm text-white font-medium">{entry.guestName}</td>
-            <td className="py-2.5 px-3 text-xs text-zinc-400">{entry.partySize}</td>
+            <td className="py-2.5 px-3 text-xs text-text-tertiary w-10">{index + 1}</td>
+            <td className="py-2.5 px-3 text-sm text-text-primary font-medium">{entry.guestName}</td>
+            <td className="py-2.5 px-3 text-xs text-text-secondary">{entry.partySize}</td>
             <td className="py-2.5 px-3">
                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${CATEGORY_COLORS[entry.category]}`}>
                     {entry.category}
                 </span>
             </td>
-            <td className="py-2.5 px-3 text-xs text-zinc-400">
+            <td className="py-2.5 px-3 text-xs text-text-secondary">
                 <span className="font-mono">{PAYMENT_ICONS[entry.paymentMode]}</span>
                 {" "}{entry.paymentMode}
             </td>
-            <td className="py-2.5 px-3 text-xs text-zinc-300 tabular-nums">
+            <td className="py-2.5 px-3 text-xs text-text-secondary tabular-nums">
                 {entry.amountPaise > 0
                     ? `₹${(entry.amountPaise / 100).toLocaleString("en-IN")}`
                     : "—"}
             </td>
-            <td className="py-2.5 px-3 text-xs text-zinc-500">
+            <td className="py-2.5 px-3 text-xs text-text-tertiary">
                 {new Date(entry.addedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
             </td>
-            <td className="py-2.5 px-3 text-xs text-zinc-600 truncate max-w-[120px]">{entry.addedByName}</td>
-            <td className="py-2.5 px-3 text-xs text-zinc-600 truncate max-w-[160px]">{entry.note}</td>
+            <td className="py-2.5 px-3 text-xs text-text-tertiary truncate max-w-[120px]">{entry.addedByName}</td>
+            <td className="py-2.5 px-3 text-xs text-text-tertiary truncate max-w-[160px]">{entry.note}</td>
             <td className="py-2.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                     onClick={() => onVoid(entry)}
-                    className="rounded-lg p-1 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                    className="rounded-lg p-1 text-text-tertiary hover:text-red-400 hover:bg-red-500/10 transition-colors"
                     title="Void"
                 >
                     <X className="h-3.5 w-3.5" />
@@ -266,18 +266,18 @@ function TotalsBar({
     totals: { count: number; totalPaise: number; partySize: number };
 }) {
     return (
-        <div className="flex items-center gap-6 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+        <div className="dash-card flex items-center gap-6 px-4 py-3">
             <div>
-                <p className="text-xs text-zinc-600">Entries</p>
-                <p className="text-lg font-semibold text-white tabular-nums">{totals.count}</p>
+                <p className="text-xs text-text-tertiary">Entries</p>
+                <p className="text-lg font-semibold text-text-primary tabular-nums">{totals.count}</p>
             </div>
             <div>
-                <p className="text-xs text-zinc-600">Total guests</p>
-                <p className="text-lg font-semibold text-white tabular-nums">{totals.partySize}</p>
+                <p className="text-xs text-text-tertiary">Total guests</p>
+                <p className="text-lg font-semibold text-text-primary tabular-nums">{totals.partySize}</p>
             </div>
             <div>
-                <p className="text-xs text-zinc-600">Revenue collected</p>
-                <p className="text-lg font-semibold text-white tabular-nums">
+                <p className="text-xs text-text-tertiary">Revenue collected</p>
+                <p className="text-lg font-semibold text-text-primary tabular-nums">
                     ₹{(totals.totalPaise / 100).toLocaleString("en-IN")}
                 </p>
             </div>
@@ -404,7 +404,7 @@ export function WalkInsClient() {
                     >
                         <Filter className="h-4 w-4 mr-1.5" /> Filters
                         {(categoryFilter || paymentFilter) && (
-                            <span className="ml-1.5 rounded-full bg-white/[0.12] px-1.5 text-xs">
+                            <span className="ml-1.5 rounded-full bg-surface-elevated px-1.5 text-xs">
                                 {[categoryFilter, paymentFilter].filter(Boolean).length}
                             </span>
                         )}
@@ -466,13 +466,13 @@ export function WalkInsClient() {
             </div>
 
             {/* Table */}
-            <div className="mt-4 overflow-x-auto rounded-xl border border-white/[0.06]">
+            <div className="mt-4 overflow-x-auto rounded-xl border border-border-default">
                 <table className="w-full text-left">
                     <thead>
-                        <tr className="border-b border-white/[0.06]">
+                        <tr className="border-b border-border-default">
                             {["#", "Name", "Party", "Category", "Payment", "Amount", "Time", "Operator", "Note", ""].map(
                                 (h) => (
-                                    <th key={h} className="py-2.5 px-3 text-xs font-medium text-zinc-500 no-print:sticky top-0 bg-[#111]">
+                                    <th key={h} className="py-2.5 px-3 text-xs font-medium text-text-tertiary no-print:sticky top-0 bg-surface-secondary">
                                         {h}
                                     </th>
                                 )
@@ -482,7 +482,7 @@ export function WalkInsClient() {
                     <tbody>
                         {isLoading && (
                             [...Array(5)].map((_, i) => (
-                                <tr key={i} className="border-b border-white/[0.04]">
+                                <tr key={i} className="border-b border-border-subtle">
                                     {[...Array(10)].map((_, j) => (
                                         <td key={j} className="py-3 px-3">
                                             <Skeleton className="h-4 w-full" />

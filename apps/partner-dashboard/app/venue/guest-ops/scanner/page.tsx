@@ -1,12 +1,5 @@
-import { Suspense } from "react";
-import ScannerOversightPageClient from "./PageClient";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Scanner Oversight — Guest Ops" };
-
-export default function ScannerOversightPage() {
-    return (
-        <Suspense>
-            <ScannerOversightPageClient />
-        </Suspense>
-    );
+export default function Page() {
+    redirect("/venue/door?tab=scanner");
 }

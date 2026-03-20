@@ -1,12 +1,5 @@
-import { Suspense } from "react";
-import ExceptionsPageClient from "./PageClient";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Exceptions — Guest Ops" };
-
-export default function ExceptionsPage() {
-    return (
-        <Suspense>
-            <ExceptionsPageClient />
-        </Suspense>
-    );
+export default function Page() {
+    redirect("/venue/door?tab=exceptions");
 }

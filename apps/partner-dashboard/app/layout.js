@@ -32,7 +32,7 @@ export default function RootLayout({ children }) {
         <WebVitals />
         <ThemeProvider
           attribute="class"
-          defaultTheme="light"
+          defaultTheme="dark"
           enableSystem={false}
           disableTransitionOnChange={true}
           storageKey="c1rcle-theme"

@@ -54,18 +54,18 @@ const LazyDrillArea = lazy(() =>
                                 <Stop offset="95%" stopColor={color} stopOpacity={0} />
                             </LG>
                         </Defs>
-                        <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                        <XAxis dataKey={xKey} tick={{ fontSize: 9, fill: "rgba(255,255,255,0.22)" }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 9, fill: "rgba(255,255,255,0.22)" }} axisLine={false} tickLine={false} />
+                        <CartesianGrid stroke="rgba(128,128,128,0.12)" vertical={false} />
+                        <XAxis dataKey={xKey} tick={{ fontSize: 9, fill: "#9B9B9F" }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 9, fill: "#9B9B9F" }} axisLine={false} tickLine={false} />
                         <Tooltip
                             contentStyle={{
-                                background: "#1a1a1d",
-                                border: "1px solid rgba(255,255,255,0.08)",
+                                background: "var(--v-card)",
+                                border: "1px solid var(--v-border)",
                                 borderRadius: 10,
                                 fontSize: 11,
-                                color: "rgba(255,255,255,0.85)",
+                                color: "var(--v-text-primary)",
                             }}
-                            cursor={{ stroke: "rgba(255,255,255,0.08)" }}
+                            cursor={{ stroke: "rgba(128,128,128,0.20)" }}
                         />
                         <Area type="monotone" dataKey={valueKey} stroke={color} strokeWidth={2}
                             fill="url(#drill-grad)" />
@@ -98,13 +98,13 @@ function StatRow({ label, value, sub, color }: {
 }) {
     return (
         <div className="flex items-center justify-between py-3 border-b"
-            style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            style={{ borderColor: "var(--v-divider)" }}>
             <div>
-                <p className="text-[13px] font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>{label}</p>
-                {sub && <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>{sub}</p>}
+                <p className="text-[13px] font-medium" style={{ color: "var(--v-text-secondary)" }}>{label}</p>
+                {sub && <p className="text-[10px] mt-0.5" style={{ color: "var(--v-text-muted)" }}>{sub}</p>}
             </div>
             <p className="text-[15px] font-black tabular-nums"
-                style={{ color: color || "rgba(255,255,255,0.9)" }}>{value}</p>
+                style={{ color: color || "var(--v-text-primary)" }}>{value}</p>
         </div>
     );
 }
@@ -113,7 +113,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     return (
         <div>
             <p className="text-[10px] font-black uppercase tracking-widest mb-3"
-                style={{ color: "rgba(255,255,255,0.25)" }}>{title}</p>
+                style={{ color: "var(--v-text-muted)" }}>{title}</p>
             {children}
         </div>
     );
@@ -185,7 +185,7 @@ function NetRevenueDrill({ data }: { data: AnalyticsV2 }) {
                                 }}>
                                 {cur(Math.abs(row.value))}
                             </div>
-                            <span className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>
+                            <span className="text-[11px] font-medium" style={{ color: "var(--v-text-tertiary)" }}>
                                 {row.label}
                             </span>
                         </div>
@@ -240,7 +240,7 @@ function CheckInsDrill({ data }: { data: AnalyticsV2 }) {
                         />
                     </Suspense>
                 ) : (
-                    <p className="text-[12px] py-4" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    <p className="text-[12px] py-4" style={{ color: "var(--v-text-muted)" }}>
                         Entry curve available after your first event.
                     </p>
                 )}
@@ -342,7 +342,7 @@ function RefundRateDrill({ data }: { data: AnalyticsV2 }) {
                 {reasons.length > 0 ? (
                     <HorizRankBars rows={ranks(reasons, "var(--v-error)")} />
                 ) : (
-                    <p className="text-[12px] py-2" style={{ color: "rgba(255,255,255,0.3)" }}>No refund data yet.</p>
+                    <p className="text-[12px] py-2" style={{ color: "var(--v-text-muted)" }}>No refund data yet.</p>
                 )}
             </Section>
             <Section title="Financial impact">
@@ -444,15 +444,15 @@ function PendingPayoutDrill({ data }: { data: AnalyticsV2 }) {
                     <div className="space-y-2">
                         {recent.map((p, i) => (
                             <div key={i} className="flex items-center justify-between p-3 rounded-2xl"
-                                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                                style={{ background: "var(--v-neutral-bg)", border: "1px solid var(--v-border)" }}>
                                 <div>
-                                    <p className="text-[12px] font-semibold" style={{ color: "rgba(255,255,255,0.8)" }}>
+                                    <p className="text-[12px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
                                         {p.eventTitle || `Payout #${p.id.slice(-4)}`}
                                     </p>
-                                    <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{p.date}</p>
+                                    <p className="text-[10px] mt-0.5" style={{ color: "var(--v-text-tertiary)" }}>{p.date}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[13px] font-black tabular-nums" style={{ color: "rgba(255,255,255,0.85)" }}>
+                                    <p className="text-[13px] font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>
                                         {cur(p.amount)}
                                     </p>
                                     <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full"
@@ -467,7 +467,7 @@ function PendingPayoutDrill({ data }: { data: AnalyticsV2 }) {
                         ))}
                     </div>
                 ) : (
-                    <p className="text-[12px] py-2" style={{ color: "rgba(255,255,255,0.3)" }}>No payout records yet.</p>
+                    <p className="text-[12px] py-2" style={{ color: "var(--v-text-muted)" }}>No payout records yet.</p>
                 )}
             </Section>
         </>
@@ -513,7 +513,7 @@ function DrillContent({ drillKey, data }: { drillKey: string; data: AnalyticsV2 
         case "pending-payout": return <PendingPayoutDrill  data={data} />;
         default:
             return (
-                <p className="text-[13px] py-8 text-center" style={{ color: "rgba(255,255,255,0.3)" }}>
+                <p className="text-[13px] py-8 text-center" style={{ color: "var(--v-text-muted)" }}>
                     No drill-down available for this metric.
                 </p>
             );
@@ -553,8 +553,8 @@ export function DrillDownDrawer({
                         className="fixed right-0 top-0 bottom-0 z-50 flex flex-col overflow-hidden"
                         style={{
                             width: "min(500px, 100vw)",
-                            background: "#0D0D0F",
-                            borderLeft: "1px solid rgba(255,255,255,0.07)",
+                            background: "var(--v-hero)",
+                            borderLeft: "1px solid var(--v-border)",
                             boxShadow: "-32px 0 80px rgba(0,0,0,0.5)",
                         }}
                         initial={{ x: "100%" }}
@@ -564,7 +564,7 @@ export function DrillDownDrawer({
                     >
                         {/* Header */}
                         <div className="flex items-start justify-between px-6 pt-6 pb-5 shrink-0"
-                            style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                            style={{ borderBottom: "1px solid var(--v-border)" }}>
                             <div className="flex-1 min-w-0 pr-4">
                                 <div className="flex items-center gap-2 mb-1">
                                     <ArrowRight className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--v-orange)" }} />
@@ -574,11 +574,11 @@ export function DrillDownDrawer({
                                     </span>
                                 </div>
                                 <h2 className="text-[18px] font-black leading-tight"
-                                    style={{ color: "rgba(255,255,255,0.92)" }}>
+                                    style={{ color: "var(--v-text-primary)" }}>
                                     {meta?.label || drillKey}
                                 </h2>
                                 <p className="text-[12px] mt-1 font-medium"
-                                    style={{ color: "rgba(255,255,255,0.35)" }}>
+                                    style={{ color: "var(--v-text-tertiary)" }}>
                                     {meta?.description || "Detailed breakdown"}
                                 </p>
                             </div>
@@ -587,21 +587,21 @@ export function DrillDownDrawer({
                                 {meta && (
                                     <div className="text-right">
                                         <p className="text-[22px] font-black tabular-nums leading-none"
-                                            style={{ color: "rgba(255,255,255,0.9)" }}>
+                                            style={{ color: "var(--v-text-primary)" }}>
                                             {meta.valueFn(data)}
                                         </p>
                                         <p className="text-[10px] mt-0.5 font-medium"
-                                            style={{ color: "rgba(255,255,255,0.3)" }}>
+                                            style={{ color: "var(--v-text-muted)" }}>
                                             current value
                                         </p>
                                     </div>
                                 )}
                                 <button
                                     onClick={onClose}
-                                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors hover:bg-white/10"
-                                    style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+                                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors hover:bg-[var(--v-neutral-bg)]"
+                                    style={{ border: "1px solid var(--v-border)" }}
                                 >
-                                    <X className="w-4 h-4" style={{ color: "rgba(255,255,255,0.5)" }} />
+                                    <X className="w-4 h-4" style={{ color: "var(--v-text-tertiary)" }} />
                                 </button>
                             </div>
                         </div>
@@ -620,9 +620,9 @@ export function DrillDownDrawer({
 
                         {/* Footer */}
                         <div className="px-6 py-4 shrink-0"
-                            style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                            style={{ borderTop: "1px solid var(--v-border)" }}>
                             <p className="text-[10px] font-medium text-center"
-                                style={{ color: "rgba(255,255,255,0.2)" }}>
+                                style={{ color: "var(--v-text-muted)" }}>
                                 Data reflects selected date range · Click outside to close
                             </p>
                         </div>

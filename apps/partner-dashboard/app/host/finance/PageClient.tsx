@@ -58,10 +58,17 @@ export default function HostFinancePageClient() {
     const payoutStatus = metrics?.payoutFailures ? "failed" : metrics?.pendingPayouts ? "pending" : "paid";
     const payoutStatusCfg = SETTLEMENT_STATUS_CONFIG[payoutStatus];
 
+    const dynamicSubtitle = loading
+        ? "Revenue, payouts, and cashflow across your productions"
+        : metrics
+            ? `${formatINRCompact(metrics.grossRevenue)} total · ${payoutStatusCfg.label.toLowerCase()}`
+            : "Revenue, payouts, and cashflow across your productions";
+
     return (
         <VenuePageShell
             title="Financial Overview"
-            subtitle="Architect and audit your production capital"
+            subtitle={dynamicSubtitle}
+            pageAccent="#34D399"
             actions={
                 <div className="flex items-center gap-4">
                     <select
@@ -101,7 +108,7 @@ export default function HostFinancePageClient() {
                             {loading ? (
                                 <div className="h-20 w-80 rounded-[32px] animate-pulse bg-[var(--v-elevated)]" />
                             ) : (
-                                <p className="text-[72px] font-black leading-none tabular-nums tracking-tighter text-white">
+                                <p className="text-[72px] font-black leading-none tabular-nums tracking-tighter text-text-primary">
                                     {formatINR(metrics?.grossRevenue || 0)}
                                 </p>
                             )}
@@ -119,7 +126,7 @@ export default function HostFinancePageClient() {
                             </div>
                             {metrics?.nextPayoutDate && (
                                 <p className="text-[13px] font-black text-[var(--v-text-tertiary)] uppercase tracking-[0.15em] mt-2">
-                                    Estimated Settlement: <span className="text-white">{new Date(metrics.nextPayoutDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+                                    Estimated Settlement: <span className="text-text-primary">{new Date(metrics.nextPayoutDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
                                 </p>
                             )}
                         </div>
@@ -151,7 +158,7 @@ export default function HostFinancePageClient() {
                                 {loading ? (
                                     <div className="h-12 rounded-2xl animate-pulse bg-[var(--v-elevated)] w-3/4" />
                                 ) : (
-                                    <p className="text-[32px] font-black tabular-nums tracking-tighter" style={{ color: kpi.highlight ? "var(--v-orange)" : "white" }}>
+                                    <p className="text-[32px] font-black tabular-nums tracking-tighter" style={{ color: kpi.highlight ? "var(--v-orange)" : "var(--text-primary)" }}>
                                         {formatINRCompact(kpi.value || 0)}
                                     </p>
                                 )}
@@ -163,7 +170,7 @@ export default function HostFinancePageClient() {
                 {/* Cashflow chart */}
                 <div className="bg-[var(--v-card)] rounded-[56px] border border-[var(--v-border)] p-12 shadow-2xl">
                     <div className="flex items-center justify-between mb-10">
-                        <h3 className="text-[20px] font-black tracking-tight text-white flex items-center gap-4">
+                        <h3 className="text-[20px] font-black tracking-tight text-text-primary flex items-center gap-4">
                             <TrendingUp className="w-6 h-6 text-[var(--v-orange)]" /> Earnings Velocity
                         </h3>
                         <div className="px-5 py-2 rounded-full bg-[var(--v-elevated)] border border-[var(--v-border)] text-[11px] font-black text-[var(--v-text-tertiary)] uppercase tracking-[0.2em]">
@@ -184,7 +191,7 @@ export default function HostFinancePageClient() {
                     <div className="relative overflow-hidden bg-[var(--v-card)] border border-[var(--v-border)] rounded-[56px] p-12 group">
                         <div className="absolute inset-0 bg-gradient-to-r from-[var(--v-orange)]/[0.04] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                         <div className="flex items-center justify-between mb-10">
-                            <h3 className="text-[20px] font-black tracking-tight text-white flex items-center gap-4">
+                            <h3 className="text-[20px] font-black tracking-tight text-text-primary flex items-center gap-4">
                                 <Wallet className="w-6 h-6 text-[var(--v-orange)]" /> Payout Control
                             </h3>
                             <ChevronRight className="w-6 h-6 text-[var(--v-text-muted)] group-hover:translate-x-2 transition-transform" />
@@ -192,7 +199,7 @@ export default function HostFinancePageClient() {
                         <div className="space-y-8 relative">
                             <div>
                                 <p className="text-[14px] font-black text-[var(--v-text-tertiary)] uppercase tracking-[0.2em] mb-4">Withdrawable Amount</p>
-                                <p className="text-[56px] font-black tracking-tighter tabular-nums text-white">
+                                <p className="text-[56px] font-black tracking-tighter tabular-nums text-text-primary">
                                     {loading ? "—" : formatINR(metrics?.availableBalance || 0)}
                                 </p>
                             </div>

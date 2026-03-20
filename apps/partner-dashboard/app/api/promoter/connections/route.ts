@@ -3,11 +3,16 @@ import {
     createConnectionRequest,
     cancelConnectionRequest,
     revokeConnection,
+    pauseConnection,
+    resumeConnection,
     listPromoterConnections,
     discoverPartners,
     getConnectionStatus,
     getPromoterConnectionStats
 } from "@/lib/server/promoterConnectionStore";
+import { verifyAuth } from "@/lib/server/auth";
+
+const isDev = process.env.NODE_ENV === "development";
 
 /**
  * GET /api/promoter/connections
@@ -15,9 +20,11 @@ import {
  */
 export async function GET(req: NextRequest) {
     try {
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
         const { searchParams } = new URL(req.url);
         const promoterId = searchParams.get("promoterId");
-        console.log(`[Promoter API] GET request. Promoter: ${promoterId}, Action: ${searchParams.get("action")}`);
         const action = searchParams.get("action") || "list"; // list, discover, stats, status
 
         if (!promoterId) {
@@ -106,6 +113,9 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
     try {
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
         const body = await req.json();
         const {
             promoterId,
@@ -150,8 +160,16 @@ export async function POST(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
     try {
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
         const body = await req.json();
         const { connectionId, action, promoterId } = body;
+
+        // Verify the caller is the promoter making the mutation
+        if (!isDev && promoterId && decodedToken.uid !== promoterId) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
 
         if (!connectionId || !action) {
             return NextResponse.json(
@@ -183,9 +201,19 @@ export async function PATCH(req: NextRequest) {
                 break;
             }
 
+            case "pause": {
+                await pauseConnection(connectionId, "");
+                break;
+            }
+
+            case "resume": {
+                await resumeConnection(connectionId, "");
+                break;
+            }
+
             default:
                 return NextResponse.json(
-                    { error: "Invalid action. Use 'cancel' or 'revoke'" },
+                    { error: "Invalid action. Use 'cancel', 'revoke', 'pause', or 'resume'" },
                     { status: 400 }
                 );
         }

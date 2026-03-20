@@ -6,6 +6,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getVenueCalendar, getDateAvailability } from "@/lib/server/calendarStore";
+import { validatePartnership } from "@/lib/rbac/validatePartnership";
+import { isFirebaseConfigured } from "@/lib/firebase/admin";
 
 export async function GET(request: NextRequest) {
     try {
@@ -20,10 +22,20 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "venueId is required" }, { status: 400 });
         }
 
+        // Validate host-venue partnership and resolve tier
+        let calendarAccess: "full" | "limited" = "full";
+        if (hostId && isFirebaseConfigured()) {
+            const { valid, tier, reason } = await validatePartnership(hostId, venueId);
+            if (!valid) {
+                return NextResponse.json({ error: reason || "No active venue partnership" }, { status: 403 });
+            }
+            calendarAccess = tier === "trusted" ? "full" : "limited";
+        }
+
         // Single date availability check
         if (date) {
             const availability = await getDateAvailability(venueId, date);
-            return NextResponse.json({ availability });
+            return NextResponse.json({ availability, calendarAccess });
         }
 
         // Date range calendar view
@@ -37,7 +49,8 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({
                 calendar,
                 startDate: defaultStart,
-                endDate: defaultEnd
+                endDate: defaultEnd,
+                calendarAccess,
             });
         }
 
@@ -46,7 +59,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             calendar,
             startDate,
-            endDate
+            endDate,
+            calendarAccess,
         });
 
     } catch (err: any) {

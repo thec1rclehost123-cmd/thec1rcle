@@ -1,5 +1,5 @@
-import PageClient from "./PageClient";
+import PageClient from "./SettingsHub";
 
-export default function Page(props: any) {
-    return <PageClient {...props} />;
+export default function Page() {
+    return <PageClient />;
 }

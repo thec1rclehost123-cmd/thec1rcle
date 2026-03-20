@@ -5,6 +5,8 @@ import {
     rejectConnectionRequest,
     revokeConnection
 } from "@/lib/server/promoterConnectionStore";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
+import { verifyAuth } from "@/lib/server/auth";
 
 /**
  * GET /api/venue/promoter-requests
@@ -12,6 +14,9 @@ import {
  */
 export async function GET(req: NextRequest) {
     try {
+        const ctx = await requireVenueAccess(req);
+        if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
         const status = searchParams.get("status");
@@ -45,6 +50,9 @@ export async function GET(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
     try {
+        const decodedToken = await verifyAuth(req);
+        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
         const body = await req.json();
         const { connectionId, action, venueId, venueName, reason } = body;
 

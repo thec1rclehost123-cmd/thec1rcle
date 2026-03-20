@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, forwardRef, useMemo, useCallback } from "react";
+import { useEffect, useState, forwardRef, useMemo, useCallback, Suspense } from "react";
 import { VirtuosoGrid } from "react-virtuoso";
 import {
     Zap,
@@ -23,6 +23,7 @@ import {
     RotateCcw,
     TrendingUp,
     Plus,
+    List,
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -30,6 +31,14 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { DashboardEventCard } from "@c1rcle/ui";
 import { mapEventForClient, EVENT_LIFECYCLE } from "@c1rcle/core/events";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
+import { HubTabBar } from "@/components/shared/HubTabBar";
+import { useHubTab } from "@/lib/hooks/useHubTab";
+import { Skeleton } from "@/components/ui/Skeleton";
+import CalendarClient from "../calendar/PageClient";
+
+const HUB_TABS = [
+    { key: "events", label: "Events", icon: List },
+];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,6 +68,7 @@ const TAB_DEFS: { id: EventTab; label: string; icon: any; color: string }[] = [
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function HostEventsPage() {
+    const { activeTab: hubTab, setTab: setHubTab } = useHubTab("events");
     const { profile, getIdToken } = useDashboardAuth() as any;
     const [events, setEvents] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<EventTab>("all");
@@ -133,23 +143,17 @@ export default function HostEventsPage() {
         if (lc === EVENT_LIFECYCLE.DRAFT) return { label: "Continue", href: `/host/create?id=${e.id}`, icon: <Edit3 size={16} /> };
         if (lc === EVENT_LIFECYCLE.SUBMITTED) return { label: "View Submission", href: `/host/events/${e.id}`, icon: <Eye size={16} /> };
         if (lc === EVENT_LIFECYCLE.DENIED || lc === EVENT_LIFECYCLE.NEEDS_CHANGES) return { label: "Fix & Resubmit", href: `/host/create?id=${e.id}`, icon: <RotateCcw size={16} /> };
-        return { label: "Manage", href: `/host/events/${e.id}`, icon: <ArrowUpRight size={16} /> };
+        return { label: "View Analytics", href: `/host/analytics/overview?eventId=${e.id}`, icon: <BarChart3 size={16} /> };
     };
+
 
     return (
         <VenuePageShell
             title="Events"
             subtitle="Architect and manage your production roster"
-            actions={
-                <Link href="/host/calendar">
-                    <VenueActionButton variant="primary">
-                        <Plus className="w-5 h-5 mr-1" />
-                        Create Production
-                    </VenueActionButton>
-                </Link>
-            }
         >
             <div className="space-y-8">
+                <HubTabBar tabs={HUB_TABS} activeTab={hubTab} onTabChange={setHubTab} />
                 {/* Stats Summary Panel */}
                 <div className="rounded-[40px] bg-[var(--v-card)] border border-[var(--v-border)] p-10 flex flex-wrap items-center gap-12">
                     {TAB_DEFS.filter(t => t.id !== "all").map(t => {
@@ -159,8 +163,8 @@ export default function HostEventsPage() {
                             <div key={t.id} className="flex flex-col gap-3">
                                 <span className="text-[13px] font-black uppercase tracking-[0.2em] text-[var(--v-text-tertiary)]">{t.label}</span>
                                 <div className="flex items-center gap-4">
-                                    <span className="text-4xl font-black tracking-tight text-white tabular-nums">{count}</span>
-                                    <div className="p-2 rounded-xl bg-white/5 border border-white/5">
+                                    <span className="text-4xl font-black tracking-tight text-text-primary tabular-nums">{count}</span>
+                                    <div className="p-2 rounded-xl bg-surface-tertiary border border-border-subtle">
                                         <t.icon className="w-5 h-5" style={{ color: t.color }} />
                                     </div>
                                 </div>
@@ -178,12 +182,12 @@ export default function HostEventsPage() {
                                  <button
                                      key={t.id}
                                      onClick={() => setActiveTab(t.id)}
-                                     className={`px-6 py-3 rounded-[16px] text-[13px] font-black uppercase tracking-wider transition-all flex items-center gap-3 whitespace-nowrap shrink-0 ${activeTab === t.id ? "bg-[var(--v-elevated)] text-white shadow-lg" : "text-[var(--v-text-tertiary)] hover:text-white hover:bg-white/5"}`}
+                                     className={`px-6 py-3 rounded-[16px] text-[13px] font-black uppercase tracking-wider transition-all flex items-center gap-3 whitespace-nowrap shrink-0 ${activeTab === t.id ? "bg-[var(--v-elevated)] text-text-primary shadow-lg" : "text-[var(--v-text-tertiary)] hover:text-text-primary hover:bg-surface-tertiary"}`}
                                  >
                                      <Icon className="w-4 h-4" style={activeTab === t.id ? { color: t.color } : {}} />
                                      {t.label}
                                      {tabCounts[t.id] > 0 && (
-                                         <span className="ml-2 px-2 py-0.5 rounded-md bg-white/5 text-[11px] font-black tabular-nums opacity-60">{tabCounts[t.id]}</span>
+                                         <span className={`ml-2 px-2 py-0.5 rounded-md text-[11px] font-black tabular-nums ${activeTab === t.id ? "bg-surface-elevated text-text-primary" : "bg-surface-secondary text-text-tertiary"}`}>{tabCounts[t.id]}</span>
                                      )}
                                  </button>
                              );
@@ -197,7 +201,7 @@ export default function HostEventsPage() {
                             placeholder="Locate production..."
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            className="w-full bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] pl-14 pr-6 py-4 text-[15px] text-white placeholder:text-[var(--v-text-muted)] focus:outline-none focus:border-[var(--v-orange)]/50 transition-all font-bold tracking-tight shadow-sm"
+                            className="w-full bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] pl-14 pr-6 py-4 text-[15px] text-text-primary placeholder:text-[var(--v-text-muted)] focus:outline-none focus:border-[var(--v-orange)]/50 transition-all font-bold tracking-tight shadow-sm"
                         />
                     </div>
                 </div>
@@ -213,10 +217,10 @@ export default function HostEventsPage() {
                     ) : filteredEvents.length === 0 ? (
                         <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                             className="py-32 bg-[var(--v-card)] rounded-[56px] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-12">
-                            <div className="p-6 rounded-full bg-white/5 mb-8">
+                            <div className="p-6 rounded-full bg-surface-tertiary mb-8">
                                 <CalendarDays className="w-12 h-12 text-[var(--v-text-muted)]" />
                             </div>
-                            <h3 className="text-3xl font-black text-white tracking-tight">
+                            <h3 className="text-3xl font-black text-text-primary tracking-tight">
                                 {searchQuery ? "No matches in roster" : "Roster empty"}
                             </h3>
                             <p className="text-[var(--v-text-tertiary)] text-[16px] font-bold mt-4 mb-10 max-w-md leading-relaxed">
@@ -249,7 +253,7 @@ export default function HostEventsPage() {
                                         primaryAction={getPrimaryAction(event)}
                                         secondaryActions={[
                                             { label: "Configure", icon: <Edit3 size={16} />, href: `/host/create?id=${event.id}` },
-                                            { label: "Analytics", icon: <BarChart3 size={16} />, href: `/host/analytics?event=${event.id}` },
+                                            { label: "Analytics", icon: <BarChart3 size={16} />, href: `/host/analytics/overview?eventId=${event.id}` },
                                             {
                                                 label: "Copy URL",
                                                 icon: <Share2 size={16} />,

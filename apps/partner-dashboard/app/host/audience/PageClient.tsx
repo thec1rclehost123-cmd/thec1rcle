@@ -24,7 +24,7 @@ interface AudienceGuest {
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
 function Skeleton({ className = "" }: { className?: string }) {
-    return <div className={`animate-pulse bg-white/[0.04] rounded-xl ${className}`} />;
+    return <div className={`animate-pulse bg-surface-tertiary rounded-xl ${className}`} />;
 }
 
 // ── VIP toggle ────────────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ function VipToggle({ guestId, isVip, onToggle }: { guestId: string; isVip: boole
     return (
         <button
             onClick={() => onToggle(guestId, !isVip)}
-            className={`p-1.5 rounded-lg transition-all ${isVip ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30" : "bg-white/[0.04] text-text-placeholder hover:bg-white/[0.08] hover:text-amber-400"}`}
+            className={`p-1.5 rounded-lg transition-all ${isVip ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30" : "bg-surface-tertiary text-text-placeholder hover:bg-surface-elevated hover:text-amber-400"}`}
             title={isVip ? "Remove VIP" : "Mark as VIP"}
         >
             <Star className="w-3.5 h-3.5" />
@@ -54,25 +54,25 @@ function FilterBar({ filters, onChange }: { filters: Filters; onChange: (f: Filt
                     value={filters.search}
                     onChange={e => onChange({ ...filters, search: e.target.value })}
                     placeholder="Search guests..."
-                    className="w-full bg-white/[0.03] border border-border-subtle rounded-xl pl-9 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-placeholder focus:outline-none focus:border-indigo-500/50"
+                    className="w-full bg-surface-secondary border border-border-subtle rounded-xl pl-9 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-placeholder focus:outline-none focus:border-indigo-500/50"
                 />
             </div>
             <button
                 onClick={() => onChange({ ...filters, vip: !filters.vip })}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${filters.vip ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-white/[0.03] border border-border-subtle text-text-tertiary hover:text-text-primary"}`}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${filters.vip ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-surface-secondary border border-border-subtle text-text-tertiary hover:text-text-primary"}`}
             >
                 <Star className="w-3.5 h-3.5" /> VIP
             </button>
             <button
                 onClick={() => onChange({ ...filters, repeat: !filters.repeat })}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${filters.repeat ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30" : "bg-white/[0.03] border border-border-subtle text-text-tertiary hover:text-text-primary"}`}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${filters.repeat ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30" : "bg-surface-secondary border border-border-subtle text-text-tertiary hover:text-text-primary"}`}
             >
                 <Repeat2 className="w-3.5 h-3.5" /> Repeat
             </button>
             <select
                 value={filters.source}
                 onChange={e => onChange({ ...filters, source: e.target.value })}
-                className="bg-white/[0.03] border border-border-subtle rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-indigo-500/50"
+                className="bg-surface-secondary border border-border-subtle rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-indigo-500/50"
             >
                 <option value="">All Sources</option>
                 <option value="ticket">Ticket</option>
@@ -87,7 +87,7 @@ function FilterBar({ filters, onChange }: { filters: Filters; onChange: (f: Filt
 
 function GuestRow({ guest, onVipToggle }: { guest: AudienceGuest; onVipToggle: (id: string, val: boolean) => void }) {
     return (
-        <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-4 px-6 py-4 hover:bg-white/[0.02] transition-colors group">
+        <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-4 px-6 py-4 hover:bg-surface-secondary transition-colors group">
             {/* Name + avatar */}
             <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-black text-sm shrink-0">
@@ -299,7 +299,7 @@ export default function HostAudiencePage() {
                             <button
                                 onClick={() => fetchGuests(nextCursor, false)}
                                 disabled={loadingMore}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-white/[0.04] hover:bg-white/[0.08] border border-border-subtle text-text-primary rounded-xl text-[11px] font-black uppercase tracking-widest transition-all"
+                                className="flex items-center gap-2 px-5 py-2.5 bg-surface-secondary hover:bg-surface-tertiary border border-border-subtle text-text-primary rounded-xl text-[11px] font-black uppercase tracking-widest transition-all"
                             >
                                 {loadingMore ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ChevronRight className="w-3.5 h-3.5" />}
                                 Load More

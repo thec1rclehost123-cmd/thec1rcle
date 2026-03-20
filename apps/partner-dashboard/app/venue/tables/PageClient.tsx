@@ -213,7 +213,7 @@ export default function TablesPage() {
                             { label: "VVIP", value: vvipCount, icon: Sparkles, bg: "rgba(167,139,250,0.1)", text: "#A78BFA" },
                             { label: "SECTIONS", value: new Set(tables.map(t => t.location)).size, icon: Layers, bg: "var(--v-warning-bg)", text: "var(--v-warning)" },
                         ].map((stat, i) => (
-                            <div key={i} className="rounded-2xl p-4 flex items-center gap-3 border border-white/[0.04]" style={{ background: "var(--v-card)" }}>
+                            <div key={i} className="rounded-2xl p-4 flex items-center gap-3 border border-border-subtle" style={{ background: "var(--v-card)" }}>
                                 <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: stat.bg }}>
                                     <stat.icon className="w-3.5 h-3.5" style={{ color: stat.text }} />
                                 </div>

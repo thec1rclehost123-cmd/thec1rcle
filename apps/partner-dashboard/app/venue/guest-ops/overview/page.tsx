@@ -1,5 +1,5 @@
-import OverviewPageClient from "./PageClient";
+import { redirect } from "next/navigation";
 
-export default function GuestOpsOverviewPage(props: any) {
-    return <OverviewPageClient {...props} />;
+export default function Page() {
+    redirect("/venue/door?tab=overview");
 }

@@ -304,16 +304,6 @@ export function VenueSidebar({
                             </div>
                         </div>
                     )}
-                    {/* Plan badge */}
-                    {subscriptionPlan && !isCollapsed && (
-                        <div className={`px-2.5 py-1 rounded-lg ${planStyle.bg} ${planStyle.glow} border border-white/5 bg-opacity-20`}>
-                            <div className="flex items-center gap-1.5">
-                                <Crown className={`h-3 w-3 ${planStyle.text}`} />
-                                <span className={`text-[9px] font-black uppercase tracking-wider ${planStyle.text}`}>
-                                    {subscriptionPlan || "Basic"}
-                                </span>
-                            </div>
-                        </div>
                     )}
                 </div>
                 {onToggleCollapse && (

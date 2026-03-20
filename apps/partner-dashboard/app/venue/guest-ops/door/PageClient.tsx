@@ -1,21 +1,21 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { GuestDetailDrawer } from "@/components/guest-ops/GuestDetailDrawer";
 import { GuestSourceChip } from "@/components/guest-ops/chips/GuestSourceChip";
 import { GuestStatusChip } from "@/components/guest-ops/chips/GuestStatusChip";
 import { OfflineSyncBanner } from "@/components/guest-ops/OfflineSyncBanner";
 import { GuestSyncEngine, type SyncState } from "@/lib/client/offlineGuestSync";
-import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { useGuestOpsShellData } from "@/lib/hooks/useGuestOpsShellData";
 import { VENUE_PERMISSIONS } from "@/lib/rbac/types";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { cn } from "@/lib/utils";
 import {
     Search, Loader2, CheckCircle2, XCircle, AlertTriangle, ScanLine,
     User, Phone, Hash, FileText,
 } from "lucide-react";
-import type { GuestRecord, GuestOpsOverview } from "@/lib/types/guestOps";
+import type { GuestRecord } from "@/lib/types/guestOps";
 
 type SearchField = "name" | "phone" | "ticketId" | "ref";
 
@@ -28,16 +28,12 @@ const SEARCH_TABS: { value: SearchField; label: string; icon: React.ElementType;
 
 export default function DoorSearchPageClient() {
     const { profile } = useDashboardAuth();
-    const searchParams = useSearchParams();
-    const venueId = profile?.activeMembership?.partnerId ?? "";
-    const eventId = searchParams.get("eventId") ?? "";
     const role = profile?.activeMembership?.role ?? "";
 
-    // Shell state
-    const [events, setEvents] = useState<any[]>([]);
-    const [summary, setSummary] = useState<GuestOpsOverview | null>(null);
-    const [openExceptions, setOpenExceptions] = useState(0);
-    const [shellLoading, setShellLoading] = useState(true);
+    const {
+        eventId, venueId, events, summary, openExceptions,
+        isLoading: shellLoading, authHeaders,
+    } = useGuestOpsShellData();
 
     // Search state
     const [searchField, setSearchField] = useState<SearchField>("name");
@@ -65,25 +61,6 @@ export default function DoorSearchPageClient() {
 
     const permissions = VENUE_PERMISSIONS[role as keyof typeof VENUE_PERMISSIONS] ?? [];
     const canManage = permissions.includes("MANAGE_GUEST_OPS");
-
-    const authHeaders = useCallback(() => ({
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${(profile as any)?._token ?? ""}`,
-    }), [profile]);
-
-    // Fetch shell context
-    useEffect(() => {
-        if (!eventId || !venueId) { setShellLoading(false); return; }
-        Promise.all([
-            fetch(`/api/venue/events?venueId=${venueId}`, { headers: authHeaders() }),
-            fetch(`/api/venue/guest-ops/${eventId}/summary?venueId=${venueId}`, { headers: authHeaders() }),
-            fetch(`/api/venue/guest-ops/${eventId}/exceptions?venueId=${venueId}&status=open`, { headers: authHeaders() }),
-        ]).then(async ([evRes, sumRes, excRes]) => {
-            if (evRes.ok) { const d = await evRes.json(); setEvents(d.events ?? []); }
-            if (sumRes.ok) setSummary(await sumRes.json());
-            if (excRes.ok) { const d = await excRes.json(); setOpenExceptions(d.openCount ?? 0); }
-        }).finally(() => setShellLoading(false));
-    }, [eventId, venueId, authHeaders]);
 
     // Offline sync engine
     useEffect(() => {

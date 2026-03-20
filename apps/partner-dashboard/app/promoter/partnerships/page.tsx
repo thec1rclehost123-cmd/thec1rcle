@@ -1,5 +1,5 @@
-import PageClient from "./PageClient";
+import { redirect } from "next/navigation";
 
-export default function Page(props: any) {
-    return <PageClient {...props} />;
+export default function Page() {
+    redirect("/promoter/partners");
 }

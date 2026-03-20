@@ -1,507 +1,518 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import {
-    Settings,
-    Shield,
-    CreditCard,
-    Bell,
-    Users,
-    Lock,
-    Save,
-    Loader2,
-    CheckCircle2,
-    ChevronRight,
-    Building,
-    AtSign,
-    Phone,
-    X,
-    Calendar,
-    ArrowUpRight,
-    ArrowDownRight,
-    Download,
-    ShieldCheck,
-    Smartphone,
-    Key,
-    BellRing,
-    BellOff,
-    Mail,
-    MessageSquare,
-    Clock,
-    AlertCircle
+    Loader2, Save, RotateCcw, Lock, Monitor, Smartphone,
+    LogOut, Mail, BellRing, MessageSquare, RefreshCw,
+    AlertTriangle, X, CheckCircle2, Settings, UserCircle, Globe,
 } from "lucide-react";
-import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { motion, AnimatePresence } from "framer-motion";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
+import { HubTabBar } from "@/components/shared/HubTabBar";
+import { useHubTab } from "@/lib/hooks/useHubTab";
+import { Skeleton } from "@/components/ui/Skeleton";
+import ProfileClient from "../profile/PageClient";
+import PageManagementClient from "../page-management/PageClient";
+import type { HostSettings, LoginSession } from "@/lib/server/hostSettingsStore";
+
+const HUB_TABS = [
+    { key: "general", label: "General", icon: Settings },
+    { key: "profile", label: "Profile", icon: UserCircle },
+    { key: "page",    label: "Page",    icon: Globe },
+];
+
+// ─── Notification matrix ──────────────────────────────────────────────────────
+
+const NOTIF_CATEGORIES = [
+    { key: "slotApproved",    label: "Slot Approved"     },
+    { key: "slotRejected",    label: "Slot Rejected"     },
+    { key: "eventReminder",   label: "Event Reminders"   },
+    { key: "promoterRequest", label: "Promoter Requests" },
+    { key: "newFollower",     label: "New Followers"     },
+    { key: "weeklyDigest",    label: "Weekly Digest"     },
+];
+const NOTIF_CHANNELS = [
+    { key: "email", label: "Email",  icon: Mail           },
+    { key: "push",  label: "Push",   icon: BellRing       },
+    { key: "sms",   label: "SMS",    icon: MessageSquare  },
+];
+
+const TIMEZONES = ["Asia/Kolkata", "Asia/Dubai", "Asia/Singapore", "Europe/London", "America/New_York"];
+const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "SGD"];
+
+function parseBrowser(ua: string | null) {
+    if (!ua) return "Unknown device";
+    if (ua.includes("Chrome") && !ua.includes("Edg")) return "Chrome";
+    if (ua.includes("Firefox")) return "Firefox";
+    if (ua.includes("Safari") && !ua.includes("Chrome")) return "Safari";
+    if (ua.includes("Edg")) return "Edge";
+    return "Browser";
+}
+
+function relativeTime(iso: string) {
+    const ms = Date.now() - new Date(iso).getTime();
+    const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+    if (ms < 60_000)     return "just now";
+    if (ms < 3_600_000)  return rtf.format(-Math.floor(ms / 60_000),    "minute");
+    if (ms < 86_400_000) return rtf.format(-Math.floor(ms / 3_600_000), "hour");
+    return rtf.format(-Math.floor(ms / 86_400_000), "day");
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function HostSettingsPage() {
-    const { profile } = useDashboardAuth();
-    const [settings, setSettings] = useState<any>(null);
+    const { activeTab: hubTab, setTab: setHubTab } = useHubTab("general");
+    const { profile, user } = useDashboardAuth();
+    const hostId = profile?.activeMembership?.partnerId;
+
+    // ── Settings state
+    const [settings,  setSettings]  = useState<HostSettings | null>(null);
+    const [local,     setLocal]     = useState<HostSettings | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
-    const [activeSection, setActiveSection] = useState("profile");
-    const [showSecurityModal, setShowSecurityModal] = useState(false);
+    const [isDirty,   setIsDirty]   = useState(false);
+    const [isSaving,  setIsSaving]  = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
-    // Payout history state
-    const [payoutHistory, setPayoutHistory] = useState<any[]>([]);
-    const [payoutsLoading, setPayoutsLoading] = useState(false);
+    // ── Sessions
+    const [sessions,        setSessions]        = useState<LoginSession[]>([]);
+    const [sessionsLoading, setSessionsLoading] = useState(false);
+    const [isRevoking,      setIsRevoking]      = useState(false);
+    const [currentSid]                          = useState(() => crypto.randomUUID());
 
-    // Notification preferences
-    const [notifPrefs, setNotifPrefs] = useState({
-        slotApproved: true,
-        slotRejected: true,
-        eventReminder: true,
-        promoterRequest: true,
-        newFollower: true,
-        weeklyDigest: true,
-        emailNotifs: true,
-        pushNotifs: true,
-        smsNotifs: false,
-    });
+    // ── Password reset
+    const [resetSent,    setResetSent]    = useState(false);
+    const [resetLoading, setResetLoading] = useState(false);
 
-    useEffect(() => {
-        const fetchSettings = async () => {
-            if (!profile?.activeMembership?.partnerId) return;
-            setIsLoading(true);
-            try {
-                const hostId = profile.activeMembership.partnerId;
-                const res = await fetch(`/api/host/settings?hostId=${hostId}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setSettings(data);
-                    if (data.notificationPreferences) {
-                        setNotifPrefs({ ...notifPrefs, ...data.notificationPreferences });
-                    }
-                }
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setIsLoading(false);
-            }
-        };
+    // ── Re-auth modal
+    const [needsReAuth, setNeedsReAuth] = useState(false);
+    const [reAuthPw,    setReAuthPw]    = useState("");
+    const [reAuthErr,   setReAuthErr]   = useState<string | null>(null);
+    const [reAuthBusy,  setReAuthBusy]  = useState(false);
 
-        fetchSettings();
-    }, [profile]);
+    // ──────────────────────────────────────────────────────────────────────────
+    // Fetch
+    // ──────────────────────────────────────────────────────────────────────────
 
-    // Fetch payout history when payouts tab is active
-    useEffect(() => {
-        if (activeSection === "payouts" && profile?.activeMembership?.partnerId) {
-            fetchPayoutHistory();
-        }
-    }, [activeSection, profile?.activeMembership?.partnerId]);
-
-    const fetchPayoutHistory = async () => {
-        setPayoutsLoading(true);
+    const fetchSettings = useCallback(async () => {
+        if (!hostId) return;
+        setIsLoading(true);
         try {
-            const hostId = profile?.activeMembership?.partnerId;
-            const res = await fetch(`/api/host/settings?hostId=${hostId}&include=payouts`);
-            if (res.ok) {
-                const data = await res.json();
-                setPayoutHistory(data.payouts || generateMockPayouts());
-            } else {
-                setPayoutHistory(generateMockPayouts());
-            }
-        } catch {
-            setPayoutHistory(generateMockPayouts());
-        } finally {
-            setPayoutsLoading(false);
-        }
-    };
-
-    const handleSave = async (updates: any) => {
-        if (!profile?.activeMembership?.partnerId) return;
-        setIsSaving(true);
-        try {
-            const res = await fetch("/api/host/settings", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    hostId: profile.activeMembership.partnerId,
-                    settings: updates
-                })
+            const token = user ? await user.getIdToken() : "";
+            const res = await fetch(`/api/host/settings?hostId=${hostId}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (res.ok) {
-                setSettings({ ...settings, ...updates });
+                const data = await res.json();
+                const s: HostSettings = data.settings ?? data;
+                setSettings(s); setLocal(s);
             }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setIsSaving(false);
+        } catch (e) { console.error("[Settings] fetch", e); }
+        finally { setIsLoading(false); }
+    }, [hostId, user]);
+
+    useEffect(() => { fetchSettings(); }, [fetchSettings]);
+
+    // Write session on mount
+    useEffect(() => {
+        if (!hostId || !profile?.uid) return;
+        const ua = navigator.userAgent;
+        fetch("/api/host/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hostId, action: "WRITE_SESSION", sessionData: {
+                sessionId: currentSid, userAgent: ua,
+                deviceType: /Mobi|Android/i.test(ua) ? "mobile" : "desktop",
+                lastActiveAt: new Date().toISOString(),
+            }}),
+        }).catch(() => {});
+    }, [hostId, profile?.uid, currentSid]);
+
+    const loadSessions = useCallback(async () => {
+        if (!hostId) return;
+        setSessionsLoading(true);
+        try {
+            const token = user ? await user.getIdToken() : "";
+            const res = await fetch(`/api/host/settings?hostId=${hostId}&include=sessions`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (res.ok) setSessions((await res.json()).sessions ?? []);
+        } catch {} finally { setSessionsLoading(false); }
+    }, [hostId, user]);
+
+    useEffect(() => { loadSessions(); }, [loadSessions]);
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Mutations
+    // ──────────────────────────────────────────────────────────────────────────
+
+    const patch = useCallback((p: Partial<HostSettings>) => {
+        setLocal(prev => prev ? { ...prev, ...p } : prev);
+        setIsDirty(true);
+    }, []);
+
+    const handleReset = useCallback(() => {
+        setLocal(settings); setIsDirty(false); setSaveError(null);
+    }, [settings]);
+
+    const handleSave = useCallback(async () => {
+        if (!hostId || !local || !settings) return;
+        setIsSaving(true); setSaveError(null);
+        const diff: Partial<HostSettings> = {};
+        for (const k of Object.keys(local) as (keyof HostSettings)[]) {
+            if (JSON.stringify(local[k]) !== JSON.stringify(settings[k])) (diff as any)[k] = local[k];
         }
-    };
+        const action = Object.keys(diff).some(k => k === "notificationPreferences")
+            ? "NOTIFICATIONS_UPDATED" : "GENERAL_UPDATED";
+        try {
+            const token = user ? await user.getIdToken() : "";
+            const res = await fetch("/api/host/settings", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ hostId, patch: diff, action, section: "general" }),
+            });
+            if (res.ok) {
+                const d = await res.json();
+                const u: HostSettings = d.settings ?? { ...settings, ...diff };
+                setSettings(u); setLocal(u); setIsDirty(false);
+            } else setSaveError("Save failed. Try again.");
+        } catch { setSaveError("Network error. Try again."); }
+        finally { setIsSaving(false); }
+    }, [hostId, local, settings, user]);
 
-    const handleNotifToggle = (key: string) => {
-        const updated = { ...notifPrefs, [key]: !notifPrefs[key as keyof typeof notifPrefs] };
-        setNotifPrefs(updated);
-        handleSave({ notificationPreferences: updated });
-    };
+    // Sessions
+    const handleRevoke = useCallback(async (sid: string) => {
+        setIsRevoking(true);
+        await fetch("/api/host/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hostId, action: "REVOKE_SESSION", sessionId: sid }) });
+        setSessions(p => p.filter(s => s.sessionId !== sid));
+        setIsRevoking(false);
+    }, [hostId]);
 
-    const formatCurrency = (val: number) =>
-        new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(val);
+    const handleRevokeAll = useCallback(async () => {
+        setIsRevoking(true);
+        await fetch("/api/host/settings/session/revoke", { method: "POST" });
+        setSessions(p => p.filter(s => s.sessionId === currentSid));
+        setIsRevoking(false);
+    }, [currentSid]);
+
+    // Password reset
+    const handleResetPassword = useCallback(async () => {
+        if (!user?.email) return;
+        setResetLoading(true);
+        try {
+            const { getFirebaseAuth } = await import("@/lib/firebase/client");
+            const auth = await getFirebaseAuth();
+            const { sendPasswordResetEmail } = await import("firebase/auth");
+            await sendPasswordResetEmail(auth, user.email);
+            setResetSent(true);
+        } catch (e) { console.error(e); }
+        finally { setResetLoading(false); }
+    }, [user]);
+
+    // Re-auth
+    const checkReAuth = useCallback(async (): Promise<boolean> => {
+        try {
+            const tr = await user?.getIdTokenResult();
+            const age = Date.now() - ((tr?.claims.auth_time as number) ?? 0) * 1000;
+            if (age > 15 * 60 * 1000) { setNeedsReAuth(true); return false; }
+        } catch {}
+        return true;
+    }, [user]);
+
+    const handleReAuth = useCallback(async () => {
+        if (!user) return;
+        setReAuthBusy(true); setReAuthErr(null);
+        try {
+            const pid = user.providerData[0]?.providerId;
+            if (pid === "password") {
+                const { EmailAuthProvider, reauthenticateWithCredential } = await import("firebase/auth");
+                await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email ?? "", reAuthPw));
+            } else {
+                const { GoogleAuthProvider, reauthenticateWithPopup } = await import("firebase/auth");
+                await reauthenticateWithPopup(user, new GoogleAuthProvider());
+            }
+            setNeedsReAuth(false); setReAuthPw("");
+        } catch (e: any) {
+            setReAuthErr(e.code === "auth/wrong-password" ? "Incorrect password." : "Authentication failed.");
+        } finally { setReAuthBusy(false); }
+    }, [user, reAuthPw]);
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Render
+    // ──────────────────────────────────────────────────────────────────────────
+
+    // Hub-level tab routing — profile and page tabs bypass the settings data load
+    if (hubTab === "profile") {
+        return (
+            <VenuePageShell title="Settings" subtitle="Organisation configuration">
+                <HubTabBar tabs={HUB_TABS} activeTab={hubTab} onTabChange={setHubTab} />
+                <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
+                    <ProfileClient />
+                </Suspense>
+            </VenuePageShell>
+        );
+    }
+
+    if (hubTab === "page") {
+        return (
+            <VenuePageShell title="Settings" subtitle="Organisation configuration">
+                <HubTabBar tabs={HUB_TABS} activeTab={hubTab} onTabChange={setHubTab} />
+                <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
+                    <PageManagementClient />
+                </Suspense>
+            </VenuePageShell>
+        );
+    }
 
     if (isLoading) {
         return (
-            <div className="py-24 flex flex-col items-center justify-center">
-                <Loader2 className="h-10 w-10 animate-spin mb-4" style={{ color: "var(--v-orange)" }} />
-                <p className="font-bold uppercase tracking-widest text-[10px]" style={{ color: "var(--v-text-tertiary)" }}>Loading Console...</p>
+            <div className="py-24 flex flex-col items-center justify-center gap-4">
+                <Loader2 className="w-8 h-8 animate-spin text-[var(--v-orange)]" />
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--v-text-tertiary)]">Loading</p>
             </div>
         );
     }
 
+    const isGoogleUser = user?.providerData[0]?.providerId === "google.com";
+    const otherSessions = sessions.filter(s => s.sessionId !== currentSid);
+
     return (
-        <VenuePageShell
-            title="Settings"
-            subtitle="Operational parameters and payout anchors"
-            actions={
-                <VenueActionButton variant="primary" onClick={() => handleSave({})} disabled={isSaving}>
-                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    <span className="ml-2">Sync Settings</span>
-                </VenueActionButton>
-            }
-        >
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                {/* Navigation */}
-                <div className="space-y-1.5">
-                    <NavButton active={activeSection === "profile"} onClick={() => setActiveSection("profile")} icon={Users} label="Identity" />
-                    <NavButton active={activeSection === "security"} onClick={() => setActiveSection("security")} icon={Shield} label="Security" />
-                    <NavButton active={activeSection === "payouts"} onClick={() => setActiveSection("payouts")} icon={CreditCard} label="Financials" />
-                    <NavButton active={activeSection === "notifications"} onClick={() => setActiveSection("notifications")} icon={Bell} label="Alerts" />
-                </div>
+        <VenuePageShell title="Settings" subtitle="Organisation configuration">
+            <HubTabBar tabs={HUB_TABS} activeTab={hubTab} onTabChange={setHubTab} />
+            <div className="max-w-2xl space-y-10">
 
-                {/* Content */}
-                <div className="lg:col-span-3 space-y-8">
-                    {activeSection === "profile" && (
-                        <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm space-y-6">
-                            <h2 className="text-lg font-black text-text-primary uppercase tracking-tight flex items-center gap-3">
-                                Personal Anchors
-                            </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <SettingsField label="Legal Phone" icon={Phone}>
-                                    <input
-                                        type="tel"
-                                        defaultValue={settings?.phone}
-                                        onBlur={(e) => handleSave({ phone: e.target.value })}
-                                        className="w-full bg-surface-tertiary border border-border-default rounded-xl p-3 font-bold text-xs focus:bg-surface-elevated focus:ring-2 focus:ring-slate-100 transition-all"
-                                    />
-                                </SettingsField>
-                                <SettingsField label="Support Email" icon={AtSign}>
-                                    <input
-                                        type="email"
-                                        defaultValue={settings?.email}
-                                        onBlur={(e) => handleSave({ email: e.target.value })}
-                                        className="w-full bg-surface-tertiary border border-border-default rounded-xl p-3 font-bold text-xs focus:bg-surface-elevated focus:ring-2 focus:ring-slate-100 transition-all"
-                                    />
-                                </SettingsField>
+                {/* ── Organisation ─────────────────────────────────────────── */}
+                <section className="space-y-6">
+                    <Label>Organisation</Label>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Field label="Name">
+                            <Input value={local?.orgName ?? ""} onChange={v => patch({ orgName: v })} placeholder="Your brand name" />
+                        </Field>
+                        <Field label="Support Email">
+                            <Input value={local?.supportEmail ?? ""} onChange={v => patch({ supportEmail: v })} placeholder="support@org.com" type="email" />
+                        </Field>
+                        <Field label="Phone">
+                            <Input value={local?.legalPhone ?? ""} onChange={v => patch({ legalPhone: v })} placeholder="+91 98000 00000" type="tel" />
+                        </Field>
+                        <Field label="Website">
+                            <Input value={local?.website ?? ""} onChange={v => patch({ website: v })} placeholder="https://org.com" type="url" />
+                        </Field>
+                        <Field label="Timezone">
+                            <Select value={local?.defaultTimezone ?? "Asia/Kolkata"} onChange={v => patch({ defaultTimezone: v })}
+                                options={TIMEZONES.map(z => ({ value: z, label: z }))} />
+                        </Field>
+                        <Field label="Currency">
+                            <Select value={local?.defaultCurrency ?? "INR"} onChange={v => patch({ defaultCurrency: v })}
+                                options={CURRENCIES.map(c => ({ value: c, label: c }))} />
+                        </Field>
+                    </div>
+                </section>
+
+                <Divider />
+
+                {/* ── Security ─────────────────────────────────────────────── */}
+                <section className="space-y-6">
+                    <Label>Security</Label>
+
+                    {/* Password reset */}
+                    {!isGoogleUser && (
+                        <div className="flex items-center justify-between p-5 rounded-2xl bg-[var(--v-card)] border border-[var(--v-border)]">
+                            <div>
+                                <p className="text-[14px] font-black text-text-primary">Password</p>
+                                <p className="text-[12px] text-[var(--v-text-tertiary)] mt-0.5">Send a reset link to {user?.email}</p>
+                            </div>
+                            {resetSent ? (
+                                <span className="flex items-center gap-2 text-[12px] font-black text-[var(--v-success)] uppercase tracking-wider">
+                                    <CheckCircle2 className="w-4 h-4" /> Sent
+                                </span>
+                            ) : (
+                                <VenueActionButton variant="secondary" className="h-9 px-5 text-[12px]"
+                                    onClick={handleResetPassword} disabled={resetLoading}>
+                                    {resetLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Reset Password"}
+                                </VenueActionButton>
+                            )}
+                        </div>
+                    )}
+
+                    {isGoogleUser && (
+                        <div className="flex items-center justify-between p-5 rounded-2xl bg-[var(--v-card)] border border-[var(--v-border)]">
+                            <div>
+                                <p className="text-[14px] font-black text-text-primary">Google Account</p>
+                                <p className="text-[12px] text-[var(--v-text-tertiary)] mt-0.5">Signed in via Google — manage password at accounts.google.com</p>
                             </div>
                         </div>
                     )}
 
-                    {/* ============ SECURITY (Fixed P2) ============ */}
-                    {activeSection === "security" && (
-                        <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm space-y-8">
-                            <h2 className="text-lg font-black text-text-primary uppercase tracking-tight">Security Checkpoint</h2>
+                    {/* Sessions */}
+                    <div className="space-y-3">
+                        <p className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--v-text-tertiary)] px-1">Active Sessions</p>
 
-                            {/* 2FA Status */}
-                            <div className="p-6 bg-surface-secondary rounded-2xl text-text-primary flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    <Shield className="h-8 w-8 text-accent-primary" />
-                                    <div>
-                                        <p className="font-black text-lg mb-0.5 uppercase tracking-tight">Enterprise Locked</p>
-                                        <p className="text-text-primary/40 text-[9px] font-black uppercase tracking-widest">Two-Factor Authentication Active</p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => setShowSecurityModal(true)}
-                                    className="px-5 py-2.5 bg-surface-elevated hover:bg-surface-tertiary rounded-xl text-[9px] font-black uppercase tracking-widest transition-colors border border-border-default"
-                                >
-                                    Adjust Policy
-                                </button>
+                        {sessionsLoading ? (
+                            <div className="py-8 flex items-center justify-center">
+                                <Loader2 className="w-5 h-5 animate-spin text-[var(--v-text-tertiary)]" />
                             </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                                <div className="p-5 bg-surface-secondary/50 rounded-2xl border border-border-subtle space-y-2">
-                                    <div className="flex items-center gap-2.5">
-                                        <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                                        <h4 className="text-[10px] font-black text-text-primary uppercase tracking-widest">Account Status</h4>
-                                    </div>
-                                    <p className="text-xs font-bold text-emerald-600">Verified & Secured</p>
-                                    <p className="text-[10px] text-text-tertiary">Last login: {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
-                                </div>
-                                <div className="p-5 bg-surface-secondary/50 rounded-2xl border border-border-subtle space-y-2">
-                                    <div className="flex items-center gap-2.5">
-                                        <Smartphone className="w-4 h-4 text-indigo-500" />
-                                        <h4 className="text-[10px] font-black text-text-primary uppercase tracking-widest">Sessions</h4>
-                                    </div>
-                                    <p className="text-xs font-bold text-text-primary">1 Device Active</p>
-                                    <p className="text-[10px] text-text-tertiary">Current session</p>
-                                </div>
-                                <div className="p-5 bg-surface-secondary/50 rounded-2xl border border-border-subtle space-y-2">
-                                    <div className="flex items-center gap-2.5">
-                                        <Key className="w-4 h-4 text-amber-500" />
-                                        <h4 className="text-[10px] font-black text-text-primary uppercase tracking-widest">Password</h4>
-                                    </div>
-                                    <p className="text-xs font-bold text-text-primary">Managed Identity</p>
-                                    <p className="text-[10px] text-text-tertiary">Via Google Auth</p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ============ PAYOUTS (Fixed P1) ============ */}
-                    {activeSection === "payouts" && (
-                        <div className="space-y-6">
-                            {/* Bank Account */}
-                            <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm space-y-8">
-                                <h2 className="text-lg font-black text-text-primary uppercase tracking-tight">Financial Routing</h2>
-                                <div className="space-y-5">
-                                    <SettingsField label="Bank Account (T+2 Layout)" icon={Building}>
-                                        <input
-                                            type="text"
-                                            defaultValue={settings?.bankAccount}
-                                            onBlur={(e) => handleSave({ bankAccount: e.target.value })}
-                                            className="w-full bg-surface-tertiary border border-border-default rounded-xl p-3 font-bold text-xs focus:bg-surface-elevated focus:ring-2 focus:ring-slate-100 transition-all"
-                                            placeholder="Enter Account Number or UPI ID"
-                                        />
-                                    </SettingsField>
-                                    <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                                            <p className="text-[10px] font-black text-emerald-900 uppercase tracking-widest">Payouts Enabled: Active State</p>
-                                        </div>
-                                        <ChevronRight className="h-3.5 h-3.5 text-accent-primary" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Payout History */}
-                            <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm space-y-6">
-                                <div className="flex items-center justify-between">
-                                    <h2 className="text-lg font-black text-text-primary uppercase tracking-tight">Settlement History</h2>
-                                    <button className="flex items-center gap-2 px-4 py-2 bg-surface-secondary rounded-lg text-[9px] font-bold text-text-secondary uppercase tracking-widest hover:bg-surface-tertiary transition-all">
-                                        <Download className="w-3 h-3" />
-                                        Export CSV
-                                    </button>
-                                </div>
-
-                                {payoutsLoading ? (
-                                    <div className="py-12 flex items-center justify-center">
-                                        <Loader2 className="w-6 h-6 text-text-placeholder animate-spin" />
-                                    </div>
-                                ) : payoutHistory.length === 0 ? (
-                                    <div className="py-12 text-center">
-                                        <CreditCard className="w-8 h-8 text-text-placeholder mx-auto mb-2" />
-                                        <p className="text-xs font-bold text-text-tertiary">No settlements yet</p>
-                                        <p className="text-[10px] text-text-tertiary mt-1">Payouts will appear here after your first event</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {/* Header Row */}
-                                        <div className="grid grid-cols-5 gap-3 px-4 py-2 text-[9px] font-black text-text-tertiary uppercase tracking-widest border-b border-border-subtle">
-                                            <span>Event</span>
-                                            <span>Date</span>
-                                            <span>Amount</span>
-                                            <span>Status</span>
-                                            <span>Settled</span>
-                                        </div>
-                                        {payoutHistory.map((payout: any) => (
-                                            <div key={payout.id} className="grid grid-cols-5 gap-3 px-4 py-3 bg-surface-secondary/30 rounded-xl border border-border-subtle hover:border-border-default transition-all items-center">
-                                                <div>
-                                                    <p className="text-[11px] font-bold text-text-primary truncate">{payout.eventName}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] text-text-secondary">{new Date(payout.eventDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[11px] font-black text-text-primary">{formatCurrency(payout.amount)}</p>
-                                                </div>
-                                                <div>
-                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${payout.status === "completed" ? "bg-emerald-50 text-emerald-600" :
-                                                            payout.status === "pending" ? "bg-amber-50 text-amber-600" :
-                                                                "bg-surface-secondary text-text-tertiary"
-                                                        }`}>
-                                                        {payout.status === "completed" ? <CheckCircle2 className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />}
-                                                        {payout.status}
-                                                    </span>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] text-text-tertiary">
-                                                        {payout.settlementDate ? new Date(payout.settlementDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}
-                                                    </p>
-                                                </div>
+                        ) : (
+                            <>
+                                {/* Current session */}
+                                {sessions.find(s => s.sessionId === currentSid) && (
+                                    <div className="flex items-center justify-between p-5 rounded-2xl bg-[var(--v-card)] border border-[var(--v-border)]">
+                                        <div className="flex items-center gap-4">
+                                            {sessions.find(s => s.sessionId === currentSid)?.deviceType === "mobile"
+                                                ? <Smartphone className="w-4 h-4 text-[var(--v-text-tertiary)] shrink-0" />
+                                                : <Monitor className="w-4 h-4 text-[var(--v-text-tertiary)] shrink-0" />
+                                            }
+                                            <div>
+                                                <p className="text-[14px] font-black text-text-primary">
+                                                    {parseBrowser(sessions.find(s => s.sessionId === currentSid)?.userAgent ?? null)}
+                                                </p>
+                                                <p className="text-[12px] text-[var(--v-text-tertiary)] mt-0.5">
+                                                    Active {relativeTime(sessions.find(s => s.sessionId === currentSid)?.lastActiveAt ?? new Date().toISOString())}
+                                                </p>
                                             </div>
-                                        ))}
+                                        </div>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-[var(--v-orange)]">Current</span>
                                     </div>
                                 )}
-                            </div>
-                        </div>
-                    )}
 
-                    {/* ============ NOTIFICATIONS (Fixed P2) ============ */}
-                    {activeSection === "notifications" && (
-                        <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm space-y-8">
-                            <h2 className="text-lg font-black text-text-primary uppercase tracking-tight">Alert Preferences</h2>
-                            <p className="text-text-tertiary text-xs">Configure which notifications you receive across delivery channels.</p>
+                                {/* Other sessions */}
+                                {otherSessions.map(s => (
+                                    <div key={s.sessionId} className="flex items-center justify-between p-5 rounded-2xl bg-[var(--v-card)] border border-[var(--v-border)]">
+                                        <div className="flex items-center gap-4">
+                                            {s.deviceType === "mobile"
+                                                ? <Smartphone className="w-4 h-4 text-[var(--v-text-tertiary)] shrink-0" />
+                                                : <Monitor className="w-4 h-4 text-[var(--v-text-tertiary)] shrink-0" />
+                                            }
+                                            <div>
+                                                <p className="text-[14px] font-black text-text-primary">{parseBrowser(s.userAgent)}</p>
+                                                <p className="text-[12px] text-[var(--v-text-tertiary)] mt-0.5">Active {relativeTime(s.lastActiveAt)}</p>
+                                            </div>
+                                        </div>
+                                        <VenueActionButton variant="secondary" className="h-8 px-4 text-[11px]"
+                                            onClick={() => handleRevoke(s.sessionId)} disabled={isRevoking}>
+                                            {isRevoking ? <Loader2 className="w-3 h-3 animate-spin" /> : "Revoke"}
+                                        </VenueActionButton>
+                                    </div>
+                                ))}
 
-                            {/* Delivery Channels */}
-                            <div className="space-y-3">
-                                <h3 className="text-[10px] font-black text-text-tertiary uppercase tracking-widest">Delivery Channels</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <NotifChannelToggle
-                                        icon={BellRing}
-                                        label="Push Alerts"
-                                        subtitle="App notifications"
-                                        active={notifPrefs.pushNotifs}
-                                        onToggle={() => handleNotifToggle("pushNotifs")}
-                                    />
-                                    <NotifChannelToggle
-                                        icon={Mail}
-                                        label="Email Updates"
-                                        subtitle="Reports & digests"
-                                        active={notifPrefs.emailNotifs}
-                                        onToggle={() => handleNotifToggle("emailNotifs")}
-                                    />
-                                    <NotifChannelToggle
-                                        icon={MessageSquare}
-                                        label="SMS Protocol"
-                                        subtitle="Critical alerts"
-                                        active={notifPrefs.smsNotifs}
-                                        onToggle={() => handleNotifToggle("smsNotifs")}
-                                    />
-                                </div>
-                            </div>
+                                {sessions.length === 0 && (
+                                    <p className="text-[13px] text-[var(--v-text-tertiary)] px-1">No active sessions found.</p>
+                                )}
 
-                            {/* Event Notifications */}
-                            <div className="space-y-3 pt-6 border-t border-border-subtle">
-                                <h3 className="text-[10px] font-black text-text-tertiary uppercase tracking-widest">Event Protocol</h3>
-                                <div className="space-y-3">
-                                    <NotifToggle
-                                        label="Slot Approved"
-                                        description="When a venue approves your event slot request"
-                                        active={notifPrefs.slotApproved}
-                                        onToggle={() => handleNotifToggle("slotApproved")}
-                                    />
-                                    <NotifToggle
-                                        label="Slot Rejected"
-                                        description="When a venue declines or counter-proposes your slot"
-                                        active={notifPrefs.slotRejected}
-                                        onToggle={() => handleNotifToggle("slotRejected")}
-                                    />
-                                    <NotifToggle
-                                        label="Event Reminders"
-                                        description="Countdown reminders before your events go live"
-                                        active={notifPrefs.eventReminder}
-                                        onToggle={() => handleNotifToggle("eventReminder")}
-                                    />
-                                </div>
-                            </div>
+                                {otherSessions.length > 0 && (
+                                    <button onClick={handleRevokeAll} disabled={isRevoking}
+                                        className="flex items-center gap-2 text-[12px] font-black uppercase tracking-wider text-[var(--v-text-tertiary)] hover:text-text-primary transition-all disabled:opacity-50 px-1 py-2">
+                                        {isRevoking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogOut className="w-3.5 h-3.5" />}
+                                        Sign out all other devices
+                                    </button>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </section>
 
-                            {/* Network Notifications */}
-                            <div className="space-y-3 pt-6 border-t border-border-subtle">
-                                <h3 className="text-[10px] font-black text-text-tertiary uppercase tracking-widest">Network Protocol</h3>
-                                <div className="space-y-3">
-                                    <NotifToggle
-                                        label="Promoter Connection Requests"
-                                        description="When a promoter requests to join your network"
-                                        active={notifPrefs.promoterRequest}
-                                        onToggle={() => handleNotifToggle("promoterRequest")}
-                                    />
-                                    <NotifToggle
-                                        label="New Followers"
-                                        description="When someone follows your host profile"
-                                        active={notifPrefs.newFollower}
-                                        onToggle={() => handleNotifToggle("newFollower")}
-                                    />
-                                    <NotifToggle
-                                        label="Weekly Digest"
-                                        description="A summary of your performance and network activity"
-                                        active={notifPrefs.weeklyDigest}
-                                        onToggle={() => handleNotifToggle("weeklyDigest")}
-                                    />
-                                </div>
+                <Divider />
+
+                {/* ── Notifications ─────────────────────────────────────────── */}
+                <section className="space-y-5">
+                    <Label>Notifications</Label>
+
+                    {/* Channel header */}
+                    <div className="grid grid-cols-4 gap-3 px-1">
+                        <div />
+                        {NOTIF_CHANNELS.map(ch => (
+                            <p key={ch.key} className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--v-text-tertiary)] text-center">{ch.label}</p>
+                        ))}
+                    </div>
+
+                    <div className="space-y-2">
+                        {NOTIF_CATEGORIES.map(cat => (
+                            <div key={cat.key} className="grid grid-cols-4 gap-3 items-center px-5 py-4 rounded-2xl bg-[var(--v-card)] border border-[var(--v-border)]">
+                                <p className="text-[13px] font-bold text-text-primary">{cat.label}</p>
+                                {NOTIF_CHANNELS.map(ch => {
+                                    const k = `${cat.key}_${ch.key}`;
+                                    const on = (local?.notificationPreferences?.[k]) ?? false;
+                                    return (
+                                        <div key={ch.key} className="flex items-center justify-center">
+                                            <button onClick={() => patch({ notificationPreferences: { ...local?.notificationPreferences, [k]: !on } })}
+                                                className={`relative w-10 h-[22px] rounded-full transition-all ${on ? "bg-[var(--v-success)]" : "bg-surface-elevated"}`}>
+                                                <div className={`absolute top-0.5 w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-all ${on ? "left-[20px]" : "left-0.5"}`} />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        </div>
-                    )}
-                </div>
+                        ))}
+                    </div>
+                </section>
+
             </div>
 
-            {/* Security Modal */}
+            {/* ── Floating save bar ──────────────────────────────────────────── */}
             <AnimatePresence>
-                {showSecurityModal && (
+                {isDirty && (
+                    <motion.div initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-2xl shadow-2xl bg-[var(--v-card)] border border-[var(--v-border)]">
+                        {saveError && <span className="text-[12px] font-bold text-[var(--v-error)]">{saveError}</span>}
+                        {!saveError && <span className="text-[12px] font-black uppercase tracking-wider text-[var(--v-text-secondary)]">Unsaved changes</span>}
+                        <button onClick={handleReset}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--v-elevated)] text-[11px] font-black uppercase tracking-wider text-[var(--v-text-secondary)] hover:text-text-primary transition-all">
+                            <RotateCcw className="w-3 h-3" /> Reset
+                        </button>
+                        <VenueActionButton variant="primary" className="h-9 px-5 text-[12px]"
+                            onClick={handleSave} disabled={isSaving}>
+                            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
+                            Save
+                        </VenueActionButton>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ── Re-auth modal ──────────────────────────────────────────────── */}
+            <AnimatePresence>
+                {needsReAuth && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setShowSecurityModal(false)}
-                            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="relative bg-surface-base rounded-3xl shadow-2xl border border-border-subtle overflow-hidden w-full max-w-lg"
-                        >
-                            <button onClick={() => setShowSecurityModal(false)} className="absolute top-4 right-4 p-2 hover:bg-surface-secondary rounded-xl z-10">
-                                <X className="w-5 h-5 text-text-tertiary" />
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            onClick={() => { setNeedsReAuth(false); setReAuthPw(""); }}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                        <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className="relative w-full max-w-sm rounded-[32px] bg-[var(--v-card)] border border-[var(--v-border)] shadow-2xl p-8 space-y-6">
+                            <button onClick={() => { setNeedsReAuth(false); setReAuthPw(""); }}
+                                className="absolute top-4 right-4 w-8 h-8 rounded-xl bg-[var(--v-elevated)] flex items-center justify-center hover:bg-surface-tertiary transition-all">
+                                <X className="w-3.5 h-3.5 text-[var(--v-text-tertiary)]" />
                             </button>
-                            <div className="p-8 space-y-6">
-                                <div>
-                                    <h2 className="text-lg font-black text-text-primary uppercase tracking-tight">Security Policy</h2>
-                                    <p className="text-[11px] text-text-tertiary mt-1">Configure account access parameters.</p>
+                            <div>
+                                <div className="w-10 h-10 rounded-2xl bg-[var(--v-orange)]/10 border border-[var(--v-orange)]/20 flex items-center justify-center mb-4">
+                                    <Lock className="w-5 h-5 text-[var(--v-orange)]" />
                                 </div>
-
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between p-4 bg-surface-secondary rounded-2xl">
-                                        <div className="flex items-center gap-3">
-                                            <Shield className="w-4 h-4 text-emerald-500" />
-                                            <div>
-                                                <p className="text-xs font-bold text-text-primary">Two-Factor Authentication</p>
-                                                <p className="text-[10px] text-text-tertiary">Managed via Identity Provider</p>
-                                            </div>
-                                        </div>
-                                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase">Active</span>
-                                    </div>
-
-                                    <div className="flex items-center justify-between p-4 bg-surface-secondary rounded-2xl">
-                                        <div className="flex items-center gap-3">
-                                            <Smartphone className="w-4 h-4 text-indigo-500" />
-                                            <div>
-                                                <p className="text-xs font-bold text-text-primary">Trusted Devices</p>
-                                                <p className="text-[10px] text-text-tertiary">Manage authorized sessions</p>
-                                            </div>
-                                        </div>
-                                        <span className="text-xs font-bold text-text-secondary">1 Active</span>
-                                    </div>
-
-                                    <div className="flex items-center justify-between p-4 bg-surface-secondary rounded-2xl">
-                                        <div className="flex items-center gap-3">
-                                            <Lock className="w-4 h-4 text-amber-500" />
-                                            <div>
-                                                <p className="text-xs font-bold text-text-primary">Login Notifications</p>
-                                                <p className="text-[10px] text-text-tertiary">Alert on new sign-ins</p>
-                                            </div>
-                                        </div>
-                                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase">Enabled</span>
-                                    </div>
-                                </div>
-
-                                <div className="pt-3 border-t border-border-subtle">
-                                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-start gap-2.5">
-                                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
-                                        <div>
-                                            <p className="text-[10px] font-bold text-amber-800">Auth managed via Provider</p>
-                                            <p className="text-[9px] text-amber-700 mt-0.5 leading-relaxed">Password policy and 2FA are handled through your Identity provider. Contact support for assistance.</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={() => setShowSecurityModal(false)}
-                                    className="w-full py-3 bg-surface-secondary text-text-primary rounded-xl text-xs font-bold hover:bg-surface-tertiary transition-all"
-                                >
-                                    Close
-                                </button>
+                                <h2 className="text-[18px] font-black text-text-primary">Confirm identity</h2>
+                                <p className="text-[13px] font-medium mt-1 text-[var(--v-text-tertiary)]">Session older than 15 minutes.</p>
                             </div>
+                            {!isGoogleUser ? (
+                                <div className="space-y-4">
+                                    <input type="password" value={reAuthPw} onChange={e => setReAuthPw(e.target.value)}
+                                        onKeyDown={e => e.key === "Enter" && handleReAuth()}
+                                        placeholder="Enter password" autoFocus
+                                        className="w-full bg-[var(--v-elevated)] border border-[var(--v-border)] rounded-xl px-4 py-3 text-[14px] font-bold text-text-primary outline-none focus:border-[var(--v-orange)]/50 transition-all placeholder:text-[var(--v-text-muted)]" />
+                                    {reAuthErr && <p className="text-[12px] font-bold text-[var(--v-error)]">{reAuthErr}</p>}
+                                    <VenueActionButton variant="primary" className="w-full h-11 text-[13px]"
+                                        onClick={handleReAuth} disabled={reAuthBusy || !reAuthPw}>
+                                        {reAuthBusy && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+                                        Confirm
+                                    </VenueActionButton>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {reAuthErr && <p className="text-[12px] font-bold text-[var(--v-error)]">{reAuthErr}</p>}
+                                    <VenueActionButton variant="secondary" className="w-full h-11 text-[13px]"
+                                        onClick={handleReAuth} disabled={reAuthBusy}>
+                                        {reAuthBusy && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+                                        Continue with Google
+                                    </VenueActionButton>
+                                </div>
+                            )}
                         </motion.div>
                     </div>
                 )}
@@ -510,88 +521,37 @@ export default function HostSettingsPage() {
     );
 }
 
-// ── Helper Components ──────────────────────────────────
+// ─── Atoms ────────────────────────────────────────────────────────────────────
 
-function NavButton({ active, icon: Icon, label, onClick }: any) {
-    return (
-        <button
-            onClick={onClick}
-            className={`w-full p-4 flex items-center gap-3 rounded-xl transition-all group ${active
-                ? "bg-surface-secondary text-text-primary shadow-lg shadow-slate-100"
-                : "text-text-tertiary hover:bg-surface-tertiary hover:text-text-primary"
-                }`}
-        >
-            <Icon className={`h-4 w-4 ${active ? "text-accent-primary" : "group-hover:text-text-primary"}`} />
-            <span className="text-[9px] font-black uppercase tracking-[0.2em]">{label}</span>
-        </button>
-    );
+function Label({ children }: { children: React.ReactNode }) {
+    return <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--v-text-tertiary)]">{children}</p>;
 }
 
-function SettingsField({ label, icon: Icon, children }: any) {
+function Divider() {
+    return <div className="h-px bg-[var(--v-border)] opacity-40" />;
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
     return (
-        <div className="space-y-4">
-            <div className="flex items-center gap-3 ml-1">
-                <Icon className="h-4 w-4 text-text-tertiary" />
-                <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">{label}</label>
-            </div>
+        <div className="space-y-2">
+            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--v-text-tertiary)]">{label}</p>
             {children}
         </div>
     );
 }
 
-function NotifToggle({ label, description, active, onToggle }: { label: string; description: string; active: boolean; onToggle: () => void }) {
+function Input({ value, onChange, placeholder, type = "text" }: { value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
     return (
-        <div className="flex items-center justify-between p-4 bg-surface-secondary/30 rounded-xl border border-border-subtle hover:border-border-default transition-all">
-            <div>
-                <p className="text-xs font-bold text-text-primary">{label}</p>
-                <p className="text-[10px] text-text-tertiary mt-0.5">{description}</p>
-            </div>
-            <button
-                onClick={onToggle}
-                className={`relative w-10 h-6 rounded-full transition-all ${active ? "bg-emerald-500" : "bg-surface-tertiary"}`}
-            >
-                <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all ${active ? "left-4.5" : "left-0.5"}`} />
-            </button>
-        </div>
+        <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+            className="w-full bg-[var(--v-elevated)] border border-[var(--v-border)] rounded-xl px-4 py-3 text-[14px] font-bold text-text-primary outline-none focus:border-[var(--v-orange)]/50 transition-all placeholder:text-[var(--v-text-muted)]" />
     );
 }
 
-function NotifChannelToggle({ icon: Icon, label, subtitle, active, onToggle }: any) {
+function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
     return (
-        <button
-            onClick={onToggle}
-            className={`p-4 rounded-xl border transition-all text-left ${active
-                    ? "bg-surface-secondary border-border-strong"
-                    : "bg-surface-secondary/30 border-border-subtle opacity-60"
-                }`}
-        >
-            <div className="flex items-center justify-between mb-2">
-                <Icon className={`w-4 h-4 ${active ? "text-emerald-500" : "text-text-tertiary"}`} />
-                <div className={`w-2 h-2 rounded-full ${active ? "bg-emerald-500" : "bg-surface-tertiary"}`} />
-            </div>
-            <p className="text-xs font-bold text-text-primary">{label}</p>
-            <p className="text-[10px] text-text-tertiary mt-0.5">{subtitle}</p>
-        </button>
+        <select value={value} onChange={e => onChange(e.target.value)}
+            className="w-full bg-[var(--v-elevated)] border border-[var(--v-border)] rounded-xl px-4 py-3 text-[14px] font-bold text-text-primary outline-none focus:border-[var(--v-orange)]/50 transition-all appearance-none cursor-pointer">
+            {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
     );
-}
-
-// ── Mock Data Generator ──────────────────────────────────
-
-function generateMockPayouts() {
-    const events = [
-        { name: "Neon Frequency Vol.4", amount: 84500, date: "2026-02-28" },
-        { name: "Deep State Sessions", amount: 52000, date: "2026-02-14" },
-        { name: "AFTERHOURS Collective", amount: 115000, date: "2026-01-31" },
-        { name: "Bassline Protocol", amount: 67800, date: "2026-01-17" },
-        { name: "Warehouse 303", amount: 93200, date: "2025-12-30" },
-    ];
-
-    return events.map((e, i) => ({
-        id: `payout_${i}`,
-        eventName: e.name,
-        eventDate: e.date,
-        amount: e.amount,
-        status: i < 2 ? "pending" : "completed",
-        settlementDate: i < 2 ? null : new Date(new Date(e.date).getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-    }));
 }

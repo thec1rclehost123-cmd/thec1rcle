@@ -324,7 +324,7 @@ function DirectoryCard({
 
                 <div className="flex items-start justify-between mb-6 relative z-10">
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-surface-secondary to-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-white shadow-xl group-hover:scale-105 transition-transform">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-surface-secondary to-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-text-primary shadow-xl group-hover:scale-105 transition-transform">
                             {partner.name[0]}
                         </div>
                         <div>
@@ -343,7 +343,7 @@ function DirectoryCard({
 
                 {/* Type + status row */}
                 <div className="flex items-center justify-between mb-6 relative z-10">
-                    <span className="flex items-center gap-2 px-3 py-1.5 bg-black/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-text-secondary border border-white/5 capitalize backdrop-blur-md">
+                    <span className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary rounded-xl text-[10px] font-black uppercase tracking-widest text-text-secondary border border-border-subtle capitalize backdrop-blur-md">
                         <span className="text-accent-primary">{typeIcon}</span> {partner.type}
                     </span>
                     {statusBadge()}
@@ -357,7 +357,7 @@ function DirectoryCard({
 
                 {/* Metrics row */}
                 <div className="grid grid-cols-2 gap-3 mb-8 mt-auto relative z-10">
-                    <div className="flex items-center gap-2.5 p-3 bg-white/5 rounded-2xl border border-white/5 group-hover:border-accent-primary/10 transition-colors">
+                    <div className="flex items-center gap-2.5 p-3 bg-surface-tertiary rounded-2xl border border-border-subtle group-hover:border-accent-primary/10 transition-colors">
                         <CalendarDays className="w-4 h-4 text-accent-primary/60" />
                         <div>
                             <p className="text-[10px] font-black text-text-muted uppercase tracking-tighter">Events</p>
@@ -366,7 +366,7 @@ function DirectoryCard({
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2.5 p-3 bg-white/5 rounded-2xl border border-white/5 group-hover:border-accent-primary/10 transition-colors">
+                    <div className="flex items-center gap-2.5 p-3 bg-surface-tertiary rounded-2xl border border-border-subtle group-hover:border-accent-primary/10 transition-colors">
                         <Users className="w-4 h-4 text-accent-primary/60" />
                         <div>
                             <p className="text-[10px] font-black text-text-muted uppercase tracking-tighter">Fans</p>

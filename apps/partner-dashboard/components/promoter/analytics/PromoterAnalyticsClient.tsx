@@ -116,7 +116,7 @@ export function PromoterAnalyticsClient() {
                                  <DollarSign className="h-4 w-4" />
                                  Total Commission
                              </p>
-                             <span className="text-3xl font-black tabular-nums tracking-tighter text-white">
+                             <span className="text-3xl font-black tabular-nums tracking-tighter text-text-primary">
                                  {formatCurrencyInline(data.overview.commission)}
                              </span>
                         </div>

@@ -43,7 +43,7 @@ const STATUS_STYLES: Record<string, string> = {
     processing: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
     completed:  "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
     failed:     "bg-red-500/10 text-red-400 border border-red-500/20",
-    cancelled:  "bg-white/5 text-text-tertiary border border-white/10",
+    cancelled:  "bg-surface-secondary text-text-tertiary border border-border-subtle",
 };
 
 const STATUS_ICONS: Record<string, any> = {

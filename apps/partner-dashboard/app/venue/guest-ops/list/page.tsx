@@ -1,5 +1,5 @@
-import GuestListPageClient from "./PageClient";
+import { redirect } from "next/navigation";
 
-export default function GuestListPage(props: any) {
-    return <GuestListPageClient {...props} />;
+export default function Page() {
+    redirect("/venue/door?tab=list");
 }

@@ -64,16 +64,16 @@ export function SlotBlockModal({ venueId, date, onClose, onSuccess }: SlotBlockM
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.97 }}
                     transition={{ type: "spring", damping: 25, stiffness: 400 }}
-                    className="relative z-10 w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#111] p-6 shadow-2xl"
+                    className="relative z-10 w-full max-w-md rounded-2xl border border-border-default bg-surface-secondary dark:bg-[#111] p-6 shadow-2xl"
                 >
                     <div className="flex items-start justify-between mb-6">
                         <div>
-                            <h2 className="text-base font-semibold text-white">Block Date</h2>
-                            <p className="text-sm text-zinc-500 mt-0.5">{date}</p>
+                            <h2 className="text-base font-semibold text-text-primary">Block Date</h2>
+                            <p className="text-sm text-text-tertiary mt-0.5">{date}</p>
                         </div>
                         <button
                             onClick={onClose}
-                            className="rounded-lg p-1.5 text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors"
+                            className="rounded-lg p-1.5 text-text-tertiary hover:text-text-primary hover:bg-surface-tertiary transition-colors"
                         >
                             <X className="h-4 w-4" />
                         </button>
@@ -81,10 +81,10 @@ export function SlotBlockModal({ venueId, date, onClose, onSuccess }: SlotBlockM
 
                     <div className="space-y-5">
                         {/* Full day vs partial */}
-                        <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+                        <div className="flex items-center justify-between rounded-lg border border-border-default bg-surface-secondary px-4 py-3">
                             <div>
-                                <p className="text-sm text-white">Partial day block</p>
-                                <p className="text-xs text-zinc-500 mt-0.5">
+                                <p className="text-sm text-text-primary">Partial day block</p>
+                                <p className="text-xs text-text-tertiary mt-0.5">
                                     Block only specific hours; hosts see remaining open time
                                 </p>
                             </div>
@@ -105,7 +105,7 @@ export function SlotBlockModal({ venueId, date, onClose, onSuccess }: SlotBlockM
                                 >
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs text-zinc-400 mb-1.5">
+                                            <label className="block text-xs text-text-secondary mb-1.5">
                                                 Start time
                                             </label>
                                             <Input
@@ -115,7 +115,7 @@ export function SlotBlockModal({ venueId, date, onClose, onSuccess }: SlotBlockM
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs text-zinc-400 mb-1.5">
+                                            <label className="block text-xs text-text-secondary mb-1.5">
                                                 End time
                                             </label>
                                             <Input
@@ -137,7 +137,7 @@ export function SlotBlockModal({ venueId, date, onClose, onSuccess }: SlotBlockM
 
                         {/* Note */}
                         <div>
-                            <label className="block text-xs text-zinc-400 mb-1.5">
+                            <label className="block text-xs text-text-secondary mb-1.5">
                                 Internal note (optional)
                             </label>
                             <TextArea

@@ -1,18 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Search, X, Command, ChevronDown, LogOut } from "lucide-react";
+import { Bell, Search, X, Command, ChevronDown, LogOut, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { NotificationCenter } from "./NotificationCenter";
 import { useDashboardAuth } from "../providers/DashboardAuthProvider";
 import { usePathname, useRouter } from "next/navigation";
 import { parseAsIST } from "@c1rcle/core/time";
 import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 interface AppleTopBarProps {
     title?: string;
+    primaryAction?: {
+        label: string;
+        href: string;
+        icon?: React.ComponentType<{ className?: string }>;
+    };
 }
 
-export function AppleTopBar({ title }: AppleTopBarProps) {
+export function AppleTopBar({ title, primaryAction }: AppleTopBarProps) {
     const { profile, signOut } = useDashboardAuth();
     const pathname = usePathname();
     const router = useRouter();
@@ -20,6 +27,7 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [currentTime, setCurrentTime] = useState<Date | null>(null);
+    const now = new Date();
 
     // Update time every minute
     useEffect(() => {
@@ -95,6 +103,35 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
 
                 {/* Right - Search & Actions */}
                 <div className="flex items-center gap-3 lg:gap-4">
+                    {/* Primary CTA */}
+                    {primaryAction && (
+                        <Link
+                            href={primaryAction.href}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--c1rcle-orange)] hover:bg-[var(--c1rcle-orange-dim)] text-white text-[13px] font-bold tracking-wide transition-all shadow-[0_0_20px_var(--c1rcle-orange-glow)] hover:shadow-[0_0_30px_var(--c1rcle-orange-glow)] active:scale-[0.97]"
+                        >
+                            {primaryAction.icon && <primaryAction.icon className="w-4 h-4" />}
+                            {primaryAction.label}
+                        </Link>
+                    )}
+
+                    {/* Calendar Link */}
+                    <div className="relative">
+                        <Link
+                            href={
+                                pathname.startsWith('/host') ? '/host/calendar' :
+                                pathname.startsWith('/venue') ? '/venue/calendar' :
+                                '/promoter/events'
+                            }
+                            className={cn(
+                                "flex items-center justify-center w-9 h-9 rounded-xl bg-surface-secondary hover:bg-surface-tertiary border border-border-subtle transition-all",
+                                (pathname.endsWith('/calendar')) ? "text-[var(--c1rcle-orange)] border-[var(--c1rcle-orange-dim)] bg-[var(--c1rcle-orange-dim)]/5" : "text-text-tertiary"
+                            )}
+                            aria-label="View calendar"
+                        >
+                            <Calendar className="w-4 h-4" />
+                        </Link>
+                    </div>
+
                     {/* Quick Search */}
                     <button
                         onClick={() => setSearchOpen(true)}
@@ -148,7 +185,7 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                                         transition={{ duration: 0.15, ease: "easeOut" }}
-                                        className="absolute right-0 top-full mt-2 w-48 bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl p-1.5 overflow-hidden z-50 mr-[-8px]"
+                                        className="absolute right-0 top-full mt-2 w-48 bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl p-1.5 overflow-hidden z-50"
                                     >
                                         <button 
                                             onClick={() => {
@@ -223,7 +260,7 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
                                     <div className="space-y-1">
                                         {[
                                             { label: "Create New Event", href: `/${roleContext.toLowerCase()}/create` },
-                                            { label: "View Calendar", href: `/${roleContext.toLowerCase()}/calendar` },
+                                            { label: "View Calendar", href: roleContext?.toLowerCase() === 'promoter' ? '/promoter/events' : `/${roleContext?.toLowerCase()}/calendar` },
                                             { label: "Manage Events", href: `/${roleContext.toLowerCase()}/events` },
                                         ].map((action, i) => (
                                             <button
@@ -271,3 +308,4 @@ export function AppleTopBar({ title }: AppleTopBarProps) {
         </>
     );
 }
+
