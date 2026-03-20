@@ -304,7 +304,6 @@ export function VenueSidebar({
                             </div>
                         </div>
                     )}
-                    )}
                 </div>
                 {onToggleCollapse && (
                     <div className={`flex mt-4 ${isCollapsed ? "justify-center" : "justify-end"}`}>
