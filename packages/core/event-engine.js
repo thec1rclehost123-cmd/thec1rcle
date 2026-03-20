@@ -142,7 +142,9 @@ export function filterAndSortEvents(events, { city, sort = "heat", search, host 
     let results = events.filter(event => {
         if (!PUBLIC_LIFECYCLE_STATES.includes(event.lifecycle)) return false;
         const end = event.endDate || event.startDate;
-        if (end < nowIso) return false;
+        // Normalize date-only strings (YYYY-MM-DD) to end-of-day so today's events aren't filtered out
+        const endNormalized = end && end.length === 10 ? end + "T23:59:59.999Z" : end;
+        if (endNormalized < nowIso) return false;
         if (city && event.cityKey !== normalizeCity(city)) return false;
         if (host && event.host !== host) return false;
         if (search) {

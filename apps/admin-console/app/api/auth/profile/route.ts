@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApiClient } from "@/lib/server/apiClient";
 import { verifyAuth } from "@/lib/server/auth";
+import { getAdminDb } from "@/lib/firebase/admin";
 
 export async function POST(req: NextRequest) {
     try {
@@ -9,17 +9,26 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-        const client = getApiClient(token);
-
         const body = await req.json();
+        const { uid, email, displayName, age, gender, phone, photoURL, city, instagram, isVerified, createdAt, updatedAt } = body;
 
-        const data = await client.request("/users/profile", {
-            method: "POST",
-            body: JSON.stringify(body)
-        });
+        if (!uid || !email) {
+            return NextResponse.json({ error: "uid and email are required" }, { status: 400 });
+        }
 
-        return NextResponse.json(data);
+        const now = new Date().toISOString();
+        const profileDoc = {
+            uid, email, displayName: displayName || "", age: age || null, gender: gender || null,
+            phone: phone || null, photoURL: photoURL || "", attendedEvents: [],
+            city: city || "", instagram: instagram || "",
+            isVerified: isVerified ?? true,
+            createdAt: createdAt || now, updatedAt: updatedAt || now,
+        };
+
+        const db = getAdminDb();
+        await db.collection("users").doc(uid).set(profileDoc, { merge: true });
+
+        return NextResponse.json({ success: true, uid });
     } catch (error: any) {
         console.error("[Auth API] POST /profile Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -33,17 +42,29 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-        const client = getApiClient(token);
-
+        const userId = decodedToken.uid;
         const body = await req.json();
+        const { type = "user", updates, id: targetId } = body;
 
-        const data = await client.request("/profiles", {
-            method: "PATCH",
-            body: JSON.stringify(body)
+        if (!updates || Object.keys(updates).length === 0) {
+            return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+        }
+
+        const collectionMap: Record<string, string> = { user: "users", venue: "venues", host: "hosts" };
+        const collection = collectionMap[type] || "users";
+        const docId = type === "user" ? userId : targetId;
+
+        if (!docId) {
+            return NextResponse.json({ error: "ID required for this update type" }, { status: 400 });
+        }
+
+        const db = getAdminDb();
+        await db.collection(collection).doc(docId).update({
+            ...updates,
+            updatedAt: new Date().toISOString(),
         });
 
-        return NextResponse.json(data);
+        return NextResponse.json({ success: true, message: "Profile updated successfully" });
     } catch (error: any) {
         console.error("[Auth API] PATCH /profile Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });

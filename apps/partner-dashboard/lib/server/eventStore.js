@@ -140,6 +140,10 @@ export async function createEvent(payload, token) {
         // Denormalized snapshots for guest-portal display (no extra reads)
         hostData: payload.hostData || null,
         venueData: payload.venueData || null,
+        // Ensure endDate has a time component so guest-portal date range comparisons work correctly
+        endDate: built.endDate && built.endDate.length === 10
+            ? built.endDate + "T23:59:59.999Z"
+            : built.endDate,
     };
 
     await db.collection(EVENT_COLLECTION).doc(event.id).set(event);

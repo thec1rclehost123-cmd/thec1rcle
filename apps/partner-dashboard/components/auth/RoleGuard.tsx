@@ -23,9 +23,8 @@ export function RoleGuard({ children, allowedType }: RoleGuardProps) {
             }
 
             if (!profile?.activeMembership) {
-                // If they are logged in but have no active partnership, they shouldn't be here
-                // We might redirect to a 'no-participation' page or onboarding
-                router.replace("/login?error=no_active_partner");
+                // Logged in but no active partnership — send to onboard so they can apply
+                router.replace("/onboard");
                 return;
             }
 

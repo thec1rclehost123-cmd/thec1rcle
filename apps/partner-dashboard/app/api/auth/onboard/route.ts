@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApiClient } from "@/lib/server/apiClient";
 import { verifyAuth } from "@/lib/server/auth";
+import { getAdminDb } from "@/lib/firebase/admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 export async function POST(req: NextRequest) {
     try {
@@ -9,17 +10,45 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-        const client = getApiClient(token);
-
+        const userId = decodedToken.uid;
         const body = await req.json();
+        const { type, email, name } = body;
 
-        const data = await client.request("/auth/onboard", {
-            method: "POST",
-            body: JSON.stringify(body)
+        if (!type || !email || !name) {
+            return NextResponse.json(
+                { error: "Missing required fields: type, email, name" },
+                { status: 400 }
+            );
+        }
+
+        const db = getAdminDb();
+
+        // Upsert user doc with onboarding role
+        await db.collection("users").doc(userId).set(
+            {
+                uid: userId,
+                email,
+                displayName: name,
+                role: "onboarding",
+                isApproved: false,
+                updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+        );
+
+        // Create onboarding request
+        const requestId = `req_${Date.now()}_${userId.substring(0, 5)}`;
+        await db.collection("onboarding_requests").doc(requestId).set({
+            id: requestId,
+            uid: userId,
+            type,
+            status: "pending",
+            data: { ...body },
+            submittedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
         });
 
-        return NextResponse.json(data);
+        return NextResponse.json({ success: true, requestId });
     } catch (error: any) {
         console.error("[Auth API] POST /onboard Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });

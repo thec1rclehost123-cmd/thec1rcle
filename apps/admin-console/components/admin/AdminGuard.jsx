@@ -84,12 +84,14 @@ export default function AdminGuard({ children }) {
             // 3. If everything fails and we are not loading, redirect
             if (!loading) {
                 setVerifying(false);
-                const isLoginPage = window.location.pathname === "/login";
+                const currentPath = window.location.pathname;
+                const isLoginPage = currentPath === "/login";
+                const isNotFoundPage = currentPath === "/not-found";
 
                 if (!user && !isLoginPage) {
                     router.replace("/login");
-                } else if (user && !authorized) {
-                    // Logged in but not an admin - show 404 to hide admin existencia
+                } else if (user && !authorized && !isNotFoundPage) {
+                    // Logged in but not an admin - show 404 to hide admin existence
                     router.replace("/not-found");
                 }
             }
@@ -111,9 +113,16 @@ export default function AdminGuard({ children }) {
     }
 
     // Now we are on the client and mounted
-    const isLoginPage = window.location.pathname === "/login";
+    const currentPath = window.location.pathname;
+    const isLoginPage = currentPath === "/login";
+    const isNotFoundPage = currentPath === "/not-found";
 
-    if ((loading || verifying || !authorized) && !isLoginPage) {
+    // Excluded pages render children directly — no auth gate, no spinner
+    if (isLoginPage || isNotFoundPage) {
+        return <>{children}</>;
+    }
+
+    if (loading || verifying || !authorized) {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-black">
                 <div className="flex flex-col items-center gap-6">

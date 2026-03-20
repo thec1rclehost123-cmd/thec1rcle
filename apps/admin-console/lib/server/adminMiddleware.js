@@ -53,12 +53,14 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
                 return genericNotFound();
             }
 
-            // Task 5: Replay & Freshness Protection (30 minute threshold)
-            const authTime = decodedToken.auth_time * 1000;
-            const threshold = Date.now() - (30 * 60 * 1000);
-            if (authTime < threshold) {
-                console.error(`[SECURITY] Admin session stale (30m+). Re-auth required for UID: ${decodedToken.uid}`);
-                return genericNotFound();
+            // Task 5: Replay & Freshness Protection (30 minute threshold — skipped in dev)
+            if (process.env.NODE_ENV !== "development") {
+                const authTime = decodedToken.auth_time * 1000;
+                const threshold = Date.now() - (30 * 60 * 1000);
+                if (authTime < threshold) {
+                    console.error(`[SECURITY] Admin session stale (30m+). Re-auth required for UID: ${decodedToken.uid}`);
+                    return genericNotFound();
+                }
             }
 
             // --- 🕵️ REQUEST CONTEXT CAPTURE ---

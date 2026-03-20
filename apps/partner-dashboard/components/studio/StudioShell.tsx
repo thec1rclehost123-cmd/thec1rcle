@@ -406,6 +406,17 @@ export default function StudioShell({
             >
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
                     <div>
+                        {/* Breadcrumb — shown only when a specific event is selected */}
+                        {selectedEventId && currentEvent.id && (
+                            <Link
+                                href={`/${role}/events`}
+                                className="inline-flex items-center gap-1.5 mb-3 text-[11px] font-semibold hover:underline"
+                                style={{ color: "var(--v-text-tertiary)" }}
+                            >
+                                ← Back to Events
+                            </Link>
+                        )}
+
                         <div className="flex items-center gap-3 mb-1.5">
                             <div
                                 className="w-[3px] h-7 rounded-full"
@@ -419,6 +430,15 @@ export default function StudioShell({
                                 style={{ color: "var(--v-text-primary)" }}
                             >
                                 {title}
+                                {/* Event name — inline muted chip when a specific event is active */}
+                                {selectedEventId && currentEvent.id && (
+                                    <span
+                                        className="ml-3 text-[15px] font-semibold tracking-normal align-middle"
+                                        style={{ color: "rgba(255,255,255,0.35)" }}
+                                    >
+                                        · {currentEvent.title}
+                                    </span>
+                                )}
                             </h1>
                         </div>
                         <p

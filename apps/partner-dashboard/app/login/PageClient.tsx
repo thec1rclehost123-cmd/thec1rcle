@@ -32,7 +32,7 @@ const roleConfig = {
 };
 
 function LoginForm() {
-    const { signIn, signOut, user, isApproved, onboardingStatus, loading: authLoading } = useDashboardAuth();
+    const { signIn, signOut, user, profile, isApproved, onboardingStatus, loading: authLoading } = useDashboardAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -45,20 +45,24 @@ function LoginForm() {
 
     useEffect(() => {
         if (!authLoading && user) {
-            // Only auto-redirect if they are fully approved or already have an ongoing onboarding request
-            if (isApproved) {
+            // Only auto-redirect if approved AND has an active partnership — prevents
+            // a loop where isApproved=true but activeMembership is null (RoleGuard would
+            // immediately send them back here).
+            if (isApproved && profile?.activeMembership) {
                 const callback = searchParams.get("callbackUrl");
                 if (callback) {
                     router.replace(callback);
                 } else {
-                    router.replace(`/${userType}`);
+                    const pt = profile.activeMembership.partnerType;
+                    router.replace(`/${pt || userType}`);
                 }
             } else if (onboardingStatus) {
                 router.replace('/onboard');
             }
-            // If they are logged in but have neither (meaning they never applied), let them stay on the login page or handle it manually.
+            // If logged in but no activeMembership and no onboarding request — stay
+            // on login page so the user can see the error and act.
         }
-    }, [user, authLoading, isApproved, onboardingStatus, router, userType, searchParams]);
+    }, [user, authLoading, isApproved, profile, onboardingStatus, router, userType, searchParams]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
