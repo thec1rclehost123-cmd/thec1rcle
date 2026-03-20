@@ -214,7 +214,7 @@ export default function HostSettingsPage() {
     const checkReAuth = useCallback(async (): Promise<boolean> => {
         try {
             const tr = await user?.getIdTokenResult();
-            const age = Date.now() - ((tr?.claims.auth_time as number) ?? 0) * 1000;
+            const age = Date.now() - ((tr?.claims.auth_time as unknown as number) ?? 0) * 1000;
             if (age > 15 * 60 * 1000) { setNeedsReAuth(true); return false; }
         } catch {}
         return true;

@@ -29,7 +29,7 @@ export default function PromoterSettingsHub() {
                 <HubTabBar 
                     tabs={SETTINGS_TABS} 
                     activeTab={activeTab} 
-                    setTab={setTab} 
+                    onTabChange={setTab}
                 />
                 
                 <div className="min-h-[600px]">

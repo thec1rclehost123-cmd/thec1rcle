@@ -266,7 +266,6 @@ export function CalendarFilterPopup({
                                                     alt=""
                                                     className="w-5 h-5 rounded-full object-cover ring-1"
                                                     style={{
-                                                        ringColor: isSelected ? "var(--v-orange)" : "var(--v-card)",
                                                         boxSizing: "border-box",
                                                         border: `1.5px solid ${isSelected ? "rgba(255,255,255,0.4)" : "var(--v-card)"}`,
                                                     }}

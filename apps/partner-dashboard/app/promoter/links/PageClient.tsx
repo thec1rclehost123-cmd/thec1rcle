@@ -411,7 +411,7 @@ export default function PromoLinksPage() {
                 {showGenerateModal && (
                     <GenerateLinkModal
                         promoterId={promoterId || ""}
-                        promoterName={profile?.displayName || profile?.name}
+                        promoterName={profile?.displayName}
                         token={token}
                         onClose={() => setShowGenerateModal(false)}
                         onCreated={(link) => {

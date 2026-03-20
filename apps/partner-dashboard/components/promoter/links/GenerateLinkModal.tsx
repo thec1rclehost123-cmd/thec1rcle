@@ -94,7 +94,7 @@ export default function GenerateLinkModal({
         const event = events.find(e => e.id === link.eventId);
         const slug = event?.slug || link.eventId;
         const ref = link.code || link.shortId || link.token || link.id;
-        return `https://c1rcle.app/e/${slug}?ref=${ref}&s=${link.channel || selectedChannel}`;
+        return `https://c1rcle.app/e/${slug}?ref=${ref}&s=${link.channel || "organic"}`;
     };
 
     const handleCopy = () => {

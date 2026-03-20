@@ -370,7 +370,10 @@ export default function UnifiedAnalyticsClient({
             role={role}
             title={catConfig.title}
             description={catConfig.desc}
-            onRangeChange={setRange}
+            onRangeChange={(r) => {
+                const days = parseInt(r) || 30;
+                setRange({ from: subDays(new Date(), days), to: new Date() });
+            }}
             onEventChange={setEventId}
         >
             <div className="space-y-4 pb-20">

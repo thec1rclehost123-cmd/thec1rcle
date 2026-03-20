@@ -88,7 +88,6 @@ export default function ExceptionsPageClient() {
             if (res.ok) {
                 const d = await res.json();
                 setExceptions(d.exceptions ?? []);
-                setOpenExceptions(d.openCount ?? 0);
             }
         } finally {
             setIsLoading(false);

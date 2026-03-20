@@ -239,7 +239,7 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
                                 <span className="text-[10px] font-bold text-text-placeholder italic">Showing {activeStaff.length} entities</span>
                             </div>
 
-                            <BentoCard padding="none" className="overflow-hidden shadow-2xl border-border-default">
+                            <BentoCard className="overflow-hidden shadow-2xl border-border-default">
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left">
                                         <thead>
@@ -315,7 +315,7 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
                                         <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-red-500">Deactivated Personnel</h3>
                                         <div className="h-px flex-1 mx-6 bg-red-500/10" />
                                     </div>
-                                    <BentoCard padding="none" className="overflow-hidden bg-red-500/[0.02] border-red-500/10">
+                                    <BentoCard className="overflow-hidden bg-red-500/[0.02] border-red-500/10">
                                         <div className="divide-y divide-red-500/5">
                                             {suspendedStaff.map(member => (
                                                 <div key={member.id} className="px-8 py-4 flex items-center justify-between group">
@@ -349,7 +349,7 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.98 }}
                     >
-                        <ProfilesView profiles={profiles} venueId={venueId!} onRefresh={fetchProfiles} />
+                        <ProfilesView />
                     </motion.div>
                 )}
             </AnimatePresence>
