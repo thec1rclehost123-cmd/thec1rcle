@@ -57,16 +57,16 @@ export function PromoterSidebarWrapper() {
             </div>
 
             {/* Mobile Header */}
-            <header className="lg:hidden h-14 bg-surface-base/90 backdrop-blur-xl border-b border-border-subtle fixed top-0 left-0 right-0 z-50 px-4 flex items-center justify-between">
+            <header className="lg:hidden h-14 bg-[var(--bg-base)]/90 backdrop-blur-xl border-b border-[var(--border-subtle)] fixed top-0 left-0 right-0 z-50 px-4 flex items-center justify-between">
                 <button
                     onClick={() => setSidebarOpen(true)}
-                    className="p-2 rounded-lg hover:bg-surface-secondary transition-colors"
+                    className="p-2 rounded-lg hover:bg-[var(--bg-fill)] transition-colors"
                 >
-                    <Menu className="h-5 w-5 text-text-primary" />
+                    <Menu className="h-5 w-5 text-[var(--text-primary)]" />
                 </button>
                 <div className="flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-lg bg-text-primary flex items-center justify-center text-text-inverse text-[11px] font-bold">P</span>
-                    <span className="text-[13px] font-bold text-text-primary tracking-wide">C1RCLE</span>
+                    <span className="w-7 h-7 rounded-lg bg-text-primary flex items-center justify-center text-white text-[11px] font-bold">P</span>
+                    <span className="text-[13px] font-bold text-[var(--text-primary)] tracking-wide">C1RCLE</span>
                 </div>
                 <div className="w-9" />
             </header>
@@ -92,7 +92,7 @@ export function PromoterSidebarWrapper() {
                             <div className="absolute top-4 right-4 z-10">
                                 <button
                                     onClick={() => setSidebarOpen(false)}
-                                    className="p-2 rounded-lg hover:bg-surface-tertiary text-text-tertiary hover:text-text-primary transition-all"
+                                    className="p-2 rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
                                 >
                                     <X className="h-5 w-5" />
                                 </button>

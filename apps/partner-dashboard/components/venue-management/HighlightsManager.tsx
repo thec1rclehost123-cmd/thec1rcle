@@ -163,8 +163,8 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="text-lg font-bold text-text-primary">Story Highlights</h3>
-                    <p className="text-sm text-text-tertiary">
+                    <h3 className="text-lg font-bold text-[var(--text-primary)]">Story Highlights</h3>
+                    <p className="text-sm text-[var(--text-tertiary)]">
                         Create Instagram-style story highlights. Each highlight can have up to 9 images.
                     </p>
                 </div>
@@ -177,13 +177,13 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
                     placeholder="New highlight title (e.g., Saturday Night, Rooftop Vibes)"
-                    className="flex-1 px-4 py-3 bg-surface-secondary border border-border-subtle rounded-xl text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    className="flex-1 px-4 py-3 bg-[var(--bg-fill)] border border-[var(--border-subtle)] rounded-xl text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                     onKeyDown={(e) => e.key === "Enter" && handleCreateHighlight()}
                 />
                 <button
                     onClick={handleCreateHighlight}
                     disabled={!newTitle.trim() || isCreating}
-                    className="flex items-center gap-2 px-5 py-3 bg-green-500 text-text-primary rounded-xl text-sm font-bold hover:bg-emerald-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 px-5 py-3 bg-green-500 text-[var(--text-primary)] rounded-xl text-sm font-bold hover:bg-emerald-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                     Add
@@ -192,10 +192,10 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
 
             {/* Highlights List */}
             {highlights.length === 0 ? (
-                <div className="py-16 text-center bg-surface-secondary/30 rounded-2xl border border-dashed border-border-subtle">
-                    <ImageIcon className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
-                    <p className="text-text-tertiary font-medium">No highlights yet</p>
-                    <p className="text-text-tertiary text-sm mt-1">Create your first story highlight above</p>
+                <div className="py-16 text-center bg-[var(--bg-fill)]/30 rounded-2xl border border-dashed border-[var(--border-subtle)]">
+                    <ImageIcon className="w-12 h-12 text-[var(--text-tertiary)] mx-auto mb-4" />
+                    <p className="text-[var(--text-tertiary)] font-medium">No highlights yet</p>
+                    <p className="text-[var(--text-tertiary)] text-sm mt-1">Create your first story highlight above</p>
                 </div>
             ) : (
                 <Reorder.Group
@@ -210,15 +210,15 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
                         <Reorder.Item
                             key={highlight.id}
                             value={highlight}
-                            className="bg-surface-secondary rounded-2xl border border-border-subtle overflow-hidden"
+                            className="bg-[var(--bg-fill)] rounded-2xl border border-[var(--border-subtle)] overflow-hidden"
                         >
                             {/* Highlight Header */}
                             <div className="flex items-center gap-4 p-4">
-                                <GripVertical className="w-5 h-5 text-text-tertiary cursor-grab" />
+                                <GripVertical className="w-5 h-5 text-[var(--text-tertiary)] cursor-grab" />
 
                                 {/* Cover Image */}
                                 <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-500 via-red-500 to-yellow-500 p-0.5 shrink-0">
-                                    <div className="w-full h-full rounded-full overflow-hidden bg-surface-base">
+                                    <div className="w-full h-full rounded-full overflow-hidden bg-[var(--bg-base)]">
                                         {highlight.coverImage ? (
                                             <img
                                                 src={highlight.coverImage}
@@ -233,7 +233,7 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center">
-                                                <ImageIcon className="w-6 h-6 text-text-tertiary" />
+                                                <ImageIcon className="w-6 h-6 text-[var(--text-tertiary)]" />
                                             </div>
                                         )}
                                     </div>
@@ -248,9 +248,9 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
                                                 handleUpdateTitle(highlight.id, e.target.value);
                                             }
                                         }}
-                                        className="text-base font-bold text-text-primary bg-transparent border-none outline-none w-full"
+                                        className="text-base font-bold text-[var(--text-primary)] bg-transparent border-none outline-none w-full"
                                     />
-                                    <p className="text-xs text-text-tertiary">
+                                    <p className="text-xs text-[var(--text-tertiary)]">
                                         {highlight.images.length} / 9 images
                                     </p>
                                 </div>
@@ -258,7 +258,7 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
                                 {/* Actions */}
                                 <button
                                     onClick={() => setExpandedId(expandedId === highlight.id ? null : highlight.id)}
-                                    className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+                                    className="px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                                 >
                                     {expandedId === highlight.id ? "Collapse" : "Manage Images"}
                                 </button>
@@ -277,7 +277,7 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
                                         initial={{ height: 0, opacity: 0 }}
                                         animate={{ height: "auto", opacity: 1 }}
                                         exit={{ height: 0, opacity: 0 }}
-                                        className="border-t border-border-subtle"
+                                        className="border-t border-[var(--border-subtle)]"
                                     >
                                         <div className="p-4 space-y-4">
                                             {/* Image Grid */}
@@ -292,12 +292,12 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
                                                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                             <button
                                                                 onClick={() => handleRemoveImage(highlight.id, imageUrl)}
-                                                                className="p-2 bg-red-500 text-text-primary rounded-full"
+                                                                className="p-2 bg-red-500 text-[var(--text-primary)] rounded-full"
                                                             >
                                                                 <X className="w-4 h-4" />
                                                             </button>
                                                         </div>
-                                                        <div className="absolute top-2 left-2 w-5 h-5 bg-black/50 rounded-full flex items-center justify-center text-[10px] font-bold text-text-primary">
+                                                        <div className="absolute top-2 left-2 w-5 h-5 bg-black/50 rounded-full flex items-center justify-center text-[10px] font-bold text-[var(--text-primary)]">
                                                             {idx + 1}
                                                         </div>
                                                     </div>
@@ -305,13 +305,13 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
 
                                                 {/* Add Image Button */}
                                                 {highlight.images.length < 9 && (
-                                                    <label className="aspect-square rounded-xl border-2 border-dashed border-border-subtle flex flex-col items-center justify-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-all">
+                                                    <label className="aspect-square rounded-xl border-2 border-dashed border-[var(--border-subtle)] flex flex-col items-center justify-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-all">
                                                         {uploading === highlight.id ? (
                                                             <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
                                                         ) : (
                                                             <>
-                                                                <Plus className="w-6 h-6 text-text-tertiary" />
-                                                                <span className="text-[10px] text-text-tertiary mt-1">Add</span>
+                                                                <Plus className="w-6 h-6 text-[var(--text-tertiary)]" />
+                                                                <span className="text-[10px] text-[var(--text-tertiary)] mt-1">Add</span>
                                                             </>
                                                         )}
                                                         <input
@@ -327,7 +327,7 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
                                                 )}
                                             </div>
 
-                                            <p className="text-xs text-text-tertiary">
+                                            <p className="text-xs text-[var(--text-tertiary)]">
                                                 💡 Tip: Images will auto-advance like Instagram stories when users tap the highlight
                                             </p>
                                         </div>
@@ -351,7 +351,7 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
                     >
                         <button
                             onClick={() => setPreviewHighlight(null)}
-                            className="absolute top-6 right-6 p-2 text-text-primary/80 hover:text-text-primary z-10"
+                            className="absolute top-6 right-6 p-2 text-[var(--text-primary)]/80 hover:text-[var(--text-primary)] z-10"
                         >
                             <X className="w-8 h-8" />
                         </button>
@@ -361,7 +361,7 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
                             {previewHighlight.images.map((_, idx) => (
                                 <div
                                     key={idx}
-                                    className={`flex-1 h-1 rounded-full ${idx === previewIndex ? "bg-surface-elevated" : "bg-surface-elevated/30"}`}
+                                    className={`flex-1 h-1 rounded-full ${idx === previewIndex ? "bg-[var(--bg-elevated)]" : "bg-[var(--bg-elevated)]/30"}`}
                                 />
                             ))}
                         </div>
@@ -381,9 +381,9 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
                                     e.stopPropagation();
                                     setPreviewIndex(previewIndex - 1);
                                 }}
-                                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-surface-elevated/10 rounded-full hover:bg-surface-elevated/20"
+                                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-[var(--bg-elevated)]/10 rounded-full hover:bg-[var(--bg-elevated)]/20"
                             >
-                                <ChevronLeft className="w-6 h-6 text-text-primary" />
+                                <ChevronLeft className="w-6 h-6 text-[var(--text-primary)]" />
                             </button>
                         )}
                         {previewIndex < previewHighlight.images.length - 1 && (
@@ -392,16 +392,16 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
                                     e.stopPropagation();
                                     setPreviewIndex(previewIndex + 1);
                                 }}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-surface-elevated/10 rounded-full hover:bg-surface-elevated/20"
+                                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-[var(--bg-elevated)]/10 rounded-full hover:bg-[var(--bg-elevated)]/20"
                             >
-                                <ChevronRight className="w-6 h-6 text-text-primary" />
+                                <ChevronRight className="w-6 h-6 text-[var(--text-primary)]" />
                             </button>
                         )}
 
                         {/* Title */}
                         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-center">
-                            <p className="text-text-primary font-bold text-lg">{previewHighlight.title}</p>
-                            <p className="text-text-primary/60 text-sm">{previewIndex + 1} / {previewHighlight.images.length}</p>
+                            <p className="text-[var(--text-primary)] font-bold text-lg">{previewHighlight.title}</p>
+                            <p className="text-[var(--text-primary)]/60 text-sm">{previewIndex + 1} / {previewHighlight.images.length}</p>
                         </div>
                     </motion.div>
                 )}

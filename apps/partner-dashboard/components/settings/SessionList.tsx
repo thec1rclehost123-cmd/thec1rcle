@@ -54,19 +54,19 @@ export default function SessionList({
             {/* Current session */}
             {currentSession && (
                 <div className="p-4 rounded-[1.5rem] border-2 space-y-2"
-                    style={{ borderColor: "var(--v-orange)", background: "var(--v-card)" }}>
+                    style={{ borderColor: "var(--accent)", background: "var(--bg-elevated)" }}>
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             {currentSession.deviceType === "mobile"
-                                ? <Smartphone className="w-4 h-4" style={{ color: "var(--v-orange)" }} />
-                                : <Monitor className="w-4 h-4" style={{ color: "var(--v-orange)" }} />
+                                ? <Smartphone className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                                : <Monitor className="w-4 h-4" style={{ color: "var(--accent)" }} />
                             }
                             <div>
-                                <p className="text-xs font-black" style={{ color: "var(--v-text-primary)" }}>
+                                <p className="text-xs font-black" style={{ color: "var(--text-primary)" }}>
                                     {parseBrowser(currentSession.userAgent)}
                                     {parseOS(currentSession.userAgent) ? ` on ${parseOS(currentSession.userAgent)}` : ""}
                                 </p>
-                                <p className="text-[10px] mt-0.5" style={{ color: "var(--v-text-tertiary)" }}>
+                                <p className="text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
                                     Active {relativeTime(currentSession.lastActiveAt)}
                                 </p>
                             </div>
@@ -81,24 +81,24 @@ export default function SessionList({
             {/* Other sessions */}
             {otherSessions.length > 0 && (
                 <div className="space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest px-1" style={{ color: "var(--v-text-tertiary)" }}>
+                    <p className="text-[10px] font-black uppercase tracking-widest px-1" style={{ color: "var(--text-tertiary)" }}>
                         Other Active Sessions
                     </p>
                     {otherSessions.map(session => (
                         <div key={session.sessionId}
                             className="p-4 rounded-[1.5rem] border flex items-center justify-between"
-                            style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}>
+                            style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}>
                             <div className="flex items-center gap-3">
                                 {session.deviceType === "mobile"
-                                    ? <Smartphone className="w-4 h-4" style={{ color: "var(--v-text-tertiary)" }} />
-                                    : <Monitor className="w-4 h-4" style={{ color: "var(--v-text-tertiary)" }} />
+                                    ? <Smartphone className="w-4 h-4" style={{ color: "var(--text-tertiary)" }} />
+                                    : <Monitor className="w-4 h-4" style={{ color: "var(--text-tertiary)" }} />
                                 }
                                 <div>
-                                    <p className="text-xs font-black" style={{ color: "var(--v-text-primary)" }}>
+                                    <p className="text-xs font-black" style={{ color: "var(--text-primary)" }}>
                                         {parseBrowser(session.userAgent)}
                                         {parseOS(session.userAgent) ? ` on ${parseOS(session.userAgent)}` : ""}
                                     </p>
-                                    <p className="text-[10px] mt-0.5" style={{ color: "var(--v-text-tertiary)" }}>
+                                    <p className="text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
                                         Active {relativeTime(session.lastActiveAt)}
                                     </p>
                                 </div>
@@ -107,7 +107,7 @@ export default function SessionList({
                                 onClick={() => onRevoke(session.sessionId)}
                                 disabled={isRevoking}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
-                                style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)" }}
+                                style={{ background: "var(--bg-fill)", color: "var(--text-secondary)" }}
                             >
                                 {isRevoking
                                     ? <Loader2 className="w-3 h-3 animate-spin" />
@@ -121,7 +121,7 @@ export default function SessionList({
             )}
 
             {sessions.length === 0 && (
-                <div className="py-8 text-center" style={{ color: "var(--v-text-tertiary)" }}>
+                <div className="py-8 text-center" style={{ color: "var(--text-tertiary)" }}>
                     <Monitor className="w-6 h-6 mx-auto mb-2 opacity-40" />
                     <p className="text-xs font-bold">No active sessions found</p>
                 </div>
@@ -133,7 +133,7 @@ export default function SessionList({
                     onClick={onRevokeAll}
                     disabled={isRevoking}
                     className="w-full flex items-center justify-center gap-2 py-3 rounded-[1.5rem] border transition-all text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
-                    style={{ borderColor: "var(--v-border)", color: "var(--v-text-secondary)", background: "transparent" }}
+                    style={{ borderColor: "var(--border-subtle)", color: "var(--text-secondary)", background: "transparent" }}
                 >
                     {isRevoking
                         ? <Loader2 className="w-3.5 h-3.5 animate-spin" />

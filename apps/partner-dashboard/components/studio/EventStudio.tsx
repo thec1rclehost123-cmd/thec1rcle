@@ -38,9 +38,9 @@ export function EventTimeline({ data = [], events = [] }) {
 
     if (!data || data.length === 0) {
         return (
-            <div className="h-64 flex flex-col items-center justify-center bg-surface-tertiary rounded-[2.5rem] border border-dashed border-border-default">
-                {React.createElement(Clock as any, { className: "h-8 w-8 text-text-placeholder mb-3" })}
-                <p className="text-text-tertiary font-bold text-sm">No timeline data available for this window.</p>
+            <div className="h-64 flex flex-col items-center justify-center bg-[var(--bg-secondary)] rounded-[2.5rem] border border-dashed border-[var(--border-default)]">
+                {React.createElement(Clock as any, { className: "h-8 w-8 text-[var(--text-quaternary)] mb-3" })}
+                <p className="text-[var(--text-tertiary)] font-bold text-sm">No timeline data available for this window.</p>
             </div>
         );
     }
@@ -93,10 +93,10 @@ export function EventTimeline({ data = [], events = [] }) {
                         className="absolute top-0 bottom-0 w-px bg-rose-200 border-l border-rose-400/20 flex flex-col items-center group"
                         style={{ left: `${evt.percent}%` }}
                     >
-                        <div className="absolute -top-2 bg-rose-500 text-text-primary p-1 rounded-full group-hover:scale-125 transition-transform z-10">
+                        <div className="absolute -top-2 bg-rose-500 text-[var(--text-primary)] p-1 rounded-full group-hover:scale-125 transition-transform z-10">
                             {evt.type === 'incident' ? React.createElement(ShieldAlert as any, { className: "h-3 w-3" }) : React.createElement(Zap as any, { className: "h-3 w-3" })}
                         </div>
-                        <div className="opacity-0 group-hover:opacity-100 absolute -top-12 bg-surface-secondary text-text-primary text-[10px] font-black px-3 py-2 rounded-xl whitespace-nowrap pointer-events-none transition-all z-20 shadow-2xl">
+                        <div className="opacity-0 group-hover:opacity-100 absolute -top-12 bg-[var(--bg-fill)] text-[var(--text-primary)] text-[10px] font-black px-3 py-2 rounded-xl whitespace-nowrap pointer-events-none transition-all z-20 shadow-2xl">
                             {evt.label} @ {evt.time}
                         </div>
                     </div>
@@ -107,15 +107,15 @@ export function EventTimeline({ data = [], events = [] }) {
             <div className="flex items-center gap-6 mt-8">
                 <div className="flex items-center gap-2">
                     <div className="h-1 w-4 bg-green-500 rounded-full" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">People At Venue</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">People At Venue</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="h-1 w-4 bg-surface-tertiary rounded-full border-dashed" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Peak Demand Pressure</span>
+                    <div className="h-1 w-4 bg-[var(--bg-secondary)] rounded-full border-dashed" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Peak Demand Pressure</span>
                 </div>
                 <div className="flex items-center gap-2 ml-auto">
                     <div className="h-2 w-2 rounded-full bg-rose-500" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Busy Times</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Busy Times</span>
                 </div>
 
             </div>
@@ -133,8 +133,8 @@ export function InsightsPanel({ insights = [] }) {
     return (
         <div className="space-y-6">
             <div className="flex items-center gap-3">
-                <div className="h-1 w-8 bg-surface-secondary rounded-full" />
-                <h3 className="text-sm font-black uppercase tracking-widest text-text-primary">What happened</h3>
+                <div className="h-1 w-8 bg-[var(--bg-fill)] rounded-full" />
+                <h3 className="text-sm font-black uppercase tracking-widest text-[var(--text-primary)]">What happened</h3>
 
             </div>
 
@@ -145,15 +145,15 @@ export function InsightsPanel({ insights = [] }) {
                         key={insight.insightId}
                         className={`p-8 rounded-[2.5rem] border transition-all hover:scale-[1.01] ${insight.severity === 'critical'
                             ? 'bg-rose-50 border-rose-100 text-rose-900'
-                            : 'bg-surface-elevated border-border-subtle shadow-sm'
+                            : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] shadow-sm'
                             }`}
                     >
                         <div className="flex items-start justify-between mb-6">
-                            <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${insight.severity === 'critical' ? 'bg-rose-500 text-text-primary' : 'bg-surface-secondary text-text-primary'
+                            <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${insight.severity === 'critical' ? 'bg-rose-500 text-[var(--text-primary)]' : 'bg-[var(--bg-fill)] text-[var(--text-primary)]'
                                 }`}>
                                 {insight.severity === 'critical' ? React.createElement(ShieldAlert as any, { className: "h-6 w-6" }) : React.createElement(Zap as any, { className: "h-6 w-6" })}
                             </div>
-                            <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${insight.severity === 'critical' ? 'bg-rose-100 text-rose-600' : 'bg-surface-secondary text-slate-600'
+                            <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${insight.severity === 'critical' ? 'bg-rose-100 text-rose-600' : 'bg-[var(--bg-fill)] text-slate-600'
                                 }`}>
                                 {insight.severity}
                             </span>
@@ -164,16 +164,16 @@ export function InsightsPanel({ insights = [] }) {
 
                         <div className="pt-6 border-t border-slate-900/10 flex flex-col gap-4">
                             <div className="flex items-center justify-between">
-                                <button className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 group text-text-tertiary hover:text-text-primary transition-colors">
+                                <button className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 group text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
                                     View Data Point {React.createElement(ArrowUpRight as any, { className: "h-3 w-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" })}
                                 </button>
                             </div>
 
                             {insight.suggestedAction && (
-                                <div className="flex items-start gap-3 p-4 bg-surface-tertiary rounded-2xl border border-border-subtle/50">
+                                <div className="flex items-start gap-3 p-4 bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)]/50">
                                     {React.createElement(TrendingUp as any, { className: "h-4 w-4 text-emerald-500 mt-0.5 shrink-0" })}
                                     <p className="text-[11px] font-bold text-slate-600 leading-relaxed">
-                                        <span className="text-text-primary uppercase tracking-wider text-[9px] mr-2">Suggested:</span>
+                                        <span className="text-[var(--text-primary)] uppercase tracking-wider text-[9px] mr-2">Suggested:</span>
                                         {insight.suggestedAction.text}
                                     </p>
                                 </div>

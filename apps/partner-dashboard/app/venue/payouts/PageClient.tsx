@@ -73,7 +73,7 @@ export default function PayoutsPage() {
                     <>
                         <span className="v-label">TRANSFER HISTORY</span>
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--v-text-muted)" }} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--text-tertiary)" }} />
                             <input
                                 type="text"
                                 placeholder="Search by ID..."
@@ -81,9 +81,9 @@ export default function PayoutsPage() {
                                 onChange={e => setSearch(e.target.value)}
                                 className="pl-9 pr-4 py-2 text-[12px] rounded-xl outline-none focus:ring-1"
                                 style={{
-                                    background: "var(--v-elevated)",
-                                    color: "var(--v-text-primary)",
-                                    border: "1px solid var(--v-border)",
+                                    background: "var(--bg-fill)",
+                                    color: "var(--text-primary)",
+                                    border: "1px solid var(--border-subtle)",
                                     width: 180,
                                 }}
                             />
@@ -95,10 +95,10 @@ export default function PayoutsPage() {
                 {/* Table header */}
                 <div
                     className="grid grid-cols-[1fr_1fr_1fr_1.5fr_1fr_40px] px-5 py-3 rounded-xl mb-1"
-                    style={{ background: "var(--v-elevated)" }}
+                    style={{ background: "var(--bg-fill)" }}
                 >
                     {["PAYOUT ID", "DATE", "AMOUNT", "DESTINATION", "STATUS", ""].map((h) => (
-                        <span key={h} className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>
+                        <span key={h} className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-tertiary)" }}>
                             {h}
                         </span>
                     ))}
@@ -112,21 +112,21 @@ export default function PayoutsPage() {
                             <div
                                 key={p.id}
                                 className="grid grid-cols-[1fr_1fr_1fr_1.5fr_1fr_40px] px-5 py-3 rounded-xl items-center transition-colors hover:brightness-125"
-                                style={{ background: "var(--v-elevated)" }}
+                                style={{ background: "var(--bg-fill)" }}
                             >
-                                <span className="text-[12px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                <span className="text-[12px] font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>
                                     #{p.id}
                                 </span>
                                 <div className="flex items-center gap-2">
-                                    <Clock className="w-3 h-3 flex-shrink-0" style={{ color: "var(--v-text-muted)" }} />
-                                    <span className="text-[12px]" style={{ color: "var(--v-text-secondary)" }}>{p.date}</span>
+                                    <Clock className="w-3 h-3 flex-shrink-0" style={{ color: "var(--text-tertiary)" }} />
+                                    <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>{p.date}</span>
                                 </div>
-                                <span className="text-[14px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                <span className="text-[14px] font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>
                                     {fmtCurrency(p.amount)}
                                 </span>
                                 <span
                                     className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full w-fit"
-                                    style={{ background: "var(--v-card)", color: "var(--v-text-muted)" }}
+                                    style={{ background: "var(--bg-elevated)", color: "var(--text-tertiary)" }}
                                 >
                                     {p.account}
                                 </span>
@@ -134,8 +134,8 @@ export default function PayoutsPage() {
                                     <span
                                         className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
                                         style={{
-                                            background: ok ? "var(--v-success-bg)" : "var(--v-error-bg)",
-                                            color: ok ? "var(--v-success)" : "var(--v-error)",
+                                            background: ok ? "var(--color-success-bg)" : "var(--color-error-bg)",
+                                            color: ok ? "var(--color-success)" : "var(--color-error)",
                                         }}
                                     >
                                         {ok
@@ -146,7 +146,7 @@ export default function PayoutsPage() {
                                 </div>
                                 <button
                                     className="p-1.5 rounded-lg transition-colors hover:brightness-125"
-                                    style={{ color: "var(--v-text-muted)" }}
+                                    style={{ color: "var(--text-tertiary)" }}
                                     aria-label="Download invoice"
                                 >
                                     <Download className="w-3.5 h-3.5" />

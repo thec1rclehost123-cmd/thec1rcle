@@ -102,11 +102,11 @@ export function VenueStep({
         switch (status) {
             case "available": return "bg-green-500/10 text-accent-primary border-[var(--state-success)]/20";
             case "blocked": return "bg-red-500/10 text-red-500 border-[var(--state-error)]/20";
-            case "booked": return "bg-surface-tertiary text-text-tertiary border-border-subtle";
+            case "booked": return "bg-[var(--bg-secondary)] text-[var(--text-tertiary)] border-[var(--border-subtle)]";
             case "partial": return "bg-yellow-500/10 text-yellow-500 border-[var(--state-warning)]/20";
             case "tentative": return "bg-yellow-500/10 text-yellow-500 border-[var(--state-warning)]/40 ring-2 ring-[var(--state-warning)]/10";
             case "approved_hold": return "bg-indigo-500/10 text-indigo-500 border-indigo-500/30 font-bold shadow-sm";
-            default: return "bg-surface-secondary text-text-primary";
+            default: return "bg-[var(--bg-fill)] text-[var(--text-primary)]";
         }
     };
 
@@ -143,17 +143,17 @@ export function VenueStep({
                         </div>
                         <div className="space-y-1">
                             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">Active Identity</p>
-                            <p className="text-display-xs text-text-primary">
+                            <p className="text-display-xs text-[var(--text-primary)]">
                                 {profile?.activeMembership?.partnerName || "Your Venue"}
                             </p>
-                            <div className="flex items-center gap-2 text-text-tertiary">
+                            <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
                                 <MapPin className="w-3.5 h-3.5" />
                                 <span className="text-body-sm">{profile?.activeMembership?.city || "Primary Facility"}</span>
                             </div>
                         </div>
                         <div className="ml-auto">
                             <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center shadow-2xl shadow-emerald-500/20 ring-8 ring-emerald-500/5">
-                                <Check className="w-6 h-6 text-text-primary" />
+                                <Check className="w-6 h-6 text-[var(--text-primary)]" />
                             </div>
                         </div>
                     </div>
@@ -161,7 +161,7 @@ export function VenueStep({
 
                 <div className="p-6 rounded-[2rem] bg-green-500/10 border border-[var(--state-success)]/20 flex items-center gap-4">
                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    <p className="text-body-sm text-text-primary leading-relaxed">
+                    <p className="text-body-sm text-[var(--text-primary)] leading-relaxed">
                         <span className="font-bold text-emerald-500">Direct Authority:</span> As a venue operator, you are authorized for immediate publication. No external synchronization required.
                     </p>
                 </div>
@@ -189,7 +189,7 @@ export function VenueStep({
             {/* Venue Selection Matrix */}
             <div className="space-y-6">
                 <div className="flex items-center justify-between px-1">
-                    <p className="text-label font-black uppercase tracking-widest text-text-secondary">Select Partner Facility</p>
+                    <p className="text-label font-black uppercase tracking-widest text-[var(--text-secondary)]">Select Partner Facility</p>
                     {partnerships.length > 0 && (
                         <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500">
                             {partnerships.length} Active Node{partnerships.length > 1 ? 's' : ''}
@@ -198,13 +198,13 @@ export function VenueStep({
                 </div>
 
                 {partnerships.length === 0 ? (
-                    <div className="p-12 rounded-[3rem] bg-surface-secondary border border-dashed border-border-strong text-center space-y-6">
-                        <div className="w-20 h-20 rounded-[2.5rem] bg-surface-base flex items-center justify-center border border-border-subtle mx-auto shadow-xl">
-                            <Building2 className="w-10 h-10 text-text-tertiary/30" />
+                    <div className="p-12 rounded-[3rem] bg-[var(--bg-fill)] border border-dashed border-[var(--border-default)] text-center space-y-6">
+                        <div className="w-20 h-20 rounded-[2.5rem] bg-[var(--bg-base)] flex items-center justify-center border border-[var(--border-subtle)] mx-auto shadow-xl">
+                            <Building2 className="w-10 h-10 text-[var(--text-tertiary)]/30" />
                         </div>
                         <div className="space-y-2">
-                            <h3 className="text-headline-sm text-text-primary">No Active Partnerships</h3>
-                            <p className="text-body-sm text-text-tertiary max-w-sm mx-auto uppercase tracking-wide">
+                            <h3 className="text-headline-sm text-[var(--text-primary)]">No Active Partnerships</h3>
+                            <p className="text-body-sm text-[var(--text-tertiary)] max-w-sm mx-auto uppercase tracking-wide">
                                 You require an established node in the network to initiate event logs.
                             </p>
                         </div>
@@ -225,7 +225,7 @@ export function VenueStep({
                                     const venue = partnerships.find(p => p.venueId === e.target.value);
                                     if (venue) handleVenueSelect(venue);
                                 }}
-                                className="input h-16 pl-14 pr-12 text-[15px] font-bold appearance-none cursor-pointer bg-surface-base border-border-subtle shadow-sm focus:shadow-indigo-500/20 rounded-[1.5rem]"
+                                className="input h-16 pl-14 pr-12 text-[15px] font-bold appearance-none cursor-pointer bg-[var(--bg-base)] border-[var(--border-subtle)] shadow-sm focus:shadow-indigo-500/20 rounded-[1.5rem]"
                             >
                                 <option value="" disabled>Search network or select facility...</option>
                                 {partnerships.map(p => (
@@ -234,10 +234,10 @@ export function VenueStep({
                                     </option>
                                 ))}
                             </select>
-                            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none transition-colors group-focus-within:text-indigo-500">
+                            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] pointer-events-none transition-colors group-focus-within:text-indigo-500">
                                 <Building2 className="w-5 h-5" />
                             </div>
-                            <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-text-tertiary">
+                            <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-tertiary)]">
                                 <ChevronDown className="w-4 h-4" />
                             </div>
                         </div>
@@ -255,27 +255,27 @@ export function VenueStep({
                         className="space-y-8"
                     >
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <p className="text-label font-black uppercase tracking-widest text-text-secondary">Temporal Availability</p>
-                            <div className="flex flex-wrap items-center gap-4 bg-surface-secondary px-5 py-2 rounded-xl border border-border-subtle">
-                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-text-tertiary">
+                            <p className="text-label font-black uppercase tracking-widest text-[var(--text-secondary)]">Temporal Availability</p>
+                            <div className="flex flex-wrap items-center gap-4 bg-[var(--bg-fill)] px-5 py-2 rounded-xl border border-[var(--border-subtle)]">
+                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">
                                     <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" /> Open
                                 </div>
-                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-text-tertiary">
+                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">
                                     <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.5)]" /> Pending
                                 </div>
-                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-text-tertiary">
+                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">
                                     <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_5px_rgba(99,102,241,0.5)]" /> Reserved
                                 </div>
-                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-text-tertiary">
+                                <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">
                                     <div className="w-1.5 h-1.5 rounded-full bg-[var(--border-strong)]" /> Blocked
                                 </div>
                             </div>
                         </div>
 
                         {loadingCalendar ? (
-                            <div className="p-16 rounded-[2.5rem] bg-surface-secondary border border-border-subtle text-center">
+                            <div className="p-16 rounded-[2.5rem] bg-[var(--bg-fill)] border border-[var(--border-subtle)] text-center">
                                 <div className="w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4 animate-spin" />
-                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary">Syncing Facility Data...</p>
+                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Syncing Facility Data...</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-4 md:grid-cols-7 gap-3">
@@ -293,16 +293,16 @@ export function VenueStep({
                                             className={`
                                                 group aspect-square rounded-[1.5rem] flex flex-col items-center justify-center gap-1 transition-all duration-300 relative overflow-hidden
                                                 ${isSelected
-                                                    ? "bg-[#4f46e5] text-text-primary shadow-xl shadow-indigo-200 scale-105 z-10"
+                                                    ? "bg-[#4f46e5] text-[var(--text-primary)] shadow-xl shadow-indigo-200 scale-105 z-10"
                                                     : `${statusClass} border hover:scale-105 active:scale-95`
                                                 }
                                                 ${isDisabled ? "cursor-not-allowed opacity-40 grayscale-[0.5]" : ""}
                                             `}
                                         >
-                                            <span className={`text-[9px] font-black uppercase tracking-widest ${isSelected ? "text-text-primary/70" : "text-text-tertiary"}`}>
+                                            <span className={`text-[9px] font-black uppercase tracking-widest ${isSelected ? "text-[var(--text-primary)]/70" : "text-[var(--text-tertiary)]"}`}>
                                                 {date.toLocaleDateString("en-US", { weekday: "short" })}
                                             </span>
-                                            <span className={`text-lg font-black ${isSelected ? "text-text-primary" : "text-text-primary"}`}>
+                                            <span className={`text-lg font-black ${isSelected ? "text-[var(--text-primary)]" : "text-[var(--text-primary)]"}`}>
                                                 {date.getDate()}
                                             </span>
 
@@ -325,12 +325,12 @@ export function VenueStep({
                             >
                                 <div className="absolute inset-0 bg-indigo-600 shadow-2xl shadow-indigo-500/20" />
                                 <div className="relative p-8 flex flex-col md:flex-row md:items-center gap-8">
-                                    <div className="w-16 h-16 rounded-3xl bg-surface-elevated/10 backdrop-blur-md flex items-center justify-center text-text-primary ring-1 ring-white/20">
+                                    <div className="w-16 h-16 rounded-3xl bg-[var(--bg-elevated)]/10 backdrop-blur-md flex items-center justify-center text-[var(--text-primary)] ring-1 ring-white/20">
                                         <Calendar className="w-8 h-8" />
                                     </div>
                                     <div className="space-y-1">
                                         <p className="text-[10px] font-black uppercase tracking-[0.25em] text-indigo-200">Selected Temporal Window</p>
-                                        <p className="text-headline-sm text-text-primary">
+                                        <p className="text-headline-sm text-[var(--text-primary)]">
                                             {new Date(formData.startDate).toLocaleDateString("en-IN", {
                                                 weekday: "long",
                                                 day: "numeric",
@@ -344,7 +344,7 @@ export function VenueStep({
                                         </div>
                                     </div>
                                     <div className="md:ml-auto">
-                                        <div className="px-6 py-2 rounded-full bg-surface-elevated/10 backdrop-blur-md border border-white/20 text-[11px] font-black uppercase tracking-widest text-text-primary">
+                                        <div className="px-6 py-2 rounded-full bg-[var(--bg-elevated)]/10 backdrop-blur-md border border-white/20 text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)]">
                                             Hold Interface Ready
                                         </div>
                                     </div>
@@ -353,13 +353,13 @@ export function VenueStep({
                         )}
 
                         {/* Operational Warnings */}
-                        <div className="p-5 rounded-2xl bg-surface-secondary border border-border-subtle flex items-start gap-4">
+                        <div className="p-5 rounded-2xl bg-[var(--bg-fill)] border border-[var(--border-subtle)] flex items-start gap-4">
                             <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 flex-shrink-0">
                                 <AlertCircle className="w-5 h-5" />
                             </div>
                             <div className="space-y-1">
-                                <p className="text-body-sm text-text-primary font-bold uppercase tracking-wider">Intersystem Synchronization Required</p>
-                                <p className="text-[11px] text-text-tertiary leading-relaxed font-medium">
+                                <p className="text-body-sm text-[var(--text-primary)] font-bold uppercase tracking-wider">Intersystem Synchronization Required</p>
+                                <p className="text-[11px] text-[var(--text-tertiary)] leading-relaxed font-medium">
                                     Your request will trigger an external hold logic at {formData.venueName}. Visibility and final confirmation are contingent on manual administrative approval.
                                 </p>
                             </div>

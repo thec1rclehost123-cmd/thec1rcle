@@ -22,10 +22,10 @@ export function PromoterOverviewClient({ initialData }: any) {
     return (
         <div className="flex flex-col gap-6 w-full animate-in fade-in slide-in-from-bottom-4 duration-500 pb-16">
             <header className="mb-2">
-                <h1 className="text-display-sm text-text-primary tracking-tight font-bold">
+                <h1 className="text-display-sm text-[var(--text-primary)] tracking-tight font-bold">
                     Overview
                 </h1>
-                <p className="text-text-secondary text-sm mt-1 font-medium">
+                <p className="text-[var(--text-secondary)] text-sm mt-1 font-medium">
                     Your active performance and upcoming assignments.
                 </p>
             </header>

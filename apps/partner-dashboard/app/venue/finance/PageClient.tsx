@@ -2,16 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import {
-    Banknote, TrendingUp, TrendingDown, AlertCircle, CheckCircle2,
-    Clock, RefreshCw, ArrowRight, Wallet, ShieldAlert, Building2,
-    ReceiptText, ArrowUpRight, ChevronDown, Calendar,
-} from "lucide-react";
+import { TrendingUp, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { VenuePageShell, VenueActionButton, VenueFilterTabs } from "@/components/venue-layout/VenuePageShell";
-import { AppleHeroStat } from "@/components/ui/AppleHeroStat";
-import { VenueStatStrip } from "@/components/ui/VenueStatStrip";
-import { BentoCard } from "@/components/ui/BentoCard";
+import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
+import { SurfaceCard } from "@/components/ui/SurfaceCard";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { PageToolbar } from "@/components/ui/PageToolbar";
+import { TabBar } from "@/components/ui/TabBar";
+import { AlertStrip } from "@/components/ui/AlertStrip";
 import { CashflowChart } from "@/components/finance/CashflowChart";
 import { RevenueBreakdown } from "@/components/finance/RevenueBreakdown";
 import { AnalyticsBridgeSection } from "@/components/finance/AnalyticsBridgeSection";
@@ -28,13 +26,25 @@ import {
 
 type Period = "7d" | "30d" | "90d" | "ytd";
 
-// ── Finance Overview Page ─────────────────────────────────────────────────────
+const PERIOD_OPTIONS = [
+    { value: "7d",  label: "7D"  },
+    { value: "30d", label: "30D" },
+    { value: "90d", label: "90D" },
+    { value: "ytd", label: "YTD" },
+] as const;
 
-export default function VenueFinancePageClient({ 
-    period: externalPeriod, 
-    onPeriodChange 
-}: { 
-    period?: Period; 
+const NAV_TABS = [
+    { key: "overview",  label: "Overview"  },
+    { key: "payments",  label: "Payments"  },
+    { key: "payouts",   label: "Payouts"   },
+    { key: "reports",   label: "Reports"   },
+];
+
+export default function VenueFinancePageClient({
+    period: externalPeriod,
+    onPeriodChange,
+}: {
+    period?: Period;
     onPeriodChange?: (p: Period) => void;
 }) {
     const { profile, getIdToken } = useDashboardAuth() as any;
@@ -43,6 +53,8 @@ export default function VenueFinancePageClient({
     const [internalPeriod, setInternalPeriod] = useState<Period>("30d");
     const period = externalPeriod || internalPeriod;
     const setPeriod = onPeriodChange || setInternalPeriod;
+
+    const [activeNavTab, setActiveNavTab] = useState("overview");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
     const [metrics, setMetrics] = useState<FinanceOverviewMetrics | null>(null);
@@ -71,183 +83,163 @@ export default function VenueFinancePageClient({
         }
     }, [venueId, getIdToken]);
 
-    useEffect(() => {
-        fetchOverview(period);
-    }, [fetchOverview, period]);
+    useEffect(() => { fetchOverview(period); }, [fetchOverview, period]);
 
-    // ── Derived trends ────────────────────────────────────────────────────────
-
-    const grossTrend = metrics?.comparedTo
-        ? pctChange(metrics.grossRevenue, metrics.comparedTo.grossRevenue)
-        : undefined;
-    const netTrend = metrics?.comparedTo
-        ? pctChange(metrics.netRevenue, metrics.comparedTo.netRevenue)
-        : undefined;
-
-    const payoutStatus = metrics?.payoutFailures
-        ? "failed"
-        : metrics?.pendingPayouts
-            ? "pending"
-            : "paid";
+    const grossTrend = metrics?.comparedTo ? pctChange(metrics.grossRevenue, metrics.comparedTo.grossRevenue) : undefined;
+    const netTrend   = metrics?.comparedTo ? pctChange(metrics.netRevenue,   metrics.comparedTo.netRevenue)   : undefined;
+    const payoutStatus = metrics?.payoutFailures ? "failed" : metrics?.pendingPayouts ? "pending" : "paid";
     const payoutStatusCfg = SETTLEMENT_STATUS_CONFIG[payoutStatus];
-
-    // ── Payout alert banner ───────────────────────────────────────────────────
     const showPayoutAlert = !loading && !error && metrics && metrics.payoutFailures > 0;
-
-    const dynamicSubtitle = loading
-        ? "Revenue, cashflow, and payout status for your venue"
-        : metrics
-            ? `${formatINR(metrics.grossRevenue)} collected${metrics.pendingPayouts > 0 ? ` · ${metrics.pendingPayouts} payout${metrics.pendingPayouts > 1 ? "s" : ""} pending` : " · all payouts clear"}`
-            : "Revenue, cashflow, and payout status for your venue";
 
     return (
         <VenuePageShell
             title="Finance"
-            subtitle={
+            actions={
                 <div className="flex items-center gap-2">
-                    <span>{dynamicSubtitle}</span>
+                    <SegmentedControl
+                        options={PERIOD_OPTIONS}
+                        value={period}
+                        onChange={(v) => setPeriod(v as Period)}
+                    />
                     {!loading && (
-                        <button 
+                        <button
                             onClick={() => fetchOverview(period)}
-                            disabled={loading}
-                            className="p-1 rounded-full hover:bg-[var(--v-elevated)] transition-all active:scale-90 opacity-60 hover:opacity-100"
+                            className="p-1.5 rounded-[var(--r-sm)] hover:bg-[var(--bg-fill)] transition-all active:scale-90 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                             title="Refresh"
                         >
-                            <RefreshCw className={cn("w-3 h-3", loading && "animate-spin")} />
+                            <RefreshCw className="w-3.5 h-3.5" />
                         </button>
                     )}
                 </div>
             }
-            pageAccent="#34D399"
-            filterBar={null}
-            actions={null}
+            toolbar={
+                <PageToolbar
+                    left={
+                        <TabBar
+                            mode="underline"
+                            tabs={NAV_TABS}
+                            active={activeNavTab}
+                            onChange={setActiveNavTab}
+                        />
+                    }
+                />
+            }
         >
-            {/* Payout failure alert */}
-            {showPayoutAlert && (
-                <div
-                    className="flex items-start gap-3 px-5 py-4 rounded-[var(--v-r-xl)]"
-                    style={{
-                        background: "rgba(239,68,68,0.08)",
-                        border: "1px solid rgba(239,68,68,0.2)",
-                    }}
-                >
-                    <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#F87171" }} />
-                    <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold" style={{ color: "#F87171" }}>
-                            {metrics!.payoutFailures} payout{metrics!.payoutFailures > 1 ? "s" : ""} failed
-                        </p>
-                        <p className="text-[12px] mt-0.5" style={{ color: "rgba(248,113,113,0.7)" }}>
-                            Review your payout settings and bank details to resolve.
-                        </p>
-                    </div>
-                    <Link href="/venue/finance/payouts">
-                        <span className="text-[12px] font-bold whitespace-nowrap" style={{ color: "#F87171" }}>
-                            Fix Now →
-                        </span>
-                    </Link>
-                </div>
-            )}
+            <div className="flex flex-col gap-5">
 
-            {/* Compact Financial Dashboard */}
-            <div className="flex flex-col gap-3">
-                {/* Section 1: The "Money" Row (Primary Metrics) */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="v-hero-card p-5 flex flex-col justify-between min-h-[120px] shadow-sm">
-                        <div className="flex justify-between items-start">
-                            <span className="v-label">GROSS REVENUE</span>
-                            {grossTrend && (
-                                <span className={cn("v-trend-chip text-[9px]", grossTrend.direction === "up" ? "v-trend-up" : "v-trend-down")}>
-                                    {grossTrend.direction === "up" ? "↑ " : "↓ "}{grossTrend.value}
-                                </span>
-                            )}
-                        </div>
-                        <div className="mt-1">
-                            <span className="text-2xl font-black tracking-tighter" style={{ color: "var(--v-text-primary)" }}>
-                                {loading ? "—" : formatINR(metrics?.grossRevenue || 0)}
-                            </span>
-                            <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mt-0.5">{period.toUpperCase()} TOTAL</p>
-                        </div>
-                    </div>
-
-                    <div className="v-hero-card p-5 flex flex-col justify-between min-h-[120px] shadow-sm">
-                        <div className="flex justify-between items-start">
-                            <span className="v-label">NET REVENUE</span>
-                            {netTrend && (
-                                <span className={cn("v-trend-chip text-[9px]", netTrend.direction === "up" ? "v-trend-up" : "v-trend-down")}>
-                                    {netTrend.direction === "up" ? "↑ " : "↓ "}{netTrend.value}
-                                </span>
-                            )}
-                        </div>
-                        <div className="mt-1">
-                            <span className="text-2xl font-black tracking-tighter" style={{ color: "var(--v-text-primary)" }}>
-                                {loading ? "—" : formatINR(metrics?.netRevenue || 0)}
-                            </span>
-                            <p className="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mt-0.5">NET AFTER FEES</p>
-                        </div>
-                    </div>
-
-                    <div className="v-hero-card p-5 flex flex-col justify-between min-h-[120px] border-l-[3px] border-l-[var(--v-orange)] shadow-lg ring-1 ring-[var(--v-orange)]/10">
-                        <div className="flex justify-between items-start">
-                            <span className="v-label text-[var(--v-orange)]">WITHDRAWABLE</span>
-                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                <CheckCircle2 className="w-2.5 h-2.5" />
-                                <span className="text-[8px] font-black uppercase tracking-widest">Live</span>
-                            </div>
-                        </div>
-                        <div className="mt-1">
-                            <span className="text-2xl font-black tracking-tighter text-[var(--v-orange)]">
-                                {loading ? "—" : formatINR(metrics?.availableBalance || 0)}
-                            </span>
-                            <div className="flex items-center justify-between mt-0.5">
-                                <p className="text-[9px] font-black text-text-tertiary uppercase tracking-widest">READY TO PAYOUT</p>
-                                <Link href="/venue/finance/payouts" className="text-[9px] font-black text-text-primary hover:underline transition-all uppercase tracking-widest">
-                                    Manage →
-                                </Link>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Section 2: Secondary Metrics + Payout Info (Ultra Compact Strip) */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <VenueStatStrip
-                        columns={4}
-                        className="md:col-span-3 !bg-transparent !border-none !divide-x-0 gap-3"
-                        stats={[
-                            { label: "PENDING", value: loading ? "—" : formatINRCompact(metrics?.pendingPayouts || 0), icon: <Clock className="w-3 h-3" />, loading },
-                            { label: "FEES", value: loading ? "—" : formatINRCompact(metrics?.processingFees || 0), loading },
-                            { label: "PARTNER", value: loading ? "—" : formatINRCompact(metrics?.partnerObligations || 0), loading },
-                            { label: "RESERVE", value: loading ? "—" : formatINRCompact(metrics?.reserveBalance || 0), loading },
-                        ]}
+                {/* Payout failure alert — thin strip, not a full card */}
+                {showPayoutAlert && (
+                    <AlertStrip
+                        tone="error"
+                        message={
+                            <>
+                                <span className="font-[600]">{metrics!.payoutFailures} payout{metrics!.payoutFailures > 1 ? "s" : ""} failed.</span>
+                                {" "}Review your bank details to resolve.
+                            </>
+                        }
+                        action={
+                            <Link href="/venue/finance/payouts" className="text-[13px] font-[600] text-[var(--color-error)] whitespace-nowrap">
+                                Fix Now →
+                            </Link>
+                        }
                     />
-                    <div className="v-hero-card !bg-surface-secondary/50 px-4 py-2 flex items-center justify-between border-dashed border-border-default h-[65px] self-center">
-                        <div className="min-w-0">
-                            <p className="text-[8px] font-black text-text-tertiary uppercase tracking-[0.15em] leading-none mb-1">STATUS</p>
-                            <span className="text-[10px] font-black uppercase tracking-widest truncate" style={{ color: payoutStatusCfg.text }}>
-                                {payoutStatusCfg.label}
-                            </span>
-                        </div>
-                        <ArrowUpRight className="w-3 w-3 text-text-tertiary" />
-                    </div>
-                </div>
+                )}
 
-                {/* Section 3: Visual Analytics (Chart + Breakdown) */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
-                    <BentoCard
-                        header={
-                            <div className="flex items-center justify-between w-full">
-                                <span className="v-label">CASHFLOW</span>
-                                <div className="flex items-center gap-4">
-                                    {!loading && metrics && (
-                                        <span className="text-[10px] font-black uppercase tracking-[0.1em]" style={{ color: metrics.netRevenue >= 0 ? "#10B981" : "#EF4444" }}>
-                                            NET: {formatINRCompact(metrics.netRevenue || 0)}
+                {/* ── Hero KPI Strip: 3 primary metrics ── */}
+                <SurfaceCard padding="none">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-[var(--border-subtle)]">
+                        {[
+                            {
+                                label: "GROSS REVENUE",
+                                value: loading ? "—" : formatINR(metrics?.grossRevenue || 0),
+                                sub: `${period.toUpperCase()} total`,
+                                trend: grossTrend,
+                                size: "primary" as const,
+                            },
+                            {
+                                label: "NET REVENUE",
+                                value: loading ? "—" : formatINR(metrics?.netRevenue || 0),
+                                sub: "after all fees",
+                                trend: netTrend,
+                                size: "primary" as const,
+                            },
+                            {
+                                label: "WITHDRAWABLE",
+                                value: loading ? "—" : formatINR(metrics?.availableBalance || 0),
+                                sub: "ready to payout",
+                                trend: undefined,
+                                size: "primary" as const,
+                                accent: true,
+                            },
+                        ].map((stat, i) => (
+                            <div key={i} className="px-6 py-5 flex flex-col gap-1.5">
+                                <p className="text-[12px] font-[600] uppercase tracking-[0.05em] text-[var(--text-tertiary)]">
+                                    {stat.label}
+                                </p>
+                                <p className={cn(
+                                    "text-[36px] font-[600] tracking-[-0.02em] leading-none",
+                                    "tabular-nums",
+                                    stat.accent ? "text-[var(--color-success)]" : "text-[var(--text-primary)]"
+                                )}
+                                    style={{ fontVariantNumeric: "tabular-nums" }}
+                                >
+                                    {stat.value}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    {stat.trend && (
+                                        <span className={cn(
+                                            "text-[13px] font-[500]",
+                                            stat.trend.direction === "up"   ? "text-[var(--color-success)]" : "text-[var(--color-error)]"
+                                        )}>
+                                            {stat.trend.direction === "up" ? "↑" : "↓"} {stat.trend.value}
                                         </span>
                                     )}
+                                    <span className="text-[13px] text-[var(--text-tertiary)]">{stat.sub}</span>
                                 </div>
                             </div>
-                        }
-                        className="lg:col-span-8 flex flex-col"
-                    >
+                        ))}
+                    </div>
+
+                    {/* Secondary compact strip: Fees, Partner, Reserve, Status */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-[var(--border-subtle)] border-t border-[var(--border-subtle)]"
+                        style={{ background: "var(--bg-fill)" }}>
+                        {[
+                            { label: "FEES",    value: loading ? "—" : formatINRCompact(metrics?.processingFees || 0)  },
+                            { label: "PARTNER", value: loading ? "—" : formatINRCompact(metrics?.partnerObligations || 0) },
+                            { label: "RESERVE", value: loading ? "—" : formatINRCompact(metrics?.reserveBalance || 0)  },
+                            { label: "STATUS",  value: payoutStatusCfg.label, color: payoutStatusCfg.text             },
+                        ].map((stat, i) => (
+                            <div key={i} className="px-5 py-3">
+                                <p className="text-[12px] font-[600] uppercase tracking-[0.05em] text-[var(--text-tertiary)] mb-0.5">{stat.label}</p>
+                                <p
+                                    className="text-[14px] font-[600] tabular-nums"
+                                    style={{ color: stat.color || "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}
+                                >
+                                    {stat.value}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </SurfaceCard>
+
+                {/* ── Charts Row ── */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+                    <SurfaceCard padding="standard" className="lg:col-span-8 flex flex-col">
+                        <SurfaceCard.Header
+                            title="Cashflow"
+                            action={
+                                !loading && metrics ? (
+                                    <span className={cn(
+                                        "text-[11px] font-[600] px-2 py-0.5 rounded-[var(--r-badge)]",
+                                        metrics.netRevenue >= 0
+                                            ? "bg-[var(--color-success-bg)] text-[var(--color-success)]"
+                                            : "bg-[var(--color-error-bg)] text-[var(--color-error)]"
+                                    )}>
+                                        Net {formatINRCompact(metrics.netRevenue || 0)}
+                                    </span>
+                                ) : null
+                            }
+                        />
                         <CashflowChart
                             data={cashflow}
                             loading={loading}
@@ -257,46 +249,40 @@ export default function VenueFinancePageClient({
                             onTimeRangeChange={(r) => setPeriod(r as Period)}
                             height={210}
                         />
-                    </BentoCard>
+                    </SurfaceCard>
 
-                    <BentoCard
-                        header={
-                            <div className="flex items-center justify-between w-full">
-                                <span className="v-label">ALLOCATION</span>
-                                <Link href="/venue/finance/ledger" className="text-[9px] font-black uppercase text-[var(--v-orange)] hover:underline">
+                    <SurfaceCard padding="standard" className="lg:col-span-4">
+                        <SurfaceCard.Header
+                            title="Allocation"
+                            action={
+                                <Link href="/venue/finance/ledger" className="text-[12px] text-[var(--accent)] hover:underline">
                                     Full Ledger
                                 </Link>
-                            </div>
-                        }
-                        className="lg:col-span-4"
-                    >
-                        <div className="h-full flex flex-col justify-center">
-                            <RevenueBreakdown
-                                items={breakdown.length > 0 ? breakdown : defaultBreakdown(metrics)}
-                                grossRevenue={metrics?.grossRevenue || 0}
-                                loading={loading}
-                                layout="list"
-                            />
-                        </div>
-                    </BentoCard>
+                            }
+                        />
+                        <RevenueBreakdown
+                            items={breakdown.length > 0 ? breakdown : defaultBreakdown(metrics)}
+                            grossRevenue={metrics?.grossRevenue || 0}
+                            loading={loading}
+                            layout="list"
+                        />
+                    </SurfaceCard>
                 </div>
 
-                {/* Section 4: Deep Insights (Bridge) */}
-                <BentoCard
-                    header={
-                        <div className="flex items-center gap-2">
-                            <TrendingUp className="w-3.5 h-3.5 text-text-tertiary" />
-                            <span className="v-label">INSIGHTS BRIDGE</span>
-                        </div>
-                    }
-                    className="overflow-hidden"
-                >
+                {/* ── Insights Bridge ── */}
+                <SurfaceCard padding="standard" className="overflow-hidden">
+                    <SurfaceCard.Header
+                        title="Insights"
+                        subtitle={null}
+                        action={<TrendingUp className="w-4 h-4 text-[var(--text-tertiary)]" strokeWidth={1.5} />}
+                    />
                     <AnalyticsBridgeSection
                         profileType="venue"
                         partnerId={venueId}
                         timeRange={period}
                     />
-                </BentoCard>
+                </SurfaceCard>
+
             </div>
         </VenuePageShell>
     );

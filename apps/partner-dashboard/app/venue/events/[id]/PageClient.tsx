@@ -242,7 +242,7 @@ export default function EventManagementPage() {
     return (
         <div className="max-w-6xl mx-auto space-y-8 pb-20">
             {loading ? (
-                <div className="p-12 text-center text-text-tertiary">Loading management console...</div>
+                <div className="p-12 text-center text-[var(--text-tertiary)]">Loading management console...</div>
             ) : !event ? (
                 <div className="p-12 text-center">Event not found.</div>
             ) : (
@@ -282,7 +282,7 @@ export default function EventManagementPage() {
                         <div className="flex items-center gap-4">
                             <button
                                 onClick={() => router.back()}
-                                className="p-2.5 rounded-xl border border-border-default text-text-secondary hover:bg-surface-tertiary transition-all shadow-sm"
+                                className="p-2.5 rounded-xl border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] transition-all shadow-sm"
                             >
                                 <ChevronLeft className="h-5 w-5" />
                             </button>
@@ -292,14 +292,14 @@ export default function EventManagementPage() {
                                         ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
                                         : event.lifecycle === EVENT_LIFECYCLE.CANCELLED
                                             ? 'bg-rose-50 text-rose-600 border border-rose-100'
-                                            : 'bg-surface-secondary text-text-tertiary'
+                                            : 'bg-[var(--bg-fill)] text-[var(--text-tertiary)]'
                                         }`}>
                                         {event.lifecycle}
                                     </span>
-                                    <span className="text-text-placeholder">•</span>
-                                    <span className="text-[12px] text-text-tertiary">{event.date}</span>
+                                    <span className="text-[var(--text-quaternary)]">•</span>
+                                    <span className="text-[12px] text-[var(--text-tertiary)]">{event.date}</span>
                                 </div>
-                                <h1 className="text-2xl font-bold text-text-primary tracking-tight uppercase">{event.title}</h1>
+                                <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight uppercase">{event.title}</h1>
                             </div>
                         </div>
 
@@ -308,7 +308,7 @@ export default function EventManagementPage() {
                                 <button
                                     onClick={handleApprove}
                                     disabled={isUpdating}
-                                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 text-text-primary font-bold text-sm hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
+                                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 text-[var(--text-primary)] font-bold text-sm hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
                                 >
                                     <ShieldCheck className="h-4 w-4" />
                                     Approve & Publish
@@ -318,12 +318,12 @@ export default function EventManagementPage() {
                                 <>
                                     <Link
                                         href={`/venue/create?id=${id}`}
-                                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border-default text-text-secondary font-bold text-sm bg-surface-elevated hover:bg-surface-tertiary transition-all shadow-sm"
+                                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-default)] text-[var(--text-secondary)] font-bold text-sm bg-[var(--bg-elevated)] hover:bg-[var(--bg-secondary)] transition-all shadow-sm"
                                     >
                                         <Edit className="h-4 w-4" />
                                         Edit Details
                                     </Link>
-                                    <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-text-primary font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
+                                    <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-[var(--text-primary)] font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
                                         <Share2 className="h-4 w-4" />
                                         Share Link
                                     </button>
@@ -332,7 +332,7 @@ export default function EventManagementPage() {
                             <a
                                 href={`https://thec1rcle.in/e/${id}`}
                                 target="_blank"
-                                className="p-2.5 rounded-xl border border-border-default text-text-secondary hover:bg-surface-tertiary transition-all shadow-sm"
+                                className="p-2.5 rounded-xl border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] transition-all shadow-sm"
                                 title="View on Website"
                             >
                                 <Globe className="h-5 w-5" />
@@ -340,7 +340,7 @@ export default function EventManagementPage() {
                             {event.lifecycle !== EVENT_LIFECYCLE.CANCELLED && event.lifecycle !== EVENT_LIFECYCLE.DELETED && (
                                 <button
                                     onClick={() => setShowCancelModal(true)}
-                                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-rose-600 font-bold text-sm bg-surface-elevated hover:bg-rose-50 transition-all shadow-sm"
+                                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-rose-600 font-bold text-sm bg-[var(--bg-elevated)] hover:bg-rose-50 transition-all shadow-sm"
                                 >
                                     <AlertTriangle className="h-4 w-4" />
                                     Cancel Event
@@ -350,14 +350,14 @@ export default function EventManagementPage() {
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex items-center gap-1 p-1 bg-surface-secondary rounded-2xl w-fit">
+                    <div className="flex items-center gap-1 p-1 bg-[var(--bg-fill)] rounded-2xl w-fit">
                         {["overview", "guestlist", "promoters", "settings", "audit"].map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
                                 className={`px-6 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all ${activeTab === tab
-                                    ? "bg-surface-elevated text-indigo-600 shadow-sm"
-                                    : "text-text-tertiary hover:text-text-secondary"
+                                    ? "bg-[var(--bg-elevated)] text-indigo-600 shadow-sm"
+                                    : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                                     }`}
                             >
                                 {tab}
@@ -378,50 +378,50 @@ export default function EventManagementPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div className="md:col-span-2 space-y-6">
                                         {/* Insights Card */}
-                                        <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm">
+                                        <div className="bg-[var(--bg-elevated)] rounded-3xl border border-[var(--border-default)] p-8 shadow-sm">
                                             <h3 className="text-xl font-bold mb-6">Real-time Insights</h3>
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                                                 <div>
-                                                    <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-1">Views</p>
-                                                    <p className="text-3xl font-bold text-text-primary">{event.stats?.views || 0}</p>
+                                                    <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-1">Views</p>
+                                                    <p className="text-3xl font-bold text-[var(--text-primary)]">{event.stats?.views || 0}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-1">Interested</p>
-                                                    <p className="text-3xl font-bold text-text-primary">{event.stats?.saves || 0}</p>
+                                                    <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-1">Interested</p>
+                                                    <p className="text-3xl font-bold text-[var(--text-primary)]">{event.stats?.saves || 0}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-1">Sales</p>
-                                                    <p className="text-3xl font-bold text-text-primary">0</p>
+                                                    <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-1">Sales</p>
+                                                    <p className="text-3xl font-bold text-[var(--text-primary)]">0</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-1">Revenue</p>
-                                                    <p className="text-3xl font-bold text-text-primary">₹0</p>
+                                                    <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-1">Revenue</p>
+                                                    <p className="text-3xl font-bold text-[var(--text-primary)]">₹0</p>
                                                 </div>
                                             </div>
                                         </div>
 
                                         {/* Link previews/Quick Actions */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div className="bg-surface-elevated rounded-3xl border border-border-default p-6 shadow-sm">
+                                            <div className="bg-[var(--bg-elevated)] rounded-3xl border border-[var(--border-default)] p-6 shadow-sm">
                                                 <div className="flex items-center gap-3 mb-4">
                                                     <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
                                                         <Globe className="h-5 w-5" />
                                                     </div>
-                                                    <h4 className="font-bold text-text-primary">Public Page</h4>
+                                                    <h4 className="font-bold text-[var(--text-primary)]">Public Page</h4>
                                                 </div>
-                                                <p className="text-sm text-text-tertiary mb-4">Your event is live at thec1rcle.in/e/{id}</p>
+                                                <p className="text-sm text-[var(--text-tertiary)] mb-4">Your event is live at thec1rcle.in/e/{id}</p>
                                                 <button className="text-indigo-600 font-bold text-sm flex items-center gap-1 hover:underline">
                                                     Copy Link <ExternalLink className="h-3 w-3" />
                                                 </button>
                                             </div>
-                                            <div className="bg-surface-elevated rounded-3xl border border-border-default p-6 shadow-sm">
+                                            <div className="bg-[var(--bg-elevated)] rounded-3xl border border-[var(--border-default)] p-6 shadow-sm">
                                                 <div className="flex items-center gap-3 mb-4">
                                                     <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
                                                         <Users className="h-5 w-5" />
                                                     </div>
-                                                    <h4 className="font-bold text-text-primary">Guestlist</h4>
+                                                    <h4 className="font-bold text-[var(--text-primary)]">Guestlist</h4>
                                                 </div>
-                                                <p className="text-sm text-text-tertiary mb-4">{event.settings?.showGuestlist ? "Enabled" : "Disabled"} - Guests can see who's coming</p>
+                                                <p className="text-sm text-[var(--text-tertiary)] mb-4">{event.settings?.showGuestlist ? "Enabled" : "Disabled"} - Guests can see who's coming</p>
                                                 <button onClick={() => setActiveTab("settings")} className="text-emerald-600 font-bold text-sm hover:underline">Change Settings</button>
                                             </div>
                                         </div>
@@ -429,25 +429,25 @@ export default function EventManagementPage() {
 
                                     <div className="space-y-6">
                                         {/* Event Snapshot */}
-                                        <div className="bg-surface-elevated rounded-3xl border border-border-default overflow-hidden shadow-sm">
+                                        <div className="bg-[var(--bg-elevated)] rounded-3xl border border-[var(--border-default)] overflow-hidden shadow-sm">
                                             <img src={event.image} className="w-full aspect-video object-cover" alt="" />
                                             <div className="p-6">
                                                 <h4 className="font-bold mb-2 uppercase">{event.title}</h4>
                                                 <div className="space-y-3">
-                                                    <div className="flex items-center gap-2 text-xs text-text-tertiary">
+                                                    <div className="flex items-center gap-2 text-xs text-[var(--text-tertiary)]">
                                                         <Calendar className="h-3.5 w-3.5" /> {event.date}
                                                     </div>
-                                                    <div className="flex items-center gap-2 text-xs text-text-tertiary">
+                                                    <div className="flex items-center gap-2 text-xs text-[var(--text-tertiary)]">
                                                         <MapPin className="h-3.5 w-3.5" /> {event.venue}
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="bg-surface-secondary rounded-3xl p-6 text-text-primary text-center">
+                                        <div className="bg-[var(--bg-fill)] rounded-3xl p-6 text-[var(--text-primary)] text-center">
                                             <h4 className="font-bold mb-2">Need Help?</h4>
-                                            <p className="text-xs text-text-tertiary mb-4">Our partner support team is available 24/7 for event emergencies.</p>
-                                            <button className="w-full py-2.5 bg-surface-elevated text-text-primary rounded-xl font-bold text-xs hover:bg-surface-secondary transition-all">Support Chat</button>
+                                            <p className="text-xs text-[var(--text-tertiary)] mb-4">Our partner support team is available 24/7 for event emergencies.</p>
+                                            <button className="w-full py-2.5 bg-[var(--bg-elevated)] text-[var(--text-primary)] rounded-xl font-bold text-xs hover:bg-[var(--bg-fill)] transition-all">Support Chat</button>
                                         </div>
                                     </div>
                                 </div>
@@ -455,18 +455,18 @@ export default function EventManagementPage() {
 
                             {activeTab === "promoters" && (
                                 <div className="space-y-6">
-                                    <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm">
-                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 pb-8 border-b border-border-subtle">
+                                    <div className="bg-[var(--bg-elevated)] rounded-3xl border border-[var(--border-default)] p-8 shadow-sm">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 pb-8 border-b border-[var(--border-subtle)]">
                                             <div>
                                                 <h3 className="text-xl font-bold mb-2">Promoter Network</h3>
-                                                <p className="text-sm text-text-tertiary">Enable selected promoters to generate affiliate links and track their sales conversions.</p>
+                                                <p className="text-sm text-[var(--text-tertiary)]">Enable selected promoters to generate affiliate links and track their sales conversions.</p>
                                             </div>
                                             <button
                                                 onClick={handleTogglePromoterAccess}
                                                 disabled={isUpdating}
                                                 className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-bold transition-all ${event.promoterSettings?.enabled
-                                                    ? 'bg-indigo-600 text-text-primary shadow-lg shadow-indigo-100'
-                                                    : 'bg-surface-secondary text-text-secondary'
+                                                    ? 'bg-indigo-600 text-[var(--text-primary)] shadow-lg shadow-indigo-100'
+                                                    : 'bg-[var(--bg-fill)] text-[var(--text-secondary)]'
                                                     }`}
                                             >
                                                 {event.promoterSettings?.enabled ? (
@@ -486,13 +486,13 @@ export default function EventManagementPage() {
                                         {event.promoterSettings?.enabled ? (
                                             <div className="space-y-6">
                                                 <div className="relative">
-                                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-text-tertiary" />
+                                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-tertiary)]" />
                                                     <input
                                                         type="text"
                                                         value={promoterSearch}
                                                         onChange={(e) => setPromoterSearch(e.target.value)}
                                                         placeholder="Search your promoter partners..."
-                                                        className="w-full pl-12 pr-4 py-3.5 rounded-2xl bg-surface-tertiary border border-border-subtle focus:outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-200 transition-all"
+                                                        className="w-full pl-12 pr-4 py-3.5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] focus:outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-200 transition-all"
                                                     />
                                                 </div>
 
@@ -502,17 +502,17 @@ export default function EventManagementPage() {
                                                             <div
                                                                 key={promoter.id}
                                                                 className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${promoter.isSelected
-                                                                    ? 'bg-surface-elevated border-emerald-200 shadow-sm'
-                                                                    : 'bg-surface-elevated border-border-subtle hover:border-border-default'
+                                                                    ? 'bg-[var(--bg-elevated)] border-emerald-200 shadow-sm'
+                                                                    : 'bg-[var(--bg-elevated)] border-[var(--border-subtle)] hover:border-[var(--border-default)]'
                                                                     }`}
                                                             >
                                                                 <div className="flex items-center gap-4">
-                                                                    <div className="h-12 w-12 rounded-full bg-surface-secondary flex items-center justify-center font-bold text-text-tertiary">
+                                                                    <div className="h-12 w-12 rounded-full bg-[var(--bg-fill)] flex items-center justify-center font-bold text-[var(--text-tertiary)]">
                                                                         {promoter.name[0]}
                                                                     </div>
                                                                     <div>
-                                                                        <p className="font-bold text-text-primary">{promoter.name}</p>
-                                                                        <p className="text-xs text-text-tertiary">Partnered</p>
+                                                                        <p className="font-bold text-[var(--text-primary)]">{promoter.name}</p>
+                                                                        <p className="text-xs text-[var(--text-tertiary)]">Partnered</p>
                                                                     </div>
                                                                 </div>
                                                                 <button
@@ -520,7 +520,7 @@ export default function EventManagementPage() {
                                                                     disabled={isUpdating}
                                                                     className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all ${promoter.isSelected
                                                                         ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
-                                                                        : 'bg-surface-elevated border-border-default text-text-secondary hover:border-slate-400'
+                                                                        : 'bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:border-slate-400'
                                                                         }`}
                                                                 >
                                                                     {promoter.isSelected ? (
@@ -533,8 +533,8 @@ export default function EventManagementPage() {
                                                         ))
                                                     ) : (
                                                         <div className="col-span-2 py-12 text-center">
-                                                            <Users className="h-12 w-12 text-text-placeholder mx-auto mb-4" />
-                                                            <p className="text-text-tertiary">No promoters found in your database.</p>
+                                                            <Users className="h-12 w-12 text-[var(--text-quaternary)] mx-auto mb-4" />
+                                                            <p className="text-[var(--text-tertiary)]">No promoters found in your database.</p>
                                                             <Link href="/venue/connections" className="text-indigo-600 font-bold mt-2 inline-block">Build Network</Link>
                                                         </div>
                                                     )}
@@ -542,11 +542,11 @@ export default function EventManagementPage() {
                                             </div>
                                         ) : (
                                             <div className="py-20 text-center space-y-4">
-                                                <div className="h-20 w-20 bg-surface-secondary rounded-full flex items-center justify-center mx-auto mb-6 text-text-placeholder">
+                                                <div className="h-20 w-20 bg-[var(--bg-fill)] rounded-full flex items-center justify-center mx-auto mb-6 text-[var(--text-quaternary)]">
                                                     <ShieldCheck className="h-10 w-10" />
                                                 </div>
-                                                <h4 className="text-2xl font-bold text-text-primary">Promoter Access is Locked</h4>
-                                                <p className="text-text-tertiary max-w-sm mx-auto">Toggle the active network switch above to allow promoters to generate tracking links for this event.</p>
+                                                <h4 className="text-2xl font-bold text-[var(--text-primary)]">Promoter Access is Locked</h4>
+                                                <p className="text-[var(--text-tertiary)] max-w-sm mx-auto">Toggle the active network switch above to allow promoters to generate tracking links for this event.</p>
                                             </div>
                                         )}
                                     </div>
@@ -557,38 +557,38 @@ export default function EventManagementPage() {
                                 <div className="space-y-6">
                                     {/* Guestlist Stats */}
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div className="bg-surface-elevated rounded-3xl border border-border-default p-6 shadow-sm">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-1">Total Identities</p>
-                                            <p className="text-2xl font-bold text-text-primary">{guestlistStats?.total || 0}</p>
+                                        <div className="bg-[var(--bg-elevated)] rounded-3xl border border-[var(--border-default)] p-6 shadow-sm">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] mb-1">Total Identities</p>
+                                            <p className="text-2xl font-bold text-[var(--text-primary)]">{guestlistStats?.total || 0}</p>
                                         </div>
-                                        <div className="bg-surface-elevated rounded-3xl border border-border-default p-6 shadow-sm">
+                                        <div className="bg-[var(--bg-elevated)] rounded-3xl border border-[var(--border-default)] p-6 shadow-sm">
                                             <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-1">Checked In</p>
-                                            <p className="text-2xl font-bold text-text-primary">{guestlistStats?.checkedIn || 0}</p>
+                                            <p className="text-2xl font-bold text-[var(--text-primary)]">{guestlistStats?.checkedIn || 0}</p>
                                         </div>
-                                        <div className="bg-surface-elevated rounded-3xl border border-border-default p-6 shadow-sm">
+                                        <div className="bg-[var(--bg-elevated)] rounded-3xl border border-[var(--border-default)] p-6 shadow-sm">
                                             <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-1">Claim Pending</p>
-                                            <p className="text-2xl font-bold text-text-primary">{guestlistStats?.pending || 0}</p>
+                                            <p className="text-2xl font-bold text-[var(--text-primary)]">{guestlistStats?.pending || 0}</p>
                                         </div>
-                                        <div className="bg-surface-elevated rounded-3xl border border-border-default p-6 shadow-sm">
+                                        <div className="bg-[var(--bg-elevated)] rounded-3xl border border-[var(--border-default)] p-6 shadow-sm">
                                             <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-1">Confirmed</p>
-                                            <p className="text-2xl font-bold text-text-primary">{guestlistStats?.confirmed || 0}</p>
+                                            <p className="text-2xl font-bold text-[var(--text-primary)]">{guestlistStats?.confirmed || 0}</p>
                                         </div>
                                     </div>
 
-                                    <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm">
+                                    <div className="bg-[var(--bg-elevated)] rounded-3xl border border-[var(--border-default)] p-8 shadow-sm">
                                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                                             <div>
                                                 <h3 className="text-xl font-bold mb-1 font-mono uppercase tracking-tight">Identity Guestlist</h3>
-                                                <p className="text-sm text-text-tertiary">Real-time view of claimed tickets and pending slots.</p>
+                                                <p className="text-sm text-[var(--text-tertiary)]">Real-time view of claimed tickets and pending slots.</p>
                                             </div>
                                             <div className="relative w-full md:w-72">
-                                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+                                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-tertiary)]" />
                                                 <input
                                                     type="text"
                                                     value={guestSearch}
                                                     onChange={(e) => setGuestSearch(e.target.value)}
                                                     placeholder="Search guests..."
-                                                    className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-surface-tertiary border border-border-subtle text-sm focus:outline-none focus:ring-4 focus:ring-indigo-50 transition-all font-bold"
+                                                    className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-sm focus:outline-none focus:ring-4 focus:ring-indigo-50 transition-all font-bold"
                                                 />
                                             </div>
                                         </div>
@@ -602,11 +602,11 @@ export default function EventManagementPage() {
                                                     }
                                                 }}
                                                 fixedHeaderContent={() => (
-                                                    <tr className="border-b border-border-subtle bg-surface-elevated shadow-sm relative z-10 w-full">
-                                                        <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-text-tertiary w-1/4">Guest</th>
-                                                        <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-text-tertiary w-1/4">Identity</th>
-                                                        <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-text-tertiary w-1/4 text-center">Status</th>
-                                                        <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-text-tertiary w-1/4 text-right">Order Ref</th>
+                                                    <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-sm relative z-10 w-full">
+                                                        <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] w-1/4">Guest</th>
+                                                        <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] w-1/4">Identity</th>
+                                                        <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] w-1/4 text-center">Status</th>
+                                                        <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] w-1/4 text-right">Order Ref</th>
                                                     </tr>
                                                 )}
                                                 components={{
@@ -616,7 +616,7 @@ export default function EventManagementPage() {
                                                     <>
                                                         <td className="px-8 py-4 border-b border-slate-50 w-1/4">
                                                             <div className="flex items-center gap-3">
-                                                                <div className="w-9 h-9 rounded-full bg-surface-secondary flex items-center justify-center font-bold text-text-tertiary text-xs border border-border-default overflow-hidden shrink-0">
+                                                                <div className="w-9 h-9 rounded-full bg-[var(--bg-fill)] flex items-center justify-center font-bold text-[var(--text-tertiary)] text-xs border border-[var(--border-default)] overflow-hidden shrink-0">
                                                                     {guest.avatar ? (
                                                                         <img src={guest.avatar} className="w-full h-full object-cover" />
                                                                     ) : (
@@ -624,8 +624,8 @@ export default function EventManagementPage() {
                                                                     )}
                                                                 </div>
                                                                 <div className="min-w-0">
-                                                                    <div className="font-bold text-text-primary text-sm truncate">{guest.name}</div>
-                                                                    <div className="text-[10px] text-text-tertiary font-mono truncate">{guest.email || 'N/A'}</div>
+                                                                    <div className="font-bold text-[var(--text-primary)] text-sm truncate">{guest.name}</div>
+                                                                    <div className="text-[10px] text-[var(--text-tertiary)] font-mono truncate">{guest.email || 'N/A'}</div>
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -633,11 +633,11 @@ export default function EventManagementPage() {
                                                             <div className="flex items-center gap-2">
                                                                 <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter border ${guest.gender === 'female' ? 'bg-pink-50 text-pink-600 border-pink-100' :
                                                                     guest.gender === 'male' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                                                                        'bg-surface-tertiary text-text-tertiary border-border-subtle'
+                                                                        'bg-[var(--bg-secondary)] text-[var(--text-tertiary)] border-[var(--border-subtle)]'
                                                                     }`}>
                                                                     {guest.gender || 'Any'}
                                                                 </span>
-                                                                <span className="text-[11px] font-bold text-text-secondary">{guest.type === 'rsvp' ? 'RSVP' : 'TIER-' + guest.ticketId?.slice(0, 4)}</span>
+                                                                <span className="text-[11px] font-bold text-[var(--text-secondary)]">{guest.type === 'rsvp' ? 'RSVP' : 'TIER-' + guest.ticketId?.slice(0, 4)}</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-8 py-4 border-b border-slate-50 w-1/4 text-center">
@@ -658,7 +658,7 @@ export default function EventManagementPage() {
                                                             </div>
                                                         </td>
                                                         <td className="px-8 py-4 border-b border-slate-50 w-1/4 text-right">
-                                                            <div className="text-[10px] font-mono text-text-tertiary hover:text-text-secondary transition-colors">
+                                                            <div className="text-[10px] font-mono text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors">
                                                                 #{guest.orderId?.slice(-6).toUpperCase()}
                                                             </div>
                                                         </td>
@@ -667,8 +667,8 @@ export default function EventManagementPage() {
                                             />
                                             {guestlist.length === 0 && (
                                                 <div className="py-20 text-center">
-                                                    <Users className="h-12 w-12 text-text-placeholder mx-auto mb-4" />
-                                                    <p className="text-text-tertiary font-bold">No identities found for this event yet.</p>
+                                                    <Users className="h-12 w-12 text-[var(--text-quaternary)] mx-auto mb-4" />
+                                                    <p className="text-[var(--text-tertiary)] font-bold">No identities found for this event yet.</p>
                                                 </div>
                                             )}
                                         </div>
@@ -677,24 +677,24 @@ export default function EventManagementPage() {
                             )}
 
                             {activeTab === "settings" && (
-                                <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm">
+                                <div className="bg-[var(--bg-elevated)] rounded-3xl border border-[var(--border-default)] p-8 shadow-sm">
                                     <h3 className="text-xl font-bold mb-6">Event Visibility Settings</h3>
                                     <div className="space-y-6">
-                                        <div className="flex items-center justify-between py-6 border-b border-border-subtle">
+                                        <div className="flex items-center justify-between py-6 border-b border-[var(--border-subtle)]">
                                             <div>
                                                 <h4 className="font-bold">Public Guestlist</h4>
-                                                <p className="text-sm text-text-tertiary">Allow guests on the website to see who else is attending.</p>
+                                                <p className="text-sm text-[var(--text-tertiary)]">Allow guests on the website to see who else is attending.</p>
                                             </div>
-                                            <button className="flex items-center gap-2 p-1 rounded-full bg-surface-secondary scale-110">
-                                                <div className={`h-6 w-12 rounded-full relative transition-all ${event.settings?.showGuestlist ? 'bg-indigo-600' : 'bg-surface-tertiary'}`}>
-                                                    <div className={`absolute top-1 h-4 w-4 bg-surface-elevated rounded-full transition-all ${event.settings?.showGuestlist ? 'right-1' : 'left-1'}`} />
+                                            <button className="flex items-center gap-2 p-1 rounded-full bg-[var(--bg-fill)] scale-110">
+                                                <div className={`h-6 w-12 rounded-full relative transition-all ${event.settings?.showGuestlist ? 'bg-indigo-600' : 'bg-[var(--bg-secondary)]'}`}>
+                                                    <div className={`absolute top-1 h-4 w-4 bg-[var(--bg-elevated)] rounded-full transition-all ${event.settings?.showGuestlist ? 'right-1' : 'left-1'}`} />
                                                 </div>
                                             </button>
                                         </div>
-                                        <div className="flex items-center justify-between py-6 border-b border-border-subtle">
+                                        <div className="flex items-center justify-between py-6 border-b border-[var(--border-subtle)]">
                                             <div>
                                                 <h4 className="font-bold">Require Age Verification</h4>
-                                                <p className="text-sm text-text-tertiary">Check for 21+ status before ticket purchase.</p>
+                                                <p className="text-sm text-[var(--text-tertiary)]">Check for 21+ status before ticket purchase.</p>
                                             </div>
                                             <div className="p-2 bg-amber-50 rounded-lg text-amber-600 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
                                                 <AlertCircle className="h-4 w-4" /> Pro Feature
@@ -704,7 +704,7 @@ export default function EventManagementPage() {
                                 </div>
                             )}
                             {activeTab === "audit" && (
-                                <div className="bg-surface-elevated rounded-3xl border border-border-default p-8 shadow-sm">
+                                <div className="bg-[var(--bg-elevated)] rounded-3xl border border-[var(--border-default)] p-8 shadow-sm">
                                     <h3 className="text-xl font-bold mb-8">Event Audit Trail</h3>
                                     <AuditTrail entries={event.auditTrail} />
                                 </div>

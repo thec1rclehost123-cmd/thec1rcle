@@ -158,22 +158,22 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role }: DiscoverDir
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Search bar */}
-            <div className="flex flex-col md:flex-row gap-3 p-3 bg-surface-elevated/80 backdrop-blur-xl border border-border-default rounded-[2rem] shadow-sm">
+            <div className="flex flex-col md:flex-row gap-3 p-3 bg-[var(--bg-elevated)]/80 backdrop-blur-xl border border-[var(--border-default)] rounded-[2rem] shadow-sm">
                 <div className="flex-1 relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary group-focus-within:text-text-primary transition-colors" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-colors" />
                     <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search by name, city, genre..."
-                        className="w-full bg-transparent border-none rounded-2xl pl-11 pr-4 py-3 text-sm text-text-primary focus:outline-none font-medium placeholder:text-text-placeholder"
+                        className="w-full bg-transparent border-none rounded-2xl pl-11 pr-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none font-medium placeholder:text-[var(--text-quaternary)]"
                     />
                 </div>
                 <div className="flex gap-2 shrink-0">
                     <select
                         value={filterType}
                         onChange={(e) => setFilterType(e.target.value as PartnerFilterType)}
-                        className="pl-4 pr-8 py-2.5 bg-surface-secondary border border-border-default rounded-xl text-caption font-semibold text-text-secondary focus:outline-none cursor-pointer hover:bg-surface-tertiary transition-colors"
+                        className="pl-4 pr-8 py-2.5 bg-[var(--bg-fill)] border border-[var(--border-default)] rounded-xl text-caption font-semibold text-[var(--text-secondary)] focus:outline-none cursor-pointer hover:bg-[var(--bg-secondary)] transition-colors"
                     >
                         {allowedTypes.includes("all") && <option value="all">All Types</option>}
                         {allowedTypes.includes("venue") && <option value="venue">Venues</option>}
@@ -185,7 +185,7 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role }: DiscoverDir
                     <select
                         value={filterCity}
                         onChange={(e) => setFilterCity(e.target.value)}
-                        className="pl-4 pr-8 py-2.5 bg-surface-secondary border border-border-default rounded-xl text-caption font-semibold text-text-secondary focus:outline-none cursor-pointer hover:bg-surface-tertiary transition-colors"
+                        className="pl-4 pr-8 py-2.5 bg-[var(--bg-fill)] border border-[var(--border-default)] rounded-xl text-caption font-semibold text-[var(--text-secondary)] focus:outline-none cursor-pointer hover:bg-[var(--bg-secondary)] transition-colors"
                     >
                         <option value="">All Cities</option>
                         <option value="Pune">Pune</option>
@@ -196,7 +196,7 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role }: DiscoverDir
                     </select>
                     <button
                         onClick={fetchPartners}
-                        className="p-2.5 bg-surface-secondary border border-border-default rounded-xl text-text-tertiary hover:text-text-primary hover:border-border-strong transition-all active:scale-95"
+                        className="p-2.5 bg-[var(--bg-fill)] border border-[var(--border-default)] rounded-xl text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-all active:scale-95"
                     >
                         <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
                     </button>
@@ -209,31 +209,31 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role }: DiscoverDir
                     {[1, 2, 3, 4, 5, 6].map((i) => (
                         <div
                             key={i}
-                            className="h-72 bg-surface-secondary rounded-[2rem] animate-pulse border border-border-subtle"
+                            className="h-72 bg-[var(--bg-fill)] rounded-[2rem] animate-pulse border border-[var(--border-subtle)]"
                         />
                     ))}
                 </div>
             ) : error ? (
-                <div className="py-24 bg-surface-elevated rounded-[3rem] border border-dashed border-error/50 flex flex-col items-center text-center px-10">
+                <div className="py-24 bg-[var(--bg-elevated)] rounded-[3rem] border border-dashed border-error/50 flex flex-col items-center text-center px-10">
                     <div className="w-16 h-16 bg-error/10 rounded-2xl flex items-center justify-center mb-5">
                         <XCircle className="w-8 h-8 text-error" />
                     </div>
-                    <h4 className="text-title font-semibold text-text-primary">Discovery Unavailable</h4>
-                    <p className="text-body-sm text-text-tertiary mt-1 max-w-xs">{error}</p>
+                    <h4 className="text-title font-semibold text-[var(--text-primary)]">Discovery Unavailable</h4>
+                    <p className="text-body-sm text-[var(--text-tertiary)] mt-1 max-w-xs">{error}</p>
                     <button 
                         onClick={() => fetchPartners()}
-                        className="mt-6 px-6 py-2 bg-surface-secondary hover:bg-surface-tertiary rounded-xl text-caption font-bold transition-all flex items-center gap-2"
+                        className="mt-6 px-6 py-2 bg-[var(--bg-fill)] hover:bg-[var(--bg-secondary)] rounded-xl text-caption font-bold transition-all flex items-center gap-2"
                     >
                         <RefreshCw className="w-4 h-4" /> Try Again
                     </button>
                 </div>
             ) : partners.length === 0 ? (
-                <div className="py-24 bg-surface-elevated rounded-[3rem] border border-dashed border-border-default flex flex-col items-center text-center px-10">
-                    <div className="w-16 h-16 bg-surface-tertiary rounded-2xl flex items-center justify-center mb-5">
-                        <Users className="w-8 h-8 text-text-placeholder" />
+                <div className="py-24 bg-[var(--bg-elevated)] rounded-[3rem] border border-dashed border-[var(--border-default)] flex flex-col items-center text-center px-10">
+                    <div className="w-16 h-16 bg-[var(--bg-secondary)] rounded-2xl flex items-center justify-center mb-5">
+                        <Users className="w-8 h-8 text-[var(--text-quaternary)]" />
                     </div>
-                    <h4 className="text-title font-semibold text-text-primary">No results found</h4>
-                    <p className="text-body-sm text-text-tertiary mt-1 max-w-xs">
+                    <h4 className="text-title font-semibold text-[var(--text-primary)]">No results found</h4>
+                    <p className="text-body-sm text-[var(--text-tertiary)] mt-1 max-w-xs">
                         Try adjusting your filters or search query.
                     </p>
                 </div>
@@ -313,7 +313,7 @@ function DirectoryCard({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97 }}
-            className="group bg-surface-elevated border border-border-default rounded-[2rem] overflow-hidden hover:border-border-strong hover:shadow-sm transition-all duration-300 flex flex-col"
+            className="group bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-[2rem] overflow-hidden hover:border-[var(--border-default)] hover:shadow-sm transition-all duration-300 flex flex-col"
         >
             {/* Card header strip with brand color */}
             <div className="h-1.5 bg-gradient-to-r from-accent-primary via-orange-600 to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
@@ -324,14 +324,14 @@ function DirectoryCard({
 
                 <div className="flex items-start justify-between mb-6 relative z-10">
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-surface-secondary to-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-text-primary shadow-xl group-hover:scale-105 transition-transform">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-surface-secondary to-surface-tertiary border border-[var(--border-subtle)] flex items-center justify-center text-2xl font-black text-[var(--text-primary)] shadow-xl group-hover:scale-105 transition-transform">
                             {partner.name[0]}
                         </div>
                         <div>
-                            <h3 className="text-headline-sm font-black text-text-primary leading-none group-hover:text-accent-primary transition-colors">
+                            <h3 className="text-headline-sm font-black text-[var(--text-primary)] leading-none group-hover:text-accent-primary transition-colors">
                                 {partner.name}
                             </h3>
-                            <div className="flex items-center gap-1.5 mt-2 text-caption font-bold text-text-muted">
+                            <div className="flex items-center gap-1.5 mt-2 text-caption font-bold text-[var(--text-tertiary)]">
                                 <MapPin className="w-3 h-3 text-accent-primary" /> {partner.city}
                             </div>
                         </div>
@@ -343,34 +343,34 @@ function DirectoryCard({
 
                 {/* Type + status row */}
                 <div className="flex items-center justify-between mb-6 relative z-10">
-                    <span className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary rounded-xl text-[10px] font-black uppercase tracking-widest text-text-secondary border border-border-subtle capitalize backdrop-blur-md">
+                    <span className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-fill)] rounded-xl text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] border border-[var(--border-subtle)] capitalize backdrop-blur-md">
                         <span className="text-accent-primary">{typeIcon}</span> {partner.type}
                     </span>
                     {statusBadge()}
                 </div>
 
                 {partner.bio && (
-                    <p className="text-body-sm text-text-tertiary leading-relaxed line-clamp-2 mb-6 relative z-10 group-hover:text-text-secondary transition-colors">
+                    <p className="text-body-sm text-[var(--text-tertiary)] leading-relaxed line-clamp-2 mb-6 relative z-10 group-hover:text-[var(--text-secondary)] transition-colors">
                         {partner.bio}
                     </p>
                 )}
 
                 {/* Metrics row */}
                 <div className="grid grid-cols-2 gap-3 mb-8 mt-auto relative z-10">
-                    <div className="flex items-center gap-2.5 p-3 bg-surface-tertiary rounded-2xl border border-border-subtle group-hover:border-accent-primary/10 transition-colors">
+                    <div className="flex items-center gap-2.5 p-3 bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] group-hover:border-accent-primary/10 transition-colors">
                         <CalendarDays className="w-4 h-4 text-accent-primary/60" />
                         <div>
-                            <p className="text-[10px] font-black text-text-muted uppercase tracking-tighter">Events</p>
-                            <p className="text-body font-black text-text-primary leading-none">
+                            <p className="text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-tighter">Events</p>
+                            <p className="text-body font-black text-[var(--text-primary)] leading-none">
                                 {partner.eventsCount}
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2.5 p-3 bg-surface-tertiary rounded-2xl border border-border-subtle group-hover:border-accent-primary/10 transition-colors">
+                    <div className="flex items-center gap-2.5 p-3 bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] group-hover:border-accent-primary/10 transition-colors">
                         <Users className="w-4 h-4 text-accent-primary/60" />
                         <div>
-                            <p className="text-[10px] font-black text-text-muted uppercase tracking-tighter">Fans</p>
-                            <p className="text-body font-black text-text-primary leading-none">
+                            <p className="text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-tighter">Fans</p>
+                            <p className="text-body font-black text-[var(--text-primary)] leading-none">
                                 {partner.followersCount}
                             </p>
                         </div>
@@ -379,7 +379,7 @@ function DirectoryCard({
 
                 <button
                     onClick={onViewProfile}
-                    className="w-full py-4 bg-surface-secondary text-text-primary rounded-2xl text-[13px] font-black uppercase tracking-widest border border-border-subtle hover:bg-accent-primary hover:text-text-inverse hover:border-accent-primary hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shadow-xl group/btn"
+                    className="w-full py-4 bg-[var(--bg-fill)] text-[var(--text-primary)] rounded-2xl text-[13px] font-black uppercase tracking-widest border border-[var(--border-subtle)] hover:bg-accent-primary hover:text-white hover:border-accent-primary hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shadow-xl group/btn"
                 >
                     <span className="flex items-center justify-center gap-2 transition-transform group-hover/btn:translate-x-1">
                         View Profile <Zap className="w-4 h-4 fill-current group-hover/btn:animate-pulse" />

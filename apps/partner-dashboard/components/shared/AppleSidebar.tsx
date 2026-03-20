@@ -9,7 +9,8 @@ import { useState } from "react";
 import { ThemeToggleCompact } from "../ThemeToggle";
 
 type MenuItem = {
-    icon: React.ComponentType<{ className?: string }>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    icon: React.ComponentType<any>;
     label: string;
     href: string;
     badge?: string;
@@ -98,34 +99,25 @@ export function AppleSidebar({
     })).filter(section => section.items.length > 0);
 
     return (
-        <aside className={`relative ${isCollapsed ? "w-[80px]" : "w-[280px]"} bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] flex flex-col h-full z-50 shrink-0 transition-all duration-300 ease-in-out`}>
+        <aside className={`relative ${isCollapsed ? "w-[80px]" : "w-[260px]"} bg-[var(--sidebar-bg)] backdrop-blur-xl border-r border-[var(--sidebar-border)] flex flex-col h-full z-50 shrink-0 transition-all duration-300 ease-in-out`}>
             {/* Brand Header */}
-            <div className={`p-6 ${isCollapsed ? "px-4" : "p-7"}`}>
-                <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 min-w-[44px] rounded-2xl bg-text-primary flex items-center justify-center text-text-inverse font-bold text-xl shadow-lg ring-1 ring-white/10 shrink-0">
-                        {brandLetter}
-                    </div>
-                    {!isCollapsed && (
-                        <motion.div
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="flex-1 min-w-0"
-                        >
-                            <h1 className="text-[17px] font-bold text-text-primary tracking-tight leading-tight uppercase">THE C1RCLE</h1>
-                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-tertiary truncate mt-0.5 opacity-60">
-                                {brandLabel} Dashboard
-                            </p>
-                        </motion.div>
-                    )}
+            <div className={`flex items-center gap-3 ${isCollapsed ? "px-4 py-3 justify-center" : "px-4 py-3"} mb-2`}>
+                <div className="w-8 h-8 min-w-[32px] rounded-xl bg-[var(--accent)] flex items-center justify-center text-white font-bold text-sm shrink-0">
+                    {brandLetter}
                 </div>
+                {!isCollapsed && (
+                    <span className="dash-title-card text-[var(--text-primary)] truncate">
+                        {brandLabel}
+                    </span>
+                )}
             </div>
 
             {/* Navigation - Continuous Flow */}
-            <nav className={`flex-1 overflow-y-auto ${isCollapsed ? "px-3" : "px-5"} space-y-1 scrollbar-hide`}>
+            <nav className={`flex-1 overflow-y-auto ${isCollapsed ? "px-3" : "px-3"} scrollbar-hide`}>
                 {visibleSections.map((section, idx) => (
-                    <div key={idx} className="pt-0">
+                    <div key={idx} className={idx > 0 ? "mt-5" : ""}>
                         {section.label && !isCollapsed && (
-                             <p className="px-5 pb-2 pt-4 text-[10px] font-black text-text-tertiary uppercase tracking-[0.25em] opacity-30">
+                             <p className="dash-label-sm text-[var(--text-quaternary)] px-3 mb-1 mt-1">
                                 {section.label}
                              </p>
                         )}
@@ -146,43 +138,31 @@ export function AppleSidebar({
                                                         e.preventDefault();
                                                         toggleExpand(item.href);
                                                     }}
-                                                    className={`nav-item relative group w-full ${isChildActive || expanded ? "text-text-primary" : ""}`}
+                                                    className={`nav-item group w-full ${isChildActive || expanded ? "nav-item-active" : ""}`}
                                                 >
-                                                    <div className="relative z-10 flex items-center gap-4 w-full">
-                                                        <Icon className={`w-5 h-5 transition-colors ${isChildActive || expanded ? "text-text-primary" : "text-text-tertiary/60 group-hover:text-text-primary/70"}`} />
-                                                        <span className="flex-1 text-left font-semibold">{item.label}</span>
-                                                        <ChevronDown className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ease-out ${expanded ? "rotate-180" : ""}`} />
+                                                    <div className="flex items-center gap-2.5 w-full">
+                                                        <Icon className="w-5 h-5 flex-shrink-0" strokeWidth={1.5} />
+                                                        <span className="flex-1 text-left">{item.label}</span>
+                                                        <ChevronDown className={`h-4 w-4 opacity-60 transition-transform duration-300 ease-out ${expanded ? "rotate-180" : ""}`} />
                                                     </div>
                                                 </button>
                                             ) : (
                                                 <Link
                                                     href={item.href}
-                                                    className={`nav-item relative group w-full ${active ? "nav-item-active" : ""}`}
+                                                    className={`nav-item group w-full ${active ? "nav-item-active" : ""}`}
                                                 >
-                                                    {active && (
-                                                        <motion.div
-                                                            layoutId="nav-active-bg"
-                                                            className="absolute inset-0 bg-surface-tertiary dark:bg-white/[0.06] rounded-2xl"
-                                                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                                                        />
-                                                    )}
-
-                                                    <div className="relative z-10 flex items-center gap-4 w-full justify-center lg:justify-start">
-                                                        <Icon className={`w-5 h-5 min-w-[20px] transition-colors ${active ? "text-text-primary" : "text-text-tertiary/60 group-hover:text-text-primary/70"}`} />
+                                                    <div className="flex items-center gap-2.5 w-full justify-center lg:justify-start">
+                                                        <Icon className="w-5 h-5 min-w-[20px] flex-shrink-0" strokeWidth={1.5} />
                                                         {!isCollapsed && <span className="flex-1 text-left">{item.label}</span>}
-                                                        
+
                                                         {item.badge && !isCollapsed && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-c1rcle-orange/10 text-c1rcle-orange text-[9px] font-black uppercase tracking-widest ring-1 ring-c1rcle-orange/20">
+                                                            <span className="px-2 py-0.5 rounded-full bg-[var(--accent-muted)] text-[var(--accent)] dash-label-sm">
                                                                 {item.badge}
                                                             </span>
                                                         )}
 
-                                                        {active && !isCollapsed && (
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-c1rcle-orange shadow-[0_0_12px_var(--c1rcle-orange)]" />
-                                                        )}
-
                                                         {active && isCollapsed && (
-                                                            <div className="absolute right-0 w-1 h-4 bg-c1rcle-orange rounded-full" />
+                                                            <div className="absolute right-0 w-0.5 h-4 bg-[var(--accent)] rounded-full" />
                                                         )}
                                                     </div>
                                                 </Link>
@@ -198,24 +178,19 @@ export function AppleSidebar({
                                                     transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
                                                     className="overflow-hidden"
                                                 >
-                                                    <div className="ml-7 pl-6 mt-1 space-y-1 border-l-2 border-border-subtle/30">
+                                                    <div className="ml-8 mt-1 space-y-0.5">
                                                         {item.children?.map((child) => {
                                                             const childActive = pathname === child.href;
                                                             return (
                                                                 <Link
                                                                     key={child.href}
                                                                     href={child.href}
-                                                                    className={`block px-4 py-3 rounded-xl text-[15px] font-semibold transition-all ${childActive
-                                                                        ? "text-[var(--v-text-primary)] bg-[var(--v-border)]"
-                                                                        : "text-[var(--v-text-secondary)] hover:text-[var(--v-text-primary)] hover:bg-[var(--v-border)]"
+                                                                    className={`block px-3 py-2 rounded-[var(--r-md)] dash-body-sm transition-colors ${childActive
+                                                                        ? "text-[var(--accent)] bg-[var(--accent-muted)] font-semibold"
+                                                                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-fill)]"
                                                                         }`}
                                                                 >
-                                                                    <div className="flex items-center justify-between">
-                                                                        <span>{child.label}</span>
-                                                                        {childActive && (
-                                                                            <div className="w-1.5 h-1.5 rounded-full bg-text-primary" />
-                                                                        )}
-                                                                    </div>
+                                                                    {child.label}
                                                                 </Link>
                                                             );
                                                         })}
@@ -236,21 +211,21 @@ export function AppleSidebar({
                 <button
                     onClick={onToggleCollapse}
                     title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-                    className="absolute right-0 translate-x-1/2 top-[52px] z-50 w-5 h-5 rounded-full bg-[var(--sidebar-bg)] border border-[var(--sidebar-border)] flex items-center justify-center text-text-tertiary hover:text-text-primary hover:border-text-tertiary/40 shadow-sm transition-all duration-200"
+                    className="absolute right-0 translate-x-1/2 top-[52px] z-50 w-5 h-5 rounded-full bg-[var(--sidebar-bg)] border border-[var(--sidebar-border)] flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-text-tertiary/40 shadow-sm transition-all duration-200"
                 >
                     <ChevronRight className={`h-3 w-3 transition-transform duration-300 ${isCollapsed ? "" : "rotate-180"}`} />
                 </button>
             )}
 
             {/* Account Footer */}
-            <div className={`p-4 ${isCollapsed ? "px-2" : "p-6"} border-t border-border-subtle bg-surface-tertiary/10`}>
-                <div className={`flex items-center ${isCollapsed ? "flex-col gap-4" : "gap-4"} mb-2`}>
-                    <div className="h-10 w-10 min-w-[40px] rounded-full bg-surface-secondary border border-border-subtle flex items-center justify-center text-text-primary font-bold text-base shadow-inner shrink-0">
+            <div className={`${isCollapsed ? "px-3 py-4" : "px-4 py-4"} border-t border-[var(--border-subtle)]`}>
+                <div className={`flex items-center ${isCollapsed ? "flex-col gap-3" : "gap-3"}`}>
+                    <div className="h-8 w-8 min-w-[32px] rounded-full bg-[var(--bg-fill)] flex items-center justify-center text-[var(--text-primary)] font-semibold text-sm shrink-0">
                         {profile?.displayName?.charAt(0)?.toUpperCase() || "U"}
                     </div>
                     {!isCollapsed && (
                         <div className="flex-1 min-w-0">
-                            <p className="text-[14px] font-bold text-text-primary truncate">
+                            <p className="dash-body-sm font-medium text-[var(--text-primary)] truncate">
                                 {profile?.displayName || "Operator"}
                             </p>
                         </div>
@@ -259,7 +234,7 @@ export function AppleSidebar({
                         <ThemeToggleCompact />
                         <button
                             onClick={() => signOut()}
-                            className="w-9 h-9 flex items-center justify-center rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 transition-all"
+                            className="w-8 h-8 flex items-center justify-center rounded-[var(--r-sm)] text-[var(--color-error)] hover:bg-[var(--color-error-bg)] transition-colors"
                             title="Sign Out"
                         >
                             <LogOut className="h-4 w-4" />

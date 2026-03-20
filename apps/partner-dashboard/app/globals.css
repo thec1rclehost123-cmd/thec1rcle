@@ -983,38 +983,43 @@ select option {
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 20px;
-  border-radius: var(--radius-xl);
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--r-md, 12px);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-secondary);
-  transition: all var(--transition-smooth);
+  transition: background-color var(--t-fast, 100ms ease), color var(--t-fast, 100ms ease);
   text-decoration: none;
+  width: 100%;
 }
 
 .nav-item:hover {
-  background: var(--surface-secondary);
+  background: var(--bg-fill, rgba(120,120,128,0.12));
   color: var(--text-primary);
 }
 
 .nav-item-active {
-  background: var(--surface-tertiary);
-  color: var(--text-primary);
+  background: transparent;
+  color: var(--accent, #F44A22);
   font-weight: 600;
+  /* Left border indicator — quiet Apple-style active state */
+  box-shadow: inset 2px 0 0 var(--accent, #F44A22);
 }
 
 .dark .nav-item {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .dark .nav-item:hover {
   color: var(--text-primary);
+  background: var(--bg-fill, rgba(120,120,128,0.36));
 }
 
 .dark .nav-item-active {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-primary);
+  background: transparent;
+  color: var(--accent, #F44A22);
+  box-shadow: inset 2px 0 0 var(--accent, #F44A22);
 }
 
 .nav-icon {
@@ -1823,8 +1828,87 @@ select option {
   --v-chart-5: #DB2777;
 
   /* ── Sidebar ── */
-  --sidebar-bg:     #FFFFFF;
-  --sidebar-border: rgba(0,0,0,0.09);
+  --sidebar-bg:     rgba(255,255,255,0.72);
+  --sidebar-border: rgba(0,0,0,0.08);
+
+  /* ══════════════════════════════════════════════════════════
+     NEW: Apple-Semantic Tokens — Design System v3.0
+     Light mode values. Overridden by .dark .venue-shell below.
+     ══════════════════════════════════════════════════════════ */
+
+  /* Backgrounds */
+  --bg-base:           #F2F2F7;
+  --bg-elevated:       #FFFFFF;
+  --bg-secondary:      #FFFFFF;
+  --bg-tertiary:       #F2F2F7;
+  --bg-fill:           rgba(120,120,128,0.12);
+  --bg-fill-secondary: rgba(120,120,128,0.08);
+
+  /* Top Bar (Chrome Material) */
+  --topbar-bg:     rgba(242,242,247,0.90);
+  --topbar-border: rgba(0,0,0,0.08);
+
+  /* Text — Apple label hierarchy */
+  --text-primary:    #000000;
+  --text-secondary:  rgba(60,60,67,0.6);
+  --text-tertiary:   rgba(60,60,67,0.3);
+  --text-quaternary: rgba(60,60,67,0.18);
+
+  /* Borders — Apple separator hierarchy */
+  --border-subtle:  rgba(60,60,67,0.18);
+  --border-default: rgba(60,60,67,0.29);
+  --border-strong:  #C6C6C8;
+
+  /* Accent */
+  --accent:        #F44A22;
+  --accent-muted:  rgba(244,74,34,0.10);
+  --accent-subtle: rgba(244,74,34,0.06);
+
+  /* Semantic State Colors — Apple HIG */
+  --color-success:    #34C759;
+  --color-success-bg: rgba(52,199,89,0.12);
+  --color-warning:    #FF9500;
+  --color-warning-bg: rgba(255,149,0,0.12);
+  --color-error:      #FF3B30;
+  --color-error-bg:   rgba(255,59,48,0.10);
+  --color-info:       #007AFF;
+  --color-info-bg:    rgba(0,122,255,0.10);
+
+  /* Trend */
+  --trend-positive:    #34C759;
+  --trend-positive-bg: rgba(52,199,89,0.12);
+  --trend-negative:    #FF3B30;
+  --trend-negative-bg: rgba(255,59,48,0.10);
+  --trend-neutral:     #8E8E93;
+
+  /* Chart Palette */
+  --chart-1: #F44A22;
+  --chart-2: #007AFF;
+  --chart-3: #34C759;
+  --chart-4: #FF9500;
+  --chart-5: #AF52DE;
+  --chart-6: #5AC8FA;
+
+  /* Shadows — Apple light */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.10), 0 4px 8px rgba(0,0,0,0.04);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.14), 0 8px 16px rgba(0,0,0,0.06);
+
+  /* Transitions */
+  --t-fast:   100ms ease;
+  --t-base:   150ms ease;
+  --t-smooth: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --t-spring: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Border Radius */
+  --r-sm:   8px;
+  --r-md:   12px;
+  --r-lg:   16px;
+  --r-xl:   20px;
+  --r-2xl:  24px;
+  --r-pill: 9999px;
+  --r-badge: 6px;
 }
 
 /* ── Dark mode override ── */
@@ -1891,8 +1975,59 @@ select option {
   --v-chart-5: #F472B6;
 
   /* ── Sidebar ── */
-  --sidebar-bg:     #111113;
-  --sidebar-border: rgba(255,255,255,0.06);
+  --sidebar-bg:     rgba(28,28,30,0.85);
+  --sidebar-border: rgba(255,255,255,0.08);
+
+  /* ── NEW: Apple-Semantic Tokens (dark) ── */
+  --bg-base:           #000000;
+  --bg-elevated:       #1C1C1E;
+  --bg-secondary:      #2C2C2E;
+  --bg-tertiary:       #3A3A3C;
+  --bg-fill:           rgba(120,120,128,0.36);
+  --bg-fill-secondary: rgba(118,118,128,0.24);
+
+  --topbar-bg:     rgba(0,0,0,0.85);
+  --topbar-border: rgba(255,255,255,0.08);
+
+  --text-primary:    #FFFFFF;
+  --text-secondary:  rgba(235,235,245,0.6);
+  --text-tertiary:   rgba(235,235,245,0.3);
+  --text-quaternary: rgba(235,235,245,0.16);
+
+  --border-subtle:  rgba(255,255,255,0.08);
+  --border-default: rgba(84,84,88,0.65);
+  --border-strong:  #48484A;
+
+  --accent:        #F44A22;
+  --accent-muted:  rgba(244,74,34,0.15);
+  --accent-subtle: rgba(244,74,34,0.08);
+
+  --color-success:    #30D158;
+  --color-success-bg: rgba(48,209,88,0.15);
+  --color-warning:    #FF9F0A;
+  --color-warning-bg: rgba(255,159,10,0.15);
+  --color-error:      #FF453A;
+  --color-error-bg:   rgba(255,69,58,0.15);
+  --color-info:       #0A84FF;
+  --color-info-bg:    rgba(10,132,255,0.15);
+
+  --trend-positive:    #30D158;
+  --trend-positive-bg: rgba(48,209,88,0.15);
+  --trend-negative:    #FF453A;
+  --trend-negative-bg: rgba(255,69,58,0.15);
+  --trend-neutral:     #8E8E93;
+
+  --chart-1: #F44A22;
+  --chart-2: #0A84FF;
+  --chart-3: #30D158;
+  --chart-4: #FF9F0A;
+  --chart-5: #BF5AF2;
+  --chart-6: #64D2FF;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.40), 0 1px 2px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.50), 0 2px 4px rgba(0,0,0,0.30);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.60), 0 4px 8px rgba(0,0,0,0.35);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.70), 0 8px 16px rgba(0,0,0,0.45);
 }
 
 /* ── Scoped surface transitions (major shells only, NOT *) ── */
@@ -2058,6 +2193,114 @@ select option {
   border-radius: var(--v-r-full);
   font-size: 11px;
   font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASH-* TYPOGRAPHY SYSTEM — Apple HIG Scale
+   Use these classes everywhere in the venue dashboard.
+   Zero arbitrary text-[X] values — always pick the nearest dash-* class.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Page & section titles */
+.dash-title-page {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.dash-title-section {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.dash-title-card {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+/* Body text */
+.dash-body {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.dash-body-sm {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.dash-caption {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* Labels — uppercase, tracked */
+.dash-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dash-label-sm {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Metric scale — always tabular-nums */
+.dash-metric-hero {
+  font-size: 48px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  line-height: 1;
+}
+
+.dash-metric-xl {
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  line-height: 1;
+}
+
+.dash-metric-lg {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  line-height: 1;
+}
+
+.dash-metric-md {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  line-height: 1;
+}
+
+.dash-metric-sm {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  line-height: 1;
 }
 
 @tailwind utilities;

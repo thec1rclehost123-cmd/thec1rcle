@@ -35,11 +35,11 @@ export function DashboardPanel({
     ...props
 }: DashboardPanelProps) {
     const variantClasses = {
-        default: "bg-[var(--v-card)] border-[var(--v-border)]",
-        elevated: "bg-[var(--v-elevated)] border-[var(--v-border-strong)] shadow-sm",
-        hero: "bg-[var(--v-hero)] border-[var(--v-border-strong)] shadow-md",
+        default: "bg-[var(--bg-elevated)] border-[var(--border-subtle)]",
+        elevated: "bg-[var(--bg-fill)] border-[var(--border-default)] shadow-sm",
+        hero: "bg-[var(--bg-base)] border-[var(--border-default)] shadow-md",
         ghost: "bg-transparent border-transparent",
-        accent: "bg-[var(--v-orange-dim)] border-[var(--v-orange-glow)]",
+        accent: "bg-[var(--accent-muted)] border-[var(--accent-muted)]",
     };
 
     const paddingClasses = {
@@ -54,9 +54,9 @@ export function DashboardPanel({
     return (
         <Wrapper
             className={cn(
-                "rounded-[var(--v-r-xl)] border transition-all duration-200 overflow-hidden flex flex-col",
+                "rounded-[var(--r-xl)] border transition-all duration-200 overflow-hidden flex flex-col",
                 variantClasses[variant],
-                interactive && "hover:bg-[var(--v-card-hover)] hover:shadow-lg cursor-pointer active:scale-[0.99]",
+                interactive && "hover:bg-[var(--bg-fill)] hover:shadow-lg cursor-pointer active:scale-[0.99]",
                 fullHeight && "h-full",
                 className
             )}
@@ -68,16 +68,16 @@ export function DashboardPanel({
         >
             {/* Header */}
             {(title || icon || actions) && (
-                <div className={cn("px-6 py-5 flex items-center justify-between border-b border-[var(--v-divider)]", headerClassName)}>
+                <div className={cn("px-6 py-5 flex items-center justify-between border-b border-[var(--border-subtle)]", headerClassName)}>
                     <div className="flex items-center gap-3">
                         {icon && (
-                            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--v-orange-dim)] text-[var(--v-orange)]">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--accent-muted)] text-[var(--accent)]">
                                 {icon}
                             </div>
                         )}
                         <div>
-                            {title && <h3 className="text-[15px] font-bold text-[var(--v-text-primary)] leading-tight">{title}</h3>}
-                            {subtitle && <p className="text-[12px] font-medium text-[var(--v-text-tertiary)] mt-0.5">{subtitle}</p>}
+                            {title && <h3 className="text-[15px] font-bold text-[var(--text-primary)] leading-tight">{title}</h3>}
+                            {subtitle && <p className="text-[12px] font-medium text-[var(--text-tertiary)] mt-0.5">{subtitle}</p>}
                         </div>
                     </div>
                     {actions && <div className="flex items-center gap-2">{actions}</div>}
@@ -91,7 +91,7 @@ export function DashboardPanel({
 
             {/* Footer */}
             {footer && (
-                <div className="px-6 py-4 border-t border-[var(--v-divider)] bg-[var(--v-canvas)]/50">
+                <div className="px-6 py-4 border-t border-[var(--border-subtle)] bg-[var(--bg-base)]/50">
                     {footer}
                 </div>
             )}

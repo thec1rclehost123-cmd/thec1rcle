@@ -25,12 +25,12 @@ export function StatusBadge({
     className,
 }: StatusBadgeProps) {
     const variantClasses = {
-        success: "bg-[var(--v-success-bg)] text-[var(--v-success)]",
-        warning: "bg-[var(--v-warning-bg)] text-[var(--v-warning)]",
-        error: "bg-[var(--v-error-bg)] text-[var(--v-error)]",
-        info: "bg-[var(--v-info-bg)] text-[var(--v-info)]",
-        neutral: "bg-white/5 text-[var(--v-text-tertiary)]",
-        accent: "bg-[var(--v-orange-dim)] text-[var(--v-orange)]",
+        success: "bg-[var(--color-success-bg)] text-[var(--color-success)]",
+        warning: "bg-[var(--color-warning-bg)] text-[var(--color-warning)]",
+        error: "bg-[var(--color-error-bg)] text-[var(--color-error)]",
+        info: "bg-[var(--color-info-bg)] text-[var(--color-info)]",
+        neutral: "bg-white/5 text-[var(--text-tertiary)]",
+        accent: "bg-[var(--accent-muted)] text-[var(--accent)]",
     };
 
     const sizeClasses = {

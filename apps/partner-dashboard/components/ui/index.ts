@@ -49,3 +49,8 @@ export {
     ToastProvider,
     useToast
 } from "./Toast";
+
+// Design System v3.0 — Apple-semantic components
+export { DashCard } from "./DashCard";
+export { DashTabs } from "./DashTabs";
+export { VenueTable, type Column } from "./VenueTable";

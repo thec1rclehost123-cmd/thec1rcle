@@ -59,11 +59,11 @@ const LazyDrillArea = lazy(() =>
                         <YAxis tick={{ fontSize: 9, fill: "#9B9B9F" }} axisLine={false} tickLine={false} />
                         <Tooltip
                             contentStyle={{
-                                background: "var(--v-card)",
-                                border: "1px solid var(--v-border)",
+                                background: "var(--bg-elevated)",
+                                border: "1px solid var(--border-subtle)",
                                 borderRadius: 10,
                                 fontSize: 11,
-                                color: "var(--v-text-primary)",
+                                color: "var(--text-primary)",
                             }}
                             cursor={{ stroke: "rgba(128,128,128,0.20)" }}
                         />
@@ -98,13 +98,13 @@ function StatRow({ label, value, sub, color }: {
 }) {
     return (
         <div className="flex items-center justify-between py-3 border-b"
-            style={{ borderColor: "var(--v-divider)" }}>
+            style={{ borderColor: "var(--border-subtle)" }}>
             <div>
-                <p className="text-[13px] font-medium" style={{ color: "var(--v-text-secondary)" }}>{label}</p>
-                {sub && <p className="text-[10px] mt-0.5" style={{ color: "var(--v-text-muted)" }}>{sub}</p>}
+                <p className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{label}</p>
+                {sub && <p className="text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>{sub}</p>}
             </div>
             <p className="text-[15px] font-black tabular-nums"
-                style={{ color: color || "var(--v-text-primary)" }}>{value}</p>
+                style={{ color: color || "var(--text-primary)" }}>{value}</p>
         </div>
     );
 }
@@ -113,7 +113,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     return (
         <div>
             <p className="text-[10px] font-black uppercase tracking-widest mb-3"
-                style={{ color: "var(--v-text-muted)" }}>{title}</p>
+                style={{ color: "var(--text-tertiary)" }}>{title}</p>
             {children}
         </div>
     );
@@ -135,13 +135,13 @@ function GrossRevenueDrill({ data }: { data: AnalyticsV2 }) {
                         data={data.revenueIntelligence.series.revenueByDay}
                         valueKey="gross"
                         xKey="date"
-                        color="var(--v-orange)"
+                        color="var(--accent)"
                         height={160}
                     />
                 </Suspense>
             </Section>
             <Section title="Revenue by source">
-                <HorizRankBars rows={ranks(bySource, "var(--v-chart-1)")} maxValue={br.grossTicketRevenue} />
+                <HorizRankBars rows={ranks(bySource, "var(--chart-1)")} maxValue={br.grossTicketRevenue} />
             </Section>
             <Section title="Key figures">
                 <StatRow label="Gross Ticket Revenue" value={cur(br.grossTicketRevenue)} />
@@ -151,7 +151,7 @@ function GrossRevenueDrill({ data }: { data: AnalyticsV2 }) {
                 <StatRow label="Rev / Available Spot" value={cur(dr.revenuePerAvailableSpot)}
                     sub="Total gross ÷ venue capacity" />
                 <StatRow label="High-yield window"    value={dr.highYieldWindow || "—"}
-                    sub="Hour bracket with highest revenue density" color="var(--v-success)" />
+                    sub="Hour bracket with highest revenue density" color="var(--color-success)" />
             </Section>
         </>
     );
@@ -162,12 +162,12 @@ function NetRevenueDrill({ data }: { data: AnalyticsV2 }) {
     const dr = data.revenueIntelligence.derived;
     const gross = br.grossTicketRevenue;
     const waterfall = [
-        { label: "Gross Revenue",         value: br.grossTicketRevenue,          color: "var(--v-chart-1)" },
-        { label: "− Platform Fee",        value: -br.platformFee,                color: "var(--v-error)" },
-        { label: "− Refunds",             value: -br.refundValue,                color: "var(--v-error)" },
-        { label: "− Discounts",           value: -br.discountValue,              color: "var(--v-warning)" },
-        { label: "− Promoter Payouts",    value: -br.promoterPayoutExposure,     color: "var(--v-warning)" },
-        { label: "= Net Revenue",         value: br.netTicketRevenue,            color: "var(--v-success)" },
+        { label: "Gross Revenue",         value: br.grossTicketRevenue,          color: "var(--chart-1)" },
+        { label: "− Platform Fee",        value: -br.platformFee,                color: "var(--color-error)" },
+        { label: "− Refunds",             value: -br.refundValue,                color: "var(--color-error)" },
+        { label: "− Discounts",           value: -br.discountValue,              color: "var(--color-warning)" },
+        { label: "− Promoter Payouts",    value: -br.promoterPayoutExposure,     color: "var(--color-warning)" },
+        { label: "= Net Revenue",         value: br.netTicketRevenue,            color: "var(--color-success)" },
     ];
     return (
         <>
@@ -185,7 +185,7 @@ function NetRevenueDrill({ data }: { data: AnalyticsV2 }) {
                                 }}>
                                 {cur(Math.abs(row.value))}
                             </div>
-                            <span className="text-[11px] font-medium" style={{ color: "var(--v-text-tertiary)" }}>
+                            <span className="text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>
                                 {row.label}
                             </span>
                         </div>
@@ -194,9 +194,9 @@ function NetRevenueDrill({ data }: { data: AnalyticsV2 }) {
             </Section>
             <Section title="Efficiency">
                 <StatRow label="Refund-adjusted Revenue"  value={cur(dr.refundAdjustedRevenue)} />
-                <StatRow label="Revenue Lost to No-shows" value={cur(dr.revenueLostToNoShows)} color="var(--v-error)" />
-                <StatRow label="Revenue Leakage (comps)"  value={cur(dr.revenueLeakageFromComps)} color="var(--v-warning)" />
-                <StatRow label="Venue Share"              value={cur(br.venueShare)} color="var(--v-success)" />
+                <StatRow label="Revenue Lost to No-shows" value={cur(dr.revenueLostToNoShows)} color="var(--color-error)" />
+                <StatRow label="Revenue Leakage (comps)"  value={cur(dr.revenueLeakageFromComps)} color="var(--color-warning)" />
+                <StatRow label="Venue Share"              value={cur(br.venueShare)} color="var(--color-success)" />
             </Section>
         </>
     );
@@ -212,10 +212,10 @@ function TicketsSoldDrill({ data }: { data: AnalyticsV2 }) {
     return (
         <>
             <Section title="By ticket type">
-                <HorizRankBars rows={ranks(byType, "var(--v-chart-2)")} />
+                <HorizRankBars rows={ranks(byType, "var(--chart-2)")} />
             </Section>
             <Section title="By event (attendance)">
-                <HorizRankBars rows={ranks(byEvent, "var(--v-chart-3)")} />
+                <HorizRankBars rows={ranks(byEvent, "var(--chart-3)")} />
             </Section>
         </>
     );
@@ -235,25 +235,25 @@ function CheckInsDrill({ data }: { data: AnalyticsV2 }) {
                             data={ops.entryCurve}
                             valueKey="count"
                             xKey="hour"
-                            color="var(--v-success)"
+                            color="var(--color-success)"
                             height={140}
                         />
                     </Suspense>
                 ) : (
-                    <p className="text-[12px] py-4" style={{ color: "var(--v-text-muted)" }}>
+                    <p className="text-[12px] py-4" style={{ color: "var(--text-tertiary)" }}>
                         Entry curve available after your first event.
                     </p>
                 )}
             </Section>
             <Section title="By ticket type">
-                <HorizRankBars rows={ranks(byType, "var(--v-chart-2)")} />
+                <HorizRankBars rows={ranks(byType, "var(--chart-2)")} />
             </Section>
             <Section title="Door metrics">
                 <StatRow label="Peak entry hour"     value={ops.peakEntryHour != null ? `${ops.peakEntryHour}:00` : "—"} />
                 <StatRow label="Peak velocity"       value={ops.peakEntryVelocity > 0 ? `${ops.peakEntryVelocity.toFixed(1)}/min` : "—"} />
                 <StatRow label="Late arrivals"       value={pct(ops.lateArrivalPct)} />
                 <StatRow label="Re-entries"          value={num(ops.reEntryCount)} />
-                <StatRow label="Capacity utilisation" value={pct(ops.capacityUtilization)} color="var(--v-chart-1)" />
+                <StatRow label="Capacity utilisation" value={pct(ops.capacityUtilization)} color="var(--chart-1)" />
             </Section>
         </>
     );
@@ -268,19 +268,19 @@ function SellThroughDrill({ data }: { data: AnalyticsV2 }) {
         <>
             <Section title="Capacity breakdown">
                 <StatRow label="Total Capacity"    value={num(cy.totalCapacity)} />
-                <StatRow label="Sold"              value={num(cy.soldCapacity)}   color="var(--v-chart-1)" />
-                <StatRow label="Scanned in"        value={num(cy.scannedCapacity)} color="var(--v-success)" />
-                <StatRow label="Unused spots"      value={num(cy.totalCapacity - cy.soldCapacity)} color="var(--v-error)" />
-                <StatRow label="Unused cost est."  value={cur(cy.unusedCapacityCostEstimate)} color="var(--v-error)"
+                <StatRow label="Sold"              value={num(cy.soldCapacity)}   color="var(--chart-1)" />
+                <StatRow label="Scanned in"        value={num(cy.scannedCapacity)} color="var(--color-success)" />
+                <StatRow label="Unused spots"      value={num(cy.totalCapacity - cy.soldCapacity)} color="var(--color-error)" />
+                <StatRow label="Unused cost est."  value={cur(cy.unusedCapacityCostEstimate)} color="var(--color-error)"
                     sub="Revenue opportunity lost from unsold spots" />
             </Section>
             <Section title="Occupancy by hour">
-                <HorizRankBars rows={ranks(byHour, "var(--v-orange)")} maxValue={100} />
+                <HorizRankBars rows={ranks(byHour, "var(--accent)")} maxValue={100} />
             </Section>
             <Section title="Yield windows">
-                <StatRow label="Best pricing lift window"     value={cy.bestPricingLiftWindow || "—"} color="var(--v-success)" />
-                <StatRow label="Best push notification time"  value={cy.bestPushNotificationWindow || "—"} color="var(--v-chart-2)" />
-                <StatRow label="Best inventory release time"  value={cy.bestInventoryReleaseWindow || "—"} color="var(--v-chart-3)" />
+                <StatRow label="Best pricing lift window"     value={cy.bestPricingLiftWindow || "—"} color="var(--color-success)" />
+                <StatRow label="Best push notification time"  value={cy.bestPushNotificationWindow || "—"} color="var(--chart-2)" />
+                <StatRow label="Best inventory release time"  value={cy.bestInventoryReleaseWindow || "—"} color="var(--chart-3)" />
                 <StatRow label="Arrival wave shape"           value={cy.arrivalWaveShape} />
             </Section>
         </>
@@ -296,7 +296,7 @@ function AvgTicketDrill({ data }: { data: AnalyticsV2 }) {
     return (
         <>
             <Section title="Avg price by ticket type">
-                <HorizRankBars rows={ranks(byType, "var(--v-chart-4)")} />
+                <HorizRankBars rows={ranks(byType, "var(--chart-4)")} />
             </Section>
             <Section title="Price metrics">
                 <StatRow label="Avg Ticket Price"    value={data.executive.avgTicketPrice.formatted} />
@@ -321,11 +321,11 @@ function GuestlistDrill({ data }: { data: AnalyticsV2 }) {
             <Section title="Guestlist conversion">
                 <StatRow label="Total guestlist signups"  value={ex.guestlistSignups.formatted} />
                 <StatRow label="Guestlist arrivals"       value={num(data.audience.newGuests)} />
-                <StatRow label="First-time guest rate"    value={ex.firstTimeGuestRate.formatted} color="var(--v-chart-2)" />
-                <StatRow label="Promoter-driven signups"  value={ex.promoterDrivenSales.formatted} color="var(--v-chart-3)" />
+                <StatRow label="First-time guest rate"    value={ex.firstTimeGuestRate.formatted} color="var(--chart-2)" />
+                <StatRow label="Promoter-driven signups"  value={ex.promoterDrivenSales.formatted} color="var(--chart-3)" />
             </Section>
             <Section title="Guestlist by event">
-                <HorizRankBars rows={ranks(scorecards, "var(--v-chart-3)")} />
+                <HorizRankBars rows={ranks(scorecards, "var(--chart-3)")} />
             </Section>
         </>
     );
@@ -340,16 +340,16 @@ function RefundRateDrill({ data }: { data: AnalyticsV2 }) {
         <>
             <Section title="Refund reasons">
                 {reasons.length > 0 ? (
-                    <HorizRankBars rows={ranks(reasons, "var(--v-error)")} />
+                    <HorizRankBars rows={ranks(reasons, "var(--color-error)")} />
                 ) : (
-                    <p className="text-[12px] py-2" style={{ color: "var(--v-text-muted)" }}>No refund data yet.</p>
+                    <p className="text-[12px] py-2" style={{ color: "var(--text-tertiary)" }}>No refund data yet.</p>
                 )}
             </Section>
             <Section title="Financial impact">
-                <StatRow label="Total refund value"       value={cur(br.refundValue)}           color="var(--v-error)" />
+                <StatRow label="Total refund value"       value={cur(br.refundValue)}           color="var(--color-error)" />
                 <StatRow label="Refund-adjusted revenue"  value={cur(data.revenueIntelligence.derived.refundAdjustedRevenue)} />
-                <StatRow label="Discount value given"     value={cur(br.discountValue)}          color="var(--v-warning)" />
-                <StatRow label="Comp value given"         value={cur(br.compValue)}              color="var(--v-warning)" />
+                <StatRow label="Discount value given"     value={cur(br.discountValue)}          color="var(--color-warning)" />
+                <StatRow label="Comp value given"         value={cur(br.compValue)}              color="var(--color-warning)" />
             </Section>
         </>
     );
@@ -369,11 +369,11 @@ function NoShowDrill({ data }: { data: AnalyticsV2 }) {
     return (
         <>
             <Section title="No-shows by event">
-                <HorizRankBars rows={ranks(sorted, "var(--v-warning)")} />
+                <HorizRankBars rows={ranks(sorted, "var(--color-warning)")} />
             </Section>
             <Section title="Impact">
-                <StatRow label="Revenue lost to no-shows" value={cur(data.revenueIntelligence.derived.revenueLostToNoShows)} color="var(--v-error)" />
-                <StatRow label="Overall no-show rate"     value={data.executive.noShowRate.formatted} color="var(--v-warning)" />
+                <StatRow label="Revenue lost to no-shows" value={cur(data.revenueIntelligence.derived.revenueLostToNoShows)} color="var(--color-error)" />
+                <StatRow label="Overall no-show rate"     value={data.executive.noShowRate.formatted} color="var(--color-warning)" />
                 <StatRow label="Purchase-to-arrival rate" value={pct(data.conversionFunnel.purchaseToArrival)} />
                 <StatRow label="Guestlist arrival rate"   value={pct(data.conversionFunnel.guestlistToArrival)} />
             </Section>
@@ -392,14 +392,14 @@ function RepeatGuestDrill({ data }: { data: AnalyticsV2 }) {
                 <CohortGrid cohorts={ret.cohorts} />
             </Section>
             <Section title="Repeat rate by acquisition channel">
-                <HorizRankBars rows={ranks(byChannel, "var(--v-chart-2)")} maxValue={100} />
+                <HorizRankBars rows={ranks(byChannel, "var(--chart-2)")} maxValue={100} />
             </Section>
             <Section title="Loyalty metrics">
-                <StatRow label="Return rate after 1st visit"     value={pct(ret.returnRateAfterFirst * 100)} color="var(--v-success)" />
+                <StatRow label="Return rate after 1st visit"     value={pct(ret.returnRateAfterFirst * 100)} color="var(--color-success)" />
                 <StatRow label="Avg days between visits"         value={`${ret.avgDaysBetweenVisits.toFixed(0)}d`} />
                 <StatRow label="Avg events to become a regular"  value={`${ret.avgTimeToBecomingRegular.toFixed(1)} events`} />
-                <StatRow label="Avg guest LTV"                   value={cur(ret.avgLTV)} color="var(--v-chart-1)" />
-                <StatRow label="Best retention channel"          value={ret.topRetentionChannels[0] || "—"} color="var(--v-success)" />
+                <StatRow label="Avg guest LTV"                   value={cur(ret.avgLTV)} color="var(--chart-1)" />
+                <StatRow label="Best retention channel"          value={ret.topRetentionChannels[0] || "—"} color="var(--color-success)" />
             </Section>
         </>
     );
@@ -418,12 +418,12 @@ function PromoterSalesDrill({ data }: { data: AnalyticsV2 }) {
     return (
         <>
             <Section title="Promoter-driven revenue">
-                <StatRow label="Total promoter-driven"  value={data.executive.promoterDrivenSales.formatted} color="var(--v-chart-1)" />
-                <StatRow label="Direct sales"           value={data.executive.directSales.formatted} color="var(--v-chart-2)" />
-                <StatRow label="Promoter payout owed"   value={cur(data.revenueIntelligence.breakdown.promoterPayoutExposure)} color="var(--v-warning)" />
+                <StatRow label="Total promoter-driven"  value={data.executive.promoterDrivenSales.formatted} color="var(--chart-1)" />
+                <StatRow label="Direct sales"           value={data.executive.directSales.formatted} color="var(--chart-2)" />
+                <StatRow label="Promoter payout owed"   value={cur(data.revenueIntelligence.breakdown.promoterPayoutExposure)} color="var(--color-warning)" />
             </Section>
             <Section title="Top promoters by revenue">
-                <HorizRankBars rows={ranks(top, "var(--v-orange)")} />
+                <HorizRankBars rows={ranks(top, "var(--accent)")} />
             </Section>
         </>
     );
@@ -434,31 +434,31 @@ function PendingPayoutDrill({ data }: { data: AnalyticsV2 }) {
     return (
         <>
             <Section title="Payout breakdown">
-                <StatRow label="Pending"    value={cur(data.finance.pendingPayout)}    color="var(--v-warning)" />
-                <StatRow label="Processing" value={cur(data.finance.processingPayout)} color="var(--v-chart-2)" />
-                <StatRow label="Completed"  value={cur(data.finance.completedPayout)}  color="var(--v-success)" />
-                <StatRow label="Failed"     value={cur(data.finance.failedPayout)}     color="var(--v-error)" />
+                <StatRow label="Pending"    value={cur(data.finance.pendingPayout)}    color="var(--color-warning)" />
+                <StatRow label="Processing" value={cur(data.finance.processingPayout)} color="var(--chart-2)" />
+                <StatRow label="Completed"  value={cur(data.finance.completedPayout)}  color="var(--color-success)" />
+                <StatRow label="Failed"     value={cur(data.finance.failedPayout)}     color="var(--color-error)" />
             </Section>
             <Section title="Recent payouts">
                 {recent.length > 0 ? (
                     <div className="space-y-2">
                         {recent.map((p, i) => (
                             <div key={i} className="flex items-center justify-between p-3 rounded-2xl"
-                                style={{ background: "var(--v-neutral-bg)", border: "1px solid var(--v-border)" }}>
+                                style={{ background: "var(--bg-fill)", border: "1px solid var(--border-subtle)" }}>
                                 <div>
-                                    <p className="text-[12px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
+                                    <p className="text-[12px] font-semibold" style={{ color: "var(--text-primary)" }}>
                                         {p.eventTitle || `Payout #${p.id.slice(-4)}`}
                                     </p>
-                                    <p className="text-[10px] mt-0.5" style={{ color: "var(--v-text-tertiary)" }}>{p.date}</p>
+                                    <p className="text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>{p.date}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[13px] font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                    <p className="text-[13px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
                                         {cur(p.amount)}
                                     </p>
                                     <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full"
                                         style={{
-                                            background: p.status === "completed" ? "var(--v-success-bg)" : "var(--v-warning-bg)",
-                                            color: p.status === "completed" ? "var(--v-success)" : "var(--v-warning)",
+                                            background: p.status === "completed" ? "var(--color-success-bg)" : "var(--color-warning-bg)",
+                                            color: p.status === "completed" ? "var(--color-success)" : "var(--color-warning)",
                                         }}>
                                         {p.status}
                                     </span>
@@ -467,7 +467,7 @@ function PendingPayoutDrill({ data }: { data: AnalyticsV2 }) {
                         ))}
                     </div>
                 ) : (
-                    <p className="text-[12px] py-2" style={{ color: "var(--v-text-muted)" }}>No payout records yet.</p>
+                    <p className="text-[12px] py-2" style={{ color: "var(--text-tertiary)" }}>No payout records yet.</p>
                 )}
             </Section>
         </>
@@ -513,7 +513,7 @@ function DrillContent({ drillKey, data }: { drillKey: string; data: AnalyticsV2 
         case "pending-payout": return <PendingPayoutDrill  data={data} />;
         default:
             return (
-                <p className="text-[13px] py-8 text-center" style={{ color: "var(--v-text-muted)" }}>
+                <p className="text-[13px] py-8 text-center" style={{ color: "var(--text-tertiary)" }}>
                     No drill-down available for this metric.
                 </p>
             );
@@ -553,8 +553,8 @@ export function DrillDownDrawer({
                         className="fixed right-0 top-0 bottom-0 z-50 flex flex-col overflow-hidden"
                         style={{
                             width: "min(500px, 100vw)",
-                            background: "var(--v-hero)",
-                            borderLeft: "1px solid var(--v-border)",
+                            background: "var(--bg-base)",
+                            borderLeft: "1px solid var(--border-subtle)",
                             boxShadow: "-32px 0 80px rgba(0,0,0,0.5)",
                         }}
                         initial={{ x: "100%" }}
@@ -564,21 +564,21 @@ export function DrillDownDrawer({
                     >
                         {/* Header */}
                         <div className="flex items-start justify-between px-6 pt-6 pb-5 shrink-0"
-                            style={{ borderBottom: "1px solid var(--v-border)" }}>
+                            style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                             <div className="flex-1 min-w-0 pr-4">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <ArrowRight className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--v-orange)" }} />
+                                    <ArrowRight className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--accent)" }} />
                                     <span className="text-[10px] font-black uppercase tracking-widest"
-                                        style={{ color: "var(--v-orange)" }}>
+                                        style={{ color: "var(--accent)" }}>
                                         Drill-down
                                     </span>
                                 </div>
                                 <h2 className="text-[18px] font-black leading-tight"
-                                    style={{ color: "var(--v-text-primary)" }}>
+                                    style={{ color: "var(--text-primary)" }}>
                                     {meta?.label || drillKey}
                                 </h2>
                                 <p className="text-[12px] mt-1 font-medium"
-                                    style={{ color: "var(--v-text-tertiary)" }}>
+                                    style={{ color: "var(--text-tertiary)" }}>
                                     {meta?.description || "Detailed breakdown"}
                                 </p>
                             </div>
@@ -587,21 +587,21 @@ export function DrillDownDrawer({
                                 {meta && (
                                     <div className="text-right">
                                         <p className="text-[22px] font-black tabular-nums leading-none"
-                                            style={{ color: "var(--v-text-primary)" }}>
+                                            style={{ color: "var(--text-primary)" }}>
                                             {meta.valueFn(data)}
                                         </p>
                                         <p className="text-[10px] mt-0.5 font-medium"
-                                            style={{ color: "var(--v-text-muted)" }}>
+                                            style={{ color: "var(--text-tertiary)" }}>
                                             current value
                                         </p>
                                     </div>
                                 )}
                                 <button
                                     onClick={onClose}
-                                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors hover:bg-[var(--v-neutral-bg)]"
-                                    style={{ border: "1px solid var(--v-border)" }}
+                                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors hover:bg-[var(--bg-fill)]"
+                                    style={{ border: "1px solid var(--border-subtle)" }}
                                 >
-                                    <X className="w-4 h-4" style={{ color: "var(--v-text-tertiary)" }} />
+                                    <X className="w-4 h-4" style={{ color: "var(--text-tertiary)" }} />
                                 </button>
                             </div>
                         </div>
@@ -620,9 +620,9 @@ export function DrillDownDrawer({
 
                         {/* Footer */}
                         <div className="px-6 py-4 shrink-0"
-                            style={{ borderTop: "1px solid var(--v-border)" }}>
+                            style={{ borderTop: "1px solid var(--border-subtle)" }}>
                             <p className="text-[10px] font-medium text-center"
-                                style={{ color: "var(--v-text-muted)" }}>
+                                style={{ color: "var(--text-tertiary)" }}>
                                 Data reflects selected date range · Click outside to close
                             </p>
                         </div>

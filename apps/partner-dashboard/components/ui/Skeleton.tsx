@@ -17,7 +17,7 @@ export function Skeleton({ className, animate = true, style }: SkeletonProps) {
     return (
         <div
             className={cn(
-                "skeleton bg-surface-tertiary rounded-lg",
+                "skeleton bg-[var(--bg-secondary)] rounded-lg",
                 animate && "relative overflow-hidden",
                 className
             )}
@@ -72,7 +72,7 @@ export function SkeletonButton({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
 export function SkeletonCard({ children, className }: { children?: ReactNode; className?: string }) {
     return (
         <div className={cn(
-            "bg-surface-elevated border border-border-subtle rounded-2xl p-6",
+            "bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-2xl p-6",
             className
         )}>
             {children || (
@@ -153,7 +153,7 @@ export function SkeletonTable({ rows = 5, columns = 4 }: { rows?: number; column
 // List Item Skeleton
 export function SkeletonListItem() {
     return (
-        <div className="flex items-center gap-4 py-4 border-b border-border-subtle">
+        <div className="flex items-center gap-4 py-4 border-b border-[var(--border-subtle)]">
             <SkeletonAvatar size="md" />
             <div className="flex-1 space-y-2">
                 <SkeletonText width="50%" />
@@ -167,7 +167,7 @@ export function SkeletonListItem() {
 // Event Card Skeleton
 export function SkeletonEventCard() {
     return (
-        <div className="bg-surface-elevated border border-border-subtle rounded-3xl overflow-hidden">
+        <div className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-3xl overflow-hidden">
             <Skeleton className="h-48 rounded-none" />
             <div className="p-5 space-y-4">
                 <div className="flex items-center gap-2">
@@ -191,7 +191,7 @@ export function SkeletonEventCard() {
 // Chart Skeleton
 export function SkeletonChart({ height = "h-64" }: { height?: string }) {
     return (
-        <div className={cn("relative bg-surface-secondary rounded-xl overflow-hidden", height)}>
+        <div className={cn("relative bg-[var(--bg-fill)] rounded-xl overflow-hidden", height)}>
             {/* Fake bar chart lines */}
             <div className="absolute inset-0 flex items-end justify-around p-6 gap-3">
                 {[40, 65, 45, 80, 55, 70, 50, 75, 60, 85, 45, 70].map((height, i) => (
@@ -246,7 +246,7 @@ export function SkeletonCalendar() {
 // Sidebar Skeleton
 export function SkeletonSidebar() {
     return (
-        <div className="w-[280px] h-screen bg-[var(--sidebar-bg)] border-r border-border-subtle p-6 space-y-6">
+        <div className="w-[280px] h-screen bg-[var(--sidebar-bg)] border-r border-[var(--border-subtle)] p-6 space-y-6">
             {/* Brand */}
             <div className="flex items-center gap-3 mb-8">
                 <Skeleton className="w-10 h-10 rounded-lg" />
@@ -269,9 +269,9 @@ export function SkeletonSidebar() {
 // Full Page Loading
 export function SkeletonDashboard() {
     return (
-        <div className="min-h-screen bg-surface-base">
+        <div className="min-h-screen bg-[var(--bg-base)]">
             {/* Top Bar */}
-            <div className="h-16 border-b border-border-subtle px-6 flex items-center justify-between">
+            <div className="h-16 border-b border-[var(--border-subtle)] px-6 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <Skeleton className="w-24 h-6 rounded-full" />
                     <Skeleton className="w-32 h-9 rounded-lg" />

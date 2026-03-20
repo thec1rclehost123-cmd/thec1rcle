@@ -100,11 +100,11 @@ const ACTION_GROUPS: { group: string; actions: { key: StaffAction; label: string
 ];
 
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
-    OWNER:         { bg: "rgba(245,158,11,0.15)", text: "var(--v-orange)" },
-    MANAGER:       { bg: "rgba(59,130,246,0.15)",  text: "var(--v-info)" },
-    FINANCE_ADMIN: { bg: "rgba(16,185,129,0.15)",  text: "var(--v-success)" },
-    STAFF:         { bg: "rgba(113,113,122,0.2)",   text: "var(--v-text-muted)" },
-    SECURITY:      { bg: "rgba(239,68,68,0.15)",    text: "var(--v-error)" },
+    OWNER:         { bg: "rgba(245,158,11,0.15)", text: "var(--accent)" },
+    MANAGER:       { bg: "rgba(59,130,246,0.15)",  text: "var(--color-info)" },
+    FINANCE_ADMIN: { bg: "rgba(16,185,129,0.15)",  text: "var(--color-success)" },
+    STAFF:         { bg: "rgba(113,113,122,0.2)",   text: "var(--text-tertiary)" },
+    SECURITY:      { bg: "rgba(239,68,68,0.15)",    text: "var(--color-error)" },
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -321,8 +321,8 @@ export default function ProfilesView() {
     };
 
     if (loading) return (
-        <div className="flex items-center justify-center py-20 bg-[var(--v-card)] rounded-2xl border border-border-subtle">
-            <Loader2 className="w-5 h-5 animate-spin text-[var(--v-orange)]" />
+        <div className="flex items-center justify-center py-20 bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)]">
+            <Loader2 className="w-5 h-5 animate-spin text-[var(--accent)]" />
         </div>
     );
 
@@ -331,9 +331,9 @@ export default function ProfilesView() {
             {/* Profile Selection List */}
             <div className="lg:col-span-4 space-y-3">
                 <div className="flex items-center justify-between px-2">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-[var(--v-text-muted)]">Active Profiles</h3>
+                    <h3 className="text-xs font-black uppercase tracking-widest text-[var(--text-tertiary)]">Active Profiles</h3>
                     <Link href="/venue/staff/profiles/new">
-                        <button className="p-1.5 rounded-lg bg-surface-tertiary hover:bg-[var(--v-orange-dim)] text-[var(--v-orange)] transition-colors">
+                        <button className="p-1.5 rounded-lg bg-[var(--bg-secondary)] hover:bg-[var(--accent-muted)] text-[var(--accent)] transition-colors">
                             <Plus className="w-3.5 h-3.5" />
                         </button>
                     </Link>
@@ -352,34 +352,34 @@ export default function ProfilesView() {
                                 onClick={() => setSelectedProfileId(prev => prev === p.id ? null : p.id)}
                                 className={`group p-4 rounded-2xl border transition-all cursor-pointer ${
                                     isSelected 
-                                        ? "border-[var(--v-orange)] bg-[var(--v-orange-dim)]" 
-                                        : "border-border-subtle bg-[var(--v-card)] hover:border-border-default hover:bg-surface-tertiary"
+                                        ? "border-[var(--accent)] bg-[var(--accent-muted)]" 
+                                        : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-default)] hover:bg-[var(--bg-secondary)]"
                                 }`}
                             >
                                 <div className="flex items-center gap-4">
                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-colors ${
-                                        isSelected ? "border-[var(--v-orange)]/20" : "border-border-subtle"
+                                        isSelected ? "border-[var(--accent)]/20" : "border-[var(--border-subtle)]"
                                     }`} style={{ background: rc.bg }}>
                                         <Shield className="w-5 h-5" style={{ color: rc.text }} />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-[14px] font-bold text-[var(--v-text-primary)] truncate">{p.profileName}</p>
+                                        <p className="text-[14px] font-bold text-[var(--text-primary)] truncate">{p.profileName}</p>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md" style={{ background: rc.bg, color: rc.text }}>
                                                 {p.baseRole}
                                             </span>
-                                            <span className="text-[11px] text-[var(--v-text-muted)]">{count} Members</span>
+                                            <span className="text-[11px] text-[var(--text-tertiary)]">{count} Members</span>
                                         </div>
                                     </div>
-                                    <ChevronDown className={`w-4 h-4 text-[var(--v-text-muted)] transition-transform ${isSelected ? "rotate-180" : ""}`} />
+                                    <ChevronDown className={`w-4 h-4 text-[var(--text-tertiary)] transition-transform ${isSelected ? "rotate-180" : ""}`} />
                                 </div>
                             </motion.div>
                         );
                     })}
 
                     {profiles.length === 0 && (
-                        <div className="p-8 text-center bg-[var(--v-card)] rounded-2xl border border-dashed border-border-default">
-                            <p className="text-[12px] text-[var(--v-text-muted)]">No custom profiles yet.</p>
+                        <div className="p-8 text-center bg-[var(--bg-elevated)] rounded-2xl border border-dashed border-[var(--border-default)]">
+                            <p className="text-[12px] text-[var(--text-tertiary)]">No custom profiles yet.</p>
                         </div>
                     )}
                 </div>
@@ -394,18 +394,18 @@ export default function ProfilesView() {
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
-                            className="bg-[var(--v-card)] rounded-[2rem] border border-border-subtle overflow-hidden"
+                            className="bg-[var(--bg-elevated)] rounded-[2rem] border border-[var(--border-subtle)] overflow-hidden"
                             style={{ boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)" }}
                         >
                             {/* Editor Header */}
-                            <div className="px-8 py-6 border-b border-border-subtle bg-surface-tertiary/30 flex items-center justify-between">
+                            <div className="px-8 py-6 border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]/30 flex items-center justify-between">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-[1.25rem] flex items-center justify-center border border-border-default bg-surface-tertiary">
-                                        <Shield className="w-6 h-6 text-[var(--v-orange)]" />
+                                    <div className="w-12 h-12 rounded-[1.25rem] flex items-center justify-center border border-[var(--border-default)] bg-[var(--bg-secondary)]">
+                                        <Shield className="w-6 h-6 text-[var(--accent)]" />
                                     </div>
                                     <div>
-                                        <h2 className="text-xl font-bold text-[var(--v-text-primary)]">{selectedProfile.profileName}</h2>
-                                        <p className="text-[11px] text-[var(--v-text-muted)] uppercase tracking-[0.2em] font-black">Configuration Suite</p>
+                                        <h2 className="text-xl font-bold text-[var(--text-primary)]">{selectedProfile.profileName}</h2>
+                                        <p className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-[0.2em] font-black">Configuration Suite</p>
                                     </div>
                                 </div>
                                 <button
@@ -428,11 +428,11 @@ export default function ProfilesView() {
                                                     onClick={() => setEditTabs(prev => ({ ...prev, [key]: !prev[key] }))}
                                                     className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
                                                         editTabs[key] 
-                                                            ? "bg-[var(--v-orange-dim)] border-[var(--v-orange)]/30" 
-                                                            : "bg-surface-tertiary border-border-subtle opacity-50 grayscale"
+                                                            ? "bg-[var(--accent-muted)] border-[var(--accent)]/30" 
+                                                            : "bg-[var(--bg-secondary)] border-[var(--border-subtle)] opacity-50 grayscale"
                                                     }`}
                                                 >
-                                                    <Icon className={`w-4 h-4 ${editTabs[key] ? "text-[var(--v-orange)]" : "text-[var(--v-text-muted)]"}`} />
+                                                    <Icon className={`w-4 h-4 ${editTabs[key] ? "text-[var(--accent)]" : "text-[var(--text-tertiary)]"}`} />
                                                     <span className="text-[11px] font-bold">{label}</span>
                                                 </div>
                                             ))}
@@ -442,7 +442,7 @@ export default function ProfilesView() {
                                     <div className="space-y-10">
                                         {/* PII Policy */}
                                         <Section title="Data Masking (PII)">
-                                            <div className="space-y-2 bg-surface-tertiary p-4 rounded-2xl border border-border-subtle">
+                                            <div className="space-y-2 bg-[var(--bg-secondary)] p-4 rounded-2xl border border-[var(--border-subtle)]">
                                                 {([
                                                     { key: "showPhone" as const,        label: "Phone Numbers" },
                                                     { key: "showEmail" as const,        label: "Email Addresses" },
@@ -452,10 +452,10 @@ export default function ProfilesView() {
                                                 ]).map(({ key, label }) => (
                                                     <div key={key} className="flex items-center justify-between group">
                                                         <div className="flex items-center gap-3">
-                                                            <div className={`p-1.5 rounded-lg transition-colors ${editPii[key] ? "bg-[var(--v-orange-dim)] text-[var(--v-orange)]" : "bg-surface-tertiary text-[var(--v-text-muted)]"}`}>
+                                                            <div className={`p-1.5 rounded-lg transition-colors ${editPii[key] ? "bg-[var(--accent-muted)] text-[var(--accent)]" : "bg-[var(--bg-secondary)] text-[var(--text-tertiary)]"}`}>
                                                                 {editPii[key] ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
                                                             </div>
-                                                            <span className="text-[12px] font-medium text-[var(--v-text-secondary)]">{label}</span>
+                                                            <span className="text-[12px] font-medium text-[var(--text-secondary)]">{label}</span>
                                                         </div>
                                                         <Toggle size="sm" checked={!!editPii[key]} onChange={v => setEditPii(prev => ({ ...prev, [key]: v }))} />
                                                     </div>
@@ -472,12 +472,12 @@ export default function ProfilesView() {
                                                         onClick={() => setEditScope(scope)}
                                                         className={`p-3 rounded-xl border cursor-pointer transition-all ${
                                                             editScope === scope 
-                                                                ? "bg-surface-tertiary border-[var(--v-orange)] shadow-[0_0_20px_rgba(249,115,22,0.1)]" 
-                                                                : "bg-surface-tertiary border-white/[0.02] hover:border-border-default opacity-60"
+                                                                ? "bg-[var(--bg-secondary)] border-[var(--accent)] shadow-[0_0_20px_rgba(249,115,22,0.1)]" 
+                                                                : "bg-[var(--bg-secondary)] border-white/[0.02] hover:border-[var(--border-default)] opacity-60"
                                                         }`}
                                                     >
                                                         <p className="text-[12px] font-bold uppercase tracking-widest">{scope.replace('_', ' ')}</p>
-                                                        <p className="text-[10px] text-[var(--v-text-muted)] mt-0.5">
+                                                        <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">
                                                             {scope === 'none' && 'Access completely disabled'}
                                                             {scope === 'read_only' && 'Visualization only, no mutations'}
                                                             {scope === 'editable' && 'Full check-in and entry control'}
@@ -494,11 +494,11 @@ export default function ProfilesView() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
                                         {ACTION_GROUPS.map(grp => (
                                             <div key={grp.group} className="space-y-3">
-                                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--v-orange)]">{grp.group}</p>
+                                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--accent)]">{grp.group}</p>
                                                 <div className="space-y-1">
                                                     {grp.actions.map(({ key, label }) => (
                                                         <div key={key} className="flex items-center justify-between py-2 border-b border-white/[0.02] last:border-0">
-                                                            <span className="text-[12px] text-[var(--v-text-secondary)]">{label}</span>
+                                                            <span className="text-[12px] text-[var(--text-secondary)]">{label}</span>
                                                             <Toggle size="sm" checked={editActions[key] ?? false} onChange={v => setEditActions(prev => ({ ...prev, [key]: v }))} />
                                                         </div>
                                                     ))}
@@ -512,12 +512,12 @@ export default function ProfilesView() {
                                 <Section title={`Assigned Members (${profileStaff.length})`}>
                                     <div className="flex flex-wrap gap-2">
                                         {profileStaff.map(s => (
-                                            <div key={s.id} className="flex items-center gap-2 px-3 py-1.5 bg-surface-tertiary border border-border-subtle rounded-full group">
-                                                <div className="w-5 h-5 rounded-full bg-[var(--v-orange)] flex items-center justify-center text-[7px] font-black text-white shrink-0">
+                                            <div key={s.id} className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-full group">
+                                                <div className="w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center text-[7px] font-black text-white shrink-0">
                                                     {initials(s.name)}
                                                 </div>
                                                 <span className="text-[11px] font-medium">{s.name}</span>
-                                                <button onClick={() => s.userId && handleRemove(s.userId)} className="p-1 rounded-full hover:bg-red-400/10 text-[var(--v-text-muted)] hover:text-red-400 transition-colors">
+                                                <button onClick={() => s.userId && handleRemove(s.userId)} className="p-1 rounded-full hover:bg-red-400/10 text-[var(--text-tertiary)] hover:text-red-400 transition-colors">
                                                     <X className="w-3 h-3" />
                                                 </button>
                                             </div>
@@ -527,12 +527,12 @@ export default function ProfilesView() {
                                                 <select 
                                                     value={assignTarget}
                                                     onChange={e => setAssignTarget(e.target.value)}
-                                                    className="bg-surface-tertiary border border-border-default rounded-full px-4 py-1.5 text-[11px] outline-none hover:border-[var(--v-orange)] transition-colors appearance-none pr-8 cursor-pointer"
+                                                    className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-full px-4 py-1.5 text-[11px] outline-none hover:border-[var(--accent)] transition-colors appearance-none pr-8 cursor-pointer"
                                                 >
                                                     <option value="">Quick Assign...</option>
                                                     {unassignedStaff.map(s => <option key={s.id} value={s.userId}>{s.name}</option>)}
                                                 </select>
-                                                <button onClick={handleAssign} disabled={!assignTarget || assigning} className="p-1.5 rounded-full bg-[var(--v-orange)] text-white hover:scale-110 active:scale-90 transition-transform disabled:opacity-50">
+                                                <button onClick={handleAssign} disabled={!assignTarget || assigning} className="p-1.5 rounded-full bg-[var(--accent)] text-white hover:scale-110 active:scale-90 transition-transform disabled:opacity-50">
                                                     <Plus className="w-4 h-4" />
                                                 </button>
                                              </div>
@@ -542,23 +542,23 @@ export default function ProfilesView() {
                             </div>
 
                             {/* Sticky Save Bar */}
-                            <div className="px-8 py-6 bg-surface-tertiary/50 border-t border-border-subtle flex items-center justify-between">
+                            <div className="px-8 py-6 bg-[var(--bg-secondary)]/50 border-t border-[var(--border-subtle)] flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     {saved ? (
-                                        <div className="flex items-center gap-2 text-[var(--v-success)]">
+                                        <div className="flex items-center gap-2 text-[var(--color-success)]">
                                             <div className="w-2 h-2 rounded-full bg-current animate-pulse" />
                                             <span className="text-[11px] font-black uppercase tracking-widest">Configuration Synced</span>
                                         </div>
                                     ) : saveError ? (
                                         <span className="text-[11px] text-red-400 font-bold">{saveError}</span>
                                     ) : (
-                                        <span className="text-[10px] text-[var(--v-text-muted)] font-bold uppercase tracking-widest">Unsaved Changes Detected</span>
+                                        <span className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase tracking-widest">Unsaved Changes Detected</span>
                                     )}
                                 </div>
                                 <button
                                     onClick={handleSave}
                                     disabled={saving}
-                                    className="px-8 py-3 rounded-2xl bg-[var(--v-orange)] text-white text-xs font-black uppercase tracking-[0.2em] shadow-[0_10px_30px_rgba(249,115,22,0.3)] hover:translate-y-[-2px] active:translate-y-[0] transition-all flex items-center gap-3 disabled:opacity-50"
+                                    className="px-8 py-3 rounded-2xl bg-[var(--accent)] text-white text-xs font-black uppercase tracking-[0.2em] shadow-[0_10px_30px_rgba(249,115,22,0.3)] hover:translate-y-[-2px] active:translate-y-[0] transition-all flex items-center gap-3 disabled:opacity-50"
                                 >
                                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                                     Sync Configuration
@@ -566,12 +566,12 @@ export default function ProfilesView() {
                             </div>
                         </motion.div>
                     ) : (
-                        <div className="h-[70vh] flex flex-col items-center justify-center text-center p-12 bg-surface-tertiary/10 rounded-[2rem] border border-dashed border-white/[0.05]">
-                            <div className="w-20 h-20 rounded-[2rem] bg-surface-tertiary flex items-center justify-center mb-6">
-                                <Shield className="w-10 h-10 text-[var(--v-text-muted)]" />
+                        <div className="h-[70vh] flex flex-col items-center justify-center text-center p-12 bg-[var(--bg-secondary)]/10 rounded-[2rem] border border-dashed border-white/[0.05]">
+                            <div className="w-20 h-20 rounded-[2rem] bg-[var(--bg-secondary)] flex items-center justify-center mb-6">
+                                <Shield className="w-10 h-10 text-[var(--text-tertiary)]" />
                             </div>
-                            <h3 className="text-lg font-bold text-[var(--v-text-primary)]">Select an Access Profile</h3>
-                            <p className="text-[13px] text-[var(--v-text-muted)] max-w-xs mt-2">
+                            <h3 className="text-lg font-bold text-[var(--text-primary)]">Select an Access Profile</h3>
+                            <p className="text-[13px] text-[var(--text-tertiary)] max-w-xs mt-2">
                                 Pick a profile from the registry to view and modify its granular permissions and member assignments.
                             </p>
                         </div>

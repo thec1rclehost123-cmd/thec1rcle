@@ -55,11 +55,11 @@ const RechartsArea = lazy(() =>
                             />
                             <Tooltip
                                 contentStyle={{
-                                    background: "var(--v-card)",
-                                    border: "1px solid var(--v-border)",
+                                    background: "var(--bg-elevated)",
+                                    border: "1px solid var(--border-subtle)",
                                     borderRadius: 12,
                                     fontSize: 12,
-                                    color: "var(--v-text-primary)",
+                                    color: "var(--text-primary)",
                                 }}
                                 cursor={{ stroke: "rgba(128,128,128,0.20)" }}
                             />
@@ -172,11 +172,11 @@ const RechartsLine = lazy(() =>
                             />
                             <Tooltip
                                 contentStyle={{
-                                    background: "var(--v-card)",
-                                    border: "1px solid var(--v-border)",
+                                    background: "var(--bg-elevated)",
+                                    border: "1px solid var(--border-subtle)",
                                     borderRadius: 12,
                                     fontSize: 12,
-                                    color: "var(--v-text-primary)",
+                                    color: "var(--text-primary)",
                                 }}
                                 cursor={{ stroke: "rgba(128,128,128,0.20)" }}
                             />
@@ -227,7 +227,7 @@ export function VenueChart({
     className,
 }: VenueChartProps) {
     const shouldReduceMotion = useReducedMotion();
-    const color = config.color || "var(--v-chart-1)";
+    const color = config.color || "var(--chart-1)";
     const gradientId = config.gradientId || `grad-${config.dataKey}`;
 
     if (loading) {
@@ -280,15 +280,15 @@ function ChartEmpty({ height = 240, label, className }: { height?: number; label
             )}
             style={{
                 height,
-                background: "var(--v-neutral-bg)",
-                border: "1px dashed var(--v-border)",
+                background: "var(--bg-fill)",
+                border: "1px dashed var(--border-subtle)",
             }}
             role="img"
             aria-label={`${label}: No data for this period`}
         >
             <span
                 className="text-[11px] font-semibold uppercase tracking-widest"
-                style={{ color: "var(--v-text-muted)" }}
+                style={{ color: "var(--text-tertiary)" }}
             >
                 No data for this period
             </span>

@@ -307,16 +307,7 @@ function LoginForm() {
 
                         {/* Password Input */}
                         <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                                <label className="input-label">Password</label>
-                                <button
-                                    type="button"
-                                    onClick={() => router.push('/forgot-password')}
-                                    className="text-[12px] font-medium text-[var(--accent-primary)] hover:underline"
-                                >
-                                    Forgot password?
-                                </button>
-                            </div>
+                            <label className="input-label">Password</label>
                             <div className="relative group">
                                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-placeholder)] group-focus-within:text-[var(--accent-primary)] transition-colors" />
                                 <input
@@ -333,6 +324,15 @@ function LoginForm() {
                                     className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-placeholder)] hover:text-[var(--text-secondary)] transition-colors"
                                 >
                                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                </button>
+                            </div>
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => router.push('/forgot-password')}
+                                    className="text-[12px] font-medium text-[var(--accent-primary)] hover:underline"
+                                >
+                                    Forgot password?
                                 </button>
                             </div>
                         </div>

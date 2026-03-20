@@ -116,7 +116,7 @@ export default function StudioShell({
     ];
 
     return (
-        <div style={{ minHeight: "100vh", background: "var(--v-canvas, #111113)" }}>
+        <div style={{ minHeight: "100vh", background: "var(--bg-base)" }}>
 
             {/* ── Sticky header ──────────────────────────────────────────── */}
             <div
@@ -140,7 +140,7 @@ export default function StudioShell({
                             <div
                                 className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
                                 style={{
-                                    background: "linear-gradient(135deg, var(--v-orange) 0%, #cc3311 100%)",
+                                    background: "linear-gradient(135deg, var(--accent) 0%, #cc3311 100%)",
                                     boxShadow: "0 0 16px rgba(244,74,34,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
                                 }}
                             >
@@ -148,7 +148,7 @@ export default function StudioShell({
                             </div>
                             <span
                                 className="text-[14px] font-black tracking-[0.12em] uppercase"
-                                style={{ color: "var(--v-text-primary)", letterSpacing: "0.12em" }}
+                                style={{ color: "var(--text-primary)", letterSpacing: "0.12em" }}
                             >
                                 Stats
                             </span>
@@ -194,7 +194,7 @@ export default function StudioShell({
                                         ? "rgba(244,74,34,0.08)"
                                         : "rgba(255,255,255,0.04)",
                                     border: `1px solid ${isEventSelectorOpen ? "rgba(244,74,34,0.35)" : "rgba(255,255,255,0.08)"}`,
-                                    color: "var(--v-text-primary)",
+                                    color: "var(--text-primary)",
                                 }}
                             >
                                 <div
@@ -203,7 +203,7 @@ export default function StudioShell({
                                 >
                                     <Play
                                         className="w-2.5 h-2.5"
-                                        style={{ color: "var(--v-orange)" }}
+                                        style={{ color: "var(--accent)" }}
                                         fill="currentColor"
                                     />
                                 </div>
@@ -244,7 +244,7 @@ export default function StudioShell({
                                                 style={{
                                                     background: "rgba(255,255,255,0.04)",
                                                     border: "1px solid rgba(255,255,255,0.08)",
-                                                    color: "var(--v-text-primary)",
+                                                    color: "var(--text-primary)",
                                                 }}
                                             />
                                         </div>
@@ -261,7 +261,7 @@ export default function StudioShell({
                                                                 ? "rgba(244,74,34,0.12)"
                                                                 : "transparent",
                                                             color: isSelected
-                                                                ? "var(--v-orange)"
+                                                                ? "var(--accent)"
                                                                 : "rgba(255,255,255,0.55)",
                                                         }}
                                                     >
@@ -269,7 +269,7 @@ export default function StudioShell({
                                                         {isSelected && (
                                                             <CheckCircle2
                                                                 className="w-3.5 h-3.5 shrink-0"
-                                                                style={{ color: "var(--v-orange)" }}
+                                                                style={{ color: "var(--accent)" }}
                                                             />
                                                         )}
                                                     </button>
@@ -299,7 +299,7 @@ export default function StudioShell({
                                     style={
                                         range === r.id
                                             ? {
-                                                background: "var(--v-orange)",
+                                                background: "var(--accent)",
                                                 color: "#fff",
                                                 boxShadow: "0 2px 12px rgba(244,74,34,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
                                             }
@@ -352,7 +352,7 @@ export default function StudioShell({
                                 <Icon
                                     className="w-3.5 h-3.5 transition-all duration-300 transform"
                                     style={{
-                                        color: active ? "var(--v-orange)" : "rgba(255,255,255,0.25)",
+                                        color: active ? "var(--accent)" : "rgba(255,255,255,0.25)",
                                         filter: active ? "drop-shadow(0 0 8px rgba(244,74,34,0.45))" : "none",
                                         transform: active ? "scale(1.15)" : "scale(1)",
                                     }}
@@ -373,7 +373,7 @@ export default function StudioShell({
                                         <div
                                             className="absolute bottom-0 left-0 right-0 h-[2.5px] z-20"
                                             style={{
-                                                background: "var(--v-orange)",
+                                                background: "var(--accent)",
                                                 boxShadow: "0 -4px 12px rgba(244,74,34,0.5), 0 0 24px rgba(244,74,34,0.25)",
                                             }}
                                         />
@@ -411,7 +411,7 @@ export default function StudioShell({
                             <Link
                                 href={`/${role}/events`}
                                 className="inline-flex items-center gap-1.5 mb-3 text-[11px] font-semibold hover:underline"
-                                style={{ color: "var(--v-text-tertiary)" }}
+                                style={{ color: "var(--text-tertiary)" }}
                             >
                                 ← Back to Events
                             </Link>
@@ -421,13 +421,13 @@ export default function StudioShell({
                             <div
                                 className="w-[3px] h-7 rounded-full"
                                 style={{
-                                    background: "linear-gradient(180deg, var(--v-orange), rgba(244,74,34,0.2))",
+                                    background: "linear-gradient(180deg, var(--accent), rgba(244,74,34,0.2))",
                                     boxShadow: "0 0 10px rgba(244,74,34,0.5)",
                                 }}
                             />
                             <h1
                                 className="text-[26px] font-black tracking-tight leading-none"
-                                style={{ color: "var(--v-text-primary)" }}
+                                style={{ color: "var(--text-primary)" }}
                             >
                                 {title}
                                 {/* Event name — inline muted chip when a specific event is active */}

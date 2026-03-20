@@ -27,7 +27,7 @@ export interface StatCardProps {
 
 const stateStyles: Record<StatState, { icon: string; card: string }> = {
     default: {
-        icon: "bg-surface-tertiary text-text-tertiary",
+        icon: "bg-[var(--bg-secondary)] text-[var(--text-tertiary)]",
         card: ""
     },
     success: {
@@ -69,7 +69,7 @@ export function StatCard({
 
     return (
         <div className={cn(
-            "bg-surface-elevated rounded-2xl border border-border-subtle transition-all hover:border-border-default hover:shadow-md",
+            "bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)] transition-all hover:border-[var(--border-default)] hover:shadow-md",
             compact ? "p-4" : "p-6",
             styles.card,
             className
@@ -84,11 +84,11 @@ export function StatCard({
                 </div>
             )}
 
-            <p className="text-label text-text-tertiary mb-2">{label}</p>
+            <p className="text-label text-[var(--text-tertiary)] mb-2">{label}</p>
 
             <div className="flex items-baseline gap-3 flex-wrap">
                 <p className={cn(
-                    "font-semibold text-text-primary leading-none tracking-tight",
+                    "font-semibold text-[var(--text-primary)] leading-none tracking-tight",
                     compact ? "text-[24px]" : "text-[32px]"
                 )}>
                     {value}
@@ -97,7 +97,7 @@ export function StatCard({
                     <span className={cn(
                         "text-[11px] font-semibold flex items-center gap-1 px-2 py-1 rounded-full",
                         change.direction === "neutral"
-                            ? "bg-surface-tertiary text-text-tertiary"
+                            ? "bg-[var(--bg-secondary)] text-[var(--text-tertiary)]"
                             : changeIsPositive
                                 ? "bg-[var(--trend-up-bg)] text-[var(--trend-up)]"
                                 : "bg-[var(--trend-down-bg)] text-[var(--trend-down)]"
@@ -110,7 +110,7 @@ export function StatCard({
             </div>
 
             {subtext && (
-                <p className="text-[12px] text-text-placeholder mt-2">{subtext}</p>
+                <p className="text-[12px] text-[var(--text-quaternary)] mt-2">{subtext}</p>
             )}
         </div>
     );

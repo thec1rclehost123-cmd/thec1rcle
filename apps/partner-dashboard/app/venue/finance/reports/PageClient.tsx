@@ -150,14 +150,14 @@ export default function VenueFinanceReportsClient() {
             <BentoCard
                 header={
                     <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4" style={{ color: "var(--v-text-muted)" }} />
+                        <Calendar className="w-4 h-4" style={{ color: "var(--text-tertiary)" }} />
                         <span className="v-label">DATE RANGE</span>
                     </div>
                 }
             >
                 <div className="flex items-center gap-4 flex-wrap">
                     <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--v-text-muted)" }}>
+                        <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--text-tertiary)" }}>
                             FROM
                         </label>
                         <input
@@ -165,17 +165,17 @@ export default function VenueFinanceReportsClient() {
                             value={fromDate}
                             onChange={(e) => setFromDate(e.target.value)}
                             max={toDate}
-                            className="px-4 py-2.5 rounded-xl text-[13px] outline-none focus:ring-1 focus:ring-[var(--v-orange)]"
+                            className="px-4 py-2.5 rounded-xl text-[13px] outline-none focus:ring-1 focus:ring-[var(--accent)]"
                             style={{
-                                background: "var(--v-elevated)",
-                                color: "var(--v-text-primary)",
-                                border: "1px solid var(--v-border)",
+                                background: "var(--bg-fill)",
+                                color: "var(--text-primary)",
+                                border: "1px solid var(--border-subtle)",
                             }}
                         />
                     </div>
-                    <div className="pt-5 text-[12px]" style={{ color: "var(--v-text-muted)" }}>to</div>
+                    <div className="pt-5 text-[12px]" style={{ color: "var(--text-tertiary)" }}>to</div>
                     <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--v-text-muted)" }}>
+                        <label className="block text-[11px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--text-tertiary)" }}>
                             TO
                         </label>
                         <input
@@ -184,15 +184,15 @@ export default function VenueFinanceReportsClient() {
                             onChange={(e) => setToDate(e.target.value)}
                             min={fromDate}
                             max={new Date().toISOString().slice(0, 10)}
-                            className="px-4 py-2.5 rounded-xl text-[13px] outline-none focus:ring-1 focus:ring-[var(--v-orange)]"
+                            className="px-4 py-2.5 rounded-xl text-[13px] outline-none focus:ring-1 focus:ring-[var(--accent)]"
                             style={{
-                                background: "var(--v-elevated)",
-                                color: "var(--v-text-primary)",
-                                border: "1px solid var(--v-border)",
+                                background: "var(--bg-fill)",
+                                color: "var(--text-primary)",
+                                border: "1px solid var(--border-subtle)",
                             }}
                         />
                     </div>
-                    <p className="pt-5 text-[12px]" style={{ color: "var(--v-text-muted)" }}>
+                    <p className="pt-5 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
                         {Math.round((new Date(toDate).getTime() - new Date(fromDate).getTime()) / 86400000)} days selected
                     </p>
                 </div>
@@ -212,7 +212,7 @@ export default function VenueFinanceReportsClient() {
 
             {/* PDF notice */}
             <div
-                className="flex items-start gap-3 px-5 py-4 rounded-[var(--v-r-xl)]"
+                className="flex items-start gap-3 px-5 py-4 rounded-[var(--r-xl)]"
                 style={{
                     background: "rgba(129,140,248,0.07)",
                     border: "1px solid rgba(129,140,248,0.15)",
@@ -241,10 +241,10 @@ function ReportTile({
 }) {
     return (
         <div
-            className="flex flex-col p-5 rounded-[var(--v-r-xl)]"
+            className="flex flex-col p-5 rounded-[var(--r-xl)]"
             style={{
-                background: "var(--v-card)",
-                border: `1px solid ${report.comingSoon ? "var(--v-border)" : "var(--v-border)"}`,
+                background: "var(--bg-elevated)",
+                border: `1px solid ${report.comingSoon ? "var(--border-subtle)" : "var(--border-subtle)"}`,
                 opacity: report.comingSoon ? 0.7 : 1,
             }}
         >
@@ -261,7 +261,7 @@ function ReportTile({
                 </div>
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-[14px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
+                        <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>
                             {report.title}
                         </p>
                         <span
@@ -279,7 +279,7 @@ function ReportTile({
                             </span>
                         )}
                     </div>
-                    <p className="text-[12px] mt-0.5" style={{ color: "var(--v-text-muted)" }}>
+                    <p className="text-[12px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
                         {report.description}
                     </p>
                 </div>
@@ -291,9 +291,9 @@ function ReportTile({
                 disabled={!report.available || isGenerating}
                 className="mt-auto flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-semibold transition-all hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
-                    background: report.available ? "var(--v-elevated)" : "transparent",
-                    color: "var(--v-text-secondary)",
-                    border: "1px solid var(--v-border)",
+                    background: report.available ? "var(--bg-fill)" : "transparent",
+                    color: "var(--text-secondary)",
+                    border: "1px solid var(--border-subtle)",
                 }}
             >
                 {isGenerating ? (

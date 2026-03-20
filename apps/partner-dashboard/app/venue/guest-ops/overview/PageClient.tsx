@@ -93,21 +93,21 @@ export default function GuestOpsOverviewPageClient() {
                     {kpis && kpis.totalExpected > 0 && (
                         <div
                             className="p-4 rounded-xl border"
-                            style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
+                            style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
                         >
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                    <TrendingUp size={14} className="text-[var(--v-text-muted)]" />
-                                    <span className="text-[13px] font-medium text-[var(--v-text-primary)]">Entry Progress</span>
+                                    <TrendingUp size={14} className="text-[var(--text-tertiary)]" />
+                                    <span className="text-[13px] font-medium text-[var(--text-primary)]">Entry Progress</span>
                                 </div>
-                                <span className="text-[13px] text-[var(--v-text-muted)] tabular-nums">
+                                <span className="text-[13px] text-[var(--text-tertiary)] tabular-nums">
                                     {kpis.checkedIn} / {kpis.totalExpected}
                                     {" "}({Math.round((kpis.checkedIn / kpis.totalExpected) * 100)}%)
                                 </span>
                             </div>
-                            <div className="h-2 rounded-full bg-[var(--v-elevated)] overflow-hidden">
+                            <div className="h-2 rounded-full bg-[var(--bg-fill)] overflow-hidden">
                                 <div
-                                    className="h-full rounded-full bg-green-500 transition-all duration-700"
+                                    className="h-full rounded-full bg-[var(--color-success)] transition-all duration-700"
                                     style={{ width: `${Math.min(100, Math.round((kpis.checkedIn / kpis.totalExpected) * 100))}%` }}
                                 />
                             </div>
@@ -118,12 +118,12 @@ export default function GuestOpsOverviewPageClient() {
                     {devices.length > 0 && (
                         <div
                             className="p-4 rounded-xl border"
-                            style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
+                            style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
                         >
                             <div className="flex items-center gap-2 mb-3">
-                                <Activity size={14} className="text-[var(--v-text-muted)]" />
-                                <span className="text-[13px] font-semibold text-[var(--v-text-primary)]">Scanner Devices</span>
-                                <span className="ml-auto text-[12px] text-[var(--v-text-muted)]">
+                                <Activity size={14} className="text-[var(--text-tertiary)]" />
+                                <span className="text-[13px] font-semibold text-[var(--text-primary)]">Scanner Devices</span>
+                                <span className="ml-auto text-[12px] text-[var(--text-tertiary)]">
                                     {devices.filter(d => d.isOnline).length} / {devices.length} online
                                 </span>
                             </div>
@@ -143,14 +143,14 @@ export default function GuestOpsOverviewPageClient() {
 // ── Sub-components ───────────────────────────────────────────────────────────
 
 const COLOR_MAP: Record<string, { icon: string; bg: string }> = {
-    blue:   { icon: "text-blue-500",   bg: "bg-blue-50 dark:bg-blue-900/20" },
-    green:  { icon: "text-green-500",  bg: "bg-green-50 dark:bg-green-900/20" },
-    red:    { icon: "text-red-500",    bg: "bg-red-50 dark:bg-red-900/20" },
-    amber:  { icon: "text-amber-500",  bg: "bg-amber-50 dark:bg-amber-900/20" },
-    purple: { icon: "text-purple-500", bg: "bg-purple-50 dark:bg-purple-900/20" },
-    orange: { icon: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-900/20" },
-    teal:   { icon: "text-teal-500",   bg: "bg-teal-50 dark:bg-teal-900/20" },
-    slate:  { icon: "text-slate-400",  bg: "bg-slate-50 dark:bg-slate-800/50" },
+    blue:   { icon: "text-[var(--color-info)]",    bg: "bg-[var(--color-info-bg)]" },
+    green:  { icon: "text-[var(--color-success)]", bg: "bg-[var(--color-success-bg)]" },
+    red:    { icon: "text-[var(--color-error)]",   bg: "bg-[var(--color-error-bg)]" },
+    amber:  { icon: "text-[var(--color-warning)]", bg: "bg-[var(--color-warning-bg)]" },
+    purple: { icon: "text-[#AF52DE]",              bg: "bg-[rgba(175,82,222,0.10)]" },
+    orange: { icon: "text-[var(--accent)]",        bg: "bg-[var(--accent-muted)]" },
+    teal:   { icon: "text-[var(--color-info)]",    bg: "bg-[var(--color-info-bg)]" },
+    slate:  { icon: "text-[var(--text-tertiary)]", bg: "bg-[var(--bg-fill)]" },
 };
 
 function KPICard({ icon: Icon, label, value, color, emphasis }: {
@@ -160,17 +160,18 @@ function KPICard({ icon: Icon, label, value, color, emphasis }: {
     return (
         <div
             className={cn(
-                "p-4 rounded-xl border flex flex-col gap-2 transition-all",
-                emphasis ? "border-green-300 dark:border-green-700" : ""
+                "p-4 rounded-[var(--r-lg)] border flex flex-col gap-2 transition-all bg-[var(--bg-elevated)]",
+                emphasis
+                    ? "border-[var(--color-success)]/30"
+                    : "border-[var(--border-subtle)]"
             )}
-            style={{ background: "var(--v-card)", borderColor: emphasis ? undefined : "var(--v-border)" }}
         >
-            <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", bg)}>
+            <div className={cn("w-8 h-8 rounded-[var(--r-sm)] flex items-center justify-center", bg)}>
                 <Icon size={16} className={iconColor} />
             </div>
             <div>
-                <div className="text-[11px] text-[var(--v-text-muted)] mb-0.5">{label}</div>
-                <div className={cn("text-2xl font-bold tabular-nums", emphasis ? "text-green-600 dark:text-green-400" : "text-[var(--v-text-primary)]")}>
+                <div className="dash-label-sm text-[var(--text-tertiary)] mb-0.5">{label}</div>
+                <div className={cn("dash-metric-sm tabular-nums", emphasis ? "text-[var(--color-success)]" : "text-[var(--text-primary)]")}>
                     {value.toLocaleString()}
                 </div>
             </div>
@@ -182,21 +183,21 @@ function DeviceCard({ device }: { device: ScannerDevice }) {
     return (
         <div
             className="flex items-center gap-3 p-3 rounded-lg border"
-            style={{ background: "var(--v-elevated)", borderColor: "var(--v-border)" }}
+            style={{ background: "var(--bg-fill)", borderColor: "var(--border-subtle)" }}
         >
             <div className={cn(
                 "w-2 h-2 rounded-full shrink-0",
-                device.isOnline ? "bg-green-400" : "bg-red-400"
+                device.isOnline ? "bg-[var(--color-success)]" : "bg-[var(--color-error)]"
             )} />
             <div className="min-w-0 flex-1">
-                <div className="text-[12px] font-medium text-[var(--v-text-primary)] truncate">{device.deviceName}</div>
-                <div className="text-[11px] text-[var(--v-text-muted)] truncate">
+                <div className="text-[12px] font-medium text-[var(--text-primary)] truncate">{device.deviceName}</div>
+                <div className="text-[11px] text-[var(--text-tertiary)] truncate">
                     {device.operatorName} {device.boundGate ? `· ${device.boundGate}` : ""}
                 </div>
             </div>
             <div className="text-right shrink-0">
-                <div className="text-[12px] font-bold text-green-600 dark:text-green-400 tabular-nums">{device.validScans}</div>
-                <div className="text-[10px] text-[var(--v-text-muted)]">scans</div>
+                <div className="text-[12px] font-bold text-[var(--color-success)] tabular-nums">{device.validScans}</div>
+                <div className="text-[10px] text-[var(--text-tertiary)]">scans</div>
             </div>
         </div>
     );
@@ -204,10 +205,10 @@ function DeviceCard({ device }: { device: ScannerDevice }) {
 
 function SkeletonKPI() {
     return (
-        <div className="p-4 rounded-xl border animate-pulse" style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}>
-            <div className="w-8 h-8 rounded-lg bg-[var(--v-elevated)] mb-3" />
-            <div className="h-3 w-16 bg-[var(--v-elevated)] rounded mb-2" />
-            <div className="h-7 w-12 bg-[var(--v-elevated)] rounded" />
+        <div className="p-4 rounded-xl border animate-pulse" style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}>
+            <div className="w-8 h-8 rounded-lg bg-[var(--bg-fill)] mb-3" />
+            <div className="h-3 w-16 bg-[var(--bg-fill)] rounded mb-2" />
+            <div className="h-7 w-12 bg-[var(--bg-fill)] rounded" />
         </div>
     );
 }
@@ -215,9 +216,9 @@ function SkeletonKPI() {
 function EmptyState() {
     return (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-            <ScanLine size={40} className="text-[var(--v-text-muted)] mb-4" />
-            <h3 className="text-[16px] font-semibold text-[var(--v-text-primary)] mb-2">Select an event to begin</h3>
-            <p className="text-[13px] text-[var(--v-text-muted)] max-w-xs">
+            <ScanLine size={40} className="text-[var(--text-tertiary)] mb-4" />
+            <h3 className="text-[16px] font-semibold text-[var(--text-primary)] mb-2">Select an event to begin</h3>
+            <p className="text-[13px] text-[var(--text-tertiary)] max-w-xs">
                 Choose an event from the selector above to view live guest operations and entry status.
             </p>
         </div>
@@ -228,11 +229,11 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
     return (
         <div className="flex flex-col items-center justify-center py-20 text-center">
             <AlertTriangle size={32} className="text-red-400 mb-3" />
-            <p className="text-[14px] font-medium text-[var(--v-text-primary)] mb-2">Failed to load operations data</p>
-            <p className="text-[12px] text-[var(--v-text-muted)] mb-4">{message}</p>
+            <p className="text-[14px] font-medium text-[var(--text-primary)] mb-2">Failed to load operations data</p>
+            <p className="text-[12px] text-[var(--text-tertiary)] mb-4">{message}</p>
             <button
                 onClick={onRetry}
-                className="px-4 py-2 rounded-lg bg-[var(--v-elevated)] text-[13px] font-medium text-[var(--v-text-primary)] hover:bg-[var(--v-card-hover)]"
+                className="px-4 py-2 rounded-lg bg-[var(--bg-fill)] text-[13px] font-medium text-[var(--text-primary)] hover:bg-[var(--bg-fill)]"
             >
                 Retry
             </button>

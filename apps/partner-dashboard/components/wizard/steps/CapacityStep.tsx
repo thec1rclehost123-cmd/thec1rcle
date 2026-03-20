@@ -58,15 +58,15 @@ export function CapacityStep({ formData, updateFormData, validationErrors }: Cap
                 <FieldGroup>
                     <div className="flex items-center justify-between py-2">
                         <span className="text-[14px] text-stone-600">Total Ticket Inventory</span>
-                        <span className={`text-[18px] font-semibold ${capacityExceeded ? "text-red-600" : "text-text-primary"
+                        <span className={`text-[18px] font-semibold ${capacityExceeded ? "text-red-600" : "text-[var(--text-primary)]"
                             }`}>
                             {totalTickets}
                         </span>
                     </div>
-                    <div className="h-px bg-surface-tertiary" />
+                    <div className="h-px bg-[var(--bg-secondary)]" />
                     <div className="flex items-center justify-between py-2">
                         <span className="text-[14px] text-stone-600">Venue Capacity</span>
-                        <span className="text-[18px] font-semibold text-text-primary">
+                        <span className="text-[18px] font-semibold text-[var(--text-primary)]">
                             {formData.capacity || 0}
                         </span>
                     </div>

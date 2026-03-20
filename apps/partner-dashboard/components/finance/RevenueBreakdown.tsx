@@ -23,7 +23,7 @@ export function RevenueBreakdown({ items, loading = false, grossRevenue, classNa
         return (
             <div className={cn(skeletonClasses, className)}>
                 {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="v-bento p-4 rounded-[var(--v-r-xl)] animate-pulse" style={{ background: "var(--v-card)", minHeight: layout === "grid" ? 120 : 60 }}>
+                    <div key={i} className="v-bento p-4 rounded-[var(--r-xl)] animate-pulse" style={{ background: "var(--bg-elevated)", minHeight: layout === "grid" ? 120 : 60 }}>
                         <div className="v-skeleton h-2 w-16 rounded mb-2" />
                         <div className="v-skeleton h-6 w-24 rounded-lg" />
                     </div>
@@ -35,10 +35,10 @@ export function RevenueBreakdown({ items, loading = false, grossRevenue, classNa
     if (!items || items.length === 0) {
         return (
             <div
-                className={cn("rounded-[var(--v-r-xl)] flex items-center justify-center py-8", className)}
-                style={{ background: "var(--v-card)", border: "1px dashed var(--v-border)" }}
+                className={cn("rounded-[var(--r-xl)] flex items-center justify-center py-8", className)}
+                style={{ background: "var(--bg-elevated)", border: "1px dashed var(--border-subtle)" }}
             >
-                <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>
+                <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--text-tertiary)" }}>
                     No breakdown data
                 </p>
             </div>
@@ -69,19 +69,19 @@ function BreakdownListItem({ item }: { item: RevenueBreakdownItem }) {
 
     const content = (
         <div
-            className="group flex items-center justify-between p-3.5 rounded-xl border border-[var(--v-border)] bg-[var(--v-card)] hover:brightness-110 transition-all"
+            className="group flex items-center justify-between p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:brightness-110 transition-all"
         >
             <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-[9px] font-black uppercase tracking-widest text-[var(--v-text-muted)] truncate">
+                <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-tertiary)] truncate">
                     {item.label}
                 </span>
-                <span className="text-lg font-black tracking-tighter" style={{ color: "var(--v-text-primary)" }}>
+                <span className="text-lg font-black tracking-tighter" style={{ color: "var(--text-primary)" }}>
                     {formatINRCompact(item.amount)}
                 </span>
             </div>
             <div className="flex flex-col items-end gap-1">
                 <div className="flex items-center gap-1">
-                    <span className="text-[10px] font-bold" style={{ color: "var(--v-text-secondary)" }}>
+                    <span className="text-[10px] font-bold" style={{ color: "var(--text-secondary)" }}>
                         {item.percentOfGross.toFixed(1)}%
                     </span>
                     {isOut
@@ -110,8 +110,8 @@ function BreakdownTile({ item }: { item: RevenueBreakdownItem }) {
 
     const tile = (
         <div
-            className="group relative flex flex-col p-5 rounded-[var(--v-r-xl)] transition-all duration-200 hover:brightness-110 overflow-hidden"
-            style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}
+            className="group relative flex flex-col p-5 rounded-[var(--r-xl)] transition-all duration-200 hover:brightness-110 overflow-hidden"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}
         >
             {/* Subtle directional tint */}
             <div
@@ -121,7 +121,7 @@ function BreakdownTile({ item }: { item: RevenueBreakdownItem }) {
 
             {/* Label row */}
             <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>
+                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-tertiary)" }}>
                     {item.label}
                 </span>
                 {isOut
@@ -133,13 +133,13 @@ function BreakdownTile({ item }: { item: RevenueBreakdownItem }) {
             {/* Amount */}
             <span
                 className="text-[26px] font-bold leading-none tracking-tight tabular-nums"
-                style={{ color: "var(--v-text-primary)" }}
+                style={{ color: "var(--text-primary)" }}
             >
                 {formatINRCompact(item.amount)}
             </span>
 
             {/* Percent of gross */}
-            <p className="text-[11px] mt-1" style={{ color: "var(--v-text-muted)" }}>
+            <p className="text-[11px] mt-1" style={{ color: "var(--text-tertiary)" }}>
                 {item.percentOfGross.toFixed(1)}% of gross
             </p>
 
@@ -160,7 +160,7 @@ function BreakdownTile({ item }: { item: RevenueBreakdownItem }) {
             {/* External link indicator */}
             {(item.analyticsHref || item.ledgerHref) && (
                 <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-60 transition-opacity">
-                    <ExternalLink className="w-3.5 h-3.5" style={{ color: "var(--v-text-muted)" }} />
+                    <ExternalLink className="w-3.5 h-3.5" style={{ color: "var(--text-tertiary)" }} />
                 </div>
             )}
         </div>

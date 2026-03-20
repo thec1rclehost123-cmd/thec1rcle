@@ -127,8 +127,8 @@ export default function GenerateLinkModal({
                 transition={{ duration: 0.18 }}
                 className="w-full max-w-md"
                 style={{
-                    background: "var(--v-card, #1a1a1d)",
-                    border: "1px solid var(--v-border, rgba(255,255,255,0.08))",
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border-subtle)",
                     borderRadius: "2rem",
                     overflow: "hidden"
                 }}
@@ -141,10 +141,10 @@ export default function GenerateLinkModal({
                             <Link2 size={16} style={{ color: "#a78bfa" }} />
                         </div>
                         <div>
-                            <h2 className="text-[15px] font-bold" style={{ color: "var(--v-text-primary, #fafafa)" }}>
+                            <h2 className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>
                                 New Link
                             </h2>
-                            <p className="text-[11px]" style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
+                            <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                                 Create a tracking link to share
                             </p>
                         </div>
@@ -152,8 +152,8 @@ export default function GenerateLinkModal({
                     <button
                         onClick={onClose}
                         className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-                        style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}
-                        onMouseEnter={e => (e.currentTarget.style.background = "var(--v-elevated, #222226)")}
+                        style={{ color: "var(--text-tertiary)" }}
+                        onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-fill)")}
                         onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                     >
                         <X size={16} />
@@ -172,7 +172,7 @@ export default function GenerateLinkModal({
                             {/* Event selector */}
                             <div>
                                 <label className="text-[11px] font-semibold uppercase tracking-wider mb-1.5 block"
-                                    style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
+                                    style={{ color: "var(--text-tertiary)" }}>
                                     Event
                                 </label>
                                 <div className="relative">
@@ -180,11 +180,11 @@ export default function GenerateLinkModal({
                                         onClick={() => setEventDropdownOpen(v => !v)}
                                         className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-left transition-all"
                                         style={{
-                                            background: "var(--v-elevated, #222226)",
-                                            border: "1px solid var(--v-border, rgba(255,255,255,0.08))",
+                                            background: "var(--bg-fill)",
+                                            border: "1px solid var(--border-subtle)",
                                             color: selectedEvent
-                                                ? "var(--v-text-primary, #fafafa)"
-                                                : "var(--v-text-tertiary, #a1a1aa)",
+                                                ? "var(--text-primary)"
+                                                : "var(--text-tertiary)",
                                             fontSize: 13
                                         }}
                                     >
@@ -195,15 +195,15 @@ export default function GenerateLinkModal({
                                                     ? (selectedEvent.name || selectedEvent.title)
                                                     : "Select an event"}
                                         </span>
-                                        <ChevronDown size={14} style={{ color: "var(--v-text-tertiary, #a1a1aa)", flexShrink: 0 }} />
+                                        <ChevronDown size={14} style={{ color: "var(--text-tertiary)", flexShrink: 0 }} />
                                     </button>
 
                                     {eventDropdownOpen && !eventsLoading && (
                                         <div
                                             className="absolute top-full left-0 right-0 mt-1 z-10 rounded-xl overflow-hidden"
                                             style={{
-                                                background: "var(--v-card, #1a1a1d)",
-                                                border: "1px solid var(--v-border, rgba(255,255,255,0.08))",
+                                                background: "var(--bg-elevated)",
+                                                border: "1px solid var(--border-subtle)",
                                                 boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
                                                 maxHeight: 200,
                                                 overflowY: "auto"
@@ -211,7 +211,7 @@ export default function GenerateLinkModal({
                                         >
                                             {events.length === 0 ? (
                                                 <div className="px-4 py-3 text-[13px]"
-                                                    style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
+                                                    style={{ color: "var(--text-tertiary)" }}>
                                                     No events available
                                                 </div>
                                             ) : (
@@ -224,13 +224,13 @@ export default function GenerateLinkModal({
                                                         }}
                                                         className="w-full text-left px-4 py-2.5 text-[13px] transition-all"
                                                         style={{
-                                                            color: "var(--v-text-primary, #fafafa)",
+                                                            color: "var(--text-primary)",
                                                             background: selectedEventId === event.id
-                                                                ? "var(--v-elevated, #222226)"
+                                                                ? "var(--bg-fill)"
                                                                 : "transparent"
                                                         }}
-                                                        onMouseEnter={e => (e.currentTarget.style.background = "var(--v-elevated, #222226)")}
-                                                        onMouseLeave={e => (e.currentTarget.style.background = selectedEventId === event.id ? "var(--v-elevated, #222226)" : "transparent")}
+                                                        onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-fill)")}
+                                                        onMouseLeave={e => (e.currentTarget.style.background = selectedEventId === event.id ? "var(--bg-fill)" : "transparent")}
                                                     >
                                                         {event.name || event.title}
                                                     </button>
@@ -244,7 +244,7 @@ export default function GenerateLinkModal({
                             {/* Campaign label */}
                             <div>
                                 <label className="text-[11px] font-semibold uppercase tracking-wider mb-1.5 block"
-                                    style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
+                                    style={{ color: "var(--text-tertiary)" }}>
                                     Label
                                 </label>
                                 <input
@@ -255,15 +255,15 @@ export default function GenerateLinkModal({
                                     maxLength={42}
                                     className="w-full px-4 py-3 rounded-xl text-[13px] outline-none transition-all"
                                     style={{
-                                        background: "var(--v-elevated, #222226)",
-                                        border: "1px solid var(--v-border, rgba(255,255,255,0.08))",
-                                        color: "var(--v-text-primary, #fafafa)"
+                                        background: "var(--bg-fill)",
+                                        border: "1px solid var(--border-subtle)",
+                                        color: "var(--text-primary)"
                                     }}
                                     onFocus={e => (e.currentTarget.style.borderColor = "rgba(124,58,237,0.5)")}
-                                    onBlur={e => (e.currentTarget.style.borderColor = "var(--v-border, rgba(255,255,255,0.08))")}
+                                    onBlur={e => (e.currentTarget.style.borderColor = "var(--border-subtle)")}
                                 />
                                 {campaignLabel && (
-                                    <p className="text-[10px] mt-1" style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
+                                    <p className="text-[10px] mt-1" style={{ color: "var(--text-tertiary)" }}>
                                         Saved as: <span style={{ color: "#a78bfa" }}>{sanitizeLabel(campaignLabel)}</span>
                                     </p>
                                 )}
@@ -275,8 +275,8 @@ export default function GenerateLinkModal({
                                 disabled={!canGenerate}
                                 className="w-full py-3.5 rounded-xl text-[14px] font-bold transition-all flex items-center justify-center gap-2"
                                 style={{
-                                    background: canGenerate ? "var(--c1rcle-orange, #F44A22)" : "var(--v-elevated, #222226)",
-                                    color: canGenerate ? "#fff" : "var(--v-text-tertiary, #a1a1aa)",
+                                    background: canGenerate ? "var(--c1rcle-orange, #F44A22)" : "var(--bg-fill)",
+                                    color: canGenerate ? "#fff" : "var(--text-tertiary)",
                                     cursor: canGenerate ? "pointer" : "not-allowed"
                                 }}
                             >
@@ -302,13 +302,13 @@ export default function GenerateLinkModal({
                             )}
 
                             <div className="rounded-xl p-4 space-y-3"
-                                style={{ background: "var(--v-elevated, #222226)", border: "1px solid var(--v-border, rgba(255,255,255,0.08))" }}>
+                                style={{ background: "var(--bg-fill)", border: "1px solid var(--border-subtle)" }}>
                                 <p className="text-[10px] font-semibold uppercase tracking-wider"
-                                    style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
+                                    style={{ color: "var(--text-tertiary)" }}>
                                     Your tracking link
                                 </p>
                                 <p className="text-[12px] font-mono break-all leading-relaxed"
-                                    style={{ color: "var(--v-text-primary, #fafafa)" }}>
+                                    style={{ color: "var(--text-primary)" }}>
                                     {buildDisplayUrl(generatedLink)}
                                 </p>
                             </div>
@@ -333,11 +333,11 @@ export default function GenerateLinkModal({
                                 onClick={handleReset}
                                 className="w-full py-2.5 rounded-xl text-[13px] font-semibold transition-all"
                                 style={{
-                                    color: "var(--v-text-tertiary, #a1a1aa)",
+                                    color: "var(--text-tertiary)",
                                     background: "transparent"
                                 }}
-                                onMouseEnter={e => (e.currentTarget.style.color = "var(--v-text-primary, #fafafa)")}
-                                onMouseLeave={e => (e.currentTarget.style.color = "var(--v-text-tertiary, #a1a1aa)")}
+                                onMouseEnter={e => (e.currentTarget.style.color = "var(--text-primary)")}
+                                onMouseLeave={e => (e.currentTarget.style.color = "var(--text-tertiary)")}
                             >
                                 + Create another
                             </button>

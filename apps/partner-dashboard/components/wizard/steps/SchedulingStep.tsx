@@ -78,14 +78,14 @@ export function SchedulingStep({ formData, updateFormData, validationErrors, rol
                     </div>
 
                     <div className="relative">
-                        <Calendar className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${validationErrors.startDate ? 'text-red-500' : 'text-text-tertiary'}`} />
+                        <Calendar className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${validationErrors.startDate ? 'text-red-500' : 'text-[var(--text-tertiary)]'}`} />
                         <input
                             type="date"
                             value={formData.startDate || ""}
                             onChange={(e) => updateFormData({ startDate: e.target.value })}
-                            className={`w-full pl-10 pr-3 py-3 rounded-xl bg-surface-secondary border text-[14px] text-text-primary focus:outline-none transition-all ${validationErrors.startDate
+                            className={`w-full pl-10 pr-3 py-3 rounded-xl bg-[var(--bg-fill)] border text-[14px] text-[var(--text-primary)] focus:outline-none transition-all ${validationErrors.startDate
                                 ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.1)] focus:border-red-600'
-                                : 'border-border-subtle focus:border-indigo-400'
+                                : 'border-[var(--border-subtle)] focus:border-indigo-400'
                                 }`}
                         />
                     </div>
@@ -135,12 +135,12 @@ export function SchedulingStep({ formData, updateFormData, validationErrors, rol
                                         initial={{ opacity: 0, height: 0 }}
                                         animate={{ opacity: 1, height: 'auto' }}
                                         exit={{ opacity: 0, height: 0 }}
-                                        className="mt-2 p-3 rounded-xl bg-surface-secondary border border-border-subtle"
+                                        className="mt-2 p-3 rounded-xl bg-[var(--bg-fill)] border border-[var(--border-subtle)]"
                                     >
                                         {isLoadingCalendar ? (
-                                            <p className="text-[11px] text-text-tertiary text-center py-2">Loading calendar...</p>
+                                            <p className="text-[11px] text-[var(--text-tertiary)] text-center py-2">Loading calendar...</p>
                                         ) : venueCalendar.length === 0 ? (
-                                            <p className="text-[11px] text-text-tertiary text-center py-2">All dates available</p>
+                                            <p className="text-[11px] text-[var(--text-tertiary)] text-center py-2">All dates available</p>
                                         ) : (
                                             <div>
                                                 <div className="flex flex-wrap gap-1.5">
@@ -150,7 +150,7 @@ export function SchedulingStep({ formData, updateFormData, validationErrors, rol
                                                         </div>
                                                     ))}
                                                 </div>
-                                                <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border-subtle">
+                                                <div className="flex items-center gap-3 mt-2 pt-2 border-t border-[var(--border-subtle)]">
                                                     {[
                                                         { c: 'bg-green-500', l: 'Available' },
                                                         { c: 'bg-yellow-500', l: 'Tentative' },
@@ -158,7 +158,7 @@ export function SchedulingStep({ formData, updateFormData, validationErrors, rol
                                                     ].map(({ c, l }) => (
                                                         <div key={l} className="flex items-center gap-1">
                                                             <div className={`w-1.5 h-1.5 rounded-full ${c}`} />
-                                                            <span className="text-[9px] text-text-tertiary uppercase tracking-wider font-bold">{l}</span>
+                                                            <span className="text-[9px] text-[var(--text-tertiary)] uppercase tracking-wider font-bold">{l}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -182,16 +182,16 @@ export function SchedulingStep({ formData, updateFormData, validationErrors, rol
                         {TIME_FIELDS.map(({ label, key, hint }) => (
                             <div key={key}>
                                 <div className="flex items-center justify-between mb-1">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">{label}</label>
-                                    <span className={`text-[9px] uppercase tracking-widest font-bold ${hint === 'Required' ? 'text-red-400' : 'text-text-tertiary/50'}`}>{hint}</span>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">{label}</label>
+                                    <span className={`text-[9px] uppercase tracking-widest font-bold ${hint === 'Required' ? 'text-red-400' : 'text-[var(--text-tertiary)]/50'}`}>{hint}</span>
                                 </div>
                                 <div className="relative">
-                                    <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary pointer-events-none" />
+                                    <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-tertiary)] pointer-events-none" />
                                     <input
                                         type="time"
                                         value={(formData as any)[key] || ""}
                                         onChange={(e) => updateFormData({ [key]: e.target.value })}
-                                        className="w-full pl-8 pr-2 py-2.5 rounded-xl bg-surface-secondary border border-border-subtle text-[13px] text-text-primary focus:outline-none focus:border-amber-400 transition-all"
+                                        className="w-full pl-8 pr-2 py-2.5 rounded-xl bg-[var(--bg-fill)] border border-[var(--border-subtle)] text-[13px] text-[var(--text-primary)] focus:outline-none focus:border-amber-400 transition-all"
                                     />
                                 </div>
                             </div>

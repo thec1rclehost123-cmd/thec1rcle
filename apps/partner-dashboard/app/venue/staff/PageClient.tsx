@@ -169,7 +169,7 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
                     <div className="absolute inset-0 bg-accent-primary/20 blur-2xl rounded-full" />
                     <Loader2 className="h-12 w-12 text-accent-primary animate-spin relative" />
                 </div>
-                <p className="text-text-tertiary font-black uppercase tracking-[0.2em] text-[10px] mt-8">Synchronizing Force Registry</p>
+                <p className="text-[var(--text-tertiary)] font-black uppercase tracking-[0.2em] text-[10px] mt-8">Synchronizing Force Registry</p>
             </div>
         );
     }
@@ -180,7 +180,7 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* View Architecture Switcher */}
-            <div className="flex p-1.5 bg-surface-secondary/50 backdrop-blur-md rounded-2xl gap-1 border border-border-subtle inline-flex shadow-inner">
+            <div className="flex p-1.5 bg-[var(--bg-fill)]/50 backdrop-blur-md rounded-2xl gap-1 border border-[var(--border-subtle)] inline-flex shadow-inner">
                 {[
                     { id: "members", label: "Operational Team", icon: Users },
                     { id: "profiles", label: "Access Profiles", icon: ShieldCheck }
@@ -191,11 +191,11 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
                         className={cn(
                             "flex items-center gap-2.5 px-6 py-3 rounded-xl text-sm font-bold transition-all",
                             activeView === view.id
-                                ? "bg-surface-elevated text-text-primary shadow-lg border border-border-default scale-[1.02]"
-                                : "text-text-tertiary hover:text-text-secondary hover:bg-surface-tertiary"
+                                ? "bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-lg border border-[var(--border-default)] scale-[1.02]"
+                                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
                         )}
                     >
-                        <view.icon className={cn("w-4 h-4", activeView === view.id ? "text-accent-primary" : "text-text-tertiary")} />
+                        <view.icon className={cn("w-4 h-4", activeView === view.id ? "text-accent-primary" : "text-[var(--text-tertiary)]")} />
                         <span>{view.label}</span>
                     </button>
                 ))}
@@ -216,13 +216,13 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
                                 { label: "Force Strength", value: staff.filter(s => s.status === 'active').length, icon: Users, color: "text-accent-primary" },
                                 { label: "Verified Key", value: staff.filter(s => s.verified).length, icon: ShieldCheck, color: "text-emerald-500" },
                                 { label: "Pending Entry", value: staff.filter(s => s.status === 'invited').length, icon: Clock, color: "text-amber-500" },
-                                { label: "Security Tier", value: "Level 4", icon: Shield, color: "text-text-primary" },
+                                { label: "Security Tier", value: "Level 4", icon: Shield, color: "text-[var(--text-primary)]" },
                             ].map((kpi, i) => (
                                 <BentoCard key={i} padding="lg" className="relative group overflow-hidden">
                                      <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity rotate-12">
                                         <kpi.icon size={120} />
                                     </div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-text-tertiary mb-2">{kpi.label}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)] mb-2">{kpi.label}</p>
                                     <div className="flex items-end justify-between">
                                         <h4 className={cn("text-4xl font-black tabular-nums tracking-tighter", kpi.color)}>{kpi.value}</h4>
                                         <kpi.icon size={20} className={cn("opacity-40 mb-1", kpi.color)} />
@@ -234,16 +234,16 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
                         {/* Staff Ledger */}
                         <div className="space-y-4">
                             <div className="flex items-center justify-between px-2">
-                                <h3 className="text-sm font-black uppercase tracking-[0.3em] text-text-tertiary">Active Personnel Registry</h3>
+                                <h3 className="text-sm font-black uppercase tracking-[0.3em] text-[var(--text-tertiary)]">Active Personnel Registry</h3>
                                 <div className="h-px flex-1 mx-6 bg-border-subtle" />
-                                <span className="text-[10px] font-bold text-text-placeholder italic">Showing {activeStaff.length} entities</span>
+                                <span className="text-[10px] font-bold text-[var(--text-quaternary)] italic">Showing {activeStaff.length} entities</span>
                             </div>
 
-                            <BentoCard className="overflow-hidden shadow-2xl border-border-default">
+                            <BentoCard className="overflow-hidden shadow-2xl border-[var(--border-default)]">
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left">
                                         <thead>
-                                            <tr className="bg-surface-secondary/40 border-b border-border-subtle text-[10px] font-black uppercase tracking-[0.2em] text-text-tertiary">
+                                            <tr className="bg-[var(--bg-fill)]/40 border-b border-[var(--border-subtle)] text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
                                                 <th className="px-8 py-5">Personnel ID & Role</th>
                                                 <th className="px-8 py-5">Verified Status</th>
                                                 <th className="px-8 py-5">Communication</th>
@@ -252,15 +252,15 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
                                         </thead>
                                         <tbody className="divide-y divide-border-subtle">
                                             {activeStaff.map((member) => (
-                                                <tr key={member.id} className="group hover:bg-surface-secondary/40 transition-all duration-300">
+                                                <tr key={member.id} className="group hover:bg-[var(--bg-fill)]/40 transition-all duration-300">
                                                     <td className="px-8 py-6">
                                                         <div className="flex items-center gap-4">
-                                                            <div className="w-12 h-12 rounded-2xl bg-surface-tertiary border border-border-default flex items-center justify-center font-black text-xs text-text-primary group-hover:scale-105 transition-transform group-hover:shadow-lg group-hover:border-accent-primary/20">
+                                                            <div className="w-12 h-12 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-default)] flex items-center justify-center font-black text-xs text-[var(--text-primary)] group-hover:scale-105 transition-transform group-hover:shadow-lg group-hover:border-accent-primary/20">
                                                                 {member.name.charAt(0)}
                                                             </div>
                                                             <div>
-                                                                <p className="text-base font-bold text-text-primary mb-0.5 leading-tight group-hover:text-accent-primary transition-colors">{member.name}</p>
-                                                                <span className="px-2 py-0.5 rounded-lg bg-surface-elevated border border-border-subtle text-[10px] font-black uppercase tracking-wider text-text-tertiary">
+                                                                <p className="text-base font-bold text-[var(--text-primary)] mb-0.5 leading-tight group-hover:text-accent-primary transition-colors">{member.name}</p>
+                                                                <span className="px-2 py-0.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[10px] font-black uppercase tracking-wider text-[var(--text-tertiary)]">
                                                                     {ROLE_LABELS[member.role] || member.role}
                                                                 </span>
                                                             </div>
@@ -273,12 +273,12 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
                                                                 member.status === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 
                                                                 member.status === 'invited' ? 'bg-amber-500' : 'bg-text-placeholder'
                                                             )} />
-                                                            <span className="text-sm font-bold text-text-secondary capitalize">{member.status.replace('_', ' ')}</span>
+                                                            <span className="text-sm font-bold text-[var(--text-secondary)] capitalize">{member.status.replace('_', ' ')}</span>
                                                             {member.verified && <ShieldCheck size={14} className="text-emerald-500" />}
                                                         </div>
                                                     </td>
                                                     <td className="px-8 py-6">
-                                                        <p className="text-sm font-medium text-text-tertiary">{member.email}</p>
+                                                        <p className="text-sm font-medium text-[var(--text-tertiary)]">{member.email}</p>
                                                     </td>
                                                     <td className="px-8 py-6 text-right">
                                                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
@@ -286,7 +286,7 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
                                                                 <button 
                                                                     onClick={() => handleAction(member.id, 'suspend')}
                                                                     disabled={actionLoading === member.id + 'suspend'}
-                                                                    className="p-2.5 hover:bg-amber-500/10 rounded-xl text-text-tertiary hover:text-amber-500 transition-all"
+                                                                    className="p-2.5 hover:bg-amber-500/10 rounded-xl text-[var(--text-tertiary)] hover:text-amber-500 transition-all"
                                                                     title="Suspend Access"
                                                                 >
                                                                     {actionLoading === member.id + 'suspend' ? <Loader2 size={16} className="animate-spin" /> : <PauseCircle size={18} />}
@@ -295,7 +295,7 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
                                                             <button 
                                                                 onClick={() => handleAction(member.id, 'remove')}
                                                                 disabled={actionLoading === member.id + 'remove'}
-                                                                className="p-2.5 hover:bg-red-500/10 rounded-xl text-text-tertiary hover:text-red-500 transition-all"
+                                                                className="p-2.5 hover:bg-red-500/10 rounded-xl text-[var(--text-tertiary)] hover:text-red-500 transition-all"
                                                                 title="Revoke Permission"
                                                             >
                                                                 {actionLoading === member.id + 'remove' ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={18} />}
@@ -320,12 +320,12 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
                                             {suspendedStaff.map(member => (
                                                 <div key={member.id} className="px-8 py-4 flex items-center justify-between group">
                                                     <div className="flex items-center gap-4">
-                                                        <div className="w-10 h-10 rounded-xl bg-surface-tertiary border border-border-default flex items-center justify-center font-black text-[10px] text-text-placeholder">
+                                                        <div className="w-10 h-10 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-default)] flex items-center justify-center font-black text-[10px] text-[var(--text-quaternary)]">
                                                             {member.name.charAt(0)}
                                                         </div>
                                                         <div>
-                                                            <p className="text-sm font-bold text-text-secondary line-through">{member.name}</p>
-                                                            <p className="text-[10px] text-text-placeholder">{member.email}</p>
+                                                            <p className="text-sm font-bold text-[var(--text-secondary)] line-through">{member.name}</p>
+                                                            <p className="text-[10px] text-[var(--text-quaternary)]">{member.email}</p>
                                                         </div>
                                                     </div>
                                                     <button 
@@ -377,25 +377,25 @@ function AddStaffModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
             <motion.div 
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                className="max-w-md w-full bg-surface-elevated rounded-[2.5rem] border border-border-default shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden"
+                className="max-w-md w-full bg-[var(--bg-elevated)] rounded-[2.5rem] border border-[var(--border-default)] shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden"
             >
-                <div className="p-8 border-b border-border-subtle flex items-center justify-between bg-surface-secondary/30">
+                <div className="p-8 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-fill)]/30">
                     <div>
-                        <h3 className="text-xl font-bold text-text-primary tracking-tight">Recruit Team Member</h3>
-                        <p className="text-sm text-text-tertiary mt-1">Issue a secure platform invitation</p>
+                        <h3 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">Recruit Team Member</h3>
+                        <p className="text-sm text-[var(--text-tertiary)] mt-1">Issue a secure platform invitation</p>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-surface-tertiary rounded-2xl transition-all">
+                    <button onClick={onClose} className="p-2 hover:bg-[var(--bg-secondary)] rounded-2xl transition-all">
                         <X size={20} />
                     </button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-8 space-y-6">
                     <div className="space-y-1.5">
-                        <label className="text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary ml-1">Full Legal Name</label>
+                        <label className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)] ml-1">Full Legal Name</label>
                         <input 
                             required
                             type="text" 
-                            className="w-full bg-surface-secondary border border-border-default rounded-2xl px-5 py-4 text-base font-bold text-text-primary focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10 transition-all outline-none"
+                            className="w-full bg-[var(--bg-fill)] border border-[var(--border-default)] rounded-2xl px-5 py-4 text-base font-bold text-[var(--text-primary)] focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10 transition-all outline-none"
                             placeholder="John Doe"
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -403,11 +403,11 @@ function AddStaffModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
                     </div>
 
                     <div className="space-y-1.5">
-                        <label className="text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary ml-1">Work Email Address</label>
+                        <label className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)] ml-1">Work Email Address</label>
                         <input 
                             required
                             type="email" 
-                            className="w-full bg-surface-secondary border border-border-default rounded-2xl px-5 py-4 text-base font-bold text-text-primary focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10 transition-all outline-none"
+                            className="w-full bg-[var(--bg-fill)] border border-[var(--border-default)] rounded-2xl px-5 py-4 text-base font-bold text-[var(--text-primary)] focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10 transition-all outline-none"
                             placeholder="john@venue.com"
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -415,9 +415,9 @@ function AddStaffModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
                     </div>
 
                     <div className="space-y-1.5">
-                        <label className="text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary ml-1">Deployment Role</label>
+                        <label className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)] ml-1">Deployment Role</label>
                         <select 
-                            className="w-full bg-surface-secondary border border-border-default rounded-2xl px-5 py-4 text-base font-bold text-text-primary focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10 transition-all outline-none"
+                            className="w-full bg-[var(--bg-fill)] border border-[var(--border-default)] rounded-2xl px-5 py-4 text-base font-bold text-[var(--text-primary)] focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10 transition-all outline-none"
                             value={formData.role}
                             onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                         >
@@ -428,7 +428,7 @@ function AddStaffModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
                     </div>
 
                     <div className="pt-4 flex gap-4">
-                        <button type="button" onClick={onClose} className="flex-1 py-4 text-sm font-bold text-text-secondary hover:text-text-primary uppercase tracking-[0.1em] transition-colors">Discard</button>
+                        <button type="button" onClick={onClose} className="flex-1 py-4 text-sm font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] uppercase tracking-[0.1em] transition-colors">Discard</button>
                         <button 
                             type="submit" 
                             disabled={busy}

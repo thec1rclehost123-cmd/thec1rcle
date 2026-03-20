@@ -37,10 +37,10 @@ const TABS = [
 ];
 
 const DOOR_STATUS_CFG: Record<string, { label: string; color: string }> = {
-    open:       { label: "OPEN",   color: "text-green-500" },
-    soft_close: { label: "SOFT",   color: "text-amber-500" },
-    hard_close: { label: "CLOSED", color: "text-red-500" },
-    cutoff:     { label: "CUTOFF", color: "text-red-600" },
+    open:       { label: "OPEN",   color: "text-[var(--color-success)]" },
+    soft_close: { label: "SOFT",   color: "text-[var(--color-warning)]" },
+    hard_close: { label: "CLOSED", color: "text-[var(--color-error)]" },
+    cutoff:     { label: "CUTOFF", color: "text-[var(--color-error)]" },
 };
 
 function TabContent({ activeTab }: { activeTab: string }) {
@@ -136,10 +136,10 @@ export default function DoorPageClient() {
             <div className="space-y-4">
                 {/* Hub header */}
                 <div>
-                    <h1 className="v-text-title font-semibold" style={{ color: "var(--v-text-primary)" }}>
-                        Door
+                    <h1 className="dash-title-page text-[var(--text-primary)]">
+                        Entry Operations
                     </h1>
-                    <p className="mt-1 text-[14px]" style={{ color: "var(--v-text-secondary)" }}>
+                    <p className="mt-0.5 dash-body-sm text-[var(--text-tertiary)]">
                         On-ground operations — guests, walk-ins, scanning, and registers.
                     </p>
                 </div>
@@ -148,50 +148,43 @@ export default function DoorPageClient() {
                 <HubTabBar tabs={TABS} activeTab={activeTab} onTabChange={setTab} />
 
                 {/* Event context bar */}
-                <div
-                    className="rounded-2xl border overflow-hidden"
-                    style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
-                >
+                <div className="rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-[var(--shadow-sm)] overflow-hidden">
                     <div className="flex items-center gap-3 px-4 py-2.5 flex-wrap">
                         {/* Event selector */}
                         <div className="relative">
                             <button
                                 onClick={() => setEventsOpen(o => !o)}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all"
-                                style={{ background: "var(--v-elevated)", color: "var(--v-text-primary)" }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-[var(--r-sm)] dash-body-sm font-medium transition-colors bg-[var(--bg-fill)] text-[var(--text-primary)] hover:bg-[var(--bg-fill-secondary)]"
                             >
                                 <Circle
                                     size={8}
-                                    className={selectedEvent?.status === "live" ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400"}
+                                    className={selectedEvent?.status === "live" ? "text-[var(--color-success)] fill-[var(--color-success)]" : "text-[var(--text-tertiary)] fill-[var(--text-tertiary)]"}
                                 />
                                 <span className="truncate max-w-[220px]">
                                     {selectedEvent?.title ?? (events.length === 0 ? "No event selected" : "Select event")}
                                 </span>
-                                <ChevronDown size={13} className="text-[var(--v-text-muted)] shrink-0" />
+                                <ChevronDown size={13} className="text-[var(--text-tertiary)] shrink-0" />
                             </button>
 
                             {eventsOpen && events.length > 0 && (
-                                <div
-                                    className="absolute top-full left-0 mt-1 z-50 min-w-[260px] rounded-xl border shadow-xl overflow-hidden"
-                                    style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
-                                >
+                                <div className="absolute top-full left-0 mt-1 z-50 min-w-[260px] rounded-[var(--r-lg)] border border-[var(--border-subtle)] shadow-[var(--shadow-xl)] bg-[var(--bg-elevated)] overflow-hidden">
                                     {events.map(event => (
                                         <button
                                             key={event.id}
                                             onClick={() => handleEventChange(event.id)}
                                             className={cn(
-                                                "w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] hover:bg-[var(--v-card-hover)] transition-colors",
-                                                event.id === eventId && "bg-[var(--v-elevated)]"
+                                                "w-full flex items-center gap-3 px-4 py-3 text-left dash-body-sm hover:bg-[var(--bg-fill)] transition-colors",
+                                                event.id === eventId && "bg-[var(--bg-fill)]"
                                             )}
                                         >
                                             <Circle
                                                 size={8}
-                                                className={event.status === "live" ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400"}
+                                                className={event.status === "live" ? "text-[var(--color-success)] fill-[var(--color-success)]" : "text-[var(--text-tertiary)] fill-[var(--text-tertiary)]"}
                                             />
                                             <div>
-                                                <div className="font-medium text-[var(--v-text-primary)]">{event.title}</div>
+                                                <div className="font-medium text-[var(--text-primary)]">{event.title}</div>
                                                 {event.startDate && (
-                                                    <div className="text-[11px] text-[var(--v-text-muted)]">
+                                                    <div className="dash-caption text-[var(--text-tertiary)]">
                                                         {new Date(event.startDate).toLocaleDateString("en-IN", {
                                                             weekday: "short", month: "short", day: "numeric",
                                                             hour: "2-digit", minute: "2-digit",
@@ -210,7 +203,7 @@ export default function DoorPageClient() {
                             compactMode ? (
                                 <div className="flex items-center gap-3 flex-1">
                                     <KPIBadge
-                                        icon={<CheckCircle2 size={13} className="text-green-500" />}
+                                        icon={<CheckCircle2 size={13} className="text-[var(--color-success)]" />}
                                         label="In"
                                         value={kpis.checkedIn}
                                         total={kpis.totalExpected}
@@ -220,19 +213,19 @@ export default function DoorPageClient() {
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2.5 flex-wrap flex-1">
-                                    <KPIBadge icon={<Users size={12} className="text-slate-400" />}         label="Expected"  value={kpis.totalExpected} />
-                                    <KPIBadge icon={<CheckCircle2 size={12} className="text-green-500" />}  label="In"        value={kpis.checkedIn} emphasis />
-                                    <KPIBadge icon={<XCircle size={12} className="text-red-400" />}          label="Denied"    value={kpis.denied} />
-                                    <KPIBadge icon={<Flag size={12} className="text-amber-400" />}           label="Flagged"   value={kpis.flagged} />
-                                    <KPIBadge icon={<ScanLine size={12} className="text-blue-400" />}        label="Dupes"     value={kpis.duplicateScans} />
-                                    <KPIBadge icon={<Wifi size={12} className="text-teal-400" />}            label="Devices"   value={kpis.onlineDevices} />
+                                    <KPIBadge icon={<Users size={12} className="text-[var(--text-tertiary)]" />}              label="Expected"  value={kpis.totalExpected} />
+                                    <KPIBadge icon={<CheckCircle2 size={12} className="text-[var(--color-success)]" />}       label="In"        value={kpis.checkedIn} emphasis />
+                                    <KPIBadge icon={<XCircle size={12} className="text-[var(--color-error)]" />}              label="Denied"    value={kpis.denied} />
+                                    <KPIBadge icon={<Flag size={12} className="text-[var(--color-warning)]" />}               label="Flagged"   value={kpis.flagged} />
+                                    <KPIBadge icon={<ScanLine size={12} className="text-[var(--color-info)]" />}              label="Dupes"     value={kpis.duplicateScans} />
+                                    <KPIBadge icon={<Wifi size={12} className="text-[var(--color-success)]" />}               label="Devices"   value={kpis.onlineDevices} />
                                     <DoorStatusBadge status={summary?.doorStatus ?? "open"} />
                                 </div>
                             )
                         ) : isLoading ? (
                             <div className="flex items-center gap-2 flex-1">
-                                <Loader2 size={13} className="animate-spin text-[var(--v-text-muted)]" />
-                                <span className="text-[12px] text-[var(--v-text-muted)]">Loading…</span>
+                                <Loader2 size={13} className="animate-spin text-[var(--text-tertiary)]" />
+                                <span className="dash-caption text-[var(--text-tertiary)]">Loading…</span>
                             </div>
                         ) : null}
 
@@ -240,10 +233,10 @@ export default function DoorPageClient() {
                         <button
                             onClick={toggleCompact}
                             className={cn(
-                                "ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all shrink-0",
+                                "ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r-sm)] dash-body-sm font-medium transition-all shrink-0",
                                 compactMode
-                                    ? "bg-[var(--v-orange)] text-white"
-                                    : "bg-[var(--v-elevated)] text-[var(--v-text-secondary)] hover:bg-[var(--v-card-hover)]"
+                                    ? "bg-[var(--accent)] text-white"
+                                    : "bg-[var(--bg-fill)] text-[var(--text-secondary)] hover:bg-[var(--bg-fill-secondary)]"
                             )}
                         >
                             <Zap size={12} />
@@ -253,14 +246,7 @@ export default function DoorPageClient() {
 
                     {/* Open exceptions banner */}
                     {openExceptions > 0 && (
-                        <div
-                            className="flex items-center gap-2 px-4 py-1.5 text-[12px] font-medium border-t"
-                            style={{
-                                background: "var(--v-warning-bg)",
-                                borderColor: "var(--v-warning)",
-                                color: "var(--v-warning)",
-                            }}
-                        >
+                        <div className="flex items-center gap-2 px-4 py-1.5 dash-body-sm font-medium border-t border-[var(--color-warning)]/30 bg-[var(--color-warning-bg)] text-[var(--color-warning)]">
                             <AlertTriangle size={13} />
                             <span>
                                 {openExceptions} open exception{openExceptions !== 1 ? "s" : ""} require{openExceptions === 1 ? "s" : ""} review
@@ -276,10 +262,7 @@ export default function DoorPageClient() {
 
                     {/* Locked banner */}
                     {summary?.isLocked && (
-                        <div
-                            className="flex items-center gap-2 px-4 py-2 text-[12px] font-medium border-t"
-                            style={{ background: "var(--v-elevated)", borderColor: "var(--v-border)", color: "var(--v-text-secondary)" }}
-                        >
+                        <div className="flex items-center gap-2 px-4 py-2 dash-body-sm font-medium border-t border-[var(--border-subtle)] bg-[var(--bg-fill)] text-[var(--text-secondary)]">
                             <XCircle size={13} />
                             This event is closed — all operations are locked. Data is read-only.
                         </div>
@@ -302,31 +285,31 @@ function KPIBadge({ icon, label, value, total, emphasis }: {
 }) {
     return (
         <div className={cn(
-            "flex items-center gap-1.5 px-2 py-1 rounded-lg",
-            emphasis ? "bg-green-50 dark:bg-green-900/20" : "bg-[var(--v-elevated)]"
+            "flex items-center gap-1.5 px-2 py-1 rounded-[var(--r-sm)]",
+            emphasis ? "bg-[var(--color-success-bg)]" : "bg-[var(--bg-fill)]"
         )}>
             {icon}
-            <span className="text-[11px] text-[var(--v-text-muted)]">{label}</span>
+            <span className="dash-caption text-[var(--text-tertiary)]">{label}</span>
             <span className={cn(
-                "text-[12px] font-bold tabular-nums",
-                emphasis ? "text-green-600 dark:text-green-400" : "text-[var(--v-text-primary)]"
+                "dash-caption font-bold tabular-nums",
+                emphasis ? "text-[var(--color-success)]" : "text-[var(--text-primary)]"
             )}>
                 {value.toLocaleString()}
             </span>
             {total !== undefined && (
-                <span className="text-[11px] text-[var(--v-text-muted)]">/ {total.toLocaleString()}</span>
+                <span className="dash-caption text-[var(--text-tertiary)]">/ {total.toLocaleString()}</span>
             )}
         </div>
     );
 }
 
 function DoorStatusBadge({ status }: { status: string }) {
-    const cfg = DOOR_STATUS_CFG[status] ?? { label: status.toUpperCase(), color: "text-slate-400" };
+    const cfg = DOOR_STATUS_CFG[status] ?? { label: status.toUpperCase(), color: "text-[var(--text-tertiary)]" };
     return (
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[var(--v-elevated)]">
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-[var(--r-sm)] bg-[var(--bg-fill)]">
             <Circle size={7} className={cn("fill-current", cfg.color)} />
-            <span className="text-[11px] text-[var(--v-text-muted)]">Door</span>
-            <span className={cn("text-[11px] font-bold", cfg.color)}>{cfg.label}</span>
+            <span className="dash-caption text-[var(--text-tertiary)]">Door</span>
+            <span className={cn("dash-caption font-bold", cfg.color)}>{cfg.label}</span>
         </div>
     );
 }

@@ -46,15 +46,15 @@ export function PromoterProfileClient() {
     if (isLoading) {
         return (
             <div className="flex flex-col gap-6 w-full animate-pulse mt-4 pb-16">
-                 <div className="h-16 w-1/4 bg-surface-elevated rounded-xl"></div>
+                 <div className="h-16 w-1/4 bg-[var(--bg-elevated)] rounded-xl"></div>
                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
                       <div className="flex flex-col gap-6">
-                           <div className="h-64 bg-surface-elevated rounded-2xl border border-border-subtle"></div>
-                           <div className="h-32 bg-surface-elevated rounded-2xl border border-border-subtle"></div>
+                           <div className="h-64 bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)]"></div>
+                           <div className="h-32 bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)]"></div>
                       </div>
                       <div className="lg:col-span-2 flex flex-col gap-6">
-                           <div className="h-80 bg-surface-elevated rounded-2xl border border-border-subtle"></div>
-                           <div className="h-64 bg-surface-elevated rounded-2xl border border-border-subtle"></div>
+                           <div className="h-80 bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)]"></div>
+                           <div className="h-64 bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)]"></div>
                       </div>
                  </div>
             </div>
@@ -76,10 +76,10 @@ export function PromoterProfileClient() {
         <div className="flex flex-col gap-6 w-full animate-in fade-in slide-in-from-bottom-4 duration-500 pb-16">
             <header className="mb-2 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-display-sm text-text-primary tracking-tight font-bold">
+                    <h1 className="text-display-sm text-[var(--text-primary)] tracking-tight font-bold">
                         Profile Details
                     </h1>
-                    <p className="text-text-secondary text-sm mt-1 font-medium">
+                    <p className="text-[var(--text-secondary)] text-sm mt-1 font-medium">
                         Manage your public appearance, bio, and connected socials.
                     </p>
                 </div>
@@ -90,7 +90,7 @@ export function PromoterProfileClient() {
                             <button 
                                 onClick={() => setIsEditing(false)}
                                 disabled={updateProfile.isPending}
-                                className="px-4 py-2 border border-border-subtle hover:bg-surface-hover rounded-xl text-sm font-semibold transition-colors flex items-center gap-2"
+                                className="px-4 py-2 border border-[var(--border-subtle)] hover:bg-[var(--bg-fill)] rounded-xl text-sm font-semibold transition-colors flex items-center gap-2"
                             >
                                 <X className="h-4 w-4" />
                                 Cancel
@@ -107,7 +107,7 @@ export function PromoterProfileClient() {
                     ) : (
                         <button 
                             onClick={() => setIsEditing(true)}
-                            className="bg-surface-tertiary hover:bg-surface-hover text-text-primary px-4 py-2 rounded-xl border border-border-subtle text-sm font-semibold transition-colors shadow-sm"
+                            className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-fill)] text-[var(--text-primary)] px-4 py-2 rounded-xl border border-[var(--border-subtle)] text-sm font-semibold transition-colors shadow-sm"
                         >
                             Edit Profile
                         </button>
@@ -118,13 +118,13 @@ export function PromoterProfileClient() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                  {/* Left Column: Avatar & Visibility */}
                  <div className="flex flex-col gap-6">
-                      <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6 flex flex-col items-center text-center">
+                      <div className="bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)] p-6 flex flex-col items-center text-center">
                            <div className="relative group mb-4">
-                               <div className="h-32 w-32 rounded-full overflow-hidden bg-surface-tertiary border-4 border-surface-base flex items-center justify-center relative">
+                               <div className="h-32 w-32 rounded-full overflow-hidden bg-[var(--bg-secondary)] border-4 border-surface-base flex items-center justify-center relative">
                                     {formData.avatarUrl ? (
                                         <img src={formData.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                                     ) : (
-                                        <Camera className="h-10 w-10 text-text-muted" />
+                                        <Camera className="h-10 w-10 text-[var(--text-tertiary)]" />
                                     )}
                                </div>
                                {isEditing && (
@@ -135,27 +135,27 @@ export function PromoterProfileClient() {
                                )}
                            </div>
                            
-                           <h2 className="text-xl font-bold text-text-primary mb-1">{formData.displayName || "Unknown"}</h2>
+                           <h2 className="text-xl font-bold text-[var(--text-primary)] mb-1">{formData.displayName || "Unknown"}</h2>
                            <p className="text-sm font-mono text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">@{formData.handle || "unknown"}</p>
                       </div>
 
-                      <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6">
-                           <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
+                      <div className="bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)] p-6">
+                           <h3 className="font-bold text-[var(--text-primary)] mb-4 flex items-center gap-2">
                                <ShieldAlert className="h-4 w-4 text-emerald-500" />
                                Profile Visibility
                            </h3>
                            
-                           <label className="flex items-center justify-between p-4 border border-border-subtle rounded-xl bg-surface-base cursor-pointer hover:border-emerald-500/50 transition-colors">
+                           <label className="flex items-center justify-between p-4 border border-[var(--border-subtle)] rounded-xl bg-[var(--bg-base)] cursor-pointer hover:border-emerald-500/50 transition-colors">
                                <div className="flex flex-col max-w-[200px]">
-                                   <span className="font-semibold text-text-primary text-sm flex items-center gap-1.5">
-                                       {formData.isPublic ? <Eye className="h-4 w-4 text-emerald-500" /> : <EyeOff className="h-4 w-4 text-text-muted" />}
+                                   <span className="font-semibold text-[var(--text-primary)] text-sm flex items-center gap-1.5">
+                                       {formData.isPublic ? <Eye className="h-4 w-4 text-emerald-500" /> : <EyeOff className="h-4 w-4 text-[var(--text-tertiary)]" />}
                                        {formData.isPublic ? "Public Profile" : "Private Profile"}
                                    </span>
-                                   <span className="text-xs text-text-secondary mt-1">
+                                   <span className="text-xs text-[var(--text-secondary)] mt-1">
                                        {formData.isPublic ? "Visible on your custom promoter landing page." : "Hidden from public view."}
                                    </span>
                                </div>
-                               <div className={`w-11 h-6 rounded-full transition-colors relative flex items-center ${formData.isPublic ? 'bg-emerald-500' : 'bg-surface-tertiary'}`}>
+                               <div className={`w-11 h-6 rounded-full transition-colors relative flex items-center ${formData.isPublic ? 'bg-emerald-500' : 'bg-[var(--bg-secondary)]'}`}>
                                    <div className={`w-4 h-4 bg-white rounded-full mx-1 transition-transform ${formData.isPublic ? 'translate-x-5' : 'translate-x-0'}`} />
                                     {isEditing && (
                                        <input 
@@ -172,68 +172,68 @@ export function PromoterProfileClient() {
 
                  {/* Right Column: General Info & Socials */}
                  <div className="lg:col-span-2 flex flex-col gap-6">
-                      <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6">
-                          <h3 className="font-bold text-text-primary mb-4">General Information</h3>
+                      <div className="bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)] p-6">
+                          <h3 className="font-bold text-[var(--text-primary)] mb-4">General Information</h3>
                           
                           <div className="flex flex-col gap-5">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                   <div className="flex flex-col gap-2">
-                                       <label className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">Display Name</label>
+                                       <label className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Display Name</label>
                                        {isEditing ? (
                                            <input 
                                                type="text" 
                                                value={formData.displayName || ""}
                                                onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                                               className="w-full bg-surface-base border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-emerald-500 transition-colors"
+                                               className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors"
                                            />
                                        ) : (
-                                           <div className="w-full bg-surface-base border border-transparent rounded-lg px-3 py-2 text-sm text-text-primary font-medium">{formData.displayName}</div>
+                                           <div className="w-full bg-[var(--bg-base)] border border-transparent rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] font-medium">{formData.displayName}</div>
                                        )}
                                   </div>
                                   <div className="flex flex-col gap-2">
-                                       <label className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">Unique Handle</label>
+                                       <label className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Unique Handle</label>
                                        {isEditing ? (
-                                            <div className="flex items-center w-full bg-surface-base border border-border-subtle rounded-lg overflow-hidden focus-within:border-emerald-500 transition-colors">
-                                                <span className="pl-3 pr-1 text-text-muted text-sm border-r border-border-subtle py-2 bg-surface-tertiary">@</span>
+                                            <div className="flex items-center w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg overflow-hidden focus-within:border-emerald-500 transition-colors">
+                                                <span className="pl-3 pr-1 text-[var(--text-tertiary)] text-sm border-r border-[var(--border-subtle)] py-2 bg-[var(--bg-secondary)]">@</span>
                                                 <input 
                                                     type="text" 
                                                     value={formData.handle || ""}
                                                     onChange={(e) => setFormData({ ...formData, handle: e.target.value })}
-                                                    className="w-full bg-transparent px-3 py-2 text-sm text-text-primary focus:outline-none"
+                                                    className="w-full bg-transparent px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none"
                                                 />
                                             </div>
                                        ) : (
-                                           <div className="w-full bg-surface-base border border-transparent rounded-lg px-3 py-2 text-sm text-text-primary font-medium">@{formData.handle}</div>
+                                           <div className="w-full bg-[var(--bg-base)] border border-transparent rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] font-medium">@{formData.handle}</div>
                                        )}
                                   </div>
                               </div>
                               
                               <div className="flex flex-col gap-2">
-                                  <label className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">Bio & Background</label>
+                                  <label className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Bio & Background</label>
                                   {isEditing ? (
                                       <textarea 
                                           value={formData.bio || ""}
                                           onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                                           rows={4}
-                                          className="w-full bg-surface-base border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-emerald-500 transition-colors resize-none"
+                                          className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 transition-colors resize-none"
                                           placeholder="Share your story and the type of events you promote..."
                                       />
                                   ) : (
-                                      <div className="w-full bg-surface-base border border-transparent rounded-lg px-3 py-2 text-sm text-text-primary leading-relaxed">{formData.bio}</div>
+                                      <div className="w-full bg-[var(--bg-base)] border border-transparent rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] leading-relaxed">{formData.bio}</div>
                                   )}
                               </div>
                           </div>
                       </div>
 
-                      <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6">
-                           <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
+                      <div className="bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)] p-6">
+                           <h3 className="font-bold text-[var(--text-primary)] mb-4 flex items-center gap-2">
                                 <LinkIcon className="h-4 w-4" />
                                 Social Connections
                            </h3>
                            
                            <div className="flex flex-col gap-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-lg bg-surface-tertiary flex items-center justify-center shrink-0">
+                                    <div className="h-10 w-10 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center shrink-0">
                                         <Instagram className="h-5 w-5 text-pink-500" />
                                     </div>
                                     <div className="flex-1">
@@ -243,18 +243,18 @@ export function PromoterProfileClient() {
                                                 placeholder="https://instagram.com/yourhandle"
                                                 value={formData.socialLinks?.instagram || ""}
                                                 onChange={(e) => setFormData({ ...formData, socialLinks: { ...formData.socialLinks, instagram: e.target.value }})}
-                                                className="w-full bg-surface-base border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-emerald-500"
+                                                className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500"
                                             />
                                         ) : (
                                              formData.socialLinks?.instagram ? (
                                                  <a href={formData.socialLinks.instagram} target="_blank" rel="noreferrer" className="text-sm font-medium text-emerald-500 hover:text-emerald-400 transition-colors">{formData.socialLinks.instagram}</a>
-                                             ) : <span className="text-sm text-text-muted italic">Not connected</span>
+                                             ) : <span className="text-sm text-[var(--text-tertiary)] italic">Not connected</span>
                                         )}
                                     </div>
                                 </div>
 
                                 <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-lg bg-surface-tertiary flex items-center justify-center shrink-0">
+                                    <div className="h-10 w-10 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center shrink-0">
                                         <Twitter className="h-5 w-5 text-sky-500" />
                                     </div>
                                     <div className="flex-1">
@@ -264,19 +264,19 @@ export function PromoterProfileClient() {
                                                 placeholder="https://twitter.com/yourhandle"
                                                 value={formData.socialLinks?.twitter || ""}
                                                 onChange={(e) => setFormData({ ...formData, socialLinks: { ...formData.socialLinks, twitter: e.target.value }})}
-                                                className="w-full bg-surface-base border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-emerald-500"
+                                                className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500"
                                             />
                                         ) : (
                                              formData.socialLinks?.twitter ? (
                                                  <a href={formData.socialLinks.twitter} target="_blank" rel="noreferrer" className="text-sm font-medium text-emerald-500 hover:text-emerald-400 transition-colors">{formData.socialLinks.twitter}</a>
-                                             ) : <span className="text-sm text-text-muted italic">Not connected</span>
+                                             ) : <span className="text-sm text-[var(--text-tertiary)] italic">Not connected</span>
                                         )}
                                     </div>
                                 </div>
                                 
                                 <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-lg bg-surface-tertiary flex items-center justify-center shrink-0">
-                                        <Globe className="h-5 w-5 text-text-secondary" />
+                                    <div className="h-10 w-10 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center shrink-0">
+                                        <Globe className="h-5 w-5 text-[var(--text-secondary)]" />
                                     </div>
                                     <div className="flex-1">
                                         {isEditing ? (
@@ -285,12 +285,12 @@ export function PromoterProfileClient() {
                                                 placeholder="https://yourwebsite.com"
                                                 value={formData.socialLinks?.website || ""}
                                                 onChange={(e) => setFormData({ ...formData, socialLinks: { ...formData.socialLinks, website: e.target.value }})}
-                                                className="w-full bg-surface-base border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-emerald-500"
+                                                className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-emerald-500"
                                             />
                                         ) : (
                                              formData.socialLinks?.website ? (
                                                  <a href={formData.socialLinks.website} target="_blank" rel="noreferrer" className="text-sm font-medium text-emerald-500 hover:text-emerald-400 transition-colors">{formData.socialLinks.website}</a>
-                                             ) : <span className="text-sm text-text-muted italic">Not connected</span>
+                                             ) : <span className="text-sm text-[var(--text-tertiary)] italic">Not connected</span>
                                         )}
                                     </div>
                                 </div>

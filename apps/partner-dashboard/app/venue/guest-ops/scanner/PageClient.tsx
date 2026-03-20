@@ -124,12 +124,12 @@ export default function ScannerOversightPageClient() {
                     {/* Header row */}
                     <div className="flex items-center gap-3 flex-wrap">
                         <div className="flex items-center gap-2">
-                            <Radio size={16} className="text-[var(--v-text-muted)]" />
-                            <h2 className="text-[15px] font-semibold text-[var(--v-text-primary)]">Scanner Oversight</h2>
+                            <Radio size={16} className="text-[var(--text-tertiary)]" />
+                            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Scanner Oversight</h2>
                         </div>
                         <div className="ml-auto flex items-center gap-2">
                             {lastRefresh && (
-                                <span className="text-[11px] text-[var(--v-text-muted)]">
+                                <span className="text-[11px] text-[var(--text-tertiary)]">
                                     Updated {lastRefresh.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                                 </span>
                             )}
@@ -139,7 +139,7 @@ export default function ScannerOversightPageClient() {
                                     "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium transition-all",
                                     isLive
                                         ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
-                                        : "bg-[var(--v-elevated)] text-[var(--v-text-secondary)]"
+                                        : "bg-[var(--bg-fill)] text-[var(--text-secondary)]"
                                 )}
                             >
                                 <Activity size={12} className={isLive ? "animate-pulse" : ""} />
@@ -147,7 +147,7 @@ export default function ScannerOversightPageClient() {
                             </button>
                             <button
                                 onClick={() => { fetchDevices(); fetchStream(); }}
-                                className="p-1.5 rounded-xl hover:bg-[var(--v-elevated)] text-[var(--v-text-muted)] transition-all"
+                                className="p-1.5 rounded-xl hover:bg-[var(--bg-fill)] text-[var(--text-tertiary)] transition-all"
                             >
                                 <RefreshCw size={14} />
                             </button>
@@ -165,16 +165,16 @@ export default function ScannerOversightPageClient() {
                     {/* Device Health Grid */}
                     <div
                         className="p-4 rounded-2xl border"
-                        style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
+                        style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
                     >
                         <div className="flex items-center gap-2 mb-4">
-                            <Activity size={14} className="text-[var(--v-text-muted)]" />
-                            <span className="text-[13px] font-semibold text-[var(--v-text-primary)]">Devices</span>
-                            {devicesLoading && <Loader2 size={12} className="animate-spin text-[var(--v-text-muted)] ml-1" />}
+                            <Activity size={14} className="text-[var(--text-tertiary)]" />
+                            <span className="text-[13px] font-semibold text-[var(--text-primary)]">Devices</span>
+                            {devicesLoading && <Loader2 size={12} className="animate-spin text-[var(--text-tertiary)] ml-1" />}
                         </div>
 
                         {devices.length === 0 ? (
-                            <p className="text-[13px] text-[var(--v-text-muted)] text-center py-6">
+                            <p className="text-[13px] text-[var(--text-tertiary)] text-center py-6">
                                 No scanner devices registered for this event.
                             </p>
                         ) : (
@@ -189,23 +189,23 @@ export default function ScannerOversightPageClient() {
                     {/* Live Scan Stream */}
                     <div
                         className="p-4 rounded-2xl border"
-                        style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
+                        style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
                     >
                         <div className="flex items-center gap-2 mb-4">
-                            <ScanLine size={14} className="text-[var(--v-text-muted)]" />
-                            <span className="text-[13px] font-semibold text-[var(--v-text-primary)]">
+                            <ScanLine size={14} className="text-[var(--text-tertiary)]" />
+                            <span className="text-[13px] font-semibold text-[var(--text-primary)]">
                                 Live Scan Feed
                             </span>
-                            <span className="text-[11px] text-[var(--v-text-muted)]">(last 50 scans)</span>
-                            {streamLoading && <Loader2 size={12} className="animate-spin text-[var(--v-text-muted)] ml-auto" />}
+                            <span className="text-[11px] text-[var(--text-tertiary)]">(last 50 scans)</span>
+                            {streamLoading && <Loader2 size={12} className="animate-spin text-[var(--text-tertiary)] ml-auto" />}
                         </div>
 
                         {scanStream.length === 0 ? (
-                            <p className="text-[13px] text-[var(--v-text-muted)] text-center py-6">
+                            <p className="text-[13px] text-[var(--text-tertiary)] text-center py-6">
                                 No scans yet for this event.
                             </p>
                         ) : (
-                            <div className="divide-y overflow-hidden rounded-xl border" style={{ borderColor: "var(--v-border)" }}>
+                            <div className="divide-y overflow-hidden rounded-xl border" style={{ borderColor: "var(--border-subtle)" }}>
                                 {scanStream.map(scan => (
                                     <ScanRow key={scan.scanId} scan={scan} />
                                 ))}
@@ -232,14 +232,14 @@ function ScanKPI({ label, value, color, icon }: {
     return (
         <div
             className="p-4 rounded-xl border flex flex-col gap-2"
-            style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
+            style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
         >
             <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", colorMap[color])}>
                 {icon}
             </div>
             <div>
-                <div className="text-[11px] text-[var(--v-text-muted)]">{label}</div>
-                <div className="text-xl font-bold tabular-nums text-[var(--v-text-primary)]">{value}</div>
+                <div className="text-[11px] text-[var(--text-tertiary)]">{label}</div>
+                <div className="text-xl font-bold tabular-nums text-[var(--text-primary)]">{value}</div>
             </div>
         </div>
     );
@@ -258,7 +258,7 @@ function DeviceCard({ device }: { device: ScannerDevice }) {
                     ? "border-green-200 dark:border-green-800/50"
                     : "opacity-70"
             )}
-            style={device.isOnline ? {} : { borderColor: "var(--v-border)" }}
+            style={device.isOnline ? {} : { borderColor: "var(--border-subtle)" }}
         >
             <div className="flex items-start gap-2.5">
                 <div className={cn(
@@ -267,14 +267,14 @@ function DeviceCard({ device }: { device: ScannerDevice }) {
                 )} />
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                        <span className="text-[13px] font-semibold text-[var(--v-text-primary)] truncate">
+                        <span className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
                             {device.deviceName}
                         </span>
                         {device.isOnline
                             ? <Wifi size={11} className="text-green-500 shrink-0" />
                             : <WifiOff size={11} className="text-slate-400 shrink-0" />}
                     </div>
-                    <div className="text-[11px] text-[var(--v-text-muted)] mt-0.5">
+                    <div className="text-[11px] text-[var(--text-tertiary)] mt-0.5">
                         {device.operatorName}
                         {device.boundGate ? ` · ${device.boundGate}` : ""}
                     </div>
@@ -282,28 +282,28 @@ function DeviceCard({ device }: { device: ScannerDevice }) {
                     <div className="flex items-center gap-3 mt-2">
                         <div className="text-center">
                             <div className="text-[13px] font-bold text-green-600 dark:text-green-400 tabular-nums">{device.validScans}</div>
-                            <div className="text-[9px] text-[var(--v-text-muted)] uppercase">valid</div>
+                            <div className="text-[9px] text-[var(--text-tertiary)] uppercase">valid</div>
                         </div>
                         <div className="text-center">
                             <div className="text-[13px] font-bold text-amber-500 tabular-nums">{device.duplicateScans}</div>
-                            <div className="text-[9px] text-[var(--v-text-muted)] uppercase">dupes</div>
+                            <div className="text-[9px] text-[var(--text-tertiary)] uppercase">dupes</div>
                         </div>
                         <div className="text-center">
                             <div className="text-[13px] font-bold text-red-500 tabular-nums">{device.invalidScans}</div>
-                            <div className="text-[9px] text-[var(--v-text-muted)] uppercase">invalid</div>
+                            <div className="text-[9px] text-[var(--text-tertiary)] uppercase">invalid</div>
                         </div>
                         {device.batteryLevel !== undefined && (
                             <div className="ml-auto flex items-center gap-1">
-                                <BatteryMedium size={12} className={device.batteryLevel < 20 ? "text-red-400" : "text-[var(--v-text-muted)]"} />
-                                <span className="text-[11px] text-[var(--v-text-muted)]">{device.batteryLevel}%</span>
+                                <BatteryMedium size={12} className={device.batteryLevel < 20 ? "text-red-400" : "text-[var(--text-tertiary)]"} />
+                                <span className="text-[11px] text-[var(--text-tertiary)]">{device.batteryLevel}%</span>
                             </div>
                         )}
                     </div>
 
                     {sinceHeartbeat !== null && (
                         <div className="flex items-center gap-1 mt-1.5">
-                            <Clock size={10} className="text-[var(--v-text-muted)]" />
-                            <span className="text-[10px] text-[var(--v-text-muted)]">
+                            <Clock size={10} className="text-[var(--text-tertiary)]" />
+                            <span className="text-[10px] text-[var(--text-tertiary)]">
                                 {sinceHeartbeat < 60
                                     ? `${sinceHeartbeat}s ago`
                                     : `${Math.round(sinceHeartbeat / 60)}m ago`}
@@ -321,23 +321,23 @@ function ScanRow({ scan }: { scan: ScanEvent }) {
     return (
         <div
             className="flex items-center gap-3 px-4 py-2.5 text-[12px]"
-            style={{ background: "var(--v-elevated)" }}
+            style={{ background: "var(--bg-fill)" }}
         >
             <TicketValidityChip result={scan.result} size="xs" />
-            <span className="text-[var(--v-text-primary)] font-medium truncate flex-1 min-w-0">
+            <span className="text-[var(--text-primary)] font-medium truncate flex-1 min-w-0">
                 {scan.guestDisplayName}
             </span>
             {scan.ticketTierName && (
-                <span className="text-[11px] text-[var(--v-text-muted)] hidden sm:block truncate max-w-[100px]">
+                <span className="text-[11px] text-[var(--text-tertiary)] hidden sm:block truncate max-w-[100px]">
                     {scan.ticketTierName}
                 </span>
             )}
             {scan.deviceName && (
-                <span className="text-[11px] text-[var(--v-text-muted)] hidden md:block truncate max-w-[100px]">
+                <span className="text-[11px] text-[var(--text-tertiary)] hidden md:block truncate max-w-[100px]">
                     {scan.deviceName}
                 </span>
             )}
-            <span className="text-[11px] text-[var(--v-text-muted)] tabular-nums shrink-0 ml-auto">
+            <span className="text-[11px] text-[var(--text-tertiary)] tabular-nums shrink-0 ml-auto">
                 {new Date(scan.scannedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
             </span>
         </div>
@@ -347,9 +347,9 @@ function ScanRow({ scan }: { scan: ScanEvent }) {
 function NoEventState() {
     return (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-            <Radio size={40} className="text-[var(--v-text-muted)] mb-4" />
-            <h3 className="text-[16px] font-semibold text-[var(--v-text-primary)] mb-2">Select an event</h3>
-            <p className="text-[13px] text-[var(--v-text-muted)] max-w-xs">
+            <Radio size={40} className="text-[var(--text-tertiary)] mb-4" />
+            <h3 className="text-[16px] font-semibold text-[var(--text-primary)] mb-2">Select an event</h3>
+            <p className="text-[13px] text-[var(--text-tertiary)] max-w-xs">
                 Choose an event from the selector above to monitor scanner activity.
             </p>
         </div>

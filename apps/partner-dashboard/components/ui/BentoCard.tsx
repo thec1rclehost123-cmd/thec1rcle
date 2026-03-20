@@ -46,10 +46,10 @@ const paddingClasses = {
 };
 
 const variantStyles: Record<string, React.CSSProperties> = {
-    default: { background: "var(--v-card)" },
-    dark:    { background: "var(--v-hero)" },
-    accent:  { background: "var(--v-card)", border: "1px solid var(--v-orange)", boxShadow: "0 0 20px var(--v-orange-glow)" },
-    ghost:   { background: "transparent", border: "1px solid var(--v-border)" },
+    default: { background: "var(--bg-elevated)" },
+    dark:    { background: "var(--bg-base)" },
+    accent:  { background: "var(--bg-elevated)", border: "1px solid var(--accent)", boxShadow: "0 0 20px var(--accent-muted)" },
+    ghost:   { background: "transparent", border: "1px solid var(--border-subtle)" },
 };
 
 export function BentoCard({
@@ -81,8 +81,8 @@ export function BentoCard({
 
     const containerStyle: React.CSSProperties = {
         ...variantStyles[variant],
-        borderRadius: "var(--v-r-xl)",
-        boxShadow: variant === "accent" ? variantStyles.accent.boxShadow : "var(--v-shadow-card)",
+        borderRadius: "var(--r-xl)",
+        boxShadow: variant === "accent" ? variantStyles.accent.boxShadow : "var(--shadow-sm)",
         minHeight,
         ...style,
     };
@@ -133,7 +133,7 @@ export function BentoCard({
 
             {/* Footer slot */}
             {footer && !loading && !error && !empty && (
-                <div className="mt-3 pt-3 border-t border-[var(--v-border)] shrink-0">
+                <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] shrink-0">
                     {footer}
                 </div>
             )}
@@ -162,7 +162,7 @@ export function BentoCard({
                 )}
                 <div className="flex-1 min-h-0">{children}</div>
                 {footer && (
-                    <div className="mt-3 pt-3 border-t border-[var(--v-border)] shrink-0">
+                    <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] shrink-0">
                         {footer}
                     </div>
                 )}
@@ -197,13 +197,13 @@ function BentoEmpty({
     return (
         <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
             {icon && (
-                <div style={{ color: "var(--v-text-muted)" }} className="w-10 h-10">
+                <div style={{ color: "var(--text-tertiary)" }} className="w-10 h-10">
                     {icon}
                 </div>
             )}
             <p
                 className="text-[13px] font-medium"
-                style={{ color: "var(--v-text-tertiary)" }}
+                style={{ color: "var(--text-tertiary)" }}
             >
                 {title}
             </p>
@@ -218,11 +218,11 @@ function BentoError({ onRetry }: { onRetry?: () => void }) {
         <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
             <AlertCircle
                 className="w-8 h-8"
-                style={{ color: "var(--v-error)" }}
+                style={{ color: "var(--color-error)" }}
             />
             <p
                 className="text-[13px] font-medium"
-                style={{ color: "var(--v-text-secondary)" }}
+                style={{ color: "var(--text-secondary)" }}
             >
                 Something went wrong
             </p>
@@ -231,8 +231,8 @@ function BentoError({ onRetry }: { onRetry?: () => void }) {
                     onClick={onRetry}
                     className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
                     style={{
-                        color: "var(--v-text-secondary)",
-                        background: "var(--v-elevated)",
+                        color: "var(--text-secondary)",
+                        background: "var(--bg-fill)",
                     }}
                 >
                     <RefreshCw className="w-3 h-3" />
@@ -272,9 +272,9 @@ export function KPIBento({
             {icon && (
                 <div
                     className="w-8 h-8 rounded-lg flex items-center justify-center mb-2"
-                    style={{ background: iconBg || "var(--v-elevated)" }}
+                    style={{ background: iconBg || "var(--bg-fill)" }}
                 >
-                    <div style={{ color: "var(--v-text-secondary)" }}>{icon}</div>
+                    <div style={{ color: "var(--text-secondary)" }}>{icon}</div>
                 </div>
             )}
 
@@ -283,7 +283,7 @@ export function KPIBento({
             <div className="flex items-end gap-2 flex-wrap">
                 <span
                     className="text-[26px] font-bold leading-none tracking-tight tabular-nums"
-                    style={{ color: "var(--v-text-primary)" }}
+                    style={{ color: "var(--text-primary)" }}
                 >
                     {value}
                 </span>
@@ -305,7 +305,7 @@ export function KPIBento({
             </div>
 
             {subtext && (
-                <p className="text-[12px] mt-1.5" style={{ color: "var(--v-text-tertiary)" }}>
+                <p className="text-[12px] mt-1.5" style={{ color: "var(--text-tertiary)" }}>
                     {subtext}
                 </p>
             )}

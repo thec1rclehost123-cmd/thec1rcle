@@ -160,15 +160,15 @@ export default function VenuePartnershipsPage() {
             {/* Content only - Header and Tabs removed for consistency with parent wrapper */}
             <div className="min-h-[500px]">
                 {error ? (
-                    <div className="py-24 bg-surface-elevated rounded-[3rem] border border-dashed border-error/50 flex flex-col items-center text-center px-10">
+                    <div className="py-24 bg-[var(--bg-elevated)] rounded-[3rem] border border-dashed border-error/50 flex flex-col items-center text-center px-10">
                         <div className="w-16 h-16 bg-error/10 rounded-2xl flex items-center justify-center mb-5">
                             <ShieldAlert className="w-8 h-8 text-error" />
                         </div>
-                        <h4 className="text-title font-semibold text-text-primary">Connection Error</h4>
-                        <p className="text-body-sm text-text-tertiary mt-1 max-w-xs">{error}</p>
+                        <h4 className="text-title font-semibold text-[var(--text-primary)]">Connection Error</h4>
+                        <p className="text-body-sm text-[var(--text-tertiary)] mt-1 max-w-xs">{error}</p>
                         <button 
                             onClick={() => fetchConnections()}
-                            className="mt-6 px-6 py-2 bg-surface-secondary hover:bg-surface-tertiary rounded-xl text-caption font-bold transition-all"
+                            className="mt-6 px-6 py-2 bg-[var(--bg-fill)] hover:bg-[var(--bg-secondary)] rounded-xl text-caption font-bold transition-all"
                         >
                             Retry Connection
                         </button>
@@ -235,7 +235,7 @@ function ActiveRoster({
         return (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-52 bg-surface-secondary rounded-[2rem] animate-pulse border border-border-subtle" />
+                    <div key={i} className="h-52 bg-[var(--bg-fill)] rounded-[2rem] animate-pulse border border-[var(--border-subtle)]" />
                 ))}
             </div>
         );
@@ -244,7 +244,7 @@ function ActiveRoster({
     if (connections.length === 0) {
         return (
             <EmptyState
-                icon={<CheckCircle2 className="w-8 h-8 text-text-placeholder" />}
+                icon={<CheckCircle2 className="w-8 h-8 text-[var(--text-quaternary)]" />}
                 title="No active partners yet"
                 subtitle="Approve incoming requests to build your roster."
             />
@@ -259,7 +259,7 @@ function ActiveRoster({
                     layout
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="group relative overflow-hidden bg-surface-secondary dark:bg-[#121216] border border-border-subtle rounded-[2.5rem] p-7 hover:border-orange-500/30 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/5"
+                    className="group relative overflow-hidden bg-[var(--bg-fill)] dark:bg-[#121216] border border-[var(--border-subtle)] rounded-[2.5rem] p-7 hover:border-orange-500/30 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/5"
                 >
                     {/* Background Shine */}
                     <div className="absolute inset-0 bg-gradient-to-br from-orange-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
@@ -268,15 +268,15 @@ function ActiveRoster({
                         <div className="flex items-center gap-4">
                             <div className="relative">
                                 <div className="absolute inset-0 bg-orange-500/20 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <div className="relative w-14 h-14 rounded-2xl bg-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-text-primary">
+                                <div className="relative w-14 h-14 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] flex items-center justify-center text-2xl font-black text-[var(--text-primary)]">
                                     {conn.otherName[0]}
                                 </div>
                             </div>
                             <div>
-                                <h3 className="text-lg font-black text-text-primary tracking-tight group-hover:text-orange-500 transition-colors">
+                                <h3 className="text-lg font-black text-[var(--text-primary)] tracking-tight group-hover:text-orange-500 transition-colors">
                                     {conn.otherName}
                                 </h3>
-                                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-text-tertiary mt-1">
+                                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[var(--text-tertiary)] mt-1">
                                     {conn.otherType === "host" ? (
                                         <div className="p-1 rounded bg-orange-500/10 text-orange-500">
                                             <UserCircle className="w-3 h-3" />
@@ -295,7 +295,7 @@ function ActiveRoster({
                                 className={`text-[10px] px-3 py-1.5 rounded-xl font-black uppercase tracking-widest ${
                                     conn.tier === "trusted"
                                         ? "bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-lg shadow-orange-500/20"
-                                        : "bg-surface-tertiary text-text-tertiary border border-border-subtle"
+                                        : "bg-[var(--bg-secondary)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]"
                                 }`}
                             >
                                 {conn.tier === "trusted" ? "Trusted" : "Standard"}
@@ -303,8 +303,8 @@ function ActiveRoster({
                         )}
                     </div>
 
-                    <div className="relative flex items-center justify-between py-4 border-y border-border-subtle mb-6">
-                        <span className="flex items-center gap-1.5 text-[11px] font-medium text-text-tertiary">
+                    <div className="relative flex items-center justify-between py-4 border-y border-[var(--border-subtle)] mb-6">
+                        <span className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-tertiary)]">
                             <Clock className="w-3.5 h-3.5 opacity-40" />
                             Partner since {formatDate(conn.updatedAt || conn.createdAt)}
                         </span>
@@ -315,7 +315,7 @@ function ActiveRoster({
 
                     <button
                         onClick={() => onViewProfile(conn)}
-                        className="relative w-full py-3.5 bg-surface-secondary hover:bg-surface-tertiary border border-border-subtle rounded-2xl text-[11px] font-black uppercase tracking-widest text-text-primary transition-all flex items-center justify-center gap-2 group/btn overflow-hidden"
+                        className="relative w-full py-3.5 bg-[var(--bg-fill)] hover:bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-2xl text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] transition-all flex items-center justify-center gap-2 group/btn overflow-hidden"
                     >
                         <span className="relative z-10 flex items-center gap-2">
                             View Network Profile <ChevronRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
@@ -346,7 +346,7 @@ function PendingRequests({
         return (
             <div className="space-y-4">
                 {[1, 2].map((i) => (
-                    <div key={i} className="h-28 bg-surface-secondary rounded-[2rem] animate-pulse border border-border-subtle" />
+                    <div key={i} className="h-28 bg-[var(--bg-fill)] rounded-[2rem] animate-pulse border border-[var(--border-subtle)]" />
                 ))}
             </div>
         );
@@ -372,24 +372,24 @@ function PendingRequests({
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95, x: 20 }}
-                        className="relative overflow-hidden bg-surface-secondary dark:bg-[#121216] border border-border-subtle p-6 rounded-[2rem] group"
+                        className="relative overflow-hidden bg-[var(--bg-fill)] dark:bg-[#121216] border border-[var(--border-subtle)] p-6 rounded-[2rem] group"
                     >
                         <div className="absolute inset-0 bg-gradient-to-r from-orange-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                         
                         <div className="relative flex items-center justify-between">
                             <div className="flex items-center gap-5">
-                                <div className="w-14 h-14 rounded-2xl bg-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-text-primary shadow-xl">
+                                <div className="w-14 h-14 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] flex items-center justify-center text-2xl font-black text-[var(--text-primary)] shadow-xl">
                                     {req.otherName[0]}
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-black text-text-primary tracking-tight">{req.otherName}</h3>
+                                    <h3 className="text-xl font-black text-[var(--text-primary)] tracking-tight">{req.otherName}</h3>
                                     <div className="flex items-center gap-3 mt-1.5">
                                         <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-orange-500">
                                             {req.otherType === "host" ? <UserCircle className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
                                             {req.otherType}
                                         </span>
-                                        <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">•</span>
-                                        <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">
+                                        <span className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase tracking-widest">•</span>
+                                        <span className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase tracking-widest">
                                             Received {formatDate(req.createdAt)}
                                         </span>
                                     </div>
@@ -411,7 +411,7 @@ function PendingRequests({
                                 <button
                                     onClick={() => onDecline(req.id)}
                                     disabled={!!processingId}
-                                    className="h-12 w-12 rounded-xl bg-surface-secondary border border-border-default text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
+                                    className="h-12 w-12 rounded-xl bg-[var(--bg-fill)] border border-[var(--border-default)] text-[var(--text-tertiary)] flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
                                     title="Decline"
                                 >
                                     <X className="w-5 h-5" />
@@ -420,11 +420,11 @@ function PendingRequests({
                         </div>
 
                         {req.message && (
-                            <div className="mt-5 p-5 bg-surface-secondary rounded-2xl border border-border-subtle relative">
+                            <div className="mt-5 p-5 bg-[var(--bg-fill)] rounded-2xl border border-[var(--border-subtle)] relative">
                                 <div className="absolute top-4 left-4 text-orange-500/20">
                                     <Quote size={16} />
                                 </div>
-                                <p className="text-[13px] text-text-tertiary italic pl-8 leading-relaxed">"{req.message}"</p>
+                                <p className="text-[13px] text-[var(--text-tertiary)] italic pl-8 leading-relaxed">"{req.message}"</p>
                             </div>
                         )}
                     </motion.div>
@@ -444,20 +444,20 @@ function EmptyState({
     subtitle: string;
 }) {
     return (
-        <div className="py-32 relative overflow-hidden bg-surface-secondary dark:bg-[#0D0D0F] border border-dashed border-border-default rounded-[3rem] flex flex-col items-center text-center px-10 group">
+        <div className="py-32 relative overflow-hidden bg-[var(--bg-fill)] dark:bg-[#0D0D0F] border border-dashed border-[var(--border-default)] rounded-[3rem] flex flex-col items-center text-center px-10 group">
             <div className="absolute inset-0 bg-gradient-to-b from-orange-500/[0.02] to-transparent pointer-events-none" />
             
             <div className="relative mb-6">
                 <div className="absolute inset-0 bg-orange-500/20 rounded-[2rem] blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                <div className="relative w-20 h-20 bg-surface-tertiary border border-border-subtle rounded-[2rem] flex items-center justify-center text-text-primary shadow-2xl transition-transform duration-500 group-hover:scale-110">
+                <div className="relative w-20 h-20 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-[2rem] flex items-center justify-center text-[var(--text-primary)] shadow-2xl transition-transform duration-500 group-hover:scale-110">
                     <div className="text-orange-500">
                         {icon}
                     </div>
                 </div>
             </div>
 
-            <h4 className="relative text-2xl font-black text-text-primary tracking-tight mb-2 uppercase">{title}</h4>
-            <p className="relative text-[14px] text-text-tertiary font-medium max-w-xs leading-relaxed">{subtitle}</p>
+            <h4 className="relative text-2xl font-black text-[var(--text-primary)] tracking-tight mb-2 uppercase">{title}</h4>
+            <p className="relative text-[14px] text-[var(--text-tertiary)] font-medium max-w-xs leading-relaxed">{subtitle}</p>
         </div>
     );
 }

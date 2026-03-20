@@ -142,7 +142,7 @@ export function PayoutConfig({ payout, promoterId, token, onUpdated }: Props) {
                     placeholder="you@upi"
                 />
                 <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-text-tertiary uppercase tracking-widest mb-1.5">
+                    <label className="block text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-widest mb-1.5">
                         Payout Threshold (₹)
                     </label>
                     <input
@@ -152,9 +152,9 @@ export function PayoutConfig({ payout, promoterId, token, onUpdated }: Props) {
                         onChange={(e) =>
                             setForm((f) => ({ ...f, threshold: parseInt(e.target.value) || 500 }))
                         }
-                        className="w-32 px-4 py-2.5 rounded-xl bg-surface-secondary border border-border-default text-sm text-text-primary focus:outline-none focus:border-violet-500/50"
+                        className="w-32 px-4 py-2.5 rounded-xl bg-[var(--bg-fill)] border border-[var(--border-default)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-violet-500/50"
                     />
-                    <p className="text-[11px] text-text-tertiary mt-1">
+                    <p className="text-[11px] text-[var(--text-tertiary)] mt-1">
                         Payouts will only process above this amount.
                     </p>
                 </div>
@@ -190,10 +190,10 @@ export function PayoutConfig({ payout, promoterId, token, onUpdated }: Props) {
             {/* Re-auth modal */}
             {showReAuth && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-                    <div className="bg-surface-elevated border border-border-default rounded-[2rem] p-8 w-full max-w-sm mx-4 space-y-5">
+                    <div className="bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-[2rem] p-8 w-full max-w-sm mx-4 space-y-5">
                         <div>
-                            <h3 className="text-base font-bold text-text-primary">Confirm Your Identity</h3>
-                            <p className="text-xs text-text-tertiary mt-1">
+                            <h3 className="text-base font-bold text-[var(--text-primary)]">Confirm Your Identity</h3>
+                            <p className="text-xs text-[var(--text-tertiary)] mt-1">
                                 Enter your password to authorize this account number change.
                             </p>
                         </div>
@@ -203,14 +203,14 @@ export function PayoutConfig({ payout, promoterId, token, onUpdated }: Props) {
                             onChange={(e) => setReAuthPassword(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && handleReAuth()}
                             placeholder="Current password"
-                            className="w-full px-4 py-2.5 rounded-xl bg-surface-secondary border border-border-default text-sm text-text-primary focus:outline-none focus:border-violet-500/50"
+                            className="w-full px-4 py-2.5 rounded-xl bg-[var(--bg-fill)] border border-[var(--border-default)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-violet-500/50"
                             autoFocus
                         />
                         {error && <p className="text-xs text-red-400">{error}</p>}
                         <div className="flex gap-3">
                             <button
                                 onClick={() => { setShowReAuth(false); setReAuthPassword(""); setError(""); }}
-                                className="flex-1 py-2.5 rounded-xl bg-surface-tertiary text-sm font-semibold text-text-secondary hover:bg-surface-elevated transition-colors"
+                                className="flex-1 py-2.5 rounded-xl bg-[var(--bg-secondary)] text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
                             >
                                 Cancel
                             </button>
@@ -246,7 +246,7 @@ function Field({
     const [show, setShow] = useState(false);
     return (
         <div>
-            <label className="block text-xs font-semibold text-text-tertiary uppercase tracking-widest mb-1.5">
+            <label className="block text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-widest mb-1.5">
                 {label}
             </label>
             <div className="relative">
@@ -255,13 +255,13 @@ function Field({
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     placeholder={placeholder}
-                    className="w-full px-4 py-2.5 rounded-xl bg-surface-secondary border border-border-default text-sm text-text-primary focus:outline-none focus:border-violet-500/50 transition-colors pr-12"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[var(--bg-fill)] border border-[var(--border-default)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-violet-500/50 transition-colors pr-12"
                 />
                 {sensitive && (
                     <button
                         type="button"
                         onClick={() => setShow((s) => !s)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-text-tertiary hover:text-text-secondary"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                     >
                         {show ? "hide" : "show"}
                     </button>

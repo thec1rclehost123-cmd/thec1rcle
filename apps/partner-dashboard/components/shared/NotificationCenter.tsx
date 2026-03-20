@@ -163,8 +163,8 @@ export function NotificationCenter() {
             case 'reservation': return <Calendar className="w-4 h-4 text-indigo-500" />;
             case 'event': return <Sparkles className="w-4 h-4 text-purple-500" />;
             case 'revenue': return <TrendingUp className="w-4 h-4 text-orange-500" />;
-            case 'payment': return <CreditCard className="w-4 h-4 text-text-tertiary" />;
-            default: return <Bell className="w-4 h-4 text-text-tertiary" />;
+            case 'payment': return <CreditCard className="w-4 h-4 text-[var(--text-tertiary)]" />;
+            default: return <Bell className="w-4 h-4 text-[var(--text-tertiary)]" />;
         }
     };
 
@@ -175,9 +175,9 @@ export function NotificationCenter() {
             {/* Bell Trigger */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative w-11 h-11 flex items-center justify-center rounded-2xl bg-surface-secondary border border-border-subtle hover:bg-surface-tertiary hover:scale-105 active:scale-95 transition-all group"
+                className="relative w-11 h-11 flex items-center justify-center rounded-2xl bg-[var(--bg-fill)] border border-[var(--border-subtle)] hover:bg-[var(--bg-secondary)] hover:scale-105 active:scale-95 transition-all group"
             >
-                <Bell className="w-[20px] h-[20px] text-text-tertiary group-hover:text-text-primary transition-colors" />
+                <Bell className="w-[20px] h-[20px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" />
                 {unreadCount > 0 && (
                     <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-orange-500 rounded-full ring-2 ring-[var(--surface-base)] animate-pulse" />
                 )}
@@ -198,28 +198,28 @@ export function NotificationCenter() {
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 12, scale: 0.95 }}
                             transition={{ duration: 0.2, ease: "easeOut" }}
-                            className="absolute right-0 mt-4 w-[400px] bg-surface-elevated border border-border-subtle rounded-[2rem] shadow-2xl z-[101] overflow-hidden"
+                            className="absolute right-0 mt-4 w-[400px] bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-[2rem] shadow-2xl z-[101] overflow-hidden"
                         >
                             {/* Header */}
-                            <div className="p-6 border-b border-border-subtle flex items-center justify-between bg-gradient-to-br from-[var(--surface-base)] to-transparent">
+                            <div className="p-6 border-b border-[var(--border-subtle)] flex items-center justify-between bg-gradient-to-br from-[var(--surface-base)] to-transparent">
                                 <div className="flex items-center gap-3">
                                     <div>
-                                        <h3 className="text-[15px] font-black text-text-primary tracking-tight">Notifications</h3>
-                                        <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-[0.2em] mt-0.5">
+                                        <h3 className="text-[15px] font-black text-[var(--text-primary)] tracking-tight">Notifications</h3>
+                                        <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.2em] mt-0.5">
                                             {unreadCount} UNREAD MESSAGES
                                         </p>
                                     </div>
                                     {loading && (
-                                        <Loader2 className="w-4 h-4 text-text-tertiary animate-spin" />
+                                        <Loader2 className="w-4 h-4 text-[var(--text-tertiary)] animate-spin" />
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={fetchNotifications}
                                         disabled={loading}
-                                        className="p-2 rounded-lg hover:bg-surface-secondary transition-colors disabled:opacity-50"
+                                        className="p-2 rounded-lg hover:bg-[var(--bg-fill)] transition-colors disabled:opacity-50"
                                     >
-                                        <RefreshCw className={`w-4 h-4 text-text-tertiary ${loading ? 'animate-spin' : ''}`} />
+                                        <RefreshCw className={`w-4 h-4 text-[var(--text-tertiary)] ${loading ? 'animate-spin' : ''}`} />
                                     </button>
                                     {unreadCount > 0 && (
                                         <button
@@ -236,8 +236,8 @@ export function NotificationCenter() {
                             <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
                                 {loading && notifications.length === 0 ? (
                                     <div className="py-20 text-center">
-                                        <Loader2 className="w-8 h-8 text-text-placeholder animate-spin mx-auto mb-4" />
-                                        <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
+                                        <Loader2 className="w-8 h-8 text-[var(--text-quaternary)] animate-spin mx-auto mb-4" />
+                                        <p className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
                                             Loading notifications...
                                         </p>
                                     </div>
@@ -246,7 +246,7 @@ export function NotificationCenter() {
                                         <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto">
                                             <X className="w-6 h-6 text-red-500" />
                                         </div>
-                                        <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">{error}</p>
+                                        <p className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">{error}</p>
                                         <button
                                             onClick={fetchNotifications}
                                             className="text-[11px] font-black text-orange-500 uppercase tracking-widest hover:text-orange-600"
@@ -259,7 +259,7 @@ export function NotificationCenter() {
                                         {notifications.map((notif) => (
                                             <div
                                                 key={notif.id}
-                                                className={`p-6 hover:bg-surface-secondary/50 transition-all cursor-pointer group relative ${!notif.isRead ? 'bg-orange-500/[0.02]' : ''}`}
+                                                className={`p-6 hover:bg-[var(--bg-fill)]/50 transition-all cursor-pointer group relative ${!notif.isRead ? 'bg-orange-500/[0.02]' : ''}`}
                                             >
                                                 <div className="flex gap-4">
                                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${notif.type === 'revenue' ? 'bg-orange-500/10' :
@@ -267,21 +267,21 @@ export function NotificationCenter() {
                                                             notif.type === 'host_request' ? 'bg-iris/10' :
                                                                 notif.type === 'promoter_request' ? 'bg-green-500/10' :
                                                                     notif.type === 'event' ? 'bg-purple-500/10' :
-                                                                        'bg-surface-base'
+                                                                        'bg-[var(--bg-base)]'
                                                         }`}>
                                                         {getIcon(notif.type)}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center justify-between mb-1">
-                                                            <h4 className="text-[13px] font-bold text-text-primary truncate">
+                                                            <h4 className="text-[13px] font-bold text-[var(--text-primary)] truncate">
                                                                 {notif.title}
                                                             </h4>
-                                                            <div className="flex items-center gap-1 text-[10px] text-text-tertiary font-bold">
+                                                            <div className="flex items-center gap-1 text-[10px] text-[var(--text-tertiary)] font-bold">
                                                                 <Clock className="w-3 h-3" />
                                                                 {notif.timestamp}
                                                             </div>
                                                         </div>
-                                                        <p className="text-[12px] text-text-secondary leading-relaxed">
+                                                        <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
                                                             {notif.description}
                                                         </p>
 
@@ -293,7 +293,7 @@ export function NotificationCenter() {
                                                                         e.stopPropagation();
                                                                         // View details - could navigate to specific page
                                                                     }}
-                                                                    className="flex-1 py-2 bg-surface-secondary text-text-primary text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-black transition-all"
+                                                                    className="flex-1 py-2 bg-[var(--bg-fill)] text-[var(--text-primary)] text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-black transition-all"
                                                                 >
                                                                     View Details
                                                                 </button>
@@ -324,18 +324,18 @@ export function NotificationCenter() {
                                     </div>
                                 ) : (
                                     <div className="py-20 text-center space-y-4">
-                                        <div className="w-16 h-16 bg-surface-secondary rounded-full flex items-center justify-center mx-auto">
-                                            <Bell className="w-6 h-6 text-text-placeholder" />
+                                        <div className="w-16 h-16 bg-[var(--bg-fill)] rounded-full flex items-center justify-center mx-auto">
+                                            <Bell className="w-6 h-6 text-[var(--text-quaternary)]" />
                                         </div>
-                                        <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">No notifications</p>
-                                        <p className="text-[11px] text-text-placeholder">You're all caught up!</p>
+                                        <p className="text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">No notifications</p>
+                                        <p className="text-[11px] text-[var(--text-quaternary)]">You're all caught up!</p>
                                     </div>
                                 )}
                             </div>
 
                             {/* Footer */}
-                            <div className="p-4 bg-surface-secondary/50 border-t border-border-subtle text-center">
-                                <button className="text-[11px] font-black text-text-tertiary uppercase tracking-[0.2em] hover:text-text-primary transition-colors flex items-center justify-center gap-2 mx-auto">
+                            <div className="p-4 bg-[var(--bg-fill)]/50 border-t border-[var(--border-subtle)] text-center">
+                                <button className="text-[11px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.2em] hover:text-[var(--text-primary)] transition-colors flex items-center justify-center gap-2 mx-auto">
                                     View All Activity <ChevronRight className="w-3 h-3" />
                                 </button>
                             </div>

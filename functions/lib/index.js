@@ -34,7 +34,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cleanupReservations = exports.razorpayWebhook = exports.verifyPayment = exports.initiateCheckout = exports.calculatePricing = exports.reserveTickets = void 0;
+exports.onOrderUpdated = exports.onEventUpdated = exports.onUserCreated = exports.sendMessage = exports.cancelTransfer = exports.acceptTransfer = exports.initiateTransfer = exports.cleanupReservations = exports.razorpayWebhook = exports.verifyPayment = exports.initiateCheckout = exports.calculatePricing = exports.reserveTickets = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const crypto = __importStar(require("crypto"));
@@ -43,6 +43,9 @@ const pricing_1 = require("./lib/pricing");
 const orders_1 = require("./lib/orders");
 const events_1 = require("./lib/events");
 const razorpay_1 = require("./lib/razorpay");
+const transfers_1 = require("./lib/transfers");
+const algolia_1 = require("./lib/algolia");
+const chat_1 = require("./lib/chat");
 // Initialize Admin if not already
 if (!admin.apps.length) {
     admin.initializeApp();
@@ -285,6 +288,107 @@ exports.cleanupReservations = functions.pubsub.schedule('every 5 minutes').onRun
     console.log('[Cron] Running reservation + order cleanup...');
     await (0, reservations_1.cleanupExpiredReservations)();
     await (0, orders_1.failStaleOrders)(); // Restore inventory for abandoned payments
+    return null;
+});
+/**
+ * 7. Ticket Transfers
+ */
+exports.initiateTransfer = functions.https.onCall(async (data, context) => {
+    if (!context.auth)
+        throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    try {
+        return await (0, transfers_1.initiateTransferInternal)(Object.assign(Object.assign({}, data), { fromUserId: context.auth.uid }));
+    }
+    catch (error) {
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});
+exports.acceptTransfer = functions.https.onCall(async (data, context) => {
+    if (!context.auth)
+        throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    try {
+        return await (0, transfers_1.acceptTransferInternal)(data.transferCode, context.auth.uid);
+    }
+    catch (error) {
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});
+exports.cancelTransfer = functions.https.onCall(async (data, context) => {
+    if (!context.auth)
+        throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    try {
+        return await (0, transfers_1.cancelTransferInternal)(data.transferId, context.auth.uid);
+    }
+    catch (error) {
+        throw new functions.https.HttpsError('internal', error.message);
+    }
+});
+/**
+ * 8. Social & Chat
+ */
+exports.sendMessage = functions.https.onCall(chat_1.postChatMessageInternal);
+/**
+ * 9. Aggregated Counters (Scale-Proof Analytics)
+ */
+exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
+    const statsRef = admin.firestore().collection('platform_stats').doc('current');
+    return statsRef.set({
+        users_total: admin.firestore.FieldValue.increment(1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+});
+exports.onEventUpdated = functions.firestore.document('events/{eventId}').onWrite(async (change, context) => {
+    const eventId = context.params.eventId;
+    // 1. Update Platform Stats (only on create)
+    if (!change.before.exists && change.after.exists) {
+        const statsRef = admin.firestore().collection('platform_stats').doc('current');
+        await statsRef.set({
+            events_total: admin.firestore.FieldValue.increment(1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+    }
+    // 2. Sync to Algolia
+    if (!change.after.exists) {
+        // Deleted
+        await (0, algolia_1.removeEventFromAlgolia)(eventId);
+    }
+    else {
+        // Created or Updated
+        await (0, algolia_1.syncEventToAlgolia)(eventId, change.after.data());
+    }
+    return null;
+});
+/**
+ * Legacy onEventCreated - Refactored into onEventUpdated (.onWrite) above for efficiency
+ */
+// export const onEventCreated = ...
+exports.onOrderUpdated = functions.firestore.document('orders/{orderId}').onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    // Only trigger stats update once when order is confirmed
+    if (before.status !== 'confirmed' && after.status === 'confirmed') {
+        const statsRef = admin.firestore().collection('platform_stats').doc('current');
+        let totalTickets = 0;
+        if (after.tickets && Array.isArray(after.tickets)) {
+            totalTickets = after.tickets.reduce((sum, t) => sum + (t.quantity || 0), 0);
+        }
+        // 5. Automated FCM Topic Subscription (Fan-out protection)
+        try {
+            const topic = `event_${after.eventId}`;
+            await admin.messaging().subscribeToTopic(after.userId, topic);
+            console.log(`[Messaging] Subscribed user ${after.userId} to topic ${topic}`);
+        }
+        catch (e) {
+            console.warn(`[Messaging] Failed to subscribe user to topic:`, e);
+        }
+        return statsRef.set({
+            revenue: {
+                total: admin.firestore.FieldValue.increment(after.totalAmount || 0)
+            },
+            tickets_sold_total: admin.firestore.FieldValue.increment(totalTickets),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+    }
     return null;
 });
 //# sourceMappingURL=index.js.map

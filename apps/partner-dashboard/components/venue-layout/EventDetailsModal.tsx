@@ -100,36 +100,36 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-            <div className="relative bg-surface-elevated rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-[var(--bg-elevated)] rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="sticky top-0 bg-surface-elevated border-b border-border-default p-6 flex items-start justify-between rounded-t-2xl z-10">
+                <div className="sticky top-0 bg-[var(--bg-elevated)] border-b border-[var(--border-default)] p-6 flex items-start justify-between rounded-t-2xl z-10">
                     <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                            <h2 className="text-2xl font-bold text-text-primary">{event.title}</h2>
+                            <h2 className="text-2xl font-bold text-[var(--text-primary)]">{event.title}</h2>
                             <span className={`px-3 py-1 rounded-full text-[10px] font-bold border uppercase`}>
                                 {event.status}
                             </span>
                         </div>
-                        <p className="text-sm text-text-tertiary">
+                        <p className="text-sm text-[var(--text-tertiary)]">
                             Hosted by <span className="font-semibold text-indigo-600">{event.hostName}</span>
                         </p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-secondary"
+                        className="p-2 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-fill)]"
                     >
                         <X className="h-5 w-5" />
                     </button>
                 </div>
 
                 {/* Tabs */}
-                <div className="border-b border-border-default px-6">
+                <div className="border-b border-[var(--border-default)] px-6">
                     <div className="flex gap-1">
                         <button
                             onClick={() => setActiveTab("details")}
                             className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${activeTab === "details"
                                 ? "border-indigo-600 text-indigo-600"
-                                : "border-transparent text-text-tertiary hover:text-text-primary"
+                                : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
                                 }`}
                         >
                             Event Details
@@ -139,7 +139,7 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
                                 onClick={() => setActiveTab("approval")}
                                 className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${activeTab === "approval"
                                     ? "border-indigo-600 text-indigo-600"
-                                    : "border-transparent text-text-tertiary hover:text-text-primary"
+                                    : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
                                     }`}
                             >
                                 Approval
@@ -150,7 +150,7 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
                                 onClick={() => setActiveTab("feedback")}
                                 className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${activeTab === "feedback"
                                     ? "border-indigo-600 text-indigo-600"
-                                    : "border-transparent text-text-tertiary hover:text-text-primary"
+                                    : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
                                     }`}
                             >
                                 Post-Event Review
@@ -166,12 +166,12 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
                     {activeTab === "details" && (
                         <div className="space-y-6">
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                <div className="p-4 bg-surface-tertiary rounded-lg border border-border-default">
+                                <div className="p-4 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-default)]">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <Calendar className="h-4 w-4 text-text-tertiary" />
-                                        <span className="text-xs font-bold text-text-tertiary uppercase">Date</span>
+                                        <Calendar className="h-4 w-4 text-[var(--text-tertiary)]" />
+                                        <span className="text-xs font-bold text-[var(--text-tertiary)] uppercase">Date</span>
                                     </div>
-                                    <p className="text-sm font-bold text-text-primary">
+                                    <p className="text-sm font-bold text-[var(--text-primary)]">
                                         {event.date?.toLocaleDateString('en-US', {
                                             weekday: 'short',
                                             month: 'short',
@@ -181,38 +181,38 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
                                     </p>
                                 </div>
 
-                                <div className="p-4 bg-surface-tertiary rounded-lg border border-border-default">
+                                <div className="p-4 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-default)]">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <Clock className="h-4 w-4 text-text-tertiary" />
-                                        <span className="text-xs font-bold text-text-tertiary uppercase">Time</span>
+                                        <Clock className="h-4 w-4 text-[var(--text-tertiary)]" />
+                                        <span className="text-xs font-bold text-[var(--text-tertiary)] uppercase">Time</span>
                                     </div>
-                                    <p className="text-sm font-bold text-text-primary">9:00 PM - 3:00 AM</p>
+                                    <p className="text-sm font-bold text-[var(--text-primary)]">9:00 PM - 3:00 AM</p>
                                 </div>
 
-                                <div className="p-4 bg-surface-tertiary rounded-lg border border-border-default">
+                                <div className="p-4 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-default)]">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <Ticket className="h-4 w-4 text-text-tertiary" />
-                                        <span className="text-xs font-bold text-text-tertiary uppercase">Tickets</span>
+                                        <Ticket className="h-4 w-4 text-[var(--text-tertiary)]" />
+                                        <span className="text-xs font-bold text-[var(--text-tertiary)] uppercase">Tickets</span>
                                     </div>
-                                    <p className="text-sm font-bold text-text-primary">
+                                    <p className="text-sm font-bold text-[var(--text-primary)]">
                                         {event.ticketsSold}/{event.ticketsTotal}
                                     </p>
                                 </div>
 
-                                <div className="p-4 bg-surface-tertiary rounded-lg border border-border-default">
+                                <div className="p-4 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-default)]">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <Users className="h-4 w-4 text-text-tertiary" />
-                                        <span className="text-xs font-bold text-text-tertiary uppercase">Crowd</span>
+                                        <Users className="h-4 w-4 text-[var(--text-tertiary)]" />
+                                        <span className="text-xs font-bold text-[var(--text-tertiary)] uppercase">Crowd</span>
                                     </div>
-                                    <p className="text-sm font-bold text-text-primary">{event.expectedCrowd} pax</p>
+                                    <p className="text-sm font-bold text-[var(--text-primary)]">{event.expectedCrowd} pax</p>
                                 </div>
 
-                                <div className="p-4 bg-surface-tertiary rounded-lg border border-border-default">
+                                <div className="p-4 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-default)]">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <Users className="h-4 w-4 text-text-tertiary" />
-                                        <span className="text-xs font-bold text-text-tertiary uppercase">Promoters</span>
+                                        <Users className="h-4 w-4 text-[var(--text-tertiary)]" />
+                                        <span className="text-xs font-bold text-[var(--text-tertiary)] uppercase">Promoters</span>
                                     </div>
-                                    <p className="text-sm font-bold text-text-primary">
+                                    <p className="text-sm font-bold text-[var(--text-primary)]">
                                         {event.promotersEnabled ? `${event.promotersCount || 0} Active` : "Disabled"}
                                     </p>
                                 </div>
@@ -253,14 +253,14 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
                             </div>
 
                             <div>
-                                <label className="block text-sm font-semibold text-text-secondary mb-2">
+                                <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
                                     Approval Notes (Optional)
                                 </label>
                                 <textarea
                                     value={approvalNotes}
                                     onChange={(e) => setApprovalNotes(e.target.value)}
                                     rows={4}
-                                    className="w-full px-4 py-3 bg-surface-tertiary border border-border-default rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                     placeholder="Add internal notes about this decision..."
                                 />
                             </div>
@@ -269,7 +269,7 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
                                 <button
                                     onClick={handleReject}
                                     disabled={loading}
-                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-text-primary font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50"
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-[var(--text-primary)] font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50"
                                 >
                                     <XCircle className="h-4 w-4" />
                                     Reject Event
@@ -277,7 +277,7 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
                                 <button
                                     onClick={handleApprove}
                                     disabled={loading}
-                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-text-primary font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-[var(--text-primary)] font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50"
                                 >
                                     <CheckCircle className="h-4 w-4" />
                                     Approve Event
@@ -290,7 +290,7 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
                     {activeTab === "feedback" && showFeedbackTab && (
                         <div className="space-y-6">
                             <div>
-                                <label className="block text-sm font-semibold text-text-secondary mb-3">
+                                <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-3">
                                     Rate Host Performance
                                 </label>
                                 <div className="flex gap-2">
@@ -303,7 +303,7 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
                                             <Star
                                                 className={`h-8 w-8 ${star <= hostRating
                                                     ? "fill-amber-400 text-amber-400"
-                                                    : "text-text-placeholder"
+                                                    : "text-[var(--text-quaternary)]"
                                                     }`}
                                             />
                                         </button>
@@ -312,14 +312,14 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
                             </div>
 
                             <div>
-                                <label className="block text-sm font-semibold text-text-secondary mb-2">
+                                <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
                                     Internal Feedback
                                 </label>
                                 <textarea
                                     value={feedbackNotes}
                                     onChange={(e) => setFeedbackNotes(e.target.value)}
                                     rows={5}
-                                    className="w-full px-4 py-3 bg-surface-tertiary border border-border-default rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                     placeholder="Crowd quality, issues, special notes..."
                                 />
                             </div>
@@ -327,7 +327,7 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
                             <button
                                 onClick={handleLock}
                                 disabled={loading || hostRating === 0}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-surface-secondary text-text-primary font-semibold rounded-lg hover:bg-surface-tertiary disabled:opacity-50"
+                                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[var(--bg-fill)] text-[var(--text-primary)] font-semibold rounded-lg hover:bg-[var(--bg-secondary)] disabled:opacity-50"
                             >
                                 <Lock className="h-4 w-4" />
                                 Lock Event Data
@@ -338,12 +338,12 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
 
                 {/* Footer Actions */}
                 {activeTab === "details" && (
-                    <div className="border-t border-border-default p-6 bg-surface-tertiary flex gap-3">
+                    <div className="border-t border-[var(--border-default)] p-6 bg-[var(--bg-secondary)] flex gap-3">
                         {canPause && (
                             <button
                                 onClick={handlePause}
                                 disabled={loading}
-                                className="flex items-center gap-2 px-4 py-3 bg-amber-600 text-text-primary font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                                className="flex items-center gap-2 px-4 py-3 bg-amber-600 text-[var(--text-primary)] font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50"
                             >
                                 <Pause className="h-4 w-4" />
                                 Emergency Pause
@@ -351,7 +351,7 @@ export function EventDetailsModal({ isOpen, onClose, event, onEventUpdate }: Eve
                         )}
                         <button
                             onClick={onClose}
-                            className="flex-1 px-4 py-3 bg-surface-elevated border border-border-default text-text-secondary font-semibold rounded-lg hover:bg-surface-tertiary"
+                            className="flex-1 px-4 py-3 bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[var(--text-secondary)] font-semibold rounded-lg hover:bg-[var(--bg-secondary)]"
                         >
                             Close
                         </button>

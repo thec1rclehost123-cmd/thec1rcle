@@ -31,21 +31,21 @@ export function PromoterSalesPanel({ stats, commissionRate }: { stats: any; comm
     return (
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div>
-                <h2 className="text-xl font-bold tracking-tight text-text-primary">Sales & Conversion</h2>
-                <p className="text-sm text-text-secondary mt-1">Track how effectively your audience is converting for this event.</p>
+                <h2 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">Sales & Conversion</h2>
+                <p className="text-sm text-[var(--text-secondary)] mt-1">Track how effectively your audience is converting for this event.</p>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
                 {kpis.map((stat, i) => (
-                    <div key={i} className="bg-surface-elevated border-border-subtle p-5 rounded-2xl border flex flex-col gap-2 relative overflow-hidden group">
+                    <div key={i} className="bg-[var(--bg-elevated)] border-[var(--border-subtle)] p-5 rounded-2xl border flex flex-col gap-2 relative overflow-hidden group">
                         <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                             <stat.icon className="h-20 w-20" />
                         </div>
-                        <p className="text-sm font-semibold text-text-tertiary flex items-center gap-2">
+                        <p className="text-sm font-semibold text-[var(--text-tertiary)] flex items-center gap-2">
                             <stat.icon className="h-4 w-4 text-emerald-500" />
                             {stat.title}
                         </p>
-                        <span className="text-3xl font-black tabular-nums tracking-tighter text-text-primary mt-1">
+                        <span className="text-3xl font-black tabular-nums tracking-tighter text-[var(--text-primary)] mt-1">
                             {stat.amount}
                         </span>
                         {stat.trend && (
@@ -58,19 +58,19 @@ export function PromoterSalesPanel({ stats, commissionRate }: { stats: any; comm
             </div>
 
             {/* Conversion rate ring + progress bar */}
-            <div className="bg-surface-elevated border-border-subtle p-6 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="bg-[var(--bg-elevated)] border-[var(--border-subtle)] p-6 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-6">
-                    <div className="h-16 w-16 rounded-full border-[6px] border-emerald-500 flex items-center justify-center bg-surface-base shrink-0">
-                        <span className="font-bold text-sm tabular-nums text-text-primary">{conversionRate}%</span>
+                    <div className="h-16 w-16 rounded-full border-[6px] border-emerald-500 flex items-center justify-center bg-[var(--bg-base)] shrink-0">
+                        <span className="font-bold text-sm tabular-nums text-[var(--text-primary)]">{conversionRate}%</span>
                     </div>
                     <div>
-                        <h4 className="font-bold text-lg text-text-primary tracking-tight">Conversion Rate</h4>
-                        <p className="text-sm text-text-secondary max-w-sm">
+                        <h4 className="font-bold text-lg text-[var(--text-primary)] tracking-tight">Conversion Rate</h4>
+                        <p className="text-sm text-[var(--text-secondary)] max-w-sm">
                             {stats.totalClicks} clicks → {stats.totalPurchases} purchases
                         </p>
                     </div>
                 </div>
-                <div className="w-full md:w-1/3 h-2 bg-surface-tertiary rounded-full overflow-hidden">
+                <div className="w-full md:w-1/3 h-2 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
                     <div
                         className="h-full bg-emerald-500 rounded-full"
                         style={{ width: `${Math.min(100, Math.max(2, parseFloat(conversionRate) * 10))}%` }}
@@ -79,8 +79,8 @@ export function PromoterSalesPanel({ stats, commissionRate }: { stats: any; comm
             </div>
 
             {/* Funnel bar chart */}
-            <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6 flex flex-col gap-4">
-                <p className="text-xs font-bold uppercase tracking-widest text-text-tertiary">Conversion Funnel</p>
+            <div className="bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)] p-6 flex flex-col gap-4">
+                <p className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Conversion Funnel</p>
                 <div className="w-full h-48">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={funnelData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>

@@ -33,12 +33,12 @@ export function PromoterKPIGrid({ kpis }: { kpis?: any }) {
     return (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
             {defaultData.map((stat, i) => (
-                <div key={i} className="bg-surface-elevated border-border-subtle p-5 rounded-2xl border flex flex-col gap-2">
-                    <p className="text-sm font-semibold text-text-tertiary flex items-center gap-2">
+                <div key={i} className="bg-[var(--bg-elevated)] border-[var(--border-subtle)] p-5 rounded-2xl border flex flex-col gap-2">
+                    <p className="text-sm font-semibold text-[var(--text-tertiary)] flex items-center gap-2">
                         <stat.icon className="h-4 w-4 text-emerald-500" />
                         {stat.title}
                     </p>
-                    <span className="text-3xl font-black tabular-nums tracking-tighter text-text-primary">
+                    <span className="text-3xl font-black tabular-nums tracking-tighter text-[var(--text-primary)]">
                         {stat.amount}
                     </span>
                 </div>

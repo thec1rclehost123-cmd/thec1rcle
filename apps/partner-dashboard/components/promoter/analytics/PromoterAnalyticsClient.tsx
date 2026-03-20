@@ -28,10 +28,10 @@ export function PromoterAnalyticsClient() {
         <div className="flex flex-col gap-6 w-full animate-in fade-in slide-in-from-bottom-4 duration-500 pb-16">
             <header className="mb-2 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
-                    <h1 className="text-display-sm text-text-primary tracking-tight font-bold">
+                    <h1 className="text-display-sm text-[var(--text-primary)] tracking-tight font-bold">
                         Analytics
                     </h1>
-                    <p className="text-text-secondary text-sm mt-1 font-medium">
+                    <p className="text-[var(--text-secondary)] text-sm mt-1 font-medium">
                         Funnel metrics and aggregate performance across all your links.
                     </p>
                 </div>
@@ -40,7 +40,7 @@ export function PromoterAnalyticsClient() {
                      <select
                          value={range}
                          onChange={(e) => setRange(e.target.value)}
-                         className="bg-surface-base border border-border-subtle rounded-xl px-4 py-2.5 text-sm font-semibold text-text-primary focus:outline-none focus:border-emerald-500 cursor-pointer hover:bg-surface-hover transition-colors appearance-none pr-8 relative"
+                         className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-xl px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)] focus:outline-none focus:border-emerald-500 cursor-pointer hover:bg-[var(--bg-fill)] transition-colors appearance-none pr-8 relative"
                      >
                          <option value="7d">Last 7 Days</option>
                          <option value="30d">Last 30 Days</option>
@@ -51,9 +51,9 @@ export function PromoterAnalyticsClient() {
                      <button 
                          onClick={() => refetch()} 
                          disabled={isRefetching || isLoading}
-                         className="p-2.5 bg-surface-base border border-border-subtle hover:bg-surface-hover rounded-xl transition-colors disabled:opacity-50"
+                         className="p-2.5 bg-[var(--bg-base)] border border-[var(--border-subtle)] hover:bg-[var(--bg-fill)] rounded-xl transition-colors disabled:opacity-50"
                      >
-                         <RefreshCw className={`h-4 w-4 text-text-secondary ${isRefetching ? 'animate-spin' : ''}`} />
+                         <RefreshCw className={`h-4 w-4 text-[var(--text-secondary)] ${isRefetching ? 'animate-spin' : ''}`} />
                      </button>
                 </div>
             </header>
@@ -62,15 +62,15 @@ export function PromoterAnalyticsClient() {
                 <div className="flex flex-col gap-6 w-full animate-pulse">
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
                          {[1, 2, 3, 4].map(i => (
-                             <div key={i} className="h-28 bg-surface-elevated rounded-2xl border border-border-subtle p-5 flex flex-col justify-end gap-2">
-                                  <div className="w-1/2 h-4 bg-surface-tertiary rounded-md"></div>
-                                  <div className="w-1/3 h-8 bg-surface-tertiary rounded-lg"></div>
+                             <div key={i} className="h-28 bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)] p-5 flex flex-col justify-end gap-2">
+                                  <div className="w-1/2 h-4 bg-[var(--bg-secondary)] rounded-md"></div>
+                                  <div className="w-1/3 h-8 bg-[var(--bg-secondary)] rounded-lg"></div>
                              </div>
                          ))}
                     </div>
-                    <div className="w-full h-[400px] bg-surface-elevated rounded-2xl border border-border-subtle p-6 flex flex-col gap-4">
-                         <div className="w-1/4 h-6 bg-surface-tertiary rounded-md"></div>
-                         <div className="w-full flex-1 bg-surface-tertiary/50 rounded-xl mt-4"></div>
+                    <div className="w-full h-[400px] bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)] p-6 flex flex-col gap-4">
+                         <div className="w-1/4 h-6 bg-[var(--bg-secondary)] rounded-md"></div>
+                         <div className="w-full flex-1 bg-[var(--bg-secondary)]/50 rounded-xl mt-4"></div>
                     </div>
                 </div>
             ) : error || !data ? (
@@ -84,39 +84,39 @@ export function PromoterAnalyticsClient() {
                 <>
                     {/* Overview KPI Grid */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-                        <div className="bg-surface-elevated border-border-subtle p-5 rounded-2xl border flex flex-col gap-2">
-                             <p className="text-sm font-semibold text-text-tertiary flex items-center gap-2">
+                        <div className="bg-[var(--bg-elevated)] border-[var(--border-subtle)] p-5 rounded-2xl border flex flex-col gap-2">
+                             <p className="text-sm font-semibold text-[var(--text-tertiary)] flex items-center gap-2">
                                  <MousePointerClick className="h-4 w-4 text-blue-500" />
                                  Total Clicks
                              </p>
-                             <span className="text-3xl font-black tabular-nums tracking-tighter text-text-primary">
+                             <span className="text-3xl font-black tabular-nums tracking-tighter text-[var(--text-primary)]">
                                  {data.overview.totalClicks}
                              </span>
                         </div>
-                        <div className="bg-surface-elevated border-border-subtle p-5 rounded-2xl border flex flex-col gap-2">
-                             <p className="text-sm font-semibold text-text-tertiary flex items-center gap-2">
+                        <div className="bg-[var(--bg-elevated)] border-[var(--border-subtle)] p-5 rounded-2xl border flex flex-col gap-2">
+                             <p className="text-sm font-semibold text-[var(--text-tertiary)] flex items-center gap-2">
                                  <Activity className="h-4 w-4 text-emerald-500" />
                                  Tickets Sold
                              </p>
-                             <span className="text-3xl font-black tabular-nums tracking-tighter text-text-primary">
+                             <span className="text-3xl font-black tabular-nums tracking-tighter text-[var(--text-primary)]">
                                  {data.overview.ticketsSold}
                              </span>
                         </div>
-                        <div className="bg-surface-elevated border-border-subtle p-5 rounded-2xl border flex flex-col gap-2">
-                             <p className="text-sm font-semibold text-text-tertiary flex items-center gap-2">
+                        <div className="bg-[var(--bg-elevated)] border-[var(--border-subtle)] p-5 rounded-2xl border flex flex-col gap-2">
+                             <p className="text-sm font-semibold text-[var(--text-tertiary)] flex items-center gap-2">
                                  <BarChart className="h-4 w-4 text-emerald-400" />
                                  Conversion Rate
                              </p>
-                             <span className="text-3xl font-black tabular-nums tracking-tighter text-text-primary">
+                             <span className="text-3xl font-black tabular-nums tracking-tighter text-[var(--text-primary)]">
                                  {data.overview.conversionRate}
                              </span>
                         </div>
-                        <div className="bg-surface-elevated border-emerald-500/30 p-5 rounded-2xl border bg-gradient-to-br from-emerald-500/10 to-surface-elevated flex flex-col gap-2 relative overflow-hidden">
+                        <div className="bg-[var(--bg-elevated)] border-emerald-500/30 p-5 rounded-2xl border bg-gradient-to-br from-emerald-500/10 to-surface-elevated flex flex-col gap-2 relative overflow-hidden">
                              <p className="text-sm font-semibold text-emerald-500 flex items-center gap-2">
                                  <DollarSign className="h-4 w-4" />
                                  Total Commission
                              </p>
-                             <span className="text-3xl font-black tabular-nums tracking-tighter text-text-primary">
+                             <span className="text-3xl font-black tabular-nums tracking-tighter text-[var(--text-primary)]">
                                  {formatCurrencyInline(data.overview.commission)}
                              </span>
                         </div>
@@ -126,36 +126,36 @@ export function PromoterAnalyticsClient() {
                     <PromoterFunnelChart timeline={data.timeline} />
 
                     {/* Top Links Table */}
-                    <div className="bg-surface-elevated rounded-2xl border border-border-subtle overflow-hidden flex flex-col">
-                         <div className="p-5 border-b border-border-subtle flex justify-between items-center bg-surface-base/50">
-                             <h3 className="font-bold text-text-primary">Top Performing Links</h3>
-                             <span className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">By Clicks</span>
+                    <div className="bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)] overflow-hidden flex flex-col">
+                         <div className="p-5 border-b border-[var(--border-subtle)] flex justify-between items-center bg-[var(--bg-base)]/50">
+                             <h3 className="font-bold text-[var(--text-primary)]">Top Performing Links</h3>
+                             <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">By Clicks</span>
                          </div>
                          <div className="overflow-x-auto w-full">
                              <table className="w-full text-left border-collapse min-w-[600px]">
                                  <thead>
-                                     <tr className="border-b border-border-subtle bg-surface-base/30">
-                                         <th className="px-6 py-4 text-xs font-semibold text-text-tertiary uppercase tracking-wider w-1/3">Event / Link Code</th>
-                                         <th className="px-6 py-4 text-xs font-semibold text-text-tertiary uppercase tracking-wider">Clicks</th>
-                                         <th className="px-6 py-4 text-xs font-semibold text-text-tertiary uppercase tracking-wider">Sales</th>
-                                         <th className="px-6 py-4 text-xs font-semibold text-text-tertiary uppercase tracking-wider">Conversion</th>
+                                     <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-base)]/30">
+                                         <th className="px-6 py-4 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider w-1/3">Event / Link Code</th>
+                                         <th className="px-6 py-4 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Clicks</th>
+                                         <th className="px-6 py-4 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Sales</th>
+                                         <th className="px-6 py-4 text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Conversion</th>
                                      </tr>
                                  </thead>
                                  <tbody className="divide-y divide-border-subtle">
                                      {data.topLinks.map((link: any) => (
-                                         <tr key={link.id} className="hover:bg-surface-hover/30 transition-colors">
+                                         <tr key={link.id} className="hover:bg-[var(--bg-fill)]/30 transition-colors">
                                              <td className="px-6 py-4">
                                                  <div className="flex flex-col">
-                                                     <span className="font-bold text-text-primary">{link.eventName}</span>
-                                                     <span className="text-xs text-text-secondary font-mono bg-surface-tertiary px-2 py-0.5 rounded-md mt-1 w-fit border border-border-subtle">
+                                                     <span className="font-bold text-[var(--text-primary)]">{link.eventName}</span>
+                                                     <span className="text-xs text-[var(--text-secondary)] font-mono bg-[var(--bg-secondary)] px-2 py-0.5 rounded-md mt-1 w-fit border border-[var(--border-subtle)]">
                                                          /e/{link.code}
                                                      </span>
                                                  </div>
                                              </td>
-                                             <td className="px-6 py-4 font-bold tabular-nums text-text-primary">
+                                             <td className="px-6 py-4 font-bold tabular-nums text-[var(--text-primary)]">
                                                  {link.clicks}
                                              </td>
-                                             <td className="px-6 py-4 font-bold tabular-nums text-text-primary">
+                                             <td className="px-6 py-4 font-bold tabular-nums text-[var(--text-primary)]">
                                                  {link.sales}
                                              </td>
                                              <td className="px-6 py-4">
@@ -167,7 +167,7 @@ export function PromoterAnalyticsClient() {
                                      ))}
                                      {data.topLinks.length === 0 && (
                                          <tr>
-                                             <td colSpan={4} className="px-6 py-8 text-center text-text-muted">
+                                             <td colSpan={4} className="px-6 py-8 text-center text-[var(--text-tertiary)]">
                                                  No active links found.
                                              </td>
                                          </tr>

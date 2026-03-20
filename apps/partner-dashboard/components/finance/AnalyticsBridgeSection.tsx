@@ -162,8 +162,8 @@ export function AnalyticsBridgeSection({
                             href={link.href}
                             className="group flex items-center gap-3 p-4 rounded-xl transition-all duration-150 hover:brightness-110"
                             style={{
-                                background: "var(--v-card)",
-                                border: "1px solid var(--v-border)",
+                                background: "var(--bg-elevated)",
+                                border: "1px solid var(--border-subtle)",
                             }}
                         >
                             <div
@@ -173,16 +173,16 @@ export function AnalyticsBridgeSection({
                                 <Icon className="w-4 h-4" style={{ color: link.color }} />
                             </div>
                             <div className="min-w-0 flex-1">
-                                <p className="text-[13px] font-semibold truncate" style={{ color: "var(--v-text-primary)" }}>
+                                <p className="text-[13px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>
                                     {link.label}
                                 </p>
-                                <p className="text-[11px] truncate" style={{ color: "var(--v-text-muted)" }}>
+                                <p className="text-[11px] truncate" style={{ color: "var(--text-tertiary)" }}>
                                     {link.description}
                                 </p>
                             </div>
                             <ArrowRight
                                 className="w-3.5 h-3.5 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity -translate-x-1 group-hover:translate-x-0 duration-150"
-                                style={{ color: "var(--v-text-muted)" }}
+                                style={{ color: "var(--text-tertiary)" }}
                             />
                         </Link>
                     );

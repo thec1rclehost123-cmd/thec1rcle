@@ -32,13 +32,13 @@ function formatDate(dateStr: string): string {
 }
 
 const LIFECYCLE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-    published: { label: "Live", color: "var(--v-success)", bg: "var(--v-success-bg)" },
-    live: { label: "Live", color: "var(--v-success)", bg: "var(--v-success-bg)" },
-    pending: { label: "Pending", color: "var(--v-warning)", bg: "var(--v-warning-bg)" },
-    draft: { label: "Draft", color: "var(--v-text-tertiary)", bg: "var(--v-neutral-bg)" },
-    completed: { label: "Done", color: "var(--v-text-secondary)", bg: "var(--v-neutral-bg)" },
-    cancelled: { label: "Cancelled", color: "var(--v-error)", bg: "var(--v-error-bg)" },
-    scheduled: { label: "Scheduled", color: "var(--v-info)", bg: "var(--v-info-bg)" },
+    published: { label: "Live", color: "var(--color-success)", bg: "var(--color-success-bg)" },
+    live: { label: "Live", color: "var(--color-success)", bg: "var(--color-success-bg)" },
+    pending: { label: "Pending", color: "var(--color-warning)", bg: "var(--color-warning-bg)" },
+    draft: { label: "Draft", color: "var(--text-tertiary)", bg: "var(--bg-fill)" },
+    completed: { label: "Done", color: "var(--text-secondary)", bg: "var(--bg-fill)" },
+    cancelled: { label: "Cancelled", color: "var(--color-error)", bg: "var(--color-error-bg)" },
+    scheduled: { label: "Scheduled", color: "var(--color-info)", bg: "var(--color-info-bg)" },
 };
 
 export default function VenueDashboardHome() {
@@ -127,7 +127,7 @@ export default function VenueDashboardHome() {
                         <Bell className="w-4 h-4" />
                         <span className="hidden sm:inline">Alerts</span>
                         {alerts.filter((a) => !a.isRead).length > 0 && (
-                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--v-orange)" }} />
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--accent)" }} />
                         )}
                     </VenueActionButton>
                     <Link href="/venue/create">
@@ -151,7 +151,7 @@ export default function VenueDashboardHome() {
                                 <span className="v-label uppercase tracking-widest text-[9px]">Tonight's Pulse</span>
                             </div>
                             <div className="flex items-baseline gap-2">
-                                <span className="text-3xl font-black tracking-tighter" style={{ color: "var(--v-text-primary)" }}>
+                                <span className="text-3xl font-black tracking-tighter" style={{ color: "var(--text-primary)" }}>
                                     {loading ? "—" : tonight ? formatRevenue(tonight.revenue) : "Quiet Tonight"}
                                 </span>
                                 {tonight && (
@@ -160,7 +160,7 @@ export default function VenueDashboardHome() {
                                     </span>
                                 )}
                             </div>
-                            <p className="text-[13px] font-medium mt-1" style={{ color: "var(--v-text-secondary)" }}>
+                            <p className="text-[13px] font-medium mt-1" style={{ color: "var(--text-secondary)" }}>
                                 {loading ? "Fetching live data..." : tonight ? `${tonight.checkedIn} checked in · ${capacityPct}% capacity` : "Next event " + (nextEvent ? formatDate(nextEvent.startDate || nextEvent.date) : "not scheduled")}
                             </p>
                         </div>
@@ -171,7 +171,7 @@ export default function VenueDashboardHome() {
                                     Entry Control →
                                 </Link>
                             ) : (
-                                <Link href="/venue/events" className="text-[11px] font-bold uppercase tracking-widest hover:underline" style={{ color: "var(--v-text-tertiary)" }}>
+                                <Link href="/venue/events" className="text-[11px] font-bold uppercase tracking-widest hover:underline" style={{ color: "var(--text-tertiary)" }}>
                                     View Schedule
                                 </Link>
                             )}
@@ -184,11 +184,11 @@ export default function VenueDashboardHome() {
                     </div>
 
                     {/* Primary Target KPI */}
-                    <div className="v-hero-card p-5 flex flex-col justify-between min-h-[140px] border-l-[3px] border-l-[var(--v-orange)]">
+                    <div className="v-hero-card p-5 flex flex-col justify-between min-h-[140px] border-l-[3px] border-l-[var(--accent)]">
                         <div>
                             <span className="v-label uppercase tracking-widest text-[9px]">Weekend Target</span>
                             <div className="mt-1">
-                                <span className="text-2xl font-black tracking-tighter" style={{ color: "var(--v-text-primary)" }}>
+                                <span className="text-2xl font-black tracking-tighter" style={{ color: "var(--text-primary)" }}>
                                     {loading ? "—" : formatRevenue(summary?.weekendRevenue)}
                                 </span>
                             </div>
@@ -199,7 +199,7 @@ export default function VenueDashboardHome() {
                                     {summary.revenueTrendDirection === "down" ? "↓ " : "↑ "}{summary.revenueTrend}
                                 </span>
                             )}
-                            <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">vs Last Week</span>
+                            <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">vs Last Week</span>
                         </div>
                     </div>
                 </div>
@@ -230,7 +230,7 @@ export default function VenueDashboardHome() {
                         className="!p-4 !min-h-[90px]"
                         loading={loading}
                     />
-                    <div className="v-hero-card !bg-surface-secondary/50 p-4 flex flex-col justify-center min-h-[90px]">
+                    <div className="v-hero-card !bg-[var(--bg-fill)]/50 p-4 flex flex-col justify-center min-h-[90px]">
                         <span className="v-label text-[9px]">SYSTEM STATUS</span>
                         <div className="flex items-center gap-2 mt-1">
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -244,12 +244,12 @@ export default function VenueDashboardHome() {
             <motion.div {...mp(0.12)} className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
                 {/* Upcoming schedule */}
-                <div className="xl:col-span-2 rounded-[32px] p-4 sm:p-5" style={{ background: "var(--v-card)" }}>
+                <div className="xl:col-span-2 rounded-[var(--r-xl)] p-4 sm:p-5" style={{ background: "var(--bg-elevated)" }}>
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="v-text-section" style={{ color: "var(--v-text-primary)" }}>
+                        <h2 className="v-text-section" style={{ color: "var(--text-primary)" }}>
                             Upcoming Schedule
                         </h2>
-                        <Link href="/venue/calendar" className="inline-flex items-center gap-1 text-[12px] font-semibold" style={{ color: "var(--v-orange)" }}>
+                        <Link href="/venue/calendar" className="inline-flex items-center gap-1 text-[12px] font-semibold" style={{ color: "var(--accent)" }}>
                             View Calendar <ArrowRight className="w-3 h-3" />
                         </Link>
                     </div>
@@ -260,8 +260,8 @@ export default function VenueDashboardHome() {
                         </div>
                     ) : events.length === 0 ? (
                         <div className="py-14 flex flex-col items-center text-center gap-3">
-                            <Calendar className="w-8 h-8" style={{ color: "var(--v-text-muted)" }} />
-                            <p className="text-[13px]" style={{ color: "var(--v-text-tertiary)" }}>
+                            <Calendar className="w-8 h-8" style={{ color: "var(--text-tertiary)" }} />
+                            <p className="text-[13px]" style={{ color: "var(--text-tertiary)" }}>
                                 No upcoming events scheduled
                             </p>
                             <Link href="/venue/create">
@@ -282,8 +282,8 @@ export default function VenueDashboardHome() {
                 {/* Right column */}
                 <div className="space-y-4">
                     {/* Alerts */}
-                    <div className="rounded-[32px] p-6" style={{ background: "var(--v-card)" }}>
-                        <h3 className="text-[15px] font-semibold mb-4" style={{ color: "var(--v-text-primary)" }}>
+                    <div className="rounded-[var(--r-xl)] p-6" style={{ background: "var(--bg-elevated)" }}>
+                        <h3 className="text-[15px] font-semibold mb-4" style={{ color: "var(--text-primary)" }}>
                             Alerts
                         </h3>
                         <div className="space-y-1">
@@ -291,15 +291,15 @@ export default function VenueDashboardHome() {
                                 alerts.map((alert: any, i: number) => <AlertRow key={alert.id || i} alert={alert} />)
                             ) : (
                                 <div className="py-6 text-center">
-                                    <Bell className="w-6 h-6 mx-auto mb-2" style={{ color: "var(--v-text-muted)" }} />
-                                    <p className="text-[12px]" style={{ color: "var(--v-text-tertiary)" }}>No new notifications</p>
+                                    <Bell className="w-6 h-6 mx-auto mb-2" style={{ color: "var(--text-tertiary)" }} />
+                                    <p className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>No new notifications</p>
                                 </div>
                             )}
                         </div>
                         {alerts.length > 0 && (
                             <button
                                 className="w-full mt-4 py-2.5 rounded-xl text-[12px] font-medium"
-                                style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)" }}
+                                style={{ background: "var(--bg-fill)", color: "var(--text-secondary)" }}
                             >
                                 View History
                             </button>
@@ -315,23 +315,23 @@ export default function VenueDashboardHome() {
                     </div>
 
                     {/* PRO upsell */}
-                    <div className="relative overflow-hidden rounded-[32px] p-6" style={{ background: "var(--v-hero)" }}>
+                    <div className="relative overflow-hidden rounded-[var(--r-xl)] p-6" style={{ background: "var(--bg-base)" }}>
                         <div className="relative z-10">
                             <div className="flex items-center gap-2 mb-2">
-                                <Sparkles className="w-4 h-4" style={{ color: "var(--v-orange)" }} />
-                                <span className="text-[13px] font-bold" style={{ color: "var(--v-text-primary)" }}>C1RCLE PRO</span>
+                                <Sparkles className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                                <span className="text-[13px] font-bold" style={{ color: "var(--text-primary)" }}>C1RCLE PRO</span>
                             </div>
-                            <p className="text-[12px] leading-relaxed mb-4" style={{ color: "var(--v-text-secondary)" }}>
+                            <p className="text-[12px] leading-relaxed mb-4" style={{ color: "var(--text-secondary)" }}>
                                 Unlock deeper audience analytics and retention insights.
                             </p>
                             <button
                                 className="px-4 py-2 rounded-xl text-[12px] font-semibold hover:brightness-110 transition-all"
-                                style={{ background: "var(--v-orange)", color: "#fff" }}
+                                style={{ background: "var(--accent)", color: "#fff" }}
                             >
                                 Upgrade Now
                             </button>
                         </div>
-                        <div className="absolute -right-8 -bottom-8 w-36 h-36 rounded-full blur-3xl pointer-events-none" style={{ background: "var(--v-orange-glow)" }} />
+                        <div className="absolute -right-8 -bottom-8 w-36 h-36 rounded-full blur-3xl pointer-events-none" style={{ background: "var(--accent-muted)" }} />
                     </div>
                 </div>
             </motion.div>
@@ -339,13 +339,13 @@ export default function VenueDashboardHome() {
             {/* ── D: Live Ops (only when tonight exists) ── */}
             {tonight && !loading && (
                 <motion.div {...mp(0.18)}>
-                    <div className="rounded-[32px] p-6" style={{ background: "var(--v-card)" }}>
+                    <div className="rounded-[var(--r-xl)] p-6" style={{ background: "var(--bg-elevated)" }}>
                         <div className="flex items-center justify-between mb-4">
                             <div>
-                                <h2 className="v-text-section" style={{ color: "var(--v-text-primary)" }}>
+                                <h2 className="v-text-section" style={{ color: "var(--text-primary)" }}>
                                     Live Operations
                                 </h2>
-                                <p className="text-[13px] mt-0.5" style={{ color: "var(--v-text-tertiary)" }}>
+                                <p className="text-[13px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
                                     Real-time gate data
                                 </p>
                             </div>
@@ -359,10 +359,10 @@ export default function VenueDashboardHome() {
                             <div className="space-y-4">
                                 <div>
                                     <p className="v-label mb-1">Expected</p>
-                                    <p className="text-[36px] font-bold leading-none tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                    <p className="text-[36px] font-bold leading-none tabular-nums" style={{ color: "var(--text-primary)" }}>
                                         {tonight.expected}
                                     </p>
-                                    <p className="text-[12px] mt-1" style={{ color: "var(--v-text-tertiary)" }}>Total guestlist</p>
+                                    <p className="text-[12px] mt-1" style={{ color: "var(--text-tertiary)" }}>Total guestlist</p>
                                 </div>
                                 <TurnoutBar checked={tonight.checkedIn} expected={tonight.expected} />
                             </div>
@@ -370,14 +370,14 @@ export default function VenueDashboardHome() {
                             <div className="space-y-4">
                                 <div>
                                     <p className="v-label mb-1">Live Revenue</p>
-                                    <p className="text-[36px] font-bold leading-none tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                    <p className="text-[36px] font-bold leading-none tabular-nums" style={{ color: "var(--text-primary)" }}>
                                         {formatRevenue(tonight.revenue)}
                                     </p>
-                                    <p className="text-[12px] mt-1" style={{ color: "var(--v-text-tertiary)" }}>Tonight's sales</p>
+                                    <p className="text-[12px] mt-1" style={{ color: "var(--text-tertiary)" }}>Tonight's sales</p>
                                 </div>
                                 <div>
                                     <p className="v-label mb-1">Tickets Sold</p>
-                                    <p className="text-[22px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                    <p className="text-[22px] font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>
                                         {tonight.ticketsSold}
                                     </p>
                                 </div>
@@ -389,20 +389,20 @@ export default function VenueDashboardHome() {
                                         {tonight.entryRate ? `${tonight.entryRate} guests/hr peak` : 'Entry Velocity'}
                                     </p>
                                     <MiniSparkline data={tonight.entryHistory} />
-                                    <h4 className="text-xl font-bold text-text-primary mt-2">
+                                    <h4 className="text-xl font-bold text-[var(--text-primary)] mt-2">
                                         {tonight.entryVelocity ?? "--"} <span className="text-[10px] opacity-40 font-black">Guests/hr</span>
                                     </h4>
                                 </div>
                                 <Link
                                     href={`/venue/events/${tonight.id}`}
                                     className="group flex items-center justify-between p-4 rounded-2xl transition-all"
-                                    style={{ background: "var(--v-elevated)" }}
+                                    style={{ background: "var(--bg-fill)" }}
                                 >
                                     <div>
                                         <p className="v-label mb-0.5">Control Panel</p>
-                                        <p className="text-[14px] font-semibold" style={{ color: "var(--v-text-primary)" }}>Guest Entry</p>
+                                        <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>Guest Entry</p>
                                     </div>
-                                    <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--v-text-tertiary)" }} />
+                                    <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--text-tertiary)" }} />
                                 </Link>
                             </div>
                         </div>
@@ -423,12 +423,12 @@ function EventMiniCard({ event }: { event: any }) {
         <Link
             href={`/venue/events/${event.id}`}
             className="group p-4 rounded-2xl flex flex-col gap-2 transition-all hover:brightness-110"
-            style={{ background: "var(--v-elevated)" }}
+            style={{ background: "var(--bg-fill)" }}
         >
-            <p className="text-[11px] font-medium" style={{ color: "var(--v-text-tertiary)" }}>
+            <p className="text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>
                 {dateStr ? formatDate(dateStr) : "—"}
             </p>
-            <p className="text-[14px] font-semibold line-clamp-2 leading-tight uppercase" style={{ color: "var(--v-text-primary)" }}>
+            <p className="text-[14px] font-semibold line-clamp-2 leading-tight uppercase" style={{ color: "var(--text-primary)" }}>
                 {event.title}
             </p>
             <span className="v-status-pill self-start text-[10px]" style={{ color: cfg.color, background: cfg.bg }}>
@@ -451,13 +451,13 @@ function AlertRow({ alert }: { alert: any }) {
     const href = ALERT_HREF[alert.type];
     const Wrapper = href ? Link : ("div" as any);
     return (
-        <Wrapper href={href} className="flex items-start gap-3 p-3 rounded-xl hover:bg-surface-secondary transition-colors">
-            <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ background: !alert.isRead ? "var(--v-orange)" : "var(--v-text-muted)" }} />
+        <Wrapper href={href} className="flex items-start gap-3 p-3 rounded-xl hover:bg-[var(--bg-fill)] transition-colors">
+            <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ background: !alert.isRead ? "var(--accent)" : "var(--text-tertiary)" }} />
             <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-medium truncate" style={{ color: "var(--v-text-primary)" }}>{alert.title}</p>
-                <p className="text-[11px] truncate" style={{ color: "var(--v-text-tertiary)" }}>{alert.description}</p>
+                <p className="text-[13px] font-medium truncate" style={{ color: "var(--text-primary)" }}>{alert.title}</p>
+                <p className="text-[11px] truncate" style={{ color: "var(--text-tertiary)" }}>{alert.description}</p>
             </div>
-            <span className="text-[10px] shrink-0 mt-0.5" style={{ color: "var(--v-text-muted)" }}>{alert.timestamp}</span>
+            <span className="text-[10px] shrink-0 mt-0.5" style={{ color: "var(--text-tertiary)" }}>{alert.timestamp}</span>
         </Wrapper>
     );
 }
@@ -467,10 +467,10 @@ function QuickLink({ icon: Icon, label, href }: { icon: any; label: string; href
         <Link
             href={href}
             className="group flex flex-col items-center justify-center p-4 rounded-2xl transition-all hover:brightness-110 gap-2"
-            style={{ background: "var(--v-elevated)" }}
+            style={{ background: "var(--bg-fill)" }}
         >
-            <Icon className="w-5 h-5" style={{ color: "var(--v-text-tertiary)" }} />
-            <span className="text-[12px] font-medium" style={{ color: "var(--v-text-tertiary)" }}>{label}</span>
+            <Icon className="w-5 h-5" style={{ color: "var(--text-tertiary)" }} />
+            <span className="text-[12px] font-medium" style={{ color: "var(--text-tertiary)" }}>{label}</span>
         </Link>
     );
 }
@@ -480,13 +480,13 @@ function TurnoutBar({ checked, expected }: { checked: number; expected: number }
     return (
         <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium" style={{ color: "var(--v-text-secondary)" }}>Turnout Rate</span>
-                <span className="text-[12px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>{checked} / {expected}</span>
+                <span className="text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>Turnout Rate</span>
+                <span className="text-[12px] font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>{checked} / {expected}</span>
             </div>
-            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--v-elevated)" }}>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-fill)" }}>
                 <motion.div
                     className="h-full rounded-full"
-                    style={{ background: "var(--v-success)" }}
+                    style={{ background: "var(--color-success)" }}
                     initial={{ width: 0 }}
                     animate={{ width: `${pct}%` }}
                     transition={{ duration: 0.8, ease: "easeOut" }}
@@ -507,7 +507,7 @@ function MiniSparkline({ data }: { data?: number[] }) {
                     animate={{ height: `${h}%` }}
                     transition={{ delay: 0.3 + i * 0.05, duration: 0.4 }}
                     className="flex-1 rounded-t transition-colors duration-300 group-hover:bg-emerald-400/50"
-                    style={{ background: i === bars.length - 1 ? "var(--v-success)" : "rgba(52,211,153,0.25)" }}
+                    style={{ background: i === bars.length - 1 ? "var(--color-success)" : "rgba(52,211,153,0.25)" }}
                 />
             ))}
         </div>

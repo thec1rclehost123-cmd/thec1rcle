@@ -106,7 +106,7 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
     const activeCodes = codes.filter(c => !c.isRevoked);
 
     return (
-        <div className="bg-surface-secondary/50 rounded-2xl border border-slate-700/50 p-6">
+        <div className="bg-[var(--bg-fill)]/50 rounded-2xl border border-slate-700/50 p-6">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
@@ -114,8 +114,8 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                         <Smartphone className="w-5 h-5 text-indigo-400" />
                     </div>
                     <div>
-                        <h3 className="text-lg font-semibold text-text-primary">Scanner Access</h3>
-                        <p className="text-sm text-text-tertiary">
+                        <h3 className="text-lg font-semibold text-[var(--text-primary)]">Scanner Access</h3>
+                        <p className="text-sm text-[var(--text-tertiary)]">
                             {activeCodes.length} active code{activeCodes.length !== 1 ? "s" : ""}
                         </p>
                     </div>
@@ -126,12 +126,12 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                         onClick={fetchCodes}
                         className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
                     >
-                        <RefreshCw className="w-4 h-4 text-text-tertiary" />
+                        <RefreshCw className="w-4 h-4 text-[var(--text-tertiary)]" />
                     </button>
                     <button
                         onClick={() => setShowCreateModal(true)}
                         className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 
-                       rounded-xl text-text-primary font-medium transition-colors"
+                       rounded-xl text-[var(--text-primary)] font-medium transition-colors"
                     >
                         <Plus className="w-4 h-4" />
                         Generate Code
@@ -141,11 +141,11 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
 
             {/* Codes List */}
             {loading ? (
-                <div className="text-center py-8 text-text-tertiary">Loading codes...</div>
+                <div className="text-center py-8 text-[var(--text-tertiary)]">Loading codes...</div>
             ) : codes.length === 0 ? (
                 <div className="text-center py-12">
                     <QrCode className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                    <p className="text-text-tertiary mb-4">No scanner codes yet</p>
+                    <p className="text-[var(--text-tertiary)] mb-4">No scanner codes yet</p>
                     <button
                         onClick={() => setShowCreateModal(true)}
                         className="text-indigo-400 hover:text-indigo-300 font-medium"
@@ -161,15 +161,15 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                             className={`
                 p-4 rounded-xl border transition-colors
                 ${code.isRevoked
-                                    ? "bg-surface-tertiary/30 border-slate-700/30 opacity-50"
-                                    : "bg-surface-tertiary/50 border-slate-700/50 hover:border-slate-600"
+                                    ? "bg-[var(--bg-secondary)]/30 border-slate-700/30 opacity-50"
+                                    : "bg-[var(--bg-secondary)]/50 border-slate-700/50 hover:border-slate-600"
                                 }
               `}
                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
                                     {/* Code */}
-                                    <div className="font-mono text-xl font-bold text-text-primary">
+                                    <div className="font-mono text-xl font-bold text-[var(--text-primary)]">
                                         {code.code}
                                     </div>
 
@@ -187,7 +187,7 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
 
                                         {code.gate && (
                                             <span className="px-2 py-0.5 rounded-full text-xs font-medium 
-                                       bg-slate-600/50 text-text-placeholder">
+                                       bg-slate-600/50 text-[var(--text-quaternary)]">
                                                 {code.gate}
                                             </span>
                                         )}
@@ -212,7 +212,7 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                                             {copiedCode === code.code ? (
                                                 <Check className="w-4 h-4 text-accent-primary" />
                                             ) : (
-                                                <Copy className="w-4 h-4 text-text-tertiary" />
+                                                <Copy className="w-4 h-4 text-[var(--text-tertiary)]" />
                                             )}
                                         </button>
                                         <button
@@ -220,7 +220,7 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                                             className="p-2 hover:bg-red-500/20 rounded-lg transition-colors"
                                             title="Revoke code"
                                         >
-                                            <Trash2 className="w-4 h-4 text-text-tertiary hover:text-red-400" />
+                                            <Trash2 className="w-4 h-4 text-[var(--text-tertiary)] hover:text-red-400" />
                                         </button>
                                     </div>
                                 )}
@@ -230,14 +230,14 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                             {code.stats && !code.isRevoked && (
                                 <div className="flex items-center gap-6 mt-3 pt-3 border-t border-slate-700/50">
                                     <div className="flex items-center gap-2 text-sm">
-                                        <QrCode className="w-4 h-4 text-text-tertiary" />
-                                        <span className="text-text-tertiary">
+                                        <QrCode className="w-4 h-4 text-[var(--text-tertiary)]" />
+                                        <span className="text-[var(--text-tertiary)]">
                                             {code.stats.scansCount} scans
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-2 text-sm">
-                                        <Users className="w-4 h-4 text-text-tertiary" />
-                                        <span className="text-text-tertiary">
+                                        <Users className="w-4 h-4 text-[var(--text-tertiary)]" />
+                                        <span className="text-[var(--text-tertiary)]">
                                             {code.stats.doorEntriesCount} door entries
                                         </span>
                                     </div>
@@ -248,7 +248,7 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                             )}
 
                             {/* Usage info */}
-                            <div className="flex items-center gap-4 mt-2 text-xs text-text-tertiary">
+                            <div className="flex items-center gap-4 mt-2 text-xs text-[var(--text-tertiary)]">
                                 <span>Used {code.usageCount} time{code.usageCount !== 1 ? "s" : ""}</span>
                                 {code.lastUsedAt && (
                                     <span>Last: {new Date(code.lastUsedAt).toLocaleString()}</span>
@@ -262,14 +262,14 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
             {/* Create Modal */}
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-                    <div className="bg-surface-tertiary rounded-2xl p-6 w-full max-w-md border border-slate-700">
-                        <h3 className="text-xl font-semibold text-text-primary mb-4">
+                    <div className="bg-[var(--bg-secondary)] rounded-2xl p-6 w-full max-w-md border border-slate-700">
+                        <h3 className="text-xl font-semibold text-[var(--text-primary)] mb-4">
                             Generate Scanner Code
                         </h3>
 
                         {/* Type Selection */}
                         <div className="mb-4">
-                            <label className="block text-sm text-text-tertiary mb-2">
+                            <label className="block text-sm text-[var(--text-tertiary)] mb-2">
                                 Access Type
                             </label>
                             <div className="grid grid-cols-2 gap-3">
@@ -283,8 +283,8 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                                         }
                   `}
                                 >
-                                    <div className="font-medium text-text-primary">Full Access</div>
-                                    <div className="text-xs text-text-tertiary mt-1">
+                                    <div className="font-medium text-[var(--text-primary)]">Full Access</div>
+                                    <div className="text-xs text-[var(--text-tertiary)] mt-1">
                                         Scan tickets + Door entry
                                     </div>
                                 </button>
@@ -298,8 +298,8 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                                         }
                   `}
                                 >
-                                    <div className="font-medium text-text-primary">Scan Only</div>
-                                    <div className="text-xs text-text-tertiary mt-1">
+                                    <div className="font-medium text-[var(--text-primary)]">Scan Only</div>
+                                    <div className="text-xs text-[var(--text-tertiary)] mt-1">
                                         Ticket scanning only
                                     </div>
                                 </button>
@@ -308,7 +308,7 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
 
                         {/* Gate Name */}
                         <div className="mb-6">
-                            <label className="block text-sm text-text-tertiary mb-2">
+                            <label className="block text-sm text-[var(--text-tertiary)] mb-2">
                                 Gate/Zone Name (optional)
                             </label>
                             <input
@@ -317,7 +317,7 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                                 onChange={(e) => setNewCodeGate(e.target.value)}
                                 placeholder="e.g., Main Gate, VIP Entry"
                                 className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 
-                           rounded-xl text-text-primary placeholder-slate-500
+                           rounded-xl text-[var(--text-primary)] placeholder-slate-500
                            focus:outline-none focus:border-indigo-500"
                             />
                         </div>
@@ -327,7 +327,7 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                             <button
                                 onClick={() => setShowCreateModal(false)}
                                 className="flex-1 px-4 py-3 border border-slate-600 rounded-xl 
-                           text-text-placeholder hover:bg-slate-700/50 transition-colors"
+                           text-[var(--text-quaternary)] hover:bg-slate-700/50 transition-colors"
                             >
                                 Cancel
                             </button>
@@ -335,7 +335,7 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                                 onClick={createCode}
                                 disabled={creating}
                                 className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-500 
-                           rounded-xl text-text-primary font-medium transition-colors
+                           rounded-xl text-[var(--text-primary)] font-medium transition-colors
                            disabled:opacity-50"
                             >
                                 {creating ? "Creating..." : "Generate Code"}

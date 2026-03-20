@@ -66,9 +66,9 @@ export default function TierProgressBar({ currentSales, tiers = DEFAULT_TIERS, v
                     <TierIcon className="w-3 h-3" />
                     {currentTier.label}
                 </span>
-                <span className="text-[11px] font-bold text-text-primary">{currentTier.rate}%</span>
+                <span className="text-[11px] font-bold text-[var(--text-primary)]">{currentTier.rate}%</span>
                 {nextTier && (
-                    <span className="text-[10px] text-text-placeholder">
+                    <span className="text-[10px] text-[var(--text-quaternary)]">
                         {salesToNext} to {nextTier.rate}%
                     </span>
                 )}
@@ -78,24 +78,24 @@ export default function TierProgressBar({ currentSales, tiers = DEFAULT_TIERS, v
 
     if (variant === "compact") {
         return (
-            <div className={`p-4 rounded-2xl bg-surface-elevated border border-border-default ${style.glow}`}>
+            <div className={`p-4 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-default)] ${style.glow}`}>
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                         <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${style.gradient} flex items-center justify-center`}>
                             <TierIcon className="w-4 h-4 text-white" />
                         </div>
                         <div>
-                            <p className="text-xs font-bold text-text-primary">{currentTier.label} Tier</p>
-                            <p className="text-[10px] text-text-tertiary">{currentTier.rate}% commission</p>
+                            <p className="text-xs font-bold text-[var(--text-primary)]">{currentTier.label} Tier</p>
+                            <p className="text-[10px] text-[var(--text-tertiary)]">{currentTier.rate}% commission</p>
                         </div>
                     </div>
                     {nextTier && (
-                        <span className="text-[10px] font-bold text-text-placeholder">
+                        <span className="text-[10px] font-bold text-[var(--text-quaternary)]">
                             {salesToNext} more → {nextTier.rate}%
                         </span>
                     )}
                 </div>
-                <div className="h-2 rounded-full bg-surface-tertiary overflow-hidden">
+                <div className="h-2 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
                     <div
                         className={`h-full rounded-full bg-gradient-to-r ${style.gradient} transition-all duration-1000 ease-out`}
                         style={{ width: `${progress}%` }}
@@ -107,7 +107,7 @@ export default function TierProgressBar({ currentSales, tiers = DEFAULT_TIERS, v
 
     // Full variant
     return (
-        <div className={`p-8 rounded-[2rem] bg-surface-elevated border border-border-default ${style.glow}`}>
+        <div className={`p-8 rounded-[2rem] bg-[var(--bg-elevated)] border border-[var(--border-default)] ${style.glow}`}>
             {/* Current Tier Header */}
             <div className="flex items-start justify-between mb-8">
                 <div className="flex items-center gap-4">
@@ -115,16 +115,16 @@ export default function TierProgressBar({ currentSales, tiers = DEFAULT_TIERS, v
                         <TierIcon className="w-7 h-7 text-white" />
                     </div>
                     <div>
-                        <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest">Current Tier</p>
-                        <h3 className="text-2xl font-black text-text-primary">{currentTier.label}</h3>
-                        <p className="text-sm text-text-secondary font-semibold mt-0.5">
-                            Earning <span className="text-text-primary">{currentTier.rate}%</span> commission per sale
+                        <p className="text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest">Current Tier</p>
+                        <h3 className="text-2xl font-black text-[var(--text-primary)]">{currentTier.label}</h3>
+                        <p className="text-sm text-[var(--text-secondary)] font-semibold mt-0.5">
+                            Earning <span className="text-[var(--text-primary)]">{currentTier.rate}%</span> commission per sale
                         </p>
                     </div>
                 </div>
                 <div className="text-right">
-                    <p className="text-3xl font-black text-text-primary">{currentSales}</p>
-                    <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Total Sales</p>
+                    <p className="text-3xl font-black text-[var(--text-primary)]">{currentSales}</p>
+                    <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Total Sales</p>
                 </div>
             </div>
 
@@ -132,21 +132,21 @@ export default function TierProgressBar({ currentSales, tiers = DEFAULT_TIERS, v
             {nextTier && (
                 <div className="space-y-3 mb-8">
                     <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-text-secondary">{currentTier.label} ({currentTier.rate}%)</span>
-                        <span className="text-xs font-bold text-text-tertiary flex items-center gap-1">
+                        <span className="text-xs font-bold text-[var(--text-secondary)]">{currentTier.label} ({currentTier.rate}%)</span>
+                        <span className="text-xs font-bold text-[var(--text-tertiary)] flex items-center gap-1">
                             {nextTier.label} ({nextTier.rate}%)
                             <ChevronRight className="w-3 h-3" />
                         </span>
                     </div>
-                    <div className="h-3 rounded-full bg-surface-tertiary overflow-hidden">
+                    <div className="h-3 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
                         <div
                             className={`h-full rounded-full bg-gradient-to-r ${style.gradient} transition-all duration-1000 ease-out`}
                             style={{ width: `${progress}%` }}
                         />
                     </div>
-                    <p className="text-sm text-text-tertiary font-medium">
-                        <span className="font-bold text-text-primary">{salesToNext} more sale{salesToNext !== 1 ? "s" : ""}</span> to unlock{" "}
-                        <span className="font-bold text-text-primary">{nextTier.rate}%</span> commission
+                    <p className="text-sm text-[var(--text-tertiary)] font-medium">
+                        <span className="font-bold text-[var(--text-primary)]">{salesToNext} more sale{salesToNext !== 1 ? "s" : ""}</span> to unlock{" "}
+                        <span className="font-bold text-[var(--text-primary)]">{nextTier.rate}%</span> commission
                     </p>
                 </div>
             )}
@@ -164,8 +164,8 @@ export default function TierProgressBar({ currentSales, tiers = DEFAULT_TIERS, v
                             className={`relative p-3 rounded-xl text-center transition-all ${isCurrent
                                 ? `bg-gradient-to-br ${ts.gradient} text-white shadow-lg`
                                 : isActive
-                                    ? "bg-surface-secondary text-text-primary"
-                                    : "bg-surface-tertiary/50 text-text-placeholder"
+                                    ? "bg-[var(--bg-fill)] text-[var(--text-primary)]"
+                                    : "bg-[var(--bg-secondary)]/50 text-[var(--text-quaternary)]"
                                 }`}
                         >
                             <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">{t.label}</p>

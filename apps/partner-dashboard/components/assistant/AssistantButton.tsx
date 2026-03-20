@@ -30,16 +30,16 @@ export function AssistantButton() {
                 className={`
                     fixed bottom-6 right-5 z-[150]
                     w-10 h-10 rounded-full
-                    bg-surface-tertiary border border-border-subtle
+                    bg-[var(--bg-secondary)] border border-[var(--border-subtle)]
                     flex items-center justify-center
                     shadow-lg shadow-black/20
-                    hover:bg-surface-secondary transition-all duration-200
+                    hover:bg-[var(--bg-fill)] transition-all duration-200
                     ${panelOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}
                 `}
                 aria-label="Open dashboard intelligence"
                 title="Dashboard Intelligence"
             >
-                <Sparkles className="w-4 h-4 text-text-secondary" />
+                <Sparkles className="w-4 h-4 text-[var(--text-secondary)]" />
             </motion.button>
 
             {/* Panel */}

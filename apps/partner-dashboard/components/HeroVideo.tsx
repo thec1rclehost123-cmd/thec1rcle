@@ -83,9 +83,9 @@ export default function HeroVideo({ src }) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.5 }}
-            className="backdrop-blur-xl bg-surface-elevated/5 border border-white/20 rounded-full px-10 py-5 inline-block shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+            className="backdrop-blur-xl bg-[var(--bg-elevated)]/5 border border-white/20 rounded-full px-10 py-5 inline-block shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
           >
-            <p className="text-sm md:text-2xl text-text-primary font-bold tracking-[0.2em] md:tracking-[0.4em] uppercase">
+            <p className="text-sm md:text-2xl text-[var(--text-primary)] font-bold tracking-[0.2em] md:tracking-[0.4em] uppercase">
               Discover Life Offline
             </p>
           </motion.div>
@@ -95,7 +95,7 @@ export default function HeroVideo({ src }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.6 }}
-            className="text-sm md:text-lg text-text-primary/70 max-w-2xl mx-auto font-medium leading-relaxed px-4"
+            className="text-sm md:text-lg text-[var(--text-primary)]/70 max-w-2xl mx-auto font-medium leading-relaxed px-4"
           >
             Curated campus nights, rooftop flows, and underground pop-ups —
             <br className="hidden md:block" />
@@ -111,7 +111,7 @@ export default function HeroVideo({ src }) {
           >
             <Link
               href="/explore"
-              className="group relative px-8 py-4 md:px-10 md:py-5 bg-surface-elevated text-text-primary font-black uppercase tracking-[0.2em] text-xs md:text-sm rounded-full overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.6)]"
+              className="group relative px-8 py-4 md:px-10 md:py-5 bg-[var(--bg-elevated)] text-[var(--text-primary)] font-black uppercase tracking-[0.2em] text-xs md:text-sm rounded-full overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.6)]"
             >
               <span className="relative z-10">Explore Events</span>
               <div className="absolute inset-0 bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -119,7 +119,7 @@ export default function HeroVideo({ src }) {
 
             <Link
               href="/create"
-              className="group px-8 py-4 md:px-10 md:py-5 border-2 border-white/30 text-text-primary font-black uppercase tracking-[0.2em] text-xs md:text-sm rounded-full backdrop-blur-md hover:bg-surface-elevated/10 hover:border-white/50 transition-all duration-300"
+              className="group px-8 py-4 md:px-10 md:py-5 border-2 border-white/30 text-[var(--text-primary)] font-black uppercase tracking-[0.2em] text-xs md:text-sm rounded-full backdrop-blur-md hover:bg-[var(--bg-elevated)]/10 hover:border-white/50 transition-all duration-300"
             >
               Create Event
             </Link>
@@ -134,14 +134,14 @@ export default function HeroVideo({ src }) {
         transition={{ delay: 2, duration: 1 }}
         className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 z-20"
       >
-        <span className="text-xs uppercase tracking-[0.3em] text-text-primary/50 font-bold">Scroll Down</span>
+        <span className="text-xs uppercase tracking-[0.3em] text-[var(--text-primary)]/50 font-bold">Scroll Down</span>
         <motion.div
           className="w-6 h-10 rounded-full border-2 border-white/30 flex items-start justify-center p-2"
           animate={{ opacity: [0.3, 1, 0.3] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
           <motion.div
-            className="w-1.5 h-1.5 rounded-full bg-surface-elevated"
+            className="w-1.5 h-1.5 rounded-full bg-[var(--bg-elevated)]"
             animate={{ y: [0, 16, 0] }}
             transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
           />

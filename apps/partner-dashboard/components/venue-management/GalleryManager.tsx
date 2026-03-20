@@ -104,12 +104,12 @@ export default function GalleryManager({ venueId, photos, onRefresh }: GalleryMa
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="text-lg font-bold text-text-primary">Vibe Gallery</h3>
-                    <p className="text-sm text-text-tertiary">
+                    <h3 className="text-lg font-bold text-[var(--text-primary)]">Vibe Gallery</h3>
+                    <p className="text-sm text-[var(--text-tertiary)]">
                         Showcase your venue's atmosphere with up to 9 photos in a 3×3 grid
                     </p>
                 </div>
-                <div className="text-sm text-text-tertiary">
+                <div className="text-sm text-[var(--text-tertiary)]">
                     {photos.length} / 9 photos
                 </div>
             </div>
@@ -127,7 +127,7 @@ export default function GalleryManager({ venueId, photos, onRefresh }: GalleryMa
                             <Reorder.Item
                                 key={photo.id}
                                 value={photo}
-                                className="relative aspect-square rounded-2xl overflow-hidden group cursor-grab active:cursor-grabbing bg-surface-secondary"
+                                className="relative aspect-square rounded-2xl overflow-hidden group cursor-grab active:cursor-grabbing bg-[var(--bg-fill)]"
                             >
                                 <img
                                     src={photo.imageUrl}
@@ -143,7 +143,7 @@ export default function GalleryManager({ venueId, photos, onRefresh }: GalleryMa
                                             e.stopPropagation();
                                             handleRemovePhoto(photo.id);
                                         }}
-                                        className="p-3 bg-red-500 text-text-primary rounded-full hover:bg-red-600 transition-colors"
+                                        className="p-3 bg-red-500 text-[var(--text-primary)] rounded-full hover:bg-red-600 transition-colors"
                                     >
                                         <Trash2 className="w-5 h-5" />
                                     </button>
@@ -151,7 +151,7 @@ export default function GalleryManager({ venueId, photos, onRefresh }: GalleryMa
 
                                 {/* Drag Handle */}
                                 <div className="absolute top-2 left-2 p-1.5 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <GripVertical className="w-4 h-4 text-text-primary" />
+                                    <GripVertical className="w-4 h-4 text-[var(--text-primary)]" />
                                 </div>
                             </Reorder.Item>
                         ))}
@@ -159,13 +159,13 @@ export default function GalleryManager({ venueId, photos, onRefresh }: GalleryMa
 
                     {/* Add Photo Slot */}
                     {photos.length < 9 && (
-                        <label className="aspect-square rounded-2xl border-2 border-dashed border-border-subtle flex flex-col items-center justify-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-all">
+                        <label className="aspect-square rounded-2xl border-2 border-dashed border-[var(--border-subtle)] flex flex-col items-center justify-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-all">
                             {uploading ? (
                                 <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
                             ) : (
                                 <>
-                                    <Plus className="w-8 h-8 text-text-tertiary" />
-                                    <span className="text-sm text-text-tertiary mt-2">Add Photo</span>
+                                    <Plus className="w-8 h-8 text-[var(--text-tertiary)]" />
+                                    <span className="text-sm text-[var(--text-tertiary)] mt-2">Add Photo</span>
                                 </>
                             )}
                             <input
@@ -185,15 +185,15 @@ export default function GalleryManager({ venueId, photos, onRefresh }: GalleryMa
                     {Array.from({ length: Math.max(0, 9 - photos.length - 1) }).map((_, idx) => (
                         <div
                             key={`placeholder-${idx}`}
-                            className="aspect-square rounded-2xl bg-surface-secondary/30 border border-dashed border-border-subtle"
+                            className="aspect-square rounded-2xl bg-[var(--bg-fill)]/30 border border-dashed border-[var(--border-subtle)]"
                         />
                     ))}
                 </div>
             </ErrorBoundary>
 
             {/* Tips */}
-            <div className="bg-surface-secondary/50 rounded-xl p-4">
-                <p className="text-xs text-text-tertiary">
+            <div className="bg-[var(--bg-fill)]/50 rounded-xl p-4">
+                <p className="text-xs text-[var(--text-tertiary)]">
                     💡 <strong>Pro tip:</strong> Use high-quality photos that show your venue's vibe, decor,
                     crowd energy, and unique features. Drag to reorder photos.
                 </p>
@@ -210,7 +210,7 @@ export default function GalleryManager({ venueId, photos, onRefresh }: GalleryMa
                 >
                     <button
                         onClick={() => setLightboxImage(null)}
-                        className="absolute top-6 right-6 p-2 text-text-primary/80 hover:text-text-primary"
+                        className="absolute top-6 right-6 p-2 text-[var(--text-primary)]/80 hover:text-[var(--text-primary)]"
                     >
                         <X className="w-8 h-8" />
                     </button>

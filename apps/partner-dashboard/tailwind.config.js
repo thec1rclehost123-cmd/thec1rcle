@@ -65,6 +65,46 @@ export default {
           dim: "var(--accent-primary-dim)",
           light: "var(--accent-primary-light)",
         },
+        // ── NEW: Apple-semantic tokens (Design System v3.0) ──
+        bg: {
+          base:          "var(--bg-base)",
+          elevated:      "var(--bg-elevated)",
+          secondary:     "var(--bg-secondary)",
+          tertiary:      "var(--bg-tertiary)",
+          fill:          "var(--bg-fill)",
+          "fill-secondary": "var(--bg-fill-secondary)",
+        },
+        // Single accent token (use this going forward)
+        "brand-accent":        "var(--accent)",
+        "brand-accent-muted":  "var(--accent-muted)",
+        "brand-accent-subtle": "var(--accent-subtle)",
+        // Semantic state colors
+        "color-success":    "var(--color-success)",
+        "color-success-bg": "var(--color-success-bg)",
+        "color-warning":    "var(--color-warning)",
+        "color-warning-bg": "var(--color-warning-bg)",
+        "color-error":      "var(--color-error)",
+        "color-error-bg":   "var(--color-error-bg)",
+        "color-info":       "var(--color-info)",
+        "color-info-bg":    "var(--color-info-bg)",
+        // Trend
+        "trend-positive":    "var(--trend-positive)",
+        "trend-positive-bg": "var(--trend-positive-bg)",
+        "trend-negative":    "var(--trend-negative)",
+        "trend-negative-bg": "var(--trend-negative-bg)",
+        "trend-neutral":     "var(--trend-neutral)",
+        // Charts
+        chart: {
+          "1": "var(--chart-1)",
+          "2": "var(--chart-2)",
+          "3": "var(--chart-3)",
+          "4": "var(--chart-4)",
+          "5": "var(--chart-5)",
+          "6": "var(--chart-6)",
+        },
+        // Topbar + sidebar material backgrounds
+        topbar:  "var(--topbar-bg)",
+        sidebar: "var(--sidebar-bg)",
       },
       spacing: {
         gutter: "min(6vw, 3.5rem)",
@@ -79,6 +119,13 @@ export default {
         "2xl": "20px",
         "3xl": "24px",
         "4xl": "32px",
+        // New Apple-semantic radius tokens
+        "r-sm":  "var(--r-sm)",
+        "r-md":  "var(--r-md)",
+        "r-lg":  "var(--r-lg)",
+        "r-xl":  "var(--r-xl)",
+        "r-2xl": "var(--r-2xl)",
+        "r-pill": "var(--r-pill)",
       },
       fontFamily: {
         heading: ["var(--font-system)", "SF Pro Display", "Inter", "sans-serif"],
@@ -122,6 +169,11 @@ export default {
         elevate: "0 12px 40px rgba(0, 0, 0, 0.15)",
         floating: "0 24px 80px rgba(0, 0, 0, 0.2)",
         glass: "inset 0 1px 0 0 rgba(255, 255, 255, 0.1)",
+        // New Apple-semantic shadow tokens (mode-adaptive via CSS vars)
+        "dash-sm": "var(--shadow-sm)",
+        "dash-md": "var(--shadow-md)",
+        "dash-lg": "var(--shadow-lg)",
+        "dash-xl": "var(--shadow-xl)",
       },
       backgroundImage: {
         "hero-fade": "linear-gradient(180deg, rgba(10,10,11,0) 0%, #0A0A0B 100%)",

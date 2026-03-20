@@ -69,7 +69,7 @@ export function NetworkProfileModal({
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 60, opacity: 0 }}
                 transition={{ type: "spring", damping: 28, stiffness: 300 }}
-                className="bg-surface-elevated border border-border-default w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-[0_32px_80px_rgba(0,0,0,0.25)]"
+                className="bg-[var(--bg-elevated)] border border-[var(--border-default)] w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-[0_32px_80px_rgba(0,0,0,0.25)]"
             >
                 {/* Cover */}
                 <div className="relative h-40 bg-[#111113] rounded-t-[2.5rem] overflow-hidden shrink-0">
@@ -107,9 +107,9 @@ export function NetworkProfileModal({
                 <div className="px-8 pb-8 space-y-8">
                     {/* Identity */}
                     <div>
-                        <h2 className="text-headline-sm font-bold text-text-primary">{profile.name}</h2>
+                        <h2 className="text-headline-sm font-bold text-[var(--text-primary)]">{profile.name}</h2>
                         <div className="flex flex-wrap items-center gap-4 mt-2">
-                            <span className="flex items-center gap-1.5 text-body-sm text-text-tertiary">
+                            <span className="flex items-center gap-1.5 text-body-sm text-[var(--text-tertiary)]">
                                 <MapPin className="w-4 h-4" /> {profile.city}
                             </span>
                             {profile.instagram && (
@@ -117,26 +117,26 @@ export function NetworkProfileModal({
                                     href={`https://instagram.com/${profile.instagram.replace("@", "")}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="flex items-center gap-1.5 text-body-sm text-text-tertiary hover:text-accent-primary transition-colors"
+                                    className="flex items-center gap-1.5 text-body-sm text-[var(--text-tertiary)] hover:text-accent-primary transition-colors"
                                 >
                                     <Instagram className="w-4 h-4" /> {profile.instagram}
                                 </a>
                             )}
                             {profile.phone && (
-                                <span className="flex items-center gap-1.5 text-body-sm text-text-tertiary">
+                                <span className="flex items-center gap-1.5 text-body-sm text-[var(--text-tertiary)]">
                                     <Phone className="w-4 h-4" /> {profile.phone}
                                 </span>
                             )}
                         </div>
                         {profile.bio && (
-                            <p className="text-body text-text-secondary mt-4 leading-relaxed">{profile.bio}</p>
+                            <p className="text-body text-[var(--text-secondary)] mt-4 leading-relaxed">{profile.bio}</p>
                         )}
                     </div>
 
                     {/* Venue specs */}
                     {isVenue && (
                         <div className="animate-in slide-in-from-bottom-2 duration-500 delay-150 fill-mode-both">
-                            <h3 className="text-[11px] font-black text-text-muted uppercase tracking-[0.2em] mb-5 px-1">
+                            <h3 className="text-[11px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.2em] mb-5 px-1">
                                 Venue Specs
                             </h3>
                             <div className="grid grid-cols-2 gap-4">
@@ -179,7 +179,7 @@ export function NetworkProfileModal({
                     {/* Agent performance metrics */}
                     {isAgent && (
                         <div className="animate-in slide-in-from-bottom-2 duration-500 delay-150 fill-mode-both">
-                            <h3 className="text-[11px] font-black text-text-muted uppercase tracking-[0.2em] mb-5 px-1">
+                            <h3 className="text-[11px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.2em] mb-5 px-1">
                                 Performance Metrics
                             </h3>
                             <div className="grid grid-cols-2 gap-4">
@@ -247,7 +247,7 @@ export function NetworkProfileModal({
                                 <button
                                     onClick={() => onRequestPartnership(profile.id)}
                                     disabled={isRequestLoading}
-                                    className="w-full group relative overflow-hidden py-4.5 bg-accent-primary text-text-inverse rounded-2xl text-[13px] font-black uppercase tracking-widest shadow-2xl shadow-accent-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40"
+                                    className="w-full group relative overflow-hidden py-4.5 bg-accent-primary text-white rounded-2xl text-[13px] font-black uppercase tracking-widest shadow-2xl shadow-accent-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40"
                                 >
                                     <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:animate-shimmer" />
                                     {isRequestLoading ? (
@@ -272,8 +272,8 @@ function MetricTile({
     icon,
     label,
     value,
-    bgClass = "bg-surface-secondary border-border-subtle",
-    valueClass = "text-text-primary",
+    bgClass = "bg-[var(--bg-fill)] border-[var(--border-subtle)]",
+    valueClass = "text-[var(--text-primary)]",
 }: {
     icon: React.ReactNode;
     label: string;
@@ -283,11 +283,11 @@ function MetricTile({
 }) {
     return (
         <div className={`p-4 rounded-3xl border transition-all hover:shadow-lg hover:bg-opacity-10 backdrop-blur-sm ${bgClass}`}>
-            <div className="flex items-center gap-2 mb-2 text-text-tertiary">
+            <div className="flex items-center gap-2 mb-2 text-[var(--text-tertiary)]">
                 <div className="p-1.5 rounded-lg bg-white/5">
                     {icon}
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-text-muted">{label}</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-tertiary)]">{label}</span>
             </div>
             <p className={`text-title-sm font-black tracking-tight ${valueClass}`}>{value}</p>
         </div>

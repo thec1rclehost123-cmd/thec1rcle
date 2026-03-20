@@ -11,10 +11,10 @@ interface SectionProps {
 
 export function Section({ title, description, children, className }: SectionProps) {
     return (
-        <div className={cn("rounded-[2rem] border border-border-subtle bg-surface-base p-8 shadow-sm", className)}>
+        <div className={cn("rounded-[2rem] border border-[var(--border-subtle)] bg-[var(--bg-base)] p-8 shadow-sm", className)}>
             <div className="mb-6 space-y-1">
-                <h3 className="text-headline-xs text-text-primary">{title}</h3>
-                {description && <p className="text-body-sm text-text-tertiary uppercase tracking-widest font-bold">{description}</p>}
+                <h3 className="text-headline-xs text-[var(--text-primary)]">{title}</h3>
+                {description && <p className="text-body-sm text-[var(--text-tertiary)] uppercase tracking-widest font-bold">{description}</p>}
             </div>
             {children}
         </div>
@@ -36,29 +36,29 @@ export function WizardInput({ label, hint, error, className, icon: Icon, ...prop
     return (
         <div className="space-y-1.5 w-full">
             {label && (
-                <label className="ml-1 text-[13px] font-bold text-text-secondary uppercase tracking-widest">
+                <label className="ml-1 text-[13px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">
                     {label}
                 </label>
             )}
             <div className="relative group">
                 {Icon && (
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary group-focus-within:text-indigo-500 transition-colors">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] group-focus-within:text-indigo-500 transition-colors">
                         {React.createElement(Icon as any, { className: "h-4 w-4" })}
                     </div>
                 )}
                 <input
                     className={cn(
-                        "w-full rounded-[1.25rem] border bg-surface-secondary px-4 py-3.5 text-[15px] font-medium text-text-primary transition-all placeholder:text-text-tertiary/50 focus:border-indigo-500/50 focus:bg-surface-base focus:outline-none focus:ring-4 focus:ring-indigo-500/5",
+                        "w-full rounded-[1.25rem] border bg-[var(--bg-fill)] px-4 py-3.5 text-[15px] font-medium text-[var(--text-primary)] transition-all placeholder:text-[var(--text-tertiary)]/50 focus:border-indigo-500/50 focus:bg-[var(--bg-base)] focus:outline-none focus:ring-4 focus:ring-indigo-500/5",
                         Icon ? "pl-11" : "",
                         error
                             ? "border-[var(--state-error)]/30 bg-red-500/10 focus:border-[var(--state-error)] focus:ring-[var(--state-error)]/5"
-                            : "border-border-subtle hover:border-border-strong",
+                            : "border-[var(--border-subtle)] hover:border-[var(--border-default)]",
                         className
                     )}
                     {...props}
                 />
             </div>
-            {hint && !error && <p className="ml-1 text-[11px] text-text-tertiary uppercase tracking-widest font-bold">{hint}</p>}
+            {hint && !error && <p className="ml-1 text-[11px] text-[var(--text-tertiary)] uppercase tracking-widest font-bold">{hint}</p>}
             {error && (
                 <div className="flex items-center gap-1.5 ml-1 text-red-500">
                     {React.createElement(AlertCircle as any, { className: "h-3 w-3" })}
@@ -79,14 +79,14 @@ export function WizardSelect({ label, options, hint, className, ...props }: Wiza
     return (
         <div className="space-y-1.5 w-full">
             {label && (
-                <label className="ml-1 text-[13px] font-bold text-text-secondary uppercase tracking-widest">
+                <label className="ml-1 text-[13px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">
                     {label}
                 </label>
             )}
             <div className="relative group">
                 <select
                     className={cn(
-                        "w-full appearance-none rounded-[1.25rem] border border-border-subtle bg-surface-secondary px-4 py-3.5 text-[15px] font-medium text-text-primary transition-all focus:border-indigo-500/50 focus:bg-surface-base focus:outline-none focus:ring-4 focus:ring-indigo-500/5 cursor-pointer uppercase tracking-wider",
+                        "w-full appearance-none rounded-[1.25rem] border border-[var(--border-subtle)] bg-[var(--bg-fill)] px-4 py-3.5 text-[15px] font-medium text-[var(--text-primary)] transition-all focus:border-indigo-500/50 focus:bg-[var(--bg-base)] focus:outline-none focus:ring-4 focus:ring-indigo-500/5 cursor-pointer uppercase tracking-wider",
                         className
                     )}
                     {...props}
@@ -98,12 +98,12 @@ export function WizardSelect({ label, options, hint, className, ...props }: Wiza
                     ))}
                 </select>
                 <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
-                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="text-text-tertiary">
+                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="text-[var(--text-tertiary)]">
                         <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                 </div>
             </div>
-            {hint && <p className="ml-1 text-[11px] text-text-tertiary uppercase tracking-widest font-bold">{hint}</p>}
+            {hint && <p className="ml-1 text-[11px] text-[var(--text-tertiary)] uppercase tracking-widest font-bold">{hint}</p>}
         </div>
     );
 }
@@ -120,5 +120,5 @@ export function Reassurance({ children }: { children: React.ReactNode }) {
 }
 
 export function Hint({ children }: { children: React.ReactNode }) {
-    return <p className="mt-2 text-[11px] leading-relaxed text-text-tertiary uppercase tracking-widest font-black">{children}</p>;
+    return <p className="mt-2 text-[11px] leading-relaxed text-[var(--text-tertiary)] uppercase tracking-widest font-black">{children}</p>;
 }

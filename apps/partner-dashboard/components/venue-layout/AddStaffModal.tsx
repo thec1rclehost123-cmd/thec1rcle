@@ -67,16 +67,16 @@ export function AddStaffModal({ isOpen, onClose, onAdd }: AddStaffModalProps) {
             />
 
             {/* Modal */}
-            <div className="relative bg-surface-elevated rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-[var(--bg-elevated)] rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="sticky top-0 bg-surface-elevated border-b border-border-default p-6 flex items-center justify-between rounded-t-2xl">
+                <div className="sticky top-0 bg-[var(--bg-elevated)] border-b border-[var(--border-default)] p-6 flex items-center justify-between rounded-t-2xl">
                     <div>
-                        <h2 className="text-xl font-bold text-text-primary">Add Staff Member</h2>
-                        <p className="text-sm text-text-tertiary mt-1">Grant access to your club dashboard</p>
+                        <h2 className="text-xl font-bold text-[var(--text-primary)]">Add Staff Member</h2>
+                        <p className="text-sm text-[var(--text-tertiary)] mt-1">Grant access to your club dashboard</p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-secondary transition-colors"
+                        className="p-2 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-fill)] transition-colors"
                     >
                         <X className="h-5 w-5" />
                     </button>
@@ -92,36 +92,36 @@ export function AddStaffModal({ isOpen, onClose, onAdd }: AddStaffModalProps) {
 
                     {/* Email */}
                     <div>
-                        <label className="block text-sm font-semibold text-text-secondary mb-2">
+                        <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
                             Email Address *
                         </label>
                         <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-tertiary" />
+                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-tertiary)]" />
                             <input
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
-                                className="w-full pl-10 pr-4 py-3 bg-surface-tertiary border border-border-default rounded-lg text-text-primary placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                className="w-full pl-10 pr-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                                 placeholder="staff@example.com"
                             />
                         </div>
-                        <p className="text-xs text-text-tertiary mt-2">They will receive an invitation email to set up their account</p>
+                        <p className="text-xs text-[var(--text-tertiary)] mt-2">They will receive an invitation email to set up their account</p>
                     </div>
 
                     {/* Display Name */}
                     <div>
-                        <label className="block text-sm font-semibold text-text-secondary mb-2">
+                        <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
                             Full Name *
                         </label>
                         <div className="relative">
-                            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-tertiary" />
+                            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-tertiary)]" />
                             <input
                                 type="text"
                                 value={displayName}
                                 onChange={(e) => setDisplayName(e.target.value)}
                                 required
-                                className="w-full pl-10 pr-4 py-3 bg-surface-tertiary border border-border-default rounded-lg text-text-primary placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                className="w-full pl-10 pr-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                                 placeholder="John Doe"
                             />
                         </div>
@@ -129,7 +129,7 @@ export function AddStaffModal({ isOpen, onClose, onAdd }: AddStaffModalProps) {
 
                     {/* Role Selection */}
                     <div>
-                        <label className="block text-sm font-semibold text-text-secondary mb-3">
+                        <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-3">
                             Access Role *
                         </label>
                         <div className="space-y-2">
@@ -138,7 +138,7 @@ export function AddStaffModal({ isOpen, onClose, onAdd }: AddStaffModalProps) {
                                     key={option.value}
                                     className={`block p-4 rounded-lg border-2 cursor-pointer transition-all ${selectedRole === option.value
                                         ? "border-indigo-600 bg-indigo-50/50"
-                                        : "border-border-default hover:border-border-strong bg-surface-elevated"
+                                        : "border-[var(--border-default)] hover:border-[var(--border-default)] bg-[var(--bg-elevated)]"
                                         }`}
                                 >
                                     <div className="flex items-start gap-3">
@@ -152,8 +152,8 @@ export function AddStaffModal({ isOpen, onClose, onAdd }: AddStaffModalProps) {
                                         />
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <Shield className="h-4 w-4 text-text-tertiary" />
-                                                <span className="font-semibold text-text-primary text-sm">{option.label}</span>
+                                                <Shield className="h-4 w-4 text-[var(--text-tertiary)]" />
+                                                <span className="font-semibold text-[var(--text-primary)] text-sm">{option.label}</span>
                                             </div>
                                             <p className="text-xs text-slate-600 leading-relaxed">{option.description}</p>
                                         </div>
@@ -164,18 +164,18 @@ export function AddStaffModal({ isOpen, onClose, onAdd }: AddStaffModalProps) {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-3 pt-4 border-t border-border-subtle">
+                    <div className="flex items-center gap-3 pt-4 border-t border-[var(--border-subtle)]">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 px-4 py-3 bg-surface-elevated border border-border-default rounded-lg text-text-secondary font-semibold hover:bg-surface-tertiary transition-colors"
+                            className="flex-1 px-4 py-3 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-lg text-[var(--text-secondary)] font-semibold hover:bg-[var(--bg-secondary)] transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={loading}
-                            className="flex-1 px-4 py-3 bg-indigo-600 text-text-primary font-semibold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 px-4 py-3 bg-indigo-600 text-[var(--text-primary)] font-semibold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {loading ? "Adding..." : "Add Staff Member"}
                         </button>

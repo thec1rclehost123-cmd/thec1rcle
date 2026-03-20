@@ -123,23 +123,23 @@ export default function GuestListPageClient() {
                 {/* Toolbar */}
                 <div className="flex items-center gap-3 flex-wrap">
                     <div className="relative flex-1 min-w-[200px] max-w-md">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--v-text-muted)]" />
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" />
                         <input
                             type="text"
                             placeholder="Search by name…"
                             value={search}
                             onChange={e => handleSearch(e.target.value)}
-                            className="w-full pl-8 pr-3 py-2 text-[13px] rounded-xl border bg-[var(--v-elevated)] text-[var(--v-text-primary)] placeholder:text-[var(--v-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--v-orange)]"
-                            style={{ borderColor: "var(--v-border)" }}
+                            className="w-full pl-8 pr-3 py-2 text-[13px] rounded-xl border bg-[var(--bg-fill)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                            style={{ borderColor: "var(--border-subtle)" }}
                         />
                     </div>
-                    <span className="text-[12px] text-[var(--v-text-muted)] ml-auto">
+                    <span className="text-[12px] text-[var(--text-tertiary)] ml-auto">
                         {total > 0 ? `${total.toLocaleString()} guests` : ""}
                     </span>
                     {canExport && !isLocked && (
                         <a
                             href={`/api/venue/guest-ops/${eventId}/guests/export?venueId=${venueId}&format=csv&piiLevel=masked`}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--v-elevated)] text-[13px] font-medium text-[var(--v-text-primary)] hover:bg-[var(--v-card-hover)]"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--bg-fill)] text-[13px] font-medium text-[var(--text-primary)] hover:bg-[var(--bg-fill)]"
                         >
                             <Download size={13} />
                             Export
@@ -148,7 +148,7 @@ export default function GuestListPageClient() {
                     {canManage && !isLocked && (
                         <button
                             onClick={() => setShowAddModal(true)}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--v-orange)] text-white text-[13px] font-medium hover:brightness-110"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--accent)] text-white text-[13px] font-medium hover:brightness-110"
                         >
                             <UserPlus size={13} />
                             Add Guest
@@ -165,8 +165,8 @@ export default function GuestListPageClient() {
                             className={cn(
                                 "px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap transition-all",
                                 filter === tab.value
-                                    ? "bg-[var(--v-orange)] text-white"
-                                    : "bg-[var(--v-elevated)] text-[var(--v-text-secondary)] hover:bg-[var(--v-card-hover)]"
+                                    ? "bg-[var(--accent)] text-white"
+                                    : "bg-[var(--bg-fill)] text-[var(--text-secondary)] hover:bg-[var(--bg-fill)]"
                             )}
                         >
                             {tab.label}
@@ -175,11 +175,11 @@ export default function GuestListPageClient() {
                 </div>
 
                 {/* Table */}
-                <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--v-border)" }}>
+                <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border-subtle)" }}>
                     {/* Header */}
                     <div
-                        className="grid text-[11px] font-semibold uppercase tracking-wide text-[var(--v-text-muted)] px-4 py-2.5 border-b"
-                        style={{ gridTemplateColumns: "1fr 100px 100px 100px 100px 140px 120px 80px", background: "var(--v-elevated)", borderColor: "var(--v-border)" }}
+                        className="grid text-[11px] font-semibold uppercase tracking-wide text-[var(--text-tertiary)] px-4 py-2.5 border-b"
+                        style={{ gridTemplateColumns: "1fr 100px 100px 100px 100px 140px 120px 80px", background: "var(--bg-fill)", borderColor: "var(--border-subtle)" }}
                     >
                         <span>Name</span>
                         <span>Type</span>
@@ -196,7 +196,7 @@ export default function GuestListPageClient() {
                     ) : guests.length === 0 ? (
                         <EmptyGuestList filter={filter} />
                     ) : (
-                        <div className="divide-y" style={{ borderColor: "var(--v-border)" }}>
+                        <div className="divide-y" style={{ borderColor: "var(--border-subtle)" }}>
                             {guests.map(guest => (
                                 <GuestRow
                                     key={guest.guestId}
@@ -213,11 +213,11 @@ export default function GuestListPageClient() {
 
                     {/* Load more */}
                     {hasMore && !isLoading && (
-                        <div className="flex justify-center p-3 border-t" style={{ borderColor: "var(--v-border)" }}>
+                        <div className="flex justify-center p-3 border-t" style={{ borderColor: "var(--border-subtle)" }}>
                             <button
                                 onClick={() => fetchGuests(nextCursor ?? undefined)}
                                 disabled={isLoadingMore}
-                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--v-elevated)] text-[13px] font-medium hover:bg-[var(--v-card-hover)]"
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--bg-fill)] text-[13px] font-medium hover:bg-[var(--bg-fill)]"
                             >
                                 {isLoadingMore ? <Loader2 size={13} className="animate-spin" /> : <ChevronDown size={13} />}
                                 Load more
@@ -265,21 +265,21 @@ function GuestRow({ guest, isLocked, canManage, onSelect, onCheckIn, onDeny }: {
 }) {
     return (
         <div
-            className="grid items-center px-4 py-2.5 hover:bg-[var(--v-card-hover)] cursor-pointer text-[13px] transition-colors"
+            className="grid items-center px-4 py-2.5 hover:bg-[var(--bg-fill)] cursor-pointer text-[13px] transition-colors"
             style={{ gridTemplateColumns: "1fr 100px 100px 100px 100px 140px 120px 80px" }}
             onClick={onSelect}
         >
-            <div className="font-medium text-[var(--v-text-primary)] truncate pr-2">{guest.displayName}</div>
+            <div className="font-medium text-[var(--text-primary)] truncate pr-2">{guest.displayName}</div>
             <div><GuestSourceChip source={guest.guestType as any} size="xs" /></div>
             <div><GuestSourceChip source={guest.source} size="xs" /></div>
             <div><GuestStatusChip status={guest.status} size="xs" /></div>
-            <div className="text-[12px] text-[var(--v-text-muted)] font-mono">{guest.maskedPhone ?? "—"}</div>
-            <div className="text-[11px] text-[var(--v-text-muted)]">
+            <div className="text-[12px] text-[var(--text-tertiary)] font-mono">{guest.maskedPhone ?? "—"}</div>
+            <div className="text-[11px] text-[var(--text-tertiary)]">
                 {guest.checkedIn && guest.checkedInAt
                     ? new Date(guest.checkedInAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
                     : "—"}
             </div>
-            <div className="text-[12px] text-[var(--v-text-muted)] truncate">{guest.addedByName || "—"}</div>
+            <div className="text-[12px] text-[var(--text-tertiary)] truncate">{guest.addedByName || "—"}</div>
             <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                 {!isLocked && !guest.checkedIn && guest.status === "expected" && canManage && (
                     <button
@@ -297,17 +297,17 @@ function GuestRow({ guest, isLocked, canManage, onSelect, onCheckIn, onDeny }: {
 
 function GuestTableSkeleton() {
     return (
-        <div className="divide-y" style={{ borderColor: "var(--v-border)" }}>
+        <div className="divide-y" style={{ borderColor: "var(--border-subtle)" }}>
             {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="grid items-center px-4 py-3 animate-pulse"
                     style={{ gridTemplateColumns: "1fr 100px 100px 100px 100px 140px 120px 80px" }}>
-                    <div className="h-3.5 bg-[var(--v-elevated)] rounded w-3/4" />
-                    <div className="h-5 bg-[var(--v-elevated)] rounded w-16" />
-                    <div className="h-5 bg-[var(--v-elevated)] rounded w-16" />
-                    <div className="h-5 bg-[var(--v-elevated)] rounded w-16" />
-                    <div className="h-3 bg-[var(--v-elevated)] rounded w-20" />
-                    <div className="h-3 bg-[var(--v-elevated)] rounded w-16" />
-                    <div className="h-3 bg-[var(--v-elevated)] rounded w-20" />
+                    <div className="h-3.5 bg-[var(--bg-fill)] rounded w-3/4" />
+                    <div className="h-5 bg-[var(--bg-fill)] rounded w-16" />
+                    <div className="h-5 bg-[var(--bg-fill)] rounded w-16" />
+                    <div className="h-5 bg-[var(--bg-fill)] rounded w-16" />
+                    <div className="h-3 bg-[var(--bg-fill)] rounded w-20" />
+                    <div className="h-3 bg-[var(--bg-fill)] rounded w-16" />
+                    <div className="h-3 bg-[var(--bg-fill)] rounded w-20" />
                     <div />
                 </div>
             ))}
@@ -318,11 +318,11 @@ function GuestTableSkeleton() {
 function EmptyGuestList({ filter }: { filter: string }) {
     return (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Filter size={28} className="text-[var(--v-text-muted)] mb-3" />
-            <p className="text-[14px] font-medium text-[var(--v-text-primary)] mb-1">
+            <Filter size={28} className="text-[var(--text-tertiary)] mb-3" />
+            <p className="text-[14px] font-medium text-[var(--text-primary)] mb-1">
                 No guests{filter !== "all" ? ` in "${filter}" filter` : ""}
             </p>
-            <p className="text-[12px] text-[var(--v-text-muted)]">
+            <p className="text-[12px] text-[var(--text-tertiary)]">
                 {filter === "all" ? "Add the first guest or wait for ticket orders to arrive." : "Try a different filter."}
             </p>
         </div>

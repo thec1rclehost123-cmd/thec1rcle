@@ -50,12 +50,12 @@ export default function Navbar() {
               <span className="absolute inset-0 bg-gradient-to-tr from-gold via-transparent to-transparent opacity-30" />
               <span className="relative text-sm font-bold bg-gradient-to-br from-gold to-gold-dark bg-clip-text text-transparent">C1</span>
             </div>
-            <span className="text-sm font-bold tracking-widest uppercase text-text-primary/90 dark:text-text-primary/90 group-hover:text-gold-light transition-colors">
+            <span className="text-sm font-bold tracking-widest uppercase text-[var(--text-primary)]/90 dark:text-[var(--text-primary)]/90 group-hover:text-gold-light transition-colors">
               The C1rcle
             </span>
           </Link>
 
-          <div className="hidden items-center gap-1 lg:flex bg-black/5 dark:bg-surface-elevated/5 rounded-full p-1 border border-black/5 dark:border-white/5 backdrop-blur-md">
+          <div className="hidden items-center gap-1 lg:flex bg-black/5 dark:bg-[var(--bg-elevated)]/5 rounded-full p-1 border border-black/5 dark:border-white/5 backdrop-blur-md">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
               const prefetchTimeout = useRef(null);
@@ -82,7 +82,7 @@ export default function Navbar() {
                   prefetch={true}
                   onMouseEnter={handleMouseEnter}
                   onMouseLeave={handleMouseLeave}
-                  className={`relative px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-300 ${isActive ? "text-text-primary dark:text-text-primary" : "text-text-primary/60 dark:text-text-primary/60 hover:text-gold-light"
+                  className={`relative px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-300 ${isActive ? "text-[var(--text-primary)] dark:text-[var(--text-primary)]" : "text-[var(--text-primary)]/60 dark:text-[var(--text-primary)]/60 hover:text-gold-light"
                     }`}
                 >
                   {isActive && (
@@ -103,7 +103,7 @@ export default function Navbar() {
               <>
                 <Link
                   href="/profile"
-                  className="hidden lg:inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-black/5 dark:bg-surface-elevated/5 border border-black/10 dark:border-border-subtle text-xs font-bold uppercase tracking-widest text-text-primary dark:text-text-primary hover:bg-black/10 dark:hover:bg-surface-elevated/10 hover:border-black/20 dark:hover:border-white/20 transition-all"
+                  className="hidden lg:inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-black/5 dark:bg-[var(--bg-elevated)]/5 border border-black/10 dark:border-[var(--border-subtle)] text-xs font-bold uppercase tracking-widest text-[var(--text-primary)] dark:text-[var(--text-primary)] hover:bg-black/10 dark:hover:bg-[var(--bg-elevated)]/10 hover:border-black/20 dark:hover:border-white/20 transition-all"
                 >
                   {(() => {
                     const name = profile?.displayName;
@@ -118,7 +118,7 @@ export default function Navbar() {
                   type="button"
                   onClick={logout}
                   disabled={loading}
-                  className="hidden lg:inline-flex items-center justify-center h-10 w-10 rounded-full bg-black/5 dark:bg-surface-elevated/5 border border-black/10 dark:border-border-subtle text-text-primary dark:text-text-primary hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-200 transition-all"
+                  className="hidden lg:inline-flex items-center justify-center h-10 w-10 rounded-full bg-black/5 dark:bg-[var(--bg-elevated)]/5 border border-black/10 dark:border-[var(--border-subtle)] text-[var(--text-primary)] dark:text-[var(--text-primary)] hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-200 transition-all"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
@@ -128,7 +128,7 @@ export default function Navbar() {
             ) : (
               <Link
                 href="/login"
-                className="hidden lg:inline-flex items-center justify-center px-6 py-2.5 rounded-full bg-black dark:bg-surface-elevated text-text-primary dark:text-text-primary text-xs font-bold uppercase tracking-widest hover:bg-black/90 dark:hover:bg-surface-elevated/90 hover:scale-105 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.3)]"
+                className="hidden lg:inline-flex items-center justify-center px-6 py-2.5 rounded-full bg-black dark:bg-[var(--bg-elevated)] text-[var(--text-primary)] dark:text-[var(--text-primary)] text-xs font-bold uppercase tracking-widest hover:bg-black/90 dark:hover:bg-[var(--bg-elevated)]/90 hover:scale-105 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.3)]"
               >
                 Login
               </Link>
@@ -138,21 +138,21 @@ export default function Navbar() {
 
             <button
               type="button"
-              className="relative flex h-10 w-10 flex-col items-center justify-center gap-1.5 rounded-full bg-black/5 dark:bg-surface-elevated/5 border border-black/10 dark:border-border-subtle lg:hidden"
+              className="relative flex h-10 w-10 flex-col items-center justify-center gap-1.5 rounded-full bg-black/5 dark:bg-[var(--bg-elevated)]/5 border border-black/10 dark:border-[var(--border-subtle)] lg:hidden"
               onClick={toggleMenu}
               aria-label="Toggle menu"
             >
               <motion.span
                 animate={isMenuOpen ? { rotate: 45, y: 6 } : { rotate: 0, y: 0 }}
-                className="h-0.5 w-5 bg-black dark:bg-surface-elevated origin-center transition-transform"
+                className="h-0.5 w-5 bg-black dark:bg-[var(--bg-elevated)] origin-center transition-transform"
               />
               <motion.span
                 animate={isMenuOpen ? { opacity: 0 } : { opacity: 1 }}
-                className="h-0.5 w-5 bg-black dark:bg-surface-elevated transition-opacity"
+                className="h-0.5 w-5 bg-black dark:bg-[var(--bg-elevated)] transition-opacity"
               />
               <motion.span
                 animate={isMenuOpen ? { rotate: -45, y: -6 } : { rotate: 0, y: 0 }}
-                className="h-0.5 w-5 bg-black dark:bg-surface-elevated origin-center transition-transform"
+                className="h-0.5 w-5 bg-black dark:bg-[var(--bg-elevated)] origin-center transition-transform"
               />
             </button>
           </div>
@@ -179,7 +179,7 @@ export default function Navbar() {
                   <Link
                     href={link.href}
                     onClick={closeMenu}
-                    className="block w-full text-center py-4 text-2xl font-heading font-bold text-text-primary hover:text-iris transition-colors"
+                    className="block w-full text-center py-4 text-2xl font-heading font-bold text-[var(--text-primary)] hover:text-iris transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -190,14 +190,14 @@ export default function Navbar() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
-                className="w-full pt-8 border-t border-border-subtle flex flex-col gap-4"
+                className="w-full pt-8 border-t border-[var(--border-subtle)] flex flex-col gap-4"
               >
                 {user ? (
                   <>
                     <Link
                       href="/profile"
                       onClick={closeMenu}
-                      className="block w-full py-4 text-center rounded-full bg-surface-elevated/5 border border-border-subtle text-sm font-bold uppercase tracking-widest text-text-primary"
+                      className="block w-full py-4 text-center rounded-full bg-[var(--bg-elevated)]/5 border border-[var(--border-subtle)] text-sm font-bold uppercase tracking-widest text-[var(--text-primary)]"
                     >
                       Profile
                     </Link>
@@ -206,7 +206,7 @@ export default function Navbar() {
                         logout();
                         closeMenu();
                       }}
-                      className="block w-full py-4 text-center rounded-full border border-border-subtle text-sm font-bold uppercase tracking-widest text-text-primary/60"
+                      className="block w-full py-4 text-center rounded-full border border-[var(--border-subtle)] text-sm font-bold uppercase tracking-widest text-[var(--text-primary)]/60"
                     >
                       Logout
                     </button>
@@ -215,7 +215,7 @@ export default function Navbar() {
                   <Link
                     href="/login"
                     onClick={closeMenu}
-                    className="block w-full py-4 text-center rounded-full bg-surface-elevated text-text-primary text-sm font-bold uppercase tracking-widest shadow-glow"
+                    className="block w-full py-4 text-center rounded-full bg-[var(--bg-elevated)] text-[var(--text-primary)] text-sm font-bold uppercase tracking-widest shadow-glow"
                   >
                     Login
                   </Link>
@@ -224,7 +224,7 @@ export default function Navbar() {
 
               <button
                 onClick={closeMenu}
-                className="absolute top-8 right-8 p-2 text-text-primary/50 hover:text-text-primary"
+                className="absolute top-8 right-8 p-2 text-[var(--text-primary)]/50 hover:text-[var(--text-primary)]"
               >
                 Close
               </button>

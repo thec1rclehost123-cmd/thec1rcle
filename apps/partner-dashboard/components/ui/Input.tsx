@@ -47,23 +47,23 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
         <div className="relative group">
           {icon && iconPosition === "left" && (
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-text-placeholder group-focus-within:text-accent-primary transition-colors">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-quaternary)] group-focus-within:text-accent-primary transition-colors">
               {icon}
             </div>
           )}
           <input
             ref={ref}
             className={cn(
-              "w-full bg-surface-secondary border text-text-primary placeholder:text-text-placeholder transition-all duration-200 outline-none",
+              "w-full bg-[var(--bg-fill)] border text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] transition-all duration-200 outline-none",
               sizeStyles[inputSize],
               // Hover state
-              "hover:bg-surface-tertiary hover:border-border-default",
+              "hover:bg-[var(--bg-secondary)] hover:border-[var(--border-default)]",
               // Focus state
-              "focus:bg-surface-base focus:border-accent-primary focus:ring-3 focus:ring-[var(--accent-glow)]",
+              "focus:bg-[var(--bg-base)] focus:border-accent-primary focus:ring-3 focus:ring-[var(--accent-glow)]",
               // Error state
               hasError
                 ? "border-[var(--state-error)] focus:border-[var(--state-error)] focus:ring-[var(--state-error-bg)]"
-                : "border-border-subtle",
+                : "border-[var(--border-subtle)]",
               // Icon padding
               icon && iconPosition === "left" && iconPadding[inputSize].left,
               icon && iconPosition === "right" && iconPadding[inputSize].right,
@@ -72,7 +72,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {...rest}
           />
           {icon && iconPosition === "right" && (
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-text-placeholder group-focus-within:text-accent-primary transition-colors">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-quaternary)] group-focus-within:text-accent-primary transition-colors">
               {icon}
             </div>
           )}
@@ -80,7 +80,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {(error || hint) && (
           <p className={cn(
             "mt-2 text-[12px] font-medium",
-            hasError ? "text-red-500" : "text-text-tertiary"
+            hasError ? "text-red-500" : "text-[var(--text-tertiary)]"
           )}>
             {error || hint}
           </p>

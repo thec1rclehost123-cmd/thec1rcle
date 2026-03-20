@@ -115,27 +115,27 @@ export default function VenuePayoutsSettingsClient() {
 function UnconnectedPayoutState({ venueId }: { venueId: string }) {
     return (
         <div
-            className="rounded-[var(--v-r-xl)] overflow-hidden"
-            style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}
+            className="rounded-[var(--r-xl)] overflow-hidden"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}
         >
             {/* Trust header */}
-            <div className="px-8 py-10 text-center" style={{ borderBottom: "1px solid var(--v-border)" }}>
+            <div className="px-8 py-10 text-center" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                 <div
                     className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
-                    style={{ background: "rgba(var(--v-orange-rgb, 244,74,34),0.12)" }}
+                    style={{ background: "var(--accent-muted)" }}
                 >
-                    <Banknote className="w-7 h-7" style={{ color: "var(--v-orange)" }} />
+                    <Banknote className="w-7 h-7" style={{ color: "var(--accent)" }} />
                 </div>
-                <h2 className="text-[20px] font-bold mb-2" style={{ color: "var(--v-text-primary)" }}>
+                <h2 className="text-[20px] font-bold mb-2" style={{ color: "var(--text-primary)" }}>
                     Connect a Bank Account
                 </h2>
-                <p className="text-[14px] max-w-sm mx-auto" style={{ color: "var(--v-text-secondary)" }}>
+                <p className="text-[14px] max-w-sm mx-auto" style={{ color: "var(--text-secondary)" }}>
                     Set up payouts to receive your venue's earnings directly to your bank account. Secure, fast, and compliant.
                 </p>
             </div>
 
             {/* Trust signals */}
-            <div className="grid grid-cols-3 divide-x" style={{ borderBottom: "1px solid var(--v-border)", borderColor: "var(--v-border)" }}>
+            <div className="grid grid-cols-3 divide-x" style={{ borderBottom: "1px solid var(--border-subtle)", borderColor: "var(--border-subtle)" }}>
                 {[
                     { icon: ShieldCheck, label: "Bank-grade encryption", desc: "256-bit TLS + data at rest" },
                     { icon: CheckCircle2, label: "RBI compliant",         desc: "Regulated payout rails" },
@@ -143,15 +143,15 @@ function UnconnectedPayoutState({ venueId }: { venueId: string }) {
                 ].map((t) => (
                     <div key={t.label} className="px-6 py-5 text-center">
                         <t.icon className="w-5 h-5 mx-auto mb-2" style={{ color: "#34D399" }} />
-                        <p className="text-[12px] font-semibold" style={{ color: "var(--v-text-primary)" }}>{t.label}</p>
-                        <p className="text-[11px] mt-0.5" style={{ color: "var(--v-text-muted)" }}>{t.desc}</p>
+                        <p className="text-[12px] font-semibold" style={{ color: "var(--text-primary)" }}>{t.label}</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>{t.desc}</p>
                     </div>
                 ))}
             </div>
 
             {/* Blocked capabilities */}
-            <div className="px-8 py-6" style={{ borderBottom: "1px solid var(--v-border)" }}>
-                <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: "var(--v-text-muted)" }}>
+            <div className="px-8 py-6" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: "var(--text-tertiary)" }}>
                     UNLOCKED AFTER SETUP
                 </p>
                 <div className="grid grid-cols-2 gap-2">
@@ -165,7 +165,7 @@ function UnconnectedPayoutState({ venueId }: { venueId: string }) {
                     ].map((cap) => (
                         <div key={cap} className="flex items-center gap-2">
                             <CheckCircle2 className="w-3.5 h-3.5 shrink-0" style={{ color: "#34D399" }} />
-                            <span className="text-[12px]" style={{ color: "var(--v-text-secondary)" }}>{cap}</span>
+                            <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>{cap}</span>
                         </div>
                     ))}
                 </div>
@@ -175,13 +175,13 @@ function UnconnectedPayoutState({ venueId }: { venueId: string }) {
             <div className="px-8 py-6 flex items-center gap-3">
                 <button
                     className="flex-1 py-3.5 rounded-xl text-[14px] font-bold transition-all hover:brightness-110 active:scale-[0.98]"
-                    style={{ background: "var(--v-orange)", color: "#fff" }}
+                    style={{ background: "var(--accent)", color: "#fff" }}
                 >
                     Start Payout Setup
                 </button>
                 <button
                     className="px-5 py-3.5 rounded-xl text-[14px] font-semibold"
-                    style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)", border: "1px solid var(--v-border)" }}
+                    style={{ background: "var(--bg-fill)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
                 >
                     Learn More
                 </button>
@@ -201,7 +201,7 @@ function BankAccountSection({ state }: { state: PayoutSettingsState }) {
                     {state === "active" && (
                         <button
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold"
-                            style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)", border: "1px solid var(--v-border)" }}
+                            style={{ background: "var(--bg-fill)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
                         >
                             <Plus className="w-3.5 h-3.5" />
                             Add Account
@@ -212,22 +212,22 @@ function BankAccountSection({ state }: { state: PayoutSettingsState }) {
         >
             {state === "unconnected" ? (
                 <div className="flex items-center gap-3 py-2">
-                    <Info className="w-4 h-4 shrink-0" style={{ color: "var(--v-text-muted)" }} />
-                    <p className="text-[13px]" style={{ color: "var(--v-text-muted)" }}>
+                    <Info className="w-4 h-4 shrink-0" style={{ color: "var(--text-tertiary)" }} />
+                    <p className="text-[13px]" style={{ color: "var(--text-tertiary)" }}>
                         No bank account connected. Complete setup above to enable payouts.
                     </p>
                 </div>
             ) : (
                 <div
                     className="flex items-center gap-4 p-4 rounded-xl"
-                    style={{ background: "var(--v-elevated)", border: "1px solid var(--v-border)" }}
+                    style={{ background: "var(--bg-fill)", border: "1px solid var(--border-subtle)" }}
                 >
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(52,211,153,0.12)" }}>
                         <Building2 className="w-5 h-5" style={{ color: "#34D399" }} />
                     </div>
                     <div>
-                        <p className="text-[14px] font-semibold" style={{ color: "var(--v-text-primary)" }}>HDFC Bank</p>
-                        <p className="text-[12px]" style={{ color: "var(--v-text-muted)" }}>Account ending •••• 8821 · RTGS/NEFT enabled</p>
+                        <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>HDFC Bank</p>
+                        <p className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>Account ending •••• 8821 · RTGS/NEFT enabled</p>
                     </div>
                     <div className="ml-auto flex items-center gap-2">
                         <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full" style={{ background: "rgba(52,211,153,0.12)", color: "#34D399" }}>
@@ -263,14 +263,14 @@ function PayoutScheduleSection() {
                             onClick={() => setSchedule(opt.value)}
                             className="flex flex-col items-start gap-1 p-4 rounded-xl text-left transition-all duration-150"
                             style={{
-                                background: active ? "rgba(var(--v-orange-rgb, 244,74,34),0.1)" : "var(--v-elevated)",
-                                border: `1px solid ${active ? "rgba(var(--v-orange-rgb, 244,74,34),0.3)" : "var(--v-border)"}`,
+                                background: active ? "var(--accent-muted)" : "var(--bg-fill)",
+                                border: `1px solid ${active ? "var(--accent)" : "var(--border-subtle)"}`,
                             }}
                         >
-                            <span className="text-[13px] font-bold" style={{ color: active ? "var(--v-orange)" : "var(--v-text-primary)" }}>
+                            <span className="text-[13px] font-bold" style={{ color: active ? "var(--accent)" : "var(--text-primary)" }}>
                                 {opt.label}
                             </span>
-                            <span className="text-[11px]" style={{ color: "var(--v-text-muted)" }}>
+                            <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                                 {opt.desc}
                             </span>
                         </button>
@@ -291,7 +291,7 @@ function PayoutHistoryTable({ payouts, loading }: { payouts: PayoutRecord[]; loa
                     <span className="v-label">SETTLEMENT HISTORY</span>
                     <button
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold"
-                        style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)", border: "1px solid var(--v-border)" }}
+                        style={{ background: "var(--bg-fill)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
                     >
                         <Download className="w-3.5 h-3.5" />
                         Export
@@ -304,7 +304,7 @@ function PayoutHistoryTable({ payouts, loading }: { payouts: PayoutRecord[]; loa
             emptyIcon={<Banknote className="w-8 h-8" />}
             padding="sm"
         >
-            <div className="divide-y" style={{ borderColor: "var(--v-border)" }}>
+            <div className="divide-y" style={{ borderColor: "var(--border-subtle)" }}>
                 {payouts.map((p) => {
                     const cfg = SETTLEMENT_STATUS_CONFIG[p.status];
                     return (
@@ -313,10 +313,10 @@ function PayoutHistoryTable({ payouts, loading }: { payouts: PayoutRecord[]; loa
                                 <Banknote className="w-4 h-4" style={{ color: cfg.text }} />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-[13px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
+                                <p className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>
                                     {formatINR(p.amount)}
                                 </p>
-                                <p className="text-[11px]" style={{ color: "var(--v-text-muted)" }}>
+                                <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
                                     {p.destination} · {new Date(p.requestedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                                 </p>
                             </div>
@@ -326,7 +326,7 @@ function PayoutHistoryTable({ payouts, loading }: { payouts: PayoutRecord[]; loa
                             >
                                 {cfg.label}
                             </span>
-                            <button style={{ color: "var(--v-text-muted)" }}>
+                            <button style={{ color: "var(--text-tertiary)" }}>
                                 <Download className="w-3.5 h-3.5" />
                             </button>
                         </div>

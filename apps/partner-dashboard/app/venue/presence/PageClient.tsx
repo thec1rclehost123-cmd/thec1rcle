@@ -29,10 +29,10 @@ export default function PresencePageClient() {
         <div className="space-y-6">
             {/* Hub Header */}
             <div>
-                <h1 className="v-text-title font-semibold" style={{ color: "var(--v-text-primary)" }}>
+                <h1 className="v-text-title font-semibold" style={{ color: "var(--text-primary)" }}>
                     Presence
                 </h1>
-                <p className="mt-1 text-[14px]" style={{ color: "var(--v-text-secondary)" }}>
+                <p className="mt-1 text-[14px]" style={{ color: "var(--text-secondary)" }}>
                     How your venue appears publicly — page, menu, and identity.
                 </p>
             </div>

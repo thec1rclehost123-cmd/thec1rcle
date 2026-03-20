@@ -28,7 +28,7 @@ function StatusBadge({
                 className="px-3 py-1.5 rounded-full text-[11px] font-semibold"
                 style={{
                     background: "rgba(255,255,255,0.06)",
-                    color: "var(--v-text-muted)",
+                    color: "var(--text-tertiary)",
                 }}
             >
                 No Event Tonight
@@ -113,7 +113,7 @@ function OccupancyRing({ pct }: { pct: number }) {
             </svg>
             <span
                 className="absolute text-[14px] font-black tabular-nums"
-                style={{ color: "var(--v-text-primary)" }}
+                style={{ color: "var(--text-primary)" }}
             >
                 {pct}%
             </span>
@@ -134,7 +134,7 @@ function VelocitySparkline({ data }: { data: number[] }) {
                     style={{
                         background:
                             i === data.length - 1
-                                ? "var(--v-success)"
+                                ? "var(--color-success)"
                                 : "rgba(52,211,153,0.2)",
                     }}
                     initial={{ height: 0 }}
@@ -161,24 +161,24 @@ function TurnoutBar({
             <div className="flex items-center justify-between">
                 <span
                     className="text-[11px] font-medium"
-                    style={{ color: "var(--v-text-secondary)" }}
+                    style={{ color: "var(--text-secondary)" }}
                 >
                     Turnout Rate
                 </span>
                 <span
                     className="text-[11px] font-bold tabular-nums"
-                    style={{ color: "var(--v-text-primary)" }}
+                    style={{ color: "var(--text-primary)" }}
                 >
                     {checked} / {expected || "—"}
                 </span>
             </div>
             <div
                 className="h-1.5 rounded-full overflow-hidden"
-                style={{ background: "var(--v-elevated)" }}
+                style={{ background: "var(--bg-fill)" }}
             >
                 <motion.div
                     className="h-full rounded-full"
-                    style={{ background: "var(--v-success)" }}
+                    style={{ background: "var(--color-success)" }}
                     initial={{ width: 0 }}
                     animate={{ width: `${pct}%` }}
                     transition={{ duration: 0.8, ease: "easeOut" }}
@@ -228,20 +228,20 @@ export const LiveOpsPanel = memo(function LiveOpsPanel({
     return (
         <div
             className="rounded-[32px] p-5 sm:p-6"
-            style={{ background: "var(--v-card)" }}
+            style={{ background: "var(--bg-elevated)" }}
         >
             {/* Header */}
             <div className="flex items-start justify-between mb-5 gap-3">
                 <div>
                     <h2
                         className="v-text-section"
-                        style={{ color: "var(--v-text-primary)" }}
+                        style={{ color: "var(--text-primary)" }}
                     >
                         Live Operations
                     </h2>
                     <p
                         className="text-[12px] mt-0.5 truncate max-w-[240px]"
-                        style={{ color: "var(--v-text-tertiary)" }}
+                        style={{ color: "var(--text-tertiary)" }}
                     >
                         {todayEvent
                             ? todayEvent.title
@@ -256,11 +256,11 @@ export const LiveOpsPanel = memo(function LiveOpsPanel({
                 <div className="py-10 flex flex-col items-center gap-2 text-center">
                     <Users
                         className="w-8 h-8"
-                        style={{ color: "var(--v-text-muted)" }}
+                        style={{ color: "var(--text-tertiary)" }}
                     />
                     <p
                         className="text-[13px]"
-                        style={{ color: "var(--v-text-tertiary)" }}
+                        style={{ color: "var(--text-tertiary)" }}
                     >
                         Your venue is quiet tonight
                     </p>
@@ -282,13 +282,13 @@ export const LiveOpsPanel = memo(function LiveOpsPanel({
                                 <p className="v-label text-[9px]">Live Revenue</p>
                                 <p
                                     className="text-[22px] font-black"
-                                    style={{ color: "var(--v-text-primary)" }}
+                                    style={{ color: "var(--text-primary)" }}
                                 >
                                     ₹ —
                                 </p>
                                 <p
                                     className="text-[10px]"
-                                    style={{ color: "var(--v-text-muted)" }}
+                                    style={{ color: "var(--text-tertiary)" }}
                                 >
                                     Restricted
                                 </p>
@@ -299,18 +299,18 @@ export const LiveOpsPanel = memo(function LiveOpsPanel({
                             <p className="v-label text-[9px]">Live Revenue</p>
                             <p
                                 className="text-[22px] font-black tabular-nums"
-                                style={{ color: "var(--v-text-primary)" }}
+                                style={{ color: "var(--text-primary)" }}
                             >
                                 {formatINRCompact(revenue)}
                             </p>
                             <div className="flex items-center gap-1.5">
                                 <Ticket
                                     className="w-3 h-3"
-                                    style={{ color: "var(--v-text-muted)" }}
+                                    style={{ color: "var(--text-tertiary)" }}
                                 />
                                 <p
                                     className="text-[10px]"
-                                    style={{ color: "var(--v-text-muted)" }}
+                                    style={{ color: "var(--text-tertiary)" }}
                                 >
                                     {ticketsSold} sold
                                 </p>
@@ -324,7 +324,7 @@ export const LiveOpsPanel = memo(function LiveOpsPanel({
                             <p className="v-label text-[9px]">Entry Velocity</p>
                             <span
                                 className="text-[10px] font-bold tabular-nums"
-                                style={{ color: "var(--v-text-secondary)" }}
+                                style={{ color: "var(--text-secondary)" }}
                             >
                                 {scansLastMin}/min
                             </span>
@@ -332,7 +332,7 @@ export const LiveOpsPanel = memo(function LiveOpsPanel({
                         <VelocitySparkline data={velocity} />
                         <p
                             className="text-[10px]"
-                            style={{ color: "var(--v-text-muted)" }}
+                            style={{ color: "var(--text-tertiary)" }}
                         >
                             Last 15 minutes
                         </p>
@@ -343,25 +343,25 @@ export const LiveOpsPanel = memo(function LiveOpsPanel({
                         <Link
                             href="/venue/guest-ops/door"
                             className="group w-full flex items-center justify-between p-4 rounded-2xl transition-all hover:brightness-110"
-                            style={{ background: "var(--v-elevated)" }}
+                            style={{ background: "var(--bg-fill)" }}
                         >
                             <div>
                                 <p
                                     className="v-label text-[9px] mb-0.5"
-                                    style={{ color: "var(--v-text-muted)" }}
+                                    style={{ color: "var(--text-tertiary)" }}
                                 >
                                     Control Panel
                                 </p>
                                 <p
                                     className="text-[13px] font-semibold"
-                                    style={{ color: "var(--v-text-primary)" }}
+                                    style={{ color: "var(--text-primary)" }}
                                 >
                                     Guest Entry
                                 </p>
                             </div>
                             <ChevronRight
                                 className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
-                                style={{ color: "var(--v-text-tertiary)" }}
+                                style={{ color: "var(--text-tertiary)" }}
                             />
                         </Link>
                     </div>

@@ -98,7 +98,7 @@ function StandaloneGuestOpsShell({
             {/* ── Sticky top bar ── */}
             <div
                 className="sticky top-0 z-30 border-b"
-                style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
+                style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
             >
                 {/* Row 1: event selector + KPI strip */}
                 <div className="flex items-center gap-4 px-4 py-2.5 flex-wrap">
@@ -135,8 +135,8 @@ function StandaloneGuestOpsShell({
                         )
                     ) : isLoading ? (
                         <div className="flex items-center gap-2 flex-1">
-                            <Loader2 size={14} className="animate-spin text-[var(--v-text-muted)]" />
-                            <span className="text-[12px] text-[var(--v-text-muted)]">Loading operations data…</span>
+                            <Loader2 size={14} className="animate-spin text-[var(--text-tertiary)]" />
+                            <span className="text-[12px] text-[var(--text-tertiary)]">Loading operations data…</span>
                         </div>
                     ) : null}
 
@@ -146,8 +146,8 @@ function StandaloneGuestOpsShell({
                         className={cn(
                             "ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all shrink-0",
                             compactMode
-                                ? "bg-[var(--v-orange)] text-white"
-                                : "bg-[var(--v-elevated)] text-[var(--v-text-secondary)] hover:bg-[var(--v-card-hover)]"
+                                ? "bg-[var(--accent)] text-white"
+                                : "bg-[var(--bg-fill)] text-[var(--text-secondary)] hover:bg-[var(--bg-fill)]"
                         )}
                     >
                         <Zap size={12} />
@@ -160,9 +160,9 @@ function StandaloneGuestOpsShell({
                     <div
                         className="flex items-center gap-2 px-4 py-1.5 text-[12px] font-medium border-t"
                         style={{
-                            background: "var(--v-warning-bg)",
-                            borderColor: "var(--v-warning)",
-                            color: "var(--v-warning)",
+                            background: "var(--color-warning-bg)",
+                            borderColor: "var(--color-warning)",
+                            color: "var(--color-warning)",
                         }}
                     >
                         <AlertTriangle size={13} />
@@ -180,7 +180,7 @@ function StandaloneGuestOpsShell({
 
                 {/* Subnav tabs */}
                 <div className="flex items-center gap-0.5 px-3 pt-1 overflow-x-auto scrollbar-hide border-t"
-                    style={{ borderColor: "var(--v-border)" }}>
+                    style={{ borderColor: "var(--border-subtle)" }}>
                     {SUBNAV.map(tab => {
                         const isActive = activeTab === tab.href;
                         const href = `/venue/guest-ops/${tab.href}?eventId=${selectedEventId}&venueId=${venueId}`;
@@ -192,14 +192,14 @@ function StandaloneGuestOpsShell({
                                 className={cn(
                                     "relative flex items-center gap-1.5 px-3 py-2 text-[13px] whitespace-nowrap transition-all",
                                     isActive
-                                        ? "font-black text-[var(--v-orange)] border-b-2 border-[var(--v-orange)] tracking-wide"
-                                        : "font-medium text-[var(--v-text-secondary)] hover:text-[var(--v-text-primary)]"
+                                        ? "font-black text-[var(--accent)] border-b-2 border-[var(--accent)] tracking-wide"
+                                        : "font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                                 )}
                             >
                                 <tab.icon size={14} />
                                 {tab.label}
                                 {showBadge && (
-                                    <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--v-warning)] text-white text-[9px] font-bold">
+                                    <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-warning)] text-white text-[9px] font-bold">
                                         {openExceptions > 9 ? "9+" : openExceptions}
                                     </span>
                                 )}
@@ -214,7 +214,7 @@ function StandaloneGuestOpsShell({
                 {summary?.isLocked && (
                     <div
                         className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium"
-                        style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)" }}
+                        style={{ background: "var(--bg-fill)", color: "var(--text-secondary)" }}
                     >
                         <XCircle size={14} />
                         This event is closed — all operations are locked. Data is read-only.
@@ -238,7 +238,7 @@ function EventSelector({ events, selectedId, onChange }: {
 
     if (events.length === 0) {
         return (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--v-elevated)] text-[13px] text-[var(--v-text-muted)]">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--bg-fill)] text-[13px] text-[var(--text-tertiary)]">
                 <Circle size={8} className="text-red-400" />
                 No event selected
             </div>
@@ -249,28 +249,28 @@ function EventSelector({ events, selectedId, onChange }: {
         <div className="relative">
             <button
                 onClick={() => setOpen(o => !o)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--v-elevated)] hover:bg-[var(--v-card-hover)] text-[13px] font-medium text-[var(--v-text-primary)] transition-all max-w-[280px]"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--bg-fill)] hover:bg-[var(--bg-fill)] text-[13px] font-medium text-[var(--text-primary)] transition-all max-w-[280px]"
             >
                 <Circle
                     size={8}
                     className={selected?.status === "live" ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400"}
                 />
                 <span className="truncate">{selected?.title ?? "Select Event"}</span>
-                <ChevronDown size={13} className="ml-1 text-[var(--v-text-muted)] shrink-0" />
+                <ChevronDown size={13} className="ml-1 text-[var(--text-tertiary)] shrink-0" />
             </button>
 
             {open && (
                 <div
                     className="absolute top-full left-0 mt-1 z-50 min-w-[280px] rounded-xl border shadow-xl overflow-hidden"
-                    style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
+                    style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
                 >
                     {events.map(event => (
                         <button
                             key={event.id}
                             onClick={() => { onChange(event.id); setOpen(false); }}
                             className={cn(
-                                "w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] hover:bg-[var(--v-card-hover)] transition-colors",
-                                event.id === selectedId && "bg-[var(--v-elevated)]"
+                                "w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] hover:bg-[var(--bg-fill)] transition-colors",
+                                event.id === selectedId && "bg-[var(--bg-fill)]"
                             )}
                         >
                             <Circle
@@ -278,9 +278,9 @@ function EventSelector({ events, selectedId, onChange }: {
                                 className={cn(event.status === "live" ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400")}
                             />
                             <div>
-                                <div className="font-medium text-[var(--v-text-primary)]">{event.title}</div>
+                                <div className="font-medium text-[var(--text-primary)]">{event.title}</div>
                                 {event.startDate && (
-                                    <div className="text-[11px] text-[var(--v-text-muted)]">
+                                    <div className="text-[11px] text-[var(--text-tertiary)]">
                                         {new Date(event.startDate).toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                                     </div>
                                 )}
@@ -299,7 +299,7 @@ function KPIBadge({ icon, label, value, total, emphasis }: {
     return (
         <div className={cn(
             "flex items-center gap-1.5 px-2 py-1 rounded-lg",
-            emphasis ? "bg-green-50 dark:bg-green-900/20" : "bg-[var(--v-elevated)]"
+            emphasis ? "bg-green-50 dark:bg-green-900/20" : "bg-[var(--bg-fill)]"
         )}>
             {emphasis && (
                 <span
@@ -312,12 +312,12 @@ function KPIBadge({ icon, label, value, total, emphasis }: {
                 />
             )}
             {icon}
-            <span className="text-[11px] text-[var(--v-text-muted)]">{label}</span>
-            <span className={cn("text-[13px] font-bold tabular-nums", emphasis ? "text-green-600 dark:text-green-400" : "text-[var(--v-text-primary)]")}>
+            <span className="text-[11px] text-[var(--text-tertiary)]">{label}</span>
+            <span className={cn("text-[13px] font-bold tabular-nums", emphasis ? "text-green-600 dark:text-green-400" : "text-[var(--text-primary)]")}>
                 {value.toLocaleString()}
             </span>
             {total !== undefined && (
-                <span className="text-[11px] text-[var(--v-text-muted)]">/ {total.toLocaleString()}</span>
+                <span className="text-[11px] text-[var(--text-tertiary)]">/ {total.toLocaleString()}</span>
             )}
         </div>
     );
@@ -327,12 +327,12 @@ function DoorStatusBadge({ status }: { status: DoorStatus }) {
     const cfg = DOOR_STATUS_CONFIG[status] ?? { label: status.toUpperCase(), color: "text-slate-400" };
     const isLive = status === "open";
     return (
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[var(--v-elevated)]">
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[var(--bg-fill)]">
             <Circle
                 size={7}
                 className={cn("fill-current", cfg.color, isLive && "animate-pulse")}
             />
-            <span className="text-[11px] text-[var(--v-text-muted)]">Door</span>
+            <span className="text-[11px] text-[var(--text-tertiary)]">Door</span>
             <span className={cn("text-[12px] font-bold", cfg.color)}>{cfg.label}</span>
         </div>
     );
