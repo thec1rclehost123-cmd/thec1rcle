@@ -63,7 +63,7 @@ interface KPICardProps {
     subtext?: string;
     trend?: string | null;
     trendDirection?: "up" | "down" | "neutral";
-    icon: React.FC<{ className?: string }>;
+    icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
     loading: boolean;
     /** Dim card while filter is updating but data is still visible */
     dimmed?: boolean;

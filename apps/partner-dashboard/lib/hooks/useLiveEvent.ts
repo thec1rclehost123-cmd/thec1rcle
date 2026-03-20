@@ -93,7 +93,7 @@ export function useLiveEvent(venueId: string | undefined) {
             try {
                 // Dynamic imports so the hook doesn't break when Firestore isn't
                 // configured — if the import fails we fall through to the catch.
-                const [{ getFirebaseFirestore }, firestoreSDK] = await Promise.all([
+                const [{ getFirebaseDb }, firestoreSDK] = await Promise.all([
                     import("@/lib/firebase/client"),
                     import("firebase/firestore"),
                 ]);
@@ -101,7 +101,7 @@ export function useLiveEvent(venueId: string | undefined) {
                 const { onSnapshot, doc, collection, query, where, orderBy, limit } =
                     firestoreSDK;
 
-                const db = getFirebaseFirestore();
+                const db = getFirebaseDb();
                 const cap = todayEvent.capacity ?? 0;
 
                 // ── Occupancy: listen to the event document ───────────────────
