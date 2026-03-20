@@ -56,11 +56,16 @@ function LoginForm() {
                     const pt = profile.activeMembership.partnerType;
                     router.replace(`/${pt || userType}`);
                 }
-            } else if (onboardingStatus) {
-                router.replace('/onboard');
+            } else if (!isApproved) {
+                // Not approved — sign them out and show a clear message instead of
+                // bouncing them to the onboarding page.
+                const auth = getFirebaseAuth();
+                auth.signOut();
+                if (onboardingStatus) {
+                    setError("You don't have partner access yet. Your application is pending review.");
+                }
+                // If no onboarding request either, they'll see the login form normally.
             }
-            // If logged in but no activeMembership and no onboarding request — stay
-            // on login page so the user can see the error and act.
         }
     }, [user, authLoading, isApproved, profile, onboardingStatus, router, userType, searchParams]);
 
@@ -104,12 +109,14 @@ function LoginForm() {
                     assignedType = (pt === 'venue' || pt === 'club') ? 'venue' : pt;
                 }
 
-                if (!assignedType && onboardingRequest) {
-                    assignedType = onboardingRequest.type;
-                }
-
+                // Do NOT grant access based solely on a pending onboarding request —
+                // only users with an active approved account (role/venueId/activeMembership) pass.
                 if (!assignedType) {
-                    setError("This account is not registered. Please apply for access.");
+                    if (onboardingRequest) {
+                        setError("You don't have partner access yet. Your application is pending review.");
+                    } else {
+                        setError("This account is not registered. Please apply for access.");
+                    }
                     await auth.signOut();
                     setLoading(false);
                     return;
