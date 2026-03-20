@@ -240,7 +240,7 @@ Phase 4 — POLISH & GROWTH        (Days 23–30)  ← Nice-to-have for post-lau
 3. **`lib/firebase/config.ts`** — Remove hardcoded fallback values:
    ```typescript
    // BEFORE:
-   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyBoJB4ohM6yoo1IHzC8gEvv9bUPWq25Y08",
+   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyBvVJH0kcXgNmmnKUPAENvWhAg1XzHXqDU",
    
    // AFTER:
    apiKey: requiredEnv('EXPO_PUBLIC_FIREBASE_API_KEY'),

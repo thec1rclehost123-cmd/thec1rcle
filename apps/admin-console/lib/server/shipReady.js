@@ -44,7 +44,7 @@ export const ShipGatekeeper = {
         addCheck("RBAC Policy Enumeration", roles.includes('super') && roles.includes('ops'), "Base roles defined");
 
         // 3. Environment Proof
-        addCheck("Environment Anchor", process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === 'thec1rcle-india', "Production project match");
+        addCheck("Environment Anchor", process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === 'c1rcle-staging', "Production project match");
 
         return results;
     }

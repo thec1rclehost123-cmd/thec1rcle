@@ -6,7 +6,7 @@ const path = require("path");
  * Use this to assign granular admin roles to UIDs.
  */
 
-const serviceAccountPath = process.env.FIREBASE_ADMIN_SDK_PATH || path.resolve(__dirname, "../../Downloads/thec1rcle-india-firebase-adminsdk-fbsvc-7a42d7c601.json");
+const serviceAccountPath = process.env.FIREBASE_ADMIN_SDK_PATH || path.resolve(__dirname, "../../Downloads/c1rcle-staging-firebase-adminsdk-fbsvc-7a42d7c601.json");
 
 const serviceAccount = require(serviceAccountPath);
 console.log(`Using Service Account for Project: ${serviceAccount.project_id}`);

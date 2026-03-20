@@ -6,7 +6,7 @@ import { getFirestore } from "firebase-admin/firestore";
 // Load .env
 config({ path: resolve(process.cwd(), ".env") });
 
-const projectId = process.env.FIREBASE_PROJECT_ID || "thec1rcle-india";
+const projectId = process.env.FIREBASE_PROJECT_ID || "c1rcle-staging";
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 let privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 

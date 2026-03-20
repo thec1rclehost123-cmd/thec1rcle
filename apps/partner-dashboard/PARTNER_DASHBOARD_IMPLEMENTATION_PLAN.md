@@ -2603,7 +2603,7 @@ No SQL schema migrations (Firestore is schemaless). Instead:
 
 ### Staging Parity
 
-Staging environment (`thec1rcle-india-staging` Firebase project):
+Staging environment (`c1rcle-staging-staging` Firebase project):
 - Uses production code, staging Firebase project
 - Has seed data (5 venues, 10 hosts, 20 promoters, 50 events in various states)
 - Payment webhooks point to staging Razorpay key

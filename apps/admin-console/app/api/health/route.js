@@ -34,7 +34,7 @@ async function handler(req) {
     return NextResponse.json(results, {
         headers: {
             'X-Response-Time': `${latency}ms`,
-            'X-System-Anchor': 'thec1rcle-india'
+            'X-System-Anchor': 'c1rcle-staging'
         }
     });
 }

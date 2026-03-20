@@ -36,7 +36,7 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'firebasestorage.googleapis.com', pathname: '/**' },
       { protocol: 'https', hostname: 'storage.googleapis.com', pathname: '/**' },
-      { protocol: 'https', hostname: 'thec1rcle-india.firebasestorage.app', pathname: '/**' },
+      { protocol: 'https', hostname: 'c1rcle-staging.firebasestorage.app', pathname: '/**' },
       { protocol: 'https', hostname: 'lh3.googleusercontent.com', pathname: '/**' },
       { protocol: 'https', hostname: 'api.dicebear.com', pathname: '/**' },
       { protocol: 'https', hostname: 'images.unsplash.com', pathname: '/**' },

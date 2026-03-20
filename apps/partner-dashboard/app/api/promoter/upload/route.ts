@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
         const bucketName =
             process.env.FIREBASE_STORAGE_BUCKET ||
             process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
-            "thec1rcle-india.firebasestorage.app";
+            "c1rcle-staging.firebasestorage.app";
 
         const bucket = storage.bucket(bucketName);
         const buffer = Buffer.from(await file.arrayBuffer());

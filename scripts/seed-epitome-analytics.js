@@ -32,7 +32,7 @@ import { config } from "dotenv";
 config({ path: resolve(process.cwd(), ".env") });
 
 // ─── Firebase Init (matches @c1rcle/core/admin.js key parsing) ───────────────
-const projectId = process.env.FIREBASE_PROJECT_ID || "thec1rcle-india";
+const projectId = process.env.FIREBASE_PROJECT_ID || "c1rcle-staging";
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 

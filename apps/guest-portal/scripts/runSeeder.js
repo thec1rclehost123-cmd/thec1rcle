@@ -1,7 +1,7 @@
 const admin = require("firebase-admin");
 const path = require("path");
 
-const serviceAccountPath = path.resolve(__dirname, "../../Downloads/thec1rcle-india-firebase-adminsdk-fbsvc-7a42d7c601.json");
+const serviceAccountPath = path.resolve(__dirname, "../../Downloads/c1rcle-staging-firebase-adminsdk-fbsvc-7a42d7c601.json");
 const serviceAccount = require(serviceAccountPath);
 
 if (!admin.apps.length) {

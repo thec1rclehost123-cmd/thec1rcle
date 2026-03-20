@@ -116,7 +116,7 @@ export default function AdminConsoleShell({ children }) {
         setMounted(true);
         const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
         if (projectId) {
-            setEnvStatus({ verified: true, isNonProd: projectId !== 'thec1rcle-india' });
+            setEnvStatus({ verified: true, isNonProd: projectId !== 'c1rcle-staging' });
         }
     }, []);
 

@@ -113,7 +113,7 @@ export const resolveImageUrl = (url: any): string | undefined => {
     const isStoragePath = !rawUrl.startsWith("/") && rawUrl.includes("/");
 
     if (isStoragePath) {
-        const BUCKET = "thec1rcle-india.firebasestorage.app";
+        const BUCKET = "c1rcle-staging.firebasestorage.app";
         // We MUST encode the path for the API
         const encodedPath = encodeURIComponent(rawUrl);
         return `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodedPath}?alt=media`;

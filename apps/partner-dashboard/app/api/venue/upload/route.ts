@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         // Explicitly get the bucket name from env as a fallback
         const bucketName = process.env.FIREBASE_STORAGE_BUCKET ||
             process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
-            "thec1rcle-india.firebasestorage.app";
+            "c1rcle-staging.firebasestorage.app";
 
         console.log(`[API /venue/upload] Using bucket: ${bucketName}`);
 

@@ -422,7 +422,7 @@ Based on code comments, analytics event definitions, and architecture patterns:
 
 #### 6.2 Firebase Config Hardcoded with Fallback
 **File:** `lib/firebase/config.ts`  
-**Issue:** Firebase config values have hardcoded fallbacks (API key `AIzaSyBoJB4ohM6yoo1IHzC8gEvv9bUPWq25Y08`). While this works, it means the app will silently use these values even if environment variables are missing, which could lead to misconfigurations in different environments.  
+**Issue:** Firebase config values have hardcoded fallbacks (API key `AIzaSyBvVJH0kcXgNmmnKUPAENvWhAg1XzHXqDU`). While this works, it means the app will silently use these values even if environment variables are missing, which could lead to misconfigurations in different environments.  
 **Fix:** Fail explicitly if `EXPO_PUBLIC_FIREBASE_*` env vars are not set, or use a `.env` validation.
 
 #### 6.3 Cart Uses `expo-secure-store` for Large Data

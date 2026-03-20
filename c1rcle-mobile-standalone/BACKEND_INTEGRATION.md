@@ -8,13 +8,13 @@ The mobile app is now fully connected to the same backend, database, and busines
 
 ## 🔐 Firebase Configuration
 
-**Project**: `thec1rcle-india`  
+**Project**: `c1rcle-staging`  
 **Location**: `lib/firebase/config.ts`
 
 ```typescript
-projectId: "thec1rcle-india"
-authDomain: "thec1rcle-india.firebaseapp.com"
-storageBucket: "thec1rcle-india.firebasestorage.app"
+projectId: "c1rcle-staging"
+authDomain: "c1rcle-staging.firebaseapp.com"
+storageBucket: "c1rcle-staging.firebasestorage.app"
 ```
 
 ✅ Same Firebase project as web - users, events, orders, tickets are shared.
@@ -129,7 +129,7 @@ For local development, override these in `.env`:
 ```bash
 EXPO_PUBLIC_API_BASE_URL=http://localhost:3000
 EXPO_PUBLIC_FIREBASE_API_KEY=...
-EXPO_PUBLIC_FIREBASE_PROJECT_ID=thec1rcle-india
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=c1rcle-staging
 EXPO_PUBLIC_RAZORPAY_KEY_ID=rzp_test_...
 ```
 
