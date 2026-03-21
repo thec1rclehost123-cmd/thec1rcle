@@ -72,15 +72,15 @@ export function AreaChartPlaceholder({
     const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
     return (
-        <div className="rounded-[32px] bg-[var(--bg-elevated)] border border-[var(--border-default)] p-6 flex flex-col gap-4">
+        <div className="rounded-[32px] bg-surface-elevated border border-border-default p-6 flex flex-col gap-4">
             <div className="flex items-start justify-between">
                 <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">{title}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">{title}</p>
                     {subtitle && (
-                        <p className="text-[13px] font-medium text-[var(--text-secondary)] mt-0.5">{subtitle}</p>
+                        <p className="text-[13px] font-medium text-text-secondary mt-0.5">{subtitle}</p>
                     )}
                 </div>
-                <span className="text-[10px] font-bold text-[var(--text-quaternary)] uppercase tracking-widest">Last 30 days</span>
+                <span className="text-[10px] font-bold text-text-placeholder uppercase tracking-widest">Last 30 days</span>
             </div>
             <div className="w-full overflow-hidden" style={{ height }}>
                 <svg
@@ -122,7 +122,7 @@ export function AreaChartPlaceholder({
             {/* X-axis labels */}
             <div className="flex justify-between px-1">
                 {dayLabels.map((d) => (
-                    <span key={d} className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-quaternary)]">{d}</span>
+                    <span key={d} className="text-[9px] font-bold uppercase tracking-widest text-text-placeholder">{d}</span>
                 ))}
             </div>
         </div>
@@ -154,11 +154,11 @@ export function BarChartPlaceholder({
 }: BarChartPlaceholderProps) {
     const maxVal = Math.max(...bars.map((b) => b.value));
     return (
-        <div className="rounded-[32px] bg-[var(--bg-elevated)] border border-[var(--border-default)] p-6 flex flex-col gap-4">
+        <div className="rounded-[32px] bg-surface-elevated border border-border-default p-6 flex flex-col gap-4">
             <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">{title}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">{title}</p>
                 {subtitle && (
-                    <p className="text-[13px] font-medium text-[var(--text-secondary)] mt-0.5">{subtitle}</p>
+                    <p className="text-[13px] font-medium text-text-secondary mt-0.5">{subtitle}</p>
                 )}
             </div>
             <div className="flex items-end gap-2 h-36">
@@ -171,7 +171,7 @@ export function BarChartPlaceholder({
                             animate={{ height: `${Math.max((bar.value / maxVal) * 128, 4)}px` }}
                             transition={{ duration: 0.5, delay: i * 0.06, ease: "easeOut" }}
                         />
-                        <span className="text-[8px] font-bold uppercase tracking-widest text-[var(--text-quaternary)] truncate w-full text-center">
+                        <span className="text-[8px] font-bold uppercase tracking-widest text-text-placeholder truncate w-full text-center">
                             {bar.label}
                         </span>
                     </div>
@@ -217,8 +217,8 @@ export function DonutChartPlaceholder({ title, segments = DEFAULT_SEGMENTS }: Do
     });
 
     return (
-        <div className="rounded-[32px] bg-[var(--bg-elevated)] border border-[var(--border-default)] p-6 flex flex-col gap-4">
-            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">{title}</p>
+        <div className="rounded-[32px] bg-surface-elevated border border-border-default p-6 flex flex-col gap-4">
+            <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">{title}</p>
             <div className="flex items-center gap-6">
                 <svg viewBox="0 0 112 112" className="w-28 h-28 shrink-0 -rotate-90">
                     <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="14" />
@@ -242,9 +242,9 @@ export function DonutChartPlaceholder({ title, segments = DEFAULT_SEGMENTS }: Do
                         <div key={i} className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: seg.color }} />
-                                <span className="text-[11px] font-semibold text-[var(--text-secondary)]">{seg.label}</span>
+                                <span className="text-[11px] font-semibold text-text-secondary">{seg.label}</span>
                             </div>
-                            <span className="text-[11px] font-black text-[var(--text-primary)] tabular-nums">
+                            <span className="text-[11px] font-black text-text-primary tabular-nums">
                                 {Math.round((seg.value / total) * 100)}%
                             </span>
                         </div>
@@ -277,7 +277,7 @@ export function StatTrendCard({
 }: StatTrendCardProps) {
     return (
         <div
-            className="rounded-[32px] bg-[var(--bg-elevated)] border border-[var(--border-default)] p-5 flex flex-col gap-3 relative overflow-hidden"
+            className="rounded-[32px] bg-surface-elevated border border-border-default p-5 flex flex-col gap-3 relative overflow-hidden"
             style={trendUp ? { borderColor: `${color}44` } : undefined}
         >
             {trendUp && (
@@ -296,7 +296,7 @@ export function StatTrendCard({
                             {icon}
                         </div>
                     )}
-                    <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">{label}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">{label}</span>
                 </div>
                 {trend && (
                     <span
@@ -313,7 +313,7 @@ export function StatTrendCard({
             </div>
             <p
                 className="text-[28px] font-black tracking-tighter leading-none tabular-nums relative z-10"
-                style={{ color: "var(--text-primary)" }}
+                style={{ color: "var(--v-text-primary, #fff)" }}
             >
                 {value}
             </p>
@@ -355,8 +355,8 @@ const RANK_STYLES: Record<number, { bg: string; text: string }> = {
 
 export function LeaderboardPlaceholder({ title, items = DEFAULT_LEADERBOARD }: LeaderboardPlaceholderProps) {
     return (
-        <div className="rounded-[32px] bg-[var(--bg-elevated)] border border-[var(--border-default)] p-6 flex flex-col gap-4">
-            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">{title}</p>
+        <div className="rounded-[32px] bg-surface-elevated border border-border-default p-6 flex flex-col gap-4">
+            <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">{title}</p>
             <div className="flex flex-col gap-2">
                 {items.map((item) => {
                     const style = RANK_STYLES[item.rank];
@@ -368,17 +368,17 @@ export function LeaderboardPlaceholder({ title, items = DEFAULT_LEADERBOARD }: L
                         >
                             <span
                                 className="w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-black shrink-0"
-                                style={style ? { background: style.bg, color: style.text } : { background: "rgba(255,255,255,0.06)", color: "var(--text-tertiary)" }}
+                                style={style ? { background: style.bg, color: style.text } : { background: "rgba(255,255,255,0.06)", color: "var(--v-text-muted)" }}
                             >
                                 {item.rank}
                             </span>
                             <div className="flex-1 min-w-0">
-                                <p className="text-[13px] font-semibold text-[var(--text-primary)] truncate">{item.label}</p>
+                                <p className="text-[13px] font-semibold text-text-primary truncate">{item.label}</p>
                                 {item.badge && (
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-quaternary)]">{item.badge}</span>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-text-placeholder">{item.badge}</span>
                                 )}
                             </div>
-                            <span className="text-[13px] font-black tabular-nums" style={{ color: style ? style.text : "var(--text-primary)" }}>
+                            <span className="text-[13px] font-black tabular-nums" style={{ color: style ? style.text : "var(--v-text-primary)" }}>
                                 {item.value}
                             </span>
                         </div>
@@ -411,8 +411,8 @@ const DEFAULT_FUNNEL_STEPS: FunnelStep[] = [
 export function FunnelPlaceholder({ title, steps = DEFAULT_FUNNEL_STEPS }: FunnelPlaceholderProps) {
     const maxVal = steps[0]?.value || 1;
     return (
-        <div className="rounded-[32px] bg-[var(--bg-elevated)] border border-[var(--border-default)] p-6 flex flex-col gap-4">
-            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">{title}</p>
+        <div className="rounded-[32px] bg-surface-elevated border border-border-default p-6 flex flex-col gap-4">
+            <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">{title}</p>
             <div className="flex flex-col gap-3">
                 {steps.map((step, i) => {
                     const pct = Math.round((step.value / maxVal) * 100);
@@ -420,12 +420,12 @@ export function FunnelPlaceholder({ title, steps = DEFAULT_FUNNEL_STEPS }: Funne
                     return (
                         <div key={i} className="flex flex-col gap-1">
                             <div className="flex items-center justify-between">
-                                <span className="text-[11px] font-semibold text-[var(--text-secondary)]">{step.label}</span>
+                                <span className="text-[11px] font-semibold text-text-secondary">{step.label}</span>
                                 <div className="flex items-center gap-2">
                                     {i > 0 && (
-                                        <span className="text-[10px] font-bold text-[var(--text-quaternary)]">{convPct}% conv.</span>
+                                        <span className="text-[10px] font-bold text-text-placeholder">{convPct}% conv.</span>
                                     )}
-                                    <span className="text-[12px] font-black tabular-nums text-[var(--text-primary)]">
+                                    <span className="text-[12px] font-black tabular-nums text-text-primary">
                                         {step.value.toLocaleString("en-IN")}
                                     </span>
                                 </div>

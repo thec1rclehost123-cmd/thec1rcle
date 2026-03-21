@@ -56,19 +56,19 @@ export function Toggle({
                 className={cn(
                     "relative inline-flex items-center rounded-full transition-colors duration-150",
                     s.track,
-                    isChecked ? "bg-green-500" : "bg-[var(--bg-secondary)]"
+                    isChecked ? "bg-green-500" : "bg-surface-tertiary"
                 )}
             >
                 <span
                     className={cn(
-                        "absolute left-0.5 inline-block rounded-full bg-[var(--bg-elevated)] shadow-sm transition-transform duration-150",
+                        "absolute left-0.5 inline-block rounded-full bg-surface-elevated shadow-sm transition-transform duration-150",
                         s.knob,
                         isChecked && s.translate
                     )}
                 />
             </span>
             {label && (
-                <span className="text-[14px] text-[var(--text-secondary)]">{label}</span>
+                <span className="text-[14px] text-text-secondary">{label}</span>
             )}
         </button>
     );

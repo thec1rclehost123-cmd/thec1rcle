@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-// useEffect retained for keyboard shortcut listener
-import { Search, X, Command, ChevronDown, LogOut } from "lucide-react";
+import { Bell, Search, X, Command, ChevronDown, LogOut, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { NotificationCenter } from "./NotificationCenter";
 import { useDashboardAuth } from "../providers/DashboardAuthProvider";
 import { usePathname, useRouter } from "next/navigation";
+import { parseAsIST } from "@c1rcle/core/time";
 import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 interface AppleTopBarProps {
     title?: string;
@@ -25,6 +26,31 @@ export function AppleTopBar({ title, primaryAction }: AppleTopBarProps) {
     const [searchOpen, setSearchOpen] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [currentTime, setCurrentTime] = useState<Date | null>(null);
+    const now = new Date();
+
+    // Update time every minute
+    useEffect(() => {
+        setCurrentTime(parseAsIST(null));
+        const interval = setInterval(() => {
+            setCurrentTime(parseAsIST(null));
+        }, 60000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const timeStr = currentTime?.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Kolkata'
+    }) || '--:--';
+
+    const dateStr = currentTime?.toLocaleDateString('en-IN', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        timeZone: 'Asia/Kolkata'
+    }) || '---';
 
     // Determine role context
     const roleContext = pathname.startsWith('/venue') ? 'Venue' :
@@ -55,53 +81,96 @@ export function AppleTopBar({ title, primaryAction }: AppleTopBarProps) {
 
     return (
         <>
-            <header className="h-14 bg-[var(--topbar-bg)] backdrop-blur-xl border-b border-[var(--topbar-border)] sticky top-0 z-40 px-5 lg:px-6 flex items-center justify-between">
-                {/* Left - Breadcrumb */}
-                <div className="flex items-center gap-2">
-                    <span className="dash-body font-medium text-[var(--text-primary)]">
-                        {title || roleContext || "Dashboard"}
-                    </span>
+            <header className="h-16 bg-surface-base/80 backdrop-blur-xl border-b border-border-subtle sticky top-0 z-40 px-6 lg:px-8 flex items-center justify-between">
+                {/* Left - Status & Time */}
+                <div className="flex items-center gap-4 lg:gap-6">
+                    {/* System Status */}
+                    <div className="live-indicator">
+                        <span className="text-[10px] font-bold text-c1rcle-orange uppercase tracking-widest">Live</span>
+                    </div>
+
+                    {/* Time Display */}
+                    <div className="hidden md:flex items-center gap-4">
+                        <span className="text-[14px] font-semibold text-text-primary tabular-nums">
+                            {timeStr}
+                        </span>
+                        <div className="w-px h-4 bg-[var(--border-default)]" />
+                        <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">
+                            {dateStr}
+                        </span>
+                    </div>
                 </div>
 
                 {/* Right - Search & Actions */}
-                <div className="flex items-center gap-2">
-                    {/* Primary CTA — sm variant, does not dominate chrome */}
+                <div className="flex items-center gap-3 lg:gap-4">
+                    {/* Primary CTA */}
                     {primaryAction && (
                         <Link
                             href={primaryAction.href}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r-sm)] bg-[var(--accent)] hover:opacity-90 text-white text-[12px] font-[600] transition-all active:scale-[0.97]"
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--c1rcle-orange)] hover:bg-[var(--c1rcle-orange-dim)] text-white text-[13px] font-bold tracking-wide transition-all shadow-[0_0_20px_var(--c1rcle-orange-glow)] hover:shadow-[0_0_30px_var(--c1rcle-orange-glow)] active:scale-[0.97]"
                         >
-                            {primaryAction.icon && <primaryAction.icon className="w-3.5 h-3.5" />}
+                            {primaryAction.icon && <primaryAction.icon className="w-4 h-4" />}
                             {primaryAction.label}
                         </Link>
                     )}
 
-                    {/* Quick Search — icon button, expands with ⌘K hint */}
+                    {/* Calendar Link */}
+                    <div className="relative">
+                        <Link
+                            href={
+                                pathname.startsWith('/host') ? '/host/calendar' :
+                                pathname.startsWith('/venue') ? '/venue/calendar' :
+                                '/promoter/events'
+                            }
+                            className={cn(
+                                "flex items-center justify-center w-9 h-9 rounded-xl bg-surface-secondary hover:bg-surface-tertiary border border-border-subtle transition-all",
+                                (pathname.endsWith('/calendar')) ? "text-[var(--c1rcle-orange)] border-[var(--c1rcle-orange-dim)] bg-[var(--c1rcle-orange-dim)]/5" : "text-text-tertiary"
+                            )}
+                            aria-label="View calendar"
+                        >
+                            <Calendar className="w-4 h-4" />
+                        </Link>
+                    </div>
+
+                    {/* Quick Search */}
                     <button
                         onClick={() => setSearchOpen(true)}
-                        title="Search (⌘K)"
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--bg-fill)] hover:bg-[var(--bg-fill-secondary)] rounded-[var(--r-sm)] transition-colors"
+                        className="flex items-center gap-3 px-4 py-2.5 bg-surface-secondary hover:bg-surface-tertiary border border-border-subtle rounded-xl transition-all group"
                     >
-                        <Search className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
-                        <div className="hidden lg:flex items-center gap-0.5 px-1 py-0.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
-                            <Command className="w-2.5 h-2.5 text-[var(--text-quaternary)]" />
-                            <span className="text-[9px] font-[600] text-[var(--text-quaternary)]">K</span>
+                        <Search className="w-4 h-4 text-text-placeholder group-hover:text-text-tertiary" />
+                        <span className="hidden lg:block text-[13px] text-text-placeholder font-medium">
+                            Search...
+                        </span>
+                        <div className="hidden lg:flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-tertiary border border-border-subtle">
+                            <Command className="w-3 h-3 text-text-placeholder" />
+                            <span className="text-[10px] font-semibold text-text-placeholder">K</span>
                         </div>
                     </button>
 
                     {/* Notifications */}
                     <NotificationCenter />
 
+                    {/* Divider */}
+                    <div className="w-px h-8 bg-border-subtle hidden lg:block" />
+
                     {/* Profile */}
                     <div className="relative">
-                        <button
+                        <button 
                             onClick={() => setDropdownOpen(!dropdownOpen)}
-                            className="flex items-center gap-2 group"
+                            className="flex items-center gap-3 pl-2 group"
                         >
-                            <div className="w-8 h-8 rounded-full bg-[var(--bg-fill)] flex items-center justify-center text-[var(--text-primary)] dash-body-sm font-semibold">
+                            <div className="w-10 h-10 rounded-xl bg-text-primary flex items-center justify-center text-text-inverse text-[14px] font-bold shadow-sm">
                                 {profile?.displayName?.charAt(0)?.toUpperCase() || "U"}
                             </div>
-                            <ChevronDown className={`hidden lg:block w-4 h-4 text-[var(--text-tertiary)] transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
+                            <div className="hidden lg:block text-left">
+                                <p className="text-[13px] font-semibold text-text-primary leading-tight">
+                                    {profile?.displayName?.split(' ')[0] || "User"}
+                                </p>
+                                <p className="text-[10px] font-semibold text-c1rcle-orange uppercase tracking-widest">
+                                    {roleContext}
+                                </p>
+                            </div>
+                            <ChevronDown className={`hidden lg:block w-4 h-4 text-text-tertiary transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
                         </button>
 
                         <AnimatePresence>
@@ -111,22 +180,24 @@ export function AppleTopBar({ title, primaryAction }: AppleTopBarProps) {
                                         className="fixed inset-0 z-40" 
                                         onClick={() => setDropdownOpen(false)} 
                                     />
-                                    <motion.div
+                                    <motion.div 
                                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                                         transition={{ duration: 0.15, ease: "easeOut" }}
-                                        className="absolute right-0 top-full mt-2 w-44 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-[var(--r-xl)] shadow-[var(--shadow-xl)] p-1.5 overflow-hidden z-50"
+                                        className="absolute right-0 top-full mt-2 w-48 bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl p-1.5 overflow-hidden z-50"
                                     >
-                                        <button
+                                        <button 
                                             onClick={() => {
                                                 setDropdownOpen(false);
                                                 signOut();
                                             }}
-                                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[var(--r-md)] text-left text-[var(--color-error)] hover:bg-[var(--color-error-bg)] transition-colors"
+                                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-red-500 hover:bg-red-500/5 transition-colors group/logout"
                                         >
-                                            <LogOut className="w-4 h-4" />
-                                            <span className="dash-body-sm font-medium">Sign Out</span>
+                                            <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center group-hover/logout:bg-red-500/20 transition-colors">
+                                                <LogOut className="w-4 h-4" />
+                                            </div>
+                                            <span className="text-[12px] font-black uppercase tracking-widest">Logout</span>
                                         </button>
                                     </motion.div>
                                 </>
@@ -158,35 +229,35 @@ export function AppleTopBar({ title, primaryAction }: AppleTopBarProps) {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.98, y: -10 }}
                             transition={{ duration: 0.15 }}
-                            className="fixed top-20 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl z-[101]"
+                            className="fixed top-24 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl z-[101]"
                         >
-                            <div className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-[var(--r-xl)] shadow-[var(--shadow-xl)] overflow-hidden">
+                            <div className="bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl overflow-hidden">
                                 {/* Search Input */}
-                                <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--border-subtle)]">
-                                    <Search className="w-5 h-5 text-[var(--text-tertiary)] flex-shrink-0" />
+                                <div className="flex items-center gap-4 px-6 py-4 border-b border-border-subtle">
+                                    <Search className="w-5 h-5 text-text-tertiary" />
                                     <input
                                         type="text"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder="Search events, guests, reports..."
                                         autoFocus
-                                        className="flex-1 bg-transparent dash-body text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none"
+                                        className="flex-1 bg-transparent text-[16px] text-text-primary placeholder:text-text-placeholder outline-none"
                                     />
                                     <button
                                         onClick={() => {
                                             setSearchOpen(false);
                                             setSearchQuery("");
                                         }}
-                                        className="p-1.5 rounded-[var(--r-sm)] hover:bg-[var(--bg-fill)] text-[var(--text-tertiary)]"
+                                        className="p-1.5 rounded-lg hover:bg-surface-tertiary text-text-tertiary"
                                     >
                                         <X className="w-4 h-4" />
                                     </button>
                                 </div>
 
                                 {/* Quick Actions */}
-                                <div className="px-3 py-3 border-b border-[var(--border-subtle)]">
-                                    <p className="dash-label text-[var(--text-tertiary)] px-2 mb-2">Quick Actions</p>
-                                    <div className="space-y-0.5">
+                                <div className="px-4 py-3 border-b border-border-subtle">
+                                    <p className="text-label-sm text-text-tertiary px-2 mb-2">Quick Actions</p>
+                                    <div className="space-y-1">
                                         {[
                                             { label: "Create New Event", href: `/${roleContext.toLowerCase()}/create` },
                                             { label: "View Calendar", href: roleContext?.toLowerCase() === 'promoter' ? '/promoter/events' : `/${roleContext?.toLowerCase()}/calendar` },
@@ -198,24 +269,36 @@ export function AppleTopBar({ title, primaryAction }: AppleTopBarProps) {
                                                     router.push(action.href);
                                                     setSearchOpen(false);
                                                 }}
-                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[var(--r-md)] text-left hover:bg-[var(--bg-fill)] transition-colors"
+                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-surface-tertiary transition-colors"
                                             >
-                                                <span className="dash-body-sm text-[var(--text-primary)]">{action.label}</span>
+                                                <span className="text-[14px] text-text-primary">{action.label}</span>
                                             </button>
                                         ))}
                                     </div>
                                 </div>
 
+                                {/* Recent Searches */}
+                                <div className="px-4 py-3">
+                                    <p className="text-label-sm text-text-tertiary px-2 mb-2">Recent</p>
+                                    <div className="flex items-center justify-center py-8">
+                                        <p className="text-caption text-text-placeholder">
+                                            {searchQuery ? "No results found" : "Type to search..."}
+                                        </p>
+                                    </div>
+                                </div>
+
                                 {/* Footer */}
-                                <div className="px-5 py-3 bg-[var(--bg-secondary)] border-t border-[var(--border-subtle)] flex items-center gap-4">
-                                    <span className="dash-caption text-[var(--text-tertiary)] flex items-center gap-1">
-                                        <kbd className="px-1.5 py-0.5 rounded bg-[var(--bg-fill)] border border-[var(--border-subtle)] text-[10px] font-mono">↵</kbd>
-                                        select
-                                    </span>
-                                    <span className="dash-caption text-[var(--text-tertiary)] flex items-center gap-1">
-                                        <kbd className="px-1.5 py-0.5 rounded bg-[var(--bg-fill)] border border-[var(--border-subtle)] text-[10px] font-mono">esc</kbd>
-                                        close
-                                    </span>
+                                <div className="px-6 py-3 bg-surface-secondary border-t border-border-subtle flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-[11px] text-text-tertiary flex items-center gap-1">
+                                            <kbd className="px-1.5 py-0.5 rounded bg-surface-base border border-border-subtle text-[10px] font-mono">↵</kbd>
+                                            to select
+                                        </span>
+                                        <span className="text-[11px] text-text-tertiary flex items-center gap-1">
+                                            <kbd className="px-1.5 py-0.5 rounded bg-surface-base border border-border-subtle text-[10px] font-mono">esc</kbd>
+                                            to close
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>

@@ -30,7 +30,7 @@ export function DateRangeFilter({
     return (
         <div
             className={cn("flex items-center gap-0.5 p-1 rounded-2xl", className)}
-            style={{ background: "var(--bg-fill)" }}
+            style={{ background: "var(--v-elevated)" }}
             role="group"
             aria-label="Date range filter"
         >
@@ -50,12 +50,12 @@ export function DateRangeFilter({
                         style={
                             isActive
                                 ? {
-                                      background: "var(--accent)",
+                                      background: "var(--v-orange)",
                                       color: "#fff",
                                   }
                                 : {
                                       background: "transparent",
-                                      color: "var(--text-tertiary)",
+                                      color: "var(--v-text-tertiary)",
                                   }
                         }
                     >

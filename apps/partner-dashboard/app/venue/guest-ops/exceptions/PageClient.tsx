@@ -142,7 +142,7 @@ export default function ExceptionsPageClient() {
                     <div className="flex items-center gap-3 flex-wrap">
                         <div className="flex items-center gap-2">
                             <AlertTriangle size={16} className="text-amber-500" />
-                            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Exceptions</h2>
+                            <h2 className="text-[15px] font-semibold text-[var(--v-text-primary)]">Exceptions</h2>
                             {openExceptions > 0 && (
                                 <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold px-1.5">
                                     {openExceptions > 99 ? "99+" : openExceptions}
@@ -157,8 +157,8 @@ export default function ExceptionsPageClient() {
                                     className={cn(
                                         "px-3 py-1.5 rounded-xl text-[12px] font-medium whitespace-nowrap transition-all",
                                         statusFilter === tab.value
-                                            ? "bg-[var(--accent)] text-white"
-                                            : "bg-[var(--bg-fill)] text-[var(--text-secondary)] hover:bg-[var(--bg-fill)]"
+                                            ? "bg-[var(--v-orange)] text-white"
+                                            : "bg-[var(--v-elevated)] text-[var(--v-text-secondary)] hover:bg-[var(--v-card-hover)]"
                                     )}
                                 >
                                     {tab.label}
@@ -230,12 +230,12 @@ function ExceptionCard({
     return (
         <div
             className={cn("rounded-2xl border overflow-hidden transition-all", isOpen ? cfg.border : "")}
-            style={!isOpen ? { borderColor: "var(--border-subtle)" } : {}}
+            style={!isOpen ? { borderColor: "var(--v-border)" } : {}}
         >
             {/* Summary row */}
             <button
-                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[var(--bg-fill)] transition-colors"
-                style={{ background: "var(--bg-elevated)" }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[var(--v-card-hover)] transition-colors"
+                style={{ background: "var(--v-card)" }}
                 onClick={onToggle}
             >
                 <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide", cfg.badge)}>
@@ -243,20 +243,20 @@ function ExceptionCard({
                 </span>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[13px] font-semibold text-[var(--text-primary)]">
+                        <span className="text-[13px] font-semibold text-[var(--v-text-primary)]">
                             {EXCEPTION_TYPE_LABELS[exception.type] ?? exception.type}
                         </span>
                         {exception.guestDisplayName && (
-                            <span className="text-[12px] text-[var(--text-tertiary)]">
+                            <span className="text-[12px] text-[var(--v-text-muted)]">
                                 · {exception.guestDisplayName}
                             </span>
                         )}
                     </div>
                     <div className="flex items-center gap-3 mt-0.5">
-                        <span className="text-[11px] text-[var(--text-tertiary)]">
+                        <span className="text-[11px] text-[var(--v-text-muted)]">
                             {exception.triggeredByName}
                         </span>
-                        <span className="text-[11px] text-[var(--text-tertiary)]">
+                        <span className="text-[11px] text-[var(--v-text-muted)]">
                             {new Date(exception.triggeredAt).toLocaleString("en-IN", {
                                 month: "short", day: "numeric",
                                 hour: "2-digit", minute: "2-digit",
@@ -267,7 +267,7 @@ function ExceptionCard({
                 <StatusBadge status={exception.status} />
                 <ChevronDown
                     size={14}
-                    className={cn("text-[var(--text-tertiary)] shrink-0 transition-transform", isExpanded && "rotate-180")}
+                    className={cn("text-[var(--v-text-muted)] shrink-0 transition-transform", isExpanded && "rotate-180")}
                 />
             </button>
 
@@ -275,16 +275,16 @@ function ExceptionCard({
             {isExpanded && (
                 <div
                     className="px-4 pb-4 space-y-3"
-                    style={{ background: "var(--bg-fill)", borderTop: "1px solid var(--border-subtle)" }}
+                    style={{ background: "var(--v-elevated)", borderTop: "1px solid var(--v-border)" }}
                 >
                     {/* Context */}
                     {exception.context && Object.keys(exception.context).length > 0 && (
                         <div className="pt-3">
-                            <div className="text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wide mb-2">Context</div>
-                            <div className="text-[12px] text-[var(--text-secondary)] space-y-0.5">
+                            <div className="text-[11px] font-semibold text-[var(--v-text-muted)] uppercase tracking-wide mb-2">Context</div>
+                            <div className="text-[12px] text-[var(--v-text-secondary)] space-y-0.5">
                                 {Object.entries(exception.context).map(([k, v]) => (
                                     <div key={k} className="flex gap-2">
-                                        <span className="text-[var(--text-tertiary)] w-28 shrink-0">{k}</span>
+                                        <span className="text-[var(--v-text-muted)] w-28 shrink-0">{k}</span>
                                         <span className="font-mono">{String(v)}</span>
                                     </div>
                                 ))}
@@ -295,13 +295,13 @@ function ExceptionCard({
                     {/* Resolution info (if already resolved) */}
                     {exception.resolution && (
                         <div className="pt-2">
-                            <div className="text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wide mb-2">Resolution</div>
-                            <div className="text-[12px] text-[var(--text-secondary)] space-y-0.5">
-                                <div><span className="text-[var(--text-tertiary)]">Action: </span>{exception.resolution.action}</div>
-                                <div><span className="text-[var(--text-tertiary)]">By: </span>{exception.resolution.resolvedByName}</div>
-                                <div><span className="text-[var(--text-tertiary)]">Reason: </span>{exception.resolution.reason}</div>
+                            <div className="text-[11px] font-semibold text-[var(--v-text-muted)] uppercase tracking-wide mb-2">Resolution</div>
+                            <div className="text-[12px] text-[var(--v-text-secondary)] space-y-0.5">
+                                <div><span className="text-[var(--v-text-muted)]">Action: </span>{exception.resolution.action}</div>
+                                <div><span className="text-[var(--v-text-muted)]">By: </span>{exception.resolution.resolvedByName}</div>
+                                <div><span className="text-[var(--v-text-muted)]">Reason: </span>{exception.resolution.reason}</div>
                                 {exception.resolution.notes && (
-                                    <div><span className="text-[var(--text-tertiary)]">Notes: </span>{exception.resolution.notes}</div>
+                                    <div><span className="text-[var(--v-text-muted)]">Notes: </span>{exception.resolution.notes}</div>
                                 )}
                             </div>
                         </div>
@@ -310,7 +310,7 @@ function ExceptionCard({
                     {/* Resolve form — only for open/escalated */}
                     {isOpen && !isLocked && canManage && (
                         <div className="pt-2 space-y-3">
-                            <div className="text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wide">Resolve</div>
+                            <div className="text-[11px] font-semibold text-[var(--v-text-muted)] uppercase tracking-wide">Resolve</div>
 
                             {/* Action buttons */}
                             <div className="grid grid-cols-2 gap-1.5">
@@ -325,9 +325,9 @@ function ExceptionCard({
                                                   action.color === "red"   ? "bg-red-500 text-white border-red-500" :
                                                   action.color === "amber" ? "bg-amber-500 text-white border-amber-500" :
                                                   "bg-slate-500 text-white border-slate-500"
-                                                : "bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-fill)]"
+                                                : "bg-[var(--v-card)] text-[var(--v-text-secondary)] hover:bg-[var(--v-card-hover)]"
                                         )}
-                                        style={resolveForm.action !== action.value ? { borderColor: "var(--border-subtle)" } : {}}
+                                        style={resolveForm.action !== action.value ? { borderColor: "var(--v-border)" } : {}}
                                     >
                                         {action.label}
                                     </button>
@@ -340,8 +340,8 @@ function ExceptionCard({
                                 value={resolveForm.reason}
                                 onChange={e => onResolveFormChange({ ...resolveForm, reason: e.target.value })}
                                 placeholder="Resolution reason (required)..."
-                                className="w-full px-3 py-2 text-[13px] rounded-xl border bg-[var(--bg-elevated)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                                style={{ borderColor: "var(--border-subtle)" }}
+                                className="w-full px-3 py-2 text-[13px] rounded-xl border bg-[var(--v-card)] text-[var(--v-text-primary)] placeholder:text-[var(--v-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--v-orange)]"
+                                style={{ borderColor: "var(--v-border)" }}
                             />
 
                             {/* Notes */}
@@ -350,8 +350,8 @@ function ExceptionCard({
                                 onChange={e => onResolveFormChange({ ...resolveForm, notes: e.target.value })}
                                 rows={2}
                                 placeholder="Additional notes (optional)..."
-                                className="w-full px-3 py-2 text-[13px] rounded-xl border bg-[var(--bg-elevated)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
-                                style={{ borderColor: "var(--border-subtle)" }}
+                                className="w-full px-3 py-2 text-[13px] rounded-xl border bg-[var(--v-card)] text-[var(--v-text-primary)] placeholder:text-[var(--v-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--v-orange)] resize-none"
+                                style={{ borderColor: "var(--v-border)" }}
                             />
 
                             {resolveError && (
@@ -363,7 +363,7 @@ function ExceptionCard({
                             <button
                                 onClick={onResolve}
                                 disabled={isResolving}
-                                className="w-full py-2.5 rounded-xl bg-[var(--accent)] text-white text-[13px] font-semibold flex items-center justify-center gap-2 hover:brightness-110 disabled:opacity-50"
+                                className="w-full py-2.5 rounded-xl bg-[var(--v-orange)] text-white text-[13px] font-semibold flex items-center justify-center gap-2 hover:brightness-110 disabled:opacity-50"
                             >
                                 {isResolving
                                     ? <Loader2 size={14} className="animate-spin" />
@@ -397,7 +397,7 @@ function ExceptionSkeleton() {
     return (
         <div className="space-y-2">
             {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-16 rounded-2xl border animate-pulse" style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }} />
+                <div key={i} className="h-16 rounded-2xl border animate-pulse" style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }} />
             ))}
         </div>
     );
@@ -407,10 +407,10 @@ function EmptyExceptions({ status }: { status: string }) {
     return (
         <div className="flex flex-col items-center justify-center py-20 text-center">
             <CheckCircle2 size={36} className="text-green-500 mb-3" />
-            <p className="text-[14px] font-medium text-[var(--text-primary)] mb-1">
+            <p className="text-[14px] font-medium text-[var(--v-text-primary)] mb-1">
                 No {status === "all" ? "" : status} exceptions
             </p>
-            <p className="text-[12px] text-[var(--text-tertiary)]">
+            <p className="text-[12px] text-[var(--v-text-muted)]">
                 {status === "open" ? "All clear — no open exceptions." : "Nothing to show for this filter."}
             </p>
         </div>
@@ -421,8 +421,8 @@ function NoEventState() {
     return (
         <div className="flex flex-col items-center justify-center py-24 text-center">
             <AlertTriangle size={40} className="text-amber-500 mb-4" />
-            <h3 className="text-[16px] font-semibold text-[var(--text-primary)] mb-2">Select an event</h3>
-            <p className="text-[13px] text-[var(--text-tertiary)] max-w-xs">
+            <h3 className="text-[16px] font-semibold text-[var(--v-text-primary)] mb-2">Select an event</h3>
+            <p className="text-[13px] text-[var(--v-text-muted)] max-w-xs">
                 Choose an event from the selector above to view exceptions.
             </p>
         </div>

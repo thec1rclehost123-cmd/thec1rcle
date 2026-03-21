@@ -25,8 +25,6 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cleanJargon } from "@/lib/utils/jargon";
 import { EVENT_LIFECYCLE } from "@c1rcle/core/events";
-import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import { SectionLabel } from "@/components/ui/SectionLabel";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -216,88 +214,68 @@ export function OperatingCalendar() {
 
     return (
         <div className="flex flex-col w-full min-h-0 gap-3" style={{ height: 'calc(100vh - 13rem)' }}>
-            {/* Toolbar — single row */}
-            <div className="flex items-center justify-between gap-4 px-1">
-                {/* Left: Month navigation */}
-                <div className="flex items-center gap-0.5">
-                    <button
-                        onClick={() => navigateMonth(-1)}
-                        className="p-1.5 hover:bg-[var(--bg-fill)] rounded-[var(--r-sm)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <span className="px-3 text-[14px] font-[600] text-[var(--text-primary)] min-w-[140px] text-center tracking-[-0.01em]">
-                        {MONTHS[month]} {year}
-                    </span>
-                    <button
-                        onClick={() => navigateMonth(1)}
-                        className="p-1.5 hover:bg-[var(--bg-fill)] rounded-[var(--r-sm)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-                    >
-                        <ChevronRight className="h-4 w-4" />
-                    </button>
-                </div>
-
-                {/* Right: legend + view toggle + actions */}
-                <div className="flex items-center gap-4">
-                    {/* Status legend — inline dots, no chip shapes */}
-                    <div className="hidden lg:flex items-center gap-3">
-                        {[
-                            { color: "var(--color-success)", label: "Confirmed" },
-                            { color: "var(--color-warning)", label: "Pending" },
-                            { color: "var(--color-error)",   label: "Blocked"   },
-                        ].map(({ color, label }) => (
-                            <div key={label} className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                                <span className="text-[12px] text-[var(--text-tertiary)]">{label}</span>
-                            </div>
-                        ))}
+            {/* Operational Header */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1">
+                <div className="flex items-center gap-5">
+                    <div className="flex items-center gap-1.5 bg-surface-secondary border border-border-subtle rounded-2xl p-1.5 shadow-sm">
+                        <button
+                            onClick={() => navigateMonth(-1)}
+                            className="p-2 hover:bg-surface-elevated rounded-xl transition-all text-text-tertiary hover:text-text-primary"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <div className="px-5 text-center min-w-[150px]">
+                            <h2 className="text-sm font-black text-text-primary tracking-tight uppercase">
+                                {MONTHS[month]} {year}
+                            </h2>
+                        </div>
+                        <button
+                            onClick={() => navigateMonth(1)}
+                            className="p-2 hover:bg-surface-elevated rounded-xl transition-all text-text-tertiary hover:text-text-primary"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </button>
                     </div>
 
-                    {/* View toggle */}
-                    <SegmentedControl
-                        options={[{ value: "month", label: "Month" }, { value: "week", label: "Week" }]}
-                        value="month"
-                        onChange={() => {}}
-                    />
+                    <div className="hidden lg:flex items-center gap-3 border-l border-border-subtle pl-6 ml-1">
+                        <StatBadge count={stats.confirmed} label="Booked" color="emerald" />
+                        <StatBadge count={stats.pending} label="Requests" color="amber" />
+                        <StatBadge count={stats.open} label="Open" color="gray" />
+                    </div>
+                </div>
 
-                    {/* Block Date — ghost, venue only */}
-                    {role === 'venue' && (
-                        <button
-                            onClick={() => {
-                                if (!selectedDateStr) {
-                                    const now = parseAsIST(null);
-                                    setCurrentDate(now);
-                                    setSelectedDateStr(toISODateIST(now));
-                                }
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r-sm)] border border-[var(--border-subtle)] text-[12px] font-[500] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-fill)] transition-all"
-                        >
-                            <Lock className="h-3.5 w-3.5" />
-                            Block Date
-                        </button>
-                    )}
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => {
+                            const now = parseAsIST(null);
+                            setCurrentDate(now);
+                            setSelectedDateStr(toISODateIST(now));
+                        }}
+                        className="px-4 py-2.5 text-[10px] font-black text-text-tertiary hover:text-text-primary uppercase tracking-widest transition-all rounded-xl border border-border-subtle hover:bg-surface-secondary"
+                    >
+                        Sync Today
+                    </button>
 
-                    {/* Create Event — sm primary */}
                     {role === 'venue' && (
                         <Link
                             href="/venue/create"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r-sm)] text-[12px] font-[600] bg-[var(--accent)] text-white hover:opacity-90 transition-opacity active:scale-[0.98]"
+                            className="bg-text-primary text-text-inverse px-6 py-2.5 rounded-2xl flex items-center gap-2 hover:opacity-90 transition-all font-black text-[11px] uppercase tracking-widest shadow-lg"
                         >
-                            <Plus className="h-3.5 w-3.5" />
-                            Create Event
+                            <Plus className="h-4 w-4" />
+                            Launch Event
                         </Link>
                     )}
                 </div>
             </div>
 
             {/* Unified Calendar Block */}
-            <div className="flex flex-col lg:flex-row bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-[var(--r-xl)] overflow-hidden shadow-[var(--shadow-lg)] flex-1 min-h-0">
+            <div className="flex flex-col lg:flex-row bg-surface-base border border-border-strong rounded-[2.5rem] overflow-hidden shadow-2xl flex-1 min-h-0">
                 
                 {/* Calendar Side */}
-                <div className="lg:flex-[2.2] flex flex-col border-b lg:border-b-0 lg:border-r border-[var(--border-subtle)]">
-                    <div className="grid grid-cols-7 border-b border-[var(--border-subtle)] bg-[var(--bg-fill)]">
+                <div className="lg:flex-[2.2] flex flex-col border-b lg:border-b-0 lg:border-r border-border-subtle">
+                    <div className="grid grid-cols-7 border-b border-border-subtle bg-surface-secondary/40">
                         {DAYS.map(d => (
-                            <div key={d} className="py-4 text-center text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.2em]">
+                            <div key={d} className="py-4 text-center text-[10px] font-black text-text-tertiary uppercase tracking-[0.2em]">
                                 {d}
                             </div>
                         ))}
@@ -306,7 +284,7 @@ export function OperatingCalendar() {
                     <div className="grid grid-cols-7 flex-1">
                         {calendarGrid.map((cell, idx) => {
                             if (!cell) {
-                                return <div key={`empty-${idx}`} className="min-h-[48px] bg-[var(--bg-fill)] border-r border-b border-[var(--border-subtle)] last:border-r-0" />;
+                                return <div key={`empty-${idx}`} className="aspect-[1.2/1] bg-surface-secondary/10 border-r border-b border-border-subtle last:border-r-0" />;
                             }
 
                             const isToday = cell.dateStr === todayStr;
@@ -321,30 +299,30 @@ export function OperatingCalendar() {
                                     key={cell.dateStr}
                                     onClick={() => setSelectedDateStr(cell.dateStr)}
                                     className={`
-                                        relative min-h-[48px] p-2.5 text-left border-r border-b border-[var(--border-subtle)] transition-all group overflow-hidden last:border-r-0
-                                        ${isSelected ? 'bg-[var(--bg-fill)]' : isBlocked ? 'bg-[var(--bg-fill)]' : 'hover:bg-[var(--bg-fill)]'}
+                                        relative aspect-[1.15/1] p-3 text-left border-r border-b border-border-subtle transition-all group overflow-hidden last:border-r-0
+                                        ${isSelected ? 'bg-iris/5' : isBlocked ? 'bg-surface-secondary/20' : 'hover:bg-surface-secondary/40'}
                                         ${isPast && !isSelected ? 'opacity-40 grayscale-[0.8]' : ''}
                                     `}
                                 >
-                                    {isSelected && <div className="absolute inset-x-0 top-0 h-0.5 bg-[var(--accent)] z-20" />}
-
-                                    <div className="flex items-center justify-between relative z-10 mb-1.5">
-                                        <span className={`text-[14px] font-[500] tabular-nums transition-colors ${isToday ? 'text-[var(--accent)] flex items-center gap-1.5' : isSelected ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'}`}>
+                                    {isSelected && <div className="absolute inset-x-0 top-0 h-1 bg-iris shadow-[0_4px_12px_rgba(var(--iris-rgb),0.4)] z-20" />}
+                                    
+                                    <div className="flex items-center justify-between relative z-10 mb-2">
+                                        <span className={`text-[13px] font-black tabular-nums transition-colors ${isToday ? 'text-iris flex items-center gap-1.5' : isSelected ? 'text-text-primary' : 'text-text-secondary group-hover:text-text-primary'}`}>
                                             {cell.day}
-                                            {isToday && <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] " />}
+                                            {isToday && <span className="w-1.5 h-1.5 rounded-full bg-iris shadow-[0_0_8px_rgba(var(--iris-rgb),0.8)]" />}
                                         </span>
-                                        {hasPending && <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-warning)] animate-pulse" />}
+                                        {hasPending && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.6)] animate-pulse" />}
                                     </div>
 
                                     {(eventCount > 0 || isBlocked) && (
                                         <div className="space-y-1 relative z-10">
                                             {cell.events.slice(0, 3).map((e: any) => (
-                                                <div key={e.id} className={`h-1 rounded-full w-full ${[EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.LIVE, EVENT_LIFECYCLE.APPROVED].includes(e.lifecycle || e.status) ? 'bg-[var(--color-success)]/80' : 'bg-[var(--color-warning)]/80'}`} />
+                                                <div key={e.id} className={`h-1 rounded-full w-full ${[EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.LIVE, EVENT_LIFECYCLE.APPROVED].includes(e.lifecycle || e.status) ? 'bg-emerald-500/80' : 'bg-amber-500/80'}`} />
                                             ))}
                                             {isBlocked && (
-                                                <div className="h-1 rounded-full w-full bg-[var(--color-error)]/60 border border-[var(--color-error)]/20" />
+                                                <div className="h-1 rounded-full w-full bg-red-500/60 border border-red-500/20" />
                                             )}
-                                            <p className="text-[7px] font-black text-[var(--text-tertiary)] uppercase tracking-widest mt-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                            <p className="text-[7px] font-black text-text-tertiary uppercase tracking-widest mt-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                                                 {isBlocked ? 'Date Blocked' : `${eventCount} Active Slot${eventCount !== 1 ? 's' : ''}`}
                                             </p>
                                         </div>
@@ -354,10 +332,15 @@ export function OperatingCalendar() {
                         })}
                     </div>
 
+                    <div className="p-5 flex items-center gap-8 border-t border-border-subtle bg-surface-secondary/20">
+                        <LegendItem color="bg-emerald-500" label="Confirmed" />
+                        <LegendItem color="bg-amber-500" label="Request" />
+                        <LegendItem color="bg-surface-elevated" label="Blocked" icon={<Lock className="h-2.5 w-2.5 text-text-quaternary" />} />
+                    </div>
                 </div>
 
                 {/* Inspection Side (Adjacent) */}
-                <div className="lg:flex-[1] bg-[var(--bg-fill)] flex flex-col overflow-hidden">
+                <div className="lg:flex-[1] bg-surface-secondary/15 flex flex-col overflow-hidden">
                     <AnimatePresence mode="wait">
                         {selectedDateStr ? (
                             <motion.div
@@ -377,11 +360,13 @@ export function OperatingCalendar() {
                                 />
                             </motion.div>
                         ) : (
-                            <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
-                                <CalendarIcon className="w-6 h-6 text-[var(--text-tertiary)] mb-3" />
-                                <p className="text-[15px] font-[500] text-[var(--text-secondary)] mb-1.5">Select a date</p>
-                                <p className="text-[13px] text-[var(--text-tertiary)] max-w-[200px] leading-relaxed">
-                                    Tap any day to view events and manage availability.
+                            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+                                <div className="w-16 h-16 rounded-[2rem] bg-surface-base border border-border-subtle flex items-center justify-center mb-6 shadow-xl text-text-tertiary hover:scale-110 transition-transform">
+                                    <CalendarIcon className="w-6 h-6" />
+                                </div>
+                                <h3 className="text-sm font-black text-text-primary tracking-tighter uppercase mb-2">Operational Deck</h3>
+                                <p className="text-[10px] text-text-tertiary font-medium max-w-[200px] leading-relaxed">
+                                    Select any date on the grid to manage night availability and review incoming host requests.
                                 </p>
                             </div>
                         )}
@@ -395,15 +380,15 @@ export function OperatingCalendar() {
 /* ---------- Stat Badge ---------- */
 function StatBadge({ count, label, color }: { count: number; label: string; color: string }) {
     const colorMap: Record<string, string> = {
-        emerald: 'bg-[var(--color-success-bg)] text-[var(--color-success)] border-[var(--color-success)]/20',
-        amber:   'bg-[var(--color-warning-bg)] text-[var(--color-warning)] border-[var(--color-warning)]/20',
-        gray:    'bg-[var(--bg-fill)] text-[var(--text-tertiary)] border-[var(--border-subtle)]',
-        rose:    'bg-[var(--color-error-bg)] text-[var(--color-error)] border-[var(--color-error)]/20',
+        emerald: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/15',
+        amber: 'bg-amber-500/10 text-amber-600 border-amber-500/15',
+        gray: 'bg-surface-elevated text-text-tertiary border-border-subtle',
+        rose: 'bg-rose-500/10 text-rose-600 border-rose-500/15',
     };
     return (
-        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--r-sm)] dash-label-sm border ${colorMap[color] || colorMap.gray}`}>
-            <span className="tabular-nums font-bold">{count}</span>
-            <span>{label}</span>
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border ${colorMap[color] || colorMap.gray}`}>
+            <span className="tabular-nums">{count}</span>
+            <span className="uppercase tracking-wider opacity-80">{label}</span>
         </div>
     );
 }
@@ -413,7 +398,7 @@ function LegendItem({ color, label, icon }: { color: string; label: string; icon
     return (
         <div className="flex items-center gap-2">
             {icon || <span className={`w-2 h-2 rounded-full ${color}`} />}
-            <span className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">{label}</span>
+            <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">{label}</span>
         </div>
     );
 }
@@ -536,9 +521,9 @@ function SidePanel({
                 className="absolute left-0 right-0 z-50 flex items-center pointer-events-none" 
                 style={{ top: pos.top }}
             >
-                <div className="w-2 h-2 rounded-full bg-[var(--accent)]  -ml-1 flex-shrink-0 animate-pulse" />
-                <div className="flex-1 h-[2px] bg-[var(--accent)] " />
-                <div className="bg-[var(--accent)] text-white text-[8px] font-black px-2 py-0.5 rounded-full ml-3 uppercase tracking-tighter shadow-xl">
+                <div className="w-2 h-2 rounded-full bg-iris shadow-[0_0_8px_rgba(var(--iris-rgb),0.8)] -ml-1 flex-shrink-0 animate-pulse" />
+                <div className="flex-1 h-[2px] bg-iris shadow-[0_0_8px_rgba(var(--iris-rgb),0.4)]" />
+                <div className="bg-iris text-white text-[8px] font-black px-2 py-0.5 rounded-full ml-3 uppercase tracking-tighter shadow-xl">
                     Now
                 </div>
             </div>
@@ -548,32 +533,41 @@ function SidePanel({
     return (
         <div className="h-full flex flex-col">
             {/* Panel Header */}
-            <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between sticky top-0 z-40 bg-[var(--bg-fill)]">
+            <div className="px-6 py-5 border-b border-border-subtle flex items-center justify-between bg-surface-base/50 backdrop-blur-sm sticky top-0 z-40">
                 <div>
-                    <p className="text-[15px] font-[600] text-[var(--text-primary)] leading-none">{dayName}</p>
-                    <p className="text-[13px] text-[var(--text-tertiary)] mt-1">{monthDay}</p>
+                    <h2 className="text-base font-black text-text-primary tracking-tight leading-none">{dayName}</h2>
+                    <p className="text-[11px] font-medium text-text-tertiary mt-1">{monthDay}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {isBlocked && (
-                        <span className="flex items-center gap-1 text-[12px] text-[var(--color-error)]">
+                    {/* Status chip */}
+                    {isBlocked ? (
+                        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-500/10 text-red-600 text-[9px] font-black uppercase tracking-wider border border-red-500/10">
                             <Lock className="h-3 w-3" /> Blocked
+                        </span>
+                    ) : eventCount > 0 ? (
+                        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 text-[9px] font-black uppercase tracking-wider border border-emerald-500/10">
+                            <Music className="h-3 w-3" /> {eventCount} Event{eventCount > 1 ? 's' : ''}
+                        </span>
+                    ) : (
+                        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-elevated text-text-tertiary text-[9px] font-black uppercase tracking-wider border border-border-subtle">
+                            Open Night
                         </span>
                     )}
                     <button
                         onClick={onClose}
-                        className="p-1.5 hover:bg-[var(--bg-elevated)] rounded-[var(--r-sm)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
+                        className="p-2 hover:bg-surface-elevated rounded-xl text-text-tertiary hover:text-text-primary transition-all"
                     >
-                        <X className="h-4 w-4" />
+                        <X className="h-4.5 w-4.5" />
                     </button>
                 </div>
             </div>
 
             {/* Content: Hourly Timeline (Google Calendar style) */}
             <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-[var(--bg-base)]/30">
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-surface-base/30">
                 <div className="relative flex h-full min-h-0 px-6 py-4">
                     {/* Time Labels */}
-                    <div className="w-14 flex flex-col justify-between text-[10px] font-black text-[var(--text-tertiary)] uppercase border-r border-[var(--border-subtle)]/30 mr-4 py-1">
+                    <div className="w-14 flex flex-col justify-between text-[10px] font-black text-text-tertiary uppercase border-r border-border-subtle/30 mr-4 py-1">
                         {HOURS.map(h => (
                             <div key={h} className="h-0 flex items-center justify-end pr-3">{h}</div>
                         ))}
@@ -582,7 +576,7 @@ function SidePanel({
                     {/* Grid Lines */}
                     <div className="absolute inset-y-6 left-[80px] right-6 pointer-events-none">
                         {HOURS.map((_, i) => (
-                            <div key={i} className="h-0 border-t border-[var(--border-subtle)]/20" style={{ top: `${(i / (HOURS.length - 1)) * 100}%` }} />
+                            <div key={i} className="h-0 border-t border-border-subtle/20" style={{ top: `${(i / (HOURS.length - 1)) * 100}%` }} />
                         ))}
                     </div>
  
@@ -594,143 +588,105 @@ function SidePanel({
                         {/* 1. Blocked Interval (if any) */}
                         {isBlocked && (
                             <div 
-                                className="absolute left-0 right-0 bg-[var(--color-error-bg)] border border-[var(--color-error)]/20 rounded-[1.5rem] flex flex-col items-center justify-center overflow-hidden z-10 shadow-inner"
+                                className="absolute left-0 right-0 bg-red-500/5 border border-red-500/20 rounded-[1.5rem] flex flex-col items-center justify-center overflow-hidden z-10 shadow-inner"
                                 style={getPosition(data.block?.startTime || "20:00", data.block?.endTime || "04:00")}
                             >
-                                <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg, var(--color-error), var(--color-error) 12px, transparent 12px, transparent 24px)' }} />
-                                <div className="bg-[var(--color-error-bg)] p-3 rounded-full mb-2">
-                                    <Lock className="w-5 h-5 text-[var(--color-error)] opacity-60" />
+                                <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #ef4444, #ef4444 12px, transparent 12px, transparent 24px)' }} />
+                                <div className="bg-red-500/10 p-3 rounded-full mb-2">
+                                    <Lock className="w-5 h-5 text-red-500 opacity-60" />
                                 </div>
-                                <span className="text-[10px] font-black text-[var(--color-error)] uppercase tracking-widest">{data.block?.reason || 'BLOCKED'}</span>
+                                <span className="text-[10px] font-black text-red-600 uppercase tracking-widest">{data.block?.reason || 'BLOCKED'}</span>
                             </div>
                         )}
  
                         {/* 2. Events */}
-                        {(() => {
-                            // 1. Group events into collision groups
-                            const sorted = [...events].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime) || a.id.localeCompare(b.id));
-                            const groups: any[][] = [];
+                        {events.map((e: any) => {
+                            const status = e.lifecycle || e.status;
+                            const isConfirmed = [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.LIVE, EVENT_LIFECYCLE.APPROVED].includes(status);
+                            const pos = getPosition(e.startTime || "21:00", e.endTime || "04:00");
                             
-                            sorted.forEach(event => {
-                                const start = timeToMinutes(event.startTime || "21:00");
-                                let foundGroup = false;
-                                for (const group of groups) {
-                                    // If this event starts before the latest end in this group, it collides
-                                    const latestEnd = Math.max(...group.map(e => timeToMinutes(e.endTime || "04:00")));
-                                    if (start < latestEnd) {
-                                        group.push(event);
-                                        foundGroup = true;
-                                        break;
-                                    }
-                                }
-                                if (!foundGroup) groups.push([event]);
-                            });
+                            // Check if event is live
+                            const isCurrentlyLive = useMemo(() => {
+                                if (!isActive || !isConfirmed) return false;
+                                const startMin = timeToMinutes(e.startTime || "21:00");
+                                const endMin = timeToMinutes(e.endTime || "04:00");
+                                const currentMin = timeToMinutes(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
+                                return currentMin >= startMin && currentMin <= endMin;
+                            }, [now, e.startTime, e.endTime, isActive, isConfirmed]);
 
-                            // 2. Assign columns within each group
-                            return groups.flatMap(group => {
-                                const columns: any[][] = [];
-                                group.forEach(event => {
-                                    const start = timeToMinutes(event.startTime || "21:00");
-                                    let placed = false;
-                                    for (const col of columns) {
-                                        const lastInCol = col[col.length - 1];
-                                        if (start >= timeToMinutes(lastInCol.endTime || "04:00")) {
-                                            col.push(event);
-                                            placed = true;
-                                            break;
-                                        }
-                                    }
-                                    if (!placed) columns.push([event]);
-                                });
-
-                                const totalCols = columns.length;
-                                return group.map(e => {
-                                    const pos = getPosition(e.startTime || "21:00", e.endTime || "04:00");
-                                    const colIdx = columns.findIndex(col => col.includes(e));
-                                    
-                                    // Check currently live state (inline to avoid hook usage inside map)
-                                    const startMin = timeToMinutes(e.startTime || "21:00");
-                                    const endMin = timeToMinutes(e.endTime || "04:00");
-                                    const currentMin = timeToMinutes(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
-                                    const isConfirmed = [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.LIVE, EVENT_LIFECYCLE.APPROVED].includes(e.lifecycle || e.status);
-                                    const isCurrentlyLive = isActive && isConfirmed && currentMin >= startMin && currentMin <= endMin;
-
-                                    return (
-                                        <Link
-                                            key={e.id}
-                                            href={role === 'venue' ? `/venue/events/${e.id}` : `/host/events/${e.id}`}
-                                            className={`absolute p-2 lg:p-4 rounded-xl lg:rounded-[var(--r-lg)] border transition-all hover:scale-[1.03] hover:shadow-2xl z-20 group overflow-hidden ${
-                                                isCurrentlyLive 
-                                                    ? 'bg-[var(--color-success-bg)] border-[var(--color-success)]/40 shadow-[var(--shadow-md)]'
-                                                    : isConfirmed 
-                                                        ? 'bg-[var(--color-success-bg)] border-[var(--color-success)]/20 shadow-[var(--shadow-sm)]' 
-                                                        : 'bg-[var(--color-warning-bg)] border-[var(--color-warning)]/20 shadow-[var(--shadow-sm)]'
-                                            } ${totalCols > 1 ? 'backdrop-blur-md' : ''}`}
-                                            style={{
-                                                ...pos,
-                                                left: `${(colIdx * 100) / totalCols}%`,
-                                                width: `${100 / totalCols - 1}%`, // -1% padding for visibility
-                                            }}
-                                        >
-                                            <div className="flex items-start justify-between gap-1 lg:gap-3 h-full">
-                                                <div className="min-w-0">
-                                                    <div className="flex flex-wrap items-center gap-1 lg:gap-2 mb-0.5 lg:mb-1.5">
-                                                        <h4 className="text-[11px] lg:text-[13px] font-black text-[var(--text-primary)] tracking-tight leading-tight truncate uppercase">
-                                                            {e.title || 'Reserved'}
-                                                        </h4>
-                                                        {isCurrentlyLive && (
-                                                            <span className="flex items-center gap-1 px-1 lg:px-2 py-0.5 rounded-full bg-[var(--color-success)] text-white dash-label-sm animate-pulse flex-shrink-0">
-                                                                <span className="w-1 h-1 rounded-full bg-white" />
-                                                                Live
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-1 lg:gap-2 text-[8px] lg:text-[10px] font-black tabular-nums text-[var(--text-tertiary)] uppercase tracking-tight">
-                                                        <Clock className="w-2 h-2 lg:w-3 lg:h-3 text-[var(--accent)]" />
-                                                        {e.startTime} <span className="opacity-30">—</span> {e.endTime}
-                                                    </div>
-                                                </div>
-                                                {e.posterUrl && totalCols === 1 && (
-                                                    <div className="w-8 h-8 lg:w-12 lg:h-12 rounded-lg lg:rounded-xl overflow-hidden flex-shrink-0 border border-[var(--border-subtle)] group-hover:scale-110 transition-transform shadow-sm">
-                                                        <img src={e.posterUrl} alt="" className="w-full h-full object-cover" />
-                                                    </div>
+                            return (
+                                <Link
+                                    key={e.id}
+                                    href={role === 'venue' ? `/venue/events/${e.id}` : `/host/events/${e.id}`}
+                                    className={`absolute left-0 right-0 p-4 rounded-2xl border transition-all hover:scale-[1.03] hover:shadow-2xl z-20 group overflow-hidden ${
+                                        isCurrentlyLive 
+                                            ? 'bg-emerald-500/15 border-emerald-500/40 shadow-xl shadow-emerald-500/10 ring-1 ring-emerald-500/20'
+                                            : isConfirmed 
+                                                ? 'bg-emerald-500/5 border-emerald-500/20 shadow-md' 
+                                                : 'bg-amber-500/5 border-amber-500/20 shadow-md'
+                                    }`}
+                                    style={pos}
+                                >
+                                    <div className="flex items-start justify-between gap-3 h-full">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2 mb-1.5">
+                                                <h4 className="text-[13px] font-black text-text-primary tracking-tight leading-tight truncate uppercase">
+                                                    {e.title || 'Reserved'}
+                                                </h4>
+                                                {isCurrentlyLive && (
+                                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[8px] font-black uppercase tracking-tighter animate-pulse flex-shrink-0 shadow-lg">
+                                                        <span className="w-1 h-1 rounded-full bg-white" />
+                                                        Live
+                                                    </span>
                                                 )}
                                             </div>
-                                        </Link>
-                                    );
-                                });
-                            });
-                        })()}
+                                            <div className="flex items-center gap-2 text-[10px] font-black tabular-nums text-text-tertiary uppercase tracking-tight">
+                                                <Clock className="w-3 h-3 text-iris" />
+                                                {e.startTime} <span className="opacity-30">—</span> {e.endTime}
+                                            </div>
+                                        </div>
+                                        {e.posterUrl && (
+                                            <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 border border-border-subtle group-hover:scale-110 transition-transform shadow-sm">
+                                                <img src={e.posterUrl} alt="" className="w-full h-full object-cover" />
+                                            </div>
+                                        )}
+                                    </div>
+                                </Link>
+                            );
+                        })}
                     </div>
                 </div>
             </div>
 
             {/* Pending Slot Requests */}
             {pendingSlots.length > 0 && (
-                <div className="flex-shrink-0 p-4 space-y-2 border-t border-[var(--border-subtle)] bg-[var(--bg-base)]">
-                    <SectionLabel className="px-1">PENDING APPROVAL ({pendingSlots.length})</SectionLabel>
+                <div className="flex-shrink-0 p-4 space-y-2 border-t border-border-subtle bg-surface-base">
+                    <p className="text-[9px] font-bold text-amber-600 uppercase tracking-widest mb-2 px-1 flex items-center gap-1.5">
+                        <AlertCircle className="h-3 w-3" />
+                        Needs Your Approval ({pendingSlots.length})
+                    </p>
                     {pendingSlots.map((s: any) => (
-                        <div key={s.id} className="p-3 rounded-xl bg-[var(--color-warning-bg)] border border-[var(--color-warning)]/20">
+                        <div key={s.id} className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-8 h-8 rounded-lg bg-[var(--color-warning-bg)] flex items-center justify-center">
-                                    <CalendarIcon className="h-4 w-4 text-[var(--color-warning)]" />
+                                <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                                    <CalendarIcon className="h-4 w-4 text-amber-600" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <h4 className="text-xs font-bold text-[var(--text-primary)]">{s.host} Request</h4>
-                                    <p className="text-[10px] text-[var(--text-tertiary)] tabular-nums">{s.startTime} — {s.endTime}</p>
+                                    <h4 className="text-xs font-bold text-text-primary">{s.host} Request</h4>
+                                    <p className="text-[10px] text-text-tertiary tabular-nums">{s.startTime} — {s.endTime}</p>
                                 </div>
                             </div>
                             {role === 'venue' && (
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => onSlotAction(s.id, 'approve')}
-                                        className="flex-1 py-2 bg-[var(--text-primary)] text-white rounded-lg font-bold text-[10px] uppercase tracking-wider hover:opacity-90 transition-all"
+                                        className="flex-1 py-2 bg-text-primary text-text-inverse rounded-lg font-bold text-[10px] uppercase tracking-wider hover:opacity-90 transition-all"
                                     >
                                         Approve
                                     </button>
                                     <button
                                         onClick={() => onSlotAction(s.id, 'reject')}
-                                        className="px-4 py-2 border border-[var(--border-default)] text-[var(--text-tertiary)] rounded-lg font-bold text-[10px] uppercase tracking-wider hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-all"
+                                        className="px-4 py-2 border border-border-default text-text-tertiary rounded-lg font-bold text-[10px] uppercase tracking-wider hover:text-text-primary hover:bg-surface-elevated transition-all"
                                     >
                                         Decline
                                     </button>
@@ -743,21 +699,20 @@ function SidePanel({
 
             {/* Empty State / Blocked Info */}
             {(eventCount === 0 && pendingSlots.length === 0) && (
-                <div className="flex-shrink-0 flex flex-col items-center justify-center p-6 text-center bg-[var(--bg-base)] border-t border-[var(--border-subtle)]">
-                    {isBlocked
-                        ? <Lock className="w-5 h-5 text-[var(--text-tertiary)] mb-2" />
-                        : <Sparkles className="w-5 h-5 text-[var(--text-tertiary)] mb-2" />
-                    }
-                    <p className="text-[15px] font-[500] text-[var(--text-secondary)] mb-1">
+                <div className="flex-shrink-0 flex flex-col items-center justify-center p-6 text-center bg-surface-base border-t border-border-subtle">
+                    <div className="w-10 h-10 rounded-xl bg-surface-elevated border border-border-subtle flex items-center justify-center mb-3">
+                        {isBlocked ? <Lock className="w-4 h-4 text-text-quaternary" /> : <Sparkles className="w-4 h-4 text-text-quaternary" />}
+                    </div>
+                    <p className="text-xs font-bold text-text-secondary mb-0.5">
                         {isBlocked ? 'Date Blocked' : 'Night is Open'}
                     </p>
-                    <p className="text-[13px] text-[var(--text-tertiary)] max-w-[200px]">
+                    <p className="text-[10px] text-text-tertiary max-w-[180px]">
                         {isBlocked
-                            ? (data.block?.reason || 'Blocked for maintenance or private events.')
-                            : 'Available for bookings.'}
+                            ? (data.block?.reason || 'This date is blocked for maintenance or private events.')
+                            : 'This date is available for bookings. Create an event or block it off.'}
                     </p>
                     {isBlocked && data.block?.startTime && (
-                        <p className="text-[12px] text-[var(--text-tertiary)] tabular-nums mt-1.5">
+                        <p className="text-[10px] text-text-tertiary tabular-nums mt-2 font-bold opacity-60">
                             {data.block.startTime} — {data.block.endTime}
                         </p>
                     )}
@@ -767,43 +722,43 @@ function SidePanel({
 
             {/* Block Settings Panel */}
             {role === 'venue' && isBlockingMode && (
-                <div className="px-5 py-5 border-t border-[var(--border-subtle)] bg-[var(--bg-fill)] space-y-4">
+                <div className="px-5 py-5 border-t border-border-subtle bg-surface-secondary space-y-4">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-bold text-[var(--text-primary)]">Block Settings</h3>
-                        <span className="text-[10px] font-bold text-[var(--text-secondary)] tabular-nums bg-[var(--bg-base)] px-2 py-0.5 rounded border border-[var(--border-subtle)]">
+                        <h3 className="text-xs font-bold text-text-primary">Block Settings</h3>
+                        <span className="text-[10px] font-bold text-text-secondary tabular-nums bg-surface-base px-2 py-0.5 rounded border border-border-subtle">
                             {startTime} — {endTime}
                         </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">From</label>
+                            <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">From</label>
                             <input
                                 type="time"
                                 value={startTime}
                                 onChange={(e) => setStartTime(e.target.value)}
-                                className="w-full bg-[var(--bg-base)] border border-[var(--border-default)] rounded-lg px-3 py-2 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] outline-none transition-all"
+                                className="w-full bg-surface-base border border-border-default rounded-lg px-3 py-2 text-xs text-text-primary focus:border-iris outline-none transition-all"
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">Until</label>
+                            <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">Until</label>
                             <input
                                 type="time"
                                 value={endTime}
                                 onChange={(e) => setEndTime(e.target.value)}
-                                className="w-full bg-[var(--bg-base)] border border-[var(--border-default)] rounded-lg px-3 py-2 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] outline-none transition-all"
+                                className="w-full bg-surface-base border border-border-default rounded-lg px-3 py-2 text-xs text-text-primary focus:border-iris outline-none transition-all"
                             />
                         </div>
                     </div>
 
                     <div className="space-y-1">
-                        <label className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">Reason</label>
+                        <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">Reason</label>
                         <input
                             type="text"
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                             placeholder="e.g. Private event, maintenance..."
-                            className="w-full bg-[var(--bg-base)] border border-[var(--border-default)] rounded-lg px-3 py-2.5 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] outline-none transition-all placeholder:text-[var(--text-quaternary)]"
+                            className="w-full bg-surface-base border border-border-default rounded-lg px-3 py-2.5 text-xs text-text-primary focus:border-iris outline-none transition-all placeholder:text-text-quaternary"
                         />
                     </div>
 
@@ -820,23 +775,21 @@ function SidePanel({
             )}
 
             {/* Footer Actions */}
-            <div className="p-4 border-t border-[var(--border-subtle)] flex flex-col gap-3">
-                <SectionLabel>ACTIONS</SectionLabel>
-                <div className="flex gap-2">
+            <div className="p-4 border-t border-border-subtle flex gap-3">
                 {role === 'venue' ? (
                     <>
                         {isBlockingMode ? (
                             <>
                                 <button
                                     onClick={() => setIsBlockingMode(false)}
-                                    className="flex-1 py-3 border border-[var(--border-default)] text-[var(--text-tertiary)] rounded-xl font-bold text-[10px] uppercase tracking-wider hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-all"
+                                    className="flex-1 py-3 border border-border-default text-text-tertiary rounded-xl font-bold text-[10px] uppercase tracking-wider hover:text-text-primary hover:bg-surface-elevated transition-all"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleAction}
                                     disabled={isPending}
-                                    className="flex-[1.5] py-3 bg-[var(--text-primary)] text-white rounded-xl font-bold text-[10px] uppercase tracking-wider hover:opacity-90 transition-all shadow-sm"
+                                    className="flex-[1.5] py-3 bg-text-primary text-text-inverse rounded-xl font-bold text-[10px] uppercase tracking-wider hover:opacity-90 transition-all shadow-sm"
                                 >
                                     {isPending ? "Saving..." : "Confirm Block"}
                                 </button>
@@ -844,7 +797,7 @@ function SidePanel({
                         ) : (
                             <button
                                 onClick={() => setIsBlockingMode(true)}
-                                className="flex-1 py-3 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] rounded-xl font-bold text-[10px] uppercase tracking-wider hover:bg-[var(--bg-secondary)] transition-all flex items-center justify-center gap-2"
+                                className="flex-1 py-3 bg-surface-elevated border border-border-subtle text-text-secondary rounded-xl font-bold text-[10px] uppercase tracking-wider hover:bg-surface-tertiary transition-all flex items-center justify-center gap-2"
                             >
                                 {data?.state === 'BLOCKED' ? <Settings className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
                                 {data?.state === 'BLOCKED' ? 'Edit Block' : 'Block Date'}
@@ -854,7 +807,7 @@ function SidePanel({
                 ) : (
                     <Link
                         href="/host/events"
-                        className="flex-1 py-3 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] rounded-xl font-bold text-[10px] uppercase tracking-wider hover:bg-[var(--bg-secondary)] transition-all text-center flex items-center justify-center"
+                        className="flex-1 py-3 bg-surface-elevated border border-border-subtle text-text-secondary rounded-xl font-bold text-[10px] uppercase tracking-wider hover:bg-surface-tertiary transition-all text-center flex items-center justify-center"
                     >
                         Event Management
                     </Link>
@@ -862,12 +815,11 @@ function SidePanel({
                 {!isBlockingMode && (
                     <button
                         onClick={onClose}
-                        className="py-3 px-5 border border-[var(--border-subtle)] text-[var(--text-tertiary)] rounded-xl font-bold text-[10px] uppercase tracking-wider hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-all"
+                        className="py-3 px-5 border border-border-subtle text-text-tertiary rounded-xl font-bold text-[10px] uppercase tracking-wider hover:text-text-primary hover:bg-surface-elevated transition-all"
                     >
                         Close
                     </button>
                 )}
-                </div>
             </div>
         </div>
     );

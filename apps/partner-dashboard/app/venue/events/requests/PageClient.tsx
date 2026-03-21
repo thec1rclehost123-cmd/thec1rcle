@@ -195,13 +195,13 @@ export default function VenueEventRequestsPage() {
         }
         const status = request.slotRequest?.status || "pending";
         const styles: Record<string, string> = {
-            pending: "bg-[var(--color-warning-bg)] text-[var(--color-warning)]",
-            approved: "bg-[var(--color-success-bg)] text-[var(--color-success)]",
-            rejected: "bg-[var(--color-error-bg)] text-[var(--color-error)]",
-            modified: "bg-[var(--color-info-bg)] text-[var(--color-info)]",
-            [EVENT_LIFECYCLE.DENIED]: "bg-[var(--color-error-bg)] text-[var(--color-error)]"
+            pending: "bg-[#ff9500]/10 text-[#ff9500]",
+            approved: "bg-[#34c759]/10 text-[#34c759]",
+            rejected: "bg-[#ff3b30]/10 text-[#ff3b30]",
+            modified: "bg-[#007aff]/10 text-[#007aff]",
+            [EVENT_LIFECYCLE.DENIED]: "bg-[#ff3b30]/10 text-[#ff3b30]"
         };
-        return styles[status] || "bg-[var(--bg-fill)] text-[var(--text-tertiary)]";
+        return styles[status] || "bg-[#f5f5f7] text-[#86868b]";
     };
 
     const getStatusLabel = (request: EventRequest) => {
@@ -215,14 +215,14 @@ export default function VenueEventRequestsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-headline">Event Requests</h1>
-                    <p className="text-body-sm text-[var(--text-tertiary)] mt-1">
+                    <p className="text-body-sm text-[#86868b] mt-1">
                         Review and approve event requests from partner hosts
                     </p>
                 </div>
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-[var(--border-subtle)]">
+            <div className="flex items-center gap-2 p-1 bg-[#f5f5f7] rounded-xl w-fit">
                 {[
                     { id: "pending", label: "Pending" },
                     { id: "all", label: "All Requests" }
@@ -230,9 +230,9 @@ export default function VenueEventRequestsPage() {
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
-                        className={`px-4 pb-3 pt-1 dash-body-sm font-semibold transition-colors duration-[var(--t-fast)] ${activeTab === tab.id
-                            ? "text-[var(--accent)] border-b-2 border-[var(--accent)] -mb-px"
-                            : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                        className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-all ${activeTab === tab.id
+                            ? "bg-surface-elevated text-[#1d1d1f] shadow-sm"
+                            : "text-[#86868b] hover:text-[#1d1d1f]"
                             }`}
                     >
                         {tab.label}
@@ -246,10 +246,10 @@ export default function VenueEventRequestsPage() {
                     {[1, 2, 3].map(i => (
                         <div key={i} className="card p-6 animate-pulse">
                             <div className="flex items-center gap-4">
-                                <div className="w-20 h-20 rounded-xl bg-[var(--bg-fill)]" />
+                                <div className="w-20 h-20 rounded-xl bg-[#f5f5f7]" />
                                 <div className="flex-1 space-y-2">
-                                    <div className="h-5 w-48 bg-[var(--bg-fill)] rounded" />
-                                    <div className="h-4 w-32 bg-[var(--bg-fill)] rounded" />
+                                    <div className="h-5 w-48 bg-[#f5f5f7] rounded" />
+                                    <div className="h-4 w-32 bg-[#f5f5f7] rounded" />
                                 </div>
                             </div>
                         </div>
@@ -257,11 +257,11 @@ export default function VenueEventRequestsPage() {
                 </div>
             ) : requests.length === 0 ? (
                 <div className="card p-12 text-center">
-                    <div className="w-16 h-16 rounded-full bg-[var(--bg-fill)] flex items-center justify-center mx-auto mb-4">
-                        <Calendar className="w-8 h-8 text-[var(--text-tertiary)]" />
+                    <div className="w-16 h-16 rounded-full bg-[#f5f5f7] flex items-center justify-center mx-auto mb-4">
+                        <Calendar className="w-8 h-8 text-[#86868b]" />
                     </div>
                     <h3 className="text-headline-sm mb-2">No {activeTab === "pending" ? "Pending" : ""} Requests</h3>
-                    <p className="text-body-sm text-[var(--text-tertiary)]">
+                    <p className="text-body-sm text-[#86868b]">
                         {activeTab === "pending"
                             ? "All event requests have been reviewed."
                             : "No hosts have requested event slots yet."}
@@ -270,13 +270,16 @@ export default function VenueEventRequestsPage() {
             ) : (
                 <div className="space-y-4">
                     {requests.map(request => (
-                        <div
+                        <motion.div
                             key={request.id}
-                            className="rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-[var(--shadow-sm)] p-5"
+                            layout
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="card p-6"
                         >
                             <div className="flex items-start gap-4">
                                 {/* Event Image */}
-                                <div className="w-24 h-24 rounded-xl bg-[var(--bg-fill)] overflow-hidden flex-shrink-0">
+                                <div className="w-24 h-24 rounded-xl bg-[#f5f5f7] overflow-hidden flex-shrink-0">
                                     {request.image ? (
                                         <img
                                             src={request.image}
@@ -285,7 +288,7 @@ export default function VenueEventRequestsPage() {
                                         />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center">
-                                            <Calendar className="w-8 h-8 text-[var(--text-tertiary)]" />
+                                            <Calendar className="w-8 h-8 text-[#86868b]" />
                                         </div>
                                     )}
                                 </div>
@@ -306,7 +309,7 @@ export default function VenueEventRequestsPage() {
                                     </div>
 
                                     <div className="grid grid-cols-3 gap-4 mt-4">
-                                        <div className="flex items-center gap-2 text-[13px] text-[var(--text-tertiary)]">
+                                        <div className="flex items-center gap-2 text-[13px] text-[#6e6e73]">
                                             <Calendar className="w-4 h-4" />
                                             {request.slotRequest?.requestedDate
                                                 ? new Date(request.slotRequest.requestedDate).toLocaleDateString("en-IN", {
@@ -316,11 +319,11 @@ export default function VenueEventRequestsPage() {
                                                 })
                                                 : "No date"}
                                         </div>
-                                        <div className="flex items-center gap-2 text-[13px] text-[var(--text-tertiary)]">
+                                        <div className="flex items-center gap-2 text-[13px] text-[#6e6e73]">
                                             <Clock className="w-4 h-4" />
                                             {request.slotRequest?.requestedStartTime || request.startTime} - {request.slotRequest?.requestedEndTime || request.endTime}
                                         </div>
-                                        <div className="flex items-center gap-2 text-[13px] text-[var(--text-tertiary)]">
+                                        <div className="flex items-center gap-2 text-[13px] text-[#6e6e73]">
                                             <Users className="w-4 h-4" />
                                             {request.capacity} capacity
                                         </div>
@@ -328,8 +331,8 @@ export default function VenueEventRequestsPage() {
 
                                     {/* Notes */}
                                     {request.slotRequest?.notes && (
-                                        <div className="mt-3 p-3 rounded-lg bg-[var(--bg-fill)]">
-                                            <p className="text-[13px] text-[var(--text-tertiary)]">
+                                        <div className="mt-3 p-3 rounded-lg bg-[#f5f5f7]">
+                                            <p className="text-[13px] text-[#6e6e73]">
                                                 <strong>Host Note:</strong> {request.slotRequest.notes}
                                             </p>
                                         </div>
@@ -366,7 +369,7 @@ export default function VenueEventRequestsPage() {
                                     </div>
                                 )}
                             </div>
-                        </div>
+                        </motion.div>
                     ))}
                 </div>
             )}
@@ -382,11 +385,10 @@ export default function VenueEventRequestsPage() {
                         onClick={() => setActionModal({ type: null, request: null })}
                     >
                         <motion.div
-                            initial={{ scale: 0.95, opacity: 0, y: 8 }}
-                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
-                            transition={{ type: "spring", damping: 25, stiffness: 400 }}
-                            className="bg-[var(--bg-elevated)] rounded-[var(--r-xl)] p-6 max-w-md w-full shadow-[var(--shadow-xl)]"
+                            className="bg-surface-elevated rounded-2xl p-6 max-w-md w-full shadow-xl"
                             onClick={e => e.stopPropagation()}
                         >
                             <h3 className="text-title mb-2">
@@ -394,15 +396,15 @@ export default function VenueEventRequestsPage() {
                                 {actionModal.type === "reject" && "Reject Event"}
                                 {actionModal.type === "changes" && "Request Changes"}
                             </h3>
-                            <p className="text-body-sm text-[var(--text-tertiary)] mb-6">
+                            <p className="text-body-sm text-[#86868b] mb-6">
                                 {actionModal.type === "approve" && "This will confirm the slot and approve the event for publication."}
                                 {actionModal.type === "reject" && "The host will be notified of the rejection and can request a different date."}
                                 {actionModal.type === "changes" && "Suggest alternative dates or request modifications."}
                             </p>
 
-                            <div className="p-4 rounded-xl bg-[var(--bg-fill)] mb-4">
-                                <p className="text-[15px] font-semibold text-[var(--text-primary)]">{actionModal.request.title}</p>
-                                <p className="text-[13px] text-[var(--text-tertiary)]">
+                            <div className="p-4 rounded-xl bg-[#f5f5f7] mb-4">
+                                <p className="text-[15px] font-semibold text-[#1d1d1f]">{actionModal.request.title}</p>
+                                <p className="text-[13px] text-[#86868b]">
                                     {actionModal.request.slotRequest?.requestedDate} • {actionModal.request.slotRequest?.requestedStartTime}
                                 </p>
                             </div>
@@ -416,7 +418,7 @@ export default function VenueEventRequestsPage() {
                                         : "Provide a reason or suggestion..."
                                 }
                                 rows={3}
-                                className="w-full px-4 py-3 rounded-[var(--r-md)] bg-[var(--bg-fill)] border border-[var(--border-subtle)] dash-body resize-none focus:outline-none focus:border-[var(--color-info)] focus:bg-[var(--bg-elevated)] transition-all mb-4 text-[var(--text-primary)]"
+                                className="w-full px-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] resize-none focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all mb-4"
                             />
 
                             <div className="flex gap-3">
@@ -435,7 +437,7 @@ export default function VenueEventRequestsPage() {
                                     className={`flex-1 btn ${actionModal.type === "approve"
                                         ? "btn-primary"
                                         : actionModal.type === "reject"
-                                            ? "bg-[var(--color-error)] text-white hover:opacity-90"
+                                            ? "bg-[#ff3b30] text-text-primary hover:bg-[#ff3b30]/90"
                                             : "btn-primary"
                                         }`}
                                 >

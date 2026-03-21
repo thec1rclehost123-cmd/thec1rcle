@@ -75,12 +75,12 @@ export default function HostSidebar() {
             <div className="p-8 border-b border-black/[0.05]">
                 <div className="flex items-center gap-4">
                     <div className="h-10 w-10 rounded-lg bg-black flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.1)]">
-                        <UserCircle className="h-5 w-5 text-[var(--text-primary)]" />
+                        <UserCircle className="h-5 w-5 text-text-primary" />
                     </div>
                     <div className="min-w-0">
-                        <h1 className="font-bold text-[var(--text-primary)] text-base tracking-tight truncate">C1RCLE</h1>
+                        <h1 className="font-bold text-text-primary text-base tracking-tight truncate">C1RCLE</h1>
                         <div className="flex items-center gap-2">
-                            <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-[0.2em] font-bold">Host Account</p>
+                            <p className="text-[10px] text-text-secondary uppercase tracking-[0.2em] font-bold">Host Account</p>
                         </div>
                     </div>
                 </div>
@@ -90,7 +90,7 @@ export default function HostSidebar() {
             <div className="flex-1 overflow-y-auto py-8 px-6 space-y-10 custom-scrollbar">
                 {menuItems.map((section, idx) => (
                     <div key={idx}>
-                        <h3 className="px-3 text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.3em] mb-4">
+                        <h3 className="px-3 text-[10px] font-bold text-text-tertiary uppercase tracking-[0.3em] mb-4">
                             {cleanJargon(section.category)}
                         </h3>
                         <div className="space-y-1">
@@ -99,12 +99,12 @@ export default function HostSidebar() {
                                     key={item.href}
                                     href={item.href}
                                     className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group ${isActive(item.href)
-                                        ? "bg-black/10 text-[var(--text-primary)] backdrop-blur-md border border-black/10"
-                                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/5"
+                                        ? "bg-black/10 text-text-primary backdrop-blur-md border border-black/10"
+                                        : "text-text-secondary hover:text-text-primary hover:bg-black/5"
                                         }`}
                                 >
                                     <div className="flex items-center gap-4">
-                                        <item.icon className={`w-4 h-4 ${isActive(item.href) ? "text-[var(--text-primary)]" : "text-[var(--text-primary)]/30 group-hover:text-[var(--text-primary)]/50"}`} />
+                                        <item.icon className={`w-4 h-4 ${isActive(item.href) ? "text-text-primary" : "text-text-primary/30 group-hover:text-text-primary/50"}`} />
                                         <span className="text-sm font-medium tracking-tight">{cleanJargon(item.label)}</span>
                                     </div>
                                     {isActive(item.href) && <div className="h-1 w-1 rounded-full bg-iris shadow-[0_0_10px_#F44A22]" />}
@@ -118,17 +118,17 @@ export default function HostSidebar() {
             {/* Footer / Account */}
             <div className="p-6 border-t border-black/[0.05]">
                 <div className="mb-6 px-2">
-                    <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-3">Your Account</p>
+                    <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-3">Your Account</p>
                     <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-black/5 flex items-center justify-center text-[11px] font-bold text-[var(--text-primary)]/80 border border-black/5">
+                        <div className="w-9 h-9 rounded-full bg-black/5 flex items-center justify-center text-[11px] font-bold text-text-primary/80 border border-black/5">
                             {profile?.displayName?.charAt(0) || "U"}
                         </div>
-                        <p className="text-sm font-medium text-[var(--text-primary)] truncate">{profile?.displayName || "User"}</p>
+                        <p className="text-sm font-medium text-text-primary truncate">{profile?.displayName || "User"}</p>
                     </div>
                 </div>
                 <button
                     onClick={() => signOut()}
-                    className="flex items-center gap-3 px-5 py-3 w-full rounded-xl text-[var(--text-primary)]/50 hover:bg-iris/5 hover:text-iris transition-all font-medium text-sm"
+                    className="flex items-center gap-3 px-5 py-3 w-full rounded-xl text-text-primary/50 hover:bg-iris/5 hover:text-iris transition-all font-medium text-sm"
                 >
                     <LogOut className="w-4 h-4" />
                     <span>Log Out</span>

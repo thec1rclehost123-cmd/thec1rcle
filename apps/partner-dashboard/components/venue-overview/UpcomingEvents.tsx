@@ -14,38 +14,38 @@ const LIFECYCLE_CONFIG: Record<
 > = {
     published: {
         label: "Live",
-        color: "var(--color-success)",
-        bg: "var(--color-success-bg)",
+        color: "var(--v-success)",
+        bg: "var(--v-success-bg)",
     },
     live: {
         label: "Live",
-        color: "var(--color-success)",
-        bg: "var(--color-success-bg)",
+        color: "var(--v-success)",
+        bg: "var(--v-success-bg)",
     },
     pending: {
         label: "Pending",
-        color: "var(--color-warning)",
-        bg: "var(--color-warning-bg)",
+        color: "var(--v-warning)",
+        bg: "var(--v-warning-bg)",
     },
     draft: {
         label: "Draft",
-        color: "var(--text-tertiary)",
+        color: "var(--v-text-tertiary)",
         bg: "rgba(255,255,255,0.06)",
     },
     completed: {
         label: "Done",
-        color: "var(--text-secondary)",
+        color: "var(--v-text-secondary)",
         bg: "rgba(255,255,255,0.06)",
     },
     cancelled: {
         label: "Cancelled",
-        color: "var(--color-error)",
-        bg: "var(--color-error-bg)",
+        color: "var(--v-error)",
+        bg: "var(--v-error-bg)",
     },
     scheduled: {
         label: "Scheduled",
-        color: "var(--color-info)",
-        bg: "var(--color-info-bg)",
+        color: "var(--v-info)",
+        bg: "var(--v-info-bg)",
     },
 };
 
@@ -81,17 +81,17 @@ function EventCard({ event }: { event: UpcomingEvent }) {
         <Link
             href={`/venue/events/${event.id}`}
             className="group p-4 rounded-2xl flex flex-col gap-2 transition-all hover:brightness-110 active:scale-[0.98]"
-            style={{ background: "var(--bg-fill)" }}
+            style={{ background: "var(--v-elevated)" }}
         >
             <p
                 className="text-[11px] font-medium"
-                style={{ color: "var(--text-tertiary)" }}
+                style={{ color: "var(--v-text-tertiary)" }}
             >
                 {formatEventDate(dateStr)}
             </p>
             <p
                 className="text-[13px] font-semibold line-clamp-2 leading-tight"
-                style={{ color: "var(--text-primary)" }}
+                style={{ color: "var(--v-text-primary)" }}
             >
                 {event.title}
             </p>
@@ -126,20 +126,20 @@ export const UpcomingEvents = memo(function UpcomingEvents({
     return (
         <div
             className="rounded-[32px] p-5 sm:p-6"
-            style={{ background: "var(--bg-elevated)" }}
+            style={{ background: "var(--v-card)" }}
         >
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
                 <h2
                     className="v-text-section"
-                    style={{ color: "var(--text-primary)" }}
+                    style={{ color: "var(--v-text-primary)" }}
                 >
                     Upcoming Schedule
                 </h2>
                 <Link
                     href="/venue/calendar"
                     className="inline-flex items-center gap-1 text-[12px] font-semibold hover:underline"
-                    style={{ color: "var(--accent)" }}
+                    style={{ color: "var(--v-orange)" }}
                 >
                     View Calendar <ArrowRight className="w-3 h-3" />
                 </Link>
@@ -160,11 +160,11 @@ export const UpcomingEvents = memo(function UpcomingEvents({
                 <div className="py-14 flex flex-col items-center text-center gap-3">
                     <Calendar
                         className="w-8 h-8"
-                        style={{ color: "var(--text-tertiary)" }}
+                        style={{ color: "var(--v-text-muted)" }}
                     />
                     <p
                         className="text-[13px]"
-                        style={{ color: "var(--text-tertiary)" }}
+                        style={{ color: "var(--v-text-tertiary)" }}
                     >
                         No upcoming events scheduled
                     </p>

@@ -342,7 +342,7 @@ export function StaffProfilesClient() {
         >
             {loading ? (
                 <div className="flex items-center justify-center py-20">
-                    <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--text-tertiary)" }} />
+                    <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--v-text-muted)" }} />
                 </div>
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
@@ -352,16 +352,16 @@ export function StaffProfilesClient() {
                         {profiles.length === 0 ? (
                             <div
                                 className="rounded-2xl border p-8 flex flex-col items-center gap-3 text-center"
-                                style={{ borderColor: "var(--border-subtle)", background: "var(--bg-elevated)" }}
+                                style={{ borderColor: "var(--v-border)", background: "var(--v-card)" }}
                             >
-                                <Shield className="w-8 h-8" style={{ color: "var(--text-tertiary)" }} />
-                                <p className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>No profiles yet</p>
-                                <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                                <Shield className="w-8 h-8" style={{ color: "var(--v-text-muted)" }} />
+                                <p className="text-[13px] font-semibold" style={{ color: "var(--v-text-primary)" }}>No profiles yet</p>
+                                <p className="text-[11px]" style={{ color: "var(--v-text-muted)" }}>
                                     Create a profile to define tab visibility, action permissions, and PII rules.
                                 </p>
                                 <Link href="/venue/staff/profiles/new">
                                     <button className="mt-1 px-4 py-2 rounded-xl text-[12px] font-bold"
-                                        style={{ background: "var(--accent)", color: "#fff" }}>
+                                        style={{ background: "var(--v-orange)", color: "#fff" }}>
                                         Create First Profile
                                     </button>
                                 </Link>
@@ -386,8 +386,8 @@ export function StaffProfilesClient() {
                                             onClick={() => setSelectedProfileId(prev => prev === p.id ? null : p.id)}
                                             className="rounded-2xl border px-4 py-3.5 cursor-pointer transition-all"
                                             style={{
-                                                borderColor: isSelected ? "var(--accent)" : "var(--border-subtle)",
-                                                background: isSelected ? "rgba(249,115,22,0.06)" : "var(--bg-elevated)",
+                                                borderColor: isSelected ? "var(--v-orange)" : "var(--v-border)",
+                                                background: isSelected ? "rgba(249,115,22,0.06)" : "var(--v-card)",
                                             }}
                                         >
                                             <div className="flex items-center gap-3">
@@ -398,7 +398,7 @@ export function StaffProfilesClient() {
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[13px] font-semibold truncate"
-                                                            style={{ color: "var(--text-primary)" }}>
+                                                            style={{ color: "var(--v-text-primary)" }}>
                                                             {p.profileName}
                                                         </span>
                                                         {!p.isActive && (
@@ -413,7 +413,7 @@ export function StaffProfilesClient() {
                                                             style={{ background: rc.bg, color: rc.text }}>
                                                             {p.baseRole}
                                                         </span>
-                                                        <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                                                        <span className="text-[10px]" style={{ color: "var(--v-text-muted)" }}>
                                                             {count} staff
                                                         </span>
                                                     </div>
@@ -424,9 +424,9 @@ export function StaffProfilesClient() {
                                                             <div key={s.id}
                                                                 className="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-black border-2"
                                                                 style={{
-                                                                    background: "var(--bg-fill)",
-                                                                    color: "var(--text-primary)",
-                                                                    borderColor: isSelected ? "rgba(249,115,22,0.06)" : "var(--bg-elevated)",
+                                                                    background: "var(--v-elevated)",
+                                                                    color: "var(--v-text-primary)",
+                                                                    borderColor: isSelected ? "rgba(249,115,22,0.06)" : "var(--v-card)",
                                                                 }}
                                                                 title={s.name}>
                                                                 {initials(s.name)}
@@ -444,20 +444,20 @@ export function StaffProfilesClient() {
                         {/* Unassigned bucket */}
                         {unassignedStaff.length > 0 && (
                             <div className="rounded-2xl border px-4 py-3 mt-2"
-                                style={{ borderColor: "var(--border-subtle)", background: "var(--bg-elevated)", opacity: 0.75 }}>
+                                style={{ borderColor: "var(--v-border)", background: "var(--v-card)", opacity: 0.75 }}>
                                 <p className="v-label text-[9px] mb-2">UNASSIGNED ({unassignedStaff.length})</p>
                                 <div className="space-y-1.5">
                                     {unassignedStaff.map(s => (
                                         <div key={s.id} className="flex items-center gap-2">
                                             <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[8px] font-black shrink-0"
-                                                style={{ background: "var(--bg-fill)", color: "var(--text-tertiary)" }}>
+                                                style={{ background: "var(--v-elevated)", color: "var(--v-text-muted)" }}>
                                                 {initials(s.name)}
                                             </div>
-                                            <span className="text-[11px] truncate" style={{ color: "var(--text-secondary)" }}>
+                                            <span className="text-[11px] truncate" style={{ color: "var(--v-text-secondary)" }}>
                                                 {s.name}
                                             </span>
                                             <span className="text-[9px] font-bold ml-auto shrink-0"
-                                                style={{ color: "var(--text-tertiary)" }}>
+                                                style={{ color: "var(--v-text-muted)" }}>
                                                 {ROLE_LABELS[s.role] ?? s.role}
                                             </span>
                                         </div>
@@ -471,18 +471,18 @@ export function StaffProfilesClient() {
                     <div className="lg:col-span-8 lg:sticky lg:top-28">
                         {selectedProfile ? (
                             <div className="rounded-2xl border space-y-0 overflow-hidden"
-                                style={{ borderColor: "var(--border-subtle)", background: "var(--bg-elevated)" }}>
+                                style={{ borderColor: "var(--v-border)", background: "var(--v-card)" }}>
 
                                 {/* Header */}
                                 <div className="flex items-center justify-between gap-3 px-5 py-4 border-b"
-                                    style={{ borderColor: "var(--border-subtle)" }}>
+                                    style={{ borderColor: "var(--v-border)" }}>
                                     <div className="flex items-center gap-3">
                                         <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                                             style={{ background: (ROLE_COLORS[selectedProfile.baseRole] ?? ROLE_COLORS.STAFF).bg }}>
                                             <Shield className="w-4 h-4" style={{ color: (ROLE_COLORS[selectedProfile.baseRole] ?? ROLE_COLORS.STAFF).text }} />
                                         </div>
                                         <div>
-                                            <h3 className="text-[14px] font-bold" style={{ color: "var(--text-primary)" }}>
+                                            <h3 className="text-[14px] font-bold" style={{ color: "var(--v-text-primary)" }}>
                                                 {selectedProfile.profileName}
                                             </h3>
                                             <span className="text-[9px] font-black px-2 py-0.5 rounded-full"
@@ -505,7 +505,7 @@ export function StaffProfilesClient() {
                                 {/* Scrollable body */}
                                 <div className="overflow-y-auto max-h-[calc(100vh-260px)]">
                                     <div className="grid grid-cols-1 xl:grid-cols-2 divide-y xl:divide-y-0 xl:divide-x"
-                                        style={{ borderColor: "var(--border-subtle)" }}>
+                                        style={{ borderColor: "var(--v-border)" }}>
 
                                         {/* Left column: tabs + staff */}
                                         <div className="p-5 space-y-6">
@@ -518,8 +518,8 @@ export function StaffProfilesClient() {
                                                             className="flex items-center justify-between py-2 px-2 rounded-xl hover:brightness-110 transition-all"
                                                             style={{ background: "transparent" }}>
                                                             <div className="flex items-center gap-2.5">
-                                                                <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--text-tertiary)" }} />
-                                                                <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
+                                                                <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--v-text-muted)" }} />
+                                                                <span className="text-[12px]" style={{ color: "var(--v-text-secondary)" }}>
                                                                     {label}
                                                                 </span>
                                                             </div>
@@ -539,9 +539,9 @@ export function StaffProfilesClient() {
                                                     onChange={e => setEditScope(e.target.value as GuestlistScope)}
                                                     className="w-full text-[12px] rounded-xl px-3 py-2"
                                                     style={{
-                                                        background: "var(--bg-fill)",
-                                                        color: "var(--text-primary)",
-                                                        border: "1px solid var(--border-subtle)",
+                                                        background: "var(--v-elevated)",
+                                                        color: "var(--v-text-primary)",
+                                                        border: "1px solid var(--v-border)",
                                                         outline: "none",
                                                     }}
                                                 >
@@ -554,7 +554,7 @@ export function StaffProfilesClient() {
                                             {/* Assigned staff */}
                                             <Section title={`ASSIGNED STAFF (${profileStaff.length})`}>
                                                 {profileStaff.length === 0 ? (
-                                                    <p className="text-[11px] px-1" style={{ color: "var(--text-tertiary)" }}>
+                                                    <p className="text-[11px] px-1" style={{ color: "var(--v-text-muted)" }}>
                                                         No staff assigned. Add below.
                                                     </p>
                                                 ) : (
@@ -566,16 +566,16 @@ export function StaffProfilesClient() {
                                                                     animate={{ opacity: 1, x: 0 }}
                                                                     exit={{ opacity: 0, x: 6 }}
                                                                     className="flex items-center gap-3 px-3 py-2 rounded-xl"
-                                                                    style={{ background: "var(--bg-fill)" }}>
+                                                                    style={{ background: "var(--v-elevated)" }}>
                                                                     <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[9px] font-black shrink-0"
-                                                                        style={{ background: "var(--bg-elevated)", color: "var(--text-primary)" }}>
+                                                                        style={{ background: "var(--v-card)", color: "var(--v-text-primary)" }}>
                                                                         {initials(s.name)}
                                                                     </div>
                                                                     <div className="min-w-0 flex-1">
-                                                                        <p className="text-[12px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>
+                                                                        <p className="text-[12px] font-semibold truncate" style={{ color: "var(--v-text-primary)" }}>
                                                                             {s.name}
                                                                         </p>
-                                                                        <p className="text-[10px] truncate" style={{ color: "var(--text-tertiary)" }}>
+                                                                        <p className="text-[10px] truncate" style={{ color: "var(--v-text-muted)" }}>
                                                                             {s.email}
                                                                         </p>
                                                                     </div>
@@ -602,9 +602,9 @@ export function StaffProfilesClient() {
                                                                 onChange={e => setAssignTarget(e.target.value)}
                                                                 className="w-full appearance-none text-[12px] font-medium rounded-xl px-3 py-2 pr-7"
                                                                 style={{
-                                                                    background: "var(--bg-fill)",
-                                                                    color: assignTarget ? "var(--text-primary)" : "var(--text-tertiary)",
-                                                                    border: "1px solid var(--border-subtle)",
+                                                                    background: "var(--v-elevated)",
+                                                                    color: assignTarget ? "var(--v-text-primary)" : "var(--v-text-muted)",
+                                                                    border: "1px solid var(--v-border)",
                                                                     outline: "none",
                                                                 }}>
                                                                 <option value="">Add staff member…</option>
@@ -615,11 +615,11 @@ export function StaffProfilesClient() {
                                                                 ))}
                                                             </select>
                                                             <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5"
-                                                                style={{ color: "var(--text-tertiary)" }} />
+                                                                style={{ color: "var(--v-text-muted)" }} />
                                                         </div>
                                                         <button onClick={handleAssign} disabled={!assignTarget || assigning}
                                                             className="px-4 py-2 rounded-xl text-[12px] font-bold hover:brightness-110 disabled:opacity-40 flex items-center gap-1.5"
-                                                            style={{ background: "var(--accent)", color: "#fff" }}>
+                                                            style={{ background: "var(--v-orange)", color: "#fff" }}>
                                                             {assigning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                                                             Assign
                                                         </button>
@@ -645,10 +645,10 @@ export function StaffProfilesClient() {
                                                             className="flex items-center justify-between py-2 px-2 rounded-xl">
                                                             <div className="flex items-center gap-2.5">
                                                                 {editPii[key]
-                                                                    ? <Eye className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--text-tertiary)" }} />
-                                                                    : <EyeOff className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--text-tertiary)" }} />
+                                                                    ? <Eye className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--v-text-muted)" }} />
+                                                                    : <EyeOff className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--v-text-muted)" }} />
                                                                 }
-                                                                <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
+                                                                <span className="text-[12px]" style={{ color: "var(--v-text-secondary)" }}>
                                                                     {label}
                                                                 </span>
                                                             </div>
@@ -668,7 +668,7 @@ export function StaffProfilesClient() {
                                                         {grp.actions.map(({ key, label }) => (
                                                             <div key={key}
                                                                 className="flex items-center justify-between py-2 px-2 rounded-xl">
-                                                                <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
+                                                                <span className="text-[12px]" style={{ color: "var(--v-text-secondary)" }}>
                                                                     {label}
                                                                 </span>
                                                                 <Toggle
@@ -686,19 +686,19 @@ export function StaffProfilesClient() {
 
                                 {/* Save bar */}
                                 <div className="flex items-center justify-between gap-3 px-5 py-3 border-t"
-                                    style={{ borderColor: "var(--border-subtle)" }}>
+                                    style={{ borderColor: "var(--v-border)" }}>
                                     {saveError ? (
                                         <p className="text-[11px]" style={{ color: "#f87171" }}>{saveError}</p>
                                     ) : saved ? (
                                         <p className="text-[11px]" style={{ color: "#34d399" }}>Saved — changes apply on staff's next page load</p>
                                     ) : (
-                                        <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                                        <p className="text-[11px]" style={{ color: "var(--v-text-muted)" }}>
                                             Toggle permissions then save
                                         </p>
                                     )}
                                     <button onClick={handleSave} disabled={saving}
                                         className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold hover:brightness-110 disabled:opacity-50"
-                                        style={{ background: "var(--accent)", color: "#fff" }}>
+                                        style={{ background: "var(--v-orange)", color: "#fff" }}>
                                         {saving
                                             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                             : <Save className="w-3.5 h-3.5" />
@@ -709,9 +709,9 @@ export function StaffProfilesClient() {
                             </div>
                         ) : (
                             <div className="rounded-2xl border flex flex-col items-center justify-center py-16 gap-3 text-center"
-                                style={{ borderColor: "var(--border-subtle)", background: "var(--bg-elevated)" }}>
-                                <Shield className="w-8 h-8" style={{ color: "var(--text-tertiary)" }} />
-                                <p className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>
+                                style={{ borderColor: "var(--v-border)", background: "var(--v-card)" }}>
+                                <Shield className="w-8 h-8" style={{ color: "var(--v-text-muted)" }} />
+                                <p className="text-[12px]" style={{ color: "var(--v-text-muted)" }}>
                                     Select a profile on the left to edit its permissions
                                 </p>
                             </div>
@@ -721,11 +721,11 @@ export function StaffProfilesClient() {
             )}
 
             <div className="mt-6 rounded-xl border p-4"
-                style={{ borderColor: "var(--border-subtle)", background: "var(--bg-elevated)", opacity: 0.7 }}>
-                <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
-                    Each staff member has a <strong style={{ color: "var(--text-secondary)" }}>base role</strong> that sets default access.
-                    An <strong style={{ color: "var(--text-secondary)" }}>access profile</strong> overlays custom tab visibility, action gates, and PII rules.
-                    Changes take effect on the staff member's <strong style={{ color: "var(--text-secondary)" }}>next page load</strong>.
+                style={{ borderColor: "var(--v-border)", background: "var(--v-card)", opacity: 0.7 }}>
+                <p className="text-[11px] leading-relaxed" style={{ color: "var(--v-text-muted)" }}>
+                    Each staff member has a <strong style={{ color: "var(--v-text-secondary)" }}>base role</strong> that sets default access.
+                    An <strong style={{ color: "var(--v-text-secondary)" }}>access profile</strong> overlays custom tab visibility, action gates, and PII rules.
+                    Changes take effect on the staff member's <strong style={{ color: "var(--v-text-secondary)" }}>next page load</strong>.
                 </p>
             </div>
         </VenuePageShell>

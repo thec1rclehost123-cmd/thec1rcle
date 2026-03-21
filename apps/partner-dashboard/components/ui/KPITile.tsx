@@ -40,8 +40,8 @@ interface KPITileProps {
 
 const stateStyles: Record<KPIState, { icon: string; border: string }> = {
     default: {
-        icon: "bg-[var(--bg-secondary)] text-[var(--text-tertiary)]",
-        border: "border-[var(--border-subtle)]"
+        icon: "bg-surface-tertiary text-text-tertiary",
+        border: "border-border-subtle"
     },
     success: {
         icon: "bg-green-500/10 text-accent-primary",
@@ -91,7 +91,7 @@ export function KPITile({
     const getTrendColor = () => {
         if (!trend) return "";
         const isPositive = trend.isPositive ?? (trend.direction === "up");
-        if (trend.direction === "neutral") return "text-[var(--text-tertiary)] bg-[var(--bg-secondary)]";
+        if (trend.direction === "neutral") return "text-text-tertiary bg-surface-tertiary";
         return isPositive
             ? "text-[var(--trend-up)] bg-[var(--trend-up-bg)]"
             : "text-[var(--trend-down)] bg-[var(--trend-down-bg)]";
@@ -134,7 +134,7 @@ export function KPITile({
             {/* Value + Trend */}
             <div className="flex items-end gap-3 flex-wrap">
                 <h3 className={cn(
-                    "kpi-value font-semibold tracking-tight text-[var(--text-primary)]",
+                    "kpi-value font-semibold tracking-tight text-text-primary",
                     compact ? "text-2xl" : "text-[32px]"
                 )}>
                     {formattedValue}
@@ -155,7 +155,7 @@ export function KPITile({
 
             {/* Subtext */}
             {subtext && (
-                <p className="text-[12px] text-[var(--text-tertiary)] mt-2">
+                <p className="text-[12px] text-text-tertiary mt-2">
                     {subtext}
                 </p>
             )}
@@ -199,10 +199,10 @@ interface MiniStatProps {
 
 export function MiniStat({ label, value, trend, trendValue }: MiniStatProps) {
     return (
-        <div className="flex items-center justify-between py-3 border-b border-[var(--border-subtle)] last:border-b-0">
-            <span className="text-[13px] text-[var(--text-secondary)]">{label}</span>
+        <div className="flex items-center justify-between py-3 border-b border-border-subtle last:border-b-0">
+            <span className="text-[13px] text-text-secondary">{label}</span>
             <div className="flex items-center gap-2">
-                <span className="text-[15px] font-semibold text-[var(--text-primary)] tabular-nums">
+                <span className="text-[15px] font-semibold text-text-primary tabular-nums">
                     {value}
                 </span>
                 {trend && trendValue && (
@@ -210,7 +210,7 @@ export function MiniStat({ label, value, trend, trendValue }: MiniStatProps) {
                         "text-[11px] font-medium flex items-center gap-0.5",
                         trend === "up" && "text-[var(--trend-up)]",
                         trend === "down" && "text-[var(--trend-down)]",
-                        trend === "neutral" && "text-[var(--text-tertiary)]"
+                        trend === "neutral" && "text-text-tertiary"
                     )}>
                         {trend === "up" && <ArrowUp className="w-3 h-3" />}
                         {trend === "down" && <ArrowDown className="w-3 h-3" />}
@@ -249,15 +249,15 @@ export function HeroStat({
 }: HeroStatProps) {
     return (
         <div className={cn("text-center py-8", className)}>
-            <p className="text-label-sm text-[var(--text-tertiary)] mb-4 uppercase tracking-widest">
+            <p className="text-label-sm text-text-tertiary mb-4 uppercase tracking-widest">
                 {label}
             </p>
             <div className="flex items-baseline justify-center gap-2">
                 {prefix && (
-                    <span className="text-stat-lg text-[var(--text-tertiary)]">{prefix}</span>
+                    <span className="text-stat-lg text-text-tertiary">{prefix}</span>
                 )}
                 <motion.span
-                    className="text-stat-hero text-[var(--text-primary)]"
+                    className="text-stat-hero text-text-primary"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, ease: "easeOut" }}
@@ -265,7 +265,7 @@ export function HeroStat({
                     {value}
                 </motion.span>
                 {suffix && (
-                    <span className="text-stat-lg text-[var(--text-tertiary)]">{suffix}</span>
+                    <span className="text-stat-lg text-text-tertiary">{suffix}</span>
                 )}
             </div>
             {trend && (
@@ -274,7 +274,7 @@ export function HeroStat({
                         "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold",
                         trend.direction === "up" && "bg-[var(--trend-up-bg)] text-[var(--trend-up)]",
                         trend.direction === "down" && "bg-[var(--trend-down-bg)] text-[var(--trend-down)]",
-                        trend.direction === "neutral" && "bg-[var(--bg-secondary)] text-[var(--text-tertiary)]"
+                        trend.direction === "neutral" && "bg-surface-tertiary text-text-tertiary"
                     )}>
                         {trend.direction === "up" && <ArrowUp className="w-3.5 h-3.5" />}
                         {trend.direction === "down" && <ArrowDown className="w-3.5 h-3.5" />}
@@ -283,7 +283,7 @@ export function HeroStat({
                 </div>
             )}
             {description && (
-                <p className="text-body-sm text-[var(--text-tertiary)] mt-3">
+                <p className="text-body-sm text-text-tertiary mt-3">
                     {description}
                 </p>
             )}
@@ -323,11 +323,11 @@ export function ProgressStat({
     return (
         <div className="space-y-2">
             <div className="flex items-center justify-between">
-                <span className="text-[13px] text-[var(--text-secondary)]">{label}</span>
-                <span className="text-[15px] font-semibold text-[var(--text-primary)] tabular-nums">
+                <span className="text-[13px] text-text-secondary">{label}</span>
+                <span className="text-[15px] font-semibold text-text-primary tabular-nums">
                     {displayValue || value}
                     {showPercentage && (
-                        <span className="text-[11px] text-[var(--text-tertiary)] ml-1">
+                        <span className="text-[11px] text-text-tertiary ml-1">
                             ({percentage.toFixed(0)}%)
                         </span>
                     )}

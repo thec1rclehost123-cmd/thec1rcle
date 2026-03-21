@@ -37,7 +37,7 @@ export function PremiumGate({
     }
 
     return (
-        <div className="relative group overflow-hidden rounded-[2rem] border border-white/[0.08] bg-[var(--bg-elevated)]/50 backdrop-blur-md p-8 min-h-[400px] flex flex-col items-center justify-center text-center">
+        <div className="relative group overflow-hidden rounded-[2rem] border border-white/[0.08] bg-surface-elevated/50 backdrop-blur-md p-8 min-h-[400px] flex flex-col items-center justify-center text-center">
             {/* Background elements */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 rounded-full blur-[100px] -mr-32 -mt-32 group-hover:bg-orange-500/10 transition-all duration-700" />
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-[100px] -ml-32 -mb-32 group-hover:bg-indigo-500/10 transition-all duration-700" />
@@ -63,7 +63,7 @@ export function PremiumGate({
                     <h3 className="text-2xl font-black text-white tracking-tight leading-tight">
                         {featureName} is Premium
                     </h3>
-                    <p className="text-[var(--text-tertiary)] mt-2 text-sm font-medium leading-relaxed">
+                    <p className="text-text-muted mt-2 text-sm font-medium leading-relaxed">
                         {description}
                     </p>
                 </div>
@@ -73,7 +73,7 @@ export function PremiumGate({
                         Upgrade to {minPlan.toUpperCase()}
                         <Sparkles className="w-4 h-4" />
                     </button>
-                    <button className="text-xs font-bold text-[var(--text-tertiary)] hover:text-white transition-colors py-2">
+                    <button className="text-xs font-bold text-text-muted hover:text-white transition-colors py-2">
                         Compare all plans
                     </button>
                 </div>

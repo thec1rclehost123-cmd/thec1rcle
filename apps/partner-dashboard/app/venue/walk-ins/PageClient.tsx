@@ -46,19 +46,19 @@ const PAYMENT_OPTIONS: { value: PaymentMode; label: string }[] = [
 ];
 
 const CATEGORY_COLORS: Record<WalkInCategory, string> = {
-    general: "bg-[var(--bg-fill)] text-[var(--text-secondary)]",
-    vip: "bg-[var(--color-warning-bg)] text-[var(--color-warning)]",
-    couple: "bg-[rgba(255,45,85,0.10)] text-[#FF2D55]",
-    group: "bg-[var(--color-info-bg)] text-[var(--color-info)]",
-    media: "bg-[rgba(175,82,222,0.10)] text-[#AF52DE]",
-    other: "bg-[var(--bg-fill)] text-[var(--text-tertiary)]",
+    general: "bg-zinc-500/15 text-zinc-400",
+    vip: "bg-amber-500/15 text-amber-400",
+    couple: "bg-pink-500/15 text-pink-400",
+    group: "bg-blue-500/15 text-blue-400",
+    media: "bg-purple-500/15 text-purple-400",
+    other: "bg-zinc-600/15 text-zinc-500",
 };
 
 const PAYMENT_ICONS: Record<PaymentMode, string> = {
     cash: "₹",
-    card: "Card",
+    card: "💳",
     upi: "UPI",
-    complimentary: "Comp",
+    complimentary: "✓",
     other: "—",
 };
 
@@ -137,8 +137,8 @@ function QuickEntryRow({
     };
 
     return (
-        <div className="rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-[var(--shadow-sm)] p-4">
-            <p className="text-xs text-[var(--text-tertiary)] mb-3">New entry — press Enter to add</p>
+        <div className="rounded-xl border border-dashed border-border-default bg-surface-secondary p-4">
+            <p className="text-xs text-text-tertiary mb-3">New entry — press Enter to add</p>
             <div className="grid grid-cols-2 sm:grid-cols-[2fr_1fr_0.8fr_1fr_1fr_1fr_auto] gap-2 items-start">
                 <Input
                     ref={nameRef}
@@ -190,13 +190,13 @@ function QuickEntryRow({
                 <Button
                     onClick={() => mut.mutate()}
                     disabled={mut.isPending || !form.guestName.trim()}
-                    className="h-9 px-4 bg-[var(--bg-elevated)] hover:bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)]"
+                    className="h-9 px-4 bg-surface-elevated hover:bg-surface-elevated text-text-primary border border-border-default"
                 >
                     {mut.isPending ? "…" : <Plus className="h-4 w-4" />}
                 </Button>
             </div>
             {error && (
-                <p className="mt-2 flex items-center gap-1.5 text-xs text-[var(--color-error)]">
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-red-400">
                     <AlertCircle className="h-3.5 w-3.5" />{error}
                 </p>
             )}
@@ -222,34 +222,34 @@ function WalkInRow({
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 8 }}
-            className="group border-b border-[var(--border-subtle)] hover:bg-[var(--bg-fill)] transition-colors"
+            className="group border-b border-border-subtle hover:bg-surface-secondary transition-colors"
         >
-            <td className="py-2.5 px-3 text-xs text-[var(--text-tertiary)] w-10">{index + 1}</td>
-            <td className="py-2.5 px-3 text-sm text-[var(--text-primary)] font-medium">{entry.guestName}</td>
-            <td className="py-2.5 px-3 text-xs text-[var(--text-secondary)]">{entry.partySize}</td>
+            <td className="py-2.5 px-3 text-xs text-text-tertiary w-10">{index + 1}</td>
+            <td className="py-2.5 px-3 text-sm text-text-primary font-medium">{entry.guestName}</td>
+            <td className="py-2.5 px-3 text-xs text-text-secondary">{entry.partySize}</td>
             <td className="py-2.5 px-3">
                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${CATEGORY_COLORS[entry.category]}`}>
                     {entry.category}
                 </span>
             </td>
-            <td className="py-2.5 px-3 text-xs text-[var(--text-secondary)]">
+            <td className="py-2.5 px-3 text-xs text-text-secondary">
                 <span className="font-mono">{PAYMENT_ICONS[entry.paymentMode]}</span>
                 {" "}{entry.paymentMode}
             </td>
-            <td className="py-2.5 px-3 text-xs text-[var(--text-secondary)] tabular-nums">
+            <td className="py-2.5 px-3 text-xs text-text-secondary tabular-nums">
                 {entry.amountPaise > 0
                     ? `₹${(entry.amountPaise / 100).toLocaleString("en-IN")}`
                     : "—"}
             </td>
-            <td className="py-2.5 px-3 text-xs text-[var(--text-tertiary)]">
+            <td className="py-2.5 px-3 text-xs text-text-tertiary">
                 {new Date(entry.addedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
             </td>
-            <td className="py-2.5 px-3 text-xs text-[var(--text-tertiary)] truncate max-w-[120px]">{entry.addedByName}</td>
-            <td className="py-2.5 px-3 text-xs text-[var(--text-tertiary)] truncate max-w-[160px]">{entry.note}</td>
+            <td className="py-2.5 px-3 text-xs text-text-tertiary truncate max-w-[120px]">{entry.addedByName}</td>
+            <td className="py-2.5 px-3 text-xs text-text-tertiary truncate max-w-[160px]">{entry.note}</td>
             <td className="py-2.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                     onClick={() => onVoid(entry)}
-                    className="rounded-lg p-1 text-[var(--text-tertiary)] hover:text-[var(--color-error)] hover:bg-[var(--color-error-bg)] transition-colors"
+                    className="rounded-lg p-1 text-text-tertiary hover:text-red-400 hover:bg-red-500/10 transition-colors"
                     title="Void"
                 >
                     <X className="h-3.5 w-3.5" />
@@ -268,16 +268,16 @@ function TotalsBar({
     return (
         <div className="dash-card flex items-center gap-6 px-4 py-3">
             <div>
-                <p className="text-xs text-[var(--text-tertiary)]">Entries</p>
-                <p className="text-lg font-semibold text-[var(--text-primary)] tabular-nums">{totals.count}</p>
+                <p className="text-xs text-text-tertiary">Entries</p>
+                <p className="text-lg font-semibold text-text-primary tabular-nums">{totals.count}</p>
             </div>
             <div>
-                <p className="text-xs text-[var(--text-tertiary)]">Total guests</p>
-                <p className="text-lg font-semibold text-[var(--text-primary)] tabular-nums">{totals.partySize}</p>
+                <p className="text-xs text-text-tertiary">Total guests</p>
+                <p className="text-lg font-semibold text-text-primary tabular-nums">{totals.partySize}</p>
             </div>
             <div>
-                <p className="text-xs text-[var(--text-tertiary)]">Revenue collected</p>
-                <p className="text-lg font-semibold text-[var(--text-primary)] tabular-nums">
+                <p className="text-xs text-text-tertiary">Revenue collected</p>
+                <p className="text-lg font-semibold text-text-primary tabular-nums">
                     ₹{(totals.totalPaise / 100).toLocaleString("en-IN")}
                 </p>
             </div>
@@ -404,7 +404,7 @@ export function WalkInsClient() {
                     >
                         <Filter className="h-4 w-4 mr-1.5" /> Filters
                         {(categoryFilter || paymentFilter) && (
-                            <span className="ml-1.5 rounded-full bg-[var(--bg-elevated)] px-1.5 text-xs">
+                            <span className="ml-1.5 rounded-full bg-surface-elevated px-1.5 text-xs">
                                 {[categoryFilter, paymentFilter].filter(Boolean).length}
                             </span>
                         )}
@@ -466,13 +466,13 @@ export function WalkInsClient() {
             </div>
 
             {/* Table */}
-            <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border-default)]">
+            <div className="mt-4 overflow-x-auto rounded-xl border border-border-default">
                 <table className="w-full text-left">
                     <thead>
-                        <tr className="border-b border-[var(--border-default)]">
+                        <tr className="border-b border-border-default">
                             {["#", "Name", "Party", "Category", "Payment", "Amount", "Time", "Operator", "Note", ""].map(
                                 (h) => (
-                                    <th key={h} className="py-2.5 px-3 text-xs font-medium text-[var(--text-tertiary)] no-print:sticky top-0 bg-[var(--bg-fill)]">
+                                    <th key={h} className="py-2.5 px-3 text-xs font-medium text-text-tertiary no-print:sticky top-0 bg-surface-secondary">
                                         {h}
                                     </th>
                                 )
@@ -482,7 +482,7 @@ export function WalkInsClient() {
                     <tbody>
                         {isLoading && (
                             [...Array(5)].map((_, i) => (
-                                <tr key={i} className="border-b border-[var(--border-subtle)]">
+                                <tr key={i} className="border-b border-border-subtle">
                                     {[...Array(10)].map((_, j) => (
                                         <td key={j} className="py-3 px-3">
                                             <Skeleton className="h-4 w-full" />

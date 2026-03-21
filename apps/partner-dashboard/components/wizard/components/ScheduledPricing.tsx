@@ -139,7 +139,7 @@ export function ScheduledPricing({
             >
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#ff9500] to-[#ff3b30] flex items-center justify-center">
-                        <Clock className="w-4 h-4 text-[var(--text-primary)]" />
+                        <Clock className="w-4 h-4 text-text-primary" />
                     </div>
                     <div className="text-left">
                         <p className="text-[13px] font-semibold text-[#1d1d1f]">
@@ -198,7 +198,7 @@ export function ScheduledPricing({
                                     initial={{ opacity: 0, x: -20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     exit={{ opacity: 0, x: 20 }}
-                                    className="p-4 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[var(--bg-elevated)] space-y-3"
+                                    className="p-4 rounded-xl border border-[rgba(0,0,0,0.08)] bg-surface-elevated space-y-3"
                                 >
                                     {/* Header */}
                                     <div className="flex items-center justify-between">
@@ -283,7 +283,7 @@ export function ScheduledPricing({
                                                         const val = e.target.value === "" ? undefined : (parseInt(e.target.value) || 0);
                                                         updateSchedule(schedule.id, { quantityLimit: val });
                                                     }}
-                                                    className="w-16 px-1.5 py-0.5 rounded-md bg-[var(--bg-elevated)] border border-[rgba(0,0,0,0.06)] text-[11px] font-bold text-[#1d1d1f] focus:outline-none text-right"
+                                                    className="w-16 px-1.5 py-0.5 rounded-md bg-surface-elevated border border-[rgba(0,0,0,0.06)] text-[11px] font-bold text-[#1d1d1f] focus:outline-none text-right"
                                                 />
                                                 <span className="text-[9px] text-[#86868b] font-medium uppercase tracking-tight">Tickets</span>
                                             </div>

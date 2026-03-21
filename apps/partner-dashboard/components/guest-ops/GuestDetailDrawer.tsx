@@ -97,15 +97,15 @@ export function GuestDetailDrawer({
             {/* Drawer */}
             <div
                 className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md flex flex-col shadow-2xl border-l overflow-hidden"
-                style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
+                style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
             >
                 {/* Header */}
                 <div
                     className="flex items-center gap-3 px-5 py-4 border-b shrink-0"
-                    style={{ borderColor: "var(--border-subtle)" }}
+                    style={{ borderColor: "var(--v-border)" }}
                 >
                     <div className="flex-1 min-w-0">
-                        <h2 className="text-[15px] font-semibold text-[var(--text-primary)] truncate">
+                        <h2 className="text-[15px] font-semibold text-[var(--v-text-primary)] truncate">
                             {guest.displayName}
                         </h2>
                         <div className="flex items-center gap-2 mt-0.5">
@@ -115,7 +115,7 @@ export function GuestDetailDrawer({
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-1.5 rounded-lg hover:bg-[var(--bg-fill)] text-[var(--text-tertiary)]"
+                        className="p-1.5 rounded-lg hover:bg-[var(--v-elevated)] text-[var(--v-text-muted)]"
                     >
                         <X size={16} />
                     </button>
@@ -127,7 +127,7 @@ export function GuestDetailDrawer({
                     {!isLocked && canManage && !activeAction && (
                         <div
                             className="px-5 py-3 border-b grid grid-cols-2 gap-2"
-                            style={{ borderColor: "var(--border-subtle)" }}
+                            style={{ borderColor: "var(--v-border)" }}
                         >
                             {canCheckIn && (
                                 <ActionButton
@@ -176,17 +176,17 @@ export function GuestDetailDrawer({
                     {activeAction && (
                         <div
                             className="px-5 py-4 border-b space-y-3"
-                            style={{ background: "var(--bg-fill)", borderColor: "var(--border-subtle)" }}
+                            style={{ background: "var(--v-elevated)", borderColor: "var(--v-border)" }}
                         >
                             <div className="flex items-center justify-between">
-                                <span className="text-[13px] font-semibold text-[var(--text-primary)] capitalize">
+                                <span className="text-[13px] font-semibold text-[var(--v-text-primary)] capitalize">
                                     {activeAction === "check-in" ? "Confirm Check-In" :
                                      activeAction === "deny" ? "Deny Entry" :
                                      activeAction === "flag" ? "Flag Guest" : "Re-Entry"}
                                 </span>
                                 <button
                                     onClick={() => { setActiveAction(null); setError(null); }}
-                                    className="text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                                    className="text-[12px] text-[var(--v-text-muted)] hover:text-[var(--v-text-primary)]"
                                 >
                                     Cancel
                                 </button>
@@ -195,12 +195,12 @@ export function GuestDetailDrawer({
                             {activeAction === "deny" && (
                                 <>
                                     <div>
-                                        <label className="block text-[11px] font-medium text-[var(--text-tertiary)] mb-1.5">Reason *</label>
+                                        <label className="block text-[11px] font-medium text-[var(--v-text-muted)] mb-1.5">Reason *</label>
                                         <select
                                             value={denyReason}
                                             onChange={e => setDenyReason(e.target.value as DenyReason)}
-                                            className="w-full px-3 py-2 text-[13px] rounded-lg border bg-[var(--bg-elevated)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                                            style={{ borderColor: "var(--border-subtle)" }}
+                                            className="w-full px-3 py-2 text-[13px] rounded-lg border bg-[var(--v-card)] text-[var(--v-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--v-orange)]"
+                                            style={{ borderColor: "var(--v-border)" }}
                                         >
                                             {DENY_REASONS.map(r => (
                                                 <option key={r.value} value={r.value}>{r.label}</option>
@@ -208,14 +208,14 @@ export function GuestDetailDrawer({
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-[11px] font-medium text-[var(--text-tertiary)] mb-1.5">Notes (optional)</label>
+                                        <label className="block text-[11px] font-medium text-[var(--v-text-muted)] mb-1.5">Notes (optional)</label>
                                         <textarea
                                             value={denyNotes}
                                             onChange={e => setDenyNotes(e.target.value)}
                                             rows={2}
                                             placeholder="Additional context..."
-                                            className="w-full px-3 py-2 text-[13px] rounded-lg border bg-[var(--bg-elevated)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
-                                            style={{ borderColor: "var(--border-subtle)" }}
+                                            className="w-full px-3 py-2 text-[13px] rounded-lg border bg-[var(--v-card)] text-[var(--v-text-primary)] placeholder:text-[var(--v-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--v-orange)] resize-none"
+                                            style={{ borderColor: "var(--v-border)" }}
                                         />
                                     </div>
                                 </>
@@ -224,7 +224,7 @@ export function GuestDetailDrawer({
                             {activeAction === "flag" && (
                                 <>
                                     <div>
-                                        <label className="block text-[11px] font-medium text-[var(--text-tertiary)] mb-1.5">Severity</label>
+                                        <label className="block text-[11px] font-medium text-[var(--v-text-muted)] mb-1.5">Severity</label>
                                         <div className="flex gap-2">
                                             {(["low", "medium", "high"] as const).map(s => (
                                                 <button
@@ -236,9 +236,9 @@ export function GuestDetailDrawer({
                                                             ? s === "high" ? "bg-red-500 text-white"
                                                               : s === "medium" ? "bg-amber-500 text-white"
                                                               : "bg-blue-500 text-white"
-                                                            : "bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-fill)]"
+                                                            : "bg-[var(--v-card)] text-[var(--v-text-secondary)] hover:bg-[var(--v-card-hover)]"
                                                     )}
-                                                    style={{ border: "1px solid var(--border-subtle)" }}
+                                                    style={{ border: "1px solid var(--v-border)" }}
                                                 >
                                                     {s}
                                                 </button>
@@ -246,38 +246,38 @@ export function GuestDetailDrawer({
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-[11px] font-medium text-[var(--text-tertiary)] mb-1.5">Reason *</label>
+                                        <label className="block text-[11px] font-medium text-[var(--v-text-muted)] mb-1.5">Reason *</label>
                                         <input
                                             type="text"
                                             value={flagReason}
                                             onChange={e => setFlagReason(e.target.value)}
                                             placeholder="Brief reason for flag..."
-                                            className="w-full px-3 py-2 text-[13px] rounded-lg border bg-[var(--bg-elevated)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                                            style={{ borderColor: "var(--border-subtle)" }}
+                                            className="w-full px-3 py-2 text-[13px] rounded-lg border bg-[var(--v-card)] text-[var(--v-text-primary)] placeholder:text-[var(--v-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--v-orange)]"
+                                            style={{ borderColor: "var(--v-border)" }}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[11px] font-medium text-[var(--text-tertiary)] mb-1.5">Notes (optional)</label>
+                                        <label className="block text-[11px] font-medium text-[var(--v-text-muted)] mb-1.5">Notes (optional)</label>
                                         <textarea
                                             value={flagNotes}
                                             onChange={e => setFlagNotes(e.target.value)}
                                             rows={2}
                                             placeholder="Additional context..."
-                                            className="w-full px-3 py-2 text-[13px] rounded-lg border bg-[var(--bg-elevated)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
-                                            style={{ borderColor: "var(--border-subtle)" }}
+                                            className="w-full px-3 py-2 text-[13px] rounded-lg border bg-[var(--v-card)] text-[var(--v-text-primary)] placeholder:text-[var(--v-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--v-orange)] resize-none"
+                                            style={{ borderColor: "var(--v-border)" }}
                                         />
                                     </div>
                                 </>
                             )}
 
                             {activeAction === "check-in" && (
-                                <p className="text-[13px] text-[var(--text-secondary)]">
+                                <p className="text-[13px] text-[var(--v-text-secondary)]">
                                     Manually check in <strong>{guest.displayName}</strong>. This will be logged as a manual dashboard override.
                                 </p>
                             )}
 
                             {activeAction === "re-entry" && (
-                                <p className="text-[13px] text-[var(--text-secondary)]">
+                                <p className="text-[13px] text-[var(--v-text-secondary)]">
                                     Allow re-entry for <strong>{guest.displayName}</strong>. This will be logged and may require re-entry to be enabled in event rules.
                                 </p>
                             )}
@@ -296,7 +296,7 @@ export function GuestDetailDrawer({
                                     activeAction === "check-in" ? "bg-green-500 hover:bg-green-600 text-white" :
                                     activeAction === "deny" ? "bg-red-500 hover:bg-red-600 text-white" :
                                     activeAction === "flag" ? "bg-amber-500 hover:bg-amber-600 text-white" :
-                                    "bg-[var(--accent)] hover:brightness-110 text-white"
+                                    "bg-[var(--v-orange)] hover:brightness-110 text-white"
                                 )}
                             >
                                 {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -377,8 +377,8 @@ export function GuestDetailDrawer({
                         {/* Notes */}
                         {guest.notes && (
                             <Section title="Notes">
-                                <div className="flex items-start gap-2 text-[13px] text-[var(--text-secondary)]">
-                                    <MessageSquare size={13} className="text-[var(--text-tertiary)] mt-0.5 shrink-0" />
+                                <div className="flex items-start gap-2 text-[13px] text-[var(--v-text-secondary)]">
+                                    <MessageSquare size={13} className="text-[var(--v-text-muted)] mt-0.5 shrink-0" />
                                     <span className="leading-relaxed">{guest.notes}</span>
                                 </div>
                             </Section>
@@ -406,10 +406,10 @@ export function GuestDetailDrawer({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
     return (
         <div>
-            <div className="text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wide mb-2">{title}</div>
+            <div className="text-[11px] font-semibold text-[var(--v-text-muted)] uppercase tracking-wide mb-2">{title}</div>
             <div
                 className="rounded-xl border divide-y overflow-hidden"
-                style={{ borderColor: "var(--border-subtle)" }}
+                style={{ borderColor: "var(--v-border)" }}
             >
                 {children}
             </div>
@@ -424,11 +424,11 @@ function DetailRow({ icon, label, value, mono }: {
     mono?: boolean;
 }) {
     return (
-        <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: "var(--bg-fill)" }}>
-            <span className="text-[var(--text-tertiary)] shrink-0">{icon}</span>
-            <span className="text-[12px] text-[var(--text-tertiary)] w-24 shrink-0">{label}</span>
+        <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: "var(--v-elevated)" }}>
+            <span className="text-[var(--v-text-muted)] shrink-0">{icon}</span>
+            <span className="text-[12px] text-[var(--v-text-muted)] w-24 shrink-0">{label}</span>
             <span className={cn(
-                "text-[13px] text-[var(--text-primary)] truncate",
+                "text-[13px] text-[var(--v-text-primary)] truncate",
                 mono && "font-mono text-[12px]"
             )}>
                 {value}

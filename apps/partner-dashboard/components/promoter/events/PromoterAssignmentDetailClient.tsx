@@ -23,19 +23,19 @@ export function PromoterAssignmentDetailClient({ assignmentId }: { assignmentId:
     if (isLoading) {
         return (
             <div className="w-full flex flex-col gap-6 animate-pulse">
-                 <div className="flex items-center gap-4 py-6 border-b border-[var(--border-subtle)] mb-6">
-                      <div className="h-10 w-10 bg-[var(--bg-secondary)] rounded-xl"></div>
+                 <div className="flex items-center gap-4 py-6 border-b border-border-subtle mb-6">
+                      <div className="h-10 w-10 bg-surface-tertiary rounded-xl"></div>
                       <div className="flex flex-col gap-2">
-                           <div className="h-8 w-64 bg-[var(--bg-secondary)] rounded-md"></div>
-                           <div className="h-4 w-48 bg-[var(--bg-secondary)] rounded-md"></div>
+                           <div className="h-8 w-64 bg-surface-tertiary rounded-md"></div>
+                           <div className="h-4 w-48 bg-surface-tertiary rounded-md"></div>
                       </div>
                  </div>
-                 <div className="flex items-center gap-3 border-b border-[var(--border-subtle)] pb-0 mb-6 w-full">
-                       <div className="h-10 w-24 bg-[var(--bg-secondary)] rounded-t-lg mx-2"></div>
-                       <div className="h-10 w-24 bg-[var(--bg-secondary)] rounded-t-lg mx-2"></div>
-                       <div className="h-10 w-24 bg-[var(--bg-secondary)] rounded-t-lg mx-2"></div>
+                 <div className="flex items-center gap-3 border-b border-border-subtle pb-0 mb-6 w-full">
+                       <div className="h-10 w-24 bg-surface-tertiary rounded-t-lg mx-2"></div>
+                       <div className="h-10 w-24 bg-surface-tertiary rounded-t-lg mx-2"></div>
+                       <div className="h-10 w-24 bg-surface-tertiary rounded-t-lg mx-2"></div>
                  </div>
-                 <div className="h-96 w-full bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)]"></div>
+                 <div className="h-96 w-full bg-surface-elevated rounded-2xl border border-border-subtle"></div>
             </div>
         );
     }
@@ -56,36 +56,36 @@ export function PromoterAssignmentDetailClient({ assignmentId }: { assignmentId:
     return (
         <div className="flex flex-col w-full animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
             {/* Header / Sub-nav Area */}
-            <div className="flex items-center gap-4 py-6 border-b border-[var(--border-subtle)] bg-background/80 backdrop-blur-xl sticky top-0 z-20 w-full mb-6">
+            <div className="flex items-center gap-4 py-6 border-b border-border-subtle bg-background/80 backdrop-blur-xl sticky top-0 z-20 w-full mb-6">
                 <Link 
                     href="/promoter/events" 
-                    className="p-2 border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/50 transition-colors text-[var(--text-secondary)]"
+                    className="p-2 border border-border-subtle hover:bg-surface-elevated rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/50 transition-colors text-text-secondary"
                 >
                     <ArrowLeft className="h-5 w-5" />
                 </Link>
                 <div>
                      <div className="flex items-center gap-3">
-                        <h1 className="text-display-xs text-[var(--text-primary)] tracking-tight font-bold">
+                        <h1 className="text-display-xs text-text-primary tracking-tight font-bold">
                             {assignment.event.name}
                         </h1>
                         <span className="inline-flex items-center bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-emerald-500/20">
                             {assignment.status}
                         </span>
                      </div>
-                     <p className="text-[var(--text-tertiary)] text-sm mt-0.5 font-medium flex items-center">
+                     <p className="text-text-tertiary text-sm mt-0.5 font-medium flex items-center">
                           {new Date(assignment.event.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} • {assignment.event.venue}
                      </p>
                 </div>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex items-center gap-3 border-b border-[var(--border-subtle)] pb-0 custom-scrollbar overflow-x-auto w-full mb-6">
+            <div className="flex items-center gap-3 border-b border-border-subtle pb-0 custom-scrollbar overflow-x-auto w-full mb-6">
                 <button
                     onClick={() => setActiveTab("links")}
                     className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold tracking-wide uppercase transition-all whitespace-nowrap border-b-2 ${
                         activeTab === "links" 
                         ? "text-emerald-500 border-emerald-500" 
-                        : "text-[var(--text-secondary)] border-transparent hover:text-[var(--text-primary)]"
+                        : "text-text-secondary border-transparent hover:text-text-primary"
                     }`}
                 >
                     <LinkIcon className="h-4 w-4" />
@@ -96,7 +96,7 @@ export function PromoterAssignmentDetailClient({ assignmentId }: { assignmentId:
                     className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold tracking-wide uppercase transition-all whitespace-nowrap border-b-2 ${
                         activeTab === "sales" 
                         ? "text-emerald-500 border-emerald-500" 
-                        : "text-[var(--text-secondary)] border-transparent hover:text-[var(--text-primary)]"
+                        : "text-text-secondary border-transparent hover:text-text-primary"
                     }`}
                 >
                      <DollarSign className="h-4 w-4" />
@@ -108,7 +108,7 @@ export function PromoterAssignmentDetailClient({ assignmentId }: { assignmentId:
                         className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold tracking-wide uppercase transition-all whitespace-nowrap border-b-2 ${
                             activeTab === "guests" 
                             ? "text-emerald-500 border-emerald-500" 
-                            : "text-[var(--text-secondary)] border-transparent hover:text-[var(--text-primary)]"
+                            : "text-text-secondary border-transparent hover:text-text-primary"
                         }`}
                     >
                          <Users className="h-4 w-4" />

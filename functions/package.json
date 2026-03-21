@@ -9,13 +9,10 @@
         "logs": "firebase functions:log"
     },
     "engines": {
-        "node": "22"
+        "node": "18"
     },
     "main": "lib/index.js",
     "dependencies": {
-        "@c1rcle/core": "file:c1rcle-core-0.1.0.tgz",
-        "@c1rcle/types": "file:c1rcle-types-0.1.0.tgz",
-        "@types/markdown-it": "^14.1.2",
         "algoliasearch": "^5.47.0",
         "cors": "^2.8.5",
         "firebase-admin": "^11.5.0",

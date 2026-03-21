@@ -19,7 +19,7 @@ export function TeaserCard({
     subtitle,
     metricLabel,
     icon: Icon,
-    accentColor = "var(--accent)",
+    accentColor = "var(--v-orange)",
     accentBg = "rgba(244,74,34,0.1)",
     blurredValue = "84.2%",
 }: TeaserCardProps) {
@@ -27,7 +27,7 @@ export function TeaserCard({
         <motion.div
             whileHover={{ y: -4, scale: 1.01 }}
             className="group relative overflow-hidden rounded-[2rem] border flex flex-col p-6 min-h-[220px] transition-all duration-300"
-            style={{ background: "var(--bg-fill)", borderColor: "var(--border-subtle)" }}
+            style={{ background: "var(--v-elevated)", borderColor: "var(--v-border)" }}
         >
             {/* Ambient glow on hover */}
             <div
@@ -45,7 +45,7 @@ export function TeaserCard({
                 </div>
                 <div
                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border"
-                    style={{ background: "var(--bg-fill)", borderColor: "var(--border-subtle)" }}
+                    style={{ background: "var(--v-neutral-bg)", borderColor: "var(--v-border)" }}
                 >
                     <Lock className="w-2.5 h-2.5" style={{ color: accentColor, opacity: 0.8 }} />
                     <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: accentColor, opacity: 0.8 }}>Pro</span>
@@ -56,7 +56,7 @@ export function TeaserCard({
             <div className="mt-4 relative z-10">
                 <h4
                     className="text-[10px] font-black uppercase tracking-[0.18em] mb-1.5"
-                    style={{ color: "var(--text-tertiary)" }}
+                    style={{ color: "var(--v-text-muted)" }}
                 >
                     {title}
                 </h4>
@@ -72,7 +72,7 @@ export function TeaserCard({
                         style={{ color: accentColor, filter: "blur(2px)", opacity: 0.3 }}
                     />
                 </div>
-                <p className="text-[12px] font-medium leading-relaxed mt-2" style={{ color: "var(--text-tertiary)" }}>
+                <p className="text-[12px] font-medium leading-relaxed mt-2" style={{ color: "var(--v-text-muted)" }}>
                     {subtitle}
                 </p>
             </div>
@@ -80,7 +80,7 @@ export function TeaserCard({
             {/* CTA Overlay on Hover */}
             <div
                 className="absolute inset-x-0 bottom-0 p-5 translate-y-full group-hover:translate-y-0 transition-transform duration-300 flex items-center justify-center"
-                style={{ background: `linear-gradient(to top, var(--bg-fill) 60%, transparent)` }}
+                style={{ background: `linear-gradient(to top, var(--v-elevated) 60%, transparent)` }}
             >
                 <button
                     className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"

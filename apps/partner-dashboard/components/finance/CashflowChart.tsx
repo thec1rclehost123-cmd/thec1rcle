@@ -71,22 +71,22 @@ const RechartsComposed = dynamic(() =>
                         />
                         <Tooltip
                             contentStyle={{
-                                background: "var(--bg-elevated)",
-                                border: "1px solid var(--border-subtle)",
+                                background: "var(--v-card)",
+                                border: "1px solid var(--v-border)",
                                 borderRadius: 14,
                                 fontSize: 12,
-                                color: "var(--text-primary)",
+                                color: "var(--v-text-primary)",
                                 boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
                                 padding: "10px 14px",
                             }}
-                            labelStyle={{ color: "var(--text-tertiary)", marginBottom: 6, fontSize: 10 }}
+                            labelStyle={{ color: "var(--v-text-tertiary)", marginBottom: 6, fontSize: 10 }}
                             cursor={{ stroke: "rgba(128,128,128,0.20)" }}
                             formatter={(value: number) => formatINRCompact(value)}
                         />
                         <Legend
                             wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
                             formatter={(label) => (
-                                <span style={{ color: "var(--text-secondary)", fontWeight: 600, letterSpacing: "0.04em" }}>
+                                <span style={{ color: "var(--v-text-secondary)", fontWeight: 600, letterSpacing: "0.04em" }}>
                                     {label}
                                 </span>
                             )}
@@ -239,14 +239,14 @@ export function CashflowChart({
                                         onClick={() => toggleSeries(opt.key)}
                                         className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-wide transition-all duration-150"
                                         style={{
-                                            background: active ? `${opt.color}18` : "var(--bg-fill)",
-                                            color: active ? opt.color : "var(--text-tertiary)",
+                                            background: active ? `${opt.color}18` : "var(--v-neutral-bg)",
+                                            color: active ? opt.color : "var(--v-text-tertiary)",
                                             border: `1px solid ${active ? `${opt.color}30` : "transparent"}`,
                                         }}
                                     >
                                         <span
                                             className="w-2 h-2 rounded-full"
-                                            style={{ background: active ? opt.color : "var(--border-default)" }}
+                                            style={{ background: active ? opt.color : "var(--v-border-strong)" }}
                                         />
                                         {opt.label}
                                     </button>
@@ -257,15 +257,15 @@ export function CashflowChart({
 
                     {/* Time range picker */}
                     {showTimeRangePicker && (
-                        <div className="flex items-center gap-0.5 p-0.5 rounded-xl" style={{ background: "var(--bg-fill)" }}>
+                        <div className="flex items-center gap-0.5 p-0.5 rounded-xl" style={{ background: "var(--v-elevated)" }}>
                             {TIME_RANGES.map((r) => (
                                 <button
                                     key={r.value}
                                     onClick={() => onTimeRangeChange?.(r.value)}
                                     className="px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-all duration-150"
                                     style={{
-                                        background: activeRange === r.value ? "var(--bg-elevated)" : "transparent",
-                                        color: activeRange === r.value ? "var(--text-primary)" : "var(--text-tertiary)",
+                                        background: activeRange === r.value ? "var(--v-card)" : "transparent",
+                                        color: activeRange === r.value ? "var(--v-text-primary)" : "var(--v-text-muted)",
                                     }}
                                 >
                                     {r.label}
@@ -284,11 +284,11 @@ export function CashflowChart({
                     className="w-full rounded-2xl flex items-center justify-center"
                     style={{
                         height,
-                        background: "var(--bg-fill)",
-                        border: "1px dashed var(--border-subtle)",
+                        background: "var(--v-neutral-bg)",
+                        border: "1px dashed var(--v-border)",
                     }}
                 >
-                    <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: "var(--text-tertiary)" }}>
+                    <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>
                         No data for this period
                     </span>
                 </div>

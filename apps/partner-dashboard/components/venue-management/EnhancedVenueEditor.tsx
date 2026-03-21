@@ -86,7 +86,7 @@ export default function EnhancedVenueEditor({
     const isVerified = venue.verified || venue.isVerified;
 
     return (
-        <div className="bg-[var(--bg-elevated)] dark:bg-[#0A0A0A] min-h-screen text-[var(--text-primary)] dark:text-[var(--text-primary)] pb-32">
+        <div className="bg-surface-elevated dark:bg-[#0A0A0A] min-h-screen text-text-primary dark:text-text-primary pb-32">
             {/* Global Error Alerts */}
             <AnimatePresence>
                 {error && (
@@ -96,7 +96,7 @@ export default function EnhancedVenueEditor({
                         exit={{ opacity: 0, y: -20 }}
                         className="fixed top-24 left-1/2 -translate-x-1/2 z-[110] w-full max-w-lg px-6"
                     >
-                        <div className="bg-red-500 text-[var(--text-primary)] p-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold border border-white/20">
+                        <div className="bg-red-500 text-text-primary p-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold border border-white/20">
                             <ShieldCheck className="w-5 h-5" />
                             <div className="flex-1 text-sm">
                                 <p className="uppercase text-[10px] opacity-70">Update Failed</p>
@@ -123,7 +123,7 @@ export default function EnhancedVenueEditor({
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                             onClick={() => setIsEditing('hero')}
-                            className="bg-[var(--bg-elevated)]/20 backdrop-blur-md border border-white/30 px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-[var(--bg-elevated)]/30 transition-all font-bold text-[var(--text-primary)] shadow-xl"
+                            className="bg-surface-elevated/20 backdrop-blur-md border border-white/30 px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-surface-elevated/30 transition-all font-bold text-text-primary shadow-xl"
                         >
                             <Camera className="w-5 h-5" />
                             Edit Hero & Visuals
@@ -134,18 +134,18 @@ export default function EnhancedVenueEditor({
                     <div className="absolute bottom-0 left-0 right-0 z-30 px-6 sm:px-12 pb-6 sm:pb-10">
                         <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6">
                             {/* Logo */}
-                            <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-2xl overflow-hidden border-4 border-white dark:border-[#0A0A0A] shadow-2xl flex-shrink-0 bg-[var(--bg-elevated)]/10 backdrop-blur-xl">
+                            <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-2xl overflow-hidden border-4 border-white dark:border-[#0A0A0A] shadow-2xl flex-shrink-0 bg-surface-elevated/10 backdrop-blur-xl">
                                 {logo ? (
                                     <Image src={logo} fill className="object-cover" alt="logo" sizes="128px" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-[var(--text-primary)]/20"><Camera className="w-8 h-8" /></div>
+                                    <div className="w-full h-full flex items-center justify-center text-text-primary/20"><Camera className="w-8 h-8" /></div>
                                 )}
                             </div>
 
                             {/* Name & Category */}
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <span className="px-3 py-1 bg-[var(--bg-elevated)]/10 dark:bg-black/20 backdrop-blur-xl border border-[var(--border-subtle)] dark:border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)] dark:text-[var(--text-primary)]/80">
+                                    <span className="px-3 py-1 bg-surface-elevated/10 dark:bg-black/20 backdrop-blur-xl border border-border-subtle dark:border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-text-primary dark:text-text-primary/80">
                                         {category}
                                     </span>
                                     {isVerified && (
@@ -159,11 +159,11 @@ export default function EnhancedVenueEditor({
                                     onClick={() => setIsEditing('hero')}
                                     className="group/name cursor-pointer relative inline-block"
                                 >
-                                    <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-bold uppercase tracking-tighter text-[var(--text-primary)] leading-[0.9] drop-shadow-lg group-hover/name:opacity-80 transition-opacity">
+                                    <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-bold uppercase tracking-tighter text-text-primary leading-[0.9] drop-shadow-lg group-hover/name:opacity-80 transition-opacity">
                                         {venue.displayName || venue.name}
                                     </h1>
                                     <div className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover/name:opacity-100 transition-opacity">
-                                        <Edit3 className="w-5 h-5 text-[var(--text-primary)]/50" />
+                                        <Edit3 className="w-5 h-5 text-text-primary/50" />
                                     </div>
                                 </div>
                             </div>
@@ -184,15 +184,15 @@ export default function EnhancedVenueEditor({
                         { icon: Navigation, label: 'Map' }
                     ].map((action, i) => (
                         <div key={i} className="flex flex-col items-center gap-2 min-w-[72px] opacity-60 grayscale hover:grayscale-0 hover:opacity-100 transition-all cursor-pointer">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${action.bg || 'bg-black/5 dark:bg-[var(--bg-elevated)]/5'}`}>
-                                <action.icon className={`w-5 h-5 ${action.color || 'text-[var(--text-primary)]/60 dark:text-[var(--text-primary)]/60'}`} />
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${action.bg || 'bg-black/5 dark:bg-surface-elevated/5'}`}>
+                                <action.icon className={`w-5 h-5 ${action.color || 'text-text-primary/60 dark:text-text-primary/60'}`} />
                             </div>
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-primary)]/50 dark:text-[var(--text-primary)]/50">{action.label}</span>
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-text-primary/50 dark:text-text-primary/50">{action.label}</span>
                         </div>
                     ))}
                 </div>
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--bg-elevated)]/40 dark:bg-black/40 backdrop-blur-[2px]">
-                    <button onClick={() => setIsEditing('contact')} className="bg-accent-primary text-[var(--text-primary)] px-6 py-2 rounded-xl flex items-center gap-2 font-bold shadow-lg">
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-surface-elevated/40 dark:bg-black/40 backdrop-blur-[2px]">
+                    <button onClick={() => setIsEditing('contact')} className="bg-accent-primary text-text-primary px-6 py-2 rounded-xl flex items-center gap-2 font-bold shadow-lg">
                         <Edit3 className="w-4 h-4" /> Edit Links & Contact
                     </button>
                 </div>
@@ -203,11 +203,11 @@ export default function EnhancedVenueEditor({
                 <div className="max-w-4xl mx-auto">
                     <div className="flex items-center justify-between mb-6">
                         <span className="text-[10px] font-black uppercase tracking-[0.5em] text-[#F44A22]">About</span>
-                        <button onClick={() => setIsEditing('hero')} className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-lg bg-[var(--bg-fill)]">
+                        <button onClick={() => setIsEditing('hero')} className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-lg bg-surface-secondary">
                             <Edit3 className="w-4 h-4" />
                         </button>
                     </div>
-                    <p className="text-lg md:text-xl font-medium text-[var(--text-primary)]/70 dark:text-[var(--text-primary)]/70 leading-relaxed">
+                    <p className="text-lg md:text-xl font-medium text-text-primary/70 dark:text-text-primary/70 leading-relaxed">
                         {venue.bio || venue.description || "Add a compelling description of your venue to attract more guests."}
                     </p>
                 </div>
@@ -219,9 +219,9 @@ export default function EnhancedVenueEditor({
                     <div className="flex items-center justify-between mb-8">
                         <div>
                             <span className="text-[10px] font-black uppercase tracking-[0.5em] text-[#F44A22] block mb-2">Moments</span>
-                            <h2 className="text-3xl font-bold uppercase tracking-tighter text-[var(--text-primary)] dark:text-[var(--text-primary)]">Highlights</h2>
+                            <h2 className="text-3xl font-bold uppercase tracking-tighter text-text-primary dark:text-text-primary">Highlights</h2>
                         </div>
-                        <button onClick={() => setIsEditing('highlights')} className="opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--bg-fill)] p-2 rounded-lg">
+                        <button onClick={() => setIsEditing('highlights')} className="opacity-0 group-hover:opacity-100 transition-opacity bg-surface-secondary p-2 rounded-lg">
                             <Plus className="w-5 h-5" />
                         </button>
                     </div>
@@ -231,10 +231,10 @@ export default function EnhancedVenueEditor({
                                 <div className="relative w-20 h-20 rounded-full border-2 border-[#F44A22]/30 p-1 overflow-hidden">
                                     <Image src={h.coverImage || h.images?.[0]} fill className="rounded-full object-cover p-1" alt="" sizes="80px" />
                                 </div>
-                                <span className="text-[10px] font-bold uppercase text-[var(--text-primary)]/60 dark:text-[var(--text-primary)]/40">{h.title}</span>
+                                <span className="text-[10px] font-bold uppercase text-text-primary/60 dark:text-text-primary/40">{h.title}</span>
                             </div>
                         )) : (
-                            <div className="w-full py-12 border-2 border-dashed border-black/10 dark:border-[var(--border-subtle)] rounded-3xl flex flex-col items-center justify-center text-[var(--text-primary)]/30 dark:text-[var(--text-primary)]/30">
+                            <div className="w-full py-12 border-2 border-dashed border-black/10 dark:border-border-subtle rounded-3xl flex flex-col items-center justify-center text-text-primary/30 dark:text-text-primary/30">
                                 <Sparkles className="w-8 h-8 mb-2" />
                                 <p className="text-sm font-bold uppercase tracking-widest text-center">Add venue highlights & stories</p>
                             </div>
@@ -244,14 +244,14 @@ export default function EnhancedVenueEditor({
             </section>
 
             {/* 4. UPCOMING EVENTS */}
-            <section className="px-6 sm:px-12 lg:px-24 py-12 bg-black/[0.02] dark:bg-[var(--bg-elevated)]/[0.02]">
+            <section className="px-6 sm:px-12 lg:px-24 py-12 bg-black/[0.02] dark:bg-surface-elevated/[0.02]">
                 <div className="max-w-7xl mx-auto">
                     <div className="flex items-center justify-between mb-10">
                         <div>
                             <span className="text-[10px] font-black uppercase tracking-[0.5em] text-[#F44A22] block mb-2">Live Now</span>
-                            <h2 className="text-3xl md:text-5xl font-bold uppercase tracking-tighter text-[var(--text-primary)] dark:text-[var(--text-primary)]">Upcoming Events</h2>
+                            <h2 className="text-3xl md:text-5xl font-bold uppercase tracking-tighter text-text-primary dark:text-text-primary">Upcoming Events</h2>
                         </div>
-                        <button className="px-6 py-2 bg-black dark:bg-[var(--bg-elevated)] text-[var(--text-primary)] dark:text-[var(--text-primary)] rounded-full text-xs font-bold uppercase tracking-widest">
+                        <button className="px-6 py-2 bg-black dark:bg-surface-elevated text-text-primary dark:text-text-primary rounded-full text-xs font-bold uppercase tracking-widest">
                             Manager Events
                         </button>
                     </div>
@@ -262,9 +262,9 @@ export default function EnhancedVenueEditor({
                             ))}
                         </div>
                     ) : (
-                        <div className="py-20 border-2 border-dashed border-black/10 dark:border-[var(--border-subtle)] rounded-3xl flex flex-col items-center justify-center">
-                            <Calendar className="w-10 h-10 mb-4 text-[var(--text-primary)]/20 dark:text-[var(--text-primary)]/20" />
-                            <h3 className="text-xl font-bold uppercase tracking-widest text-[var(--text-primary)]/40 dark:text-[var(--text-primary)]/40 mb-2">No Upcoming Events</h3>
+                        <div className="py-20 border-2 border-dashed border-black/10 dark:border-border-subtle rounded-3xl flex flex-col items-center justify-center">
+                            <Calendar className="w-10 h-10 mb-4 text-text-primary/20 dark:text-text-primary/20" />
+                            <h3 className="text-xl font-bold uppercase tracking-widest text-text-primary/40 dark:text-text-primary/40 mb-2">No Upcoming Events</h3>
                             <VenueActionButton variant="primary">
                                 <Plus className="w-4 h-4 mr-2" />
                                 Create Event
@@ -280,15 +280,15 @@ export default function EnhancedVenueEditor({
                     <div className="flex items-center justify-between mb-12">
                         <div>
                             <span className="text-[10px] font-black uppercase tracking-[0.5em] text-[#F44A22] block mb-2">The Vibe</span>
-                            <h2 className="text-4xl font-bold uppercase tracking-tighter text-[var(--text-primary)] dark:text-[var(--text-primary)]">Gallery</h2>
+                            <h2 className="text-4xl font-bold uppercase tracking-tighter text-text-primary dark:text-text-primary">Gallery</h2>
                         </div>
-                        <button onClick={() => setIsEditing('gallery')} className="opacity-0 group-hover:opacity-100 transition-opacity bg-accent-primary text-[var(--text-primary)] px-6 py-2 rounded-xl font-bold shadow-lg flex items-center gap-2">
+                        <button onClick={() => setIsEditing('gallery')} className="opacity-0 group-hover:opacity-100 transition-opacity bg-accent-primary text-text-primary px-6 py-2 rounded-xl font-bold shadow-lg flex items-center gap-2">
                             <ImageIcon className="w-4 h-4" /> Manage Grid
                         </button>
                     </div>
                     <div className="grid grid-cols-3 gap-2 sm:gap-4 aspect-square">
                         {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => (
-                            <div key={i} className="relative aspect-square rounded-2xl overflow-hidden bg-black/5 dark:bg-[var(--bg-elevated)]/5 border border-black/5 dark:border-white/5">
+                            <div key={i} className="relative aspect-square rounded-2xl overflow-hidden bg-black/5 dark:bg-surface-elevated/5 border border-black/5 dark:border-white/5">
                                 {gallery[i] ? (
                                     <Image src={gallery[i]?.imageUrl || gallery[i]} fill className="object-cover" alt="" sizes="(max-width: 768px) 33vw, 20vw" />
                                 ) : (
@@ -301,14 +301,14 @@ export default function EnhancedVenueEditor({
             </section>
 
             {/* 6. TIMING & DETAILS */}
-            <section className="px-6 sm:px-12 lg:px-24 py-20 bg-black/[0.02] dark:bg-[var(--bg-elevated)]/[0.02] group relative">
+            <section className="px-6 sm:px-12 lg:px-24 py-20 bg-black/[0.02] dark:bg-surface-elevated/[0.02] group relative">
                 <div className="max-w-6xl mx-auto">
                     <div className="flex items-center justify-between mb-12">
                         <div>
                             <span className="text-[10px] font-black uppercase tracking-[0.5em] text-[#F44A22] block mb-2">Information</span>
-                            <h2 className="text-4xl font-bold uppercase tracking-tighter text-[var(--text-primary)] dark:text-[var(--text-primary)]">Know Before You Go</h2>
+                            <h2 className="text-4xl font-bold uppercase tracking-tighter text-text-primary dark:text-text-primary">Know Before You Go</h2>
                         </div>
-                        <button onClick={() => setIsEditing('details')} className="opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--bg-fill)] p-3 rounded-xl">
+                        <button onClick={() => setIsEditing('details')} className="opacity-0 group-hover:opacity-100 transition-opacity bg-surface-secondary p-3 rounded-xl">
                             <Edit3 className="w-5 h-5" />
                         </button>
                     </div>
@@ -316,31 +316,31 @@ export default function EnhancedVenueEditor({
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Map & Address */}
                         <div className="lg:col-span-2 space-y-6">
-                            <div className="rounded-3xl overflow-hidden border border-black/10 dark:border-[var(--border-subtle)] h-[400px] bg-[var(--bg-fill)] flex items-center justify-center">
+                            <div className="rounded-3xl overflow-hidden border border-black/10 dark:border-border-subtle h-[400px] bg-surface-secondary flex items-center justify-center">
                                 <div className="text-center opacity-40">
                                     <MapPin className="w-12 h-12 mx-auto mb-3" />
                                     <p className="text-sm font-bold uppercase">Map Preview</p>
                                 </div>
                             </div>
-                            <div className="p-8 rounded-3xl bg-[var(--bg-elevated)] dark:bg-[var(--bg-elevated)]/5 border border-black/5 dark:border-white/5">
+                            <div className="p-8 rounded-3xl bg-surface-elevated dark:bg-surface-elevated/5 border border-black/5 dark:border-white/5">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-[#F44A22] mb-4">Location</p>
-                                <p className="text-xl font-bold text-[var(--text-primary)]/80 dark:text-[var(--text-primary)]/80">{venue.address || "Add address"}</p>
-                                <p className="text-sm text-[var(--text-primary)]/40 dark:text-[var(--text-primary)]/40 mt-1">{venue.city || "Add city"}</p>
+                                <p className="text-xl font-bold text-text-primary/80 dark:text-text-primary/80">{venue.address || "Add address"}</p>
+                                <p className="text-sm text-text-primary/40 dark:text-text-primary/40 mt-1">{venue.city || "Add city"}</p>
                             </div>
                         </div>
 
                         {/* Timing Cards */}
                         <div className="space-y-4">
-                            <div className="p-8 rounded-3xl bg-[var(--bg-elevated)] dark:bg-[var(--bg-elevated)]/5 border border-black/5 dark:border-white/5">
+                            <div className="p-8 rounded-3xl bg-surface-elevated dark:bg-surface-elevated/5 border border-black/5 dark:border-white/5">
                                 <div className="flex items-center gap-3 mb-6">
                                     <Clock className="w-5 h-5 text-[#F44A22]" />
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/40 dark:text-[var(--text-primary)]/40">Timings</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-text-primary/40 dark:text-text-primary/40">Timings</p>
                                 </div>
                                 <div className="space-y-3">
                                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
                                         <div key={day} className="flex justify-between items-center text-xs font-bold uppercase">
-                                            <span className="text-[var(--text-primary)]/30 dark:text-[var(--text-primary)]/30">{day}</span>
-                                            <span className="text-[var(--text-primary)]/80 dark:text-[var(--text-primary)]/80">
+                                            <span className="text-text-primary/30 dark:text-text-primary/30">{day}</span>
+                                            <span className="text-text-primary/80 dark:text-text-primary/80">
                                                 {venue.operatingHours?.[day] || venue.timings?.[day] || '7:00 PM - 3:00 AM'}
                                             </span>
                                         </div>
@@ -348,8 +348,8 @@ export default function EnhancedVenueEditor({
                                 </div>
                             </div>
 
-                            <div className="p-8 rounded-3xl bg-gradient-to-br from-[#F44A22] to-[#CC3311] text-[var(--text-primary)]">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/60 mb-6">Contact & Socials</p>
+                            <div className="p-8 rounded-3xl bg-gradient-to-br from-[#F44A22] to-[#CC3311] text-text-primary">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-text-primary/60 mb-6">Contact & Socials</p>
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-4"><Phone className="w-5 h-5" /><span className="text-sm font-bold">{venue.phone || "Add phone"}</span></div>
                                     <div className="flex items-center gap-4"><Instagram className="w-5 h-5" /><span className="text-sm font-bold">@{venue.socialLinks?.instagram || "add_insta"}</span></div>
@@ -367,11 +367,11 @@ export default function EnhancedVenueEditor({
                     <div className="max-w-7xl mx-auto">
                         <div className="mb-12">
                             <span className="text-[10px] font-black uppercase tracking-[0.5em] text-[#F44A22] block mb-2">History</span>
-                            <h2 className="text-4xl font-bold uppercase tracking-tighter text-[var(--text-primary)] dark:text-[var(--text-primary)]">Past Craze</h2>
+                            <h2 className="text-4xl font-bold uppercase tracking-tighter text-text-primary dark:text-text-primary">Past Craze</h2>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                             {pastEvents.slice(0, 5).map((e, i) => (
-                                <div key={i} className="relative aspect-[3/4] rounded-2xl overflow-hidden grayscale hover:grayscale-0 transition-all cursor-pointer border border-black/10 dark:border-[var(--border-subtle)]">
+                                <div key={i} className="relative aspect-[3/4] rounded-2xl overflow-hidden grayscale hover:grayscale-0 transition-all cursor-pointer border border-black/10 dark:border-border-subtle">
                                     <Image src={e.image || e.coverURL} fill className="object-cover" alt="" sizes="(max-width: 768px) 50vw, 20vw" />
                                 </div>
                             ))}
@@ -386,7 +386,7 @@ export default function EnhancedVenueEditor({
                     <EditModal title="Visual Identity" onClose={() => setIsEditing(null)} onSave={() => handleSave('hero', localVenue)}>
                         <div className="space-y-6">
                             <div className="space-y-2">
-                                <label className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Venue Name</label>
+                                <label className="text-xs font-bold uppercase tracking-widest text-text-tertiary">Venue Name</label>
                                 <input
                                     value={localVenue.displayName || localVenue.name}
                                     onChange={(e) => setLocalVenue({
@@ -394,22 +394,22 @@ export default function EnhancedVenueEditor({
                                         name: e.target.value,
                                         displayName: e.target.value
                                     })}
-                                    className="w-full bg-[var(--bg-fill)] border border-[var(--border-subtle)] p-4 rounded-2xl text-lg font-bold outline-none ring-offset-0 focus:ring-2 focus:ring-[#F44A22]/50 transition-all"
+                                    className="w-full bg-surface-secondary border border-border-subtle p-4 rounded-2xl text-lg font-bold outline-none ring-offset-0 focus:ring-2 focus:ring-[#F44A22]/50 transition-all"
                                     placeholder="Enter club name"
                                 />
-                                <p className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold mt-2 ml-1">Changes are synced across all your club's public profiles.</p>
+                                <p className="text-[10px] text-text-tertiary uppercase font-bold mt-2 ml-1">Changes are synced across all your club's public profiles.</p>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Category</label>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-text-tertiary">Category</label>
                                     <input
                                         value={localVenue.venueType || localVenue.category}
                                         onChange={(e) => setLocalVenue({ ...localVenue, venueType: e.target.value })}
-                                        className="w-full bg-[var(--bg-fill)] border border-[var(--border-subtle)] p-4 rounded-xl text-sm font-bold outline-none"
+                                        className="w-full bg-surface-secondary border border-border-subtle p-4 rounded-xl text-sm font-bold outline-none"
                                     />
                                 </div>
                                 <div className="space-y-2 flex flex-col items-center">
-                                    <label className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)] mb-2">Verified</label>
+                                    <label className="text-xs font-bold uppercase tracking-widest text-text-tertiary mb-2">Verified</label>
                                     <div className="flex-1 flex items-center">
                                         <input type="checkbox" checked={localVenue.verified} onChange={(e) => setLocalVenue({ ...localVenue, verified: e.target.checked })} className="w-6 h-6 rounded-lg accent-[#F44A22]" />
                                     </div>
@@ -418,11 +418,11 @@ export default function EnhancedVenueEditor({
                             <ImageUploadField label="Cover Image" value={coverImage} type="banner" venueId={venueId} getAuthToken={getAuthToken} onUpdate={(url) => setLocalVenue({ ...localVenue, coverURL: url, bannerImage: url, coverImage: url, image: url })} onError={(msg) => toastError("Upload Failed", msg)} />
                             <ImageUploadField label="Logo Image" value={logo} type="logo" venueId={venueId} getAuthToken={getAuthToken} onUpdate={(url) => setLocalVenue({ ...localVenue, photoURL: url, logoImage: url, logo: url })} onError={(msg) => toastError("Upload Failed", msg)} />
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] ml-1">Business Bio / About</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary ml-1">Business Bio / About</label>
                                 <textarea
                                     value={localVenue.bio || localVenue.description || ""}
                                     onChange={(e) => setLocalVenue({ ...localVenue, bio: e.target.value })}
-                                    className="w-full bg-[var(--bg-fill)] border border-[var(--border-default)] p-4 rounded-2xl text-sm font-medium text-[var(--text-primary)] outline-none focus:border-accent-primary transition-colors resize-none"
+                                    className="w-full bg-surface-secondary border border-border-default p-4 rounded-2xl text-sm font-medium text-text-primary outline-none focus:border-accent-primary transition-colors resize-none"
                                     rows={4}
                                     placeholder="Tell your guests what makes your venue unique..."
                                 />
@@ -434,21 +434,21 @@ export default function EnhancedVenueEditor({
                 {isEditing === 'highlights' && (
                     <EditModal title="Manage Highlights" onClose={() => setIsEditing(null)} onSave={() => handleSave('highlights', highlights)}>
                         <div className="space-y-6">
-                            <p className="text-xs text-[var(--text-tertiary)] uppercase font-bold tracking-widest">Your Story Sets</p>
+                            <p className="text-xs text-text-tertiary uppercase font-bold tracking-widest">Your Story Sets</p>
                             <div className="space-y-3">
                                 {highlights.map((h, i) => (
-                                    <div key={h.id || i} className="flex items-center gap-4 p-4 bg-[var(--bg-fill)] border border-[var(--border-subtle)] rounded-2xl">
-                                        <div className="relative w-12 h-12 rounded-full overflow-hidden shrink-0 border border-[var(--border-default)]">
+                                    <div key={h.id || i} className="flex items-center gap-4 p-4 bg-surface-secondary border border-border-subtle rounded-2xl">
+                                        <div className="relative w-12 h-12 rounded-full overflow-hidden shrink-0 border border-border-default">
                                             <Image src={h.coverImage || h.images?.[0]} fill className="object-cover" alt="" sizes="48px" />
                                         </div>
                                         <div className="flex-1">
-                                            <p className="font-bold text-sm tracking-tight text-[var(--text-primary)]">{h.title}</p>
-                                            <p className="text-[10px] text-[var(--text-tertiary)] uppercase font-black">{h.images?.length || 0} Images</p>
+                                            <p className="font-bold text-sm tracking-tight text-text-primary">{h.title}</p>
+                                            <p className="text-[10px] text-text-tertiary uppercase font-black">{h.images?.length || 0} Images</p>
                                         </div>
-                                        <button className="p-2 hover:bg-[var(--bg-secondary)] rounded-lg text-red-500"><Trash2 className="w-4 h-4" /></button>
+                                        <button className="p-2 hover:bg-surface-tertiary rounded-lg text-red-500"><Trash2 className="w-4 h-4" /></button>
                                     </div>
                                 ))}
-                                <button className="w-full py-4 border-2 border-dashed border-[var(--border-default)] rounded-2xl flex items-center justify-center gap-2 hover:bg-[var(--bg-fill)] transition-all text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)]">
+                                <button className="w-full py-4 border-2 border-dashed border-border-default rounded-2xl flex items-center justify-center gap-2 hover:bg-surface-secondary transition-all text-xs font-bold uppercase tracking-widest text-text-tertiary">
                                     <Plus className="w-4 h-4" /> Create New Highlight
                                 </button>
                             </div>
@@ -487,7 +487,7 @@ export default function EnhancedVenueEditor({
             {/* Sticky Floating Save Status */}
             {saving && (
                 <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-50">
-                    <div className="bg-black dark:bg-[var(--bg-elevated)] text-[var(--text-primary)] dark:text-[var(--text-primary)] px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 font-bold border border-[var(--border-subtle)]">
+                    <div className="bg-black dark:bg-surface-elevated text-text-primary dark:text-text-primary px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 font-bold border border-border-subtle">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Saving changes...
                     </div>
@@ -525,18 +525,18 @@ function EditModal({ title, children, onClose, onSave }: { title: string, childr
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="w-full max-w-2xl bg-[var(--bg-base)] border border-[var(--border-default)] rounded-[2.5rem] overflow-hidden shadow-2xl"
+                className="w-full max-w-2xl bg-surface-base border border-border-default rounded-[2.5rem] overflow-hidden shadow-2xl"
             >
-                <div className="px-8 py-6 border-b border-[var(--border-subtle)] flex items-center justify-between">
-                    <h3 className="text-xl font-bold uppercase tracking-tighter text-[var(--text-primary)]">{title}</h3>
-                    <button onClick={onClose} className="p-2 hover:bg-[var(--bg-fill)] rounded-xl text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"><X className="w-6 h-6" /></button>
+                <div className="px-8 py-6 border-b border-border-subtle flex items-center justify-between">
+                    <h3 className="text-xl font-bold uppercase tracking-tighter text-text-primary">{title}</h3>
+                    <button onClick={onClose} className="p-2 hover:bg-surface-secondary rounded-xl text-text-tertiary hover:text-text-primary transition-colors"><X className="w-6 h-6" /></button>
                 </div>
                 <div className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
                     {children}
                 </div>
-                <div className="p-8 border-t border-[var(--border-subtle)] bg-[var(--bg-fill)] flex gap-3">
-                    <button onClick={onClose} className="flex-1 py-4 px-6 rounded-2xl font-bold uppercase tracking-widest text-[var(--text-tertiary)] hover:bg-[var(--bg-elevated)]/5 transition-all">Cancel</button>
-                    <button onClick={onSave} className="flex-1 py-4 px-6 rounded-2xl bg-accent-primary text-[var(--text-primary)] font-bold uppercase tracking-widest shadow-xl shadow-orange-500/20 hover:scale-[1.02] transition-all">Save Changes</button>
+                <div className="p-8 border-t border-border-subtle bg-surface-secondary flex gap-3">
+                    <button onClick={onClose} className="flex-1 py-4 px-6 rounded-2xl font-bold uppercase tracking-widest text-text-tertiary hover:bg-surface-elevated/5 transition-all">Cancel</button>
+                    <button onClick={onSave} className="flex-1 py-4 px-6 rounded-2xl bg-accent-primary text-text-primary font-bold uppercase tracking-widest shadow-xl shadow-orange-500/20 hover:scale-[1.02] transition-all">Save Changes</button>
                 </div>
             </motion.div>
         </div>
@@ -546,14 +546,14 @@ function EditModal({ title, children, onClose, onSave }: { title: string, childr
 function InputField({ label, icon: Icon, value, onChange, multiline }: { label: string, icon: any, value: string, onChange: (v: string) => void, multiline?: boolean }) {
     return (
         <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] ml-1">{label}</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary ml-1">{label}</label>
             <div className="relative">
-                <div className="absolute left-4 top-4 text-[var(--text-tertiary)]"><Icon className="w-5 h-5" /></div>
+                <div className="absolute left-4 top-4 text-text-tertiary"><Icon className="w-5 h-5" /></div>
                 {multiline ? (
                     <textarea
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
-                        className="w-full bg-[var(--bg-fill)] border border-[var(--border-default)] p-4 pl-12 rounded-2xl text-sm font-bold text-[var(--text-primary)] outline-none focus:border-accent-primary transition-colors resize-none"
+                        className="w-full bg-surface-secondary border border-border-default p-4 pl-12 rounded-2xl text-sm font-bold text-text-primary outline-none focus:border-accent-primary transition-colors resize-none"
                         rows={3}
                     />
                 ) : (
@@ -561,7 +561,7 @@ function InputField({ label, icon: Icon, value, onChange, multiline }: { label: 
                         type="text"
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
-                        className="w-full bg-[var(--bg-fill)] border border-[var(--border-default)] p-4 pl-12 rounded-2xl text-sm font-bold text-[var(--text-primary)] outline-none focus:border-accent-primary transition-colors"
+                        className="w-full bg-surface-secondary border border-border-default p-4 pl-12 rounded-2xl text-sm font-bold text-text-primary outline-none focus:border-accent-primary transition-colors"
                     />
                 )}
             </div>
@@ -630,26 +630,26 @@ function ImageUploadField({
 
     return (
         <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] ml-1">{label}</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary ml-1">{label}</label>
             <div
                 onClick={() => inputRef.current?.click()}
-                className="relative aspect-video w-full rounded-2xl overflow-hidden border border-dashed border-[var(--border-default)] group cursor-pointer bg-[var(--bg-fill)]"
+                className="relative aspect-video w-full rounded-2xl overflow-hidden border border-dashed border-border-default group cursor-pointer bg-surface-secondary"
             >
                 {value ? (
                     <Image src={value} fill className="object-cover group-hover:opacity-50 transition-opacity" alt="" sizes="(max-width: 768px) 100vw, 50vw" />
                 ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-tertiary)]">
+                    <div className="w-full h-full flex flex-col items-center justify-center text-text-tertiary">
                         <Upload className="w-8 h-8 mb-2" />
                         <span className="text-xs font-bold uppercase">Click to upload</span>
                     </div>
                 )}
                 {uploading && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                        <Loader2 className="w-8 h-8 animate-spin text-[var(--text-primary)]" />
+                        <Loader2 className="w-8 h-8 animate-spin text-text-primary" />
                     </div>
                 )}
                 <div className="absolute inset-0 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity bg-black/30">
-                    <Camera className="w-10 h-10 text-[var(--text-primary)]" />
+                    <Camera className="w-10 h-10 text-text-primary" />
                 </div>
                 <input
                     ref={inputRef}
@@ -802,12 +802,12 @@ function GalleryEditor({
 
     return (
         <div className="space-y-4">
-            <p className="text-xs text-[var(--text-tertiary)] uppercase font-bold tracking-widest">
+            <p className="text-xs text-text-tertiary uppercase font-bold tracking-widest">
                 Gallery Photos ({gallery.length}/9)
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {gallery.map((photo) => (
-                    <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden border border-[var(--border-subtle)] group">
+                    <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden border border-border-subtle group">
                         <img
                             src={photo.imageUrl || photo}
                             className="w-full h-full object-cover"
@@ -816,7 +816,7 @@ function GalleryEditor({
                         <button
                             onClick={() => handleDelete(photo.id)}
                             disabled={deletingId === photo.id}
-                            className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 p-1.5 rounded-lg text-[var(--text-primary)] transition-colors disabled:opacity-50"
+                            className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 p-1.5 rounded-lg text-text-primary transition-colors disabled:opacity-50"
                         >
                             {deletingId === photo.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -832,14 +832,14 @@ function GalleryEditor({
                 {gallery.length < 9 && (
                     <div
                         onClick={() => !uploading && inputRef.current?.click()}
-                        className={`aspect-square rounded-xl border-2 border-dashed border-[var(--border-default)] flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--bg-fill)] transition-colors ${uploading ? 'pointer-events-none' : ''}`}
+                        className={`aspect-square rounded-xl border-2 border-dashed border-border-default flex flex-col items-center justify-center cursor-pointer hover:bg-surface-secondary transition-colors ${uploading ? 'pointer-events-none' : ''}`}
                     >
                         {uploading ? (
-                            <Loader2 className="w-6 h-6 animate-spin text-[var(--text-tertiary)]" />
+                            <Loader2 className="w-6 h-6 animate-spin text-text-tertiary" />
                         ) : (
                             <>
-                                <Plus className="w-6 h-6 mb-2 text-[var(--text-tertiary)]" />
-                                <span className="text-[10px] font-bold uppercase text-[var(--text-tertiary)]">Add Photo</span>
+                                <Plus className="w-6 h-6 mb-2 text-text-tertiary" />
+                                <span className="text-[10px] font-bold uppercase text-text-tertiary">Add Photo</span>
                             </>
                         )}
                     </div>

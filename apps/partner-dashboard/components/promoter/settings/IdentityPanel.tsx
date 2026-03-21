@@ -83,11 +83,11 @@ export function IdentityPanel({ identity, promoterId, userEmail, token, onUpdate
         <div className="space-y-5">
             {/* Logo */}
             <div className="flex items-center gap-4">
-                <div className="relative w-16 h-16 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-default)] overflow-hidden flex items-center justify-center shrink-0">
+                <div className="relative w-16 h-16 rounded-2xl bg-surface-tertiary border border-border-default overflow-hidden flex items-center justify-center shrink-0">
                     {form.logoUrl ? (
                         <img src={form.logoUrl} alt="Logo" className="w-full h-full object-cover" />
                     ) : (
-                        <User className="w-6 h-6 text-[var(--text-tertiary)]" />
+                        <User className="w-6 h-6 text-text-tertiary" />
                     )}
                     {logoUploading && (
                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -99,12 +99,12 @@ export function IdentityPanel({ identity, promoterId, userEmail, token, onUpdate
                     <button
                         onClick={() => fileRef.current?.click()}
                         disabled={logoUploading}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-default)] text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-50"
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-tertiary border border-border-default text-xs font-semibold text-text-secondary hover:bg-surface-elevated transition-colors disabled:opacity-50"
                     >
                         <Upload className="w-3.5 h-3.5" />
                         {logoUploading ? "Uploading…" : "Upload Logo"}
                     </button>
-                    <p className="text-[11px] text-[var(--text-tertiary)] mt-1">PNG, JPG — max 5 MB</p>
+                    <p className="text-[11px] text-text-tertiary mt-1">PNG, JPG — max 5 MB</p>
                     <input
                         ref={fileRef}
                         type="file"
@@ -146,13 +146,13 @@ export function IdentityPanel({ identity, promoterId, userEmail, token, onUpdate
                     type="tel"
                 />
                 <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-widest mb-1.5">
+                    <label className="block text-xs font-semibold text-text-tertiary uppercase tracking-widest mb-1.5">
                         Primary City
                     </label>
                     <select
                         value={form.city}
                         onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
-                        className="w-full px-4 py-2.5 rounded-xl bg-[var(--bg-fill)] border border-[var(--border-default)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-violet-500/50"
+                        className="w-full px-4 py-2.5 rounded-xl bg-surface-secondary border border-border-default text-sm text-text-primary focus:outline-none focus:border-violet-500/50"
                     >
                         <option value="">Select city…</option>
                         {CITIES.map((c) => (
@@ -204,7 +204,7 @@ function Field({
 }) {
     return (
         <div>
-            <label className="block text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-widest mb-1.5">
+            <label className="block text-xs font-semibold text-text-tertiary uppercase tracking-widest mb-1.5">
                 {label}
             </label>
             <input
@@ -213,10 +213,10 @@ function Field({
                 onChange={onChange ? (e) => onChange(e.target.value) : undefined}
                 readOnly={readOnly}
                 placeholder={placeholder}
-                className={`w-full px-4 py-2.5 rounded-xl border text-sm text-[var(--text-primary)] focus:outline-none focus:border-violet-500/50 transition-colors ${
+                className={`w-full px-4 py-2.5 rounded-xl border text-sm text-text-primary focus:outline-none focus:border-violet-500/50 transition-colors ${
                     readOnly
-                        ? "bg-[var(--bg-fill)] border-[var(--border-subtle)] text-[var(--text-tertiary)] cursor-default"
-                        : "bg-[var(--bg-fill)] border-[var(--border-default)]"
+                        ? "bg-surface-secondary border-border-subtle text-text-tertiary cursor-default"
+                        : "bg-surface-secondary border-border-default"
                 }`}
             />
         </div>

@@ -124,29 +124,29 @@ export default function VenueConnectionsPage() {
             <div className="min-h-[600px] max-w-4xl mx-auto">
                 <div className="space-y-6">
                     <div className="flex items-center justify-between px-2">
-                        <h3 className="text-body-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-[var(--text-tertiary)]" />
+                        <h3 className="text-body-sm font-semibold text-text-primary flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-text-tertiary" />
                             Pending Connection Requests
                         </h3>
-                        <span className="text-label text-[var(--text-tertiary)] bg-[var(--bg-fill)] px-2 py-1 rounded-md">
+                        <span className="text-label text-text-tertiary bg-surface-secondary px-2 py-1 rounded-md">
                             {(pendingPromoterRequests.length + pendingHostRequests.length)} Incoming
                         </span>
                     </div>
 
                     <AnimatePresence mode="popLayout">
                         {loading ? (
-                            <div className="p-20 flex justify-center"><Loader2 className="w-8 h-8 text-[var(--text-quaternary)] animate-spin" /></div>
+                            <div className="p-20 flex justify-center"><Loader2 className="w-8 h-8 text-text-placeholder animate-spin" /></div>
                         ) : (pendingPromoterRequests.length + pendingHostRequests.length) === 0 ? (
                             <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
-                                className="py-24 bg-[var(--bg-fill)] border-2 border-dashed border-[var(--border-default)] rounded-[3rem] flex flex-col items-center text-center px-10"
+                                className="py-24 bg-surface-secondary border-2 border-dashed border-border-default rounded-[3rem] flex flex-col items-center text-center px-10"
                             >
                                 <div className="w-16 h-16 rounded-2xl bg-accent-glow flex items-center justify-center mb-6">
                                     <Clock className="w-8 h-8 text-accent-primary" />
                                 </div>
-                                <h4 className="text-title text-[var(--text-primary)] font-bold uppercase tracking-tight">Quiet for now</h4>
-                                <p className="text-body-sm text-[var(--text-secondary)] mt-2 max-w-xs">Incoming partnership requests from hosts and promoters will appear here.</p>
+                                <h4 className="text-title text-text-primary font-bold uppercase tracking-tight">Quiet for now</h4>
+                                <p className="text-body-sm text-text-secondary mt-2 max-w-xs">Incoming partnership requests from hosts and promoters will appear here.</p>
                             </motion.div>
                         ) : (
                             <div className="space-y-4">
@@ -159,17 +159,17 @@ export default function VenueConnectionsPage() {
                                         initial={{ opacity: 0, scale: 0.95 }}
                                         animate={{ opacity: 1, scale: 1 }}
                                         exit={{ opacity: 0, scale: 0.95 }}
-                                        className="group relative overflow-hidden bg-[var(--bg-fill)] border border-[var(--border-subtle)] p-6 rounded-[2rem]"
+                                        className="group relative overflow-hidden bg-surface-secondary border border-border-subtle p-6 rounded-[2rem]"
                                     >
                                         <div className="absolute inset-0 bg-gradient-to-r from-accent-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                         
                                         <div className="relative flex items-center justify-between">
                                             <div className="flex items-center gap-5">
-                                                <div className="w-14 h-14 rounded-2xl bg-[var(--bg-secondary)] flex items-center justify-center text-xl font-black text-[var(--text-primary)] shadow-sm border border-[var(--border-subtle)]">
+                                                <div className="w-14 h-14 rounded-2xl bg-surface-tertiary flex items-center justify-center text-xl font-black text-text-primary shadow-sm border border-border-subtle">
                                                     {(request.promoterName?.[0] || request.hostName?.[0] || '?')}
                                                 </div>
                                                 <div>
-                                                    <h3 className="text-xl font-black text-[var(--text-primary)] tracking-tight">
+                                                    <h3 className="text-xl font-black text-text-primary tracking-tight">
                                                         {request.promoterName || request.hostName}
                                                     </h3>
                                                     <div className="flex items-center gap-3 mt-1.5">
@@ -177,8 +177,8 @@ export default function VenueConnectionsPage() {
                                                             {request.type === 'promoter_connection' ? <Zap className="w-3.5 h-3.5" /> : <UserCircle className="w-3.5 h-3.5" />}
                                                             {request.type === 'promoter_connection' ? 'Promoter' : 'Host'}
                                                         </span>
-                                                        <span className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase tracking-widest">•</span>
-                                                        <span className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase tracking-widest">
+                                                        <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">•</span>
+                                                        <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">
                                                             Received {formatDate(request.createdAt)}
                                                         </span>
                                                     </div>
@@ -196,7 +196,7 @@ export default function VenueConnectionsPage() {
                                                 <button
                                                     onClick={() => handleAction(request.id, 'reject', request.type === 'promoter_connection' ? 'promoter' : 'host')}
                                                     disabled={!!processingRequest}
-                                                    className="h-12 w-12 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-tertiary)] flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
+                                                    className="h-12 w-12 rounded-xl bg-surface-tertiary border border-border-subtle text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
                                                 >
                                                     <X className="w-5 h-5" />
                                                 </button>
@@ -204,8 +204,8 @@ export default function VenueConnectionsPage() {
                                         </div>
 
                                         {request.message && (
-                                            <div className="mt-5 p-4 bg-[var(--bg-secondary)]/50 rounded-2xl border border-[var(--border-subtle)]">
-                                                <p className="text-[13px] text-[var(--text-secondary)] italic">"{request.message}"</p>
+                                            <div className="mt-5 p-4 bg-surface-tertiary/50 rounded-2xl border border-border-subtle">
+                                                <p className="text-[13px] text-text-secondary italic">"{request.message}"</p>
                                             </div>
                                         )}
                                     </motion.div>

@@ -104,7 +104,7 @@ function TablePackageCard({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-[var(--bg-elevated)] rounded-3xl border border-[rgba(0,0,0,0.06)] shadow-sm overflow-hidden"
+            className="bg-surface-elevated rounded-3xl border border-[rgba(0,0,0,0.06)] shadow-sm overflow-hidden"
         >
             {/* Header */}
             <div
@@ -167,7 +167,7 @@ function TablePackageCard({
                                     value={table.name}
                                     onChange={(e) => onUpdate({ name: e.target.value })}
                                     placeholder="e.g., Gold Table, VIP Booth"
-                                    className="w-full px-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] text-[#1d1d1f] placeholder:text-[#86868b]/50 focus:outline-none focus:border-[#007aff] focus:bg-[var(--bg-elevated)] transition-all"
+                                    className="w-full px-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] text-[#1d1d1f] placeholder:text-[#86868b]/50 focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all"
                                 />
                             </div>
 
@@ -222,7 +222,7 @@ function TablePackageCard({
                                             onChange={(e) => onUpdate({ capacity: parseInt(e.target.value) || 4 })}
                                             min={1}
                                             max={20}
-                                            className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] text-[#1d1d1f] focus:outline-none focus:border-[#007aff] focus:bg-[var(--bg-elevated)] transition-all"
+                                            className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] text-[#1d1d1f] focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all"
                                         />
                                     </div>
                                 </div>
@@ -235,7 +235,7 @@ function TablePackageCard({
                                         value={table.quantity}
                                         onChange={(e) => onUpdate({ quantity: parseInt(e.target.value) || 1 })}
                                         min={1}
-                                        className="w-full px-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] text-[#1d1d1f] focus:outline-none focus:border-[#007aff] focus:bg-[var(--bg-elevated)] transition-all"
+                                        className="w-full px-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] text-[#1d1d1f] focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all"
                                     />
                                 </div>
                             </div>
@@ -253,7 +253,7 @@ function TablePackageCard({
                                             value={table.price}
                                             onChange={(e) => onUpdate({ price: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
                                             placeholder="0"
-                                            className="w-full pl-8 pr-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] font-bold text-[#1d1d1f] focus:outline-none focus:border-[#007aff] focus:bg-[var(--bg-elevated)] transition-all"
+                                            className="w-full pl-8 pr-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] font-bold text-[#1d1d1f] focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all"
                                         />
                                     </div>
                                 </div>
@@ -268,7 +268,7 @@ function TablePackageCard({
                                             value={table.minimumSpend}
                                             onChange={(e) => onUpdate({ minimumSpend: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
                                             placeholder="0"
-                                            className="w-full pl-8 pr-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] text-[#1d1d1f] focus:outline-none focus:border-[#007aff] focus:bg-[var(--bg-elevated)] transition-all"
+                                            className="w-full pl-8 pr-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] text-[#1d1d1f] focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all"
                                         />
                                     </div>
                                 </div>
@@ -286,7 +286,7 @@ function TablePackageCard({
                                         value={table.location || ""}
                                         onChange={(e) => onUpdate({ location: e.target.value })}
                                         placeholder="e.g., Main Floor, Rooftop, VIP Section"
-                                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] text-[#1d1d1f] placeholder:text-[#86868b]/50 focus:outline-none focus:border-[#007aff] focus:bg-[var(--bg-elevated)] transition-all"
+                                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] text-[#1d1d1f] placeholder:text-[#86868b]/50 focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all"
                                     />
                                 </div>
                             </div>
@@ -304,7 +304,7 @@ function TablePackageCard({
                                                 key={item}
                                                 onClick={() => toggleInclude(item)}
                                                 className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all ${isSelected
-                                                    ? "bg-[#F44A22] text-[var(--text-primary)]"
+                                                    ? "bg-[#F44A22] text-text-primary"
                                                     : "bg-[#f5f5f7] text-[#86868b] hover:bg-[#e5e5ea]"
                                                     }`}
                                             >
@@ -330,7 +330,7 @@ function TablePackageCard({
                                     value={table.description || ""}
                                     onChange={(e) => onUpdate({ description: e.target.value })}
                                     placeholder="Add details about this table package..."
-                                    className="w-full px-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[14px] text-[#1d1d1f] placeholder:text-[#86868b]/50 focus:outline-none focus:border-[#007aff] focus:bg-[var(--bg-elevated)] transition-all min-h-[80px] resize-none"
+                                    className="w-full px-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[14px] text-[#1d1d1f] placeholder:text-[#86868b]/50 focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all min-h-[80px] resize-none"
                                 />
                             </div>
 
@@ -352,7 +352,7 @@ function TablePackageCard({
                                     className={`w-12 h-7 rounded-full relative transition-colors ${table.promoterEnabled ? "bg-[#34c759]" : "bg-[rgba(0,0,0,0.1)]"
                                         }`}
                                 >
-                                    <div className={`absolute top-0.5 w-6 h-6 bg-[var(--bg-elevated)] rounded-full shadow-sm transition-transform ${table.promoterEnabled ? "translate-x-[22px]" : "translate-x-0.5"
+                                    <div className={`absolute top-0.5 w-6 h-6 bg-surface-elevated rounded-full shadow-sm transition-transform ${table.promoterEnabled ? "translate-x-[22px]" : "translate-x-0.5"
                                         }`} />
                                 </button>
                             </div>
@@ -368,7 +368,7 @@ function TablePackageCard({
                                             <button
                                                 onClick={() => onUpdate({ promoterCommissionType: "percent" })}
                                                 className={`px-3 py-1.5 rounded-[8px] text-[10px] font-bold transition-all ${(table.promoterCommissionType || "percent") === "percent"
-                                                    ? "bg-[#F44A22] text-[var(--text-primary)] shadow-md"
+                                                    ? "bg-[#F44A22] text-text-primary shadow-md"
                                                     : "text-[#86868b] hover:text-[#1d1d1f]"
                                                     }`}
                                             >
@@ -377,7 +377,7 @@ function TablePackageCard({
                                             <button
                                                 onClick={() => onUpdate({ promoterCommissionType: "amount" })}
                                                 className={`px-3 py-1.5 rounded-[8px] text-[10px] font-bold transition-all ${table.promoterCommissionType === "amount"
-                                                    ? "bg-[#1d1d1f] text-[var(--text-primary)] shadow-md"
+                                                    ? "bg-[#1d1d1f] text-text-primary shadow-md"
                                                     : "text-[#86868b] hover:text-[#1d1d1f]"
                                                     }`}
                                             >
@@ -390,7 +390,7 @@ function TablePackageCard({
                                         ? "border-[#F44A22]/20 bg-[#F44A22]/5"
                                         : "border-[#1d1d1f]/20 bg-[#1d1d1f]/5"
                                         }`}>
-                                        <div className={`absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center text-[16px] font-black text-[var(--text-primary)] ${(table.promoterCommissionType || "percent") === "percent"
+                                        <div className={`absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center text-[16px] font-black text-text-primary ${(table.promoterCommissionType || "percent") === "percent"
                                             ? "bg-[#F44A22]"
                                             : "bg-[#1d1d1f]"
                                             }`}>
@@ -434,7 +434,7 @@ function TablePackageCard({
                                             className={`w-12 h-7 rounded-full relative transition-colors ${table.buyerDiscountEnabled ? "bg-[#34c759]" : "bg-[rgba(0,0,0,0.1)]"
                                                 }`}
                                         >
-                                            <div className={`absolute top-0.5 w-6 h-6 bg-[var(--bg-elevated)] rounded-full shadow-sm transition-transform ${table.buyerDiscountEnabled ? "translate-x-[22px]" : "translate-x-0.5"
+                                            <div className={`absolute top-0.5 w-6 h-6 bg-surface-elevated rounded-full shadow-sm transition-transform ${table.buyerDiscountEnabled ? "translate-x-[22px]" : "translate-x-0.5"
                                                 }`} />
                                         </button>
                                     </div>
@@ -450,7 +450,7 @@ function TablePackageCard({
                                                     <button
                                                         onClick={() => onUpdate({ promoterDiscountType: "percent" })}
                                                         className={`px-3 py-1.5 rounded-[8px] text-[10px] font-bold transition-all ${(table.promoterDiscountType || "percent") === "percent"
-                                                            ? "bg-[#34c759] text-[var(--text-primary)] shadow-md"
+                                                            ? "bg-[#34c759] text-text-primary shadow-md"
                                                             : "text-[#86868b] hover:text-[#1d1d1f]"
                                                             }`}
                                                     >
@@ -459,7 +459,7 @@ function TablePackageCard({
                                                     <button
                                                         onClick={() => onUpdate({ promoterDiscountType: "amount" })}
                                                         className={`px-3 py-1.5 rounded-[8px] text-[10px] font-bold transition-all ${table.promoterDiscountType === "amount"
-                                                            ? "bg-[#1d1d1f] text-[var(--text-primary)] shadow-md"
+                                                            ? "bg-[#1d1d1f] text-text-primary shadow-md"
                                                             : "text-[#86868b] hover:text-[#1d1d1f]"
                                                             }`}
                                                     >
@@ -472,7 +472,7 @@ function TablePackageCard({
                                                 ? "border-[#34c759]/20 bg-[#34c759]/5"
                                                 : "border-[#1d1d1f]/20 bg-[#1d1d1f]/5"
                                                 }`}>
-                                                <div className={`absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center text-[16px] font-black text-[var(--text-primary)] ${(table.promoterDiscountType || "percent") === "percent"
+                                                <div className={`absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center text-[16px] font-black text-text-primary ${(table.promoterDiscountType || "percent") === "percent"
                                                     ? "bg-[#34c759]"
                                                     : "bg-[#1d1d1f]"
                                                     }`}>
@@ -582,7 +582,7 @@ export function TableBookingStep({ formData, updateFormData, validationErrors }:
                     animate={{ opacity: 1, y: 0 }}
                     className="p-12 rounded-[2.5rem] surface-secondary border border-default text-center"
                 >
-                    <div className="w-20 h-20 rounded-[2rem] bg-indigo-600 text-[var(--text-primary)] shadow-xl shadow-indigo-100 ring-8 ring-indigo-50 flex items-center justify-center mx-auto mb-6">
+                    <div className="w-20 h-20 rounded-[2rem] bg-indigo-600 text-text-primary shadow-xl shadow-indigo-100 ring-8 ring-indigo-50 flex items-center justify-center mx-auto mb-6">
                         <Wine className="w-10 h-10" />
                     </div>
                     <h3 className="text-display-sm mb-2">

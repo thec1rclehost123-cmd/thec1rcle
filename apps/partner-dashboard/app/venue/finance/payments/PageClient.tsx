@@ -53,21 +53,21 @@ export function PaymentsClient() {
         >
             {/* Wallet KPIs */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-fill)] p-5">
-                    <p className="text-xs text-[var(--text-tertiary)] mb-1">Available</p>
-                    <p className="text-2xl font-semibold text-[var(--text-primary)] tabular-nums">
+                <div className="rounded-xl border border-border-default bg-surface-secondary p-5">
+                    <p className="text-xs text-text-tertiary mb-1">Available</p>
+                    <p className="text-2xl font-semibold text-text-primary tabular-nums">
                         {formatINRFromPaise(wallet?.availablePaise ?? 0)}
                     </p>
                 </div>
-                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-fill)] p-5">
-                    <p className="text-xs text-[var(--text-tertiary)] mb-1">Pending</p>
-                    <p className="text-2xl font-semibold text-[var(--text-secondary)] tabular-nums">
+                <div className="rounded-xl border border-border-default bg-surface-secondary p-5">
+                    <p className="text-xs text-text-tertiary mb-1">Pending</p>
+                    <p className="text-2xl font-semibold text-text-secondary tabular-nums">
                         {formatINRFromPaise(wallet?.pendingPaise ?? 0)}
                     </p>
                 </div>
-                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-fill)] p-5">
-                    <p className="text-xs text-[var(--text-tertiary)] mb-1">On Hold</p>
-                    <p className="text-2xl font-semibold text-[var(--text-secondary)] tabular-nums">
+                <div className="rounded-xl border border-border-default bg-surface-secondary p-5">
+                    <p className="text-xs text-text-tertiary mb-1">On Hold</p>
+                    <p className="text-2xl font-semibold text-text-secondary tabular-nums">
                         {formatINRFromPaise(wallet?.heldPaise ?? 0)}
                     </p>
                 </div>
@@ -75,29 +75,29 @@ export function PaymentsClient() {
 
             {/* Subscription */}
             {sub && (
-                <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-fill)] p-5 mb-4">
+                <div className="rounded-xl border border-border-default bg-surface-secondary p-5 mb-4">
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Subscription</h3>
+                        <h3 className="text-sm font-semibold text-text-secondary">Subscription</h3>
                         <span className={`inline-flex items-center rounded-md border border-transparent px-2 py-0.5 text-xs font-medium capitalize ${PLAN_COLORS[sub.plan]}`}>
                             {sub.plan}
                         </span>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                         <div>
-                            <p className="text-xs text-[var(--text-tertiary)]">Status</p>
-                            <p className="text-sm text-[var(--text-primary)] capitalize">{sub.status.replace("_", " ")}</p>
+                            <p className="text-xs text-text-tertiary">Status</p>
+                            <p className="text-sm text-text-primary capitalize">{sub.status.replace("_", " ")}</p>
                         </div>
                         <div>
-                            <p className="text-xs text-[var(--text-tertiary)]">Amount</p>
-                            <p className="text-sm text-[var(--text-primary)] tabular-nums">{formatINRFromPaise(sub.amountPaise)}/mo</p>
+                            <p className="text-xs text-text-tertiary">Amount</p>
+                            <p className="text-sm text-text-primary tabular-nums">{formatINRFromPaise(sub.amountPaise)}/mo</p>
                         </div>
                         <div>
-                            <p className="text-xs text-[var(--text-tertiary)]">Next Billing</p>
-                            <p className="text-sm text-[var(--text-primary)]">{sub.nextBillingDate ?? "—"}</p>
+                            <p className="text-xs text-text-tertiary">Next Billing</p>
+                            <p className="text-sm text-text-primary">{sub.nextBillingDate ?? "—"}</p>
                         </div>
                         <div>
-                            <p className="text-xs text-[var(--text-tertiary)]">Autopay</p>
-                            <p className="text-sm text-[var(--text-primary)] flex items-center gap-1">
+                            <p className="text-xs text-text-tertiary">Autopay</p>
+                            <p className="text-sm text-text-primary flex items-center gap-1">
                                 {sub.autopayEnabled
                                     ? <><Check className="h-3.5 w-3.5 text-emerald-400" /> Enabled</>
                                     : <><AlertTriangle className="h-3.5 w-3.5 text-amber-400" /> Disabled</>
@@ -109,23 +109,23 @@ export function PaymentsClient() {
             )}
 
             {/* Billing methods */}
-            <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-fill)] p-5">
-                <h3 className="text-sm font-semibold text-[var(--text-secondary)] mb-4">Billing Methods</h3>
+            <div className="rounded-xl border border-border-default bg-surface-secondary p-5">
+                <h3 className="text-sm font-semibold text-text-secondary mb-4">Billing Methods</h3>
                 {(!data?.billingMethods || data.billingMethods.length === 0) ? (
-                    <p className="text-sm text-[var(--text-tertiary)]">No billing methods added yet.</p>
+                    <p className="text-sm text-text-tertiary">No billing methods added yet.</p>
                 ) : (
                     <div className="space-y-3">
                         {data.billingMethods.map((bm) => (
                             <div key={bm.id} className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <CreditCard className="h-4 w-4 text-[var(--text-tertiary)]" />
+                                    <CreditCard className="h-4 w-4 text-text-tertiary" />
                                     <div>
-                                        <p className="text-sm text-[var(--text-primary)]">{bm.label}</p>
-                                        <p className="text-xs text-[var(--text-tertiary)]">{bm.maskedDetail}</p>
+                                        <p className="text-sm text-text-primary">{bm.label}</p>
+                                        <p className="text-xs text-text-tertiary">{bm.maskedDetail}</p>
                                     </div>
                                 </div>
                                 {bm.isDefault && (
-                                    <span className="text-xs text-[var(--text-tertiary)] border border-[var(--border-default)] rounded px-2 py-0.5">
+                                    <span className="text-xs text-text-tertiary border border-border-default rounded px-2 py-0.5">
                                         Default
                                     </span>
                                 )}

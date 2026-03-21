@@ -150,9 +150,9 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
                 <Icon className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-semibold text-[var(--text-primary)]">{toast.title}</p>
+                <p className="text-[14px] font-semibold text-text-primary">{toast.title}</p>
                 {toast.description && (
-                    <p className="text-[13px] text-[var(--text-secondary)] mt-0.5">{toast.description}</p>
+                    <p className="text-[13px] text-text-secondary mt-0.5">{toast.description}</p>
                 )}
                 {toast.action && (
                     <button
@@ -165,7 +165,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
             </div>
             <button
                 onClick={onClose}
-                className="flex-shrink-0 p-1 rounded-md hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                className="flex-shrink-0 p-1 rounded-md hover:bg-surface-tertiary text-text-tertiary hover:text-text-primary transition-colors"
             >
                 <X className="w-4 h-4" />
             </button>
@@ -216,15 +216,15 @@ export default function Toast({
                 <Icon className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-semibold text-[var(--text-primary)]">{title}</p>
+                <p className="text-[14px] font-semibold text-text-primary">{title}</p>
                 {description && (
-                    <p className="text-[13px] text-[var(--text-secondary)] mt-0.5">{description}</p>
+                    <p className="text-[13px] text-text-secondary mt-0.5">{description}</p>
                 )}
             </div>
             {onClose && (
                 <button
                     onClick={onClose}
-                    className="flex-shrink-0 p-1 rounded-md hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                    className="flex-shrink-0 p-1 rounded-md hover:bg-surface-tertiary text-text-tertiary hover:text-text-primary transition-colors"
                 >
                     <X className="w-4 h-4" />
                 </button>

@@ -67,7 +67,7 @@ export function VenueExecutiveHeader({
         : contextLabel;
 
     return (
-        <div className="sticky top-0 z-40 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 xl:-mx-10 xl:px-10 border-b border-[var(--border-subtle)] backdrop-blur-2xl" style={{ background: "var(--bg-base)" }}>
+        <div className="sticky top-0 z-40 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 xl:-mx-10 xl:px-10 border-b border-[var(--v-border)] backdrop-blur-2xl" style={{ background: "var(--v-canvas)" }}>
             {/* Row 1: Context & Filters */}
             <div className="flex items-center justify-between h-14 md:h-16">
                 <div className="flex items-center gap-4">
@@ -81,10 +81,10 @@ export function VenueExecutiveHeader({
 
                     {/* Title */}
                     <div className="flex items-center gap-3">
-                        <h1 className="text-[13px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]">
+                        <h1 className="text-[13px] font-black uppercase tracking-[0.2em] text-[var(--v-text-primary)]">
                             {title}
                         </h1>
-                        <div className="w-px h-4 bg-[var(--border-default)]" />
+                        <div className="w-px h-4 bg-[var(--v-border-strong)]" />
                     </div>
 
                     {/* Status Pill */}
@@ -104,8 +104,8 @@ export function VenueExecutiveHeader({
                         onClick={openCalendar}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all group"
                         style={{
-                            borderColor: selectedDate ? "var(--accent)" : "var(--border-subtle)",
-                            background: selectedDate ? "var(--accent-muted)" : "var(--bg-fill)",
+                            borderColor: selectedDate ? "var(--v-orange)" : "var(--v-border)",
+                            background: selectedDate ? "var(--v-orange-dim)" : "var(--v-neutral-bg)",
                         }}
                     >
                         <div className="w-6 h-6 rounded-lg bg-orange-500/10 flex items-center justify-center">
@@ -113,13 +113,13 @@ export function VenueExecutiveHeader({
                         </div>
                         <span
                             className="text-[11px] font-bold transition-colors"
-                            style={{ color: selectedDate ? "var(--accent)" : "var(--text-secondary)" }}
+                            style={{ color: selectedDate ? "var(--v-orange)" : "var(--v-text-secondary)" }}
                         >
                             {buttonLabel}
                         </span>
                         <ChevronDown
                             className="w-3.5 h-3.5"
-                            style={{ color: selectedDate ? "var(--accent)" : "var(--text-tertiary)" }}
+                            style={{ color: selectedDate ? "var(--v-orange)" : "var(--v-text-muted)" }}
                         />
                     </button>
                 </div>
@@ -132,7 +132,7 @@ export function VenueExecutiveHeader({
                         </div>
                     )}
                     
-                    <div className="p-1 rounded-xl bg-[var(--bg-fill)] border border-[var(--border-subtle)] flex items-center gap-0.5">
+                    <div className="p-1 rounded-xl bg-[var(--v-neutral-bg)] border border-[var(--v-border)] flex items-center gap-0.5">
                         {periods.map((p) => {
                             const isActive = p.value === activePeriod;
                             return (
@@ -143,7 +143,7 @@ export function VenueExecutiveHeader({
                                         "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative overflow-hidden",
                                         isActive
                                             ? "text-white"
-                                            : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-fill)]"
+                                            : "text-[var(--v-text-muted)] hover:text-[var(--v-text-secondary)] hover:bg-[var(--v-neutral-bg)]"
                                     )}
                                 >
                                     {isActive && (
@@ -158,7 +158,7 @@ export function VenueExecutiveHeader({
                         })}
                     </div>
                     
-                    <button className="w-9 h-9 flex items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-fill)] hover:bg-[var(--bg-fill)] transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)]">
+                    <button className="w-9 h-9 flex items-center justify-center rounded-full border border-[var(--v-border)] bg-[var(--v-neutral-bg)] hover:bg-[var(--v-elevated)] transition-all text-[var(--v-text-tertiary)] hover:text-[var(--v-text-primary)] hover:border-[var(--v-border-strong)]">
                         <Calendar className="w-4 h-4" />
                     </button>
                 </div>
@@ -177,7 +177,7 @@ export function VenueExecutiveHeader({
                                 "flex items-center gap-2.5 px-4 py-3.5 border-b-2 transition-all duration-200 group relative shrink-0",
                                 isActive
                                     ? "border-orange-500"
-                                    : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                                    : "border-transparent text-[var(--v-text-muted)] hover:text-[var(--v-text-secondary)]"
                             )}
                         >
                             <Icon className={cn(
@@ -186,7 +186,7 @@ export function VenueExecutiveHeader({
                             )} />
                             <span className={cn(
                                 "text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-300",
-                                isActive ? "text-[var(--text-primary)]" : ""
+                                isActive ? "text-[var(--v-text-primary)]" : ""
                             )}>
                                 {tab.label}
                             </span>

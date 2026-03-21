@@ -11,9 +11,9 @@ interface StudioCardProps {
 
 export function StudioCard({ title, children, className, rightElement }: StudioCardProps) {
     return (
-        <div className={cn("bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-shadow", className)}>
+        <div className={cn("bg-surface-elevated border border-border-default rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-shadow", className)}>
             <div className="flex items-center justify-between mb-8">
-                <h3 className="text-sm font-black uppercase tracking-widest text-[var(--text-tertiary)]">{title}</h3>
+                <h3 className="text-sm font-black uppercase tracking-widest text-text-tertiary">{title}</h3>
                 {rightElement}
             </div>
             {children}
@@ -35,15 +35,15 @@ export function KPICard({ label, value, trend, trendType = "neutral", descriptio
     const trendColors = {
         up: "text-emerald-500 bg-emerald-50",
         down: "text-rose-500 bg-rose-50",
-        neutral: "text-[var(--text-tertiary)] bg-[var(--bg-secondary)]"
+        neutral: "text-text-tertiary bg-surface-tertiary"
     };
 
     const TrendIcon = (trendType === "up" ? TrendingUp : trendType === "down" ? TrendingDown : Minus) as any;
 
     return (
-        <div className="bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-[2rem] p-8 shadow-sm group hover:border-[var(--border-default)] transition-all">
+        <div className="bg-surface-elevated border border-border-default rounded-[2rem] p-8 shadow-sm group hover:border-border-strong transition-all">
             <div className="flex justify-between items-start mb-4">
-                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors">{label}</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary group-hover:text-text-primary transition-colors">{label}</p>
                 {trend && (
                     <div className={cn("flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black", trendColors[trendType])}>
                         {React.createElement(TrendIcon, { className: "h-3 w-3" })}
@@ -53,12 +53,12 @@ export function KPICard({ label, value, trend, trendType = "neutral", descriptio
             </div>
 
             <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black text-[var(--text-primary)] tracking-tighter leading-none">{value}</span>
-                {suffix && <span className="text-sm font-bold text-[var(--text-tertiary)]">{suffix}</span>}
+                <span className="text-4xl font-black text-text-primary tracking-tighter leading-none">{value}</span>
+                {suffix && <span className="text-sm font-bold text-text-tertiary">{suffix}</span>}
             </div>
 
             {description && (
-                <p className="mt-4 text-[10px] font-medium text-[var(--text-tertiary)] leading-relaxed uppercase tracking-wider italic flex items-center gap-2">
+                <p className="mt-4 text-[10px] font-medium text-text-tertiary leading-relaxed uppercase tracking-wider italic flex items-center gap-2">
                     {React.createElement(Info as any, { className: "h-3 w-3 opacity-50" })}
                     {description}
                 </p>
@@ -77,8 +77,8 @@ export function StudioKPIGrid({ children }: { children: ReactNode }) {
 
 export function ChartPlaceholder({ height = "h-48", label = "Chart Data" }: { height?: string, label?: string }) {
     return (
-        <div className={cn("w-full bg-[var(--bg-secondary)]/50 border border-dashed border-[var(--border-default)] rounded-2xl flex flex-col items-center justify-center p-8", height)}>
-            <div className="text-[var(--text-quaternary)] font-black uppercase tracking-widest text-[10px]">{label}</div>
+        <div className={cn("w-full bg-surface-tertiary/50 border border-dashed border-border-default rounded-2xl flex flex-col items-center justify-center p-8", height)}>
+            <div className="text-text-placeholder font-black uppercase tracking-widest text-[10px]">{label}</div>
         </div>
     );
 }

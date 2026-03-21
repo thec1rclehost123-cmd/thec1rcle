@@ -208,7 +208,7 @@ export function VenueCalendarPreview({
             case "past":
                 return "bg-gray-50 text-gray-300 cursor-not-allowed";
             default:
-                return "bg-[var(--bg-elevated)] text-gray-700 hover:bg-gray-50 cursor-pointer";
+                return "bg-surface-elevated text-gray-700 hover:bg-gray-50 cursor-pointer";
         }
     };
 
@@ -240,7 +240,7 @@ export function VenueCalendarPreview({
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                className="bg-[var(--bg-elevated)] rounded-[2rem] w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
+                className="bg-surface-elevated rounded-[2rem] w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
@@ -406,8 +406,8 @@ export function VenueCalendarPreview({
                                                             ${isUnavailable
                                                                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                                                                 : isSelected
-                                                                    ? "bg-indigo-600 text-[var(--text-primary)] shadow-lg shadow-indigo-200"
-                                                                    : "bg-[var(--bg-elevated)] text-gray-700 hover:bg-indigo-50 border border-gray-200"
+                                                                    ? "bg-indigo-600 text-text-primary shadow-lg shadow-indigo-200"
+                                                                    : "bg-surface-elevated text-gray-700 hover:bg-indigo-50 border border-gray-200"
                                                             }
                                                         `}
                                                     >
@@ -434,7 +434,7 @@ export function VenueCalendarPreview({
                                         className={`
                                             w-full py-4 rounded-xl font-bold text-sm transition-all
                                             ${selectedTimeSlot
-                                                ? "bg-indigo-600 text-[var(--text-primary)] hover:bg-indigo-700 shadow-lg shadow-indigo-200"
+                                                ? "bg-indigo-600 text-text-primary hover:bg-indigo-700 shadow-lg shadow-indigo-200"
                                                 : "bg-gray-200 text-gray-400 cursor-not-allowed"
                                             }
                                         `}

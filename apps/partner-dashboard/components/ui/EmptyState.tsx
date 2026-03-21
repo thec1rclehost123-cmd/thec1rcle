@@ -29,23 +29,25 @@ export function EmptyState({
             className
         )}>
             {Icon && (
-                <div className="text-[var(--text-tertiary)] mb-3">
-                    {isComponent ? (
-                        <Icon className="h-6 w-6" />
-                    ) : (
-                        Icon as React.ReactNode
-                    )}
+                <div className="w-14 h-14 rounded-xl bg-surface-secondary flex items-center justify-center mb-4">
+                    <div className="text-text-tertiary">
+                        {isComponent ? (
+                            <Icon className="h-6 w-6" />
+                        ) : (
+                            Icon as React.ReactNode
+                        )}
+                    </div>
                 </div>
             )}
 
-            <h3 className="text-[15px] font-[500] text-[var(--text-secondary)] mb-1">{title}</h3>
+            <h3 className="text-[16px] font-semibold text-text-primary mb-1">{title}</h3>
 
             {description && (
-                <p className="text-[13px] text-[var(--text-tertiary)] max-w-[280px]">{description}</p>
+                <p className="text-[14px] text-text-tertiary max-w-sm">{description}</p>
             )}
 
             {action && (
-                <div className="mt-4">
+                <div className="mt-5">
                     {action}
                 </div>
             )}

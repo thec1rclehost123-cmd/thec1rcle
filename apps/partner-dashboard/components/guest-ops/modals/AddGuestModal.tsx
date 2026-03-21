@@ -98,23 +98,23 @@ export function AddGuestModal({ eventId, venueId, onClose, onSuccess }: AddGuest
                 {/* Modal */}
                 <div
                     className="w-full max-w-md rounded-2xl border shadow-2xl"
-                    style={{ background: "var(--bg-elevated)", borderColor: "var(--border-subtle)" }}
+                    style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
                     onClick={e => e.stopPropagation()}
                 >
                     {/* Header */}
                     <div
                         className="flex items-center gap-3 px-5 py-4 border-b"
-                        style={{ borderColor: "var(--border-subtle)" }}
+                        style={{ borderColor: "var(--v-border)" }}
                     >
-                        <div className="w-8 h-8 rounded-xl bg-[var(--accent)]/10 flex items-center justify-center">
-                            <UserPlus size={16} className="text-[var(--accent)]" />
+                        <div className="w-8 h-8 rounded-xl bg-[var(--v-orange)]/10 flex items-center justify-center">
+                            <UserPlus size={16} className="text-[var(--v-orange)]" />
                         </div>
-                        <h2 className="text-[15px] font-semibold text-[var(--text-primary)] flex-1">
+                        <h2 className="text-[15px] font-semibold text-[var(--v-text-primary)] flex-1">
                             Add Guest
                         </h2>
                         <button
                             onClick={onClose}
-                            className="p-1.5 rounded-lg hover:bg-[var(--bg-fill)] text-[var(--text-tertiary)]"
+                            className="p-1.5 rounded-lg hover:bg-[var(--v-elevated)] text-[var(--v-text-muted)]"
                         >
                             <X size={16} />
                         </button>
@@ -124,7 +124,7 @@ export function AddGuestModal({ eventId, venueId, onClose, onSuccess }: AddGuest
                     <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
                         {/* Name */}
                         <div>
-                            <label className="block text-[12px] font-medium text-[var(--text-tertiary)] mb-1.5">
+                            <label className="block text-[12px] font-medium text-[var(--v-text-muted)] mb-1.5">
                                 Full Name <span className="text-red-400">*</span>
                             </label>
                             <input
@@ -133,14 +133,14 @@ export function AddGuestModal({ eventId, venueId, onClose, onSuccess }: AddGuest
                                 value={name}
                                 onChange={e => setName(e.target.value)}
                                 placeholder="e.g. Rahul Sharma"
-                                className="w-full px-3 py-2.5 text-[13px] rounded-xl border bg-[var(--bg-fill)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                                style={{ borderColor: "var(--border-subtle)" }}
+                                className="w-full px-3 py-2.5 text-[13px] rounded-xl border bg-[var(--v-elevated)] text-[var(--v-text-primary)] placeholder:text-[var(--v-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--v-orange)]"
+                                style={{ borderColor: "var(--v-border)" }}
                             />
                         </div>
 
                         {/* Phone */}
                         <div>
-                            <label className="block text-[12px] font-medium text-[var(--text-tertiary)] mb-1.5">
+                            <label className="block text-[12px] font-medium text-[var(--v-text-muted)] mb-1.5">
                                 Phone (optional)
                             </label>
                             <input
@@ -148,14 +148,14 @@ export function AddGuestModal({ eventId, venueId, onClose, onSuccess }: AddGuest
                                 value={phone}
                                 onChange={e => setPhone(e.target.value)}
                                 placeholder="e.g. 9876543210"
-                                className="w-full px-3 py-2.5 text-[13px] rounded-xl border bg-[var(--bg-fill)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                                style={{ borderColor: "var(--border-subtle)" }}
+                                className="w-full px-3 py-2.5 text-[13px] rounded-xl border bg-[var(--v-elevated)] text-[var(--v-text-primary)] placeholder:text-[var(--v-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--v-orange)]"
+                                style={{ borderColor: "var(--v-border)" }}
                             />
                         </div>
 
                         {/* Guest Type */}
                         <div>
-                            <label className="block text-[12px] font-medium text-[var(--text-tertiary)] mb-1.5">
+                            <label className="block text-[12px] font-medium text-[var(--v-text-muted)] mb-1.5">
                                 Guest Type
                             </label>
                             <div className="grid grid-cols-3 gap-1.5">
@@ -167,10 +167,10 @@ export function AddGuestModal({ eventId, venueId, onClose, onSuccess }: AddGuest
                                         className={cn(
                                             "py-2 px-2 rounded-xl text-[12px] font-medium text-center transition-all border",
                                             guestType === gt.value
-                                                ? "bg-[var(--accent)] text-white border-[var(--accent)]"
-                                                : "bg-[var(--bg-fill)] text-[var(--text-secondary)] hover:bg-[var(--bg-fill)]"
+                                                ? "bg-[var(--v-orange)] text-white border-[var(--v-orange)]"
+                                                : "bg-[var(--v-elevated)] text-[var(--v-text-secondary)] hover:bg-[var(--v-card-hover)]"
                                         )}
-                                        style={guestType !== gt.value ? { borderColor: "var(--border-subtle)" } : {}}
+                                        style={guestType !== gt.value ? { borderColor: "var(--v-border)" } : {}}
                                     >
                                         {gt.label}
                                     </button>
@@ -180,38 +180,38 @@ export function AddGuestModal({ eventId, venueId, onClose, onSuccess }: AddGuest
 
                         {/* Quantity (for table bookings or multi-add) */}
                         <div>
-                            <label className="block text-[12px] font-medium text-[var(--text-tertiary)] mb-1.5">
+                            <label className="block text-[12px] font-medium text-[var(--v-text-muted)] mb-1.5">
                                 Quantity
                             </label>
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
                                     onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--bg-fill)] text-[var(--text-primary)] hover:bg-[var(--bg-fill)] text-[16px] font-medium border"
-                                    style={{ borderColor: "var(--border-subtle)" }}
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--v-elevated)] text-[var(--v-text-primary)] hover:bg-[var(--v-card-hover)] text-[16px] font-medium border"
+                                    style={{ borderColor: "var(--v-border)" }}
                                 >
                                     −
                                 </button>
-                                <span className="text-[15px] font-bold text-[var(--text-primary)] w-8 text-center tabular-nums">
+                                <span className="text-[15px] font-bold text-[var(--v-text-primary)] w-8 text-center tabular-nums">
                                     {quantity}
                                 </span>
                                 <button
                                     type="button"
                                     onClick={() => setQuantity(q => Math.min(20, q + 1))}
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--bg-fill)] text-[var(--text-primary)] hover:bg-[var(--bg-fill)] text-[16px] font-medium border"
-                                    style={{ borderColor: "var(--border-subtle)" }}
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--v-elevated)] text-[var(--v-text-primary)] hover:bg-[var(--v-card-hover)] text-[16px] font-medium border"
+                                    style={{ borderColor: "var(--v-border)" }}
                                 >
                                     +
                                 </button>
                                 {quantity > 1 && (
-                                    <span className="text-[12px] text-[var(--text-tertiary)] ml-1">guests</span>
+                                    <span className="text-[12px] text-[var(--v-text-muted)] ml-1">guests</span>
                                 )}
                             </div>
                         </div>
 
                         {/* Notes */}
                         <div>
-                            <label className="block text-[12px] font-medium text-[var(--text-tertiary)] mb-1.5">
+                            <label className="block text-[12px] font-medium text-[var(--v-text-muted)] mb-1.5">
                                 Notes (optional)
                             </label>
                             <textarea
@@ -219,8 +219,8 @@ export function AddGuestModal({ eventId, venueId, onClose, onSuccess }: AddGuest
                                 onChange={e => setNotes(e.target.value)}
                                 rows={2}
                                 placeholder="Special instructions, table number, etc."
-                                className="w-full px-3 py-2.5 text-[13px] rounded-xl border bg-[var(--bg-fill)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
-                                style={{ borderColor: "var(--border-subtle)" }}
+                                className="w-full px-3 py-2.5 text-[13px] rounded-xl border bg-[var(--v-elevated)] text-[var(--v-text-primary)] placeholder:text-[var(--v-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--v-orange)] resize-none"
+                                style={{ borderColor: "var(--v-border)" }}
                             />
                         </div>
 
@@ -237,15 +237,15 @@ export function AddGuestModal({ eventId, venueId, onClose, onSuccess }: AddGuest
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="flex-1 py-2.5 rounded-xl text-[13px] font-medium border text-[var(--text-secondary)] hover:bg-[var(--bg-fill)] transition-all"
-                                style={{ borderColor: "var(--border-subtle)" }}
+                                className="flex-1 py-2.5 rounded-xl text-[13px] font-medium border text-[var(--v-text-secondary)] hover:bg-[var(--v-card-hover)] transition-all"
+                                style={{ borderColor: "var(--v-border)" }}
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
                                 disabled={isSubmitting || !name.trim()}
-                                className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold bg-[var(--accent)] text-white hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
+                                className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold bg-[var(--v-orange)] text-white hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
                             >
                                 {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
                                 Add Guest

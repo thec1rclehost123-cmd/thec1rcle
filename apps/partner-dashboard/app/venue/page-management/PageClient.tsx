@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 
 const EnhancedVenueEditor = dynamic(
     () => import("@/components/venue-management/EnhancedVenueEditor"),
-    { ssr: false, loading: () => <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4"><Loader2 className="w-10 h-10 animate-spin text-accent-primary" /><p className="text-sm font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Initializing Editor Engine...</p></div> }
+    { ssr: false, loading: () => <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4"><Loader2 className="w-10 h-10 animate-spin text-accent-primary" /><p className="text-sm font-bold uppercase tracking-widest text-text-tertiary">Initializing Editor Engine...</p></div> }
 );
 
 interface PageData {
@@ -121,7 +121,7 @@ export default function VenuePageManagement() {
         return (
             <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
                 <Loader2 className="w-10 h-10 animate-spin text-accent-primary" />
-                <p className="text-sm font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Loading Venue Editor...</p>
+                <p className="text-sm font-bold uppercase tracking-widest text-text-tertiary">Loading Venue Editor...</p>
             </div>
         );
     }
@@ -133,8 +133,8 @@ export default function VenuePageManagement() {
                     <ShieldAlert className="w-10 h-10 text-red-500" />
                 </div>
                 <div className="space-y-2">
-                    <h2 className="text-2xl font-black text-[var(--text-primary)] uppercase tracking-tight">Venue Not Accessible</h2>
-                    <p className="text-[var(--text-tertiary)]">We couldn't retrieve the configuration for your venue. This might be due to incorrect permissions or the venue ID not being linked to your account.</p>
+                    <h2 className="text-2xl font-black text-text-primary uppercase tracking-tight">Venue Not Accessible</h2>
+                    <p className="text-text-tertiary">We couldn't retrieve the configuration for your venue. This might be due to incorrect permissions or the venue ID not being linked to your account.</p>
                 </div>
                 {error && <div className="p-4 bg-red-500/5 text-red-500 text-xs font-mono rounded-xl border border-red-500/10">{error}</div>}
                 <button

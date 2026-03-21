@@ -47,7 +47,7 @@ export function AdvancedAnalyticsNav() {
                             key={id}
                             onClick={() => handleJump(id)}
                             className="shrink-0 px-3.5 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all hover:bg-white/10 active:scale-95"
-                            style={{ color: "var(--text-secondary)" }}
+                            style={{ color: "var(--v-text-secondary)" }}
                         >
                             {label}
                         </button>

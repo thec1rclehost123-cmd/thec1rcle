@@ -64,18 +64,18 @@ export function ExperienceStep({ formData, updateFormData, validationErrors }: E
                     <div className="flex items-center gap-2 mb-2.5">
                         <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-purple-500">Lineup & Performers</span>
-                        <span className="ml-auto text-[9px] text-[var(--text-tertiary)]/60 font-bold uppercase tracking-widest">Optional</span>
+                        <span className="ml-auto text-[9px] text-text-tertiary/60 font-bold uppercase tracking-widest">Optional</span>
                     </div>
 
                     <div className="flex gap-2 mb-2">
                         <div className="flex-1 relative">
-                            <Music className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-tertiary)] pointer-events-none" />
+                            <Music className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary pointer-events-none" />
                             <input
                                 placeholder="Add artist or performer"
                                 value={artistInput}
                                 onChange={(e) => setArtistInput(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addArtist())}
-                                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[var(--bg-fill)] border border-[var(--border-subtle)] text-[13px] focus:outline-none focus:border-purple-400 transition-all placeholder:text-[var(--text-tertiary)]/50"
+                                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-surface-secondary border border-border-subtle text-[13px] focus:outline-none focus:border-purple-400 transition-all placeholder:text-text-tertiary/50"
                             />
                         </div>
                         <button
@@ -109,7 +109,7 @@ export function ExperienceStep({ formData, updateFormData, validationErrors }: E
                             ))}
                         </div>
                     ) : (
-                        <p className="text-[11px] text-[var(--text-tertiary)]">No performers added yet. Press Enter or click Add.</p>
+                        <p className="text-[11px] text-text-tertiary">No performers added yet. Press Enter or click Add.</p>
                     )}
                 </div>
 
@@ -134,7 +134,7 @@ export function ExperienceStep({ formData, updateFormData, validationErrors }: E
                                 onClick={() => toggleGenre(genre)}
                                 className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all ${genres.includes(genre)
                                     ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                    : 'bg-[var(--bg-fill)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:border-indigo-400 hover:bg-[var(--bg-base)]'
+                                    : 'bg-surface-secondary text-text-secondary border-border-subtle hover:border-indigo-400 hover:bg-surface-base'
                                 }`}
                             >
                                 {genre}
@@ -160,12 +160,12 @@ export function ExperienceStep({ formData, updateFormData, validationErrors }: E
                                 onClick={() => updateFormData({ dressCode: option.id })}
                                 className={`w-full px-3 py-2.5 rounded-xl border-2 text-left transition-all flex items-center justify-between ${formData.dressCode === option.id
                                     ? 'border-amber-500 bg-amber-500/10'
-                                    : 'border-[var(--border-subtle)] hover:border-amber-400/40 hover:bg-[var(--bg-fill)]'
+                                    : 'border-border-subtle hover:border-amber-400/40 hover:bg-surface-secondary'
                                 }`}
                             >
                                 <div>
-                                    <p className="text-[13px] font-semibold text-[var(--text-primary)]">{option.label}</p>
-                                    <p className="text-[10px] text-[var(--text-tertiary)]">{option.desc}</p>
+                                    <p className="text-[13px] font-semibold text-text-primary">{option.label}</p>
+                                    <p className="text-[10px] text-text-tertiary">{option.desc}</p>
                                 </div>
                                 {formData.dressCode === option.id && (
                                     <div className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center flex-shrink-0">
@@ -182,7 +182,7 @@ export function ExperienceStep({ formData, updateFormData, validationErrors }: E
                             placeholder="e.g. White Party, Neon Night, 80s Retro"
                             value={formData.themeDescription || ""}
                             onChange={(e) => updateFormData({ themeDescription: e.target.value })}
-                            className="w-full mt-2 px-3 py-2.5 rounded-xl bg-[var(--bg-fill)] border border-[var(--border-subtle)] text-[13px] focus:outline-none focus:border-amber-400 transition-all placeholder:text-[var(--text-tertiary)]/50"
+                            className="w-full mt-2 px-3 py-2.5 rounded-xl bg-surface-secondary border border-border-subtle text-[13px] focus:outline-none focus:border-amber-400 transition-all placeholder:text-text-tertiary/50"
                         />
                     )}
                 </div>
@@ -201,7 +201,7 @@ export function ExperienceStep({ formData, updateFormData, validationErrors }: E
                                 onClick={() => updateFormData({ ageRestriction: option.value })}
                                 className={`py-2.5 rounded-xl border-2 text-[12px] font-bold transition-all text-center ${formData.ageRestriction === option.value
                                     ? 'border-red-500 bg-red-500/10 text-red-600'
-                                    : 'border-[var(--border-subtle)] hover:border-red-400/40 text-[var(--text-secondary)] hover:bg-[var(--bg-fill)]'
+                                    : 'border-border-subtle hover:border-red-400/40 text-text-secondary hover:bg-surface-secondary'
                                 }`}
                             >
                                 {option.label}

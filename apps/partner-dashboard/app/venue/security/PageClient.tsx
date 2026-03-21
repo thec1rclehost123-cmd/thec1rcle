@@ -111,12 +111,12 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
                 <div className="flex gap-3">
                     <button
                         onClick={fetchSecurityData}
-                        className="flex items-center gap-2.5 px-6 py-3 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-[var(--bg-secondary)] transition-all hover:scale-105 active:scale-95 shadow-sm"
+                        className="flex items-center gap-2.5 px-6 py-3 bg-surface-elevated border border-border-strong rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-surface-tertiary transition-all hover:scale-105 active:scale-95 shadow-sm"
                     >
                         <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
                         Refresh Data
                     </button>
-                    <button className="flex items-center gap-2.5 px-6 py-3 bg-text-primary text-white rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-text-secondary transition-all hover:scale-105 active:scale-95 shadow-xl">
+                    <button className="flex items-center gap-2.5 px-6 py-3 bg-text-primary text-text-inverse rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-text-secondary transition-all hover:scale-105 active:scale-95 shadow-xl">
                         <Users className="h-4 w-4" />
                         Staff Override
                     </button>
@@ -177,7 +177,7 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
                     <div className="absolute inset-0 bg-accent-primary/20 blur-3xl rounded-full scale-150 animate-pulse" />
                     <Loader2 className="h-14 w-14 text-accent-primary animate-spin mb-8 relative z-10" />
                 </div>
-                <p className="text-[var(--text-primary)] font-black uppercase tracking-[0.3em] text-[12px] animate-pulse">
+                <p className="text-text-primary font-black uppercase tracking-[0.3em] text-[12px] animate-pulse">
                     Initializing Security Matrix...
                 </p>
             </div>
@@ -189,20 +189,20 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 {/* Left Control Panel */}
                 <div className="lg:col-span-4 space-y-8 h-full">
-                    <BentoCard padding="lg" className="border-[var(--border-default)] shadow-xl bg-[var(--bg-elevated)]/40 backdrop-blur-xl">
+                    <BentoCard padding="lg" className="border-border-default shadow-xl bg-surface-elevated/40 backdrop-blur-xl">
                         <div className="flex items-center gap-4 mb-10">
                             <div className="p-4 rounded-[1.25rem] bg-indigo-500/10 text-indigo-500 shadow-sm border border-indigo-500/5">
                                 <Smartphone size={28} />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-black text-[var(--text-primary)] tracking-tight">Scanner Sync</h2>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-tertiary)] mt-0.5 opacity-60">Terminal Management</p>
+                                <h2 className="text-2xl font-black text-text-primary tracking-tight">Scanner Sync</h2>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mt-0.5 opacity-60">Terminal Management</p>
                             </div>
                         </div>
 
                         <div className="space-y-8">
                             <div className="space-y-3">
-                                <label className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-[var(--text-tertiary)] ml-1">
+                                <label className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-text-tertiary ml-1">
                                     <Activity size={14} className="text-accent-primary" />
                                     Operational Event
                                 </label>
@@ -210,14 +210,14 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
                                     <select
                                         value={selectedEventId}
                                         onChange={(e) => setSelectedEventId(e.target.value)}
-                                        className="w-full px-8 py-5 bg-[var(--bg-fill)]/50 border-2 border-[var(--border-default)] rounded-[1.5rem] font-bold text-[15px] appearance-none cursor-pointer focus:outline-none focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10 transition-all text-[var(--text-primary)]"
+                                        className="w-full px-8 py-5 bg-surface-secondary/50 border-2 border-border-strong rounded-[1.5rem] font-bold text-[15px] appearance-none cursor-pointer focus:outline-none focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10 transition-all text-text-primary"
                                     >
                                         {events.map(e => (
                                             <option key={e.id} value={e.id}>{e.title}</option>
                                         ))}
                                         {events.length === 0 && <option value="">No Active Deployments</option>}
                                     </select>
-                                    <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors">
+                                    <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-text-tertiary group-hover:text-text-primary transition-colors">
                                         <ArrowRight size={20} className="rotate-90" />
                                     </div>
                                 </div>
@@ -227,20 +227,20 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
                                 <motion.div 
                                     initial={{ opacity: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, scale: 1 }}
-                                    className="p-10 rounded-[2.5rem] bg-[var(--bg-fill)] border-2 border-[var(--border-default)] text-center relative overflow-hidden group shadow-inner"
+                                    className="p-10 rounded-[2.5rem] bg-surface-secondary border-2 border-border-strong text-center relative overflow-hidden group shadow-inner"
                                 >
                                     <div className="absolute -top-10 -right-10 p-3 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-1000 rotate-12 group-hover:rotate-0 group-hover:scale-110">
-                                        <QrCode className="h-48 w-48 text-[var(--text-primary)]" />
+                                        <QrCode className="h-48 w-48 text-text-primary" />
                                     </div>
 
-                                    <p className="text-[var(--text-primary)]/40 text-[10px] font-black uppercase tracking-[0.25em] mb-6 flex items-center justify-center gap-2">
+                                    <p className="text-text-primary/40 text-[10px] font-black uppercase tracking-[0.25em] mb-6 flex items-center justify-center gap-2">
                                         <Zap size={14} className="fill-current" />
                                         Cloud Gateway Code
                                     </p>
 
                                     {selectedEvent.syncCode ? (
                                         <div className="space-y-8 relative z-10">
-                                            <div className="text-6xl font-black text-[var(--text-primary)] tracking-[0.3em] mb-2 drop-shadow-[0_20px_30px_rgba(0,0,0,0.1)] font-mono">
+                                            <div className="text-6xl font-black text-text-primary tracking-[0.3em] mb-2 drop-shadow-[0_20px_30px_rgba(0,0,0,0.1)] font-mono">
                                                 {selectedEvent.syncCode}
                                             </div>
                                             <div className="flex items-center justify-center gap-3 text-emerald-500 text-[11px] font-black uppercase tracking-widest bg-emerald-500/10 py-3 px-6 rounded-full w-fit mx-auto border border-emerald-500/20 shadow-sm">
@@ -253,20 +253,20 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
                                             <button
                                                 onClick={() => deactivateSync(selectedEvent.id)}
                                                 disabled={isSyncing}
-                                                className="w-full py-5 bg-[var(--bg-elevated)]/20 hover:bg-red-500/10 text-[var(--text-tertiary)] hover:text-red-500 rounded-[1.5rem] text-[11px] font-black uppercase tracking-widest transition-all border border-[var(--border-subtle)] hover:border-red-500/30 group/kill shadow-sm"
+                                                className="w-full py-5 bg-surface-elevated/20 hover:bg-red-500/10 text-text-tertiary hover:text-red-500 rounded-[1.5rem] text-[11px] font-black uppercase tracking-widest transition-all border border-border-subtle hover:border-red-500/30 group/kill shadow-sm"
                                             >
                                                 Kill Connection
                                             </button>
                                         </div>
                                     ) : (
                                         <div className="space-y-8 relative z-10">
-                                            <div className="text-6xl font-black text-[var(--text-primary)]/10 tracking-[0.3em] mb-2 font-mono italic">
+                                            <div className="text-6xl font-black text-text-primary/10 tracking-[0.3em] mb-2 font-mono italic">
                                                 --- ---
                                             </div>
                                             <button
                                                 onClick={() => generateSyncCode(selectedEvent.id)}
                                                 disabled={isSyncing}
-                                                className="w-full py-5 bg-accent-primary hover:bg-accent-secondary text-white rounded-[1.5rem] text-xs font-bold uppercase tracking-widest shadow-2xl shadow-accent-primary/20 transition-all hover:scale-[1.03] active:scale-[0.97] disabled:opacity-50"
+                                                className="w-full py-5 bg-accent-primary hover:bg-accent-secondary text-text-inverse rounded-[1.5rem] text-xs font-bold uppercase tracking-widest shadow-2xl shadow-accent-primary/20 transition-all hover:scale-[1.03] active:scale-[0.97] disabled:opacity-50"
                                             >
                                                 {isSyncing ? (
                                                     <div className="flex items-center justify-center gap-3">
@@ -278,8 +278,8 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
                                         </div>
                                     )}
 
-                                    <p className="text-[var(--text-primary)]/30 text-[10px] font-semibold mt-8 max-w-[240px] mx-auto leading-relaxed">
-                                        Scan this code within the <span className="text-[var(--text-primary)]">C1rcle Guard App</span> to bridge distributed handheld scanners.
+                                    <p className="text-text-primary/30 text-[10px] font-semibold mt-8 max-w-[240px] mx-auto leading-relaxed">
+                                        Scan this code within the <span className="text-text-primary">C1rcle Guard App</span> to bridge distributed handheld scanners.
                                     </p>
                                 </motion.div>
                             )}
@@ -287,8 +287,8 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
                     </BentoCard>
 
                     {selectedEvent && (
-                        <BentoCard padding="lg" className="border-[var(--border-default)] shadow-xl">
-                            <h3 className="text-[11px] font-black text-[var(--text-tertiary)] uppercase tracking-widest mb-10 flex items-center gap-2">
+                        <BentoCard padding="lg" className="border-border-default shadow-xl">
+                            <h3 className="text-[11px] font-black text-text-tertiary uppercase tracking-widest mb-10 flex items-center gap-2">
                                 <Activity size={16} className="text-accent-primary" />
                                 Entry Saturation
                             </h3>
@@ -310,22 +310,22 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
                                         />
                                     </svg>
                                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                        <span className="text-6xl font-black text-[var(--text-primary)] tracking-tighter tabular-nums">{Math.round((selectedEvent.checkedIn / (selectedEvent.totalTickets || 1)) * 100)}%</span>
-                                        <span className="text-[11px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.2em] mt-2 bg-[var(--bg-fill)] px-4 py-1.5 rounded-full border border-[var(--border-subtle)] shadow-sm italic">Validation Rate</span>
+                                        <span className="text-6xl font-black text-text-primary tracking-tighter tabular-nums">{Math.round((selectedEvent.checkedIn / (selectedEvent.totalTickets || 1)) * 100)}%</span>
+                                        <span className="text-[11px] font-black text-text-tertiary uppercase tracking-[0.2em] mt-2 bg-surface-secondary px-4 py-1.5 rounded-full border border-border-subtle shadow-sm italic">Validation Rate</span>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-6 mt-8">
                                 <div className="p-8 bg-emerald-500/5 rounded-[2rem] border border-emerald-500/10 group hover:border-emerald-500/20 transition-all shadow-sm">
-                                    <p className="text-4xl font-black text-[var(--text-primary)] tabular-nums group-hover:scale-110 transition-transform origin-left">{selectedEvent.checkedIn}</p>
+                                    <p className="text-4xl font-black text-text-primary tabular-nums group-hover:scale-110 transition-transform origin-left">{selectedEvent.checkedIn}</p>
                                     <p className="text-[11px] font-black text-emerald-600 uppercase tracking-widest mt-1">Cleared</p>
                                 </div>
-                                <div className="p-8 bg-[var(--bg-fill)]/50 rounded-[2rem] border border-[var(--border-subtle)] group hover:border-text-primary/20 transition-all shadow-sm">
-                                    <p className="text-4xl font-black text-[var(--text-primary)] tabular-nums group-hover:scale-110 transition-transform origin-left">
+                                <div className="p-8 bg-surface-secondary/50 rounded-[2rem] border border-border-subtle group hover:border-text-primary/20 transition-all shadow-sm">
+                                    <p className="text-4xl font-black text-text-primary tabular-nums group-hover:scale-110 transition-transform origin-left">
                                         {Math.max(0, selectedEvent.totalTickets - selectedEvent.checkedIn)}
                                     </p>
-                                    <p className="text-[11px] font-black text-[var(--text-tertiary)] uppercase tracking-widest mt-1">Residual</p>
+                                    <p className="text-[11px] font-black text-text-tertiary uppercase tracking-widest mt-1">Residual</p>
                                 </div>
                             </div>
                         </BentoCard>
@@ -334,62 +334,62 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
 
                 {/* Right Data Terminal */}
                 <div className="lg:col-span-8 h-full">
-                    <BentoCard padding="lg" className="border-[var(--border-default)] shadow-2xl flex flex-col h-full min-h-[960px] overflow-hidden bg-[var(--bg-elevated)]">
-                        <div className="p-8 border-b-2 border-[var(--border-subtle)] flex flex-col md:flex-row md:items-center justify-between gap-8 bg-[var(--bg-fill)]/20">
+                    <BentoCard padding="lg" className="border-border-default shadow-2xl flex flex-col h-full min-h-[960px] overflow-hidden bg-surface-elevated">
+                        <div className="p-8 border-b-2 border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-8 bg-surface-secondary/20">
                             <div>
-                                <h2 className="text-3xl font-black text-[var(--text-primary)] tracking-tight flex items-center gap-3">
+                                <h2 className="text-3xl font-black text-text-primary tracking-tight flex items-center gap-3">
                                     <Ticket size={32} className="text-accent-primary" />
                                     Main Manifest
                                 </h2>
-                                <p className="text-[11px] text-[var(--text-tertiary)] font-black uppercase tracking-[0.2em] mt-1 italic">Manual Validation & Override Terminal</p>
+                                <p className="text-[11px] text-text-tertiary font-black uppercase tracking-[0.2em] mt-1 italic">Manual Validation & Override Terminal</p>
                             </div>
                             <div className="relative group min-w-[380px]">
-                                <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-6 w-6 text-[var(--text-tertiary)] group-focus-within:text-[var(--text-primary)] transition-all group-focus-within:scale-110" />
+                                <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-6 w-6 text-text-tertiary group-focus-within:text-text-primary transition-all group-focus-within:scale-110" />
                                 <input
                                     type="text"
                                     placeholder="SCAN TICKET OR TYPE NAME IDENTIFIER..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-16 pr-10 py-6 w-full bg-[var(--bg-elevated)] border-2 border-[var(--border-default)] rounded-[1.75rem] text-sm font-bold tracking-tight uppercase focus:outline-none focus:border-accent-primary focus:ring-8 focus:ring-accent-primary/10 transition-all shadow-inner placeholder:text-[var(--text-quaternary)]/60"
+                                    className="pl-16 pr-10 py-6 w-full bg-surface-elevated border-2 border-border-strong rounded-[1.75rem] text-sm font-bold tracking-tight uppercase focus:outline-none focus:border-accent-primary focus:ring-8 focus:ring-accent-primary/10 transition-all shadow-inner placeholder:text-text-placeholder/60"
                                 />
-                                <div className="absolute right-6 top-1/2 -translate-y-1/2 bg-[var(--bg-fill)] p-2 rounded-xl border border-[var(--border-subtle)] group-focus-within:opacity-0 transition-opacity">
-                                    <kbd className="text-[10px] font-black text-[var(--text-tertiary)]">⌘ F</kbd>
+                                <div className="absolute right-6 top-1/2 -translate-y-1/2 bg-surface-secondary p-2 rounded-xl border border-border-subtle group-focus-within:opacity-0 transition-opacity">
+                                    <kbd className="text-[10px] font-black text-text-tertiary">⌘ F</kbd>
                                 </div>
                             </div>
                         </div>
 
                         <div className="flex-1 overflow-auto custom-scrollbar">
                             <table className="w-full text-left border-collapse">
-                                <thead className="sticky top-0 z-10 bg-[var(--bg-elevated)]/95 backdrop-blur-xl border-b border-[var(--border-subtle)] shadow-sm">
+                                <thead className="sticky top-0 z-10 bg-surface-elevated/95 backdrop-blur-xl border-b border-border-subtle shadow-sm">
                                     <tr>
-                                        <th className="px-10 py-8 text-[11px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.25em]">Validated Name</th>
-                                        <th className="px-10 py-8 text-[11px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.25em]">Classification</th>
-                                        <th className="px-10 py-8 text-[11px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.25em]">Access State</th>
-                                        <th className="px-10 py-8 text-[11px] font-black text-[var(--text-tertiary)] uppercase tracking-[0.25em] text-right">Administrative</th>
+                                        <th className="px-10 py-8 text-[11px] font-black text-text-tertiary uppercase tracking-[0.25em]">Validated Name</th>
+                                        <th className="px-10 py-8 text-[11px] font-black text-text-tertiary uppercase tracking-[0.25em]">Classification</th>
+                                        <th className="px-10 py-8 text-[11px] font-black text-text-tertiary uppercase tracking-[0.25em]">Access State</th>
+                                        <th className="px-10 py-8 text-[11px] font-black text-text-tertiary uppercase tracking-[0.25em] text-right">Administrative</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border-subtle/50">
                                     {filteredGuests.map((guest) => (
-                                        <tr key={guest.id} className="hover:bg-[var(--bg-fill)]/30 transition-all group cursor-pointer border-l-4 border-l-transparent hover:border-l-accent-primary">
+                                        <tr key={guest.id} className="hover:bg-surface-secondary/30 transition-all group cursor-pointer border-l-4 border-l-transparent hover:border-l-accent-primary">
                                             <td className="px-10 py-8">
                                                 <div className="flex items-center gap-5">
                                                     <div className={cn(
-                                                        "h-12 w-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm border border-[var(--border-subtle)]",
-                                                        guest.status === 'checked_in' ? "bg-emerald-500/10 text-emerald-600" : "bg-[var(--bg-fill)] text-[var(--text-quaternary)]"
+                                                        "h-12 w-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm border border-border-subtle",
+                                                        guest.status === 'checked_in' ? "bg-emerald-500/10 text-emerald-600" : "bg-surface-secondary text-text-placeholder"
                                                     )}>
                                                         {guest.name?.charAt(0) || '?'}
                                                     </div>
                                                     <div className="flex flex-col">
-                                                        <span className="font-extrabold text-[var(--text-primary)] text-[17px] group-hover:text-accent-primary transition-colors tabular-nums">{guest.name || 'Anonymous Guest'}</span>
-                                                        <span className="text-[11px] font-black text-[var(--text-tertiary)] uppercase tracking-widest mt-1 font-mono opacity-60">Manifest ID: #{guest.id.substring(0, 8).toUpperCase()}</span>
+                                                        <span className="font-extrabold text-text-primary text-[17px] group-hover:text-accent-primary transition-colors tabular-nums">{guest.name || 'Anonymous Guest'}</span>
+                                                        <span className="text-[11px] font-black text-text-tertiary uppercase tracking-widest mt-1 font-mono opacity-60">Manifest ID: #{guest.id.substring(0, 8).toUpperCase()}</span>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-10 py-8 font-black text-[12px] uppercase tracking-widest text-[var(--text-tertiary)] italic">
+                                            <td className="px-10 py-8 font-black text-[12px] uppercase tracking-widest text-text-tertiary italic">
                                                 <span className={cn(
                                                     "px-3 py-1 rounded-lg",
                                                     guest.type === 'VIP' ? "bg-amber-500/10 text-amber-600 border border-amber-500/20" : 
-                                                    guest.type === 'BOTTLE' ? "bg-purple-500/10 text-purple-600 border border-purple-500/20" : "bg-[var(--bg-fill)]/50"
+                                                    guest.type === 'BOTTLE' ? "bg-purple-500/10 text-purple-600 border border-purple-500/20" : "bg-surface-secondary/50"
                                                 )}>
                                                     {guest.type || 'Standard'}
                                                 </span>
@@ -401,7 +401,7 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
                                                         Matrix Cleared
                                                     </span>
                                                 ) : (
-                                                    <span className="inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest bg-[var(--bg-fill)] text-[var(--text-tertiary)] border border-[var(--border-default)] shadow-sm group-hover:bg-accent-primary/5 transition-all">
+                                                    <span className="inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest bg-surface-secondary text-text-tertiary border border-border-strong shadow-sm group-hover:bg-accent-primary/5 transition-all">
                                                         <Clock size={16} />
                                                         Entry Pending
                                                     </span>
@@ -409,13 +409,13 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
                                             </td>
                                             <td className="px-10 py-8 text-right">
                                                 {guest.status !== 'checked_in' ? (
-                                                    <button className="px-8 py-3.5 bg-[var(--bg-fill)] text-[var(--text-primary)] rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-text-primary hover:text-white transition-all shadow-xl hover:shadow-text-primary/20 active:scale-[0.9] border-2 border-[var(--border-default)] hover:border-text-primary group-hover:scale-105">
+                                                    <button className="px-8 py-3.5 bg-surface-secondary text-text-primary rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-text-primary hover:text-text-inverse transition-all shadow-xl hover:shadow-text-primary/20 active:scale-[0.9] border-2 border-border-strong hover:border-text-primary group-hover:scale-105">
                                                         Flash Validate
                                                     </button>
                                                 ) : (
                                                     <div className="flex flex-col items-end opacity-40 group-hover:opacity-100 transition-opacity">
                                                         <span className="text-[11px] font-black text-emerald-500 uppercase tracking-widest italic">Entry: 22:45 IST</span>
-                                                        <span className="text-[10px] font-bold text-[var(--text-quaternary)] uppercase tracking-tighter">Terminal A-12</span>
+                                                        <span className="text-[10px] font-bold text-text-placeholder uppercase tracking-tighter">Terminal A-12</span>
                                                     </div>
                                                 )}
                                             </td>
@@ -426,11 +426,11 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
 
                             {filteredGuests.length === 0 && (
                                 <div className="py-48 text-center flex flex-col items-center justify-center">
-                                    <div className="p-10 rounded-[3rem] bg-[var(--bg-fill)]/40 border-4 border-dashed border-[var(--border-default)] mb-10 group hover:border-accent-primary/30 transition-all">
-                                        <Users className="h-28 w-28 text-[var(--text-quaternary)] opacity-20 group-hover:scale-110 group-hover:opacity-40 transition-all duration-700" />
+                                    <div className="p-10 rounded-[3rem] bg-surface-secondary/40 border-4 border-dashed border-border-strong mb-10 group hover:border-accent-primary/30 transition-all">
+                                        <Users className="h-28 w-28 text-text-placeholder opacity-20 group-hover:scale-110 group-hover:opacity-40 transition-all duration-700" />
                                     </div>
-                                    <p className="font-black text-[var(--text-primary)] uppercase tracking-[0.4em] text-xl">Shadow Protocol Active</p>
-                                    <p className="text-[var(--text-tertiary)] font-bold uppercase tracking-widest text-[11px] mt-4 max-w-[400px] leading-relaxed italic">
+                                    <p className="font-black text-text-primary uppercase tracking-[0.4em] text-xl">Shadow Protocol Active</p>
+                                    <p className="text-text-tertiary font-bold uppercase tracking-widest text-[11px] mt-4 max-w-[400px] leading-relaxed italic">
                                         No matching identities found in current manifest. Ensure scanner is synced or check manual ID entry.
                                     </p>
                                 </div>

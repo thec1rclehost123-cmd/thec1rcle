@@ -174,8 +174,8 @@ export default function DoorSearchPageClient() {
                                         className={cn(
                                             "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium transition-all",
                                             searchField === tab.value
-                                                ? "bg-[var(--accent)] text-white"
-                                                : "bg-[var(--bg-fill)] text-[var(--text-secondary)] hover:bg-[var(--bg-fill)]"
+                                                ? "bg-[var(--v-orange)] text-white"
+                                                : "bg-[var(--v-elevated)] text-[var(--v-text-secondary)] hover:bg-[var(--v-card-hover)]"
                                         )}
                                     >
                                         <Icon size={12} />
@@ -189,12 +189,12 @@ export default function DoorSearchPageClient() {
                         <div className="relative">
                             <Search
                                 size={16}
-                                className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]"
+                                className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--v-text-muted)]"
                             />
                             {isSearching && (
                                 <Loader2
                                     size={16}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] animate-spin"
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--v-text-muted)] animate-spin"
                                 />
                             )}
                             <input
@@ -203,8 +203,8 @@ export default function DoorSearchPageClient() {
                                 value={query}
                                 onChange={e => handleQueryChange(e.target.value)}
                                 placeholder={currentTab.placeholder}
-                                className="w-full pl-11 pr-11 py-3.5 text-[15px] rounded-2xl border bg-[var(--bg-elevated)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] shadow-sm"
-                                style={{ borderColor: "var(--border-subtle)" }}
+                                className="w-full pl-11 pr-11 py-3.5 text-[15px] rounded-2xl border bg-[var(--v-card)] text-[var(--v-text-primary)] placeholder:text-[var(--v-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--v-orange)] shadow-sm"
+                                style={{ borderColor: "var(--v-border)" }}
                                 autoComplete="off"
                                 spellCheck={false}
                             />
@@ -242,7 +242,7 @@ export default function DoorSearchPageClient() {
 
                         {results.length > 0 && (
                             <div className="space-y-2">
-                                <div className="text-[12px] text-[var(--text-tertiary)]">
+                                <div className="text-[12px] text-[var(--v-text-muted)]">
                                     {results.length} result{results.length !== 1 ? "s" : ""}
                                 </div>
                                 {results.map(guest => (
@@ -264,7 +264,7 @@ export default function DoorSearchPageClient() {
                         {/* Auto-expand single result */}
                         {results.length === 1 && !selectedGuest && results[0].status !== "checked_in" && canManage && !isLocked && (
                             <div className="text-center">
-                                <p className="text-[12px] text-[var(--text-tertiary)]">
+                                <p className="text-[12px] text-[var(--v-text-muted)]">
                                     Single match found — click the card above to open or use quick actions.
                                 </p>
                             </div>
@@ -315,7 +315,7 @@ function DoorSearchResultCard({ guest, isLocked, canManage, isActing, lastAction
                     ? "border-amber-200 dark:border-amber-800"
                     : ""
             )}
-            style={{ background: "var(--bg-elevated)", borderColor: guest.status === "expected" ? "var(--border-subtle)" : undefined }}
+            style={{ background: "var(--v-card)", borderColor: guest.status === "expected" ? "var(--v-border)" : undefined }}
             onClick={onViewDetail}
         >
             <div className="flex items-start gap-3">
@@ -324,7 +324,7 @@ function DoorSearchResultCard({ guest, isLocked, canManage, isActing, lastAction
                     "w-10 h-10 rounded-xl flex items-center justify-center text-[15px] font-bold shrink-0",
                     guest.status === "checked_in" ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" :
                     guest.status === "denied" ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" :
-                    "bg-[var(--bg-fill)] text-[var(--text-tertiary)]"
+                    "bg-[var(--v-elevated)] text-[var(--v-text-muted)]"
                 )}>
                     {guest.displayName.charAt(0).toUpperCase()}
                 </div>
@@ -332,7 +332,7 @@ function DoorSearchResultCard({ guest, isLocked, canManage, isActing, lastAction
                 {/* Main info */}
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[14px] font-semibold text-[var(--text-primary)]">
+                        <span className="text-[14px] font-semibold text-[var(--v-text-primary)]">
                             {guest.displayName}
                         </span>
                         <GuestStatusChip status={guest.status} size="xs" />
@@ -341,16 +341,16 @@ function DoorSearchResultCard({ guest, isLocked, canManage, isActing, lastAction
 
                     <div className="flex items-center gap-3 mt-1 flex-wrap">
                         {guest.maskedPhone && (
-                            <span className="text-[12px] text-[var(--text-tertiary)] font-mono">{guest.maskedPhone}</span>
+                            <span className="text-[12px] text-[var(--v-text-muted)] font-mono">{guest.maskedPhone}</span>
                         )}
                         {guest.ticketTierName && (
-                            <span className="text-[12px] text-[var(--text-tertiary)]">{guest.ticketTierName}</span>
+                            <span className="text-[12px] text-[var(--v-text-muted)]">{guest.ticketTierName}</span>
                         )}
                         {guest.hostName && (
-                            <span className="text-[12px] text-[var(--text-tertiary)]">via {guest.hostName}</span>
+                            <span className="text-[12px] text-[var(--v-text-muted)]">via {guest.hostName}</span>
                         )}
                         {guest.promoterName && (
-                            <span className="text-[12px] text-[var(--text-tertiary)]">via {guest.promoterName}</span>
+                            <span className="text-[12px] text-[var(--v-text-muted)]">via {guest.promoterName}</span>
                         )}
                     </div>
 
@@ -400,9 +400,9 @@ function DoorSearchResultCard({ guest, isLocked, canManage, isActing, lastAction
 function NoEventState() {
     return (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-            <ScanLine size={40} className="text-[var(--text-tertiary)] mb-4" />
-            <h3 className="text-[16px] font-semibold text-[var(--text-primary)] mb-2">Select an event</h3>
-            <p className="text-[13px] text-[var(--text-tertiary)] max-w-xs">
+            <ScanLine size={40} className="text-[var(--v-text-muted)] mb-4" />
+            <h3 className="text-[16px] font-semibold text-[var(--v-text-primary)] mb-2">Select an event</h3>
+            <p className="text-[13px] text-[var(--v-text-muted)] max-w-xs">
                 Choose an event from the selector above to use door search.
             </p>
         </div>
@@ -412,9 +412,9 @@ function NoEventState() {
 function NotFoundState({ query, field }: { query: string; field: SearchField }) {
     return (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Search size={32} className="text-[var(--text-tertiary)] mb-3" />
-            <p className="text-[14px] font-medium text-[var(--text-primary)] mb-1">No guests found</p>
-            <p className="text-[12px] text-[var(--text-tertiary)]">
+            <Search size={32} className="text-[var(--v-text-muted)] mb-3" />
+            <p className="text-[14px] font-medium text-[var(--v-text-primary)] mb-1">No guests found</p>
+            <p className="text-[12px] text-[var(--v-text-muted)]">
                 No results for "{query}" in {field}.
                 {field === "phone" ? " Try without country code." : " Check spelling and try again."}
             </p>

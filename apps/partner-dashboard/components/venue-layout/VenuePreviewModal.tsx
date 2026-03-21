@@ -49,23 +49,23 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
                 onClick={(e) => e.stopPropagation()}
-                className="relative w-full max-w-6xl max-h-[90vh] bg-[#0D0D0F] rounded-3xl border border-[var(--border-subtle)] overflow-hidden flex flex-col"
+                className="relative w-full max-w-6xl max-h-[90vh] bg-[#0D0D0F] rounded-3xl border border-border-subtle overflow-hidden flex flex-col"
             >
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-[var(--border-subtle)]">
+                <div className="flex items-center justify-between p-6 border-b border-border-subtle">
                     <div>
-                        <h2 className="text-xl font-bold text-[var(--text-primary)]">Page Preview</h2>
-                        <p className="text-sm text-[var(--text-primary)]/50">See how your venue page appears to guests</p>
+                        <h2 className="text-xl font-bold text-text-primary">Page Preview</h2>
+                        <p className="text-sm text-text-primary/50">See how your venue page appears to guests</p>
                     </div>
 
                     <div className="flex items-center gap-4">
                         {/* Device Toggle */}
-                        <div className="flex p-1 bg-[var(--bg-elevated)]/5 rounded-xl border border-[var(--border-subtle)]">
+                        <div className="flex p-1 bg-surface-elevated/5 rounded-xl border border-border-subtle">
                             <button
                                 onClick={() => setDevice("desktop")}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-bold transition-all ${device === "desktop"
-                                    ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                                    : "text-[var(--text-primary)]/60 hover:text-[var(--text-primary)]"
+                                    ? "bg-surface-elevated text-text-primary"
+                                    : "text-text-primary/60 hover:text-text-primary"
                                     }`}
                             >
                                 <Monitor className="w-4 h-4" />
@@ -74,8 +74,8 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
                             <button
                                 onClick={() => setDevice("mobile")}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-bold transition-all ${device === "mobile"
-                                    ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                                    : "text-[var(--text-primary)]/60 hover:text-[var(--text-primary)]"
+                                    ? "bg-surface-elevated text-text-primary"
+                                    : "text-text-primary/60 hover:text-text-primary"
                                     }`}
                             >
                                 <Smartphone className="w-4 h-4" />
@@ -84,12 +84,12 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
                         </div>
 
                         {/* Theme Toggle */}
-                        <div className="flex p-1 bg-[var(--bg-elevated)]/5 rounded-xl border border-[var(--border-subtle)]">
+                        <div className="flex p-1 bg-surface-elevated/5 rounded-xl border border-border-subtle">
                             <button
                                 onClick={() => setTheme("light")}
                                 className={`p-2 rounded-lg transition-all ${theme === "light"
-                                    ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                                    : "text-[var(--text-primary)]/60 hover:text-[var(--text-primary)]"
+                                    ? "bg-surface-elevated text-text-primary"
+                                    : "text-text-primary/60 hover:text-text-primary"
                                     }`}
                             >
                                 <Sun className="w-4 h-4" />
@@ -97,8 +97,8 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
                             <button
                                 onClick={() => setTheme("dark")}
                                 className={`p-2 rounded-lg transition-all ${theme === "dark"
-                                    ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                                    : "text-[var(--text-primary)]/60 hover:text-[var(--text-primary)]"
+                                    ? "bg-surface-elevated text-text-primary"
+                                    : "text-text-primary/60 hover:text-text-primary"
                                     }`}
                             >
                                 <Moon className="w-4 h-4" />
@@ -110,14 +110,14 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
                             href={previewUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-5 py-2.5 bg-green-500 text-[var(--text-primary)] rounded-xl text-[11px] font-bold hover:bg-emerald-400 transition-all"
+                            className="flex items-center gap-2 px-5 py-2.5 bg-green-500 text-text-primary rounded-xl text-[11px] font-bold hover:bg-emerald-400 transition-all"
                         >
                             <ExternalLink className="w-4 h-4" />
                             View Live
                         </a>
 
-                        <button onClick={onClose} className="p-2 hover:bg-[var(--bg-elevated)]/10 rounded-xl">
-                            <X className="w-5 h-5 text-[var(--text-primary)]/60" />
+                        <button onClick={onClose} className="p-2 hover:bg-surface-elevated/10 rounded-xl">
+                            <X className="w-5 h-5 text-text-primary/60" />
                         </button>
                     </div>
                 </div>
@@ -132,7 +132,7 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
                             } shadow-2xl`}
                     >
                         {/* Mock Preview Content */}
-                        <div className={`w-full h-full overflow-y-auto ${theme === "dark" ? "bg-[#0A0A0A] text-[var(--text-primary)]" : "bg-[var(--bg-elevated)] text-[var(--text-primary)]"}`}>
+                        <div className={`w-full h-full overflow-y-auto ${theme === "dark" ? "bg-[#0A0A0A] text-text-primary" : "bg-surface-elevated text-text-primary"}`}>
                             {/* Hero Section */}
                             <div className="relative h-80">
                                 {venue?.coverURL ? (
@@ -145,7 +145,7 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
                                 {/* Hero Content */}
                                 <div className="absolute bottom-6 left-6 right-6">
                                     <div className="flex items-center gap-2 mb-3">
-                                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${theme === "dark" ? "bg-[var(--bg-elevated)]/10 text-[var(--text-primary)]/60" : "bg-black/10 text-[var(--text-primary)]/60"
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${theme === "dark" ? "bg-surface-elevated/10 text-text-primary/60" : "bg-black/10 text-text-primary/60"
                                             }`}>
                                             {venue?.venueType || "Venue"}
                                         </span>
@@ -155,10 +155,10 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
                                             </span>
                                         )}
                                     </div>
-                                    <h1 className="text-3xl font-black text-[var(--text-primary)] uppercase tracking-tight mb-2">
+                                    <h1 className="text-3xl font-black text-text-primary uppercase tracking-tight mb-2">
                                         {venue?.displayName || venue?.name || "Venue Name"}
                                     </h1>
-                                    <p className="flex items-center gap-2 text-[var(--text-primary)]/60 text-sm">
+                                    <p className="flex items-center gap-2 text-text-primary/60 text-sm">
                                         <MapPin className="w-4 h-4" />
                                         {venue?.neighborhood || venue?.city || "Location"}
                                     </p>
@@ -166,28 +166,28 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
                             </div>
 
                             {/* Stats Bar */}
-                            <div className={`p-4 flex items-center justify-around border-b ${theme === "dark" ? "border-[var(--border-subtle)] bg-[var(--bg-elevated)]/[0.02]" : "border-black/10 bg-black/[0.02]"
+                            <div className={`p-4 flex items-center justify-around border-b ${theme === "dark" ? "border-border-subtle bg-surface-elevated/[0.02]" : "border-black/10 bg-black/[0.02]"
                                 }`}>
                                 <div className="text-center">
                                     <p className="text-xl font-bold">{venue?.stats?.followersCount || "2.4K"}</p>
-                                    <p className={`text-[10px] font-bold uppercase ${theme === "dark" ? "text-[var(--text-primary)]/40" : "text-[var(--text-primary)]/40"}`}>Followers</p>
+                                    <p className={`text-[10px] font-bold uppercase ${theme === "dark" ? "text-text-primary/40" : "text-text-primary/40"}`}>Followers</p>
                                 </div>
                                 <div className="text-center">
                                     <p className="text-xl font-bold">{venue?.stats?.eventsCount || "42"}</p>
-                                    <p className={`text-[10px] font-bold uppercase ${theme === "dark" ? "text-[var(--text-primary)]/40" : "text-[var(--text-primary)]/40"}`}>Events</p>
+                                    <p className={`text-[10px] font-bold uppercase ${theme === "dark" ? "text-text-primary/40" : "text-text-primary/40"}`}>Events</p>
                                 </div>
                                 <div className="text-center">
                                     <p className="text-xl font-bold">4.8</p>
-                                    <p className={`text-[10px] font-bold uppercase ${theme === "dark" ? "text-[var(--text-primary)]/40" : "text-[var(--text-primary)]/40"}`}>Rating</p>
+                                    <p className={`text-[10px] font-bold uppercase ${theme === "dark" ? "text-text-primary/40" : "text-text-primary/40"}`}>Rating</p>
                                 </div>
                             </div>
 
                             {/* CTA Buttons */}
                             <div className="p-4 flex gap-3">
-                                <button className="flex-1 py-3 bg-[#F44A22] text-[var(--text-primary)] rounded-xl text-[11px] font-bold uppercase tracking-wider">
+                                <button className="flex-1 py-3 bg-[#F44A22] text-text-primary rounded-xl text-[11px] font-bold uppercase tracking-wider">
                                     {venue?.primaryCta === "tickets" ? "Get Tickets" : "Reserve Table"}
                                 </button>
-                                <button className={`flex-1 py-3 rounded-xl text-[11px] font-bold uppercase tracking-wider border ${theme === "dark" ? "border-white/20 text-[var(--text-primary)]" : "border-black/20 text-[var(--text-primary)]"
+                                <button className={`flex-1 py-3 rounded-xl text-[11px] font-bold uppercase tracking-wider border ${theme === "dark" ? "border-white/20 text-text-primary" : "border-black/20 text-text-primary"
                                     }`}>
                                     Follow
                                 </button>
@@ -195,8 +195,8 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
 
                             {/* About Section */}
                             <div className="p-6">
-                                <h3 className={`text-sm font-black uppercase tracking-widest mb-3 ${theme === "dark" ? "text-[var(--text-primary)]/60" : "text-[var(--text-primary)]/60"}`}>About</h3>
-                                <p className={`text-sm leading-relaxed ${theme === "dark" ? "text-[var(--text-primary)]/70" : "text-[var(--text-primary)]/70"}`}>
+                                <h3 className={`text-sm font-black uppercase tracking-widest mb-3 ${theme === "dark" ? "text-text-primary/60" : "text-text-primary/60"}`}>About</h3>
+                                <p className={`text-sm leading-relaxed ${theme === "dark" ? "text-text-primary/70" : "text-text-primary/70"}`}>
                                     {venue?.bio || "Your venue description will appear here. Add a compelling bio to attract guests."}
                                 </p>
 
@@ -204,7 +204,7 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
                                 {venue?.genres?.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mt-4">
                                         {venue.genres.slice(0, 5).map((genre: string) => (
-                                            <span key={genre} className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${theme === "dark" ? "bg-[var(--bg-elevated)]/10 text-[var(--text-primary)]/60" : "bg-black/10 text-[var(--text-primary)]/60"
+                                            <span key={genre} className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${theme === "dark" ? "bg-surface-elevated/10 text-text-primary/60" : "bg-black/10 text-text-primary/60"
                                                 }`}>
                                                 {genre}
                                             </span>
@@ -216,7 +216,7 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
                             {/* Photo Grid Preview */}
                             {venue?.photos?.length > 0 && (
                                 <div className="p-6 pt-0">
-                                    <h3 className={`text-sm font-black uppercase tracking-widest mb-3 ${theme === "dark" ? "text-[var(--text-primary)]/60" : "text-[var(--text-primary)]/60"}`}>Gallery</h3>
+                                    <h3 className={`text-sm font-black uppercase tracking-widest mb-3 ${theme === "dark" ? "text-text-primary/60" : "text-text-primary/60"}`}>Gallery</h3>
                                     <div className="grid grid-cols-3 gap-2">
                                         {venue.photos.slice(0, 6).map((photo: string, idx: number) => (
                                             <div key={idx} className="aspect-square rounded-xl overflow-hidden">
@@ -228,8 +228,8 @@ export default function VenuePreviewModal({ venue, onClose }: VenuePreviewModalP
                             )}
 
                             {/* Contact Preview */}
-                            <div className={`m-6 p-6 rounded-2xl ${theme === "dark" ? "bg-[var(--bg-elevated)]/5" : "bg-black/5"}`}>
-                                <h3 className={`text-sm font-black uppercase tracking-widest mb-4 ${theme === "dark" ? "text-[var(--text-primary)]/60" : "text-[var(--text-primary)]/60"}`}>Contact</h3>
+                            <div className={`m-6 p-6 rounded-2xl ${theme === "dark" ? "bg-surface-elevated/5" : "bg-black/5"}`}>
+                                <h3 className={`text-sm font-black uppercase tracking-widest mb-4 ${theme === "dark" ? "text-text-primary/60" : "text-text-primary/60"}`}>Contact</h3>
                                 <div className="space-y-3">
                                     {venue?.phone && (
                                         <div className="flex items-center gap-3">

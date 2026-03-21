@@ -159,29 +159,29 @@ export function CalendarFilterPopup({
                 top: popupTop,
                 left: popupLeft,
                 zIndex: 9999,
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border-subtle)",
+                background: "var(--v-card)",
+                border: "1px solid var(--v-border)",
                 boxShadow: "0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.10)",
             }}
         >
             {/* Header */}
             <div
                 className="flex items-center justify-between px-5 pt-4 pb-3"
-                style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                style={{ borderBottom: "1px solid var(--v-border)" }}
             >
                 <button
                     onClick={prevMonth}
                     className="w-8 h-8 flex items-center justify-center rounded-full transition-all"
-                    style={{ background: "var(--bg-fill)" }}
+                    style={{ background: "var(--v-neutral-bg)" }}
                 >
-                    <ChevronLeft className="w-4 h-4" style={{ color: "var(--text-secondary)" }} />
+                    <ChevronLeft className="w-4 h-4" style={{ color: "var(--v-text-secondary)" }} />
                 </button>
 
                 <div className="text-center">
-                    <p className="text-[13px] font-black tracking-wide" style={{ color: "var(--text-primary)" }}>
+                    <p className="text-[13px] font-black tracking-wide" style={{ color: "var(--v-text-primary)" }}>
                         {MONTHS[viewMonth]}
                     </p>
-                    <p className="text-[11px] font-semibold" style={{ color: "var(--text-tertiary)" }}>
+                    <p className="text-[11px] font-semibold" style={{ color: "var(--v-text-muted)" }}>
                         {viewYear}
                     </p>
                 </div>
@@ -189,9 +189,9 @@ export function CalendarFilterPopup({
                 <button
                     onClick={nextMonth}
                     className="w-8 h-8 flex items-center justify-center rounded-full transition-all"
-                    style={{ background: "var(--bg-fill)" }}
+                    style={{ background: "var(--v-neutral-bg)" }}
                 >
-                    <ChevronRight className="w-4 h-4" style={{ color: "var(--text-secondary)" }} />
+                    <ChevronRight className="w-4 h-4" style={{ color: "var(--v-text-secondary)" }} />
                 </button>
             </div>
 
@@ -199,7 +199,7 @@ export function CalendarFilterPopup({
             <div className="grid grid-cols-7 px-4 pt-3 pb-1">
                 {DAY_LABELS.map((d) => (
                     <div key={d} className="text-center text-[9px] font-black uppercase tracking-widest"
-                        style={{ color: "var(--text-tertiary)" }}>
+                        style={{ color: "var(--v-text-muted)" }}>
                         {d}
                     </div>
                 ))}
@@ -233,9 +233,9 @@ export function CalendarFilterPopup({
                             className="relative flex flex-col items-center justify-start py-1 rounded-xl transition-all group"
                             style={{
                                 background: isSelected
-                                    ? "var(--accent)"
+                                    ? "var(--v-orange)"
                                     : isToday
-                                        ? "var(--bg-fill)"
+                                        ? "var(--v-neutral-bg)"
                                         : "transparent",
                                 minHeight: 52,
                             }}
@@ -247,8 +247,8 @@ export function CalendarFilterPopup({
                                     color: isSelected
                                         ? "#fff"
                                         : isToday
-                                            ? "var(--accent)"
-                                            : "var(--text-primary)",
+                                            ? "var(--v-orange)"
+                                            : "var(--v-text-primary)",
                                 }}
                             >
                                 {cell.day}
@@ -267,7 +267,7 @@ export function CalendarFilterPopup({
                                                     className="w-5 h-5 rounded-full object-cover ring-1"
                                                     style={{
                                                         boxSizing: "border-box",
-                                                        border: `1.5px solid ${isSelected ? "rgba(255,255,255,0.4)" : "var(--bg-elevated)"}`,
+                                                        border: `1.5px solid ${isSelected ? "rgba(255,255,255,0.4)" : "var(--v-card)"}`,
                                                     }}
                                                 />
                                             ))}
@@ -275,9 +275,9 @@ export function CalendarFilterPopup({
                                                 <div
                                                     className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black"
                                                     style={{
-                                                        background: isSelected ? "rgba(255,255,255,0.25)" : "var(--bg-fill)",
-                                                        color: isSelected ? "#fff" : "var(--text-secondary)",
-                                                        border: `1.5px solid ${isSelected ? "rgba(255,255,255,0.4)" : "var(--bg-elevated)"}`,
+                                                        background: isSelected ? "rgba(255,255,255,0.25)" : "var(--v-elevated)",
+                                                        color: isSelected ? "#fff" : "var(--v-text-secondary)",
+                                                        border: `1.5px solid ${isSelected ? "rgba(255,255,255,0.4)" : "var(--v-card)"}`,
                                                     }}
                                                 >
                                                     +{dayEvents.length - 2}
@@ -294,7 +294,7 @@ export function CalendarFilterPopup({
                                                     style={{
                                                         background: isSelected
                                                             ? "rgba(255,255,255,0.8)"
-                                                            : "var(--accent)",
+                                                            : "var(--v-orange)",
                                                     }}
                                                 />
                                             ))}
@@ -310,7 +310,7 @@ export function CalendarFilterPopup({
             {/* Footer */}
             <div
                 className="flex items-center justify-between px-5 py-3"
-                style={{ borderTop: "1px solid var(--border-subtle)" }}
+                style={{ borderTop: "1px solid var(--v-border)" }}
             >
                 <button
                     onClick={() => {
@@ -319,14 +319,14 @@ export function CalendarFilterPopup({
                         setViewMonth(now.getMonth());
                     }}
                     className="text-[11px] font-bold transition-colors"
-                    style={{ color: "var(--accent)" }}
+                    style={{ color: "var(--v-orange)" }}
                 >
                     Today
                 </button>
 
                 <div className="flex items-center gap-2">
                     {loading && (
-                        <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                        <span className="text-[10px]" style={{ color: "var(--v-text-muted)" }}>
                             Loading events…
                         </span>
                     )}
@@ -335,9 +335,9 @@ export function CalendarFilterPopup({
                             onClick={() => { onDateSelect(null); onClose(); }}
                             className="flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold transition-all"
                             style={{
-                                background: "var(--bg-fill)",
-                                border: "1px solid var(--border-subtle)",
-                                color: "var(--text-secondary)",
+                                background: "var(--v-neutral-bg)",
+                                border: "1px solid var(--v-border)",
+                                color: "var(--v-text-secondary)",
                             }}
                         >
                             <X className="w-3 h-3" />

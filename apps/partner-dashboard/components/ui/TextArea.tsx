@@ -18,7 +18,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-[12px] font-medium text-[var(--text-tertiary)] mb-1.5">
+          <label className="block text-[12px] font-medium text-text-tertiary mb-1.5">
             {label}
           </label>
         )}
@@ -26,9 +26,9 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
           ref={ref}
           rows={rows}
           className={cn(
-            "w-full bg-[var(--bg-secondary)] border rounded-lg px-4 py-3 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] transition-all duration-150 outline-none resize-y",
-            "hover:bg-[var(--bg-fill)]",
-            "focus:bg-[var(--bg-elevated)] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10",
+            "w-full bg-surface-tertiary border rounded-lg px-4 py-3 text-[14px] text-text-primary placeholder:text-text-tertiary transition-all duration-150 outline-none resize-y",
+            "hover:bg-surface-secondary",
+            "focus:bg-surface-elevated focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10",
             hasError
               ? "border-red-300 focus:border-red-500 focus:ring-red-500/10"
               : "border-transparent",
@@ -39,7 +39,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
         {(error || hint) && (
           <p className={cn(
             "mt-1.5 text-[12px]",
-            hasError ? "text-red-600" : "text-[var(--text-tertiary)]"
+            hasError ? "text-red-600" : "text-text-tertiary"
           )}>
             {error || hint}
           </p>

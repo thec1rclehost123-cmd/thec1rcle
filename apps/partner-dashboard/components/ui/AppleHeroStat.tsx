@@ -63,7 +63,7 @@ export function AppleHeroStat({
                         >
                             <span
                                 className="v-text-hero block"
-                                style={{ color: noData ? "var(--text-tertiary)" : "var(--text-primary)" }}
+                                style={{ color: noData ? "var(--v-text-tertiary)" : "var(--v-text-primary)" }}
                             >
                                 {noData ? "—" : value}
                             </span>
@@ -88,7 +88,7 @@ export function AppleHeroStat({
                             {subtitle && (
                                 <span
                                     className="text-[14px]"
-                                    style={{ color: "var(--text-secondary)" }}
+                                    style={{ color: "var(--v-text-secondary)" }}
                                 >
                                     {subtitle}
                                 </span>
@@ -102,8 +102,8 @@ export function AppleHeroStat({
                             {secondaryCta && (
                                 <Link
                                     href={secondaryCta.href}
-                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold border border-[var(--border-subtle)] transition-colors"
-                                    style={{ color: "var(--text-secondary)", background: "var(--bg-fill)" }}
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold border border-[var(--v-border)] transition-colors"
+                                    style={{ color: "var(--v-text-secondary)", background: "var(--v-elevated)" }}
                                 >
                                     {secondaryCta.label}
                                 </Link>
@@ -112,7 +112,7 @@ export function AppleHeroStat({
                                 <Link
                                     href={cta.href}
                                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all hover:brightness-110 active:scale-[0.98]"
-                                    style={{ background: "var(--accent)", color: "#fff" }}
+                                    style={{ background: "var(--v-orange)", color: "#fff" }}
                                 >
                                     {cta.label}
                                     <ArrowRight className="w-3.5 h-3.5" />

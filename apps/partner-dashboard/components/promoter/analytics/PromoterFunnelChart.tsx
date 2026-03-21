@@ -16,15 +16,15 @@ export function PromoterFunnelChart({ timeline }: { timeline: any[] }) {
 
     if (!chartData.length) {
         return (
-            <div className="w-full h-80 flex flex-col items-center justify-center text-[var(--text-tertiary)] bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-2xl border-dashed">
+            <div className="w-full h-80 flex flex-col items-center justify-center text-text-muted bg-surface-base border border-border-subtle rounded-2xl border-dashed">
                 <p>No timeline data available for this range.</p>
             </div>
         );
     }
 
     return (
-        <div className="w-full h-80 bg-[var(--bg-elevated)] rounded-2xl border border-[var(--border-subtle)] p-6 flex flex-col pt-8">
-             <h3 className="font-bold text-[var(--text-primary)] text-sm tracking-wide mb-6 uppercase absolute top-6">Performance Timeline</h3>
+        <div className="w-full h-80 bg-surface-elevated rounded-2xl border border-border-subtle p-6 flex flex-col pt-8">
+             <h3 className="font-bold text-text-primary text-sm tracking-wide mb-6 uppercase absolute top-6">Performance Timeline</h3>
              
              <div className="flex-1 w-full min-h-0 mt-4">
                  <ResponsiveContainer width="100%" height="100%">

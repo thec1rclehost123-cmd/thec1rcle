@@ -26,18 +26,18 @@ function MetricPill({ metric }: { metric: MetricRow }) {
         ? 'text-emerald-400'
         : metric.changeDirection === 'down'
             ? 'text-rose-400'
-            : 'text-[var(--text-tertiary)]';
+            : 'text-text-tertiary';
 
     return (
-        <div className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)] last:border-0">
+        <div className="flex items-center justify-between py-2 border-b border-border-subtle last:border-0">
             <div>
-                <span className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wider">{metric.label}</span>
+                <span className="text-[11px] text-text-tertiary uppercase tracking-wider">{metric.label}</span>
                 {metric.subtext && (
-                    <span className="ml-1.5 text-[10px] text-[var(--text-tertiary)]">{metric.subtext}</span>
+                    <span className="ml-1.5 text-[10px] text-text-muted">{metric.subtext}</span>
                 )}
             </div>
             <div className="text-right">
-                <span className="text-[14px] font-semibold text-[var(--text-primary)] tabular-nums">{metric.value}</span>
+                <span className="text-[14px] font-semibold text-text-primary tabular-nums">{metric.value}</span>
                 {metric.change && (
                     <span className={`ml-1.5 text-[11px] font-medium ${changeColor}`}>{metric.change}</span>
                 )}
@@ -49,12 +49,12 @@ function MetricPill({ metric }: { metric: MetricRow }) {
 function RankedItem({ row }: { row: RankedRow }) {
     return (
         <div className={`flex items-center gap-3 py-1.5 ${row.highlight ? 'opacity-100' : 'opacity-85'}`}>
-            <span className="text-[11px] text-[var(--text-tertiary)] tabular-nums w-4 text-right">{row.rank}</span>
+            <span className="text-[11px] text-text-tertiary tabular-nums w-4 text-right">{row.rank}</span>
             <div className="flex-1 min-w-0">
-                <span className="text-[13px] text-[var(--text-primary)] truncate block">{row.label}</span>
-                {row.subtext && <span className="text-[11px] text-[var(--text-tertiary)]">{row.subtext}</span>}
+                <span className="text-[13px] text-text-primary truncate block">{row.label}</span>
+                {row.subtext && <span className="text-[11px] text-text-tertiary">{row.subtext}</span>}
             </div>
-            <span className="text-[13px] font-semibold text-[var(--text-primary)] tabular-nums shrink-0">{row.value}</span>
+            <span className="text-[13px] font-semibold text-text-primary tabular-nums shrink-0">{row.value}</span>
         </div>
     );
 }
@@ -66,7 +66,7 @@ function DeepLinkRow({ links }: { links: DeepLink[] }) {
                 <Link
                     key={i}
                     href={link.href}
-                    className="inline-flex items-center gap-1 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors underline underline-offset-2"
+                    className="inline-flex items-center gap-1 text-[11px] text-text-tertiary hover:text-text-primary transition-colors underline underline-offset-2"
                 >
                     {link.label}
                     <ExternalLink className="w-2.5 h-2.5 opacity-60" />
@@ -79,7 +79,7 @@ function DeepLinkRow({ links }: { links: DeepLink[] }) {
 function GroundingFooter({ sources }: { sources: GroundingSource[] }) {
     const labels = sources.map(s => s.scope ? `${s.label} (${s.scope})` : s.label).join(' · ');
     return (
-        <p className="text-[10px] text-[var(--text-tertiary)] mt-2.5 leading-relaxed">
+        <p className="text-[10px] text-text-muted mt-2.5 leading-relaxed">
             Based on: {labels}
         </p>
     );
@@ -127,10 +127,10 @@ export function AssistantMessage({ answer, isLoading }: AssistantMessageProps) {
             {isError && (
                 <div className="flex items-start gap-2">
                     {answer.type === 'scoped_refusal'
-                        ? <Info className="w-3.5 h-3.5 text-[var(--text-tertiary)] mt-0.5 shrink-0" />
+                        ? <Info className="w-3.5 h-3.5 text-text-tertiary mt-0.5 shrink-0" />
                         : <AlertCircle className="w-3.5 h-3.5 text-rose-400 mt-0.5 shrink-0" />
                     }
-                    <span className="text-[12px] text-[var(--text-secondary)] leading-relaxed">{answer.text}</span>
+                    <span className="text-[12px] text-text-secondary leading-relaxed">{answer.text}</span>
                 </div>
             )}
 
@@ -138,9 +138,9 @@ export function AssistantMessage({ answer, isLoading }: AssistantMessageProps) {
             {!isError && (
                 <div className="space-y-1">
                     {answer.scopeNote && (
-                        <p className="text-[10px] text-[var(--text-tertiary)] mb-1">{answer.scopeNote}</p>
+                        <p className="text-[10px] text-text-tertiary mb-1">{answer.scopeNote}</p>
                     )}
-                    <p className="text-[13px] text-[var(--text-primary)] leading-relaxed whitespace-pre-line">
+                    <p className="text-[13px] text-text-primary leading-relaxed whitespace-pre-line">
                         {answer.text}
                         <FreshnessTag freshness={answer.dataFreshness} />
                     </p>
@@ -149,7 +149,7 @@ export function AssistantMessage({ answer, isLoading }: AssistantMessageProps) {
 
             {/* Key metrics row */}
             {answer.metrics && answer.metrics.length > 0 && (
-                <div className="bg-[var(--bg-fill)]/50 rounded-lg px-3 py-1 mt-2">
+                <div className="bg-surface-secondary/50 rounded-lg px-3 py-1 mt-2">
                     {answer.metrics.map((m, i) => (
                         <MetricPill key={i} metric={m} />
                     ))}
@@ -158,7 +158,7 @@ export function AssistantMessage({ answer, isLoading }: AssistantMessageProps) {
 
             {/* Breakdown rows */}
             {answer.breakdown && answer.breakdown.length > 0 && (
-                <div className="bg-[var(--bg-fill)]/50 rounded-lg px-3 py-1 mt-2">
+                <div className="bg-surface-secondary/50 rounded-lg px-3 py-1 mt-2">
                     {answer.breakdown.map((m, i) => (
                         <MetricPill key={i} metric={m} />
                     ))}
@@ -167,7 +167,7 @@ export function AssistantMessage({ answer, isLoading }: AssistantMessageProps) {
 
             {/* Ranked list */}
             {answer.ranked && answer.ranked.length > 0 && (
-                <div className="bg-[var(--bg-fill)]/50 rounded-lg px-3 py-1.5 mt-2 space-y-0.5">
+                <div className="bg-surface-secondary/50 rounded-lg px-3 py-1.5 mt-2 space-y-0.5">
                     {answer.ranked.map((row, i) => (
                         <RankedItem key={i} row={row} />
                     ))}
@@ -178,12 +178,12 @@ export function AssistantMessage({ answer, isLoading }: AssistantMessageProps) {
             {answer.comparison && answer.comparison.length > 0 && (
                 <div className="mt-2 grid gap-2" style={{ gridTemplateColumns: `repeat(${answer.comparison.length}, 1fr)` }}>
                     {answer.comparison.map((col, ci) => (
-                        <div key={ci} className="bg-[var(--bg-fill)]/50 rounded-lg px-3 py-2 space-y-1">
-                            <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider mb-1.5">{col.label}</p>
+                        <div key={ci} className="bg-surface-secondary/50 rounded-lg px-3 py-2 space-y-1">
+                            <p className="text-[10px] text-text-tertiary uppercase tracking-wider mb-1.5">{col.label}</p>
                             {col.metrics.map((m, mi) => (
                                 <div key={mi} className="flex justify-between">
-                                    <span className="text-[11px] text-[var(--text-tertiary)]">{m.label}</span>
-                                    <span className="text-[12px] font-semibold text-[var(--text-primary)] tabular-nums">{m.value}</span>
+                                    <span className="text-[11px] text-text-tertiary">{m.label}</span>
+                                    <span className="text-[12px] font-semibold text-text-primary tabular-nums">{m.value}</span>
                                 </div>
                             ))}
                         </div>
@@ -198,15 +198,15 @@ export function AssistantMessage({ answer, isLoading }: AssistantMessageProps) {
                         <thead>
                             <tr>
                                 {answer.table.headers.map((h, i) => (
-                                    <th key={i} className="text-left text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider pb-1.5 font-normal">{h}</th>
+                                    <th key={i} className="text-left text-[10px] text-text-tertiary uppercase tracking-wider pb-1.5 font-normal">{h}</th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
                             {answer.table.rows.map((row, ri) => (
-                                <tr key={ri} className="border-t border-[var(--border-subtle)]">
+                                <tr key={ri} className="border-t border-border-subtle">
                                     {row.cells.map((cell, ci) => (
-                                        <td key={ci} className="py-1.5 text-[var(--text-secondary)] pr-3">{cell}</td>
+                                        <td key={ci} className="py-1.5 text-text-secondary pr-3">{cell}</td>
                                     ))}
                                 </tr>
                             ))}

@@ -27,8 +27,8 @@ const colClasses: Record<number, string> = {
 export function VenueStatStrip({ stats, columns = 3, className }: VenueStatStripProps) {
     return (
         <div
-            className={cn("grid divide-x divide-[var(--border-subtle)] rounded-[var(--r-xl)] overflow-hidden", colClasses[columns], className)}
-            style={{ background: "var(--bg-elevated)" }}
+            className={cn("grid divide-x divide-[var(--v-border)] rounded-[var(--v-r-xl)] overflow-hidden", colClasses[columns], className)}
+            style={{ background: "var(--v-card)" }}
         >
             {stats.map((stat, i) => (
                 <StatCell key={i} stat={stat} />
@@ -52,7 +52,7 @@ function StatCell({ stat }: { stat: StatItem }) {
             {/* Label row */}
             <div className="flex items-center gap-2">
                 {stat.icon && (
-                    <span style={{ color: "var(--text-tertiary)" }} className="w-3.5 h-3.5 flex-shrink-0">
+                    <span style={{ color: "var(--v-text-muted)" }} className="w-3.5 h-3.5 flex-shrink-0">
                         {stat.icon}
                     </span>
                 )}
@@ -64,7 +64,7 @@ function StatCell({ stat }: { stat: StatItem }) {
             <div className="flex items-baseline gap-2 flex-wrap">
                 <span
                     className="text-[28px] font-bold leading-none tabular-nums tracking-tight"
-                    style={{ color: "var(--text-primary)" }}
+                    style={{ color: "var(--v-text-primary)" }}
                 >
                     {stat.value}
                 </span>

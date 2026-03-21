@@ -60,11 +60,11 @@ export function DuplicateEventModal({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10 }}
                     transition={{ type: "spring", damping: 25, stiffness: 400 }}
-                    className="relative z-10 w-full max-w-md rounded-2xl border border-[var(--border-default)] bg-[var(--bg-fill)] dark:bg-[#111] p-6 shadow-2xl"
+                    className="relative z-10 w-full max-w-md rounded-2xl border border-border-default bg-surface-secondary dark:bg-[#111] p-6 shadow-2xl"
                 >
                     <button
                         onClick={onClose}
-                        className="absolute top-4 right-4 rounded-lg p-1.5 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]"
+                        className="absolute top-4 right-4 rounded-lg p-1.5 text-text-tertiary hover:text-text-primary hover:bg-surface-tertiary"
                     >
                         <X className="h-4 w-4" />
                     </button>
@@ -72,25 +72,25 @@ export function DuplicateEventModal({
                     {!done ? (
                         <>
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-secondary)]">
-                                    <Copy className="h-5 w-5 text-[var(--text-secondary)]" />
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-tertiary">
+                                    <Copy className="h-5 w-5 text-text-secondary" />
                                 </div>
                                 <div>
-                                    <h2 className="text-base font-semibold text-[var(--text-primary)]">Duplicate Event</h2>
-                                    <p className="text-sm text-[var(--text-tertiary)] truncate max-w-[260px]">{eventTitle}</p>
+                                    <h2 className="text-base font-semibold text-text-primary">Duplicate Event</h2>
+                                    <p className="text-sm text-text-tertiary truncate max-w-[260px]">{eventTitle}</p>
                                 </div>
                             </div>
 
-                            <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-fill)] p-4 mb-5 space-y-2">
-                                <p className="text-xs font-medium text-[var(--text-secondary)]">What gets copied</p>
-                                <ul className="space-y-1 text-xs text-[var(--text-tertiary)]">
+                            <div className="rounded-xl border border-border-default bg-surface-secondary p-4 mb-5 space-y-2">
+                                <p className="text-xs font-medium text-text-secondary">What gets copied</p>
+                                <ul className="space-y-1 text-xs text-text-tertiary">
                                     <li>✓ Title (with "(Copy)" suffix), description, cover image</li>
                                     <li>✓ Ticket tiers structure (counts reset to 0)</li>
                                     <li>✓ Capacity, age policy, dress code</li>
                                     <li>✓ Venue, host assignment</li>
                                 </ul>
-                                <p className="text-xs font-medium text-[var(--text-secondary)] mt-3">What resets</p>
-                                <ul className="space-y-1 text-xs text-[var(--text-tertiary)]">
+                                <p className="text-xs font-medium text-text-secondary mt-3">What resets</p>
+                                <ul className="space-y-1 text-xs text-text-tertiary">
                                     <li>✗ Status → Draft</li>
                                     <li>✗ Dates and times cleared</li>
                                     <li>✗ Revenue, check-ins, sold tickets → 0</li>
@@ -109,7 +109,7 @@ export function DuplicateEventModal({
                                     Cancel
                                 </Button>
                                 <Button
-                                    className="flex-1 bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--border-default)] hover:bg-[var(--bg-elevated)]"
+                                    className="flex-1 bg-surface-tertiary text-text-primary border border-border-default hover:bg-surface-elevated"
                                     onClick={() => dupMut.mutate()}
                                     disabled={dupMut.isPending}
                                 >
@@ -123,8 +123,8 @@ export function DuplicateEventModal({
                             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 mx-auto mb-4">
                                 <Check className="h-6 w-6 text-emerald-400" />
                             </div>
-                            <h2 className="text-base font-semibold text-[var(--text-primary)] mb-1">Draft created</h2>
-                            <p className="text-sm text-[var(--text-tertiary)] mb-5">
+                            <h2 className="text-base font-semibold text-text-primary mb-1">Draft created</h2>
+                            <p className="text-sm text-text-tertiary mb-5">
                                 Your duplicate is saved as a draft. Set the date and publish when ready.
                             </p>
                             <div className="flex gap-3">
@@ -132,7 +132,7 @@ export function DuplicateEventModal({
                                     Close
                                 </Button>
                                 <Button
-                                    className="flex-1 bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--border-default)] hover:bg-[var(--bg-elevated)]"
+                                    className="flex-1 bg-surface-tertiary text-text-primary border border-border-default hover:bg-surface-elevated"
                                     onClick={() => {
                                         onClose();
                                         if (newDraftId) {

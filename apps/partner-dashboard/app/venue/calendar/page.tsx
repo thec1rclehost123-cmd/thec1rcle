@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import PageClient from "./PageClient";
 
 export default function Page() {
-    redirect("/venue/events?tab=calendar");
+    return <PageClient />;
 }

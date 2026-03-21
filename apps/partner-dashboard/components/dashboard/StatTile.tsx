@@ -52,7 +52,7 @@ export function StatTile({
     trend,
     icon,
     sparkData,
-    color = "var(--accent)",
+    color = "var(--v-orange, #F44A22)",
     interactive = false,
     onClick,
     className,
@@ -63,10 +63,10 @@ export function StatTile({
     const isTrendPositive = trend?.isPositive ?? (trend?.direction === "up");
     
     const variantClasses = {
-        default: "bg-[var(--bg-elevated)] border-[var(--border-subtle)]",
-        elevated: "bg-[var(--bg-fill)] border-[var(--border-default)]",
-        accent: "bg-[var(--accent-muted)] border-[var(--accent-muted)]",
-        compact: "bg-[var(--bg-fill)] border-[var(--border-subtle)]",
+        default: "bg-[var(--v-card)] border-[var(--v-border)]",
+        elevated: "bg-[var(--v-elevated)] border-[var(--v-border-strong)]",
+        accent: "bg-[var(--v-orange-dim)] border-[var(--v-orange-glow)]",
+        compact: "bg-[var(--v-elevated)] border-[var(--v-border)]",
     };
 
     const Wrapper = interactive ? motion.div : "div";
@@ -74,10 +74,10 @@ export function StatTile({
     return (
         <Wrapper
             className={cn(
-                "rounded-[var(--r-xl)] border p-5 flex flex-col gap-3 relative overflow-hidden transition-all duration-200",
+                "rounded-[var(--v-r-xl)] border p-5 flex flex-col gap-3 relative overflow-hidden transition-all duration-200",
                 variantClasses[variant],
                 variant === "compact" && "p-3 py-3 gap-1",
-                interactive && "hover:bg-[var(--bg-fill)] hover:shadow-lg cursor-pointer active:scale-[0.98]",
+                interactive && "hover:bg-[var(--v-card-hover)] hover:shadow-lg cursor-pointer active:scale-[0.98]",
                 className
             )}
             onClick={onClick}
@@ -97,12 +97,12 @@ export function StatTile({
                             {icon}
                         </div>
                     )}
-                    <span className="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--text-tertiary)] flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--v-text-tertiary)] flex items-center gap-2">
                         {label}
                         {liveIndicator && (
                             <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--accent)] opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--accent)]"></span>
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--v-orange)] opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--v-orange)]"></span>
                             </span>
                         )}
                     </span>
@@ -113,10 +113,10 @@ export function StatTile({
                         className={cn(
                             "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold",
                             trend.direction === "neutral" 
-                                ? "bg-[var(--border-subtle)] text-[var(--text-tertiary)]"
+                                ? "bg-[var(--v-divider)] text-[var(--v-text-tertiary)]"
                                 : isTrendPositive 
-                                    ? "bg-[var(--color-success-bg)] text-[var(--color-success)]" 
-                                    : "bg-[var(--color-error-bg)] text-[var(--color-error)]"
+                                    ? "bg-[var(--v-up-bg)] text-[var(--v-up)]" 
+                                    : "bg-[var(--v-down-bg)] text-[var(--v-down)]"
                         )}
                     >
                         {trend.direction === "up" && <TrendingUp className="w-3 h-3" />}
@@ -130,7 +130,7 @@ export function StatTile({
             {/* Value */}
             <div className="relative z-10 flex flex-col gap-2">
                 <h4 className={cn(
-                    "text-[30px] font-black tracking-tight leading-none text-[var(--text-primary)] tabular-nums",
+                    "text-[30px] font-black tracking-tight leading-none text-[var(--v-text-primary)] tabular-nums",
                     variant === "compact" && "text-[1.5rem]"
                 )}>
                     {value}
@@ -143,7 +143,7 @@ export function StatTile({
                 )}
 
                 {subtitle && (
-                    <p className="text-[11px] font-medium text-[var(--text-tertiary)] mt-1 line-clamp-2">
+                    <p className="text-[11px] font-medium text-[var(--v-text-tertiary)] mt-1 line-clamp-2">
                         {subtitle}
                     </p>
                 )}

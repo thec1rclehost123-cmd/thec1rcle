@@ -169,20 +169,20 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
 
                 {/* Net Revenue - Black */}
                 <div className="p-4 rounded-[16px] bg-[#1d1d1f] flex flex-col justify-between h-24 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-[var(--bg-elevated)]/5 rounded-full blur-2xl -mr-6 -mt-6" />
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-surface-elevated/5 rounded-full blur-2xl -mr-6 -mt-6" />
                     <div className="flex items-center gap-1.5 relative z-10">
                         <Sparkles className="w-3 h-3 text-c1rcle-orange" />
                         <span className="text-[9px] font-black uppercase tracking-widest text-c1rcle-orange">Net Revenue</span>
                     </div>
                     <div className="relative z-10">
-                        <p className="text-2xl font-black text-[var(--text-primary)] tracking-tight">{formatCurrency(grandTotal.net)}</p>
+                        <p className="text-2xl font-black text-text-primary tracking-tight">{formatCurrency(grandTotal.net)}</p>
                         <p className="text-[10px] text-c1rcle-orange/60 font-medium mt-0.5">{formatCurrency(grandTotal.net)} expected</p>
                     </div>
                 </div>
             </div>
 
             {/* Revenue Distribution */}
-            <div className="bg-[var(--bg-elevated)] rounded-[18px] p-4 border border-[#e5e5e7] shadow-sm">
+            <div className="bg-surface-elevated rounded-[18px] p-4 border border-[#e5e5e7] shadow-sm">
                 <div className="flex items-center gap-2 mb-3">
                     <div className="w-4 h-4 rounded-full border border-gray-200 flex items-center justify-center">
                         <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
@@ -196,13 +196,13 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
                         className="h-full bg-[#34c759] flex items-center justify-center relative"
                         style={{ width: `${(grandTotal.net / (grandTotal.net + grandTotal.commTotal) || 1) * 100}%` }}
                     >
-                        <span className="text-[9px] font-black text-[var(--text-primary)] uppercase tracking-widest">Your Revenue</span>
+                        <span className="text-[9px] font-black text-text-primary uppercase tracking-widest">Your Revenue</span>
                     </div>
                     <div
                         className="h-full bg-[#f44a22] flex items-center justify-center relative"
                         style={{ width: `${(grandTotal.commTotal / (grandTotal.net + grandTotal.commTotal) || 0) * 100}%` }}
                     >
-                        <span className="text-[9px] font-black text-[var(--text-primary)] uppercase tracking-widest">Promoters</span>
+                        <span className="text-[9px] font-black text-text-primary uppercase tracking-widest">Promoters</span>
                     </div>
                 </div>
 
@@ -220,9 +220,9 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
             </div>
 
             {/* Detailed Table */}
-            <div className="bg-[var(--bg-elevated)] rounded-[20px] border border-[#e5e5e7] overflow-hidden shadow-sm">
+            <div className="bg-surface-elevated rounded-[20px] border border-[#e5e5e7] overflow-hidden shadow-sm">
                 {/* Table Header Row */}
-                <div className="grid grid-cols-12 gap-2 px-6 py-3 bg-[var(--bg-elevated)] border-b border-[#e5e5e7]">
+                <div className="grid grid-cols-12 gap-2 px-6 py-3 bg-surface-elevated border-b border-[#e5e5e7]">
                     <div className="col-span-2 text-[9px] font-black text-[#86868b] uppercase tracking-widest truncate">Item</div>
                     <div className="col-span-1 text-right text-[9px] font-black text-[#86868b] uppercase tracking-widest truncate">Price</div>
                     <div className="col-span-1 text-center text-[9px] font-black text-[#86868b] uppercase tracking-widest truncate">Qty</div>
@@ -309,10 +309,10 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
                 {/* Grand Total Bar - Black */}
                 <div className="bg-black px-6 py-4">
                     <div className="grid grid-cols-12 gap-2 items-center">
-                        <div className="col-span-2 text-[10px] font-black text-[var(--text-primary)] uppercase tracking-widest truncate">Grand Total</div>
+                        <div className="col-span-2 text-[10px] font-black text-text-primary uppercase tracking-widest truncate">Grand Total</div>
                         <div className="col-span-1"></div>
-                        <div className="col-span-1 text-center font-black text-[var(--text-primary)] text-xs">{grandTotal.quantity}</div>
-                        <div className="col-span-2 text-right font-bold text-[var(--text-primary)] text-xs opacity-60 truncate">{formatCurrency(grandTotal.value)}</div>
+                        <div className="col-span-1 text-center font-black text-text-primary text-xs">{grandTotal.quantity}</div>
+                        <div className="col-span-2 text-right font-bold text-text-primary text-xs opacity-60 truncate">{formatCurrency(grandTotal.value)}</div>
                         <div className="col-span-2 text-right font-bold text-c1rcle-orange text-xs truncate">{grandTotal.discTotal > 0 ? `-${formatCurrency(grandTotal.discTotal)}` : '-'}</div>
                         <div className="col-span-2 text-right font-bold text-orange-400 text-xs truncate">{grandTotal.commTotal > 0 ? `-${formatCurrency(grandTotal.commTotal)}` : '-'}</div>
                         <div className="col-span-2 text-right font-black text-c1rcle-orange text-xs underline decoration-emerald-400/30 underline-offset-4 truncate">{formatCurrency(grandTotal.net)}</div>

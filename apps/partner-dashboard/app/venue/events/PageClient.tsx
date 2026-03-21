@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, forwardRef, memo, useCallback, useMemo } from "react";
+import { useState, useEffect, forwardRef, memo, useCallback, useMemo, Suspense } from "react";
 import { VirtuosoGrid } from "react-virtuoso";
 import {
-    Calendar, Plus, BarChart3, ShieldCheck, Edit, Loader2, Play, Pause,
+    Calendar, DollarSign, Search, Plus, CheckCircle2,
+    AlertCircle, Edit, Loader2, BarChart3, ShieldCheck, Play, Pause, List, CalendarDays,
 } from "lucide-react";
 import Link from "next/link";
 import { DashboardEventCard } from "@c1rcle/ui";
@@ -11,11 +12,16 @@ import { EventDetailsModal } from "@/components/venue-layout/EventDetailsModal";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { mapEventForClient, EVENT_LIFECYCLE } from "@c1rcle/core/events";
 import { parseAsIST } from "@c1rcle/core/time";
-import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
-import { PageToolbar, SearchInput } from "@/components/ui/PageToolbar";
-import { TabBar } from "@/components/ui/TabBar";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { SurfaceCard } from "@/components/ui/SurfaceCard";
+import { VenuePageShell, VenueActionButton, VenueFilterTabs } from "@/components/venue-layout/VenuePageShell";
+import { HubTabBar } from "@/components/shared/HubTabBar";
+import { useHubTab } from "@/lib/hooks/useHubTab";
+import { Skeleton } from "@/components/ui/Skeleton";
+import CalendarClient from "../calendar/PageClient";
+
+const HUB_TABS = [
+    { key: "events",   label: "Events",   icon: List },
+    { key: "calendar", label: "Calendar", icon: CalendarDays },
+];
 
 interface Event {
     id: string;
@@ -41,31 +47,34 @@ interface Event {
     canRequestEdits: boolean;
 }
 
-// ── Virtuoso grid containers ──────────────────────────────────────────────────
+// ── Virtuoso grid containers ──
 const GridList = forwardRef<HTMLDivElement>((props, ref) => (
-    <div {...props} ref={ref} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5" />
+    <div
+        {...props}
+        ref={ref}
+        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+    />
 ));
 GridList.displayName = "GridList";
 
-// Natural height — no fixed 340px
 const GridItem = forwardRef<HTMLDivElement>((props, ref) => (
-    <div {...props} ref={ref} />
+    <div {...props} ref={ref} className="h-[340px] w-full" />
 ));
 GridItem.displayName = "GridItem";
 
-// ── Memoized event card ───────────────────────────────────────────────────────
+// ── Memoized event card (unchanged logic) ──
 const MemoizedVenueEventCard = memo(({ event, index, handleEventUpdate }: any) => {
     const effectiveStatus = event.lifecycle || event.status;
 
     const getPrimaryAction = (e: any) => {
-        if (e.canApprove) return { label: "Review", href: `/venue/events/${e.id}`, icon: <ShieldCheck size={14} /> };
-        return { label: "Analytics", href: `/venue/analytics/overview?eventId=${e.id}`, icon: <BarChart3 size={14} /> };
+        if (e.canApprove) return { label: "Review Submission", href: `/venue/events/${e.id}`, icon: <ShieldCheck size={16} /> };
+        return { label: "View Analytics", href: `/venue/analytics/overview?eventId=${e.id}`, icon: <BarChart3 size={16} /> };
     };
 
     const secondaryActions: any[] = [];
-    if (event.canEdit) secondaryActions.push({ label: "Edit", icon: <Edit size={14} />, href: `/venue/create?id=${event.id}` });
-    if (effectiveStatus === "live") secondaryActions.push({ label: "Pause Sales", icon: <Pause size={14} />, onClick: () => handleEventUpdate("pause", null, event.id), color: "red" });
-    else if (effectiveStatus === "paused") secondaryActions.push({ label: "Resume Sales", icon: <Play size={14} />, onClick: () => handleEventUpdate("resume", null, event.id) });
+    if (event.canEdit) secondaryActions.push({ label: "Edit Event", icon: <Edit size={16} />, href: `/venue/create?id=${event.id}` });
+    if (effectiveStatus === "live") secondaryActions.push({ label: "Pause Ticket Sales", icon: <Pause size={16} />, onClick: () => handleEventUpdate("pause", null, event.id), color: "red" });
+    else if (effectiveStatus === "paused") secondaryActions.push({ label: "Resume Ticket Sales", icon: <Play size={16} />, onClick: () => handleEventUpdate("resume", null, event.id) });
 
     return (
         <DashboardEventCard
@@ -81,8 +90,9 @@ const MemoizedVenueEventCard = memo(({ event, index, handleEventUpdate }: any) =
 });
 MemoizedVenueEventCard.displayName = "MemoizedVenueEventCard";
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Page ──
 export default function EventsManagementPage() {
+    const { activeTab: hubTab, setTab: setHubTab } = useHubTab("events");
     const { profile, user } = useDashboardAuth();
     const [events, setEvents] = useState<Event[]>([]);
     const [loading, setLoading] = useState(true);
@@ -127,11 +137,17 @@ export default function EventsManagementPage() {
                         const now = new Date();
                         const dateA = a.date instanceof Date ? a.date : new Date(a.date);
                         const dateB = b.date instanceof Date ? b.date : new Date(b.date);
-                        const isFutureA = dateA > now && a.status !== "draft";
-                        const isFutureB = dateB > now && b.status !== "draft";
+
+                        const isFutureA = dateA > now && a.status !== 'draft';
+                        const isFutureB = dateB > now && b.status !== 'draft';
+
                         if (isFutureA && !isFutureB) return -1;
                         if (!isFutureA && isFutureB) return 1;
-                        if (isFutureA && isFutureB) return dateA.getTime() - dateB.getTime();
+
+                        if (isFutureA && isFutureB) {
+                            return dateA.getTime() - dateB.getTime();
+                        }
+
                         return dateB.getTime() - dateA.getTime();
                     });
                 setEvents(mapped);
@@ -155,7 +171,7 @@ export default function EventsManagementPage() {
                 approve: EVENT_LIFECYCLE.SCHEDULED,
                 reject: EVENT_LIFECYCLE.DENIED,
                 pause: EVENT_LIFECYCLE.PAUSED,
-                resume: EVENT_LIFECYCLE.SCHEDULED,
+                resume: EVENT_LIFECYCLE.SCHEDULED
             };
             const mappedStatus = newStatusMap[action];
             setEvents((prev) => prev.map((e) => e.id === eventId ? { ...e, status: (mappedStatus || e.status) as any } : e));
@@ -164,29 +180,13 @@ export default function EventsManagementPage() {
 
     const getStatus = (e: Event) => e.lifecycle || e.status;
 
-    // ── Counts ────────────────────────────────────────────────────────────────
-    const liveCount      = useMemo(() => events.filter((e) => getStatus(e) === EVENT_LIFECYCLE.LIVE).length, [events]);
-    const pendingCount   = useMemo(() => events.filter((e) => e.eventType === "host" && getStatus(e) === EVENT_LIFECYCLE.SUBMITTED).length, [events]);
-    const draftCount     = useMemo(() => events.filter((e) => e.eventType === "venue" && getStatus(e) === EVENT_LIFECYCLE.DRAFT).length, [events]);
-    const publishedCount = useMemo(() => events.filter((e) => [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.APPROVED].includes(getStatus(e) as string)).length, [events]);
-    const totalRevenue   = useMemo(() => events.reduce((s, e) => s + (e.revenue || 0), 0), [events]);
-
-    const filterTabs = [
-        { key: "all",       label: "All",       count: events.length  },
-        { key: "live",      label: "Live",      count: liveCount      },
-        { key: "pending",   label: "Pending",   count: pendingCount   },
-        { key: "approved",  label: "Published", count: publishedCount },
-        { key: "draft",     label: "Drafts",    count: draftCount     },
-        { key: "completed", label: "Completed"                        },
-    ];
-
     const filteredEvents = useMemo(() => events.filter((e) => {
         const s = getStatus(e);
         let match = filter === "all";
-        if (filter === "draft")     match = e.eventType === "venue" && s === EVENT_LIFECYCLE.DRAFT;
-        if (filter === "pending")   match = e.eventType === "host"  && s === EVENT_LIFECYCLE.SUBMITTED;
-        if (filter === "live")      match = s === EVENT_LIFECYCLE.LIVE;
-        if (filter === "approved")  match = s === EVENT_LIFECYCLE.APPROVED || s === EVENT_LIFECYCLE.SCHEDULED;
+        if (filter === "draft") match = e.eventType === "venue" && s === EVENT_LIFECYCLE.DRAFT;
+        if (filter === "pending") match = e.eventType === "host" && s === EVENT_LIFECYCLE.SUBMITTED;
+        if (filter === "live") match = s === EVENT_LIFECYCLE.LIVE;
+        if (filter === "approved") match = s === EVENT_LIFECYCLE.APPROVED || s === EVENT_LIFECYCLE.SCHEDULED;
         if (filter === "completed") match = s === EVENT_LIFECYCLE.COMPLETED;
         return match && (
             e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -194,102 +194,129 @@ export default function EventsManagementPage() {
         );
     }), [events, filter, searchQuery]);
 
+    const liveCount = useMemo(() => events.filter((e) => getStatus(e) === EVENT_LIFECYCLE.LIVE).length, [events]);
+    const pendingCount = useMemo(() => events.filter((e) => e.eventType === "host" && getStatus(e) === EVENT_LIFECYCLE.SUBMITTED).length, [events]);
+    const draftCount = useMemo(() => events.filter((e) => e.eventType === "venue" && getStatus(e) === EVENT_LIFECYCLE.DRAFT).length, [events]);
+    const publishedCount = useMemo(() => events.filter((e) => [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.APPROVED].includes(getStatus(e) as string)).length, [events]);
+    const totalRevenue = useMemo(() => events.reduce((s, e) => s + (e.revenue || 0), 0), [events]);
+
+    const filterTabs = [
+        { label: "All", value: "all", count: events.length },
+        { label: "Live", value: "live", count: liveCount },
+        { label: "Pending", value: "pending", count: pendingCount },
+        { label: "Published", value: "approved", count: publishedCount },
+        { label: "Drafts", value: "draft", count: draftCount },
+        { label: "Completed", value: "completed" },
+    ];
+
+
     return (
         <VenuePageShell
-            title="Events"
-            actions={
-                <Link href="/venue/create">
-                    <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r-sm)] text-[12px] font-[600] bg-[var(--accent)] text-white hover:opacity-90 transition-opacity active:scale-[0.98]">
-                        <Plus className="w-3.5 h-3.5" />
-                        New Event
-                    </button>
-                </Link>
-            }
-            toolbar={
-                <PageToolbar
-                    left={
-                        <TabBar
-                            mode="underline"
-                            tabs={filterTabs}
-                            active={filter}
-                            onChange={setFilter}
-                        />
-                    }
-                    right={
-                        <SearchInput
-                            value={searchQuery}
-                            onChange={setSearchQuery}
-                            placeholder="Search events or hosts…"
-                        />
-                    }
-                />
-            }
+            title={hubTab === "calendar" ? "Calendar" : "Events"}
+            subtitle={hubTab === "calendar" ? "View and manage your venue schedule" : "Manage every event from draft to post-event review"}
         >
-            <div className="flex flex-col gap-5">
+            <HubTabBar tabs={HUB_TABS} activeTab={hubTab} onTabChange={setHubTab} />
 
-                {/* ── Compact ambient KPI strip ── */}
-                <SurfaceCard padding="none">
-                    <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-[var(--border-subtle)]">
+            {hubTab === "calendar" ? (
+                <CalendarClient />
+            ) : (
+                <div className="space-y-6 mt-6">
+                    {/* ── KPI Strip ── */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {[
-                            { label: "LIVE NOW",  value: loading ? "—" : liveCount,      sub: "active"       },
-                            { label: "PENDING",   value: loading ? "—" : pendingCount,    sub: "for review"   },
-                            { label: "PUBLISHED", value: loading ? "—" : publishedCount,  sub: "scheduled"    },
+                            { label: "LIVE NOW", value: loading ? "—" : liveCount, color: "var(--v-success)", bg: "var(--v-success-bg)", icon: Play },
+                            { label: "REQUESTS", value: loading ? "—" : pendingCount, color: "var(--v-warning)", bg: "var(--v-warning-bg)", icon: AlertCircle },
+                            { label: "PUBLISHED", value: loading ? "—" : publishedCount, color: "var(--v-info)", bg: "var(--v-info-bg)", icon: CheckCircle2 },
                             {
                                 label: "REVENUE",
                                 value: loading ? "—" : totalRevenue >= 100000
                                     ? `₹${(totalRevenue / 100000).toFixed(1)}L`
                                     : `₹${(totalRevenue / 1000).toFixed(1)}K`,
-                                sub: "all time",
+                                color: "var(--v-orange)",
+                                bg: "var(--v-orange-dim)",
+                                icon: DollarSign,
                             },
                         ].map((stat, i) => (
-                            <div key={i} className="px-5 py-3 flex flex-col gap-0.5">
-                                <p className="text-[12px] font-[600] uppercase tracking-[0.05em] text-[var(--text-tertiary)]">{stat.label}</p>
-                                <p className="text-[22px] font-[600] leading-none tabular-nums text-[var(--text-primary)]"
-                                    style={{ fontVariantNumeric: "tabular-nums" }}>
-                                    {stat.value}
-                                </p>
-                                <p className="text-[13px] text-[var(--text-tertiary)]">{stat.sub}</p>
+                            <div key={i} className="rounded-2xl p-4 flex items-center gap-3 border border-border-subtle" style={{ background: "var(--v-card)" }}>
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: stat.bg }}>
+                                    <stat.icon className="w-3.5 h-3.5" style={{ color: stat.color }} />
+                                </div>
+                                <div>
+                                    <p className="v-label text-[9px] mb-0">{stat.label}</p>
+                                    <p className="text-[18px] font-black leading-tight tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                        {stat.value}
+                                    </p>
+                                </div>
                             </div>
                         ))}
                     </div>
-                </SurfaceCard>
 
-                {/* ── Events Grid ── */}
-                {loading ? (
-                    <div className="py-20 flex flex-col items-center gap-3">
-                        <Loader2 className="w-5 h-5 animate-spin text-[var(--text-tertiary)]" />
-                        <p className="text-[12px] text-[var(--text-tertiary)]">Loading events…</p>
+                    {/* ── Filter bar ── */}
+                    <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                        <VenueFilterTabs tabs={filterTabs} active={filter} onChange={setFilter} />
+                        <div className="relative flex-1 sm:max-w-xs">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--v-text-muted)" }} />
+                            <input
+                                type="text"
+                                placeholder="Search events or hosts..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2.5 rounded-xl text-[13px] outline-none focus:ring-1"
+                                style={{
+                                    background: "var(--v-card)",
+                                    color: "var(--v-text-primary)",
+                                    border: "1px solid var(--v-border)",
+                                }}
+                            />
+                        </div>
                     </div>
-                ) : filteredEvents.length === 0 ? (
-                    <EmptyState
-                        icon={Calendar}
-                        title="No events found"
-                        description="Try adjusting your filters or search terms."
-                        action={
+
+                    {/* ── Events Grid ── */}
+                    {loading ? (
+                        <div className="rounded-[32px] py-24 flex flex-col items-center gap-4" style={{ background: "var(--v-card)" }}>
+                            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--v-orange)" }} />
+                            <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
+                                Loading events...
+                            </p>
+                        </div>
+                    ) : filteredEvents.length === 0 ? (
+                        <div className="rounded-[32px] py-24 flex flex-col items-center text-center gap-4" style={{ background: "var(--v-card)" }}>
+                            <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "var(--v-elevated)" }}>
+                                <Calendar className="w-8 h-8" style={{ color: "var(--v-text-muted)" }} />
+                            </div>
+                            <div>
+                                <h3 className="text-[17px] font-semibold mb-1" style={{ color: "var(--v-text-primary)" }}>
+                                    No events found
+                                </h3>
+                                <p className="text-[13px]" style={{ color: "var(--v-text-tertiary)" }}>
+                                    Try adjusting your filters or search terms.
+                                </p>
+                            </div>
                             <button
                                 onClick={() => { setFilter("all"); setSearchQuery(""); }}
-                                className="text-[13px] font-[500] text-[var(--text-secondary)] underline"
+                                className="text-[13px] font-semibold underline"
+                                style={{ color: "var(--v-orange)" }}
                             >
                                 Reset filters
                             </button>
-                        }
-                    />
-                ) : (
-                    <VirtuosoGrid
-                        useWindowScroll
-                        data={filteredEvents}
-                        components={{ List: GridList, Item: GridItem }}
-                        itemContent={(index, event) => (
-                            <MemoizedVenueEventCard
-                                key={event.id}
-                                event={event}
-                                index={index}
-                                handleEventUpdate={handleEventUpdate}
-                            />
-                        )}
-                    />
-                )}
-            </div>
+                        </div>
+                    ) : (
+                        <VirtuosoGrid
+                            useWindowScroll
+                            data={filteredEvents}
+                            components={{ List: GridList, Item: GridItem }}
+                            itemContent={(index, event) => (
+                                <MemoizedVenueEventCard
+                                    key={event.id}
+                                    event={event}
+                                    index={index}
+                                    handleEventUpdate={handleEventUpdate}
+                                />
+                            )}
+                        />
+                    )}
+                </div>
+            )}
 
             {selectedEvent && (
                 <EventDetailsModal

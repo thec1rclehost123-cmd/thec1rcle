@@ -37,15 +37,15 @@ function TrendChip({
             style={{
                 color:
                     direction === "up"
-                        ? "var(--color-success)"
+                        ? "var(--v-success)"
                         : direction === "down"
-                          ? "var(--color-error)"
-                          : "var(--text-tertiary)",
+                          ? "var(--v-error)"
+                          : "var(--v-text-muted)",
                 background:
                     direction === "up"
-                        ? "var(--color-success-bg)"
+                        ? "var(--v-success-bg)"
                         : direction === "down"
-                          ? "var(--color-error-bg)"
+                          ? "var(--v-error-bg)"
                           : "rgba(255,255,255,0.06)",
             }}
         >
@@ -92,7 +92,7 @@ function KPICard({
                 </span>
                 <Icon
                     className="w-4 h-4"
-                    style={{ color: "var(--text-tertiary)" }}
+                    style={{ color: "var(--v-text-muted)" }}
                 />
             </div>
 
@@ -102,7 +102,7 @@ function KPICard({
                 <div className="flex flex-col gap-1">
                     <span
                         className="text-[22px] font-black tracking-tighter tabular-nums leading-none"
-                        style={{ color: "var(--text-primary)" }}
+                        style={{ color: "var(--v-text-primary)" }}
                     >
                         {value}
                     </span>
@@ -113,7 +113,7 @@ function KPICard({
                         {subtext && (
                             <span
                                 className="text-[11px]"
-                                style={{ color: "var(--text-tertiary)" }}
+                                style={{ color: "var(--v-text-tertiary)" }}
                             >
                                 {subtext}
                             </span>

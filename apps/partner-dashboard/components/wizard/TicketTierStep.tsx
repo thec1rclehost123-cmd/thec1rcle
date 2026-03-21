@@ -90,13 +90,13 @@ function AppleInput({ label, type = "text", value, onChange, placeholder, classN
     return (
         <div className={`space-y-1.5 ${className}`}>
             {label && (
-                <label className="block text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
+                <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
                     {label}
                 </label>
             )}
             <div className="relative">
                 {prefix && (
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] font-bold text-[13px]">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary font-bold text-[13px]">
                         {prefix}
                     </span>
                 )}
@@ -105,7 +105,7 @@ function AppleInput({ label, type = "text", value, onChange, placeholder, classN
                     value={value}
                     onChange={onChange}
                     placeholder={placeholder}
-                    className={`w-full px-3 py-2.5 rounded-xl bg-[var(--bg-fill)] border border-[var(--border-subtle)] text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/50 focus:outline-none focus:border-indigo-500/50 focus:bg-[var(--bg-base)] transition-all ${prefix ? "pl-7" : ""}`}
+                    className={`w-full px-3 py-2.5 rounded-xl bg-surface-secondary border border-border-subtle text-[14px] text-text-primary placeholder:text-text-tertiary/50 focus:outline-none focus:border-indigo-500/50 focus:bg-surface-base transition-all ${prefix ? "pl-7" : ""}`}
                     {...rest}
                 />
             </div>
@@ -118,7 +118,7 @@ function Toggle({ on, onToggle, color = "bg-green-500" }: { on: boolean; onToggl
     return (
         <button
             onClick={onToggle}
-            className={`w-12 h-7 rounded-full relative transition-all duration-300 border flex-shrink-0 ${on ? `${color} border-transparent shadow-sm` : "bg-[var(--bg-secondary)] border-[var(--border-default)]"}`}
+            className={`w-12 h-7 rounded-full relative transition-all duration-300 border flex-shrink-0 ${on ? `${color} border-transparent shadow-sm` : "bg-surface-tertiary border-border-default"}`}
         >
             <motion.div
                 className="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-sm"
@@ -208,19 +208,19 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                         <span className="text-[10px] uppercase tracking-widest text-indigo-500 font-bold">
                             {selectedEntryType.label}
                         </span>
-                        <span className="text-[10px] text-[var(--text-tertiary)]">·</span>
-                        <span className="text-[11px] text-[var(--text-tertiary)]">{tier.quantity || 0} units</span>
+                        <span className="text-[10px] text-text-tertiary">·</span>
+                        <span className="text-[11px] text-text-tertiary">{tier.quantity || 0} units</span>
                     </div>
                 </div>
 
-                <p className={`text-[15px] font-black mr-1 flex-shrink-0 ${isRSVP ? "text-indigo-500" : "text-[var(--text-primary)]"}`}>
+                <p className={`text-[15px] font-black mr-1 flex-shrink-0 ${isRSVP ? "text-indigo-500" : "text-text-primary"}`}>
                     {isRSVP ? "FREE" : (tier.price === 0 ? "Free" : `₹${tier.price}`)}
                 </p>
 
                 <div className="flex items-center gap-0.5">
                     <button
                         onClick={() => setExpanded(!expanded)}
-                        className="w-8 h-8 rounded-lg hover:bg-[var(--bg-fill)] flex items-center justify-center transition-all"
+                        className="w-8 h-8 rounded-lg hover:bg-surface-secondary flex items-center justify-center transition-all"
                     >
                         {expanded ? <ChevronUp className="w-4 h-4 text-muted" /> : <ChevronDown className="w-4 h-4 text-muted" />}
                     </button>
@@ -242,12 +242,12 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="border-t border-[var(--border-default)]"
+                        className="border-t border-border-default"
                     >
                         <div className="p-3 space-y-3">
                             {/* Entry Type Selection — 3 cols × 2 rows for 6 types */}
                             <div>
-                                <label className="block text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-1.5">
+                                <label className="block text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-1.5">
                                     Entry Type
                                 </label>
                                 <div className="grid grid-cols-3 gap-1.5">
@@ -264,11 +264,11 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                                 }}
                                                 className={`py-2 px-2 rounded-xl border text-center transition-all ${isSelected
                                                     ? "border-indigo-500 bg-indigo-500/10"
-                                                    : "border-[var(--border-subtle)] hover:border-indigo-500/30 hover:bg-[var(--bg-fill)]"
+                                                    : "border-border-subtle hover:border-indigo-500/30 hover:bg-surface-secondary"
                                                 }`}
                                             >
-                                                <Icon className={`w-3.5 h-3.5 mx-auto mb-0.5 ${isSelected ? "text-indigo-500" : "text-[var(--text-tertiary)]"}`} />
-                                                <p className={`text-[10px] font-bold uppercase tracking-wider ${isSelected ? "text-indigo-500" : "text-[var(--text-primary)]"}`}>
+                                                <Icon className={`w-3.5 h-3.5 mx-auto mb-0.5 ${isSelected ? "text-indigo-500" : "text-text-tertiary"}`} />
+                                                <p className={`text-[10px] font-bold uppercase tracking-wider ${isSelected ? "text-indigo-500" : "text-text-primary"}`}>
                                                     {type.label}
                                                 </p>
                                             </button>
@@ -295,7 +295,7 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                     </div>
                                 ) : (
                                     <div className="space-y-1.5">
-                                        <label className="block text-[11px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Pricing</label>
+                                        <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Pricing</label>
                                         <div className="px-3 py-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[13px] font-black text-indigo-500 flex items-center justify-center uppercase tracking-widest">
                                             FREE RSVP
                                         </div>
@@ -315,7 +315,7 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                             {Number(tier.price) > 0 && scheduledPricingEnabled && (
                                 <div className={`rounded-xl overflow-hidden transition-all ${tier.overrideScheduledPricing
                                     ? "bg-gradient-to-br from-[#ff6b35]/5 to-[#f7931e]/5 border border-[#ff6b35]/20"
-                                    : "bg-[var(--bg-secondary)]"
+                                    : "bg-surface-tertiary"
                                 }`}>
                                     <button
                                         onClick={() => {
@@ -332,12 +332,12 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                             <span className="text-[11px] font-black text-orange-500 uppercase tracking-widest">Scheduled Pricing</span>
                                             <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest ${tier.overrideScheduledPricing
                                                 ? "bg-orange-500 text-white"
-                                                : "bg-[var(--bg-secondary)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]"
+                                                : "bg-surface-tertiary text-text-tertiary border border-border-subtle"
                                             }`}>
                                                 {tier.overrideScheduledPricing ? "CUSTOM" : "DEFAULT"}
                                             </span>
                                         </div>
-                                        <span className="text-[11px] text-[var(--text-tertiary)] font-bold uppercase tracking-widest">
+                                        <span className="text-[11px] text-text-tertiary font-bold uppercase tracking-widest">
                                             {tier.overrideScheduledPricing
                                                 ? `${(tier.scheduledPrices || []).length} custom`
                                                 : `${(defaultScheduledPrices || []).length} default`
@@ -360,14 +360,14 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
 
                             {/* Ticket Note */}
                             <div className="space-y-1">
-                                <label className="block text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
+                                <label className="block text-[10px] font-bold text-text-tertiary uppercase tracking-widest">
                                     Ticket Note (Optional)
                                 </label>
                                 <textarea
                                     value={tier.description || ""}
                                     onChange={(e) => onUpdate({ description: e.target.value })}
                                     placeholder="e.g. Includes one free drink"
-                                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-fill)] border border-[var(--border-subtle)] text-[13px] placeholder:text-[var(--text-tertiary)]/50 focus:outline-none focus:border-indigo-400 transition-all min-h-[52px] resize-none"
+                                    className="w-full px-3 py-2 rounded-xl bg-surface-secondary border border-border-subtle text-[13px] placeholder:text-text-tertiary/50 focus:outline-none focus:border-indigo-400 transition-all min-h-[52px] resize-none"
                                     autoCapitalize="sentences"
                                 />
                             </div>
@@ -375,12 +375,12 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                             {/* Per-tier Promoter toggle — shown only if promoters globally enabled */}
                             {promotersEnabled && (
                                 <div className="space-y-2">
-                                    <div className="p-2.5 rounded-xl bg-[var(--bg-secondary)] flex items-center justify-between">
+                                    <div className="p-2.5 rounded-xl bg-surface-tertiary flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                            <Percent className="w-4 h-4 text-[var(--text-tertiary)]" />
+                                            <Percent className="w-4 h-4 text-text-tertiary" />
                                             <div>
-                                                <p className="text-[12px] font-bold text-[var(--text-primary)]">Promoter Sales</p>
-                                                <p className="text-[10px] text-[var(--text-tertiary)]">Allow promoters to sell this tier</p>
+                                                <p className="text-[12px] font-bold text-text-primary">Promoter Sales</p>
+                                                <p className="text-[10px] text-text-tertiary">Allow promoters to sell this tier</p>
                                             </div>
                                         </div>
                                         <Toggle on={tier.promoterEnabled} onToggle={() => onUpdate({ promoterEnabled: !tier.promoterEnabled })} />
@@ -391,7 +391,7 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                             {/* Commission override */}
                                             <div className={`rounded-xl overflow-hidden transition-all ${tier.overrideCommission
                                                 ? "bg-[#F44A22]/5 border border-[#F44A22]/20"
-                                                : "bg-[var(--bg-secondary)]"
+                                                : "bg-surface-tertiary"
                                             }`}>
                                                 <button
                                                     onClick={() => onUpdate({
@@ -403,11 +403,11 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                                 >
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[11px] font-bold text-[#F44A22] uppercase tracking-wider">Commission</span>
-                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${tier.overrideCommission ? "bg-[#F44A22] text-white" : "bg-[var(--bg-elevated)] text-[var(--text-tertiary)]"}`}>
+                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${tier.overrideCommission ? "bg-[#F44A22] text-white" : "bg-surface-elevated text-text-tertiary"}`}>
                                                             {tier.overrideCommission ? "CUSTOM" : "DEFAULT"}
                                                         </span>
                                                     </div>
-                                                    <span className={`text-[13px] font-semibold ${tier.overrideCommission ? "text-[#F44A22]" : "text-[var(--text-primary)]"}`}>
+                                                    <span className={`text-[13px] font-semibold ${tier.overrideCommission ? "text-[#F44A22]" : "text-text-primary"}`}>
                                                         {tier.overrideCommission
                                                             ? `${tier.promoterCommission || 0}${(tier.promoterCommissionType || "percent") === "percent" ? "%" : "₹"}`
                                                             : `${eventDefaultCommission || 15}${(eventDefaultCommissionType || "percent") === "percent" ? "%" : "₹"}`
@@ -417,10 +417,10 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                                 {tier.overrideCommission && (
                                                     <div className="px-3 pb-3 space-y-2">
                                                         <div className="flex gap-2">
-                                                            <div className="flex p-0.5 bg-[var(--bg-elevated)] rounded-lg border border-[#F44A22]/20">
+                                                            <div className="flex p-0.5 bg-surface-elevated rounded-lg border border-[#F44A22]/20">
                                                                 {[{ v: "percent", l: "%" }, { v: "amount", l: "₹" }].map(({ v, l }) => (
                                                                     <button key={v} onClick={() => onUpdate({ promoterCommissionType: v as any })}
-                                                                        className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${(tier.promoterCommissionType || "percent") === v ? "bg-[#F44A22] text-white" : "text-[var(--text-tertiary)]"}`}>
+                                                                        className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${(tier.promoterCommissionType || "percent") === v ? "bg-[#F44A22] text-white" : "text-text-tertiary"}`}>
                                                                         {l}
                                                                     </button>
                                                                 ))}
@@ -428,7 +428,7 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                                             <input type="number" value={tier.promoterCommission}
                                                                 onChange={(e) => onUpdate({ promoterCommission: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
                                                                 placeholder="15"
-                                                                className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] border border-[#F44A22]/20 text-[14px] font-bold focus:outline-none focus:border-[#F44A22]"
+                                                                className="flex-1 px-3 py-1.5 rounded-lg bg-surface-elevated border border-[#F44A22]/20 text-[14px] font-bold focus:outline-none focus:border-[#F44A22]"
                                                             />
                                                         </div>
                                                     </div>
@@ -439,7 +439,7 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                             {!isRSVP && buyerDiscountsEnabled && (
                                                 <div className={`rounded-xl overflow-hidden transition-all ${tier.overrideDiscount
                                                     ? "bg-[#34c759]/5 border border-[#34c759]/20"
-                                                    : "bg-[var(--bg-secondary)]"
+                                                    : "bg-surface-tertiary"
                                                 }`}>
                                                     <button
                                                         onClick={() => onUpdate({
@@ -451,11 +451,11 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                                     >
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-[11px] font-bold text-[#34c759] uppercase tracking-wider">Buyer Discount</span>
-                                                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${tier.overrideDiscount ? "bg-[#34c759] text-white" : "bg-[var(--bg-elevated)] text-[var(--text-tertiary)]"}`}>
+                                                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${tier.overrideDiscount ? "bg-[#34c759] text-white" : "bg-surface-elevated text-text-tertiary"}`}>
                                                                 {tier.overrideDiscount ? "CUSTOM" : "DEFAULT"}
                                                             </span>
                                                         </div>
-                                                        <span className={`text-[13px] font-semibold ${tier.overrideDiscount ? "text-[#34c759]" : "text-[var(--text-primary)]"}`}>
+                                                        <span className={`text-[13px] font-semibold ${tier.overrideDiscount ? "text-[#34c759]" : "text-text-primary"}`}>
                                                             {tier.overrideDiscount
                                                                 ? `${tier.promoterDiscount || 0}${(tier.promoterDiscountType || "percent") === "percent" ? "%" : "₹"} off`
                                                                 : `${eventDefaultDiscount || 10}${(eventDefaultDiscountType || "percent") === "percent" ? "%" : "₹"} off`
@@ -465,10 +465,10 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                                     {tier.overrideDiscount && (
                                                         <div className="px-3 pb-3">
                                                             <div className="flex gap-2">
-                                                                <div className="flex p-0.5 bg-[var(--bg-elevated)] rounded-lg border border-[#34c759]/20">
+                                                                <div className="flex p-0.5 bg-surface-elevated rounded-lg border border-[#34c759]/20">
                                                                     {[{ v: "percent", l: "%" }, { v: "amount", l: "₹" }].map(({ v, l }) => (
                                                                         <button key={v} onClick={() => onUpdate({ promoterDiscountType: v as any })}
-                                                                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${(tier.promoterDiscountType || "percent") === v ? "bg-[#34c759] text-white" : "text-[var(--text-tertiary)]"}`}>
+                                                                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${(tier.promoterDiscountType || "percent") === v ? "bg-[#34c759] text-white" : "text-text-tertiary"}`}>
                                                                             {l}
                                                                         </button>
                                                                     ))}
@@ -476,7 +476,7 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                                                 <input type="number" value={tier.promoterDiscount}
                                                                     onChange={(e) => onUpdate({ promoterDiscount: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
                                                                     placeholder="10"
-                                                                    className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] border border-[#34c759]/20 text-[14px] font-bold focus:outline-none focus:border-[#34c759]"
+                                                                    className="flex-1 px-3 py-1.5 rounded-lg bg-surface-elevated border border-[#34c759]/20 text-[14px] font-bold focus:outline-none focus:border-[#34c759]"
                                                                 />
                                                             </div>
                                                         </div>
@@ -584,18 +584,18 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
     return (
         <div className="flex flex-col gap-3">
             {/* ─── Top Bar: Mode + Capacity ─── */}
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--bg-fill)] border border-[var(--border-subtle)]">
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-secondary border border-border-subtle">
                 {/* PAID / RSVP Mode Selector */}
-                <div className="flex p-0.5 bg-[var(--bg-base)] rounded-xl border border-[var(--border-subtle)] shadow-sm">
+                <div className="flex p-0.5 bg-surface-base rounded-xl border border-border-subtle shadow-sm">
                     <button
                         onClick={() => formData.isRSVP && handleRSVPToggle()}
-                        className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all ${!formData.isRSVP ? 'bg-indigo-600 text-white shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
+                        className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all ${!formData.isRSVP ? 'bg-indigo-600 text-white shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
                     >
                         Paid
                     </button>
                     <button
                         onClick={() => !formData.isRSVP && handleRSVPToggle()}
-                        className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all ${formData.isRSVP ? 'bg-indigo-600 text-white shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
+                        className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all ${formData.isRSVP ? 'bg-indigo-600 text-white shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
                     >
                         RSVP
                     </button>
@@ -612,12 +612,12 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                 {/* Capacity bar */}
                 <div className="w-32">
                     <div className="flex items-center justify-between mb-1">
-                        <span className="text-[9px] text-[var(--text-tertiary)] uppercase tracking-widest font-bold">Capacity</span>
-                        <span className="text-[11px] font-bold text-[var(--text-primary)]">
-                            {totalTickets}<span className="text-[var(--text-tertiary)] font-normal">/{capacity}</span>
+                        <span className="text-[9px] text-text-tertiary uppercase tracking-widest font-bold">Capacity</span>
+                        <span className="text-[11px] font-bold text-text-primary">
+                            {totalTickets}<span className="text-text-tertiary font-normal">/{capacity}</span>
                         </span>
                     </div>
-                    <div className="h-1.5 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-surface-tertiary rounded-full overflow-hidden">
                         <motion.div
                             className={`h-full rounded-full ${capacityUsage > 100 ? "bg-red-500" : capacityUsage > 80 ? "bg-orange-500" : "bg-green-500"}`}
                             animate={{ width: `${Math.min(capacityUsage, 100)}%` }}
@@ -627,9 +627,9 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                 </div>
 
                 {!formData.isRSVP && inventoryValue > 0 && (
-                    <div className="text-right pl-2 border-l border-[var(--border-subtle)]">
-                        <p className="text-[9px] text-[var(--text-tertiary)] uppercase tracking-widest font-bold">Value</p>
-                        <p className="text-[13px] font-black text-[var(--text-primary)]">₹{inventoryValue.toLocaleString()}</p>
+                    <div className="text-right pl-2 border-l border-border-subtle">
+                        <p className="text-[9px] text-text-tertiary uppercase tracking-widest font-bold">Value</p>
+                        <p className="text-[13px] font-black text-text-primary">₹{inventoryValue.toLocaleString()}</p>
                     </div>
                 )}
 
@@ -641,7 +641,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
             </div>
 
             {/* ─── Tab Bar ─── */}
-            <div className="flex items-center gap-1 bg-[var(--bg-fill)] border border-[var(--border-subtle)] rounded-xl p-1">
+            <div className="flex items-center gap-1 bg-surface-secondary border border-border-subtle rounded-xl p-1">
                 {TABS.map(tab => {
                     const Icon = tab.icon;
                     return (
@@ -649,14 +649,14 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all ${activeTab === tab.id
-                                ? 'bg-[var(--bg-base)] shadow-sm text-[var(--text-primary)] border border-[var(--border-subtle)]'
-                                : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                                ? 'bg-surface-base shadow-sm text-text-primary border border-border-subtle'
+                                : 'text-text-tertiary hover:text-text-secondary'
                             }`}
                         >
                             <Icon className="w-3.5 h-3.5" />
                             {tab.label}
                             {tab.badge !== undefined && (
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${activeTab === tab.id ? 'bg-indigo-500/10 text-indigo-500' : 'bg-[var(--bg-secondary)] text-[var(--text-tertiary)]'}`}>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${activeTab === tab.id ? 'bg-indigo-500/10 text-indigo-500' : 'bg-surface-tertiary text-text-tertiary'}`}>
                                     {tab.badge}
                                 </span>
                             )}
@@ -701,9 +701,9 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
 
                         <button
                             onClick={addTicket}
-                            className="group w-full py-3.5 rounded-xl border-2 border-dashed border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/20 transition-all flex items-center justify-center gap-2"
+                            className="group w-full py-3.5 rounded-xl border-2 border-dashed border-border-default text-text-tertiary hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/20 transition-all flex items-center justify-center gap-2"
                         >
-                            <div className="w-7 h-7 rounded-lg bg-[var(--bg-fill)] border border-[var(--border-subtle)] flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <div className="w-7 h-7 rounded-lg bg-surface-secondary border border-border-subtle flex items-center justify-center group-hover:scale-110 transition-transform">
                                 <Plus className="w-4 h-4" />
                             </div>
                             <span className="text-[12px] font-black uppercase tracking-widest">Add Ticket Tier</span>
@@ -711,7 +711,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
 
                         {/* Quick Presets */}
                         <div className="flex items-center gap-2 pt-1">
-                            <span className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase tracking-widest flex-shrink-0">Quick set:</span>
+                            <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest flex-shrink-0">Quick set:</span>
                             <div className="flex flex-wrap gap-1.5">
                                 {QUICK_PRESETS.map((preset) => (
                                     <button
@@ -727,7 +727,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                             }));
                                             updateFormData({ tickets: newTickets, minTicketsPerOrder: 1, maxTicketsPerOrder: 10 });
                                         }}
-                                        className="px-3 py-1.5 rounded-full border border-[var(--border-subtle)] text-[11px] font-bold text-[var(--text-secondary)] hover:border-indigo-400 hover:text-indigo-500 transition-all"
+                                        className="px-3 py-1.5 rounded-full border border-border-subtle text-[11px] font-bold text-text-secondary hover:border-indigo-400 hover:text-indigo-500 transition-all"
                                     >
                                         {preset.label}
                                     </button>
@@ -748,22 +748,22 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                 {activeTab === 'pricing' && !formData.isRSVP && (
                     <motion.div key="pricing" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="space-y-4">
                         {/* Dynamic Pricing Toggle */}
-                        <div className="p-4 rounded-xl border border-[var(--border-default)] bg-[var(--bg-fill)] space-y-4">
+                        <div className="p-4 rounded-xl border border-border-default bg-surface-secondary space-y-4">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 flex-shrink-0 ${formData.scheduledPricingEnabled ? "bg-gradient-to-br from-[#ff6b35] to-[#f7931e] text-white" : "bg-[var(--bg-secondary)] text-[var(--text-tertiary)]"}`}>
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 flex-shrink-0 ${formData.scheduledPricingEnabled ? "bg-gradient-to-br from-[#ff6b35] to-[#f7931e] text-white" : "bg-surface-tertiary text-text-tertiary"}`}>
                                         <Clock className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <p className="text-[14px] font-bold text-[var(--text-primary)]">Dynamic Pricing</p>
-                                        <p className="text-[11px] text-[var(--text-secondary)]">Early Bird & Last Call pricing windows</p>
+                                        <p className="text-[14px] font-bold text-text-primary">Dynamic Pricing</p>
+                                        <p className="text-[11px] text-text-secondary">Early Bird & Last Call pricing windows</p>
                                     </div>
                                 </div>
                                 <Toggle on={formData.scheduledPricingEnabled} onToggle={() => updateFormData({ scheduledPricingEnabled: !formData.scheduledPricingEnabled })} color="bg-green-500" />
                             </div>
 
                             {formData.scheduledPricingEnabled && (
-                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="pt-4 border-t border-[var(--border-default)] space-y-3">
+                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="pt-4 border-t border-border-default space-y-3">
                                     {/* Quick Presets */}
                                     <div className="grid grid-cols-2 gap-2">
                                         <button
@@ -820,24 +820,24 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                                                 );
                                                                 updateFormData({ defaultScheduledPrices: updated });
                                                             }}
-                                                            className="bg-transparent font-bold text-[14px] text-[var(--text-primary)] focus:outline-none w-full"
+                                                            className="bg-transparent font-bold text-[14px] text-text-primary focus:outline-none w-full"
                                                             placeholder="Schedule Name"
                                                         />
                                                     </div>
                                                     <button
                                                         onClick={() => updateFormData({ defaultScheduledPrices: formData.defaultScheduledPrices.filter((s: DefaultScheduledPrice) => s.id !== schedule.id) })}
-                                                        className="text-[var(--text-tertiary)] hover:text-red-500 transition-colors ml-2"
+                                                        className="text-text-tertiary hover:text-red-500 transition-colors ml-2"
                                                     >
                                                         <X className="w-4 h-4" />
                                                     </button>
                                                 </div>
 
                                                 <div className="flex items-center gap-3">
-                                                    <div className="flex p-0.5 bg-[var(--bg-elevated)] rounded-lg">
+                                                    <div className="flex p-0.5 bg-surface-elevated rounded-lg">
                                                         {[{ v: "discount", l: "DISCOUNT", c: "bg-[#34c759]" }, { v: "markup", l: "MARKUP", c: "bg-[#ff3b30]" }].map(({ v, l, c }) => (
                                                             <button key={v}
                                                                 onClick={() => updateFormData({ defaultScheduledPrices: formData.defaultScheduledPrices.map((s: DefaultScheduledPrice) => s.id === schedule.id ? { ...s, type: v } : s) })}
-                                                                className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${schedule.type === v ? `${c} text-white` : "text-[var(--text-tertiary)]"}`}
+                                                                className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${schedule.type === v ? `${c} text-white` : "text-text-tertiary"}`}
                                                             >
                                                                 {l}
                                                             </button>
@@ -846,19 +846,19 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                                     <div className="relative flex-grow">
                                                         <input type="number" value={schedule.value}
                                                             onChange={(e) => updateFormData({ defaultScheduledPrices: formData.defaultScheduledPrices.map((s: DefaultScheduledPrice) => s.id === schedule.id ? { ...s, value: parseInt(e.target.value) || 0 } : s) })}
-                                                            className="w-full px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[14px] font-bold focus:outline-none pr-8"
+                                                            className="w-full px-3 py-1.5 rounded-lg bg-surface-elevated border border-border-subtle text-[14px] font-bold focus:outline-none pr-8"
                                                         />
-                                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-bold text-[var(--text-tertiary)]">%</span>
+                                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-bold text-text-tertiary">%</span>
                                                     </div>
                                                 </div>
 
                                                 <div className="grid grid-cols-2 gap-2">
                                                     {[{ l: "Starts", k: "startsAt" }, { l: "Ends", k: "endsAt" }].map(({ l, k }) => (
                                                         <div key={k} className="space-y-1">
-                                                            <label className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase">{l}</label>
+                                                            <label className="text-[10px] text-text-tertiary font-bold uppercase">{l}</label>
                                                             <input type="datetime-local" value={(schedule as any)[k]}
                                                                 onChange={(e) => updateFormData({ defaultScheduledPrices: formData.defaultScheduledPrices.map((s: DefaultScheduledPrice) => s.id === schedule.id ? { ...s, [k]: e.target.value } : s) })}
-                                                                className="w-full px-2 py-1.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-primary)] focus:outline-none"
+                                                                className="w-full px-2 py-1.5 rounded-lg bg-surface-elevated border border-border-subtle text-[11px] text-text-primary focus:outline-none"
                                                             />
                                                         </div>
                                                     ))}
@@ -866,13 +866,13 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                             </div>
                                         ))}
                                         {!(formData.defaultScheduledPrices || []).length && (
-                                            <p className="text-center text-[12px] text-[var(--text-tertiary)] py-4 bg-[var(--bg-secondary)] rounded-xl">
+                                            <p className="text-center text-[12px] text-text-tertiary py-4 bg-surface-tertiary rounded-xl">
                                                 No schedules yet. Use quick set above.
                                             </p>
                                         )}
                                     </div>
 
-                                    <p className="text-[11px] text-[var(--text-tertiary)] p-3 rounded-lg bg-[var(--bg-secondary)]">
+                                    <p className="text-[11px] text-text-tertiary p-3 rounded-lg bg-surface-tertiary">
                                         These apply to <strong>all tiers</strong> by default. Override individually within each tier.
                                     </p>
                                 </motion.div>
@@ -885,22 +885,22 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                 {activeTab === 'promoters' && (
                     <motion.div key="promoters" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="space-y-4">
                         {/* Master Toggle */}
-                        <div className="p-4 rounded-xl border border-[var(--border-default)] bg-[var(--bg-fill)] space-y-4">
+                        <div className="p-4 rounded-xl border border-border-default bg-surface-secondary space-y-4">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 flex-shrink-0 ${formData.promotersEnabled ? "bg-[#F44A22] text-white" : "bg-[var(--bg-secondary)] text-[var(--text-tertiary)]"}`}>
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 flex-shrink-0 ${formData.promotersEnabled ? "bg-[#F44A22] text-white" : "bg-surface-tertiary text-text-tertiary"}`}>
                                         <Percent className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <p className="text-[14px] font-bold text-[var(--text-primary)]">Promoter Sales</p>
-                                        <p className="text-[11px] text-[var(--text-secondary)]">Allow ambassadors to sell your tickets</p>
+                                        <p className="text-[14px] font-bold text-text-primary">Promoter Sales</p>
+                                        <p className="text-[11px] text-text-secondary">Allow ambassadors to sell your tickets</p>
                                     </div>
                                 </div>
                                 <Toggle on={formData.promotersEnabled} onToggle={() => updateFormData({ promotersEnabled: !formData.promotersEnabled })} color="bg-green-500" />
                             </div>
 
                             {formData.promotersEnabled && (
-                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="pt-4 border-t border-[var(--border-default)] space-y-4">
+                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="pt-4 border-t border-border-default space-y-4">
                                     {/* ─ Commission Section ─ */}
                                     <div className="space-y-3">
                                         <div className="flex items-center justify-between">
@@ -908,10 +908,10 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                             <span className="px-2 py-0.5 rounded-full bg-orange-500/10 text-[#F44A22] text-[9px] font-black tracking-widest uppercase border border-orange-500/20">Payouts</span>
                                         </div>
 
-                                        <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-default)]">
+                                        <div className="flex items-center justify-between p-3 rounded-xl bg-surface-tertiary border border-border-default">
                                             <div>
-                                                <p className="text-[13px] font-bold text-[var(--text-primary)]">Standardize Commission</p>
-                                                <p className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase tracking-widest">
+                                                <p className="text-[13px] font-bold text-text-primary">Standardize Commission</p>
+                                                <p className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">
                                                     {formData.useDefaultCommission !== false ? "Same rate for all tiers" : "Custom rate per tier"}
                                                 </p>
                                             </div>
@@ -919,30 +919,30 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                         </div>
 
                                         {formData.useDefaultCommission !== false && (
-                                            <div className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-default)] flex items-center justify-between gap-4">
+                                            <div className="p-3 rounded-xl bg-surface-tertiary border border-border-default flex items-center justify-between gap-4">
                                                 <div>
-                                                    <p className="text-[13px] font-bold text-[var(--text-primary)]">Default Commission</p>
-                                                    <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-widest font-bold">Applied to all tiers</p>
+                                                    <p className="text-[13px] font-bold text-text-primary">Default Commission</p>
+                                                    <p className="text-[10px] text-text-tertiary uppercase tracking-widest font-bold">Applied to all tiers</p>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <div className="flex p-1 bg-[var(--bg-fill)] rounded-xl border border-[var(--border-default)]">
+                                                    <div className="flex p-1 bg-surface-secondary rounded-xl border border-border-default">
                                                         {[{ v: "percent", l: "%" }, { v: "amount", l: "₹" }].map(({ v, l }) => (
                                                             <button key={v} onClick={() => updateFormData({ commissionType: v })}
-                                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${(formData.commissionType || "percent") === v ? "bg-[#F44A22] text-white shadow-sm" : "text-[var(--text-tertiary)]"}`}>
+                                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${(formData.commissionType || "percent") === v ? "bg-[#F44A22] text-white shadow-sm" : "text-text-tertiary"}`}>
                                                                 {l}
                                                             </button>
                                                         ))}
                                                     </div>
                                                     <input type="number" value={formData.commission}
                                                         onChange={(e) => updateFormData({ commission: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
-                                                        className="w-20 h-10 bg-[var(--bg-fill)] border border-[var(--border-default)] rounded-xl px-3 text-center font-bold text-[var(--text-primary)] focus:outline-none"
+                                                        className="w-20 h-10 bg-surface-secondary border border-border-default rounded-xl px-3 text-center font-bold text-text-primary focus:outline-none"
                                                     />
                                                 </div>
                                             </div>
                                         )}
 
                                         {formData.useDefaultCommission === false && (
-                                            <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-default)] text-[11px] text-[var(--text-secondary)] font-medium">
+                                            <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-tertiary border border-border-default text-[11px] text-text-secondary font-medium">
                                                 <Sparkles className="w-4 h-4 text-[#F44A22]" />
                                                 Set custom commission within each tier in the Tiers tab.
                                             </div>
@@ -957,20 +957,20 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                                 <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-[#34c759] text-[9px] font-black tracking-widest uppercase border border-emerald-500/20">Via Links</span>
                                             </div>
 
-                                            <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-default)]">
+                                            <div className="flex items-center justify-between p-3 rounded-xl bg-surface-tertiary border border-border-default">
                                                 <div>
-                                                    <p className="text-[13px] font-bold text-[var(--text-primary)]">Buyer Discounts</p>
-                                                    <p className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase tracking-widest">Offer discounts via promoter links</p>
+                                                    <p className="text-[13px] font-bold text-text-primary">Buyer Discounts</p>
+                                                    <p className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">Offer discounts via promoter links</p>
                                                 </div>
                                                 <Toggle on={formData.buyerDiscountsEnabled} onToggle={() => updateFormData({ buyerDiscountsEnabled: !formData.buyerDiscountsEnabled })} color="bg-[#34c759]" />
                                             </div>
 
                                             {formData.buyerDiscountsEnabled && (
                                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="space-y-3">
-                                                    <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-default)]">
+                                                    <div className="flex items-center justify-between p-3 rounded-xl bg-surface-tertiary border border-border-default">
                                                         <div>
-                                                            <p className="text-[13px] font-bold text-[var(--text-primary)]">Standardize Discounts</p>
-                                                            <p className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase tracking-widest">
+                                                            <p className="text-[13px] font-bold text-text-primary">Standardize Discounts</p>
+                                                            <p className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">
                                                                 {formData.useDefaultDiscount !== false ? "Universal rate" : "Per-tier discounts"}
                                                             </p>
                                                         </div>
@@ -978,23 +978,23 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                                     </div>
 
                                                     {formData.useDefaultDiscount !== false && (
-                                                        <div className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-default)] flex items-center justify-between gap-4">
+                                                        <div className="p-3 rounded-xl bg-surface-tertiary border border-border-default flex items-center justify-between gap-4">
                                                             <div>
-                                                                <p className="text-[13px] font-bold text-[var(--text-primary)]">Default Discount</p>
-                                                                <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-widest font-bold">Applied to all tiers</p>
+                                                                <p className="text-[13px] font-bold text-text-primary">Default Discount</p>
+                                                                <p className="text-[10px] text-text-tertiary uppercase tracking-widest font-bold">Applied to all tiers</p>
                                                             </div>
                                                             <div className="flex items-center gap-2">
-                                                                <div className="flex p-1 bg-[var(--bg-fill)] rounded-xl border border-[var(--border-default)]">
+                                                                <div className="flex p-1 bg-surface-secondary rounded-xl border border-border-default">
                                                                     {[{ v: "percent", l: "%" }, { v: "amount", l: "₹" }].map(({ v, l }) => (
                                                                         <button key={v} onClick={() => updateFormData({ discountType: v })}
-                                                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${(formData.discountType || "percent") === v ? "bg-[#34c759] text-white shadow-sm" : "text-[var(--text-tertiary)]"}`}>
+                                                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${(formData.discountType || "percent") === v ? "bg-[#34c759] text-white shadow-sm" : "text-text-tertiary"}`}>
                                                                             {l}
                                                                         </button>
                                                                     ))}
                                                                 </div>
                                                                 <input type="number" value={formData.discount}
                                                                     onChange={(e) => updateFormData({ discount: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
-                                                                    className="w-20 h-10 bg-[var(--bg-fill)] border border-[var(--border-default)] rounded-xl px-3 text-center font-bold text-[var(--text-primary)] focus:outline-none"
+                                                                    className="w-20 h-10 bg-surface-secondary border border-border-default rounded-xl px-3 text-center font-bold text-text-primary focus:outline-none"
                                                                 />
                                                             </div>
                                                         </div>
@@ -1014,14 +1014,14 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                     <motion.div key="settings" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="space-y-4">
                         {/* Order Limits */}
                         {!formData.isRSVP && (
-                            <div className="p-4 rounded-xl border border-[var(--border-default)] bg-[var(--bg-fill)] space-y-3">
+                            <div className="p-4 rounded-xl border border-border-default bg-surface-secondary space-y-3">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center text-[var(--text-tertiary)] flex-shrink-0">
+                                    <div className="w-8 h-8 rounded-lg bg-surface-tertiary flex items-center justify-center text-text-tertiary flex-shrink-0">
                                         <Users className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <p className="text-[13px] font-bold text-[var(--text-primary)]">Booking Limits</p>
-                                        <p className="text-[11px] text-[var(--text-secondary)]">Min/max tickets per account</p>
+                                        <p className="text-[13px] font-bold text-text-primary">Booking Limits</p>
+                                        <p className="text-[11px] text-text-secondary">Min/max tickets per account</p>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
@@ -1040,7 +1040,7 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
                                         min="1"
                                     />
                                 </div>
-                                <p className="text-[11px] text-[var(--text-tertiary)] bg-[var(--bg-secondary)] p-2.5 rounded-lg">
+                                <p className="text-[11px] text-text-tertiary bg-surface-tertiary p-2.5 rounded-lg">
                                     Limits apply per user account across all tiers. Couple tickets count as 1 unit.
                                 </p>
                             </div>
@@ -1048,14 +1048,14 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
 
                         {/* Promo Codes */}
                         {!formData.isRSVP && (
-                            <div className="p-4 rounded-xl border border-[var(--border-default)] bg-[var(--bg-fill)]">
+                            <div className="p-4 rounded-xl border border-border-default bg-surface-secondary">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <div className="w-8 h-8 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center text-[var(--text-tertiary)] flex-shrink-0">
+                                    <div className="w-8 h-8 rounded-lg bg-surface-tertiary flex items-center justify-center text-text-tertiary flex-shrink-0">
                                         <Tag className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <p className="text-[13px] font-bold text-[var(--text-primary)]">Promo Codes</p>
-                                        <p className="text-[11px] text-[var(--text-secondary)]">Discount codes for buyers</p>
+                                        <p className="text-[13px] font-bold text-text-primary">Promo Codes</p>
+                                        <p className="text-[11px] text-text-secondary">Discount codes for buyers</p>
                                     </div>
                                 </div>
                                 <PromoCodeManager

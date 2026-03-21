@@ -133,7 +133,7 @@ export default function ReservationsPage() {
                             Table Management
                         </div>
                     </div>
-                    <h1 className="text-4xl font-black text-[var(--text-primary)] tracking-tight flex items-center gap-4">
+                    <h1 className="text-4xl font-black text-text-primary tracking-tight flex items-center gap-4">
                         <Calendar className="w-10 h-10" />
                         Reservations
                     </h1>
@@ -143,23 +143,23 @@ export default function ReservationsPage() {
                     <button
                         onClick={fetchReservations}
                         disabled={loading}
-                        className="h-10 w-10 flex items-center justify-center bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-all"
+                        className="h-10 w-10 flex items-center justify-center bg-surface-elevated border border-border-default rounded-xl text-text-tertiary hover:text-text-secondary transition-all"
                         title="Refresh"
                     >
                         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                     </button>
-                    <div className="flex p-1 bg-[var(--bg-fill)] rounded-2xl border border-[var(--border-default)]">
+                    <div className="flex p-1 bg-surface-secondary rounded-2xl border border-border-default">
                         {(["pending", "approved", "rejected"] as const).map((s) => (
                             <button
                                 key={s}
                                 onClick={() => setFilter(s)}
                                 className={`px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${filter === s
-                                    ? "bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-sm"
-                                    : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                                    ? "bg-surface-elevated text-text-primary shadow-sm"
+                                    : "text-text-tertiary hover:text-text-secondary"
                                     }`}
                             >
                                 {s}
-                                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[8px] ${filter === s ? 'bg-[var(--bg-fill)]' : 'bg-transparent'}`}>
+                                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[8px] ${filter === s ? 'bg-surface-secondary' : 'bg-transparent'}`}>
                                     {statusCounts[s]}
                                 </span>
                             </button>
@@ -184,20 +184,20 @@ export default function ReservationsPage() {
 
             {/* Stats Overview */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-[var(--bg-elevated)] p-6 rounded-3xl border border-[var(--border-subtle)] shadow-sm">
-                    <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-2">Total Requests</p>
-                    <p className="text-3xl font-black text-[var(--text-primary)]">{reservations.length}</p>
+                <div className="bg-surface-elevated p-6 rounded-3xl border border-border-subtle shadow-sm">
+                    <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-2">Total Requests</p>
+                    <p className="text-3xl font-black text-text-primary">{reservations.length}</p>
                 </div>
-                <div className="bg-[var(--bg-elevated)] p-6 rounded-3xl border border-[var(--border-subtle)] shadow-sm">
-                    <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-2">Pending Requests</p>
+                <div className="bg-surface-elevated p-6 rounded-3xl border border-border-subtle shadow-sm">
+                    <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-2">Pending Requests</p>
                     <p className="text-3xl font-black text-indigo-600">{statusCounts.pending}</p>
                 </div>
-                <div className="bg-[var(--bg-elevated)] p-6 rounded-3xl border border-[var(--border-subtle)] shadow-sm">
-                    <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-2">Confirmed Guests</p>
-                    <p className="text-3xl font-black text-[var(--text-primary)]">{totalGuests}</p>
+                <div className="bg-surface-elevated p-6 rounded-3xl border border-border-subtle shadow-sm">
+                    <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-2">Confirmed Guests</p>
+                    <p className="text-3xl font-black text-text-primary">{totalGuests}</p>
                 </div>
-                <div className="bg-[var(--bg-elevated)] p-6 rounded-3xl border border-[var(--border-subtle)] shadow-sm">
-                    <p className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest mb-2">Revenue (Approved)</p>
+                <div className="bg-surface-elevated p-6 rounded-3xl border border-border-subtle shadow-sm">
+                    <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-2">Revenue (Approved)</p>
                     <div className="flex items-center gap-1">
                         <IndianRupee className="w-5 h-5 text-emerald-600" />
                         <p className="text-3xl font-black text-emerald-600">{totalRevenue.toLocaleString("en-IN")}</p>
@@ -206,20 +206,20 @@ export default function ReservationsPage() {
             </div>
 
             {/* List */}
-            <div className="bg-[var(--bg-elevated)] rounded-[2.5rem] border border-[var(--border-subtle)] shadow-sm overflow-hidden">
+            <div className="bg-surface-elevated rounded-[2.5rem] border border-border-subtle shadow-sm overflow-hidden">
                 {loading ? (
                     <div className="py-24 text-center space-y-4">
-                        <Loader2 className="w-8 h-8 text-[var(--text-quaternary)] animate-spin mx-auto" />
-                        <p className="text-[var(--text-tertiary)] font-bold uppercase tracking-widest text-[10px]">Loading reservations…</p>
+                        <Loader2 className="w-8 h-8 text-text-placeholder animate-spin mx-auto" />
+                        <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Loading reservations…</p>
                     </div>
                 ) : filteredReservations.length === 0 ? (
                     <div className="py-24 text-center space-y-4">
-                        <div className="w-16 h-16 bg-[var(--bg-secondary)] rounded-full flex items-center justify-center mx-auto">
-                            <Search className="w-6 h-6 text-[var(--text-quaternary)]" />
+                        <div className="w-16 h-16 bg-surface-tertiary rounded-full flex items-center justify-center mx-auto">
+                            <Search className="w-6 h-6 text-text-placeholder" />
                         </div>
-                        <p className="text-[var(--text-tertiary)] font-bold uppercase tracking-widest text-[10px]">No {filter} reservations</p>
+                        <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">No {filter} reservations</p>
                         {filter === "pending" && (
-                            <p className="text-[var(--text-quaternary)] text-xs max-w-sm mx-auto">
+                            <p className="text-text-placeholder text-xs max-w-sm mx-auto">
                                 When guests request a reservation via your venue page, they'll appear here for your approval.
                             </p>
                         )}
@@ -228,14 +228,14 @@ export default function ReservationsPage() {
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
-                                <tr className="bg-[var(--bg-secondary)] border-b border-[var(--border-subtle)] text-left">
-                                    <th className="px-8 py-5 text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest">Guest</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest">Type</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest">Date & Time</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest">Guests</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest">Amount</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest">Status</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest text-right">Actions</th>
+                                <tr className="bg-surface-tertiary border-b border-border-subtle text-left">
+                                    <th className="px-8 py-5 text-[10px] font-black text-text-tertiary uppercase tracking-widest">Guest</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-text-tertiary uppercase tracking-widest">Type</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-text-tertiary uppercase tracking-widest">Date & Time</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-text-tertiary uppercase tracking-widest">Guests</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-text-tertiary uppercase tracking-widest">Amount</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-text-tertiary uppercase tracking-widest">Status</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-text-tertiary uppercase tracking-widest text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
@@ -244,20 +244,20 @@ export default function ReservationsPage() {
                                         key={res.id}
                                         initial={{ opacity: 0 }}
                                         animate={{ opacity: 1 }}
-                                        className="group hover:bg-[var(--bg-secondary)]/50 transition-all"
+                                        className="group hover:bg-surface-tertiary/50 transition-all"
                                     >
                                         <td className="px-8 py-6">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 bg-[var(--bg-fill)] rounded-xl flex items-center justify-center text-[var(--text-tertiary)] font-black text-sm">
+                                                <div className="w-10 h-10 bg-surface-secondary rounded-xl flex items-center justify-center text-text-tertiary font-black text-sm">
                                                     {res.guestName?.[0] || "G"}
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-bold text-[var(--text-primary)]">{res.guestName || "Guest"}</p>
+                                                    <p className="text-sm font-bold text-text-primary">{res.guestName || "Guest"}</p>
                                                     <div className="flex items-center gap-3 mt-1">
                                                         {res.guestPhone && (
                                                             <div className="flex items-center gap-1">
-                                                                <Phone className="w-3 h-3 text-[var(--text-quaternary)]" />
-                                                                <span className="text-[10px] text-[var(--text-tertiary)] font-medium">{res.guestPhone}</span>
+                                                                <Phone className="w-3 h-3 text-text-placeholder" />
+                                                                <span className="text-[10px] text-text-tertiary font-medium">{res.guestPhone}</span>
                                                             </div>
                                                         )}
                                                     </div>
@@ -280,10 +280,10 @@ export default function ReservationsPage() {
                                                         <div>
                                                             <p className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Event</p>
                                                             {res.eventTitle && (
-                                                                <p className="text-[10px] text-[var(--text-tertiary)] font-medium mt-0.5">{res.eventTitle}</p>
+                                                                <p className="text-[10px] text-text-tertiary font-medium mt-0.5">{res.eventTitle}</p>
                                                             )}
                                                             {res.tableName && (
-                                                                <p className="text-[10px] text-[var(--text-tertiary)] font-medium">{res.tableName}</p>
+                                                                <p className="text-[10px] text-text-tertiary font-medium">{res.tableName}</p>
                                                             )}
                                                         </div>
                                                     </>
@@ -296,30 +296,30 @@ export default function ReservationsPage() {
                                             </div>
                                         </td>
                                         <td className="px-8 py-6">
-                                            <div className="flex items-center gap-2 text-sm font-bold text-[var(--text-secondary)]">
-                                                <Calendar className="w-4 h-4 text-[var(--text-quaternary)]" />
+                                            <div className="flex items-center gap-2 text-sm font-bold text-text-secondary">
+                                                <Calendar className="w-4 h-4 text-text-placeholder" />
                                                 {formatDate(res.date)}
                                             </div>
-                                            <div className="flex items-center gap-2 text-[10px] text-[var(--text-tertiary)] font-bold mt-1">
-                                                <Clock className="w-3 h-3 text-[var(--text-quaternary)]" />
+                                            <div className="flex items-center gap-2 text-[10px] text-text-tertiary font-bold mt-1">
+                                                <Clock className="w-3 h-3 text-text-placeholder" />
                                                 {formatTime(res.time) || "—"}
                                             </div>
-                                            <p className="text-[9px] text-[var(--text-quaternary)] mt-1">{timeAgo(res.createdAt)}</p>
+                                            <p className="text-[9px] text-text-placeholder mt-1">{timeAgo(res.createdAt)}</p>
                                         </td>
                                         <td className="px-8 py-6">
-                                            <div className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)]">
-                                                <Users className="w-4 h-4 text-[var(--text-quaternary)]" />
+                                            <div className="flex items-center gap-2 text-sm font-bold text-text-primary">
+                                                <Users className="w-4 h-4 text-text-placeholder" />
                                                 {res.guests}
                                             </div>
                                         </td>
                                         <td className="px-8 py-6">
                                             {res.totalAmount ? (
-                                                <div className="flex items-center gap-1 text-sm font-bold text-[var(--text-primary)]">
-                                                    <IndianRupee className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
+                                                <div className="flex items-center gap-1 text-sm font-bold text-text-primary">
+                                                    <IndianRupee className="w-3.5 h-3.5 text-text-tertiary" />
                                                     {res.totalAmount.toLocaleString("en-IN")}
                                                 </div>
                                             ) : (
-                                                <span className="text-[10px] text-[var(--text-quaternary)] font-bold uppercase tracking-widest">Free</span>
+                                                <span className="text-[10px] text-text-placeholder font-bold uppercase tracking-widest">Free</span>
                                             )}
                                         </td>
                                         <td className="px-8 py-6">
@@ -338,7 +338,7 @@ export default function ReservationsPage() {
                                                     <button
                                                         onClick={() => handleAction(res.id, 'approved')}
                                                         disabled={processingId === res.id}
-                                                        className="h-10 px-4 bg-green-500 text-[var(--text-primary)] rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100 flex items-center gap-2 disabled:opacity-50"
+                                                        className="h-10 px-4 bg-green-500 text-text-primary rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100 flex items-center gap-2 disabled:opacity-50"
                                                     >
                                                         {processingId === res.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
                                                         Approve
@@ -346,14 +346,14 @@ export default function ReservationsPage() {
                                                     <button
                                                         onClick={() => handleAction(res.id, 'rejected')}
                                                         disabled={processingId === res.id}
-                                                        className="h-10 px-4 bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[var(--text-tertiary)] rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-all flex items-center gap-2 disabled:opacity-50"
+                                                        className="h-10 px-4 bg-surface-elevated border border-border-default text-text-tertiary rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-all flex items-center gap-2 disabled:opacity-50"
                                                     >
                                                         <XCircle className="w-3 h-3" />
                                                         Reject
                                                     </button>
                                                 </div>
                                             ) : (
-                                                <button className="p-2 text-[var(--text-quaternary)] hover:text-[var(--text-secondary)] transition-colors">
+                                                <button className="p-2 text-text-placeholder hover:text-text-secondary transition-colors">
                                                     <MoreHorizontal className="w-5 h-5" />
                                                 </button>
                                             )}

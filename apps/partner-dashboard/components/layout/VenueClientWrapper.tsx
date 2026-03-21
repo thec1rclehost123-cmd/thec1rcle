@@ -4,12 +4,12 @@ import { useState, useMemo } from "react";
 import { Menu, X, PlusCircle } from "lucide-react";
 import {
     LayoutDashboard,
-    CalendarDays,
+    Zap,
     Calendar,
     DoorOpen,
     Handshake,
-    BarChart2,
-    CreditCard,
+    BarChart3,
+    Banknote,
     Globe,
     Settings,
 } from "lucide-react";
@@ -25,25 +25,14 @@ import type { VenueTab } from "@/lib/types/staffProfile";
 
 const MENU_SECTIONS = [
     {
-        label: "OPERATIONS",
         items: [
             { icon: LayoutDashboard, label: "Overview",  href: "/venue" },
-            { icon: CalendarDays,    label: "Events",    href: "/venue/events" },
+            { icon: Zap,             label: "Events",    href: "/venue/events" },
             { icon: Calendar,        label: "Calendar",  href: "/venue/calendar" },
-            { icon: DoorOpen,        label: "Entry",     href: "/venue/door" },
-        ],
-    },
-    {
-        label: "BUSINESS",
-        items: [
-            { icon: BarChart2,       label: "Analytics", href: "/venue/analytics" },
-            { icon: CreditCard,      label: "Finance",   href: "/venue/finance" },
-        ],
-    },
-    {
-        label: "MANAGE",
-        items: [
+            { icon: DoorOpen,        label: "Door",      href: "/venue/door" },
             { icon: Handshake,       label: "Partners",  href: "/venue/partners" },
+            { icon: BarChart3,       label: "Analytics", href: "/venue/analytics" },
+            { icon: Banknote,        label: "Finance",   href: "/venue/finance" },
             { icon: Globe,           label: "Presence",  href: "/venue/presence" },
             { icon: Settings,        label: "Settings",  href: "/venue/settings" },
         ],
@@ -124,7 +113,7 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
     return (
         <ApprovalGuard>
             <RoleGuard allowedType="venue">
-                <div className="venue-shell min-h-screen bg-[var(--bg-base)]">
+                <div className="venue-shell min-h-screen bg-[var(--v-canvas)]">
                     {/* Desktop Sidebar */}
                     <div className="hidden lg:block fixed left-0 top-0 bottom-0 h-full z-50">
                         <AppleSidebar
@@ -138,16 +127,16 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
                     </div>
 
                     {/* Mobile Header */}
-                    <header className="lg:hidden h-14 bg-[var(--bg-base)]/90 backdrop-blur-xl border-b border-[var(--border-subtle)] fixed top-0 left-0 right-0 z-50 px-4 flex items-center justify-between">
+                    <header className="lg:hidden h-14 bg-surface-base/90 backdrop-blur-xl border-b border-border-subtle fixed top-0 left-0 right-0 z-50 px-4 flex items-center justify-between">
                         <button
                             onClick={() => setSidebarOpen(true)}
-                            className="p-2 rounded-lg hover:bg-[var(--bg-fill)] transition-colors"
+                            className="p-2 rounded-lg hover:bg-surface-secondary transition-colors"
                         >
-                            <Menu className="h-5 w-5 text-[var(--text-primary)]" />
+                            <Menu className="h-5 w-5 text-text-primary" />
                         </button>
                         <div className="flex items-center gap-2">
-                            <span className="w-7 h-7 rounded-lg bg-text-primary flex items-center justify-center text-white text-[11px] font-bold">C</span>
-                            <span className="text-[13px] font-bold text-[var(--text-primary)] tracking-wide">C1RCLE</span>
+                            <span className="w-7 h-7 rounded-lg bg-text-primary flex items-center justify-center text-text-inverse text-[11px] font-bold">C</span>
+                            <span className="text-[13px] font-bold text-text-primary tracking-wide">C1RCLE</span>
                         </div>
                         <div className="w-9" />
                     </header>
@@ -173,7 +162,7 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
                                     <div className="absolute top-4 right-4 z-10">
                                         <button
                                             onClick={() => setSidebarOpen(false)}
-                                            className="p-2 rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-all"
+                                            className="p-2 rounded-lg hover:bg-surface-tertiary text-text-tertiary hover:text-text-primary transition-all"
                                         >
                                             <X className="h-5 w-5" />
                                         </button>
@@ -190,14 +179,19 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
                     </AnimatePresence>
 
                     {/* Main Content */}
-                    <div className={`${isCollapsed ? "lg:pl-[80px]" : "lg:pl-[260px]"} flex flex-col min-h-screen pt-14 lg:pt-0 transition-all duration-300 ease-in-out`}>
+                    <div className={`${isCollapsed ? "lg:pl-[80px]" : "lg:pl-[280px]"} flex flex-col min-h-screen pt-14 lg:pt-0 transition-all duration-300 ease-in-out`}>
                         <div className="hidden lg:block sticky top-0 z-40">
                             <AppleTopBar primaryAction={venuePrimaryAction} />
                         </div>
                         <main className="flex-1 p-4 sm:p-6 lg:p-8 xl:p-10">
-                            <div className="max-w-[1600px] mx-auto">
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.3 }}
+                                className="max-w-[1600px] mx-auto"
+                            >
                                 {children}
-                            </div>
+                            </motion.div>
                         </main>
                     </div>
                     <AssistantButton />

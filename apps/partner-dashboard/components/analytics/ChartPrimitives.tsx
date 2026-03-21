@@ -23,11 +23,11 @@ import { cn } from "@/lib/utils";
 // ── Shared tooltip style ───────────────────────────────────────────────────────
 
 export const TOOLTIP_STYLE = {
-    background: "var(--bg-elevated)",
-    border: "1px solid var(--border-subtle)",
+    background: "var(--v-card)",
+    border: "1px solid var(--v-border)",
     borderRadius: 12,
     fontSize: 12,
-    color: "var(--text-primary)",
+    color: "var(--v-text-primary)",
     padding: "8px 12px",
 };
 
@@ -37,7 +37,7 @@ export function ChartSkeleton({ height = 200, className }: { height?: number; cl
     return (
         <div
             className={cn("rounded-2xl animate-pulse", className)}
-            style={{ height, background: "var(--bg-fill)" }}
+            style={{ height, background: "var(--v-skeleton)" }}
             aria-label="Loading chart..."
         />
     );
@@ -86,7 +86,7 @@ interface SparkLineProps {
     className?: string;
 }
 
-export function SparkLine({ data, color = "var(--accent)", height = 40, className }: SparkLineProps) {
+export function SparkLine({ data, color = "var(--v-orange)", height = 40, className }: SparkLineProps) {
     const allZero = data.every(v => v === 0);
     if (allZero) {
         return (
@@ -131,12 +131,12 @@ interface FunnelWaterfallProps {
 }
 
 const FUNNEL_COLORS = [
-    "var(--chart-1)",
-    "var(--chart-2)",
-    "var(--chart-3)",
-    "var(--chart-4)",
-    "var(--chart-5)",
-    "var(--text-tertiary)",
+    "var(--v-chart-1)",
+    "var(--v-chart-2)",
+    "var(--v-chart-3)",
+    "var(--v-chart-4)",
+    "var(--v-chart-5)",
+    "var(--v-text-tertiary)",
 ];
 
 export function FunnelWaterfall({ stages, className }: FunnelWaterfallProps) {
@@ -155,7 +155,7 @@ export function FunnelWaterfall({ stages, className }: FunnelWaterfallProps) {
                         <div className="flex items-center gap-3">
                             {/* Stage label */}
                             <div className="w-28 shrink-0 text-right">
-                                <span className="text-[11px] font-semibold" style={{ color: "var(--text-secondary)" }}>
+                                <span className="text-[11px] font-semibold" style={{ color: "var(--v-text-secondary)" }}>
                                     {stage.label}
                                 </span>
                             </div>
@@ -167,14 +167,14 @@ export function FunnelWaterfall({ stages, className }: FunnelWaterfallProps) {
                                     style={{
                                         width: `${widthPct}%`,
                                         background: stage.count === 0
-                                            ? "var(--bg-fill)"
+                                            ? "var(--v-neutral-bg)"
                                             : color,
                                         opacity: stage.count === 0 ? 0.4 : 1,
                                     }}
                                 >
                                     <span
                                         className="text-[11px] font-bold tabular-nums"
-                                        style={{ color: stage.count === 0 ? "var(--text-tertiary)" : "rgba(255,255,255,0.9)" }}
+                                        style={{ color: stage.count === 0 ? "var(--v-text-muted)" : "rgba(255,255,255,0.9)" }}
                                     >
                                         {stage.count === 0 ? "—" : stage.count.toLocaleString("en-IN")}
                                     </span>
@@ -183,7 +183,7 @@ export function FunnelWaterfall({ stages, className }: FunnelWaterfallProps) {
 
                             {/* Conversion from top */}
                             <div className="w-14 shrink-0 text-right">
-                                <span className="text-[11px] font-semibold tabular-nums" style={{ color: "var(--text-tertiary)" }}>
+                                <span className="text-[11px] font-semibold tabular-nums" style={{ color: "var(--v-text-muted)" }}>
                                     {stage.count === 0 ? "—" : `${stage.conversionFromTop.toFixed(0)}%`}
                                 </span>
                             </div>
@@ -194,7 +194,7 @@ export function FunnelWaterfall({ stages, className }: FunnelWaterfallProps) {
                             <div className="flex items-center gap-3 py-0.5 opacity-60">
                                 <div className="w-28 shrink-0" />
                                 <div className="pl-1">
-                                    <span className="text-[10px] font-semibold" style={{ color: "var(--color-error)" }}>
+                                    <span className="text-[10px] font-semibold" style={{ color: "var(--v-error)" }}>
                                         ↓ {stage.dropPct.toFixed(0)}% drop
                                     </span>
                                 </div>
@@ -243,7 +243,7 @@ export function HeatmapGrid({ data, days, hours, label = "Activity Heatmap", cla
                 <div className="flex items-center mb-1.5 pl-9">
                     {hours.map(hour => (
                         <div key={hour} className="flex-1 text-center">
-                            <span className="text-[9px] font-semibold" style={{ color: "var(--text-tertiary)" }}>
+                            <span className="text-[9px] font-semibold" style={{ color: "var(--v-text-muted)" }}>
                                 {hour.slice(0, 2)}
                             </span>
                         </div>
@@ -255,7 +255,7 @@ export function HeatmapGrid({ data, days, hours, label = "Activity Heatmap", cla
                     <div key={day} className="flex items-center mb-1">
                         {/* Day label */}
                         <div className="w-8 shrink-0 mr-1">
-                            <span className="text-[10px] font-semibold" style={{ color: "var(--text-tertiary)" }}>
+                            <span className="text-[10px] font-semibold" style={{ color: "var(--v-text-muted)" }}>
                                 {day}
                             </span>
                         </div>
@@ -273,7 +273,7 @@ export function HeatmapGrid({ data, days, hours, label = "Activity Heatmap", cla
                                         style={{
                                             height: 22,
                                             background: `rgba(244, 74, 34, ${opacity})`,
-                                            border: "1px solid var(--border-subtle)",
+                                            border: "1px solid var(--v-divider)",
                                         }}
                                         title={val > 0 ? `${day} ${hour}: ${val} guests` : undefined}
                                     />
@@ -285,7 +285,7 @@ export function HeatmapGrid({ data, days, hours, label = "Activity Heatmap", cla
 
                 {/* Legend */}
                 <div className="flex items-center gap-2 mt-3 pl-9">
-                    <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>Less</span>
+                    <span className="text-[10px]" style={{ color: "var(--v-text-muted)" }}>Less</span>
                     {[0.04, 0.18, 0.36, 0.55, 0.75, 0.94].map((op, i) => (
                         <div
                             key={i}
@@ -293,7 +293,7 @@ export function HeatmapGrid({ data, days, hours, label = "Activity Heatmap", cla
                             style={{ background: `rgba(244, 74, 34, ${op})` }}
                         />
                     ))}
-                    <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>More</span>
+                    <span className="text-[10px]" style={{ color: "var(--v-text-muted)" }}>More</span>
                 </div>
             </div>
         </div>
@@ -327,7 +327,7 @@ export function HorizRankBars({ rows, maxValue, showRank = true, className }: Ho
         <div className={cn("space-y-3", className)}>
             {rows.map((row, i) => {
                 const widthPct = max > 0 ? Math.max((row.value / max) * 100, 2) : 2;
-                const color = row.color ?? `var(--chart-${(i % 5) + 1})`;
+                const color = row.color ?? `var(--v-chart-${(i % 5) + 1})`;
 
                 return (
                     <div key={row.label} className="group">
@@ -336,14 +336,14 @@ export function HorizRankBars({ rows, maxValue, showRank = true, className }: Ho
                                 {showRank && (
                                     <span
                                         className="text-[10px] font-black w-4 text-right shrink-0"
-                                        style={{ color: "var(--text-tertiary)" }}
+                                        style={{ color: "var(--v-text-muted)" }}
                                     >
                                         {i + 1}
                                     </span>
                                 )}
                                 <span
                                     className="text-[13px] font-semibold truncate max-w-[120px]"
-                                    style={{ color: "var(--text-primary)" }}
+                                    style={{ color: "var(--v-text-primary)" }}
                                 >
                                     {row.label}
                                 </span>
@@ -353,8 +353,8 @@ export function HorizRankBars({ rows, maxValue, showRank = true, className }: Ho
                                         style={{
                                             background: row.badgeColor
                                                 ? `${row.badgeColor}22`
-                                                : "var(--bg-fill)",
-                                            color: row.badgeColor ?? "var(--text-tertiary)",
+                                                : "var(--v-neutral-bg)",
+                                            color: row.badgeColor ?? "var(--v-text-muted)",
                                         }}
                                     >
                                         {row.badge}
@@ -364,14 +364,14 @@ export function HorizRankBars({ rows, maxValue, showRank = true, className }: Ho
                             <div className="text-right shrink-0 ml-3">
                                 <span
                                     className="text-[13px] font-bold tabular-nums"
-                                    style={{ color: row.value === 0 ? "var(--text-tertiary)" : "var(--text-primary)" }}
+                                    style={{ color: row.value === 0 ? "var(--v-text-muted)" : "var(--v-text-primary)" }}
                                 >
                                     {row.formattedValue ?? (row.value === 0 ? "—" : row.value.toLocaleString("en-IN"))}
                                 </span>
                                 {row.subValue && (
                                     <div
                                         className="text-[10px] font-medium"
-                                        style={{ color: "var(--text-tertiary)" }}
+                                        style={{ color: "var(--v-text-muted)" }}
                                     >
                                         {row.subValue}
                                     </div>
@@ -381,14 +381,14 @@ export function HorizRankBars({ rows, maxValue, showRank = true, className }: Ho
 
                         <div
                             className="w-full rounded-full overflow-hidden"
-                            style={{ height: 4, background: "var(--border-subtle)" }}
+                            style={{ height: 4, background: "var(--v-border)" }}
                         >
                             <div
                                 className="h-full rounded-full transition-all duration-700"
                                 style={{
                                     width: `${widthPct}%`,
                                     background: row.value === 0
-                                        ? "var(--bg-fill)"
+                                        ? "var(--v-neutral-bg)"
                                         : color,
                                     opacity: row.value === 0 ? 0.5 : 1,
                                 }}
@@ -418,7 +418,7 @@ const LazyDonutSplit = lazy(() =>
             const { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } = m;
             const hasData = data.some(d => d.value > 0);
             const chartData = hasData ? data : [{ name: "No data", value: 1 }];
-            const chartColors = hasData ? colors : ["var(--border-subtle)"];
+            const chartColors = hasData ? colors : ["var(--v-border)"];
 
             return (
                 <ResponsiveContainer width="100%" height={height}>
@@ -469,11 +469,11 @@ interface DonutSplitProps {
 }
 
 const DEFAULT_DONUT_COLORS = [
-    "var(--chart-1)",
-    "var(--chart-2)",
-    "var(--chart-3)",
-    "var(--chart-4)",
-    "var(--chart-5)",
+    "var(--v-chart-1)",
+    "var(--v-chart-2)",
+    "var(--v-chart-3)",
+    "var(--v-chart-4)",
+    "var(--v-chart-5)",
 ];
 
 export function DonutSplit({
@@ -502,14 +502,14 @@ export function DonutSplit({
                 >
                     <span
                         className="text-[22px] font-black tabular-nums"
-                        style={{ color: "var(--text-primary)" }}
+                        style={{ color: "var(--v-text-primary)" }}
                     >
                         {centerLabel}
                     </span>
                     {centerSub && (
                         <span
                             className="text-[10px] font-semibold mt-0.5"
-                            style={{ color: "var(--text-tertiary)" }}
+                            style={{ color: "var(--v-text-muted)" }}
                         >
                             {centerSub}
                         </span>
@@ -616,34 +616,34 @@ export function CohortGrid({ cohorts, className }: CohortGridProps) {
             {cohorts.map((cohort) => {
                 const pct = Math.min(Math.max(cohort.returnRatePct, 0), 100);
                 const color = pct >= 60
-                    ? "var(--color-success)"
+                    ? "var(--v-success)"
                     : pct >= 30
-                        ? "var(--color-warning)"
-                        : "var(--color-error)";
+                        ? "var(--v-warning)"
+                        : "var(--v-error)";
 
                 return (
                     <div key={cohort.month} className="flex items-center gap-3">
                         <span
                             className="w-14 text-[11px] font-semibold shrink-0"
-                            style={{ color: "var(--text-secondary)" }}
+                            style={{ color: "var(--v-text-secondary)" }}
                         >
                             {cohort.month}
                         </span>
                         <div
                             className="flex-1 rounded-full overflow-hidden"
-                            style={{ height: 8, background: "var(--border-subtle)" }}
+                            style={{ height: 8, background: "var(--v-border)" }}
                         >
                             <div
                                 className="h-full rounded-full transition-all duration-700"
                                 style={{
                                     width: `${pct === 0 ? 2 : pct}%`,
-                                    background: pct === 0 ? "var(--bg-fill)" : color,
+                                    background: pct === 0 ? "var(--v-neutral-bg)" : color,
                                 }}
                             />
                         </div>
                         <span
                             className="w-10 text-right text-[11px] font-bold tabular-nums shrink-0"
-                            style={{ color: pct === 0 ? "var(--text-tertiary)" : color }}
+                            style={{ color: pct === 0 ? "var(--v-text-muted)" : color }}
                         >
                             {pct === 0 ? "—" : `${pct.toFixed(0)}%`}
                         </span>
@@ -671,10 +671,10 @@ export function ScoreRing({ score, label, size = 64, strokeWidth = 5, className 
     const offset = circumference - (score / 100) * circumference;
 
     const color = score >= 80
-        ? "var(--color-success)"
+        ? "var(--v-success)"
         : score >= 50
-            ? "var(--color-warning)"
-            : "var(--color-error)";
+            ? "var(--v-warning)"
+            : "var(--v-error)";
 
     return (
         <div className={cn("relative flex items-center justify-center", className)} style={{ width: size, height: size }}>
@@ -682,13 +682,13 @@ export function ScoreRing({ score, label, size = 64, strokeWidth = 5, className 
                 <circle
                     cx={size / 2} cy={size / 2} r={radius}
                     fill="none"
-                    stroke="var(--border-subtle)"
+                    stroke="var(--v-border)"
                     strokeWidth={strokeWidth}
                 />
                 <circle
                     cx={size / 2} cy={size / 2} r={radius}
                     fill="none"
-                    stroke={score === 0 ? "var(--border-subtle)" : color}
+                    stroke={score === 0 ? "var(--v-border)" : color}
                     strokeWidth={strokeWidth}
                     strokeDasharray={circumference}
                     strokeDashoffset={offset}
@@ -699,12 +699,12 @@ export function ScoreRing({ score, label, size = 64, strokeWidth = 5, className 
             <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span
                     className="text-[13px] font-black tabular-nums"
-                    style={{ color: score === 0 ? "var(--text-tertiary)" : color }}
+                    style={{ color: score === 0 ? "var(--v-text-muted)" : color }}
                 >
                     {score === 0 ? "—" : score}
                 </span>
                 {label && (
-                    <span className="text-[8px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+                    <span className="text-[8px] font-semibold uppercase tracking-wider" style={{ color: "var(--v-text-muted)" }}>
                         {label}
                     </span>
                 )}

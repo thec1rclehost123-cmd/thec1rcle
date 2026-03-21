@@ -223,13 +223,13 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                         animate={{ x: 0 }}
                         exit={{ x: "100%" }}
                         transition={{ type: "spring", damping: 28, stiffness: 300 }}
-                        className="fixed top-0 right-0 bottom-0 z-[210] w-full sm:w-[380px] flex flex-col bg-[var(--bg-base)] border-l border-[var(--border-subtle)] shadow-2xl"
+                        className="fixed top-0 right-0 bottom-0 z-[210] w-full sm:w-[380px] flex flex-col bg-surface-base border-l border-border-subtle shadow-2xl"
                     >
                         {/* Header */}
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)] shrink-0">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle shrink-0">
                             <div>
-                                <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">Dashboard Intelligence</h2>
-                                <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">
+                                <h2 className="text-[13px] font-semibold text-text-primary">Dashboard Intelligence</h2>
+                                <p className="text-[10px] text-text-tertiary mt-0.5">
                                     {profile?.activeMembership?.partnerName || "Partner"} · {profile?.activeMembership?.role}
                                 </p>
                             </div>
@@ -237,7 +237,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                                 {thread.length > 0 && (
                                     <button
                                         onClick={handleReset}
-                                        className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-fill)] transition-colors"
+                                        className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-secondary transition-colors"
                                         title="Clear conversation"
                                     >
                                         <RotateCcw className="w-3.5 h-3.5" />
@@ -245,7 +245,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                                 )}
                                 <button
                                     onClick={onClose}
-                                    className="p-1.5 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-fill)] transition-colors"
+                                    className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-secondary transition-colors"
                                 >
                                     <X className="w-4 h-4" />
                                 </button>
@@ -261,18 +261,18 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                                 /* Empty state */
                                 <div className="pt-4 space-y-5">
                                     <div className="space-y-1">
-                                        <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
+                                        <p className="text-[12px] text-text-secondary leading-relaxed">
                                             Ask about revenue, payouts, events, tickets, guests, or staff. I only answer from your authorized dashboard data.
                                         </p>
                                     </div>
                                     <div className="space-y-2">
-                                        <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">Try asking</p>
+                                        <p className="text-[10px] text-text-tertiary uppercase tracking-wider">Try asking</p>
                                         <div className="flex flex-col gap-1.5">
                                             {suggestions.map((s, i) => (
                                                 <button
                                                     key={i}
                                                     onClick={() => sendMessage(s)}
-                                                    className="text-left px-3 py-2 text-[12px] text-[var(--text-secondary)] bg-[var(--bg-fill)]/60 rounded-lg hover:bg-[var(--bg-fill)] hover:text-[var(--text-primary)] transition-colors border border-[var(--border-subtle)]"
+                                                    className="text-left px-3 py-2 text-[12px] text-text-secondary bg-surface-secondary/60 rounded-lg hover:bg-surface-secondary hover:text-text-primary transition-colors border border-border-subtle"
                                                 >
                                                     {s}
                                                 </button>
@@ -287,8 +287,8 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                                         {msg.role === "user" ? (
                                             /* User message */
                                             <div className="flex justify-end">
-                                                <div className="max-w-[85%] bg-[var(--bg-secondary)] rounded-xl rounded-tr-sm px-3 py-2">
-                                                    <p className="text-[13px] text-[var(--text-primary)] leading-relaxed">{msg.content}</p>
+                                                <div className="max-w-[85%] bg-surface-tertiary rounded-xl rounded-tr-sm px-3 py-2">
+                                                    <p className="text-[13px] text-text-primary leading-relaxed">{msg.content}</p>
                                                 </div>
                                             </div>
                                         ) : (
@@ -315,7 +315,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                                                             <button
                                                                 key={qi}
                                                                 onClick={() => sendMessage(q)}
-                                                                className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] px-2.5 py-1 rounded-full border border-[var(--border-subtle)] hover:border-[var(--border-subtle)] hover:bg-[var(--bg-fill)] transition-all"
+                                                                className="text-[11px] text-text-tertiary hover:text-text-primary px-2.5 py-1 rounded-full border border-border-subtle hover:border-border-base hover:bg-surface-secondary transition-all"
                                                             >
                                                                 {q}
                                                             </button>
@@ -330,7 +330,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                         </div>
 
                         {/* Input */}
-                        <div className="shrink-0 px-4 py-3 border-t border-[var(--border-subtle)]">
+                        <div className="shrink-0 px-4 py-3 border-t border-border-subtle">
                             <form onSubmit={handleSubmit} className="flex items-end gap-2">
                                 <textarea
                                     ref={inputRef}
@@ -341,18 +341,18 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                                     rows={1}
                                     maxLength={500}
                                     disabled={loading}
-                                    className="flex-1 resize-none bg-[var(--bg-fill)]/70 text-[var(--text-primary)] text-[13px] placeholder:text-[var(--text-tertiary)] rounded-xl px-3 py-2.5 border border-[var(--border-subtle)] focus:outline-none focus:border-[var(--border-subtle)] transition-colors min-h-[40px] max-h-[120px] overflow-y-auto disabled:opacity-50"
+                                    className="flex-1 resize-none bg-surface-secondary/70 text-text-primary text-[13px] placeholder:text-text-muted rounded-xl px-3 py-2.5 border border-border-subtle focus:outline-none focus:border-border-base transition-colors min-h-[40px] max-h-[120px] overflow-y-auto disabled:opacity-50"
                                     style={{ lineHeight: "1.4" }}
                                 />
                                 <button
                                     type="submit"
                                     disabled={loading || !input.trim()}
-                                    className="w-9 h-9 rounded-xl bg-text-primary text-white flex items-center justify-center shrink-0 disabled:opacity-30 hover:opacity-80 transition-opacity"
+                                    className="w-9 h-9 rounded-xl bg-text-primary text-text-inverse flex items-center justify-center shrink-0 disabled:opacity-30 hover:opacity-80 transition-opacity"
                                 >
                                     <Send className="w-3.5 h-3.5" />
                                 </button>
                             </form>
-                            <p className="text-[10px] text-[var(--text-tertiary)] mt-1.5">
+                            <p className="text-[10px] text-text-muted mt-1.5">
                                 Answers are scoped to your authorized data only.
                             </p>
                         </div>

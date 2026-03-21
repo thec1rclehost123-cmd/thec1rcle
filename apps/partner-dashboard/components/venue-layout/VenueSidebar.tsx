@@ -158,8 +158,8 @@ const PLAN_HIERARCHY: Record<string, number> = {
 };
 
 const PLAN_COLORS: Record<string, { bg: string; text: string; glow: string }> = {
-    basic:   { bg: "bg-[var(--bg-secondary)]0/10", text: "text-[var(--text-tertiary)]", glow: "" },
-    silver:  { bg: "bg-slate-400/10",         text: "text-[var(--text-tertiary)]", glow: "shadow-[0_0_10px_rgba(148,163,184,0.3)]" },
+    basic:   { bg: "bg-surface-tertiary0/10", text: "text-text-tertiary", glow: "" },
+    silver:  { bg: "bg-slate-400/10",         text: "text-text-tertiary", glow: "shadow-[0_0_10px_rgba(148,163,184,0.3)]" },
     gold:    { bg: "bg-amber-500/10",          text: "text-amber-500",     glow: "shadow-[0_0_10px_rgba(245,158,11,0.3)]" },
     diamond: { bg: "bg-violet-500/10",         text: "text-violet-500",    glow: "shadow-[0_0_10px_rgba(139,92,246,0.4)]" },
 };
@@ -296,7 +296,7 @@ export function VenueSidebar({
                     </div>
                     {!isCollapsed && (
                         <div className="min-w-0 flex-1">
-                            <h1 className="font-black text-[var(--text-primary)] text-sm tracking-tight truncate leading-tight">
+                            <h1 className="font-black text-text-primary text-sm tracking-tight truncate leading-tight">
                                 {profile?.activeMembership?.partnerName || "THE C1RCLE"}
                             </h1>
                             <div className="flex items-center gap-2 mt-1">
@@ -309,7 +309,7 @@ export function VenueSidebar({
                     <div className={`flex mt-4 ${isCollapsed ? "justify-center" : "justify-end"}`}>
                         <button
                             onClick={onToggleCollapse}
-                            className="p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-[var(--text-primary)]/40 hover:text-[var(--text-primary)] hover:bg-white/[0.08] transition-all"
+                            className="p-1.5 rounded-lg bg-white/[0.03] border border-white/5 text-text-primary/40 hover:text-text-primary hover:bg-white/[0.08] transition-all"
                         >
                             {isCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
                         </button>
@@ -436,7 +436,7 @@ export function VenueSidebar({
                                     <button
                                         onClick={() => toggleSection(group.label)}
                                         className={`w-full flex items-center justify-between px-3 py-3 rounded-xl transition-all duration-300 group
-                                            ${hasActiveItem ? "text-[var(--text-primary)]" : "text-[var(--text-primary)]/30 hover:text-[var(--text-primary)]/60"}`}
+                                            ${hasActiveItem ? "text-text-primary" : "text-text-primary/30 hover:text-text-primary/60"}`}
                                     >
                                         <div className="flex items-center gap-3">
                                             <GroupIcon className={`h-4 w-4 ${hasActiveItem ? "text-orange-500" : ""}`} />
@@ -450,7 +450,7 @@ export function VenueSidebar({
                                         </motion.div>
                                     </button>
                                 ) : (
-                                    <div className={`flex items-center gap-3 px-3 py-3 text-[var(--text-primary)]/30 ${isCollapsed ? "justify-center" : ""}`}>
+                                    <div className={`flex items-center gap-3 px-3 py-3 text-text-primary/30 ${isCollapsed ? "justify-center" : ""}`}>
                                         <GroupIcon className="h-4 w-4" />
                                         {!isCollapsed && <span className="text-[12px] font-black uppercase tracking-[0.15em]">{group.label}</span>}
                                     </div>
@@ -490,9 +490,9 @@ export function VenueSidebar({
                         <div className="relative">
                             <div className="flex items-center gap-2 mb-2">
                                 <Sparkles className="h-4 w-4 text-orange-500" />
-                                <span className="text-[11px] font-black text-[var(--text-primary)] tracking-widest uppercase">C1RCLE PRO</span>
+                                <span className="text-[11px] font-black text-text-primary tracking-widest uppercase">C1RCLE PRO</span>
                             </div>
-                            <p className="text-[11px] text-[var(--text-primary)]/40 leading-relaxed font-medium mb-4">
+                            <p className="text-[11px] text-text-primary/40 leading-relaxed font-medium mb-4">
                                 Unlock advanced analytics, host management & connections
                             </p>
                             <button className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-orange-500 to-rose-600 text-white text-[11px] font-black uppercase tracking-wider hover:scale-[1.02] transition-all shadow-xl shadow-orange-500/20">
@@ -505,24 +505,24 @@ export function VenueSidebar({
 
             {/* Footer / User */}
             <div className={`p-3 border-t border-white/[0.06] ${isCollapsed ? "px-2" : "p-3"}`}>
-                <div className={`flex items-center gap-3 p-2 rounded-xl bg-[var(--bg-elevated)]/[0.02] hover:bg-[var(--bg-elevated)]/[0.04] transition-all cursor-pointer group ${isCollapsed ? "flex-col" : ""}`}>
+                <div className={`flex items-center gap-3 p-2 rounded-xl bg-surface-elevated/[0.02] hover:bg-surface-elevated/[0.04] transition-all cursor-pointer group ${isCollapsed ? "flex-col" : ""}`}>
                     <div className="relative shrink-0">
-                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500/20 to-rose-600/20 flex items-center justify-center font-black text-[var(--text-primary)] text-sm border border-white/5">
+                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500/20 to-rose-600/20 flex items-center justify-center font-black text-text-primary text-sm border border-white/5">
                             {profile?.displayName?.[0]?.toUpperCase() || "A"}
                         </div>
                         <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 rounded-full border-[3px] border-[#0D0D0F]" />
                     </div>
                     {!isCollapsed && (
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-[var(--text-primary)]/90 truncate">
+                            <p className="text-sm font-medium text-text-primary/90 truncate">
                                 {profile?.displayName || "Administrator"}
                             </p>
-                            <p className="text-[10px] text-[var(--text-primary)]/40 truncate">
+                            <p className="text-[10px] text-text-primary/40 truncate">
                                 {profile?.email || "admin@venue.com"}
                             </p>
                         </div>
                     )}
-                    {!isCollapsed && <ChevronRight className="h-4 w-4 text-[var(--text-primary)]/20 group-hover:text-[var(--text-primary)]/40 transition-colors" />}
+                    {!isCollapsed && <ChevronRight className="h-4 w-4 text-text-primary/20 group-hover:text-text-primary/40 transition-colors" />}
                     
                     <div className={`flex ${isCollapsed ? "flex-col" : "items-center"} gap-2`}>
                         <ThemeToggleCompact />

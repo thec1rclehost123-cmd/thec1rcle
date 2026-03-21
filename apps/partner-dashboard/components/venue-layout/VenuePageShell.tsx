@@ -1,25 +1,25 @@
 "use client";
 
 import React, { type ReactNode } from "react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 interface VenuePageShellProps {
     title: string;
     subtitle?: ReactNode;
     actions?: ReactNode;
-    /** @deprecated Use `toolbar` instead for composed PageToolbar */
     filterBar?: ReactNode;
-    /** Composed PageToolbar component — replaces filterBar */
-    toolbar?: ReactNode;
     children: ReactNode;
     maxWidth?: "sm" | "md" | "full";
     noPadding?: boolean;
+    /** Hex or CSS color for --v-page-accent. Defaults to --v-orange. */
+    pageAccent?: string;
 }
 
 const maxWidthClasses = {
     sm: "max-w-[1024px]",
     md: "max-w-[1280px]",
-    full: "max-w-[1440px]",
+    full: "max-w-[1600px]",
 };
 
 export function VenuePageShell({
@@ -27,62 +27,70 @@ export function VenuePageShell({
     subtitle,
     actions,
     filterBar,
-    toolbar,
     children,
     maxWidth = "full",
     noPadding = false,
+    pageAccent,
 }: VenuePageShellProps) {
-    const hasControlBar = !!(toolbar ?? filterBar);
+    const hasControlBar = !!(filterBar || actions);
 
     return (
-        <div className={cn("mx-auto w-full pb-20", maxWidthClasses[maxWidth])}>
+        <div
+            className={cn("mx-auto w-full pb-20", maxWidthClasses[maxWidth])}
+            style={pageAccent ? { "--v-page-accent": pageAccent } as React.CSSProperties : undefined}
+        >
             {/* Page Header */}
-            {title && (
-                <div className="flex items-center justify-between gap-4 pt-7 mb-5">
-                    <div className="min-w-0">
-                        <h1 className="text-[28px] font-[700] tracking-[-0.02em] text-[var(--text-primary)] leading-tight">
-                            {title}
-                        </h1>
-                        {subtitle && (
-                            <div className="text-[14px] text-[var(--text-tertiary)] mt-1">
-                                {subtitle}
+            <div className="mb-3">
+                <h1
+                    className="v-text-title font-semibold"
+                    style={{ color: "var(--v-text-primary)" }}
+                >
+                    {title}
+                </h1>
+                {subtitle && (
+                    <div
+                        className="mt-1 text-[14px]"
+                        style={{ color: "var(--v-text-secondary)" }}
+                    >
+                        {subtitle}
+                    </div>
+                )}
+            </div>
+
+            {/* Sticky Control Bar — tabs on left, actions on right */}
+            {hasControlBar && (
+                <div
+                    className="sticky top-0 z-10 mb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 xl:-mx-10 xl:px-10"
+                    style={{
+                        background: "var(--v-canvas)",
+                        backdropFilter: "blur(12px)",
+                        WebkitBackdropFilter: "blur(12px)",
+                        paddingTop: "10px",
+                        paddingBottom: "10px",
+                    }}
+                >
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                            {filterBar}
+                        </div>
+                        {actions && (
+                            <div className="flex items-center gap-3 shrink-0">
+                                {actions}
                             </div>
                         )}
                     </div>
-                    {actions && (
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                            {actions}
-                        </div>
-                    )}
                 </div>
             )}
 
-            {/* Toolbar (composed PageToolbar or legacy filterBar) */}
-            {hasControlBar && (
-                toolbar ? toolbar : (
-                    <div
-                        className="sticky top-14 z-20 mb-5 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 xl:-mx-10 xl:px-10 py-3"
-                        style={{
-                            background: "var(--bg-base)",
-                            backdropFilter: "blur(16px)",
-                            WebkitBackdropFilter: "blur(16px)",
-                            borderBottom: "1px solid var(--border-subtle)",
-                        }}
-                    >
-                        {filterBar}
-                    </div>
-                )
-            )}
-
             {/* Content */}
-            <div className={noPadding ? "" : "space-y-5"}>
+            <div className={noPadding ? "" : "space-y-4"}>
                 {children}
             </div>
         </div>
     );
 }
 
-// ── Shared action button for VenuePageShell actions slot ──
+// ── Shared action button styles for VenuePageShell actions slot ──
 
 export function VenueActionButton({
     children,
@@ -95,22 +103,20 @@ export function VenueActionButton({
     children: React.ReactNode;
     onClick?: () => void;
     icon?: React.ElementType;
-    variant?: "primary" | "secondary" | "ghost" | "destructive";
+    variant?: "primary" | "secondary" | "ghost";
     disabled?: boolean;
     className?: string;
 }) {
     const base =
-        "inline-flex items-center gap-2 px-4 py-2 rounded-[var(--r-md)] dash-body-sm font-semibold transition-all active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/30 disabled:opacity-50 disabled:cursor-not-allowed";
+        "inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v-focus)] disabled:opacity-50 disabled:cursor-not-allowed";
 
     const variants = {
         primary:
-            "bg-[var(--accent)] text-white hover:opacity-90",
+            "bg-[var(--v-orange)] text-white hover:brightness-110 active:scale-[0.98]",
         secondary:
-            "bg-[var(--bg-fill)] text-[var(--text-primary)] border border-[var(--border-default)] hover:bg-[var(--bg-fill-secondary)]",
+            "bg-[var(--v-elevated)] text-[var(--v-text-primary)] border border-[var(--v-border)] hover:bg-[var(--v-card-hover)] active:scale-[0.98]",
         ghost:
-            "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-fill)]",
-        destructive:
-            "bg-[var(--color-error-bg)] text-[var(--color-error)] hover:bg-[var(--color-error-bg)]",
+            "text-[var(--v-text-secondary)] hover:text-[var(--v-text-primary)] hover:bg-[var(--v-card)] active:scale-[0.98]",
     };
 
     return (
@@ -121,8 +127,7 @@ export function VenueActionButton({
     );
 }
 
-// ── VenueFilterTabs — legacy pill tabs, kept for backward compat ──
-// New code should use DashTabs from @/components/ui/DashTabs instead
+// ── Filter tabs component ──
 
 interface VenueFilterTabsProps {
     tabs: Array<{ label: string; value: string; count?: number }>;
@@ -132,10 +137,18 @@ interface VenueFilterTabsProps {
     trailing?: React.ReactNode;
 }
 
-export function VenueFilterTabs({ tabs, active, onChange, trailing }: VenueFilterTabsProps) {
+export function VenueFilterTabs({ tabs, active, onChange, variant = "default", trailing }: VenueFilterTabsProps) {
     return (
         <div className="flex items-center gap-2">
-            <div className="flex border-b border-[var(--border-subtle)] w-fit">
+            <div 
+                className="flex items-center gap-1 p-1 rounded-2xl w-fit"
+                style={{ 
+                    background: "var(--v-card)", 
+                    border: "1px solid var(--v-border)",
+                    boxShadow: "var(--v-shadow-card)",
+                    backdropFilter: "blur(20px)"
+                }}
+            >
                 {tabs.map((tab) => {
                     const isActive = tab.value === active;
                     return (
@@ -143,24 +156,36 @@ export function VenueFilterTabs({ tabs, active, onChange, trailing }: VenueFilte
                             key={tab.value}
                             onClick={() => onChange(tab.value)}
                             className={cn(
-                                "px-4 pb-3 pt-1 dash-body-sm font-semibold transition-colors duration-[var(--t-fast)]",
-                                isActive
-                                    ? "text-[var(--accent)] border-b-2 border-[var(--accent)] -mb-px"
-                                    : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                                "px-4 py-2 rounded-xl text-[12px] font-bold uppercase tracking-widest transition-all duration-300 relative",
+                                isActive 
+                                    ? "text-[var(--v-text-primary)]" 
+                                    : "text-[var(--v-text-muted)] hover:text-[var(--v-text-secondary)] hover:bg-[var(--v-neutral-bg)]"
                             )}
+                            style={{
+                                background: isActive ? "var(--v-elevated)" : "transparent",
+                                boxShadow: isActive ? "0 0 20px rgba(244, 74, 34, 0.1), inset 0 0 0 1px var(--v-border)" : "none",
+                                border: isActive ? "1px solid var(--v-border)" : "1px solid transparent",
+                            }}
                         >
                             {tab.label}
                             {tab.count !== undefined && (
                                 <span
                                     className={cn(
-                                        "ml-1.5 px-1.5 py-0.5 rounded-full dash-label-sm",
+                                        "ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-black",
                                         isActive
-                                            ? "bg-[var(--accent-muted)] text-[var(--accent)]"
-                                            : "bg-[var(--bg-fill)] text-[var(--text-tertiary)]"
+                                            ? "bg-[var(--v-orange)] text-white"
+                                            : "bg-surface-tertiary text-[var(--v-text-secondary)]"
                                     )}
                                 >
                                     {tab.count}
                                 </span>
+                            )}
+                            {isActive && variant === "finance" && (
+                                <motion.div 
+                                    layoutId="active-pill-glow"
+                                    className="absolute inset-0 rounded-xl pointer-events-none"
+                                    style={{ border: "1px solid var(--v-orange)", opacity: 0.2 }}
+                                />
                             )}
                         </button>
                     );
@@ -171,13 +196,32 @@ export function VenueFilterTabs({ tabs, active, onChange, trailing }: VenueFilte
     );
 }
 
-// ── Tab style helpers — kept for any remaining usages ──
+// ── Tab style helpers ──
 
 export function getTabItemStyle(
-    _variant: "default" | "analytics" | "finance" | "door" | "partners",
+    variant: "default" | "analytics" | "finance" | "door" | "partners",
     isActive: boolean
 ): string {
-    return isActive
-        ? "font-semibold text-[var(--accent)] border-b-2 border-[var(--accent)]"
-        : "font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]";
+    switch (variant) {
+        case "analytics":
+            return isActive
+                ? "font-semibold bg-[var(--v-card)] shadow-sm"
+                : "font-medium text-[var(--v-text-tertiary)] hover:text-[var(--v-text-secondary)]";
+        case "finance":
+            return isActive
+                ? "font-bold text-[var(--v-text-primary)] border-b-2 rounded-none pb-[6px]"
+                : "font-medium text-[var(--v-text-tertiary)] hover:text-[var(--v-text-secondary)] rounded-none";
+        case "door":
+            return isActive
+                ? "font-black text-[var(--v-text-primary)] bg-[var(--v-elevated)] shadow-sm tracking-wide"
+                : "font-semibold text-[var(--v-text-tertiary)] hover:text-[var(--v-text-secondary)] tracking-wide";
+        case "partners":
+            return isActive
+                ? "font-medium text-[var(--v-text-primary)] bg-[var(--v-card)] shadow-sm"
+                : "font-normal text-[var(--v-text-tertiary)] hover:text-[var(--v-text-secondary)]";
+        default:
+            return isActive
+                ? "font-medium bg-[var(--v-card)] text-[var(--v-text-primary)] shadow-sm"
+                : "font-medium text-[var(--v-text-tertiary)] hover:text-[var(--v-text-secondary)]";
+    }
 }

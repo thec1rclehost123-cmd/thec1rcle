@@ -39,7 +39,7 @@ export function RoleGuard({ children, allowedType }: RoleGuardProps) {
     if (loading) {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center">
-                <div className="w-12 h-12 border-4 border-[var(--border-subtle)] border-t-white rounded-full animate-spin mb-4" />
+                <div className="w-12 h-12 border-4 border-border-subtle border-t-white rounded-full animate-spin mb-4" />
                 <p className="text-zinc-500 text-xs font-black uppercase tracking-[0.3em]">Authorizing Access</p>
             </div>
         );

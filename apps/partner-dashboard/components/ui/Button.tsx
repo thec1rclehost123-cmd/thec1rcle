@@ -42,12 +42,12 @@ const Spinner = ({ size = "md" }: { size?: ButtonSize }) => {
 };
 
 const variantStyles: Record<ButtonVariant, string> = {
-  primary: "bg-accent-primary text-[var(--text-primary)] hover:bg-[var(--accent-primary-dim)] shadow-sm hover:shadow-md active:shadow-sm",
-  secondary: "bg-transparent text-[var(--text-primary)] border border-[var(--border-default)] hover:bg-[var(--bg-fill)] hover:border-[var(--border-default)]",
-  ghost: "bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-fill)] hover:text-[var(--text-primary)]",
-  dark: "bg-text-primary text-white hover:opacity-90",
-  success: "bg-green-500 text-[var(--text-primary)] hover:brightness-110",
-  danger: "bg-[var(--state-error)] text-[var(--text-primary)] hover:brightness-110",
+  primary: "bg-accent-primary text-text-primary hover:bg-[var(--accent-primary-dim)] shadow-sm hover:shadow-md active:shadow-sm",
+  secondary: "bg-transparent text-text-primary border border-border-default hover:bg-surface-secondary hover:border-border-strong",
+  ghost: "bg-transparent text-text-secondary hover:bg-surface-secondary hover:text-text-primary",
+  dark: "bg-text-primary text-text-inverse hover:opacity-90",
+  success: "bg-green-500 text-text-primary hover:brightness-110",
+  danger: "bg-[var(--state-error)] text-text-primary hover:brightness-110",
   accent: "bg-accent-glow text-accent-primary border border-accent-primary/30 hover:bg-accent-primary/20",
 };
 

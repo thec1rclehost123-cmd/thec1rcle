@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Calendar, ArrowUpRight, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { motion } from "framer-motion";
 
 export default function UpcomingScheduleModule() {
     const { user, profile } = useDashboardAuth();
@@ -23,12 +24,12 @@ export default function UpcomingScheduleModule() {
     }, [venueId, user]);
 
     return (
-        <div className="rounded-[var(--r-lg)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] shadow-[var(--shadow-sm)] p-6 min-h-[400px]">
-            <div className="flex items-center justify-between mb-5">
-                <h2 className="dash-title-card text-[var(--text-primary)]">Upcoming Schedule</h2>
+        <div className="card p-8 min-h-[400px]">
+            <div className="flex items-center justify-between mb-6">
+                <h2 className="text-headline-sm text-text-primary">Upcoming Schedule</h2>
                 <Link
                     href="/venue/calendar"
-                    className="dash-body-sm text-[var(--accent)] hover:opacity-80 flex items-center gap-1"
+                    className="text-label text-accent-primary hover:underline flex items-center gap-1"
                 >
                     View Calendar
                     <ArrowUpRight className="w-3 h-3" />
@@ -37,12 +38,15 @@ export default function UpcomingScheduleModule() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {events.slice(0, 4).map((event, i) => (
-                    <div
+                    <motion.div
                         key={event.id || i}
-                        className="rounded-[var(--r-lg)] bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:shadow-[var(--shadow-md)] transition-all cursor-pointer group overflow-hidden flex flex-col"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="rounded-2xl bg-surface-secondary border border-border-subtle hover:border-border-default transition-all cursor-pointer group overflow-hidden flex flex-col"
                     >
                         {/* Event Poster */}
-                        <div className="relative aspect-[16/9] overflow-hidden bg-[var(--bg-secondary)]">
+                        <div className="relative aspect-[16/9] overflow-hidden bg-surface-tertiary">
                             {event.poster ? (
                                 <img
                                     src={event.poster}
@@ -51,7 +55,7 @@ export default function UpcomingScheduleModule() {
                                 />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center">
-                                    <ImageIcon className="w-8 h-8 text-[var(--text-quaternary)]" />
+                                    <ImageIcon className="w-8 h-8 text-text-placeholder" />
                                 </div>
                             )}
                             {/* Overlay Gradient */}
@@ -60,12 +64,12 @@ export default function UpcomingScheduleModule() {
 
                         <div className="p-5 flex-1 flex flex-col justify-between">
                             <div>
-                                <p className="text-label-sm text-[var(--text-tertiary)] mb-2">
+                                <p className="text-label-sm text-text-tertiary mb-2">
                                     {event.startDate ? new Date(event.startDate).toLocaleDateString('en-IN', {
                                         weekday: 'short', day: 'numeric', month: 'short'
                                     }) : 'No Date'}
                                 </p>
-                                <h4 className="text-title-sm text-[var(--text-primary)] line-clamp-1 mb-3 group-hover:text-accent-primary transition-colors uppercase">
+                                <h4 className="text-title-sm text-text-primary line-clamp-1 mb-3 group-hover:text-accent-primary transition-colors uppercase">
                                     {event.title}
                                 </h4>
                             </div>
@@ -74,14 +78,14 @@ export default function UpcomingScheduleModule() {
                                 <span className="text-caption capitalize font-medium">{event.lifecycle}</span>
                             </div>
                         </div>
-                    </div>
+                    </motion.div>
                 ))}
             </div>
 
             {events.length === 0 && (
                 <div className="py-12 text-center">
-                    <Calendar className="mx-auto mb-3 text-[var(--text-quaternary)]" size={32} />
-                    <p className="text-body-sm text-[var(--text-tertiary)]">No upcoming events scheduled</p>
+                    <Calendar className="mx-auto mb-3 text-text-placeholder" size={32} />
+                    <p className="text-body-sm text-text-tertiary">No upcoming events scheduled</p>
                 </div>
             )}
         </div>

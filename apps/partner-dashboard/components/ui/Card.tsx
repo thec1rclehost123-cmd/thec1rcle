@@ -34,15 +34,15 @@ const CardComponent = forwardRef<HTMLDivElement, CardProps>(
           // Base styles
           glass
             ? "card-glass backdrop-blur-xl"
-            : "bg-[var(--bg-elevated)]",
+            : "bg-surface-elevated",
           // Border styles
           glow
             ? "border-accent-primary shadow-glow"
-            : "border-[var(--border-subtle)]",
+            : "border-border-subtle",
           // Elevation
           elevated && "shadow-md",
           // Interactive states
-          interactive && "cursor-pointer hover:shadow-lg hover:border-[var(--border-default)] active:scale-[0.995]",
+          interactive && "cursor-pointer hover:shadow-lg hover:border-border-default active:scale-[0.995]",
           paddingMap[padding],
           className
         )}
@@ -66,8 +66,8 @@ export interface CardHeaderProps extends HTMLAttributes<HTMLDivElement> {
 export const CardHeader = ({ title, subtitle, action, className, ...rest }: CardHeaderProps) => (
   <div className={cn("flex items-start justify-between mb-5", className)} {...rest as any}>
     <div>
-      <h3 className="text-title text-[var(--text-primary)]">{title}</h3>
-      {subtitle && <p className="text-caption text-[var(--text-tertiary)] mt-1">{subtitle}</p>}
+      <h3 className="text-title text-text-primary">{title}</h3>
+      {subtitle && <p className="text-caption text-text-tertiary mt-1">{subtitle}</p>}
     </div>
     {action}
   </div>
@@ -122,14 +122,14 @@ export interface CardStatProps {
 
 export const CardStat = ({ label, value, change }: CardStatProps) => (
   <div className="flex flex-col">
-    <span className="text-label-sm text-[var(--text-tertiary)] mb-1">{label}</span>
-    <span className="text-stat text-[var(--text-primary)] leading-none">{value}</span>
+    <span className="text-label-sm text-text-tertiary mb-1">{label}</span>
+    <span className="text-stat text-text-primary leading-none">{value}</span>
     {change && (
       <span className={cn(
         "text-[12px] font-semibold mt-2 flex items-center gap-1",
         change.direction === "up" && "text-[var(--trend-up)]",
         change.direction === "down" && "text-[var(--trend-down)]",
-        change.direction === "neutral" && "text-[var(--text-tertiary)]"
+        change.direction === "neutral" && "text-text-tertiary"
       )}>
         {change.direction === "up" && "↑"}
         {change.direction === "down" && "↓"}
@@ -146,7 +146,7 @@ export const CardBody = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>)
 
 // Card Footer
 export const CardFooter = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("mt-auto flex flex-wrap items-center gap-3 pt-5 border-t border-[var(--border-subtle)]", className)} {...rest as any} />
+  <div className={cn("mt-auto flex flex-wrap items-center gap-3 pt-5 border-t border-border-subtle", className)} {...rest as any} />
 );
 
 // Card Section divider

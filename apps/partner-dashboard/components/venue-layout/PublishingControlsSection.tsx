@@ -72,15 +72,15 @@ export default function PublishingControlsSection({ venue, onUpdate, onPublish, 
                         )}
                     </div>
                     <div>
-                        <h3 className="text-lg font-bold text-[var(--text-primary)]">Publishing Status</h3>
-                        <p className="text-sm text-[var(--text-tertiary)]">Control your venue page visibility</p>
+                        <h3 className="text-lg font-bold text-text-primary">Publishing Status</h3>
+                        <p className="text-sm text-text-tertiary">Control your venue page visibility</p>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setShowVersionHistory(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-[var(--bg-fill)] text-[var(--text-secondary)] rounded-xl text-[11px] font-bold border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] transition-all"
+                        className="flex items-center gap-2 px-4 py-2 bg-surface-secondary text-text-secondary rounded-xl text-[11px] font-bold border border-border-subtle hover:bg-surface-elevated transition-all"
                     >
                         <History className="w-4 h-4" />
                         History
@@ -113,14 +113,14 @@ export default function PublishingControlsSection({ venue, onUpdate, onPublish, 
                                 </span>
                             )}
                         </div>
-                        <h4 className="text-xl font-bold text-[var(--text-primary)] mb-1">
+                        <h4 className="text-xl font-bold text-text-primary mb-1">
                             {publishStatus === "published"
                                 ? "Your venue page is live"
                                 : publishStatus === "draft"
                                     ? "Your changes are saved as draft"
                                     : "Your venue page is hidden"}
                         </h4>
-                        <p className="text-sm text-[var(--text-tertiary)]">
+                        <p className="text-sm text-text-tertiary">
                             {lastPublished
                                 ? `Last published ${lastPublished.toLocaleDateString()} at ${lastPublished.toLocaleTimeString()}`
                                 : "Never published"}
@@ -132,7 +132,7 @@ export default function PublishingControlsSection({ venue, onUpdate, onPublish, 
                             <>
                                 <button
                                     onClick={() => onUpdate({ publishStatus: "draft" })}
-                                    className="px-6 py-3 bg-[var(--bg-fill)] text-[var(--text-secondary)] rounded-xl text-[11px] font-bold border border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] transition-all"
+                                    className="px-6 py-3 bg-surface-secondary text-text-secondary rounded-xl text-[11px] font-bold border border-border-subtle hover:bg-surface-elevated transition-all"
                                 >
                                     Unpublish
                                 </button>
@@ -140,7 +140,7 @@ export default function PublishingControlsSection({ venue, onUpdate, onPublish, 
                                     <button
                                         onClick={onPublish}
                                         disabled={isPublishing}
-                                        className="flex items-center gap-2 px-6 py-3 bg-green-500 text-[var(--text-primary)] rounded-xl text-[11px] font-bold hover:bg-emerald-400 transition-all disabled:opacity-50"
+                                        className="flex items-center gap-2 px-6 py-3 bg-green-500 text-text-primary rounded-xl text-[11px] font-bold hover:bg-emerald-400 transition-all disabled:opacity-50"
                                     >
                                         {isPublishing ? (
                                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -155,7 +155,7 @@ export default function PublishingControlsSection({ venue, onUpdate, onPublish, 
                             <button
                                 onClick={onPublish}
                                 disabled={isPublishing || !allChecksPassed}
-                                className="flex items-center gap-2 px-6 py-3 bg-green-500 text-[var(--text-primary)] rounded-xl text-[11px] font-bold hover:bg-emerald-400 transition-all disabled:opacity-50"
+                                className="flex items-center gap-2 px-6 py-3 bg-green-500 text-text-primary rounded-xl text-[11px] font-bold hover:bg-emerald-400 transition-all disabled:opacity-50"
                             >
                                 {isPublishing ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -170,11 +170,11 @@ export default function PublishingControlsSection({ venue, onUpdate, onPublish, 
             </div>
 
             {/* Content Validation */}
-            <div className="p-6 bg-[var(--bg-fill)]/50 rounded-2xl border border-[var(--border-subtle)]">
+            <div className="p-6 bg-surface-secondary/50 rounded-2xl border border-border-subtle">
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
-                        <Shield className="w-5 h-5 text-[var(--text-tertiary)]" />
-                        <h4 className="text-sm font-bold text-[var(--text-primary)]">Content Checklist</h4>
+                        <Shield className="w-5 h-5 text-text-tertiary" />
+                        <h4 className="text-sm font-bold text-text-primary">Content Checklist</h4>
                     </div>
                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${allChecksPassed
                         ? "bg-green-500/10 text-emerald-500"
@@ -199,8 +199,8 @@ export default function PublishingControlsSection({ venue, onUpdate, onPublish, 
                                 <XCircle className="w-4 h-4 text-amber-500" />
                             )}
                             <span className={`text-sm ${check.passed
-                                ? "text-[var(--text-primary)]"
-                                : "text-[var(--text-secondary)]"
+                                ? "text-text-primary"
+                                : "text-text-secondary"
                                 }`}>
                                 {check.label}
                             </span>
@@ -210,17 +210,17 @@ export default function PublishingControlsSection({ venue, onUpdate, onPublish, 
             </div>
 
             {/* Moderation Status */}
-            <div className="p-6 bg-[var(--bg-fill)]/50 rounded-2xl border border-[var(--border-subtle)]">
+            <div className="p-6 bg-surface-secondary/50 rounded-2xl border border-border-subtle">
                 <div className="flex items-center gap-3 mb-4">
-                    <FileCheck className="w-5 h-5 text-[var(--text-tertiary)]" />
-                    <h4 className="text-sm font-bold text-[var(--text-primary)]">Content Moderation</h4>
+                    <FileCheck className="w-5 h-5 text-text-tertiary" />
+                    <h4 className="text-sm font-bold text-text-primary">Content Moderation</h4>
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-green-500" />
-                        <span className="text-sm text-[var(--text-secondary)]">All content approved</span>
+                        <span className="text-sm text-text-secondary">All content approved</span>
                     </div>
-                    <span className="text-[10px] text-[var(--text-tertiary)]">
+                    <span className="text-[10px] text-text-tertiary">
                         Last reviewed: {new Date().toLocaleDateString()}
                     </span>
                 </div>
@@ -241,28 +241,28 @@ export default function PublishingControlsSection({ venue, onUpdate, onPublish, 
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-full max-w-lg bg-[var(--bg-base)] rounded-3xl border border-[var(--border-subtle)] overflow-hidden shadow-2xl"
+                            className="w-full max-w-lg bg-surface-base rounded-3xl border border-border-subtle overflow-hidden shadow-2xl"
                         >
-                            <div className="p-6 border-b border-[var(--border-subtle)]">
-                                <h2 className="text-xl font-bold text-[var(--text-primary)]">Version History</h2>
-                                <p className="text-sm text-[var(--text-tertiary)]">Previous versions of your venue page</p>
+                            <div className="p-6 border-b border-border-subtle">
+                                <h2 className="text-xl font-bold text-text-primary">Version History</h2>
+                                <p className="text-sm text-text-tertiary">Previous versions of your venue page</p>
                             </div>
 
                             <div className="max-h-96 overflow-y-auto p-6 space-y-4">
                                 {versionHistory.map((version) => (
-                                    <div key={version.id} className="p-4 bg-[var(--bg-fill)] rounded-2xl border border-[var(--border-subtle)]">
+                                    <div key={version.id} className="p-4 bg-surface-secondary rounded-2xl border border-border-subtle">
                                         <div className="flex items-center justify-between mb-2">
                                             <span className="px-2 py-1 bg-green-500/10 rounded-md text-[10px] font-bold text-emerald-500">
                                                 {version.action}
                                             </span>
-                                            <span className="text-[10px] text-[var(--text-tertiary)]">
+                                            <span className="text-[10px] text-text-tertiary">
                                                 {new Date(version.date).toLocaleDateString()}
                                             </span>
                                         </div>
-                                        <p className="text-sm text-[var(--text-secondary)] mb-2">by {version.user}</p>
+                                        <p className="text-sm text-text-secondary mb-2">by {version.user}</p>
                                         <ul className="space-y-1">
                                             {version.changes.map((change, idx) => (
-                                                <li key={idx} className="text-[11px] text-[var(--text-tertiary)] flex items-center gap-2">
+                                                <li key={idx} className="text-[11px] text-text-tertiary flex items-center gap-2">
                                                     <span className="w-1 h-1 rounded-full bg-[var(--text-placeholder)]" />
                                                     {change}
                                                 </li>
@@ -272,10 +272,10 @@ export default function PublishingControlsSection({ venue, onUpdate, onPublish, 
                                 ))}
                             </div>
 
-                            <div className="p-6 border-t border-[var(--border-subtle)]">
+                            <div className="p-6 border-t border-border-subtle">
                                 <button
                                     onClick={() => setShowVersionHistory(false)}
-                                    className="w-full py-3 bg-[var(--bg-fill)] text-[var(--text-secondary)] rounded-xl text-sm font-bold hover:bg-[var(--bg-elevated)] transition-all"
+                                    className="w-full py-3 bg-surface-secondary text-text-secondary rounded-xl text-sm font-bold hover:bg-surface-elevated transition-all"
                                 >
                                     Close
                                 </button>

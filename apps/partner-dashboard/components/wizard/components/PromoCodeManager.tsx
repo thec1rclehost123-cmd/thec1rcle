@@ -128,7 +128,7 @@ export function PromoCodeManager({
             >
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#5856d6] to-[#007aff] flex items-center justify-center">
-                        <Tag className="w-4 h-4 text-[var(--text-primary)]" />
+                        <Tag className="w-4 h-4 text-text-primary" />
                     </div>
                     <div className="text-left">
                         <p className="text-[13px] font-semibold text-[#1d1d1f]">
@@ -177,7 +177,7 @@ export function PromoCodeManager({
                                         </code>
                                         <button
                                             onClick={() => copyCode(code.code)}
-                                            className="w-7 h-7 rounded-lg hover:bg-[var(--bg-elevated)]/80 flex items-center justify-center"
+                                            className="w-7 h-7 rounded-lg hover:bg-surface-elevated/80 flex items-center justify-center"
                                         >
                                             {copiedCode === code.code ? (
                                                 <Check className="w-3.5 h-3.5 text-[#34c759]" />
@@ -203,7 +203,7 @@ export function PromoCodeManager({
                                             className={`w-10 h-6 rounded-full relative transition-colors ${code.isActive ? "bg-[#34c759]" : "bg-[rgba(0,0,0,0.1)]"
                                                 }`}
                                         >
-                                            <div className={`absolute top-0.5 w-5 h-5 bg-[var(--bg-elevated)] rounded-full shadow-sm transition-transform ${code.isActive ? "translate-x-[18px]" : "translate-x-0.5"
+                                            <div className={`absolute top-0.5 w-5 h-5 bg-surface-elevated rounded-full shadow-sm transition-transform ${code.isActive ? "translate-x-[18px]" : "translate-x-0.5"
                                                 }`} />
                                         </button>
 
@@ -239,7 +239,7 @@ export function PromoCodeManager({
                             <motion.div
                                 initial={{ opacity: 0, y: -10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="p-4 rounded-xl border border-[#007aff]/30 bg-[var(--bg-elevated)] space-y-4"
+                                className="p-4 rounded-xl border border-[#007aff]/30 bg-surface-elevated space-y-4"
                             >
                                 <div className="flex items-center justify-between">
                                     <h4 className="text-[13px] font-semibold text-[#1d1d1f]">New Promo Code</h4>
@@ -260,7 +260,7 @@ export function PromoCodeManager({
                                             value={newCode.code}
                                             onChange={(e) => setNewCode(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
                                             placeholder="e.g. SUMMER20"
-                                            className="flex-1 px-3 py-2 rounded-lg bg-[#f5f5f7] text-[14px] font-mono font-bold tracking-wider focus:outline-none focus:bg-[var(--bg-elevated)] focus:ring-1 focus:ring-[#007aff]"
+                                            className="flex-1 px-3 py-2 rounded-lg bg-[#f5f5f7] text-[14px] font-mono font-bold tracking-wider focus:outline-none focus:bg-surface-elevated focus:ring-1 focus:ring-[#007aff]"
                                         />
                                         <button
                                             onClick={generateCode}
@@ -336,7 +336,7 @@ export function PromoCodeManager({
                                     <button
                                         onClick={handleAddCode}
                                         disabled={!newCode.code.trim()}
-                                        className="flex-1 py-2.5 rounded-lg bg-[#007aff] text-[var(--text-primary)] text-[13px] font-semibold hover:bg-[#0056b3] disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="flex-1 py-2.5 rounded-lg bg-[#007aff] text-text-primary text-[13px] font-semibold hover:bg-[#0056b3] disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         Create Code
                                     </button>

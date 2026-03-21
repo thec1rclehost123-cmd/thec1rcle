@@ -43,10 +43,10 @@ export function WizardNavigation({
             {/* Progress Bar */}
             <div className="mb-2">
                 <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-widest font-black">Progress</span>
-                    <span className="text-[10px] text-[var(--text-tertiary)] font-bold">{currentStepIndex + 1} / {steps.length}</span>
+                    <span className="text-[10px] text-text-tertiary uppercase tracking-widest font-black">Progress</span>
+                    <span className="text-[10px] text-text-tertiary font-bold">{currentStepIndex + 1} / {steps.length}</span>
                 </div>
-                <div className="h-1.5 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
+                <div className="h-1.5 bg-surface-tertiary rounded-full overflow-hidden">
                     <motion.div
                         className="h-full bg-gradient-to-r from-indigo-600 to-indigo-400"
                         initial={{ width: 0 }}
@@ -79,12 +79,12 @@ export function WizardNavigation({
                                         ? 'bg-green-500/10 text-accent-primary border border-[var(--state-success)]/20 shadow-sm'
                                         : hasIssues
                                             ? 'bg-yellow-500/10 text-yellow-500 border border-[var(--state-warning)]/20 shadow-sm'
-                                            : 'bg-[var(--bg-fill)] text-[var(--text-tertiary)] hover:bg-[var(--bg-secondary)] border border-[var(--border-subtle)]'
+                                            : 'bg-surface-secondary text-text-tertiary hover:bg-surface-tertiary border border-border-subtle'
                                 }
                                 ${!canClick ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                             `}
                         >
-                            <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isActive ? 'bg-[var(--bg-base)]/20' : isComplete ? 'bg-green-500/20' : 'bg-[var(--bg-secondary)]'
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isActive ? 'bg-surface-base/20' : isComplete ? 'bg-green-500/20' : 'bg-surface-tertiary'
                                 }`}>
                                 {isComplete ? (
                                     <Check className="w-3 h-3" />
@@ -114,7 +114,7 @@ export function WizardNavigation({
                     </div>
                     <div>
                         <h2 className="text-[15px] font-black uppercase tracking-tight leading-tight">{steps[currentStepIndex]?.label}</h2>
-                        <p className="text-[11px] text-[var(--text-tertiary)] font-medium">{steps[currentStepIndex]?.description}</p>
+                        <p className="text-[11px] text-text-tertiary font-medium">{steps[currentStepIndex]?.description}</p>
                     </div>
                 </div>
             </div>
@@ -151,13 +151,13 @@ interface SaveStatusProps {
 export function SaveStatus({ status }: SaveStatusProps) {
     return (
         <div className={`
-            flex items-center gap-2 px-4 py-2 rounded-xl transition-all border border-[var(--border-subtle)]
-            ${status === 'saving' ? 'bg-[var(--bg-fill)]' : status === 'saved' ? 'bg-green-500/10' : 'bg-red-500/10'}
+            flex items-center gap-2 px-4 py-2 rounded-xl transition-all border border-border-subtle
+            ${status === 'saving' ? 'bg-surface-secondary' : status === 'saved' ? 'bg-green-500/10' : 'bg-red-500/10'}
         `}>
             {status === 'saving' ? (
                 <>
                     <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-                    <span className="text-[12px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">Saving...</span>
+                    <span className="text-[12px] font-bold text-text-tertiary uppercase tracking-widest">Saving...</span>
                 </>
             ) : status === 'saved' ? (
                 <>

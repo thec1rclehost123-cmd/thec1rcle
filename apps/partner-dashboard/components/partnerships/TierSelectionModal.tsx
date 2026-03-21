@@ -72,7 +72,7 @@ export function TierSelectionModal({
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 16 }}
                 transition={{ type: "spring", damping: 26, stiffness: 320 }}
-                className="bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-[2rem] w-full max-w-lg shadow-[0_32px_80px_rgba(0,0,0,0.2)] overflow-hidden"
+                className="bg-surface-elevated border border-border-default rounded-[2rem] w-full max-w-lg shadow-[0_32px_80px_rgba(0,0,0,0.2)] overflow-hidden"
             >
                 {/* Header */}
                 <div className="p-8 border-b border-white/5 bg-gradient-to-br from-white/[0.02] to-transparent">
@@ -91,7 +91,7 @@ export function TierSelectionModal({
                     </div>
                     <button
                         onClick={onClose}
-                        className="absolute top-8 right-8 p-2 rounded-xl text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-fill)] transition-all"
+                        className="absolute top-8 right-8 p-2 rounded-xl text-text-tertiary hover:text-text-primary hover:bg-surface-secondary transition-all"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -165,7 +165,7 @@ export function TierSelectionModal({
                 <div className="flex gap-4 p-8 pt-2">
                     <button
                         onClick={onClose}
-                        className="flex-1 py-4 rounded-2xl border border-white/10 text-[var(--text-secondary)] text-sm font-bold hover:bg-white/5 transition-all active:scale-95"
+                        className="flex-1 py-4 rounded-2xl border border-white/10 text-text-secondary text-sm font-bold hover:bg-white/5 transition-all active:scale-95"
                     >
                         Cancel
                     </button>
@@ -175,7 +175,7 @@ export function TierSelectionModal({
                         className={`flex-1 py-4 rounded-2xl text-white text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-20 disabled:cursor-not-allowed ${
                             selected === 'trusted' 
                                 ? 'bg-gradient-to-r from-orange-500 to-rose-600 hover:shadow-lg hover:shadow-orange-500/20' 
-                                : 'bg-[var(--bg-secondary)] border border-white/10 hover:bg-[var(--bg-secondary)]/80'
+                                : 'bg-surface-strong border border-white/10 hover:bg-surface-strong/80'
                         } ${!selected ? 'bg-white/5 border border-white/5 text-white/20' : ''}`}
                     >
                         {loading ? (

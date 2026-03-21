@@ -6,16 +6,7 @@ import { algoliasearch } from 'algoliasearch';
 const APP_ID = process.env.ALGOLIA_APP_ID || '';
 const API_KEY = process.env.ALGOLIA_API_KEY || '';
 
-let _client: any = null;
-function getAlgoliaClient() {
-    if (!_client) {
-        if (!APP_ID || !API_KEY) {
-            throw new Error('ALGOLIA_APP_ID or ALGOLIA_API_KEY is missing');
-        }
-        _client = algoliasearch(APP_ID, API_KEY);
-    }
-    return _client;
-}
+const client = algoliasearch(APP_ID, API_KEY);
 const INDEX_NAME = 'events';
 
 /**
@@ -69,13 +60,13 @@ export async function syncEventToAlgolia(eventId: string, event: any) {
     const PUBLIC_LIFECYCLE_STATES = ['scheduled', 'live'];
     if (!PUBLIC_LIFECYCLE_STATES.includes(event.lifecycle)) {
         console.log(`[Algolia] Removing/skipping event ${eventId} (lifecycle: ${event.lifecycle} is not public)`);
-        await getAlgoliaClient().deleteObject({ indexName: INDEX_NAME, objectID: eventId });
+        await client.deleteObject({ indexName: INDEX_NAME, objectID: eventId });
         return;
     }
 
     try {
         const record = mapEventToAlgolia(event, eventId);
-        await getAlgoliaClient().saveObject({ indexName: INDEX_NAME, body: record });
+        await client.saveObject({ indexName: INDEX_NAME, body: record });
         console.log(`[Algolia] Successfully synced event ${eventId}`);
     } catch (error) {
         console.error(`[Algolia] Error syncing event ${eventId}:`, error);
@@ -89,7 +80,7 @@ export async function removeEventFromAlgolia(eventId: string) {
     if (!APP_ID || !API_KEY) return;
 
     try {
-        await getAlgoliaClient().deleteObject({ indexName: INDEX_NAME, objectID: eventId });
+        await client.deleteObject({ indexName: INDEX_NAME, objectID: eventId });
         console.log(`[Algolia] Successfully removed event ${eventId}`);
     } catch (error) {
         console.error(`[Algolia] Error removing event ${eventId}:`, error);

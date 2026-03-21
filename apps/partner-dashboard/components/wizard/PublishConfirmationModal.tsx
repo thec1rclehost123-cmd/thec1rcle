@@ -101,7 +101,7 @@ export function PublishConfirmationModal({
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.95, opacity: 0, y: 20 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="relative w-full max-w-lg bg-[var(--bg-elevated)] rounded-3xl shadow-2xl overflow-hidden"
+                        className="relative w-full max-w-lg bg-surface-elevated rounded-3xl shadow-2xl overflow-hidden"
                     >
                         {/* Header */}
                         <div className="p-6 pb-4 border-b border-[rgba(0,0,0,0.06)]">
@@ -237,7 +237,7 @@ export function PublishConfirmationModal({
                             <button
                                 onClick={onConfirm}
                                 disabled={isSubmitting}
-                                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0071e3] text-[var(--text-primary)] text-[14px] font-semibold hover:bg-[#0077ED] transition-colors disabled:opacity-70 shadow-sm"
+                                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0071e3] text-text-primary text-[14px] font-semibold hover:bg-[#0077ED] transition-colors disabled:opacity-70 shadow-sm"
                             >
                                 {isSubmitting ? (
                                     <>

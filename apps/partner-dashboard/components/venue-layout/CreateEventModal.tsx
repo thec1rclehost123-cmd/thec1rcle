@@ -122,27 +122,27 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-            <div className="relative bg-[var(--bg-elevated)] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-surface-elevated rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="sticky top-0 bg-[var(--bg-elevated)] border-b border-[var(--border-default)] p-6 flex items-center justify-between z-10">
+                <div className="sticky top-0 bg-surface-elevated border-b border-border-default p-6 flex items-center justify-between z-10">
                     <div>
-                        <h2 className="text-2xl font-bold text-[var(--text-primary)]">Create New Event</h2>
-                        <p className="text-sm text-[var(--text-tertiary)] mt-1">
+                        <h2 className="text-2xl font-bold text-text-primary">Create New Event</h2>
+                        <p className="text-sm text-text-tertiary mt-1">
                             Step {step} of 4 - {["Basic Info", "Ticketing", "Entry & Promoters", "Review"][step - 1]}
                         </p>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-[var(--bg-fill)]">
+                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-secondary">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
 
                 {/* Progress Bar */}
-                <div className="px-6 py-4 bg-[var(--bg-secondary)] border-b border-[var(--border-default)]">
+                <div className="px-6 py-4 bg-surface-tertiary border-b border-border-default">
                     <div className="flex gap-2">
                         {[1, 2, 3, 4].map((s) => (
                             <div
                                 key={s}
-                                className={`flex-1 h-2 rounded-full ${s <= step ? "bg-indigo-600" : "bg-[var(--bg-secondary)]"
+                                className={`flex-1 h-2 rounded-full ${s <= step ? "bg-indigo-600" : "bg-surface-tertiary"
                                     }`}
                             />
                         ))}
@@ -155,65 +155,65 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                     {step === 1 && (
                         <div className="space-y-5">
                             <div>
-                                <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+                                <label className="block text-sm font-semibold text-text-secondary mb-2">
                                     Event Title *
                                 </label>
                                 <input
                                     type="text"
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
-                                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                    className="w-full px-4 py-3 bg-surface-tertiary border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                     placeholder="e.g., Techno Bunker: Berlin Edition"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+                                <label className="block text-sm font-semibold text-text-secondary mb-2">
                                     Description
                                 </label>
                                 <textarea
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
                                     rows={4}
-                                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                    className="w-full px-4 py-3 bg-surface-tertiary border border-border-default rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                     placeholder="Describe the event, music genre, vibe..."
                                 />
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+                                    <label className="block text-sm font-semibold text-text-secondary mb-2">
                                         Date *
                                     </label>
                                     <input
                                         type="date"
                                         value={eventDate}
                                         onChange={(e) => setEventDate(e.target.value)}
-                                        className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                        className="w-full px-4 py-3 bg-surface-tertiary border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+                                    <label className="block text-sm font-semibold text-text-secondary mb-2">
                                         Start Time
                                     </label>
                                     <input
                                         type="time"
                                         value={startTime}
                                         onChange={(e) => setStartTime(e.target.value)}
-                                        className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                        className="w-full px-4 py-3 bg-surface-tertiary border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+                                    <label className="block text-sm font-semibold text-text-secondary mb-2">
                                         End Time
                                     </label>
                                     <input
                                         type="time"
                                         value={endTime}
                                         onChange={(e) => setEndTime(e.target.value)}
-                                        className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                        className="w-full px-4 py-3 bg-surface-tertiary border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                     />
                                 </div>
                             </div>
@@ -224,25 +224,25 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                     {step === 2 && (
                         <div className="space-y-5">
                             <div>
-                                <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+                                <label className="block text-sm font-semibold text-text-secondary mb-2">
                                     Total Capacity
                                 </label>
                                 <input
                                     type="number"
                                     value={totalCapacity}
                                     onChange={(e) => setTotalCapacity(parseInt(e.target.value))}
-                                    className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                    className="w-full px-4 py-3 bg-surface-tertiary border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                 />
                             </div>
 
                             <div>
                                 <div className="flex items-center justify-between mb-3">
-                                    <label className="text-sm font-semibold text-[var(--text-secondary)]">
+                                    <label className="text-sm font-semibold text-text-secondary">
                                         Ticket Phases
                                     </label>
                                     <button
                                         onClick={addTicketPhase}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-[var(--text-primary)] text-sm font-semibold rounded-lg hover:bg-indigo-700"
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-text-primary text-sm font-semibold rounded-lg hover:bg-indigo-700"
                                     >
                                         <Plus className="h-4 w-4" />
                                         Add Phase
@@ -253,10 +253,10 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                                     {ticketPhases.map((phase, index) => (
                                         <div
                                             key={phase.id}
-                                            className="p-4 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg"
+                                            className="p-4 bg-surface-tertiary border border-border-default rounded-lg"
                                         >
                                             <div className="flex items-center justify-between mb-3">
-                                                <span className="text-sm font-bold text-[var(--text-secondary)]">
+                                                <span className="text-sm font-bold text-text-secondary">
                                                     Phase {index + 1}
                                                 </span>
                                                 {ticketPhases.length > 1 && (
@@ -277,7 +277,7 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                                                         updateTicketPhase(phase.id, "name", e.target.value)
                                                     }
                                                     placeholder="Phase name"
-                                                    className="px-3 py-2 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-lg text-sm"
+                                                    className="px-3 py-2 bg-surface-elevated border border-border-default rounded-lg text-sm"
                                                 />
                                                 <input
                                                     type="number"
@@ -286,7 +286,7 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                                                         updateTicketPhase(phase.id, "price", parseInt(e.target.value))
                                                     }
                                                     placeholder="Price (₹)"
-                                                    className="px-3 py-2 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-lg text-sm"
+                                                    className="px-3 py-2 bg-surface-elevated border border-border-default rounded-lg text-sm"
                                                 />
                                                 <input
                                                     type="number"
@@ -295,7 +295,7 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                                                         updateTicketPhase(phase.id, "quantity", parseInt(e.target.value))
                                                     }
                                                     placeholder="Quantity"
-                                                    className="px-3 py-2 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-lg text-sm"
+                                                    className="px-3 py-2 bg-surface-elevated border border-border-default rounded-lg text-sm"
                                                 />
                                             </div>
                                         </div>
@@ -309,16 +309,16 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                     {step === 3 && (
                         <div className="space-y-6">
                             <div>
-                                <h3 className="text-lg font-bold text-[var(--text-primary)] mb-4">Entry Rules</h3>
+                                <h3 className="text-lg font-bold text-text-primary mb-4">Entry Rules</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+                                        <label className="block text-sm font-semibold text-text-secondary mb-2">
                                             Age Limit
                                         </label>
                                         <select
                                             value={ageLimit}
                                             onChange={(e) => setAgeLimit(e.target.value)}
-                                            className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg"
+                                            className="w-full px-4 py-3 bg-surface-tertiary border border-border-default rounded-lg"
                                         >
                                             <option value="18">18+</option>
                                             <option value="21">21+</option>
@@ -327,13 +327,13 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+                                        <label className="block text-sm font-semibold text-text-secondary mb-2">
                                             Couple Policy
                                         </label>
                                         <select
                                             value={couplePolicy}
                                             onChange={(e) => setCouplePolicy(e.target.value)}
-                                            className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg"
+                                            className="w-full px-4 py-3 bg-surface-tertiary border border-border-default rounded-lg"
                                         >
                                             <option value="required">Couples Only</option>
                                             <option value="preferred">Couples Preferred</option>
@@ -344,7 +344,7 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                             </div>
 
                             <div>
-                                <h3 className="text-lg font-bold text-[var(--text-primary)] mb-4">Promoter Settings</h3>
+                                <h3 className="text-lg font-bold text-text-primary mb-4">Promoter Settings</h3>
 
                                 <div className="mb-4">
                                     <label className="flex items-center gap-2 cursor-pointer">
@@ -354,7 +354,7 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                                             onChange={(e) => setPromotersEnabled(e.target.checked)}
                                             className="h-4 w-4"
                                         />
-                                        <span className="text-sm font-semibold text-[var(--text-secondary)]">
+                                        <span className="text-sm font-semibold text-text-secondary">
                                             Enable Promoters
                                         </span>
                                     </label>
@@ -363,7 +363,7 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                                 {promotersEnabled && (
                                     <div className="space-y-4">
                                         <div>
-                                            <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+                                            <label className="block text-sm font-semibold text-text-secondary mb-2">
                                                 Commission Structure
                                             </label>
                                             <div className="flex gap-2 mb-3">
@@ -371,7 +371,7 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                                                     onClick={() => setCommissionType("percentage")}
                                                     className={`flex-1 px-4 py-3 rounded-lg font-semibold border-2 transition-all ${commissionType === "percentage"
                                                             ? "border-indigo-600 bg-indigo-50 text-indigo-700"
-                                                            : "border-[var(--border-default)] text-slate-600 hover:border-[var(--border-default)]"
+                                                            : "border-border-default text-slate-600 hover:border-border-strong"
                                                         }`}
                                                 >
                                                     <Percent className="h-5 w-5 mx-auto mb-1" />
@@ -381,7 +381,7 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                                                     onClick={() => setCommissionType("amount")}
                                                     className={`flex-1 px-4 py-3 rounded-lg font-semibold border-2 transition-all ${commissionType === "amount"
                                                             ? "border-indigo-600 bg-indigo-50 text-indigo-700"
-                                                            : "border-[var(--border-default)] text-slate-600 hover:border-[var(--border-default)]"
+                                                            : "border-border-default text-slate-600 hover:border-border-strong"
                                                         }`}
                                                 >
                                                     <DollarSign className="h-5 w-5 mx-auto mb-1" />
@@ -393,24 +393,24 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                                                 type="number"
                                                 value={commissionValue}
                                                 onChange={(e) => setCommissionValue(parseInt(e.target.value))}
-                                                className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg"
+                                                className="w-full px-4 py-3 bg-surface-tertiary border border-border-default rounded-lg"
                                                 placeholder={commissionType === "percentage" ? "e.g., 10" : "e.g., 100"}
                                             />
-                                            <p className="text-xs text-[var(--text-tertiary)] mt-2">
+                                            <p className="text-xs text-text-tertiary mt-2">
                                                 Promoters earn {commissionValue}
                                                 {commissionType === "percentage" ? "%" : "₹"} per ticket sold
                                             </p>
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+                                            <label className="block text-sm font-semibold text-text-secondary mb-2">
                                                 Max Promoters Allowed
                                             </label>
                                             <input
                                                 type="number"
                                                 value={promoterLimit}
                                                 onChange={(e) => setPromoterLimit(parseInt(e.target.value))}
-                                                className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg"
+                                                className="w-full px-4 py-3 bg-surface-tertiary border border-border-default rounded-lg"
                                             />
                                         </div>
                                     </div>
@@ -418,10 +418,10 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                             </div>
 
                             <div>
-                                <h3 className="text-lg font-bold text-[var(--text-primary)] mb-4">Revenue Sharing</h3>
+                                <h3 className="text-lg font-bold text-text-primary mb-4">Revenue Sharing</h3>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+                                        <label className="block text-sm font-semibold text-text-secondary mb-2">
                                             Host Share (%)
                                         </label>
                                         <input
@@ -433,23 +433,23 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                                                 setVenueShare(100 - val);
                                             }}
                                             max={100}
-                                            className="w-full px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-lg"
+                                            className="w-full px-4 py-3 bg-surface-tertiary border border-border-default rounded-lg"
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+                                        <label className="block text-sm font-semibold text-text-secondary mb-2">
                                             Venue Share (%)
                                         </label>
                                         <input
                                             type="number"
                                             value={clubShare}
                                             readOnly
-                                            className="w-full px-4 py-3 bg-[var(--bg-fill)] border border-[var(--border-default)] rounded-lg text-[var(--text-tertiary)]"
+                                            className="w-full px-4 py-3 bg-surface-secondary border border-border-default rounded-lg text-text-tertiary"
                                         />
                                     </div>
                                 </div>
-                                <p className="text-xs text-[var(--text-tertiary)] mt-2">
+                                <p className="text-xs text-text-tertiary mt-2">
                                     Revenue is split {hostShare}% to host, {clubShare}% to club
                                 </p>
                             </div>
@@ -469,31 +469,31 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                             </div>
 
                             <div className="space-y-4">
-                                <div className="p-4 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-default)]">
-                                    <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase mb-2">Event Info</p>
-                                    <p className="text-lg font-bold text-[var(--text-primary)]">{title || "Untitled Event"}</p>
+                                <div className="p-4 bg-surface-tertiary rounded-lg border border-border-default">
+                                    <p className="text-xs font-bold text-text-tertiary uppercase mb-2">Event Info</p>
+                                    <p className="text-lg font-bold text-text-primary">{title || "Untitled Event"}</p>
                                     <p className="text-sm text-slate-600 mt-1">{eventDate} • {startTime} - {endTime}</p>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div className="p-4 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-default)]">
-                                        <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase mb-1">Capacity</p>
-                                        <p className="text-xl font-bold text-[var(--text-primary)]">{totalCapacity}</p>
+                                    <div className="p-4 bg-surface-tertiary rounded-lg border border-border-default">
+                                        <p className="text-xs font-bold text-text-tertiary uppercase mb-1">Capacity</p>
+                                        <p className="text-xl font-bold text-text-primary">{totalCapacity}</p>
                                     </div>
 
-                                    <div className="p-4 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-default)]">
-                                        <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase mb-1">Ticket Phases</p>
-                                        <p className="text-xl font-bold text-[var(--text-primary)]">{ticketPhases.length}</p>
+                                    <div className="p-4 bg-surface-tertiary rounded-lg border border-border-default">
+                                        <p className="text-xs font-bold text-text-tertiary uppercase mb-1">Ticket Phases</p>
+                                        <p className="text-xl font-bold text-text-primary">{ticketPhases.length}</p>
                                     </div>
 
-                                    <div className="p-4 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-default)]">
-                                        <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase mb-1">Promoters</p>
-                                        <p className="text-xl font-bold text-[var(--text-primary)]">{promotersEnabled ? "Enabled" : "Disabled"}</p>
+                                    <div className="p-4 bg-surface-tertiary rounded-lg border border-border-default">
+                                        <p className="text-xs font-bold text-text-tertiary uppercase mb-1">Promoters</p>
+                                        <p className="text-xl font-bold text-text-primary">{promotersEnabled ? "Enabled" : "Disabled"}</p>
                                     </div>
 
-                                    <div className="p-4 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-default)]">
-                                        <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase mb-1">Host Revenue</p>
-                                        <p className="text-xl font-bold text-[var(--text-primary)]">{hostShare}%</p>
+                                    <div className="p-4 bg-surface-tertiary rounded-lg border border-border-default">
+                                        <p className="text-xs font-bold text-text-tertiary uppercase mb-1">Host Revenue</p>
+                                        <p className="text-xl font-bold text-text-primary">{hostShare}%</p>
                                     </div>
                                 </div>
                             </div>
@@ -502,11 +502,11 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                 </div>
 
                 {/* Footer */}
-                <div className="sticky bottom-0 bg-[var(--bg-elevated)] border-t border-[var(--border-default)] p-6 flex gap-3">
+                <div className="sticky bottom-0 bg-surface-elevated border-t border-border-default p-6 flex gap-3">
                     {step > 1 && (
                         <button
                             onClick={() => setStep(step - 1)}
-                            className="px-6 py-3 bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[var(--text-secondary)] font-semibold rounded-lg hover:bg-[var(--bg-secondary)]"
+                            className="px-6 py-3 bg-surface-elevated border border-border-default text-text-secondary font-semibold rounded-lg hover:bg-surface-tertiary"
                         >
                             Back
                         </button>
@@ -515,7 +515,7 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                     {step < 4 ? (
                         <button
                             onClick={() => setStep(step + 1)}
-                            className="flex-1 px-6 py-3 bg-indigo-600 text-[var(--text-primary)] font-semibold rounded-lg hover:bg-indigo-700"
+                            className="flex-1 px-6 py-3 bg-indigo-600 text-text-primary font-semibold rounded-lg hover:bg-indigo-700"
                         >
                             Continue
                         </button>
@@ -523,7 +523,7 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
                         <button
                             onClick={handleSubmit}
                             disabled={loading || !title || !eventDate}
-                            className="flex-1 px-6 py-3 bg-emerald-600 text-[var(--text-primary)] font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                            className="flex-1 px-6 py-3 bg-emerald-600 text-text-primary font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50"
                         >
                             {loading ? "Creating..." : "Create Event"}
                         </button>

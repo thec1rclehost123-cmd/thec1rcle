@@ -52,8 +52,8 @@ const LazyComposedRevenue = lazy(() =>
                         <ComposedChart data={data} margin={{ top: 8, right: 14, left: -20, bottom: 0 }}>
                             <Defs>
                                 <LinearGradient id="comp-rev-grad" x1="0" y1="0" x2="0" y2="1">
-                                    <Stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.28} />
-                                    <Stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
+                                    <Stop offset="5%" stopColor="var(--v-chart-1)" stopOpacity={0.28} />
+                                    <Stop offset="95%" stopColor="var(--v-chart-1)" stopOpacity={0} />
                                 </LinearGradient>
                             </Defs>
                             <CartesianGrid stroke="rgba(128,128,128,0.12)" vertical={false} />
@@ -78,11 +78,11 @@ const LazyComposedRevenue = lazy(() =>
                             />
                             <Tooltip
                                 contentStyle={{
-                                    background: "var(--bg-elevated)",
-                                    border: "1px solid var(--border-subtle)",
+                                    background: "var(--v-card)",
+                                    border: "1px solid var(--v-border)",
                                     borderRadius: 12,
                                     fontSize: 12,
-                                    color: "var(--text-primary)",
+                                    color: "var(--v-text-primary)",
                                 }}
                                 cursor={{ stroke: "rgba(128,128,128,0.20)" }}
                             />
@@ -90,7 +90,7 @@ const LazyComposedRevenue = lazy(() =>
                                 yAxisId="rev"
                                 type="monotone"
                                 dataKey="revenue"
-                                stroke="var(--chart-1)"
+                                stroke="var(--v-chart-1)"
                                 strokeWidth={2}
                                 fill="url(#comp-rev-grad)"
                                 isAnimationActive
@@ -100,7 +100,7 @@ const LazyComposedRevenue = lazy(() =>
                                 yAxisId="tix"
                                 type="monotone"
                                 dataKey="tickets"
-                                stroke="var(--chart-2)"
+                                stroke="var(--v-chart-2)"
                                 strokeWidth={1.5}
                                 dot={false}
                                 strokeDasharray="5 4"
@@ -145,11 +145,11 @@ const LazyDonut = lazy(() =>
                             </Pie>
                             <Tooltip
                                 contentStyle={{
-                                    background: "var(--bg-elevated)",
-                                    border: "1px solid var(--border-subtle)",
+                                    background: "var(--v-card)",
+                                    border: "1px solid var(--v-border)",
                                     borderRadius: 12,
                                     fontSize: 12,
-                                    color: "var(--text-primary)",
+                                    color: "var(--v-text-primary)",
                                 }}
                             />
                         </PieChart>
@@ -207,11 +207,11 @@ const LazyScatter = lazy(() =>
                             <ZAxis type="number" dataKey="z" range={[40, 360]} />
                             <Tooltip
                                 contentStyle={{
-                                    background: "var(--bg-elevated)",
-                                    border: "1px solid var(--border-subtle)",
+                                    background: "var(--v-card)",
+                                    border: "1px solid var(--v-border)",
                                     borderRadius: 12,
                                     fontSize: 12,
-                                    color: "var(--text-primary)",
+                                    color: "var(--v-text-primary)",
                                 }}
                                 cursor={{ strokeDasharray: "3 3", stroke: "rgba(128,128,128,0.25)" }}
                                 formatter={(val: any, name: any) =>
@@ -220,7 +220,7 @@ const LazyScatter = lazy(() =>
                                         : [val, name]
                                 }
                             />
-                            <Scatter data={scatterData} fill="var(--accent)" opacity={0.82} />
+                            <Scatter data={scatterData} fill="var(--v-orange)" opacity={0.82} />
                         </ScatterChart>
                     </ResponsiveContainer>
                 </div>
@@ -260,11 +260,11 @@ const LazyRadialBar = lazy(() =>
                             />
                             <Tooltip
                                 contentStyle={{
-                                    background: "var(--bg-elevated)",
-                                    border: "1px solid var(--border-subtle)",
+                                    background: "var(--v-card)",
+                                    border: "1px solid var(--v-border)",
                                     borderRadius: 12,
                                     fontSize: 12,
-                                    color: "var(--text-primary)",
+                                    color: "var(--v-text-primary)",
                                 }}
                                 formatter={(val: any) => [`${Number(val).toFixed(1)}%`, "Share"]}
                             />
@@ -381,10 +381,10 @@ export default function UnifiedAnalyticsClient({
                 {!isLoading && !data.hasData && (
                     <div
                         className="flex items-center gap-3 px-5 py-3 rounded-2xl border"
-                        style={{ background: "var(--bg-fill)", borderColor: "var(--border-subtle)" }}
+                        style={{ background: "var(--v-elevated)", borderColor: "var(--v-border)" }}
                     >
-                        <Info className="w-4 h-4 shrink-0" style={{ color: "var(--text-tertiary)" }} />
-                        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+                        <Info className="w-4 h-4 shrink-0" style={{ color: "var(--v-text-muted)" }} />
+                        <p className="text-[13px]" style={{ color: "var(--v-text-secondary)" }}>
                             No analytics recorded yet — all metrics will populate after your first event goes live.
                             Values below show the exact structure that real data will fill.
                         </p>
@@ -395,10 +395,10 @@ export default function UnifiedAnalyticsClient({
                 {isError && (
                     <div
                         className="flex items-center gap-3 px-5 py-3 rounded-2xl border"
-                        style={{ background: "var(--color-error-bg)", borderColor: "var(--color-error)" }}
+                        style={{ background: "var(--v-error-bg)", borderColor: "var(--v-error)" }}
                     >
-                        <RefreshCw className="w-4 h-4" style={{ color: "var(--color-error)" }} />
-                        <p className="text-[13px]" style={{ color: "var(--color-error)" }}>
+                        <RefreshCw className="w-4 h-4" style={{ color: "var(--v-error)" }} />
+                        <p className="text-[13px]" style={{ color: "var(--v-error)" }}>
                             Could not load analytics data. Showing last-known values.
                         </p>
                     </div>
@@ -465,73 +465,73 @@ function KPISection({ data, loading, category }: { data: AnalyticsDisplayModel; 
             category: ["overview", "revenue"],
             value: fmt(data.totalRevenue, "currency"),
             trend: { value: data.revenueTrend, direction: data.revenueTrendDir },
-            icon: <DollarSign className="w-4 h-4" style={{ color: "var(--accent)" }} />,
-            iconBg: "var(--accent-muted)",
+            icon: <DollarSign className="w-4 h-4" style={{ color: "var(--v-orange)" }} />,
+            iconBg: "var(--v-orange-dim)",
         },
         {
             label: "TICKETS SOLD",
             category: ["overview", "reach"],
             value: fmt(data.ticketsSold),
             trend: { value: data.ticketsTrend, direction: data.ticketsTrendDir },
-            icon: <Ticket className="w-4 h-4" style={{ color: "var(--color-info)" }} />,
-            iconBg: "var(--color-info-bg)",
+            icon: <Ticket className="w-4 h-4" style={{ color: "var(--v-info)" }} />,
+            iconBg: "var(--v-info-bg)",
         },
         {
             label: "GUESTLIST SIGNUPS",
             category: ["overview", "reach"],
             value: fmt(data.guestlistSignups),
-            icon: <ListChecks className="w-4 h-4" style={{ color: "var(--color-success)" }} />,
-            iconBg: "var(--color-success-bg)",
+            icon: <ListChecks className="w-4 h-4" style={{ color: "var(--v-success)" }} />,
+            iconBg: "var(--v-success-bg)",
         },
         {
             label: "CHECK-INS",
             category: ["overview", "engagement", "ops", "timeline"],
             value: fmt(data.checkins),
             trend: { value: data.checkinsTrend, direction: data.checkinsTrendDir },
-            icon: <CalendarCheck className="w-4 h-4" style={{ color: "var(--color-success)" }} />,
-            iconBg: "var(--color-success-bg)",
+            icon: <CalendarCheck className="w-4 h-4" style={{ color: "var(--v-success)" }} />,
+            iconBg: "var(--v-success-bg)",
         },
         {
             label: "CONVERSION RATE",
             category: ["overview", "reach"],
             value: fmt(data.conversionRate, "percent"),
-            icon: <PercentCircle className="w-4 h-4" style={{ color: "var(--color-warning)" }} />,
-            iconBg: "var(--color-warning-bg)",
+            icon: <PercentCircle className="w-4 h-4" style={{ color: "var(--v-warning)" }} />,
+            iconBg: "var(--v-warning-bg)",
         },
         {
             label: "ACTIVE EVENTS",
             category: ["overview", "timeline", "attribution"],
             value: fmt(data.activeEvents),
-            icon: <Activity className="w-4 h-4" style={{ color: "var(--chart-5)" }} />,
+            icon: <Activity className="w-4 h-4" style={{ color: "var(--v-chart-5)" }} />,
             iconBg: "rgba(244,114,182,0.10)",
         },
         {
             label: "AVG TICKET PRICE",
             category: ["overview", "reach", "revenue"],
             value: fmt(data.avgTicketPrice, "currency"),
-            icon: <TrendingUp className="w-4 h-4" style={{ color: "var(--color-info)" }} />,
-            iconBg: "var(--color-info-bg)",
+            icon: <TrendingUp className="w-4 h-4" style={{ color: "var(--v-info)" }} />,
+            iconBg: "var(--v-info-bg)",
         },
         {
             label: "REFUNDS",
             category: ["overview", "revenue", "ops"],
             value: fmt(data.refunds),
-            icon: <RefreshCw className="w-4 h-4" style={{ color: "var(--color-error)" }} />,
-            iconBg: "var(--color-error-bg)",
+            icon: <RefreshCw className="w-4 h-4" style={{ color: "var(--v-error)" }} />,
+            iconBg: "var(--v-error-bg)",
         },
         {
             label: "PAYOUTS PROCESSED",
             category: ["overview", "revenue"],
             value: fmt(data.payoutsProcessed, "currency"),
-            icon: <Banknote className="w-4 h-4" style={{ color: "var(--color-success)" }} />,
-            iconBg: "var(--color-success-bg)",
+            icon: <Banknote className="w-4 h-4" style={{ color: "var(--v-success)" }} />,
+            iconBg: "var(--v-success-bg)",
         },
         {
             label: "REPEAT GUEST RATE",
             category: ["overview", "engagement", "audience"],
             value: fmt(data.repeatGuestRate, "percent"),
-            icon: <Repeat2 className="w-4 h-4" style={{ color: "var(--color-warning)" }} />,
-            iconBg: "var(--color-warning-bg)",
+            icon: <Repeat2 className="w-4 h-4" style={{ color: "var(--v-warning)" }} />,
+            iconBg: "var(--v-warning-bg)",
         },
     ];
 
@@ -565,7 +565,7 @@ function PerformanceRingsSection({ data, loading, category }: { data: AnalyticsD
             label: "Conversion Rate",
             category: ["overview", "reach", "revenue"],
             value: data.conversionRate,
-            color: "var(--chart-1)",
+            color: "var(--v-chart-1)",
             icon: <PercentCircle className="w-3.5 h-3.5" />,
             sublabel: "purchases / page views",
         },
@@ -573,7 +573,7 @@ function PerformanceRingsSection({ data, loading, category }: { data: AnalyticsD
             label: "Fill Rate",
             category: ["overview", "engagement"],
             value: data.avgTurnout,
-            color: "var(--chart-2)",
+            color: "var(--v-chart-2)",
             icon: <Target className="w-3.5 h-3.5" />,
             sublabel: "attendance vs capacity",
         },
@@ -581,7 +581,7 @@ function PerformanceRingsSection({ data, loading, category }: { data: AnalyticsD
             label: "Scanner Efficiency",
             category: ["overview", "ops"],
             value: scannerEfficiency,
-            color: "var(--color-success)",
+            color: "var(--v-success)",
             icon: <Shield className="w-3.5 h-3.5" />,
             sublabel: "successful / total scans",
         },
@@ -589,7 +589,7 @@ function PerformanceRingsSection({ data, loading, category }: { data: AnalyticsD
             label: "Repeat Rate",
             category: ["overview", "engagement", "audience"],
             value: data.repeatGuestRate,
-            color: "var(--color-warning)",
+            color: "var(--v-warning)",
             icon: <Repeat2 className="w-3.5 h-3.5" />,
             sublabel: "returning guests",
         },
@@ -603,7 +603,7 @@ function PerformanceRingsSection({ data, loading, category }: { data: AnalyticsD
             loading={loading}
             header={
                 <div className="flex items-center gap-2">
-                    <Award className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                    <Award className="w-4 h-4" style={{ color: "var(--v-orange)" }} />
                     <span className="v-label">PERFORMANCE SCORES</span>
                 </div>
             }
@@ -677,7 +677,7 @@ function RadialRing({
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span
                         className="text-[18px] font-bold tabular-nums leading-none"
-                        style={{ color: "var(--text-primary)" }}
+                        style={{ color: "var(--v-text-primary)" }}
                     >
                         {value.toFixed(0)}%
                     </span>
@@ -687,12 +687,12 @@ function RadialRing({
                 <span style={{ color }}>{icon}</span>
                 <p
                     className="text-[10px] font-bold uppercase tracking-widest text-center"
-                    style={{ color: "var(--text-secondary)" }}
+                    style={{ color: "var(--v-text-secondary)" }}
                 >
                     {label}
                 </p>
             </div>
-            <p className="text-[10px] text-center" style={{ color: "var(--text-tertiary)" }}>
+            <p className="text-[10px] text-center" style={{ color: "var(--v-text-muted)" }}>
                 {sublabel}
             </p>
         </div>
@@ -706,10 +706,10 @@ function RevenueSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
     const [chartMode, setChartMode] = useState<"single" | "overlay">("single");
 
     const summary = [
-        { label: "GROSS REVENUE", value: fmt(data.grossSales, "currency"), color: "var(--accent)" },
-        { label: "NET PAYABLE",   value: fmt(data.netSales, "currency"),   color: "var(--color-success)" },
-        { label: "PLATFORM FEE",  value: fmt(data.platformFees, "currency"), color: "var(--color-error)" },
-        { label: "AVG TURNOUT",   value: fmt(data.avgTurnout, "percent"),  color: "var(--color-info)" },
+        { label: "GROSS REVENUE", value: fmt(data.grossSales, "currency"), color: "var(--v-orange)" },
+        { label: "NET PAYABLE",   value: fmt(data.netSales, "currency"),   color: "var(--v-success)" },
+        { label: "PLATFORM FEE",  value: fmt(data.platformFees, "currency"), color: "var(--v-error)" },
+        { label: "AVG TURNOUT",   value: fmt(data.avgTurnout, "percent"),  color: "var(--v-info)" },
     ];
 
     const mergedTimeline = data.revenueTimeline.map((r, i) => ({
@@ -726,8 +726,8 @@ function RevenueSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                     <span className="v-label">REVENUE ANALYTICS</span>
                     <div className="flex items-center gap-2 flex-wrap">
                         <div
-                            className="flex items-center gap-1 p-0.5 rounded-xl border border-[var(--border-subtle)]"
-                            style={{ background: "var(--bg-fill)" }}
+                            className="flex items-center gap-1 p-0.5 rounded-xl border border-[var(--v-border)]"
+                            style={{ background: "var(--v-elevated)" }}
                         >
                             {(["single", "overlay"] as const).map(m => (
                                 <button
@@ -735,9 +735,9 @@ function RevenueSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                                     onClick={() => setChartMode(m)}
                                     className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
                                     style={{
-                                        background: chartMode === m ? "var(--bg-elevated)" : "transparent",
-                                        color: chartMode === m ? "var(--text-primary)" : "var(--text-tertiary)",
-                                        boxShadow: chartMode === m ? "var(--shadow-sm)" : "none",
+                                        background: chartMode === m ? "var(--v-card)" : "transparent",
+                                        color: chartMode === m ? "var(--v-text-primary)" : "var(--v-text-muted)",
+                                        boxShadow: chartMode === m ? "var(--v-shadow-card)" : "none",
                                     }}
                                 >
                                     {m === "single" ? "Revenue" : "Rev + Tickets"}
@@ -745,8 +745,8 @@ function RevenueSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                             ))}
                         </div>
                         <div
-                            className="flex items-center gap-1 p-0.5 rounded-xl border border-[var(--border-subtle)]"
-                            style={{ background: "var(--bg-fill)" }}
+                            className="flex items-center gap-1 p-0.5 rounded-xl border border-[var(--v-border)]"
+                            style={{ background: "var(--v-elevated)" }}
                         >
                             {(["day", "week", "month"] as const).map(g => (
                                 <button
@@ -754,9 +754,9 @@ function RevenueSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                                     onClick={() => setGran(g)}
                                     className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
                                     style={{
-                                        background: gran === g ? "var(--bg-elevated)" : "transparent",
-                                        color: gran === g ? "var(--text-primary)" : "var(--text-tertiary)",
-                                        boxShadow: gran === g ? "var(--shadow-sm)" : "none",
+                                        background: gran === g ? "var(--v-card)" : "transparent",
+                                        color: gran === g ? "var(--v-text-primary)" : "var(--v-text-muted)",
+                                        boxShadow: gran === g ? "var(--v-shadow-card)" : "none",
                                     }}
                                 >
                                     {g}
@@ -767,13 +767,13 @@ function RevenueSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                 </div>
             }
         >
-            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-[var(--border-subtle)] mb-4 rounded-xl overflow-hidden border border-[var(--border-subtle)]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-[var(--v-border)] mb-4 rounded-xl overflow-hidden border border-[var(--v-border)]">
                 {summary.map(s => (
                     <div key={s.label} className="px-4 py-3" style={{ borderTop: `2px solid ${s.color}` }}>
                         <p className="v-label mb-1">{s.label}</p>
                         <p
                             className="text-[20px] font-bold tabular-nums leading-none"
-                            style={{ color: loading ? "var(--text-tertiary)" : s.color }}
+                            style={{ color: loading ? "var(--v-text-muted)" : s.color }}
                         >
                             {loading ? "—" : s.value}
                         </p>
@@ -786,9 +786,9 @@ function RevenueSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                     {chartMode === "overlay" ? (
                         <>
                             <div className="flex items-center gap-4 mb-3">
-                                <LegendDot color="var(--chart-1)" label="Revenue (left axis)" />
+                                <LegendDot color="var(--v-chart-1)" label="Revenue (left axis)" />
                                 <LegendDot
-                                    color="var(--chart-2)"
+                                    color="var(--v-chart-2)"
                                     label="Tickets (right axis)"
                                     dashed
                                 />
@@ -804,7 +804,7 @@ function RevenueSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                             config={{
                                 dataKey: "revenue",
                                 xKey: "date",
-                                color: "var(--chart-1)",
+                                color: "var(--v-chart-1)",
                                 gradientId: "overview-rev",
                             }}
                             height={260}
@@ -814,7 +814,7 @@ function RevenueSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                     {!data.hasData && (
                         <p
                             className="text-center text-[11px] mt-2 font-medium uppercase tracking-widest"
-                            style={{ color: "var(--text-tertiary)" }}
+                            style={{ color: "var(--v-text-muted)" }}
                         >
                             Revenue will plot here after your first ticket sale
                         </p>
@@ -833,9 +833,9 @@ function TicketsGuestlistSection({ data, loading }: { data: AnalyticsDisplayMode
     const hasGenderData = genderTotal > 1;
 
     const genderSplit = [
-        { name: "Female", value: data.genderRatio.female, color: "var(--chart-2)" },
-        { name: "Male", value: data.genderRatio.male, color: "var(--chart-1)" },
-        { name: "Other", value: data.genderRatio.other, color: "var(--chart-3)" },
+        { name: "Female", value: data.genderRatio.female, color: "var(--v-chart-2)" },
+        { name: "Male", value: data.genderRatio.male, color: "var(--v-chart-1)" },
+        { name: "Other", value: data.genderRatio.other, color: "var(--v-chart-3)" },
     ];
 
     const donutData = hasGenderData
@@ -855,8 +855,8 @@ function TicketsGuestlistSection({ data, loading }: { data: AnalyticsDisplayMode
                     <div className="flex items-center justify-between w-full">
                         <span className="v-label">TICKET SALES OVER TIME</span>
                         <div className="flex items-center gap-3">
-                            <LegendDot color="var(--chart-1)" label="Paid" />
-                            <LegendDot color="var(--chart-2)" label="Guestlist" />
+                            <LegendDot color="var(--v-chart-1)" label="Paid" />
+                            <LegendDot color="var(--v-chart-2)" label="Guestlist" />
                         </div>
                     </div>
                 }
@@ -866,14 +866,14 @@ function TicketsGuestlistSection({ data, loading }: { data: AnalyticsDisplayMode
                         <VenueChart
                             type="bar"
                             data={data.ticketsTimeline}
-                            config={{ dataKey: "tickets", xKey: "date", color: "var(--chart-1)" }}
+                            config={{ dataKey: "tickets", xKey: "date", color: "var(--v-chart-1)" }}
                             height={220}
                             title="Ticket Sales Over Time"
                         />
                         {!data.hasData && (
                             <p
                                 className="text-center text-[11px] mt-2 font-medium uppercase tracking-widest"
-                                style={{ color: "var(--text-tertiary)" }}
+                                style={{ color: "var(--v-text-muted)" }}
                             >
                                 No ticket sales in selected range
                             </p>
@@ -898,12 +898,12 @@ function TicketsGuestlistSection({ data, loading }: { data: AnalyticsDisplayMode
                                 <div
                                     key={m.label}
                                     className="px-3 py-2.5 rounded-xl"
-                                    style={{ background: "var(--bg-fill)" }}
+                                    style={{ background: "var(--v-elevated)" }}
                                 >
                                     <p className="v-label mb-0.5">{m.label}</p>
                                     <p
                                         className="text-[18px] font-bold tabular-nums leading-none"
-                                        style={{ color: "var(--text-primary)" }}
+                                        style={{ color: "var(--v-text-primary)" }}
                                     >
                                         {m.value}
                                     </p>
@@ -921,14 +921,14 @@ function TicketsGuestlistSection({ data, loading }: { data: AnalyticsDisplayMode
                                     <div className="text-center">
                                         <p
                                             className="text-[11px] font-bold"
-                                            style={{ color: "var(--text-tertiary)" }}
+                                            style={{ color: "var(--v-text-muted)" }}
                                         >
                                             {hasGenderData ? "Total" : "No data"}
                                         </p>
                                         {hasGenderData && (
                                             <p
                                                 className="text-[15px] font-bold tabular-nums"
-                                                style={{ color: "var(--text-primary)" }}
+                                                style={{ color: "var(--v-text-primary)" }}
                                             >
                                                 {fmt(genderTotal)}
                                             </p>
@@ -946,7 +946,7 @@ function TicketsGuestlistSection({ data, loading }: { data: AnalyticsDisplayMode
                                             />
                                             <span
                                                 className="text-[10px] font-semibold"
-                                                style={{ color: "var(--text-tertiary)" }}
+                                                style={{ color: "var(--v-text-muted)" }}
                                             >
                                                 {g.name}{" "}
                                                 {((g.value / genderTotal) * 100).toFixed(0)}%
@@ -966,11 +966,11 @@ function TicketsGuestlistSection({ data, loading }: { data: AnalyticsDisplayMode
 // ── Section: Audience Intelligence ────────────────────────────────────────────
 
 const AGE_COLORS = [
-    "var(--chart-1)",
-    "var(--chart-2)",
-    "var(--chart-3)",
-    "var(--chart-4)",
-    "var(--chart-5)",
+    "var(--v-chart-1)",
+    "var(--v-chart-2)",
+    "var(--v-chart-3)",
+    "var(--v-chart-4)",
+    "var(--v-chart-5)",
 ];
 
 function AudienceSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
@@ -991,7 +991,7 @@ function AudienceSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
                 loading={loading}
                 header={
                     <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                        <Users className="w-4 h-4" style={{ color: "var(--v-orange)" }} />
                         <span className="v-label">AGE DEMOGRAPHICS</span>
                     </div>
                 }
@@ -1011,7 +1011,7 @@ function AudienceSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
                                             />
                                             <span
                                                 className="text-[13px] font-semibold"
-                                                style={{ color: "var(--text-primary)" }}
+                                                style={{ color: "var(--v-text-primary)" }}
                                             >
                                                 {band}
                                             </span>
@@ -1019,7 +1019,7 @@ function AudienceSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
                                         <div className="text-right">
                                             <span
                                                 className="text-[12px] font-bold tabular-nums"
-                                                style={{ color: "var(--text-secondary)" }}
+                                                style={{ color: "var(--v-text-secondary)" }}
                                             >
                                                 {data.hasData ? fmt(count) : "0"} guests
                                             </span>
@@ -1033,7 +1033,7 @@ function AudienceSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
                                     </div>
                                     <div
                                         className="relative h-3 w-full rounded-full overflow-hidden"
-                                        style={{ background: "var(--bg-fill)" }}
+                                        style={{ background: "var(--v-elevated)" }}
                                     >
                                         <div
                                             className="absolute left-0 top-0 h-full rounded-full transition-all duration-700"
@@ -1048,7 +1048,7 @@ function AudienceSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
                             );
                         })}
                         {!data.hasData && (
-                            <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                            <p className="text-[11px]" style={{ color: "var(--v-text-muted)" }}>
                                 Age data populates after guests complete profiles
                             </p>
                         )}
@@ -1062,12 +1062,12 @@ function AudienceSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
                 header={
                     <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-2">
-                            <Zap className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                            <Zap className="w-4 h-4" style={{ color: "var(--v-orange)" }} />
                             <span className="v-label">INTEREST TREND</span>
                         </div>
                         <span
                             className="text-[10px] font-semibold uppercase tracking-widest px-2 py-1 rounded-lg"
-                            style={{ background: "var(--bg-fill)", color: "var(--text-tertiary)" }}
+                            style={{ background: "var(--v-elevated)", color: "var(--v-text-muted)" }}
                         >
                             30 days
                         </span>
@@ -1090,7 +1090,7 @@ function AudienceSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
                                     <p className="v-label mb-0.5">{s.label}</p>
                                     <p
                                         className="text-[18px] font-bold tabular-nums"
-                                        style={{ color: "var(--text-primary)" }}
+                                        style={{ color: "var(--v-text-primary)" }}
                                     >
                                         {s.value}
                                     </p>
@@ -1103,7 +1103,7 @@ function AudienceSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
                             config={{
                                 dataKey: "count",
                                 xKey: "date",
-                                color: "var(--chart-3)",
+                                color: "var(--v-chart-3)",
                                 gradientId: "interest-grad",
                             }}
                             height={180}
@@ -1112,7 +1112,7 @@ function AudienceSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
                         {!data.hasData && (
                             <p
                                 className="text-center text-[11px] mt-2 font-medium uppercase tracking-widest"
-                                style={{ color: "var(--text-tertiary)" }}
+                                style={{ color: "var(--v-text-muted)" }}
                             >
                                 Interest signals appear when guests view or save events
                             </p>
@@ -1127,12 +1127,12 @@ function AudienceSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
 // ── Section: Conversion Funnel ────────────────────────────────────────────────
 
 const FUNNEL_COLORS = [
-    "var(--chart-1)",
-    "var(--chart-2)",
-    "var(--chart-3)",
-    "var(--chart-4)",
-    "var(--chart-5)",
-    "var(--color-success)",
+    "var(--v-chart-1)",
+    "var(--v-chart-2)",
+    "var(--v-chart-3)",
+    "var(--v-chart-4)",
+    "var(--v-chart-5)",
+    "var(--v-success)",
 ];
 
 function FunnelSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
@@ -1158,11 +1158,11 @@ function FunnelSection({ data, loading }: { data: AnalyticsDisplayModel; loading
                                     <div className="flex items-center gap-2 my-1">
                                         <div
                                             className="h-4 w-px"
-                                            style={{ background: "var(--border-subtle)" }}
+                                            style={{ background: "var(--v-border)" }}
                                         />
                                         <span
                                             className="text-[10px] font-bold uppercase tracking-widest"
-                                            style={{ color: "var(--text-tertiary)" }}
+                                            style={{ color: "var(--v-text-muted)" }}
                                         >
                                             {data.hasData ? `−${dropPct}% drop` : "0% drop"}
                                         </span>
@@ -1172,7 +1172,7 @@ function FunnelSection({ data, loading }: { data: AnalyticsDisplayModel; loading
                                     className="flex items-center justify-between px-6 py-3.5 rounded-2xl transition-all"
                                     style={{
                                         width: `${widthPct}%`,
-                                        background: `linear-gradient(90deg, ${color}1f 0%, var(--bg-fill) 55%)`,
+                                        background: `linear-gradient(90deg, ${color}1f 0%, var(--v-elevated) 55%)`,
                                         border: `1px solid ${color}28`,
                                         borderLeft: `3px solid ${color}`,
                                     }}
@@ -1186,7 +1186,7 @@ function FunnelSection({ data, loading }: { data: AnalyticsDisplayModel; loading
                                     <div className="flex items-center gap-4">
                                         <div
                                             className="h-1.5 w-20 rounded-full overflow-hidden"
-                                            style={{ background: "var(--border-subtle)" }}
+                                            style={{ background: "var(--v-border)" }}
                                         >
                                             <div
                                                 className="h-full rounded-full transition-all duration-700"
@@ -1198,7 +1198,7 @@ function FunnelSection({ data, loading }: { data: AnalyticsDisplayModel; loading
                                         </div>
                                         <span
                                             className="text-[22px] font-bold tabular-nums leading-none"
-                                            style={{ color: "var(--text-primary)" }}
+                                            style={{ color: "var(--v-text-primary)" }}
                                         >
                                             {step.count > 0 ? step.count.toLocaleString() : "0"}
                                         </span>
@@ -1210,7 +1210,7 @@ function FunnelSection({ data, loading }: { data: AnalyticsDisplayModel; loading
                     {!data.hasData && (
                         <p
                             className="text-[11px] mt-3 font-medium uppercase tracking-widest"
-                            style={{ color: "var(--text-tertiary)" }}
+                            style={{ color: "var(--v-text-muted)" }}
                         >
                             Funnel will populate after discovery & booking activity begins
                         </p>
@@ -1231,20 +1231,20 @@ function ScannerSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
         {
             label: "Successful Entries",
             value: data.successfulScans,
-            color: "var(--color-success)",
-            bg: "var(--color-success-bg)",
+            color: "var(--v-success)",
+            bg: "var(--v-success-bg)",
         },
         {
             label: "Rejected Scans",
             value: data.rejectedScans,
-            color: "var(--color-error)",
-            bg: "var(--color-error-bg)",
+            color: "var(--v-error)",
+            bg: "var(--v-error-bg)",
         },
         {
             label: "Duplicate Attempts",
             value: data.duplicateScans,
-            color: "var(--color-warning)",
-            bg: "var(--color-warning-bg)",
+            color: "var(--v-warning)",
+            bg: "var(--v-warning-bg)",
         },
     ];
 
@@ -1282,7 +1282,7 @@ function ScannerSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                                 config={{
                                     dataKey: "count",
                                     xKey: "hour",
-                                    color: "var(--color-success)",
+                                    color: "var(--v-success)",
                                 }}
                                 height={200}
                                 title="Entry Velocity by Hour"
@@ -1291,7 +1291,7 @@ function ScannerSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                         {!data.hasData && (
                             <p
                                 className="text-center text-[11px] mt-2 font-medium uppercase tracking-widest"
-                                style={{ color: "var(--text-tertiary)" }}
+                                style={{ color: "var(--v-text-muted)" }}
                             >
                                 No check-ins available — hourly entry flow will appear here
                             </p>
@@ -1308,7 +1308,7 @@ function ScannerSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                             <SVGGauge
                                 value={scannerEfficiency}
                                 label="Scanner Efficiency"
-                                color="var(--color-success)"
+                                color="var(--v-success)"
                             />
                         </div>
 
@@ -1350,17 +1350,17 @@ function ScannerSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                             <div
                                 key={row.label}
                                 className="flex items-center justify-between py-2.5"
-                                style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                                style={{ borderBottom: "1px solid var(--v-border)" }}
                             >
                                 <span
                                     className="text-[12px]"
-                                    style={{ color: "var(--text-secondary)" }}
+                                    style={{ color: "var(--v-text-secondary)" }}
                                 >
                                     {row.label}
                                 </span>
                                 <span
                                     className="text-[13px] font-bold tabular-nums"
-                                    style={{ color: "var(--text-primary)" }}
+                                    style={{ color: "var(--v-text-primary)" }}
                                 >
                                     {row.value}
                                 </span>
@@ -1405,7 +1405,7 @@ function SVGGauge({ value, label, color }: { value: number; label: string; color
                     textAnchor="middle"
                     fontSize={18}
                     fontWeight="700"
-                    fill="var(--text-primary)"
+                    fill="var(--v-text-primary)"
                     fontFamily="inherit"
                 >
                     {value.toFixed(0)}%
@@ -1433,7 +1433,7 @@ function SVGGauge({ value, label, color }: { value: number; label: string; color
             </svg>
             <p
                 className="text-[10px] font-bold uppercase tracking-widest text-center"
-                style={{ color: "var(--text-tertiary)" }}
+                style={{ color: "var(--v-text-muted)" }}
             >
                 {label}
             </p>
@@ -1495,8 +1495,8 @@ function EventComparisonSection({ data, loading }: { data: AnalyticsDisplayModel
                 <div className="flex items-center justify-between w-full">
                     <span className="v-label">EVENT PERFORMANCE COMPARISON</span>
                     <div
-                        className="flex items-center gap-1 p-0.5 rounded-xl border border-[var(--border-subtle)]"
-                        style={{ background: "var(--bg-fill)" }}
+                        className="flex items-center gap-1 p-0.5 rounded-xl border border-[var(--v-border)]"
+                        style={{ background: "var(--v-elevated)" }}
                     >
                         {sortTabs.map(tab => (
                             <button
@@ -1505,13 +1505,13 @@ function EventComparisonSection({ data, loading }: { data: AnalyticsDisplayModel
                                 className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
                                 style={{
                                     background:
-                                        sortKey === tab.key ? "var(--bg-elevated)" : "transparent",
+                                        sortKey === tab.key ? "var(--v-card)" : "transparent",
                                     color:
                                         sortKey === tab.key
-                                            ? "var(--text-primary)"
-                                            : "var(--text-tertiary)",
+                                            ? "var(--v-text-primary)"
+                                            : "var(--v-text-muted)",
                                     boxShadow:
-                                        sortKey === tab.key ? "var(--shadow-sm)" : "none",
+                                        sortKey === tab.key ? "var(--v-shadow-card)" : "none",
                                 }}
                             >
                                 {tab.label}
@@ -1525,7 +1525,7 @@ function EventComparisonSection({ data, loading }: { data: AnalyticsDisplayModel
                 <>
                     {sortKey === "bubble" ? (
                         <div>
-                            <p className="text-[11px] mb-3" style={{ color: "var(--text-tertiary)" }}>
+                            <p className="text-[11px] mb-3" style={{ color: "var(--v-text-muted)" }}>
                                 Each bubble = one event · X: attendance · Y: revenue · Size: conversion rate
                             </p>
                             <Suspense fallback={<ChartSkeleton height={280} />}>
@@ -1534,7 +1534,7 @@ function EventComparisonSection({ data, loading }: { data: AnalyticsDisplayModel
                             {!data.hasData && (
                                 <p
                                     className="text-center text-[11px] mt-2 font-medium uppercase tracking-widest"
-                                    style={{ color: "var(--text-tertiary)" }}
+                                    style={{ color: "var(--v-text-muted)" }}
                                 >
                                     Bubble plot will populate with real event data
                                 </p>
@@ -1544,7 +1544,7 @@ function EventComparisonSection({ data, loading }: { data: AnalyticsDisplayModel
                         <>
                             <div
                                 className="grid grid-cols-5 text-[10px] font-black uppercase tracking-widest px-4 py-2 mb-1 rounded-xl"
-                                style={{ background: "var(--bg-fill)", color: "var(--text-tertiary)" }}
+                                style={{ background: "var(--v-elevated)", color: "var(--v-text-muted)" }}
                             >
                                 <span className="col-span-2">Event</span>
                                 <span className="text-right">Revenue</span>
@@ -1567,11 +1567,11 @@ function EventComparisonSection({ data, loading }: { data: AnalyticsDisplayModel
                                             style={{
                                                 background:
                                                     i === 0 && sorted.length > 0
-                                                        ? "var(--bg-fill)"
+                                                        ? "var(--v-elevated)"
                                                         : "transparent",
                                                 borderBottom:
                                                     i < rows.length - 1
-                                                        ? "1px solid var(--border-subtle)"
+                                                        ? "1px solid var(--v-border)"
                                                         : "none",
                                             }}
                                         >
@@ -1592,7 +1592,7 @@ function EventComparisonSection({ data, loading }: { data: AnalyticsDisplayModel
                                                         color:
                                                             i === 0 && sorted.length > 0
                                                                 ? FUNNEL_COLORS[0]
-                                                                : "var(--text-tertiary)",
+                                                                : "var(--v-text-muted)",
                                                     }}
                                                 >
                                                     {i + 1}
@@ -1602,8 +1602,8 @@ function EventComparisonSection({ data, loading }: { data: AnalyticsDisplayModel
                                                     style={{
                                                         color:
                                                             sorted.length > 0
-                                                                ? "var(--text-primary)"
-                                                                : "var(--text-tertiary)",
+                                                                ? "var(--v-text-primary)"
+                                                                : "var(--v-text-muted)",
                                                     }}
                                                 >
                                                     {event.title}
@@ -1611,19 +1611,19 @@ function EventComparisonSection({ data, loading }: { data: AnalyticsDisplayModel
                                             </div>
                                             <span
                                                 className="text-[13px] font-bold tabular-nums text-right relative z-10"
-                                                style={{ color: "var(--text-primary)" }}
+                                                style={{ color: "var(--v-text-primary)" }}
                                             >
                                                 {fmt(event.revenue, "currency")}
                                             </span>
                                             <span
                                                 className="text-[13px] font-medium tabular-nums text-right relative z-10"
-                                                style={{ color: "var(--text-secondary)" }}
+                                                style={{ color: "var(--v-text-secondary)" }}
                                             >
                                                 {fmt(event.issued)}
                                             </span>
                                             <span
                                                 className="text-[13px] font-medium tabular-nums text-right relative z-10"
-                                                style={{ color: "var(--text-secondary)" }}
+                                                style={{ color: "var(--v-text-secondary)" }}
                                             >
                                                 {fmt(event.conversion, "percent")}
                                             </span>
@@ -1634,7 +1634,7 @@ function EventComparisonSection({ data, loading }: { data: AnalyticsDisplayModel
                             {!data.hasData && (
                                 <p
                                     className="text-center text-[11px] mt-3 font-medium uppercase tracking-widest"
-                                    style={{ color: "var(--text-tertiary)" }}
+                                    style={{ color: "var(--v-text-muted)" }}
                                 >
                                     Event rankings will appear after your first event completes
                                 </p>
@@ -1666,8 +1666,8 @@ function SourceHeatmapSection({ data, loading }: { data: AnalyticsDisplayModel; 
                     <div className="flex items-center justify-between w-full">
                         <span className="v-label">AUDIENCE SOURCE SPLIT</span>
                         <div
-                            className="flex items-center gap-1 p-0.5 rounded-xl border border-[var(--border-subtle)]"
-                            style={{ background: "var(--bg-fill)" }}
+                            className="flex items-center gap-1 p-0.5 rounded-xl border border-[var(--v-border)]"
+                            style={{ background: "var(--v-elevated)" }}
                         >
                             {(["bars", "radial"] as const).map(v => (
                                 <button
@@ -1676,13 +1676,13 @@ function SourceHeatmapSection({ data, loading }: { data: AnalyticsDisplayModel; 
                                     className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
                                     style={{
                                         background:
-                                            sourceView === v ? "var(--bg-elevated)" : "transparent",
+                                            sourceView === v ? "var(--v-card)" : "transparent",
                                         color:
                                             sourceView === v
-                                                ? "var(--text-primary)"
-                                                : "var(--text-tertiary)",
+                                                ? "var(--v-text-primary)"
+                                                : "var(--v-text-muted)",
                                         boxShadow:
-                                            sourceView === v ? "var(--shadow-sm)" : "none",
+                                            sourceView === v ? "var(--v-shadow-card)" : "none",
                                     }}
                                 >
                                     {v}
@@ -1708,7 +1708,7 @@ function SourceHeatmapSection({ data, loading }: { data: AnalyticsDisplayModel; 
                                             />
                                             <span
                                                 className="text-[10px] font-semibold truncate"
-                                                style={{ color: "var(--text-tertiary)" }}
+                                                style={{ color: "var(--v-text-muted)" }}
                                             >
                                                 {s.name}
                                                 {data.hasData ? ` · ${s.value.toFixed(0)}%` : ""}
@@ -1732,21 +1732,21 @@ function SourceHeatmapSection({ data, loading }: { data: AnalyticsDisplayModel; 
                                                 />
                                                 <span
                                                     className="text-[12px] font-semibold"
-                                                    style={{ color: "var(--text-secondary)" }}
+                                                    style={{ color: "var(--v-text-secondary)" }}
                                                 >
                                                     {s.name}
                                                 </span>
                                             </div>
                                             <span
                                                 className="text-[12px] font-bold tabular-nums"
-                                                style={{ color: "var(--text-primary)" }}
+                                                style={{ color: "var(--v-text-primary)" }}
                                             >
                                                 {data.hasData ? `${s.pct.toFixed(1)}%` : "0%"}
                                             </span>
                                         </div>
                                         <div
                                             className="h-2 w-full rounded-full overflow-hidden"
-                                            style={{ background: "var(--bg-fill)" }}
+                                            style={{ background: "var(--v-elevated)" }}
                                         >
                                             <div
                                                 className="h-full rounded-full transition-all duration-500"
@@ -1762,7 +1762,7 @@ function SourceHeatmapSection({ data, loading }: { data: AnalyticsDisplayModel; 
                                 {!data.hasData && (
                                     <p
                                         className="text-[11px] mt-1"
-                                        style={{ color: "var(--text-tertiary)" }}
+                                        style={{ color: "var(--v-text-muted)" }}
                                     >
                                         Traffic source breakdown will appear after discovery activity
                                         begins
@@ -1795,7 +1795,7 @@ function HeatmapGrid({ data }: { data: AnalyticsDisplayModel }) {
                         <div
                             key={h}
                             className="flex-1 text-center text-[9px] font-bold uppercase tracking-widest"
-                            style={{ color: "var(--text-tertiary)" }}
+                            style={{ color: "var(--v-text-muted)" }}
                         >
                             {h.slice(0, 2)}
                         </div>
@@ -1806,7 +1806,7 @@ function HeatmapGrid({ data }: { data: AnalyticsDisplayModel }) {
                     <div key={day} className="flex items-center gap-0.5 mb-0.5">
                         <span
                             className="w-8 text-[9px] font-bold uppercase tracking-widest shrink-0"
-                            style={{ color: "var(--text-tertiary)" }}
+                            style={{ color: "var(--v-text-muted)" }}
                         >
                             {day}
                         </span>
@@ -1825,8 +1825,8 @@ function HeatmapGrid({ data }: { data: AnalyticsDisplayModel }) {
                                         background:
                                             intensity > 0
                                                 ? `rgba(244,74,34,${0.1 + intensity * 0.8})`
-                                                : "var(--bg-fill)",
-                                        border: "1px solid var(--border-subtle)",
+                                                : "var(--v-elevated)",
+                                        border: "1px solid var(--v-border)",
                                     }}
                                     title={`${day} ${hour}: ${cell?.value ?? 0}`}
                                 />
@@ -1837,7 +1837,7 @@ function HeatmapGrid({ data }: { data: AnalyticsDisplayModel }) {
             </div>
 
             <div className="flex items-center gap-2 mt-3">
-                <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                <span className="text-[10px]" style={{ color: "var(--v-text-muted)" }}>
                     Low
                 </span>
                 <div className="flex gap-0.5">
@@ -1849,11 +1849,11 @@ function HeatmapGrid({ data }: { data: AnalyticsDisplayModel }) {
                         />
                     ))}
                 </div>
-                <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                <span className="text-[10px]" style={{ color: "var(--v-text-muted)" }}>
                     High
                 </span>
                 {!data.hasData && (
-                    <span className="ml-2 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                    <span className="ml-2 text-[10px]" style={{ color: "var(--v-text-muted)" }}>
                         · Demand patterns will populate after activity
                     </span>
                 )}
@@ -1866,12 +1866,12 @@ function HeatmapGrid({ data }: { data: AnalyticsDisplayModel }) {
 
 function FinanceSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
     const financeRows = [
-        { label: "Gross Sales", value: data.grossSales, isDeduction: false, isTotal: false, color: "var(--chart-1)" },
-        { label: "Refunds", value: data.refundAmount, isDeduction: true, isTotal: false, color: "var(--color-error)" },
-        { label: "Platform Fee", value: data.platformFees, isDeduction: true, isTotal: false, color: "var(--color-error)" },
-        { label: "Net Payable", value: data.netSales, isDeduction: false, isTotal: true, color: "var(--accent)" },
-        { label: "Pending Payout", value: data.pendingPayout, isDeduction: false, isTotal: false, color: "var(--color-warning)" },
-        { label: "Completed Payout", value: data.completedPayout, isDeduction: false, isTotal: false, color: "var(--color-success)" },
+        { label: "Gross Sales", value: data.grossSales, isDeduction: false, isTotal: false, color: "var(--v-chart-1)" },
+        { label: "Refunds", value: data.refundAmount, isDeduction: true, isTotal: false, color: "var(--v-error)" },
+        { label: "Platform Fee", value: data.platformFees, isDeduction: true, isTotal: false, color: "var(--v-error)" },
+        { label: "Net Payable", value: data.netSales, isDeduction: false, isTotal: true, color: "var(--v-orange)" },
+        { label: "Pending Payout", value: data.pendingPayout, isDeduction: false, isTotal: false, color: "var(--v-warning)" },
+        { label: "Completed Payout", value: data.completedPayout, isDeduction: false, isTotal: false, color: "var(--v-success)" },
     ];
 
     const maxBarVal = data.grossSales || 1;
@@ -1895,10 +1895,10 @@ function FinanceSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                                     key={row.label}
                                     className="rounded-xl px-4 py-3"
                                     style={{
-                                        background: row.isTotal ? "var(--bg-fill)" : "transparent",
+                                        background: row.isTotal ? "var(--v-elevated)" : "transparent",
                                         borderTop:
                                             i > 0 && !row.isTotal
-                                                ? "1px solid var(--border-subtle)"
+                                                ? "1px solid var(--v-border)"
                                                 : "none",
                                         marginTop: row.isTotal ? 8 : 0,
                                     }}
@@ -1908,8 +1908,8 @@ function FinanceSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                                             className="text-[12px] font-medium"
                                             style={{
                                                 color: row.isTotal
-                                                    ? "var(--text-primary)"
-                                                    : "var(--text-secondary)",
+                                                    ? "var(--v-text-primary)"
+                                                    : "var(--v-text-secondary)",
                                             }}
                                         >
                                             {row.label}
@@ -1923,7 +1923,7 @@ function FinanceSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                                     </div>
                                     <div
                                         className="h-1.5 w-full rounded-full overflow-hidden"
-                                        style={{ background: "var(--border-subtle)" }}
+                                        style={{ background: "var(--v-border)" }}
                                     >
                                         <div
                                             className="h-full rounded-full transition-all duration-700"
@@ -1941,18 +1941,18 @@ function FinanceSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                         {/* Payout progress */}
                         <div
                             className="mt-3 p-4 rounded-2xl"
-                            style={{ background: "var(--bg-fill)" }}
+                            style={{ background: "var(--v-elevated)" }}
                         >
                             <p className="v-label mb-3">PAYOUT STATUS</p>
                             <div
                                 className="h-3 w-full rounded-full overflow-hidden"
-                                style={{ background: "var(--border-subtle)" }}
+                                style={{ background: "var(--v-border)" }}
                             >
                                 <div
                                     className="h-full rounded-full transition-all duration-700"
                                     style={{
                                         width: `${data.hasData ? paidPct : 0}%`,
-                                        background: "linear-gradient(90deg, var(--color-info), var(--color-success))",
+                                        background: "linear-gradient(90deg, var(--v-info), var(--v-success))",
                                     }}
                                 />
                             </div>
@@ -1960,11 +1960,11 @@ function FinanceSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                                 <div className="flex items-center gap-1.5">
                                     <div
                                         className="w-2 h-2 rounded-full"
-                                        style={{ background: "var(--color-success)" }}
+                                        style={{ background: "var(--v-success)" }}
                                     />
                                     <span
                                         className="text-[10px] font-semibold"
-                                        style={{ color: "var(--text-tertiary)" }}
+                                        style={{ color: "var(--v-text-muted)" }}
                                     >
                                         Paid {fmt(data.completedPayout, "currency")}
                                     </span>
@@ -1972,11 +1972,11 @@ function FinanceSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                                 <div className="flex items-center gap-1.5">
                                     <div
                                         className="w-2 h-2 rounded-full"
-                                        style={{ background: "var(--color-warning)" }}
+                                        style={{ background: "var(--v-warning)" }}
                                     />
                                     <span
                                         className="text-[10px] font-semibold"
-                                        style={{ color: "var(--text-tertiary)" }}
+                                        style={{ color: "var(--v-text-muted)" }}
                                     >
                                         Pending {fmt(data.pendingPayout, "currency")}
                                     </span>
@@ -1985,7 +1985,7 @@ function FinanceSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                         </div>
 
                         {!data.hasData && (
-                            <p className="text-[11px] mt-2" style={{ color: "var(--text-tertiary)" }}>
+                            <p className="text-[11px] mt-2" style={{ color: "var(--v-text-muted)" }}>
                                 No payout data available yet
                             </p>
                         )}
@@ -2005,18 +2005,18 @@ function FinanceSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                             <div
                                 key={p.id || i}
                                 className="flex items-center justify-between px-4 py-3 rounded-2xl"
-                                style={{ background: "var(--bg-fill)" }}
+                                style={{ background: "var(--v-elevated)" }}
                             >
                                 <div>
                                     <p
                                         className="text-[13px] font-semibold"
-                                        style={{ color: "var(--text-primary)" }}
+                                        style={{ color: "var(--v-text-primary)" }}
                                     >
                                         Payout #{p.id}
                                     </p>
                                     <p
                                         className="text-[11px] uppercase tracking-widest mt-0.5"
-                                        style={{ color: "var(--text-tertiary)" }}
+                                        style={{ color: "var(--v-text-muted)" }}
                                     >
                                         {p.date}
                                     </p>
@@ -2024,15 +2024,15 @@ function FinanceSection({ data, loading }: { data: AnalyticsDisplayModel; loadin
                                 <div className="text-right">
                                     <p
                                         className="text-[13px] font-bold tabular-nums"
-                                        style={{ color: "var(--text-primary)" }}
+                                        style={{ color: "var(--v-text-primary)" }}
                                     >
                                         {fmt(p.amount, "currency")}
                                     </p>
                                     <span
                                         className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
                                         style={{
-                                            background: "var(--color-success-bg)",
-                                            color: "var(--color-success)",
+                                            background: "var(--v-success-bg)",
+                                            color: "var(--v-success)",
                                         }}
                                     >
                                         {p.status}
@@ -2071,7 +2071,7 @@ function TableSection({ data, loading }: { data: AnalyticsDisplayModel; loading:
                     <span className="v-label">EVENT-LEVEL ANALYTICS TABLE</span>
                     <button
                         className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
-                        style={{ background: "var(--bg-fill)", color: "var(--text-secondary)" }}
+                        style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)" }}
                     >
                         <Download className="w-3.5 h-3.5" />
                         Export CSV
@@ -2083,12 +2083,12 @@ function TableSection({ data, loading }: { data: AnalyticsDisplayModel; loading:
                 <div className="overflow-x-auto -mx-2">
                     <table className="w-full text-left" style={{ minWidth: 900 }}>
                         <thead>
-                            <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                            <tr style={{ borderBottom: "1px solid var(--v-border)" }}>
                                 {TABLE_COLS.map(col => (
                                     <th
                                         key={col}
                                         className="px-3 py-2.5 text-[10px] font-black uppercase tracking-widest whitespace-nowrap"
-                                        style={{ color: "var(--text-tertiary)" }}
+                                        style={{ color: "var(--v-text-muted)" }}
                                     >
                                         {col}
                                     </th>
@@ -2101,61 +2101,61 @@ function TableSection({ data, loading }: { data: AnalyticsDisplayModel; loading:
                                     key={i}
                                     className="transition-colors"
                                     style={{
-                                        borderBottom: "1px solid var(--border-subtle)",
+                                        borderBottom: "1px solid var(--v-border)",
                                         opacity: !data.hasData ? 0.45 : 1,
                                     }}
                                 >
                                     <td
                                         className="px-3 py-3 text-[12px] tabular-nums whitespace-nowrap"
-                                        style={{ color: "var(--text-secondary)" }}
+                                        style={{ color: "var(--v-text-secondary)" }}
                                     >
                                         {row.date}
                                     </td>
                                     <td
                                         className="px-3 py-3 text-[12px] font-medium max-w-[160px] truncate"
-                                        style={{ color: "var(--text-primary)" }}
+                                        style={{ color: "var(--v-text-primary)" }}
                                     >
                                         {row.event}
                                     </td>
                                     <td
                                         className="px-3 py-3 text-[12px] font-semibold tabular-nums"
-                                        style={{ color: "var(--text-primary)" }}
+                                        style={{ color: "var(--v-text-primary)" }}
                                     >
                                         {fmt(row.revenue, "currency")}
                                     </td>
                                     <td
                                         className="px-3 py-3 text-[12px] tabular-nums"
-                                        style={{ color: "var(--text-secondary)" }}
+                                        style={{ color: "var(--v-text-secondary)" }}
                                     >
                                         {fmt(row.tickets)}
                                     </td>
                                     <td
                                         className="px-3 py-3 text-[12px] tabular-nums"
-                                        style={{ color: "var(--text-secondary)" }}
+                                        style={{ color: "var(--v-text-secondary)" }}
                                     >
                                         {fmt(row.guestlist)}
                                     </td>
                                     <td
                                         className="px-3 py-3 text-[12px] tabular-nums"
-                                        style={{ color: "var(--text-secondary)" }}
+                                        style={{ color: "var(--v-text-secondary)" }}
                                     >
                                         {fmt(row.entries)}
                                     </td>
                                     <td
                                         className="px-3 py-3 text-[12px] tabular-nums"
-                                        style={{ color: "var(--text-secondary)" }}
+                                        style={{ color: "var(--v-text-secondary)" }}
                                     >
                                         {fmt(row.conversion, "percent")}
                                     </td>
                                     <td
                                         className="px-3 py-3 text-[12px] tabular-nums"
-                                        style={{ color: "var(--text-secondary)" }}
+                                        style={{ color: "var(--v-text-secondary)" }}
                                     >
                                         {fmt(row.refunds)}
                                     </td>
                                     <td
                                         className="px-3 py-3 text-[12px] font-semibold tabular-nums"
-                                        style={{ color: "var(--text-primary)" }}
+                                        style={{ color: "var(--v-text-primary)" }}
                                     >
                                         {fmt(row.payout, "currency")}
                                     </td>
@@ -2164,15 +2164,15 @@ function TableSection({ data, loading }: { data: AnalyticsDisplayModel; loading:
                                             className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
                                             style={{
                                                 background:
-                                                    row.status === "completed" ? "var(--color-success-bg)"
-                                                    : row.status === "pending"   ? "var(--color-warning-bg)"
-                                                    : row.status === "cancelled" ? "var(--color-error-bg)"
-                                                    : "var(--bg-fill)",
+                                                    row.status === "completed" ? "var(--v-success-bg)"
+                                                    : row.status === "pending"   ? "var(--v-warning-bg)"
+                                                    : row.status === "cancelled" ? "var(--v-error-bg)"
+                                                    : "var(--v-elevated)",
                                                 color:
-                                                    row.status === "completed" ? "var(--color-success)"
-                                                    : row.status === "pending"   ? "var(--color-warning)"
-                                                    : row.status === "cancelled" ? "var(--color-error)"
-                                                    : "var(--text-tertiary)",
+                                                    row.status === "completed" ? "var(--v-success)"
+                                                    : row.status === "pending"   ? "var(--v-warning)"
+                                                    : row.status === "cancelled" ? "var(--v-error)"
+                                                    : "var(--v-text-muted)",
                                             }}
                                         >
                                             {row.status}
@@ -2185,9 +2185,9 @@ function TableSection({ data, loading }: { data: AnalyticsDisplayModel; loading:
 
                     <div
                         className="flex items-center justify-between px-3 py-3 mt-1 rounded-xl"
-                        style={{ background: "var(--bg-fill)" }}
+                        style={{ background: "var(--v-elevated)" }}
                     >
-                        <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                        <span className="text-[11px]" style={{ color: "var(--v-text-muted)" }}>
                             {data.hasData
                                 ? `Showing ${data.tableRows.length} events`
                                 : "No events to display"}
@@ -2199,11 +2199,11 @@ function TableSection({ data, loading }: { data: AnalyticsDisplayModel; loading:
                                     className="w-7 h-7 rounded-lg text-[11px] font-bold transition-all"
                                     style={{
                                         background:
-                                            p === 1 ? "var(--bg-elevated)" : "transparent",
+                                            p === 1 ? "var(--v-card)" : "transparent",
                                         color:
                                             p === 1
-                                                ? "var(--text-primary)"
-                                                : "var(--text-tertiary)",
+                                                ? "var(--v-text-primary)"
+                                                : "var(--v-text-muted)",
                                     }}
                                 >
                                     {p}
@@ -2220,10 +2220,10 @@ function TableSection({ data, loading }: { data: AnalyticsDisplayModel; loading:
 // ── Section: Insight Cards ────────────────────────────────────────────────────
 
 const INSIGHT_ACCENTS = [
-    { color: "var(--chart-1)", bg: "rgba(244,74,34,0.12)" },
-    { color: "var(--chart-2)", bg: "rgba(129,140,248,0.12)" },
-    { color: "var(--chart-3)", bg: "rgba(52,211,153,0.12)" },
-    { color: "var(--chart-4)", bg: "rgba(251,191,36,0.12)" },
+    { color: "var(--v-chart-1)", bg: "rgba(244,74,34,0.12)" },
+    { color: "var(--v-chart-2)", bg: "rgba(129,140,248,0.12)" },
+    { color: "var(--v-chart-3)", bg: "rgba(52,211,153,0.12)" },
+    { color: "var(--v-chart-4)", bg: "rgba(251,191,36,0.12)" },
 ];
 
 function InsightsSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
@@ -2232,7 +2232,7 @@ function InsightsSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
             loading={loading}
             header={
                 <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                    <Sparkles className="w-4 h-4" style={{ color: "var(--v-orange)" }} />
                     <span className="v-label">SMART INSIGHTS</span>
                 </div>
             }
@@ -2246,21 +2246,21 @@ function InsightsSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
                             key={i}
                             className="rounded-2xl p-5 flex flex-col gap-3"
                             style={{
-                                background: insight.placeholder ? "var(--bg-fill)" : "var(--bg-elevated)",
-                                border: `1px solid ${insight.placeholder ? "var(--border-subtle)" : accent.color + "40"}`,
+                                background: insight.placeholder ? "var(--v-elevated)" : "var(--v-card)",
+                                border: `1px solid ${insight.placeholder ? "var(--v-border)" : accent.color + "40"}`,
                                 opacity: insight.placeholder ? 0.75 : 1,
                             }}
                         >
                             <div
                                 className="w-8 h-8 rounded-xl flex items-center justify-center"
                                 style={{
-                                    background: insight.placeholder ? "var(--bg-elevated)" : accent.bg,
+                                    background: insight.placeholder ? "var(--v-card)" : accent.bg,
                                 }}
                             >
                                 <Sparkles
                                     className="w-4 h-4"
                                     style={{
-                                        color: insight.placeholder ? "var(--text-tertiary)" : accent.color,
+                                        color: insight.placeholder ? "var(--v-text-muted)" : accent.color,
                                     }}
                                 />
                             </div>
@@ -2268,8 +2268,8 @@ function InsightsSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
                                 className="text-[13px] font-semibold leading-snug"
                                 style={{
                                     color: insight.placeholder
-                                        ? "var(--text-tertiary)"
-                                        : "var(--text-primary)",
+                                        ? "var(--v-text-tertiary)"
+                                        : "var(--v-text-primary)",
                                 }}
                             >
                                 {insight.title}
@@ -2277,7 +2277,7 @@ function InsightsSection({ data, loading }: { data: AnalyticsDisplayModel; loadi
                             {insight.body && (
                                 <p
                                     className="text-[12px] leading-relaxed"
-                                    style={{ color: "var(--text-tertiary)" }}
+                                    style={{ color: "var(--v-text-muted)" }}
                                 >
                                     {insight.body}
                                 </p>
@@ -2326,7 +2326,7 @@ function LegendDot({
             )}
             <span
                 className="text-[10px] font-semibold uppercase tracking-widest"
-                style={{ color: "var(--text-tertiary)" }}
+                style={{ color: "var(--v-text-muted)" }}
             >
                 {label}
             </span>

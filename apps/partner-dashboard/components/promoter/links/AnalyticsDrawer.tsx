@@ -25,12 +25,12 @@ function FunnelBar({ label, value, max, color }: { label: string; value: number;
     return (
         <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold" style={{ color: "var(--text-tertiary)" }}>{label}</span>
-                <span className="text-[11px] font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>
-                    {value.toLocaleString()} {max > 0 && value !== max && <span style={{ color: "var(--text-tertiary)" }}>({pct}%)</span>}
+                <span className="text-[11px] font-semibold" style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>{label}</span>
+                <span className="text-[11px] font-bold tabular-nums" style={{ color: "var(--v-text-primary, #fafafa)" }}>
+                    {value.toLocaleString()} {max > 0 && value !== max && <span style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>({pct}%)</span>}
                 </span>
             </div>
-            <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--bg-fill)" }}>
+            <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--v-elevated, #222226)" }}>
                 <motion.div
                     initial={{ width: 0 }}
                     animate={{ width }}
@@ -45,11 +45,11 @@ function FunnelBar({ label, value, max, color }: { label: string; value: number;
 
 function StatCard({ label, value }: { label: string; value: string }) {
     return (
-        <div className="p-3 rounded-xl" style={{ background: "var(--bg-fill)" }}>
-            <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--text-tertiary)" }}>
+        <div className="p-3 rounded-xl" style={{ background: "var(--v-elevated, #222226)" }}>
+            <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
                 {label}
             </p>
-            <p className="text-[22px] font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>
+            <p className="text-[22px] font-bold tabular-nums" style={{ color: "var(--v-text-primary, #fafafa)" }}>
                 {value}
             </p>
         </div>
@@ -147,8 +147,8 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
                         className="fixed right-0 top-0 h-full z-50 flex flex-col overflow-y-auto"
                         style={{
                             width: 400,
-                            background: "var(--bg-elevated)",
-                            borderLeft: "1px solid var(--border-subtle)"
+                            background: "var(--v-card, #1a1a1d)",
+                            borderLeft: "1px solid var(--v-border, rgba(255,255,255,0.08))"
                         }}
                     >
                         {/* Header */}
@@ -156,13 +156,13 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
                             <div className="flex-1 min-w-0 pr-4">
                                 {loading || !link ? (
                                     <div className="space-y-2">
-                                        <div className="h-4 w-40 rounded animate-pulse" style={{ background: "var(--bg-fill)" }} />
-                                        <div className="h-3 w-28 rounded animate-pulse" style={{ background: "var(--bg-fill)" }} />
+                                        <div className="h-4 w-40 rounded animate-pulse" style={{ background: "var(--v-elevated, #222226)" }} />
+                                        <div className="h-3 w-28 rounded animate-pulse" style={{ background: "var(--v-elevated, #222226)" }} />
                                     </div>
                                 ) : (
                                     <>
                                         <div className="flex items-center gap-2 mb-1">
-                                            <h3 className="text-[15px] font-bold truncate" style={{ color: "var(--text-primary)" }}>
+                                            <h3 className="text-[15px] font-bold truncate" style={{ color: "var(--v-text-primary, #fafafa)" }}>
                                                 {link.campaignLabel || link.label || link.code || "Link"}
                                             </h3>
                                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide shrink-0"
@@ -170,7 +170,7 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
                                                 {statusLabel}
                                             </span>
                                         </div>
-                                        <p className="text-[12px] truncate" style={{ color: "var(--text-tertiary)" }}>
+                                        <p className="text-[12px] truncate" style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
                                             {link.eventTitle || link.eventId}
                                         </p>
                                     </>
@@ -179,8 +179,8 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
                             <button
                                 onClick={onClose}
                                 className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                                style={{ color: "var(--text-tertiary)" }}
-                                onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-fill)")}
+                                style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}
+                                onMouseEnter={e => (e.currentTarget.style.background = "var(--v-elevated, #222226)")}
                                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                             >
                                 <X size={16} />
@@ -191,7 +191,7 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
                             {loading ? (
                                 <div className="space-y-3 pt-2">
                                     {[1, 2, 3].map(i => (
-                                        <div key={i} className="h-14 rounded-xl animate-pulse" style={{ background: "var(--bg-fill)" }} />
+                                        <div key={i} className="h-14 rounded-xl animate-pulse" style={{ background: "var(--v-elevated, #222226)" }} />
                                     ))}
                                 </div>
                             ) : (
@@ -212,11 +212,11 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
 
                                     {/* Conversion funnel */}
                                     <div className="p-4 rounded-xl space-y-3"
-                                        style={{ background: "var(--bg-fill)", border: "1px solid var(--border-subtle)" }}>
+                                        style={{ background: "var(--v-elevated, #222226)", border: "1px solid var(--v-border, rgba(255,255,255,0.08))" }}>
                                         <div className="flex items-center gap-2 mb-3">
                                             <TrendingUp size={13} style={{ color: "#a78bfa" }} />
                                             <span className="text-[10px] font-bold uppercase tracking-wider"
-                                                style={{ color: "var(--text-tertiary)" }}>
+                                                style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
                                                 Conversion Funnel
                                             </span>
                                         </div>
@@ -245,16 +245,16 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
                                                 className="w-full py-3 rounded-xl text-[13px] font-semibold transition-all"
                                                 style={{
                                                     background: "transparent",
-                                                    color: "var(--text-tertiary)",
-                                                    border: "1px solid var(--border-subtle)"
+                                                    color: "var(--v-text-tertiary, #a1a1aa)",
+                                                    border: "1px solid var(--v-border, rgba(255,255,255,0.08))"
                                                 }}
                                                 onMouseEnter={e => {
                                                     e.currentTarget.style.color = "#f87171";
                                                     e.currentTarget.style.borderColor = "rgba(248,113,113,0.3)";
                                                 }}
                                                 onMouseLeave={e => {
-                                                    e.currentTarget.style.color = "var(--text-tertiary)";
-                                                    e.currentTarget.style.borderColor = "var(--border-subtle)";
+                                                    e.currentTarget.style.color = "var(--v-text-tertiary, #a1a1aa)";
+                                                    e.currentTarget.style.borderColor = "var(--v-border, rgba(255,255,255,0.08))";
                                                 }}
                                             >
                                                 Deactivate Link
@@ -288,8 +288,8 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
                                                         onClick={() => setConfirmDeactivate(false)}
                                                         className="flex-1 py-2 rounded-lg text-[12px] font-semibold transition-all"
                                                         style={{
-                                                            background: "var(--bg-fill)",
-                                                            color: "var(--text-secondary)"
+                                                            background: "var(--v-elevated, #222226)",
+                                                            color: "var(--v-text-secondary, #d1d1d6)"
                                                         }}
                                                     >
                                                         Cancel
