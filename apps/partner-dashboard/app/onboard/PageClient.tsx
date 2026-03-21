@@ -39,6 +39,8 @@ function OnboardingContent() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [showPassword, setShowPassword] = useState(false);
+    const [approvalStatus, setApprovalStatus] = useState<"pending" | "verified">("pending");
+    const [submittedRequestId, setSubmittedRequestId] = useState<string | null>(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -74,6 +76,39 @@ function OnboardingContent() {
             setFormData(prev => ({ ...prev, associatedHostId: hostId }));
         }
     }, [searchParams]);
+
+    // Poll the specific onboarding request every 10s while on the success step.
+    // We use submittedRequestId (the doc ID returned by /api/auth/onboard) so we
+    // ALWAYS check THIS application — not an older VERIFIED one the user may have.
+    useEffect(() => {
+        if (step !== "success" || !submittedRequestId) return;
+
+        const auth = getFirebaseAuth();
+
+        const checkApproval = async () => {
+            const currentUser = auth.currentUser;
+            if (!currentUser) return;
+            try {
+                const token = await currentUser.getIdToken();
+                const res = await fetch(
+                    `/api/auth/onboard-status?requestId=${encodeURIComponent(submittedRequestId)}`,
+                    { headers: { 'Authorization': `Bearer ${token}` } }
+                );
+                if (!res.ok) return;
+                const data = await res.json();
+                const status = (data.status as string | undefined)?.toLowerCase();
+                if (status === "verified" || status === "approved") {
+                    setApprovalStatus("verified");
+                }
+            } catch {
+                // silent — network errors shouldn't crash the page
+            }
+        };
+
+        checkApproval(); // immediate check on mount
+        const interval = setInterval(checkApproval, 10_000);
+        return () => clearInterval(interval);
+    }, [step, submittedRequestId]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -130,6 +165,12 @@ function OnboardingContent() {
                 throw new Error(data.error || "Failed to submit request.");
             }
 
+            const responseData = await res.json();
+            // Store the exact doc ID so polling checks THIS application, not an
+            // older one that might already be VERIFIED for this user.
+            if (responseData.requestId) {
+                setSubmittedRequestId(responseData.requestId);
+            }
             setStep("success");
         } catch (err: any) {
             console.error("Onboarding error:", err);
@@ -497,43 +538,86 @@ function OnboardingContent() {
                             transition={{ duration: 0.4 }}
                             className="text-center pt-8"
                         >
-                            <motion.div
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                transition={{ type: "spring", delay: 0.2 }}
-                                className="h-24 w-24 rounded-3xl bg-[var(--state-success-bg)] text-[var(--state-success)] flex items-center justify-center mx-auto mb-8"
-                            >
-                                <CheckCircle2 className="h-12 w-12" />
-                            </motion.div>
+                            {approvalStatus === "verified" ? (
+                                // ── APPROVED STATE ────────────────────────────────────────
+                                <>
+                                    <motion.div
+                                        key="approved-icon"
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        transition={{ type: "spring", delay: 0.1 }}
+                                        className="h-24 w-24 rounded-3xl bg-[var(--accent-glow)] text-[var(--accent-primary)] flex items-center justify-center mx-auto mb-8"
+                                    >
+                                        <Sparkles className="h-12 w-12" />
+                                    </motion.div>
 
-                            <h1 className="text-display-sm text-[var(--text-primary)] mb-4">Application Submitted</h1>
-                            <p className="text-body text-[var(--text-secondary)] mb-10 max-w-md mx-auto">
-                                Your application for <span className="font-semibold text-[var(--text-primary)]">{formData.name}</span> has been received.
-                                We'll review your details and send access credentials via email once approved.
-                            </p>
-
-                            <div className="p-6 rounded-2xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)] mb-10 flex items-start gap-4 text-left">
-                                <ShieldCheck className="h-6 w-6 text-[var(--accent-primary)] flex-shrink-0" />
-                                <div>
-                                    <p className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">What Happens Next?</p>
-                                    <p className="text-[13px] text-[var(--text-tertiary)] leading-relaxed">
-                                        Our team typically reviews applications within 24-48 hours. You'll receive an email notification once your account is activated.
+                                    <h1 className="text-display-sm text-[var(--text-primary)] mb-4">Registration Successful</h1>
+                                    <p className="text-body text-[var(--text-secondary)] mb-10 max-w-md mx-auto">
+                                        <span className="font-semibold text-[var(--text-primary)]">{formData.name}</span> has been approved and your account is now active. You can log in to access your dashboard.
                                     </p>
-                                </div>
-                            </div>
 
-                            <button
-                                onClick={async () => {
-                                    if (authUser) {
-                                        await signOut();
-                                    }
-                                    router.push('/login');
-                                }}
-                                className="inline-flex items-center gap-2 text-[var(--accent-primary)] font-semibold text-[14px] hover:underline"
-                            >
-                                Return to Login
-                                <ChevronRight className="h-4 w-4" />
-                            </button>
+                                    <div className="p-6 rounded-2xl bg-[var(--accent-glow)] border border-[var(--accent-primary)]/20 mb-10 flex items-start gap-4 text-left">
+                                        <ShieldCheck className="h-6 w-6 text-[var(--accent-primary)] flex-shrink-0" />
+                                        <div>
+                                            <p className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">You're All Set</p>
+                                            <p className="text-[13px] text-[var(--text-tertiary)] leading-relaxed">
+                                                Your partner account is active. Head to the login page and sign in with your credentials to start managing your venue.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={async () => {
+                                            if (authUser) await signOut();
+                                            router.push('/login');
+                                        }}
+                                        className="inline-flex items-center gap-3 px-8 py-3.5 rounded-2xl bg-[var(--accent-primary)] text-white font-semibold text-[14px] hover:brightness-110 transition-all shadow-lg shadow-[var(--accent-primary)]/20"
+                                    >
+                                        Go to Login
+                                        <ChevronRight className="h-4 w-4" />
+                                    </button>
+                                </>
+                            ) : (
+                                // ── PENDING STATE ─────────────────────────────────────────
+                                <>
+                                    <motion.div
+                                        key="pending-icon"
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        transition={{ type: "spring", delay: 0.2 }}
+                                        className="h-24 w-24 rounded-3xl bg-[var(--state-success-bg)] text-[var(--state-success)] flex items-center justify-center mx-auto mb-8"
+                                    >
+                                        <CheckCircle2 className="h-12 w-12" />
+                                    </motion.div>
+
+                                    <h1 className="text-display-sm text-[var(--text-primary)] mb-4">Application Submitted</h1>
+                                    <p className="text-body text-[var(--text-secondary)] mb-10 max-w-md mx-auto">
+                                        Your application for <span className="font-semibold text-[var(--text-primary)]">{formData.name}</span> has been received.
+                                        We'll review your details and send access credentials via email once approved.
+                                    </p>
+
+                                    <div className="p-6 rounded-2xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)] mb-10 flex items-start gap-4 text-left">
+                                        <ShieldCheck className="h-6 w-6 text-[var(--accent-primary)] flex-shrink-0" />
+                                        <div>
+                                            <p className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">What Happens Next?</p>
+                                            <p className="text-[13px] text-[var(--text-tertiary)] leading-relaxed">
+                                                Our team typically reviews applications within 24-48 hours. You'll receive an email notification once your account is activated.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={async () => {
+                                            if (authUser) await signOut();
+                                            router.push('/login');
+                                        }}
+                                        className="inline-flex items-center gap-2 text-[var(--accent-primary)] font-semibold text-[14px] hover:underline"
+                                    >
+                                        Return to Login
+                                        <ChevronRight className="h-4 w-4" />
+                                    </button>
+                                </>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>

@@ -73,7 +73,9 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
 
         const fetchUserData = async () => {
             try {
-                const token = await user.getIdToken();
+                // Force-refresh ensures admin-set custom claims are picked up
+                // immediately without waiting for the 1-hour token TTL.
+                const token = await user.getIdToken(true);
                 const res = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
 
                 if (!res.ok) {

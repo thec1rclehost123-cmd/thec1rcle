@@ -81,7 +81,10 @@ function LoginForm() {
             const currentUser = auth.currentUser;
 
             if (currentUser) {
-                const token = await currentUser.getIdToken();
+                // Force-refresh the token so the admin-set custom claims
+                // (partnerId, partnerType, partnerRole) are included immediately
+                // after the first login following admin approval.
+                const token = await currentUser.getIdToken(true);
                 const res = await fetch('/api/auth/me', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -134,8 +137,12 @@ function LoginForm() {
             router.push(`/${userType}`);
         } catch (err: any) {
             console.error("Login error:", err);
-            if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-                setError("Account not found or invalid credentials.");
+            if (err.code === 'auth/user-not-found') {
+                setError("No account found with this email. Please apply for access or check your email.");
+            } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+                // This also occurs when the account uses Google Sign-In (no password set).
+                // In that case the user should reset their password via "Forgot password?".
+                setError("Invalid credentials. If you registered via Google, use 'Forgot password?' to set a password.");
             } else {
                 setError("An error occurred. Please try again.");
             }
