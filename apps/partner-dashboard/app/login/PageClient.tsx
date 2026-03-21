@@ -44,29 +44,32 @@ function LoginForm() {
     const [error, setError] = useState("");
 
     useEffect(() => {
-        if (!authLoading && user) {
-            // Only auto-redirect if approved AND has an active partnership — prevents
-            // a loop where isApproved=true but activeMembership is null (RoleGuard would
-            // immediately send them back here).
-            if (isApproved && profile?.activeMembership) {
-                const callback = searchParams.get("callbackUrl");
-                if (callback) {
-                    router.replace(callback);
-                } else {
-                    const pt = profile.activeMembership.partnerType;
-                    router.replace(`/${pt || userType}`);
-                }
-            } else if (!isApproved) {
-                // Not approved — sign them out and show a clear message instead of
-                // bouncing them to the onboarding page.
-                const auth = getFirebaseAuth();
-                auth.signOut();
-                if (onboardingStatus) {
-                    setError("You don't have partner access yet. Your application is pending review.");
-                }
-                // If no onboarding request either, they'll see the login form normally.
+        // Wait for DashboardAuthProvider to finish its async fetch before acting.
+        // Without this guard the effect fires while isApproved=false (its default),
+        // which signs the user out before the profile is even loaded — causing the
+        // "page refreshes / fields clear" silent failure.
+        if (authLoading || !user) return;
+
+        if (isApproved && profile?.activeMembership) {
+            // Fully approved with an active partnership — go to dashboard.
+            const callback = searchParams.get("callbackUrl");
+            if (callback) {
+                router.replace(callback);
+            } else {
+                const pt = profile.activeMembership.partnerType;
+                router.replace(`/${pt || userType}`);
+            }
+        } else if (!isApproved && profile !== null) {
+            // profile is loaded (not null) but user is not approved — safe to reject.
+            // We check profile !== null to avoid acting on the initial null state.
+            const auth = getFirebaseAuth();
+            auth.signOut();
+            if (onboardingStatus) {
+                setError("You don't have partner access yet. Your application is pending review.");
             }
         }
+        // If isApproved=true but activeMembership is null, do nothing — handleLogin
+        // will navigate directly via router.push once its own fetch completes.
     }, [user, authLoading, isApproved, profile, onboardingStatus, router, userType, searchParams]);
 
     const handleLogin = async (e: React.FormEvent) => {

@@ -71,6 +71,11 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (!user) return;
 
+        // Reset loading to true BEFORE the async fetch so that any guard
+        // (login page useEffect, RoleGuard, etc.) sees authLoading=true and
+        // doesn't act on stale isApproved=false while we're still fetching.
+        setLoading(true);
+
         const fetchUserData = async () => {
             try {
                 // Force-refresh ensures admin-set custom claims are picked up
