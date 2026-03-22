@@ -52,6 +52,28 @@ const DoorEntryBody = z.object({
 
 const DoorEntryQuery = z.object({ eventId: z.string() }).strict();
 
+const WalkInBody = z.object({
+    eventCode: z.string(),
+    eventId: z.string(),
+    venueId: z.string(),
+    guestName: z.string(),
+    guestAge: z.number().int().min(0).max(120).optional(),
+    guestPhone: z.string().optional(),
+    gate: z.string().optional(),
+}).strict();
+
+const WalkInQuery = z.object({
+    eventId: z.string(),
+    eventCode: z.string(),
+    limit: z.string().optional(),
+}).strict();
+
+const DeviceBody = z.object({
+    deviceId: z.string(),
+    venueId: z.string(),
+    deviceName: z.string().optional(),
+}).strict();
+
 const EntitlementsParam = z.object({ id: z.string() }).strict();
 
 const QR_SECRET = process.env.QR_SECRET_KEY || 'c1rcle-qr-secret-2024';
@@ -209,13 +231,15 @@ export default async function scanRoutes(fastify: FastifyInstance) {
 
         await codeDoc.ref.update({ lastUsedAt: new Date().toISOString(), usageCount: (codeData.usageCount || 0) + 1 });
 
-        const [scansSnap, doorOrdersSnap] = await Promise.all([
+        const [scansSnap, doorOrdersSnap, walkInSnap] = await Promise.all([
             fastify.db.collection('ticket_scans').where('eventId', '==', codeData.eventId).where('result', '==', 'valid').get(),
-            fastify.db.collection('orders').where('eventId', '==', codeData.eventId).where('source', '==', 'door').get()
+            fastify.db.collection('orders').where('eventId', '==', codeData.eventId).where('source', '==', 'door').get(),
+            fastify.db.collection('walk_in_entries').doc(codeData.eventId).collection('logs').where('status', '==', 'active').get()
         ]);
         const prebookedEntered = scansSnap.docs.filter((d: any) => d.data().source !== 'door').length;
         const doorEntries = doorOrdersSnap.docs.length;
         const doorRevenue = doorOrdersSnap.docs.reduce((s: number, d: any) => s + (d.data().total || 0), 0);
+        const walkIns = walkInSnap.docs.length;
         const tiers = (event?.tickets || []).map((t: any) => ({ id: t.id || t.ticketId, name: t.name, price: t.price || 0, entryType: t.entryType || 'general', available: (t.remaining || t.quantity || 0) > 0 }));
 
         return {
@@ -224,10 +248,11 @@ export default async function scanRoutes(fastify: FastifyInstance) {
             permissions: {
                 canScan: codeData.type === 'full' || codeData.type === 'scan_only',
                 canDoorEntry: codeData.type === 'full',
-                canCharge: codeData.type === 'charge',   // Cover Wallet debit mode
+                canWalkIn: codeData.type === 'full' || codeData.type === 'scan_only',
+                canCharge: codeData.type === 'charge',
             },
             tiers, gate: codeData.gate || null,
-            stats: { totalEntered: prebookedEntered + doorEntries, prebooked: prebookedEntered, doorEntries, doorRevenue }
+            stats: { totalEntered: prebookedEntered + doorEntries + walkIns, prebooked: prebookedEntered, doorEntries, doorRevenue, walkIns }
         };
     });
 
@@ -264,16 +289,18 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         const codeData = codeSnap.docs[0].data();
         if (codeData.isRevoked) return reply.status(403).send({ error: 'Code revoked' });
 
-        const [scansSnap, doorSnap] = await Promise.all([
+        const [scansSnap, doorSnap, walkInSnap] = await Promise.all([
             fastify.db.collection('ticket_scans').where('eventId', '==', codeData.eventId).where('result', '==', 'valid').get(),
-            fastify.db.collection('orders').where('eventId', '==', codeData.eventId).where('source', '==', 'door').get()
+            fastify.db.collection('orders').where('eventId', '==', codeData.eventId).where('source', '==', 'door').get(),
+            fastify.db.collection('walk_in_entries').doc(codeData.eventId).collection('logs').where('status', '==', 'active').get()
         ]);
         const prebookedScans = scansSnap.docs.filter((d: any) => d.data().source !== 'door');
         const doorRevenue = doorSnap.docs.reduce((s: number, d: any) => s + (d.data().total || 0), 0);
         const byEntryType: Record<string, number> = {};
         scansSnap.docs.forEach((d: any) => { const et = d.data().entryType || 'general'; byEntryType[et] = (byEntryType[et] || 0) + (d.data().quantity || 1); });
-        const totalEntered = prebookedScans.reduce((s: number, d: any) => s + (d.data().quantity || 1), 0) + doorSnap.docs.length;
-        const result = { totalEntered, prebooked: prebookedScans.length, doorEntries: doorSnap.docs.length, doorRevenue, byEntryType };
+        const walkIns = walkInSnap.docs.length;
+        const totalEntered = prebookedScans.reduce((s: number, d: any) => s + (d.data().quantity || 1), 0) + doorSnap.docs.length + walkIns;
+        const result = { totalEntered, prebooked: prebookedScans.length, doorEntries: doorSnap.docs.length, doorRevenue, walkIns, byEntryType };
         await fastify.cache.set('scan:stats', cacheKey, result, 20); // 20s TTL — fresh enough for scanner UI
         return result;
     });
@@ -367,6 +394,112 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         let doorRevenue = 0;
         snap.docs.forEach((d: any) => { doorRevenue += d.data().total || 0; const m = d.data().paymentMethod || 'cash'; byPaymentMethod[m] = (byPaymentMethod[m] || 0) + (d.data().total || 0); });
         return { doorEntries: snap.docs.length, doorRevenue, byPaymentMethod };
+    });
+
+    // ── Walk-in Entries ───────────────────────────────────────────────────────
+
+    /**
+     * POST /api/v1/scan/walk-in
+     * Log a walk-in guest (arrives without a ticket)
+     */
+    fastify.post('/walk-in', {
+        preHandler: [fastify.validate({ body: WalkInBody })]
+    }, async (request: any, reply) => {
+        const { eventCode, eventId, venueId, guestName, guestAge, guestPhone, gate } = request.body as any;
+        if (!eventCode || !eventId || !venueId || !guestName?.trim())
+            return reply.status(400).send({ success: false, error: 'Missing required fields' });
+
+        const codeSnap = await fastify.db.collection('event_codes').where('code', '==', eventCode.toUpperCase()).limit(1).get();
+        if (codeSnap.empty || codeSnap.docs[0].data().isRevoked)
+            return reply.status(403).send({ success: false, error: 'Invalid or revoked event code' });
+
+        const { randomUUID } = await import('node:crypto');
+        const id = randomUUID();
+        const now = new Date().toISOString();
+        const phone = guestPhone?.trim() || '';
+
+        const entry = {
+            id, eventId, venueId,
+            guestName: guestName.trim(),
+            guestAge: guestAge ?? null,
+            phoneFull: phone || null,
+            phoneHash: phone ? phone.slice(-4) : '',
+            gate: gate || null,
+            eventCode: eventCode.toUpperCase(),
+            partySize: 1,
+            category: 'general',
+            paymentMode: 'complimentary',
+            amountPaise: 0,
+            status: 'active',
+            source: 'scanner',
+            note: '',
+            idempotencyKey: id,
+            addedBy: `scanner_${eventCode.toUpperCase()}`,
+            addedByName: 'Scanner App',
+            addedAt: now,
+            lastEditedBy: null,
+            updatedAt: now,
+        };
+
+        await fastify.db
+            .collection('walk_in_entries')
+            .doc(eventId)
+            .collection('logs')
+            .doc(id)
+            .set(entry);
+
+        return { success: true, walkInId: id };
+    });
+
+    /**
+     * GET /api/v1/scan/walk-in?eventId=&eventCode=
+     * List recent walk-ins for the event (scanner app pull-to-refresh)
+     */
+    fastify.get('/walk-in', {
+        preHandler: [fastify.validate({ querystring: WalkInQuery })]
+    }, async (request: any, reply) => {
+        const { eventId, eventCode, limit = '50' } = request.query as any;
+        if (!eventId || !eventCode) return reply.status(400).send({ error: 'eventId and eventCode are required' });
+
+        const codeSnap = await fastify.db.collection('event_codes').where('code', '==', eventCode.toUpperCase()).limit(1).get();
+        if (codeSnap.empty || codeSnap.docs[0].data().isRevoked)
+            return reply.status(403).send({ error: 'Invalid or revoked event code' });
+
+        const snap = await fastify.db
+            .collection('walk_in_entries')
+            .doc(eventId)
+            .collection('logs')
+            .where('status', '==', 'active')
+            .orderBy('addedAt', 'desc')
+            .limit(Number(limit))
+            .get();
+
+        return { walkIns: snap.docs.map((d: any) => ({ id: d.id, ...d.data(), phoneFull: undefined })) };
+    });
+
+    // ── Scanner Device Registration ───────────────────────────────────────────
+
+    /**
+     * POST /api/v1/scan/devices
+     * Register or refresh a scanner device binding for a venue
+     */
+    fastify.post('/devices', {
+        preHandler: [fastify.validate({ body: DeviceBody })]
+    }, async (request: any, reply) => {
+        const { deviceId, venueId, deviceName } = request.body as any;
+        if (!deviceId || !venueId) return reply.status(400).send({ error: 'deviceId and venueId are required' });
+
+        const now = new Date().toISOString();
+        const deviceRef = fastify.db.collection('bound_devices').doc(`${venueId}_${deviceId}`);
+        const deviceDoc = await deviceRef.get();
+
+        if (deviceDoc.exists) {
+            await deviceRef.update({ lastActiveAt: now, deviceName: deviceName || deviceDoc.data()?.deviceName });
+        } else {
+            await deviceRef.set({ deviceId, venueId, deviceName: deviceName || 'Scanner Device', bound: true, registeredAt: now, lastActiveAt: now });
+        }
+
+        return { success: true, deviceId };
     });
 
     /**

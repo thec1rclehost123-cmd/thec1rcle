@@ -1,4 +1,7 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001/api";
+const QUEUE_PREFIX = "door_entry_queue_";
 
 interface DoorEntryRequest {
     eventCode: string;
@@ -90,31 +93,52 @@ function simulateDoorEntry(request: DoorEntryRequest): DoorEntryResponse {
 }
 
 /**
- * Queue door entry for offline sync
+ * Queue a door entry for offline sync (used when network is unavailable).
+ * Returns a queue ID that can be used to track this entry.
  */
 export async function queueDoorEntry(request: DoorEntryRequest): Promise<string> {
-    // This will be implemented with AsyncStorage for offline support
-    // For now, we just return a placeholder ID
-    const queueId = `QUEUE-${Date.now()}`;
-
-    // TODO: Store in AsyncStorage
-    // await AsyncStorage.setItem(`door_entry_queue_${queueId}`, JSON.stringify(request));
-
+    const queueId = `QUEUE-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const key = `${QUEUE_PREFIX}${queueId}`;
+    await AsyncStorage.setItem(key, JSON.stringify({ ...request, _queueId: queueId, _queuedAt: new Date().toISOString() }));
     return queueId;
 }
 
 /**
- * Get pending door entries from offline queue
+ * Get all pending door entries from the offline queue.
  */
-export async function getPendingDoorEntries(): Promise<any[]> {
-    // TODO: Implement with AsyncStorage
-    return [];
+export async function getPendingDoorEntries(): Promise<Array<DoorEntryRequest & { _queueId: string; _queuedAt: string }>> {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const queueKeys = allKeys.filter((k) => k.startsWith(QUEUE_PREFIX));
+    if (queueKeys.length === 0) return [];
+    const pairs = await AsyncStorage.multiGet(queueKeys);
+    return pairs
+        .map(([, value]) => (value ? JSON.parse(value) : null))
+        .filter(Boolean);
 }
 
 /**
- * Sync pending door entries
+ * Sync all queued door entries to the server.
+ * Removes successfully synced entries from the queue.
  */
 export async function syncPendingEntries(): Promise<{ synced: number; failed: number }> {
-    // TODO: Implement sync logic
-    return { synced: 0, failed: 0 };
+    const pending = await getPendingDoorEntries();
+    let synced = 0;
+    let failed = 0;
+
+    for (const entry of pending) {
+        const { _queueId, _queuedAt, ...request } = entry;
+        try {
+            const result = await createDoorEntry(request as DoorEntryRequest);
+            if (result.success) {
+                await AsyncStorage.removeItem(`${QUEUE_PREFIX}${_queueId}`);
+                synced++;
+            } else {
+                failed++;
+            }
+        } catch {
+            failed++;
+        }
+    }
+
+    return { synced, failed };
 }

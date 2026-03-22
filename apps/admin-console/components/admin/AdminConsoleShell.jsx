@@ -42,6 +42,7 @@ const navGroups = [
         items: [
             { label: "Insights", href: "/", icon: BarChart3, minRole: 'support' },
             { label: "Partner Queue", href: "/approvals", icon: CheckSquare, minRole: 'support' },
+            { label: "KYC Review", href: "/kyc-review", icon: ShieldCheck, minRole: 'ops' },
         ]
     },
     {
@@ -288,7 +289,8 @@ export default function AdminConsoleShell({ children }) {
                                 {pathname === '/' ? 'Insights' :
                                     pathname === '/logs' ? 'Audit Ledger' :
                                         pathname === '/approvals' ? 'Partner Queue' :
-                                            pathname?.split('/').pop()?.replace('-', ' ')}
+                                            pathname?.startsWith('/kyc-review') ? 'KYC Review' :
+                                                pathname?.split('/').pop()?.replace('-', ' ')}
                             </span>
                         </div>
 

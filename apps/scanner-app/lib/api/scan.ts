@@ -1,11 +1,14 @@
 import { apiClient } from './client';
+import { getDeviceId } from './device';
 
 export async function processQRScan(request: ScanRequest): Promise<ScanResponse> {
     try {
+        const deviceId = await getDeviceId();
         const data = await apiClient.processScan({
             qrData: request.qrData,
             eventId: request.eventId,
             eventCode: request.eventCode,
+            deviceId,
             gate: request.gate,
             scannedBy: {
                 uid: `scanner_${request.eventCode}`,

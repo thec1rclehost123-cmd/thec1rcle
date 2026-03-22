@@ -84,6 +84,15 @@ export default function EventLayout() {
                         ),
                     }}
                 />
+                <Tabs.Screen
+                    name="walk-ins"
+                    options={{
+                        title: "Walk-ins",
+                        tabBarIcon: ({ color, size }) => (
+                            <Ionicons name="walk" size={size} color={color} />
+                        ),
+                    }}
+                />
             </Tabs>
         </View>
     );

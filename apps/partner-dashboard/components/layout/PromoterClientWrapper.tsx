@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { getDefaultTabVisibility } from "@/lib/rbac/types";
+import { KycBanner } from "@/components/shared/KycBanner";
 import { usePathname } from "next/navigation";
 
 // ── Tab-to-href mapping ────────────────────────────────────────────────────────
@@ -149,6 +150,7 @@ export function PromoterClientWrapper({ children, menuSections }: PromoterClient
                         <AppleTopBar primaryAction={promoterPrimaryAction} />
                     </div>
 
+                    <KycBanner />
                     <main className="flex-1 p-4 sm:p-6 lg:p-8 xl:p-10">
                         <motion.div
                             initial={{ opacity: 0, y: 10 }}

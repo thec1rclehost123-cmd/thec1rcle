@@ -20,6 +20,7 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AssistantButton } from "@/components/assistant/AssistantButton";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { getDefaultTabVisibility } from "@/lib/rbac/types";
+import { KycBanner } from "@/components/shared/KycBanner";
 import { usePathname } from "next/navigation";
 
 const MENU_SECTIONS = [
@@ -174,6 +175,7 @@ export function HostClientWrapper({ children }: HostClientWrapperProps) {
                         <div className="hidden lg:block sticky top-0 z-40">
                             <AppleTopBar primaryAction={hostPrimaryAction} />
                         </div>
+                        <KycBanner />
                         <main className="flex-1 p-4 sm:p-6 lg:p-8 xl:p-10">
                             <motion.div
                                 initial={{ opacity: 0, y: 10 }}

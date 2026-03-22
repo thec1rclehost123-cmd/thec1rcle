@@ -1,5 +1,11 @@
 import { getAdminDb, getAdminAuth } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { Resend } from "resend";
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const FROM_ADDR = process.env.NODE_ENV === "development"
+    ? "THE C1RCLE <onboarding@resend.dev>"
+    : "THE C1RCLE <noreply@thec1rcle.com>";
 
 // Authority Tiering
 export const TIER1_ACTIONS = [
@@ -264,6 +270,41 @@ export const adminStore = {
                 context,
                 after: { status: 'approved', partnerId, partnerType }
             });
+
+            // Send approval email (fire-and-forget — outside transaction)
+            const partnerEmail = data.email;
+            const partnerName = data.name || "Partner";
+            if (resend && partnerEmail) {
+                resend.emails.send({
+                    from: FROM_ADDR,
+                    to: partnerEmail,
+                    subject: "You're approved — Welcome to C1RCLE",
+                    html: `
+                        <div style="background:#000;color:#fff;padding:40px;font-family:sans-serif;text-align:center;">
+                            <h1 style="color:#FF5A00;text-transform:uppercase;letter-spacing:5px;">THE C1RCLE</h1>
+                            <p style="text-transform:uppercase;letter-spacing:2px;color:#666;font-size:12px;">Application Approved</p>
+                            <div style="margin:32px auto;max-width:420px;text-align:left;">
+                                <p style="font-size:16px;font-weight:600;color:#fff;">Congratulations, ${partnerName}!</p>
+                                <p style="color:#aaa;font-size:14px;line-height:1.6;">
+                                    Your application to join the C1RCLE partner network has been <strong style="color:#FF5A00;">approved</strong>. You can now log in to your dashboard and complete identity verification to unlock all features.
+                                </p>
+                                <div style="margin:24px 0;text-align:center;">
+                                    <a href="${process.env.NEXT_PUBLIC_DASHBOARD_URL || 'https://partners.thec1rcle.com'}/login"
+                                       style="display:inline-block;background:#FF5A00;color:#fff;padding:14px 32px;border-radius:12px;font-weight:700;text-decoration:none;font-size:14px;letter-spacing:1px;text-transform:uppercase;">
+                                        Log In to Dashboard →
+                                    </a>
+                                </div>
+                                <p style="color:#666;font-size:13px;line-height:1.6;">
+                                    After logging in, visit the Verification Hub to complete your KYC and set up your payout account.
+                                </p>
+                            </div>
+                            <p style="color:#444;font-size:10px;text-transform:uppercase;margin-top:40px;">
+                                THE C1RCLE · Partner Network
+                            </p>
+                        </div>
+                    `,
+                }).catch((err) => console.error("[adminStore] Approval email error:", err));
+            }
 
             return { success: true };
         });

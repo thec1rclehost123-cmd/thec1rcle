@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AssistantButton } from "@/components/assistant/AssistantButton";
+import { KycBanner } from "@/components/shared/KycBanner";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { usePathname } from "next/navigation";
 import type { VenueTab } from "@/lib/types/staffProfile";
@@ -183,6 +184,7 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
                         <div className="hidden lg:block sticky top-0 z-40">
                             <AppleTopBar primaryAction={venuePrimaryAction} />
                         </div>
+                        <KycBanner />
                         <main className="flex-1 p-4 sm:p-6 lg:p-8 xl:p-10">
                             <motion.div
                                 initial={{ opacity: 0, y: 10 }}

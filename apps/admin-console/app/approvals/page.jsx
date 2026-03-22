@@ -33,6 +33,7 @@ export default function AdminApprovals() {
     const [modalConfig, setModalConfig] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [filter, setFilter] = useState("all");
+    const [entityFilter, setEntityFilter] = useState("all");
 
     const fetchRequests = async () => {
         try {
@@ -95,7 +96,8 @@ export default function AdminApprovals() {
             r.id?.toLowerCase().includes(searchTerm.toLowerCase())
         );
         const matchesFilter = filter === "all" || r.type === filter;
-        return matchesSearch && matchesFilter;
+        const matchesEntity = entityFilter === "all" || (r.entityType || "individual") === entityFilter;
+        return matchesSearch && matchesFilter && matchesEntity;
     });
 
     return (
@@ -132,6 +134,11 @@ export default function AdminApprovals() {
                     <FilterButton active={filter === 'host'} onClick={() => setFilter('host')} label="Hosts" icon={Users} />
                     <FilterButton active={filter === 'promoter'} onClick={() => setFilter('promoter')} label="Promoters" icon={Zap} />
                 </div>
+                <div className="flex gap-1.5 p-1 bg-black/40 rounded-lg border border-[#ffffff05]">
+                    <FilterButton active={entityFilter === 'all'} onClick={() => setEntityFilter('all')} label="All Entities" />
+                    <FilterButton active={entityFilter === 'individual'} onClick={() => setEntityFilter('individual')} label="Individual" icon={Users} />
+                    <FilterButton active={entityFilter === 'business'} onClick={() => setEntityFilter('business')} label="Business" icon={Building2} />
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -142,6 +149,7 @@ export default function AdminApprovals() {
                                 <tr className="bg-white/[0.02] border-b border-[#ffffff08]">
                                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Partner Details</th>
                                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Type</th>
+                                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 hidden sm:table-cell">Entity</th>
                                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Date</th>
                                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Status</th>
                                     <th className="px-6 py-4"></th>
@@ -178,6 +186,11 @@ export default function AdminApprovals() {
                                         <td className="px-6 py-5">
                                             <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{r.type}</span>
                                         </td>
+                                        <td className="px-6 py-5 hidden sm:table-cell">
+                                            <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${r.entityType === 'business' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>
+                                                {r.entityType || 'Individual'}
+                                            </span>
+                                        </td>
                                         <td className="px-6 py-5">
                                             <p className="text-[10px] font-mono-numbers text-zinc-500">{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : 'LEGACY'}</p>
                                         </td>
@@ -208,9 +221,14 @@ export default function AdminApprovals() {
                                 <div className="space-y-6 pt-4">
                                     <div className="flex items-center justify-between">
                                         <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Application Details</span>
-                                        <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${selectedReq.type === 'venue' ? 'bg-zinc-900 border-white/5 text-zinc-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'}`}>
-                                            {selectedReq.type === 'venue' ? `${selectedReq.data?.plan || 'STND'} Tier` : selectedReq.type}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${selectedReq.entityType === 'business' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>
+                                                {selectedReq.entityType || 'Individual'}
+                                            </span>
+                                            <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${selectedReq.type === 'venue' ? 'bg-zinc-900 border-white/5 text-zinc-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'}`}>
+                                                {selectedReq.type === 'venue' ? `${selectedReq.data?.plan || 'STND'} Tier` : selectedReq.type}
+                                            </span>
+                                        </div>
                                     </div>
                                     <h3 className="text-2xl font-semibold tracking-tight text-white">{selectedReq.data?.name}</h3>
                                     <div className="space-y-2 pt-2">

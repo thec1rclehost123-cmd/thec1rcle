@@ -20,6 +20,8 @@ interface AuthContextValue {
     loading: boolean;
     isApproved: boolean;
     onboardingStatus: string | null;
+    kycStatus: string | null;
+    entityType: string | null;
     subscriptionPlan: string | null;
     /** Resolved tab visibility for non-OWNER staff; null means show all tabs */
     tabVisibility: Partial<Record<string, boolean>> | null;
@@ -44,6 +46,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true);
     const [isApproved, setIsApproved] = useState(false);
     const [onboardingStatus, setOnboardingStatus] = useState<string | null>(null);
+    const [kycStatus, setKycStatus] = useState<string | null>(null);
+    const [entityType, setEntityType] = useState<string | null>(null);
     const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
     const [tabVisibility, setTabVisibility] = useState<Partial<Record<string, boolean>> | null>(null);
     const [actionPermissions, setActionPermissions] = useState<Partial<Record<string, boolean>> | null>(null);
@@ -57,6 +61,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 setProfile(null);
                 setIsApproved(false);
                 setOnboardingStatus(null);
+                setKycStatus(null);
+                setEntityType(null);
                 setSubscriptionPlan(null);
                 setTabVisibility(null);
                 setActionPermissions(null);
@@ -113,6 +119,9 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 } else {
                     setOnboardingStatus(null);
                 }
+
+                setKycStatus(userData.kycStatus ?? null);
+                setEntityType(userData.onboardingEntityType ?? null);
 
                 let activeMembership: PartnerMembership | null = null;
                 let plan: string | null = null;
@@ -241,7 +250,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         !actionPermissions || actionPermissions[action] === true;
 
     return (
-        <AuthContext.Provider value={{ user, profile, loading, isApproved, onboardingStatus, subscriptionPlan, tabVisibility, actionPermissions, piiPolicy, canDo, signIn, signUp, signInWithGoogle, signOut, switchPartner }}>
+        <AuthContext.Provider value={{ user, profile, loading, isApproved, onboardingStatus, kycStatus, entityType, subscriptionPlan, tabVisibility, actionPermissions, piiPolicy, canDo, signIn, signUp, signInWithGoogle, signOut, switchPartner }}>
             {children}
         </AuthContext.Provider>
     );

@@ -12,6 +12,8 @@ export interface WalkInEntry {
     eventId: string;
     venueId: string;
     guestName: string;
+    /** Guest age — collected by scanner app */
+    guestAge?: number | null;
     /** E.164 partial — last 4 digits visible to staff, full to manager/owner */
     phoneHash: string;
     /** Full phone — only returned to OWNER/MANAGER */

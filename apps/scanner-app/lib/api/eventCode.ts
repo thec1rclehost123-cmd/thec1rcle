@@ -66,6 +66,7 @@ function getMockEventData(code: string): EventData {
         permissions: {
             canScan: true,
             canDoorEntry: true,
+            canWalkIn: true,
         },
         tiers: [
             { id: "tier_stag", name: "Stag Entry", price: 500, entryType: "stag", available: true },
@@ -78,6 +79,7 @@ function getMockEventData(code: string): EventData {
             prebooked: 89,
             doorEntries: 38,
             doorRevenue: 24500,
+            walkIns: 0,
         },
     };
 }

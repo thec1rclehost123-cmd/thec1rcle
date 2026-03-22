@@ -26,6 +26,7 @@ export interface EventData {
     permissions: {
         canScan: boolean;
         canDoorEntry: boolean;
+        canWalkIn: boolean;
     };
     tiers: EventTier[];
     gate?: string;
@@ -34,6 +35,7 @@ export interface EventData {
         prebooked: number;
         doorEntries: number;
         doorRevenue: number;
+        walkIns: number;
     };
 }
 

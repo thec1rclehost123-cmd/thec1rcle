@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useEvent } from "@/store/eventContext";
 import { validateEventCode } from "@/lib/api/eventCode";
+import { registerDevice } from "@/lib/api/device";
 
 export default function EventCodeScreen() {
     const [code, setCode] = useState("");
@@ -50,6 +51,8 @@ export default function EventCodeScreen() {
             if (result.valid) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 setEventData(result);
+                // Register device with this venue in the background (non-blocking)
+                registerDevice(result.event.venueId, "C1RCLE Scanner");
                 router.replace("/(event)/scan");
             } else {
                 setError(result.error || "Invalid or expired code");
