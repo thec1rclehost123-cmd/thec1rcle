@@ -187,6 +187,11 @@ export async function initiateDMRequest(
         const db = getFirebaseDb();
 
         // Get event info for expiry calculation
+        console.log("[debug] privateDM eventId:", eventId);
+        if (!eventId || typeof eventId !== "string") {
+            console.error("[Firestore] Invalid eventId in sendDMRequest:", eventId);
+            return { success: false, error: "Invalid event ID" };
+        }
         const eventRef = doc(db, "events", eventId);
         const eventDoc = await getDoc(eventRef);
         const eventDate = eventDoc.exists()

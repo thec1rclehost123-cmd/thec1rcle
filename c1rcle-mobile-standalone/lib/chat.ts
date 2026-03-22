@@ -83,6 +83,11 @@ export async function getEventChat(
     eventId: string,
     userId: string
 ): Promise<{ chat: EventChat | null; error?: string }> {
+    console.log("[debug] getEventChat eventId:", eventId);
+    if (!eventId || typeof eventId !== "string") {
+        console.error("[Firestore] Invalid eventId in getEventChat:", eventId);
+        return { chat: null, error: "Invalid event ID" };
+    }
     try {
         // First verify user has access
         const hasAccess = await hasEventAccess(userId, eventId);

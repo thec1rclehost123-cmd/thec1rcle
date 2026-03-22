@@ -93,7 +93,11 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     // Scarcity Engine: stream live ticket availability from Firestore
     const [liveTiers, setLiveTiers] = useState(null);
     useEffect(() => {
-        if (!event?.id) return;
+        console.log("[debug] CheckoutContainer event.id:", event?.id);
+        if (!event?.id || typeof event.id !== "string") {
+            if (event?.id) console.error("[Firestore] Invalid event.id in CheckoutContainer:", event.id);
+            return;
+        }
         let unsubscribe;
         (async () => {
             const { onSnapshot, doc } = await import("firebase/firestore");

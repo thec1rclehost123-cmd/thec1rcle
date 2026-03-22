@@ -104,6 +104,12 @@ export function useLiveEvent(venueId: string | undefined) {
                 const db = getFirebaseDb();
                 const cap = todayEvent.capacity ?? 0;
 
+                console.log("[debug] useLiveEvent todayEvent.id:", todayEvent.id);
+                if (!todayEvent.id || typeof todayEvent.id !== "string") {
+                    console.error("[Firestore] Invalid todayEvent.id in useLiveEvent:", todayEvent.id);
+                    return;
+                }
+
                 // ── Occupancy: listen to the event document ───────────────────
                 const eventUnsub = onSnapshot(
                     doc(db, "events", todayEvent.id),

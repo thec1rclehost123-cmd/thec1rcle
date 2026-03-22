@@ -20,6 +20,11 @@ export async function checkEventEntitlement(
     userId: string,
     eventId: string
 ): Promise<EventEntitlement | null> {
+    console.log("[debug] checkEventEntitlement eventId:", eventId);
+    if (!eventId || typeof eventId !== "string") {
+        console.error("[Firestore] Invalid eventId in checkEventEntitlement:", eventId);
+        return null;
+    }
     try {
         const db = getFirebaseDb();
 
@@ -215,6 +220,11 @@ export async function canInitiateDM(
     recipientId: string,
     eventId: string
 ): Promise<{ allowed: boolean; reason?: string }> {
+    console.log("[debug] canInitiateDM eventId:", eventId);
+    if (!eventId || typeof eventId !== "string") {
+        console.error("[Firestore] Invalid eventId in canInitiateDM:", eventId);
+        return { allowed: false, reason: "Invalid event ID" };
+    }
     try {
         const db = getFirebaseDb();
 

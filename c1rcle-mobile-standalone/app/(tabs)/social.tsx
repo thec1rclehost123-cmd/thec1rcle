@@ -613,6 +613,11 @@ export default function ChatsScreen() {
 
             const eventGroupPreviews = await Promise.all(
                 eventIds.map(async (eventId) => {
+                    console.log("[debug] social.tsx eventId:", eventId);
+                    if (!eventId || typeof eventId !== "string") {
+                        console.error("[Firestore] Invalid eventId in social.tsx group previews:", eventId);
+                        return null;
+                    }
                     const eventDoc = await getDoc(doc(db, "events", eventId));
                     if (!eventDoc.exists()) return null;
 

@@ -17,6 +17,11 @@ export function subscribeToEventInventory(
     eventId: string,
     onUpdate: (tickets: TicketTier[]) => void
 ): () => void {
+    console.log("[debug] subscribeToEventInventory eventId:", eventId);
+    if (!eventId || typeof eventId !== "string") {
+        console.error("[Firestore] Invalid eventId in subscribeToEventInventory:", eventId);
+        return () => {};
+    }
     const db = getFirebaseDb();
     const eventRef = doc(db, "events", eventId);
 
@@ -38,6 +43,11 @@ export async function reserveTickets(
     tierId: string,
     quantity: number
 ): Promise<{ success: boolean; error?: string }> {
+    console.log("[debug] reserveTickets eventId:", eventId);
+    if (!eventId || typeof eventId !== "string") {
+        console.error("[Firestore] Invalid eventId in reserveTickets:", eventId);
+        return { success: false, error: "Invalid event ID" };
+    }
     const db = getFirebaseDb();
     const eventRef = doc(db, "events", eventId);
 
@@ -83,6 +93,11 @@ export async function releaseTickets(
     tierId: string,
     quantity: number
 ): Promise<{ success: boolean; error?: string }> {
+    console.log("[debug] releaseTickets eventId:", eventId);
+    if (!eventId || typeof eventId !== "string") {
+        console.error("[Firestore] Invalid eventId in releaseTickets:", eventId);
+        return { success: false, error: "Invalid event ID" };
+    }
     const db = getFirebaseDb();
     const eventRef = doc(db, "events", eventId);
 
@@ -124,6 +139,11 @@ export async function checkAvailability(
     tierId: string,
     quantity: number
 ): Promise<{ available: boolean; remaining: number }> {
+    console.log("[debug] checkAvailability eventId:", eventId);
+    if (!eventId || typeof eventId !== "string") {
+        console.error("[Firestore] Invalid eventId in checkAvailability:", eventId);
+        return { available: false, remaining: 0 };
+    }
     const db = getFirebaseDb();
     const eventRef = doc(db, "events", eventId);
 

@@ -196,6 +196,11 @@ export default function DMRequestsScreen() {
                 const senderName = senderDoc.exists() ? senderDoc.data().displayName || "Guest" : "Guest";
 
                 // Get event title
+                console.log("[debug] requests.tsx request.eventId:", request.eventId);
+                if (!request.eventId || typeof request.eventId !== "string") {
+                    console.error("[Firestore] Invalid eventId in requests enrichment:", request.eventId);
+                    return { request, senderName, eventTitle: "Event" };
+                }
                 const eventDoc = await getDoc(doc(db, "events", request.eventId));
                 const eventTitle = eventDoc.exists() ? eventDoc.data().title : "Event";
 

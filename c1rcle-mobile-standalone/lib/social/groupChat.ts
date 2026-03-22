@@ -26,6 +26,11 @@ export async function getEventGroupChat(eventId: string): Promise<{
     phase: EventPhase;
     participantCount: number;
 }> {
+    console.log("[debug] getEventGroupChat eventId:", eventId);
+    if (!eventId || typeof eventId !== "string") {
+        console.error("[Firestore] Invalid eventId in getEventGroupChat:", eventId);
+        return { enabled: false, phase: "EXPIRED", participantCount: 0 };
+    }
     try {
         const db = getFirebaseDb();
         const eventRef = doc(db, "events", eventId);

@@ -552,6 +552,11 @@ export const useEventsStore = create<EventsState>()(
             clearCurrentEvent: () => set({ currentEvent: null }),
 
             getEventInterested: async (eventId: string) => {
+                console.log("[debug] getEventInterested eventId:", eventId);
+                if (!eventId || typeof eventId !== "string") {
+                    console.error("[Firestore] Invalid eventId in getEventInterested:", eventId);
+                    return;
+                }
                 try {
                     const db = getFirebaseDb();
                     const eventDoc = await getDoc(doc(db, "events", eventId));
@@ -1178,6 +1183,11 @@ export const useEventsStore = create<EventsState>()(
             },
 
             getEventById: async (id: string): Promise<Event | null> => {
+                console.log("[debug] getEventById id:", id);
+                if (!id || typeof id !== "string") {
+                    console.error("[Firestore] Invalid id in getEventById:", id);
+                    return null;
+                }
                 // First check if already loaded
                 const { events } = get();
                 const cached = events.find(e => e.id === id || e.slug === id);

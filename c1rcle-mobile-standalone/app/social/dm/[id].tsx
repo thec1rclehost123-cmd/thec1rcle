@@ -343,11 +343,14 @@ export default function DirectMessageScreen() {
                     }
                 }
 
-                if (data.eventId) {
+                console.log("[debug] dm/[id].tsx data.eventId:", data.eventId);
+                if (data.eventId && typeof data.eventId === "string") {
                     const eventDoc = await getDoc(doc(db, "events", data.eventId));
                     if (eventDoc.exists()) {
                         setEventTitle(eventDoc.data().title);
                     }
+                } else if (data.eventId) {
+                    console.error("[Firestore] Invalid eventId in dm/[id].tsx:", data.eventId);
                 }
             }
             setLoading(false);

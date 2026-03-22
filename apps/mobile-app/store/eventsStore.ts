@@ -314,6 +314,11 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     },
 
     getEventById: async (id: string): Promise<Event | null> => {
+        console.log("[debug] getEventById id:", id);
+        if (!id || typeof id !== "string") {
+            console.error("[Firestore] Invalid id in getEventById:", id);
+            return null;
+        }
         try {
             const db = getFirebaseDb();
             const eventRef = doc(db, "events", id);

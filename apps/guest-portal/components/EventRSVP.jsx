@@ -100,7 +100,11 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
   // Real-time interested count — listens to stats.saves on the event doc.
   // Lazy-loads firebase/firestore to keep it out of the initial bundle.
   useEffect(() => {
-    if (!event?.id) return;
+    console.log("[debug] EventRSVP event.id:", event?.id);
+    if (!event?.id || typeof event.id !== "string") {
+        if (event?.id) console.error("[Firestore] Invalid event.id in EventRSVP:", event.id);
+        return;
+    }
     let cancelled = false;
 
     (async () => {

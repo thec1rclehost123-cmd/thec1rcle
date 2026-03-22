@@ -8,12 +8,18 @@ import { verifyPartnerAccess } from "@/lib/server/auth";
  */
 export async function GET(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id } = await params;
+        console.log("[debug] GET /api/events/[id] id:", id);
+        if (!id || typeof id !== "string") {
+            console.error("[Firestore] Invalid id in GET /api/events/[id]:", id);
+            return NextResponse.json({ error: "Invalid event ID" }, { status: 400 });
+        }
         const authHeader = req.headers.get("authorization");
         const token = authHeader?.split("Bearer ")[1] || "";
-        const event = await getEvent(params.id, token);
+        const event = await getEvent(id, token);
 
         if (!event) {
             return NextResponse.json(
@@ -38,9 +44,10 @@ export async function GET(
  */
 export async function PATCH(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id } = await params;
         const body = await req.json();
         const { action, actor, notes, updates } = body;
 
@@ -54,6 +61,12 @@ export async function PATCH(
             );
         }
 
+        console.log("[debug] PATCH /api/events/[id] id:", id);
+        if (!id || typeof id !== "string") {
+            console.error("[Firestore] Invalid id in PATCH /api/events/[id]:", id);
+            return NextResponse.json({ error: "Invalid event ID" }, { status: 400 });
+        }
+
         let latestEvent: any = null;
 
         // Handle content updates
@@ -61,7 +74,7 @@ export async function PATCH(
             // Strip lifecycle from updates to ensure it's only managed by updateEventLifecycle
             const { lifecycle, ...cleanUpdates } = updates;
 
-            latestEvent = await updateEvent(params.id, {
+            latestEvent = await updateEvent(id, {
                 ...cleanUpdates,
                 creatorId: actor.uid,
                 creatorRole: actor.role,
@@ -109,7 +122,7 @@ export async function PATCH(
 
             // Verify management access for approve/reject/publish
             if (["approve", "reject", "deny", "publish", "request_changes"].includes(action) && actor.role !== 'admin') {
-                const event = await getEvent(params.id, token);
+                const event = await getEvent(id, token);
                 if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
                 const venueId = event.venueId;
@@ -119,7 +132,7 @@ export async function PATCH(
                 if (!hasAccess) return NextResponse.json({ error: "Unauthorized access to this venue" }, { status: 403 });
             }
 
-            const result = await updateEventLifecycle(params.id, newStatus, { ...actor, token }, notes);
+            const result = await updateEventLifecycle(id, newStatus, { ...actor, token }, notes);
             return NextResponse.json({ success: true, result, event: latestEvent });
         }
 
@@ -146,9 +159,10 @@ export async function PATCH(
  */
 export async function DELETE(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id } = await params;
         const authHeader = req.headers.get("authorization");
         const token = authHeader?.split("Bearer ")[1] || "";
         const body = await req.json();
@@ -161,8 +175,14 @@ export async function DELETE(
             );
         }
 
+        console.log("[debug] DELETE /api/events/[id] id:", id);
+        if (!id || typeof id !== "string") {
+            console.error("[Firestore] Invalid id in DELETE /api/events/[id]:", id);
+            return NextResponse.json({ error: "Invalid event ID" }, { status: 400 });
+        }
+
         const { deleteEvent } = await import("@/lib/server/eventStore");
-        const result = await deleteEvent(params.id, token);
+        const result = await deleteEvent(id, token);
 
         return NextResponse.json({ success: true, result });
     } catch (error: any) {

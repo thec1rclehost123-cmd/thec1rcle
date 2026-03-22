@@ -24,6 +24,11 @@ export function subscribeToEventInventory(
     eventId: string,
     onUpdate: (tickets: TicketTier[]) => void
 ): () => void {
+    console.log("[debug] subscribeToEventInventory eventId:", eventId);
+    if (!eventId || typeof eventId !== "string") {
+        console.error("[Firestore] Invalid eventId in subscribeToEventInventory:", eventId);
+        return () => {};
+    }
     const db = getFirebaseDb();
     const eventRef = doc(db, "events", eventId);
 
@@ -48,6 +53,11 @@ export async function checkAvailability(
     tierId: string,
     quantity: number
 ): Promise<{ available: boolean; remaining: number }> {
+    console.log("[debug] checkAvailability eventId:", eventId);
+    if (!eventId || typeof eventId !== "string") {
+        console.error("[Firestore] Invalid eventId in checkAvailability:", eventId);
+        return { available: false, remaining: 0 };
+    }
     const db = getFirebaseDb();
 
     try {
@@ -81,6 +91,11 @@ export async function checkAvailability(
  * Get all ticket tiers for an event (one-time read).
  */
 export async function getEventTickets(eventId: string): Promise<TicketTier[]> {
+    console.log("[debug] getEventTickets eventId:", eventId);
+    if (!eventId || typeof eventId !== "string") {
+        console.error("[Firestore] Invalid eventId in getEventTickets:", eventId);
+        return [];
+    }
     const db = getFirebaseDb();
 
     try {

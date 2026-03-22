@@ -141,6 +141,13 @@ export async function verifyPartnerAccess(request, partnerId) {
     }
 
     const { uid } = decodedToken;
+
+    console.log("[debug] verifyPartnerAccess partnerId:", partnerId);
+    if (!partnerId || typeof partnerId !== "string") {
+        console.error("[Firestore] Invalid partnerId in verifyPartnerAccess:", partnerId);
+        return false;
+    }
+
     const { getAdminDb } = await import("../firebase/admin");
     const db = getAdminDb();
 

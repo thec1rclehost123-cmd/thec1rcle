@@ -357,10 +357,16 @@ export default function EventGroupChatScreen() {
     }, [eventId, user?.uid]);
 
     const initializeChat = async () => {
+        console.log("[debug] group/[eventId].tsx eventId:", eventId);
+        if (!eventId || typeof eventId !== "string") {
+            console.error("[Firestore] Invalid eventId in initializeChat:", eventId);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         try {
             const db = getFirebaseDb();
-            const eventRef = doc(db, "events", eventId!);
+            const eventRef = doc(db, "events", eventId);
             const eventDoc = await getDoc(eventRef);
             if (eventDoc.exists()) setEventData(eventDoc.data());
 
