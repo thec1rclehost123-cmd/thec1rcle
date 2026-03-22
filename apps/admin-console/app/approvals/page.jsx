@@ -92,7 +92,7 @@ export default function AdminApprovals() {
         const matchesSearch = (
             r.data?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             r.data?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            r.id.toLowerCase().includes(searchTerm.toLowerCase())
+            r.id?.toLowerCase().includes(searchTerm.toLowerCase())
         );
         const matchesFilter = filter === "all" || r.type === filter;
         return matchesSearch && matchesFilter;

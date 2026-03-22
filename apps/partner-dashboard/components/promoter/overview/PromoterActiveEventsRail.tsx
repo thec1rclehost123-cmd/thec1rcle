@@ -20,7 +20,7 @@ export function PromoterActiveEventsRail({ assignments }: { assignments?: any[] 
             {assignments.map((assignment: any) => (
                 <div key={assignment.id} className="min-w-[300px] bg-surface-base border border-border-subtle p-5 rounded-2xl flex-shrink-0">
                     <h3 className="font-bold text-text-primary truncate">{assignment.event?.name || "Loading..."}</h3>
-                    <p className="text-sm text-text-secondary mt-1">{assignment.event?.date}</p>
+                    <p className="text-sm text-text-secondary mt-1">{assignment.event?.date ?? "—"}</p>
                 </div>
             ))}
         </div>

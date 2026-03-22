@@ -73,8 +73,8 @@ export default function HostCard({ host, onFollow, index }) {
                             <ShimmerImage src={host.photoURL || host.avatar || "/events/holi-edit.svg"} fill className="object-cover" alt={host.name || host.displayName} />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange mb-0.5">{host.role || "Host"}</p>
-                            <h3 className="text-xl font-heading font-black uppercase tracking-tight text-white leading-tight">{host.name || host.displayName || 'Unnamed Host'}</h3>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange mb-0.5">{host.role ?? "Host"}</p>
+                            <h3 className="text-xl font-heading font-black uppercase tracking-tight text-white leading-tight">{host.name ?? host.displayName ?? 'Unnamed Host'}</h3>
                             {host.neighborhood && (
                                 <p className="text-[9px] font-bold uppercase tracking-widest text-white/40">{host.neighborhood}</p>
                             )}
@@ -82,12 +82,12 @@ export default function HostCard({ host, onFollow, index }) {
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                         {/* Show genres first, then vibes */}
-                        {(host.genres || host.vibes)?.slice(0, 3).map(genre => (
+                        {(host.genres || host.vibes || []).slice(0, 3).map(genre => (
                             <span key={genre} className="px-2 py-0.5 rounded-md bg-orange/20 backdrop-blur-md text-[9px] font-bold uppercase tracking-widest text-orange">
                                 {genre}
                             </span>
                         ))}
-                        {host.styleTags?.slice(0, 2).map(tag => (
+                        {(host.styleTags || []).slice(0, 2).map(tag => (
                             <span key={tag} className="px-2 py-0.5 rounded-md bg-white/10 backdrop-blur-md text-[9px] font-bold uppercase tracking-widest text-white/60">
                                 {tag}
                             </span>
@@ -99,11 +99,11 @@ export default function HostCard({ host, onFollow, index }) {
             {/* Stats Row */}
             <div className="flex items-center justify-between p-6 border-b border-black/5 dark:border-white/5 bg-black/[0.03] dark:bg-black/20">
                 <div className="flex flex-col">
-                    <span className="text-sm font-black text-black dark:text-white">{(host.followers || 0).toLocaleString('en-IN')}</span>
+                    <span className="text-sm font-black text-black dark:text-white">{(host.followers ?? 0).toLocaleString('en-IN')}</span>
                     <span className="text-[9px] uppercase font-bold tracking-widest text-black/40 dark:text-white/40">Followers</span>
                 </div>
                 <div className="flex flex-col items-center">
-                    <span className="text-sm font-black text-black dark:text-white">{host.upcomingEventsCount}</span>
+                    <span className="text-sm font-black text-black dark:text-white">{host.upcomingEventsCount ?? 0}</span>
                     <span className="text-[9px] uppercase font-bold tracking-widest text-black/40 dark:text-white/40">Events</span>
                 </div>
                 {nextEventDateLabel && (

@@ -12,6 +12,7 @@ export default function AdminEvents() {
     const { user } = useAuth();
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState(null);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [modalConfig, setModalConfig] = useState(null);
@@ -19,17 +20,20 @@ export default function AdminEvents() {
     const [showOnlyLive, setShowOnlyLive] = useState(false);
 
     const fetchEvents = async () => {
+        setLoading(true);
+        setError(false);
         try {
-            setLoading(true);
             const token = await user.getIdToken();
             const res = await fetch('/api/list?collection=events', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
             const mapped = (json.data || []).map((e) => mapEventForClient(e, e.id));
             setEvents(mapped);
         } catch (err) {
             console.error("Failed to fetch events", err);
+            setError(true);
         } finally {
             setLoading(false);
         }
@@ -217,15 +221,31 @@ export default function AdminEvents() {
                     />
                 </div>
 
-                <DataTable 
-                    columns={columns}
-                    data={filtered}
-                    loading={loading}
-                    onRowClick={(row) => {
-                        setSelectedEvent(row);
-                        setIsDrawerOpen(true);
-                    }}
-                />
+                {error ? (
+                    <div className="flex flex-col items-center justify-center py-24 rounded-xl border border-iris/20 bg-iris/5 gap-4 text-center">
+                        <AlertCircle className="h-8 w-8 text-iris" strokeWidth={1.5} />
+                        <div>
+                            <p className="text-sm font-bold text-white">Failed to load experiences</p>
+                            <p className="text-[11px] text-zinc-500 mt-1">Could not fetch the event registry. Check your connection.</p>
+                        </div>
+                        <button
+                            onClick={fetchEvents}
+                            className="px-6 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-[11px] font-bold uppercase tracking-widest hover:bg-white/10 transition-all"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                ) : (
+                    <DataTable
+                        columns={columns}
+                        data={filtered}
+                        loading={loading}
+                        onRowClick={(row) => {
+                            setSelectedEvent(row);
+                            setIsDrawerOpen(true);
+                        }}
+                    />
+                )}
             </div>
 
             <ActionDrawer

@@ -42,21 +42,25 @@ async function handler(request) {
             const event = await getEvent(payload.eventId);
             if (event && payload.userEmail) {
                 const origin = new URL(request.url).origin;
-                const posterUrl = event.image.startsWith('http') ? event.image : `${origin}${event.image}`;
+                const posterUrl = event.image
+                    ? (event.image.startsWith('http') ? event.image : `${origin}${event.image}`)
+                    : null;
 
                 await sendTicketEmail({
                     to: payload.userEmail,
                     userName: payload.userName || "Guest",
-                    eventName: event.title,
-                    eventDate: new Date(event.startDate).toLocaleDateString('en-IN', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: 'numeric',
-                        minute: 'numeric',
-                        timeZone: 'Asia/Kolkata'
-                    }),
-                    eventLocation: event.location,
+                    eventName: event.title ?? '',
+                    eventDate: event.startDate
+                        ? new Date(event.startDate).toLocaleDateString('en-IN', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: 'numeric',
+                            timeZone: 'Asia/Kolkata'
+                        })
+                        : 'TBD',
+                    eventLocation: event.location ?? '',
                     eventPosterUrl: posterUrl,
                     orderId: order.id,
                     tickets: order.tickets,

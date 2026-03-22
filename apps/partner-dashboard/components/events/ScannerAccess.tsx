@@ -242,7 +242,7 @@ export default function ScannerAccess({ eventId, eventTitle }: ScannerAccessProp
                                         </span>
                                     </div>
                                     <div className="text-sm text-accent-primary font-medium">
-                                        ₹{code.stats.doorRevenue.toLocaleString()} collected
+                                        ₹{(code.stats.doorRevenue ?? 0).toLocaleString()} collected
                                     </div>
                                 </div>
                             )}

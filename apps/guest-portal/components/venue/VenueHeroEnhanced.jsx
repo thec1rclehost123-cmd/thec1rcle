@@ -160,7 +160,7 @@ export default function VenueHeroEnhanced({
                     <div className="flex gap-16 whitespace-nowrap animate-marquee">
                         {[1, 2, 3, 4, 5].map(i => (
                             <span key={i} className="text-white text-xs font-black uppercase tracking-[0.5em]">
-                                {venue.name} • LIVE IN {venue.city || 'YOUR CITY'} •
+                                {venue.name} • LIVE IN {venue.city ?? 'YOUR CITY'} •
                             </span>
                         ))}
                     </div>

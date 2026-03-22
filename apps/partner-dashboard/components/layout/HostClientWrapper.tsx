@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Menu, X, PlusCircle } from "lucide-react";
 import {
     LayoutDashboard,
@@ -18,6 +18,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AssistantButton } from "@/components/assistant/AssistantButton";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { getDefaultTabVisibility } from "@/lib/rbac/types";
 import { usePathname } from "next/navigation";
 
 const MENU_SECTIONS = [
@@ -35,6 +37,43 @@ const MENU_SECTIONS = [
     },
 ];
 
+// ── Tab-to-href mapping ────────────────────────────────────────────────────────
+const HOST_HREF_TO_TAB: Record<string, string> = {
+    "/host":            "overview",
+    "/host/events":     "events",
+    "/host/calendar":   "calendar",
+    "/host/network":    "network",
+    "/host/audience":   "audience",
+    "/host/analytics":  "analytics",
+    "/host/finance":    "finance",
+    "/host/settings":   "settings",
+};
+
+function itemTab(href: string): string | null {
+    if (HOST_HREF_TO_TAB[href]) return HOST_HREF_TO_TAB[href];
+    for (const [prefix, tab] of Object.entries(HOST_HREF_TO_TAB)) {
+        if (href.startsWith(prefix + "/")) return tab;
+    }
+    return null;
+}
+
+function applyTabVisibility(
+    sections: typeof MENU_SECTIONS,
+    tabVisibility: Partial<Record<string, boolean>> | null
+): typeof MENU_SECTIONS {
+    if (!tabVisibility || Object.keys(tabVisibility).length === 0) return sections;
+    return sections
+        .map((section) => ({
+            ...section,
+            items: section.items.filter((item) => {
+                const tab = itemTab(item.href);
+                if (!tab) return true;
+                return tabVisibility[tab] !== false;
+            }),
+        }))
+        .filter((section) => section.items.length > 0) as typeof MENU_SECTIONS;
+}
+
 interface HostClientWrapperProps {
     children: React.ReactNode;
 }
@@ -42,9 +81,25 @@ interface HostClientWrapperProps {
 export function HostClientWrapper({ children }: HostClientWrapperProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const { tabVisibility: ctxTabVisibility, profile } = useDashboardAuth();
     const pathname = usePathname();
 
     const hostPrimaryAction = { label: "+ Create Event", href: "/host/create", icon: PlusCircle };
+
+    // Use server-resolved tabVisibility from auth context if set (custom staff profiles).
+    // Fall back to role-based defaults so host COHOST/STAFF only see permitted tabs
+    // even without a custom staff profile configured.
+    const membership = profile?.activeMembership;
+    const tabVisibility = ctxTabVisibility ?? (
+        membership?.role
+            ? getDefaultTabVisibility(membership.partnerType, membership.role)
+            : null
+    );
+
+    const filteredSections = useMemo(
+        () => applyTabVisibility(MENU_SECTIONS, tabVisibility),
+        [tabVisibility]
+    );
 
     return (
         <ApprovalGuard>
@@ -55,7 +110,7 @@ export function HostClientWrapper({ children }: HostClientWrapperProps) {
                         <AppleSidebar
                             brandLetter="H"
                             brandLabel="Host"
-                            menuSections={MENU_SECTIONS}
+                            menuSections={filteredSections}
                             basePath="/host"
                             isCollapsed={isCollapsed}
                             onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
@@ -106,7 +161,7 @@ export function HostClientWrapper({ children }: HostClientWrapperProps) {
                                     <AppleSidebar
                                         brandLetter="H"
                                         brandLabel="Host"
-                                        menuSections={MENU_SECTIONS}
+                                        menuSections={filteredSections}
                                         basePath="/host"
                                     />
                                 </motion.div>

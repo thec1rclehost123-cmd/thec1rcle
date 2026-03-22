@@ -93,7 +93,7 @@ export function PromoterFinanceClient() {
                                  Available Balance
                              </p>
                              <span className="text-4xl font-black tabular-nums tracking-tighter text-text-primary mt-1">
-                                 {formatCurrencyInline(data.overview.availableBalance)}
+                                 {formatCurrencyInline(data.overview?.availableBalance ?? 0)}
                              </span>
                              <p className="text-xs text-text-tertiary mt-2 font-medium">
                                  Ready for immediate withdrawal.
@@ -108,7 +108,7 @@ export function PromoterFinanceClient() {
                                  Pending Clearance
                              </p>
                              <span className="text-3xl font-black tabular-nums tracking-tighter text-text-primary mt-1">
-                                 {formatCurrencyInline(data.overview.pendingClearance)}
+                                 {formatCurrencyInline(data.overview?.pendingClearance ?? 0)}
                              </span>
                              <p className="text-xs text-amber-500/80 mt-2 font-medium bg-amber-500/10 self-start px-2 py-0.5 rounded">
                                  Takes ~3 days post-event to clear.
@@ -123,7 +123,7 @@ export function PromoterFinanceClient() {
                                  Lifetime Earnings
                              </p>
                              <span className="text-3xl font-black tabular-nums tracking-tighter text-text-primary mt-1">
-                                 {formatCurrencyInline(data.overview.lifetimeEarnings)}
+                                 {formatCurrencyInline(data.overview?.lifetimeEarnings ?? 0)}
                              </span>
                              <p className="text-xs text-text-tertiary mt-2 font-medium">
                                  Since joining THE C1RCLE.

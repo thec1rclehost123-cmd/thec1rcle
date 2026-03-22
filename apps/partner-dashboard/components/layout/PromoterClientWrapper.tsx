@@ -1,12 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Menu, X } from "lucide-react";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { RoleGuard } from "@/components/auth/RoleGuard";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { getDefaultTabVisibility } from "@/lib/rbac/types";
 import { usePathname } from "next/navigation";
+
+// ── Tab-to-href mapping ────────────────────────────────────────────────────────
+const PROMOTER_HREF_TO_TAB: Record<string, string> = {
+    "/promoter":            "overview",
+    "/promoter/links":      "links",
+    "/promoter/events":     "events",
+    "/promoter/partners":   "partners",
+    "/promoter/analytics":  "analytics",
+    "/promoter/finance":    "finance",
+    "/promoter/settings":   "settings",
+};
+
+function itemTab(href: string): string | null {
+    // Strip query params before lookup (e.g. /promoter/events?view=calendar → events)
+    const path = href.split("?")[0];
+    if (PROMOTER_HREF_TO_TAB[path]) return PROMOTER_HREF_TO_TAB[path];
+    for (const [prefix, tab] of Object.entries(PROMOTER_HREF_TO_TAB)) {
+        if (path.startsWith(prefix + "/")) return tab;
+    }
+    return null;
+}
+
+function applyTabVisibility(
+    sections: any[],
+    tabVisibility: Partial<Record<string, boolean>> | null
+): any[] {
+    if (!tabVisibility || Object.keys(tabVisibility).length === 0) return sections;
+    return sections
+        .map((section) => ({
+            ...section,
+            items: section.items.filter((item: any) => {
+                const tab = itemTab(item.href);
+                if (!tab) return true;
+                return tabVisibility[tab] !== false;
+            }),
+        }))
+        .filter((section) => section.items.length > 0);
+}
 
 interface PromoterClientWrapperProps {
     children: React.ReactNode;
@@ -16,9 +56,25 @@ interface PromoterClientWrapperProps {
 export function PromoterClientWrapper({ children, menuSections }: PromoterClientWrapperProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const { tabVisibility: ctxTabVisibility, profile } = useDashboardAuth();
     const pathname = usePathname();
 
     const promoterPrimaryAction = { label: "+ New Link", href: "/promoter/links" };
+
+    // Use server-resolved tabVisibility from auth context if set (custom staff profiles).
+    // Fall back to role-based defaults: PROMOTER hides Partners + Settings;
+    // TEAM_LEAD sees all tabs.
+    const membership = profile?.activeMembership;
+    const tabVisibility = ctxTabVisibility ?? (
+        membership?.role
+            ? getDefaultTabVisibility(membership.partnerType, membership.role)
+            : null
+    );
+
+    const filteredSections = useMemo(
+        () => applyTabVisibility(menuSections, tabVisibility),
+        [menuSections, tabVisibility]
+    );
 
     return (
         <RoleGuard allowedType="promoter">
@@ -28,7 +84,7 @@ export function PromoterClientWrapper({ children, menuSections }: PromoterClient
                     <AppleSidebar
                         brandLetter="C"
                         brandLabel="Promoter"
-                        menuSections={menuSections}
+                        menuSections={filteredSections}
                         basePath="/promoter"
                         isCollapsed={isCollapsed}
                         onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
@@ -79,7 +135,7 @@ export function PromoterClientWrapper({ children, menuSections }: PromoterClient
                                 <AppleSidebar
                                     brandLetter="C"
                                     brandLabel="Promoter"
-                                    menuSections={menuSections}
+                                    menuSections={filteredSections}
                                     basePath="/promoter"
                                 />
                             </motion.div>

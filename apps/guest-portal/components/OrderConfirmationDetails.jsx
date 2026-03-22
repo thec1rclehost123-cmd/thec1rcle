@@ -21,6 +21,8 @@ import Link from "next/link";
 export default function OrderConfirmationDetails({ order, event }) {
     const [viewLink, setViewLink] = useState(false);
 
+    if (!order || !event) return null;
+
     const shareOrder = () => {
         if (navigator.share) {
             navigator.share({
@@ -96,17 +98,17 @@ export default function OrderConfirmationDetails({ order, event }) {
                             <div className="flex justify-center gap-12">
                                 <div className="space-y-1">
                                     <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Event Date</p>
-                                    <p className="text-xs font-black text-white uppercase">{event.date.split(',')[0]}</p>
+                                    <p className="text-xs font-black text-white uppercase">{event.date?.split(',')[0] ?? 'TBD'}</p>
                                 </div>
                                 <div className="w-px h-8 bg-white/10" />
                                 <div className="space-y-1">
                                     <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Time</p>
-                                    <p className="text-xs font-black text-white uppercase">{event.time}</p>
+                                    <p className="text-xs font-black text-white uppercase">{event.time ?? 'TBD'}</p>
                                 </div>
                                 <div className="w-px h-8 bg-white/10" />
                                 <div className="space-y-1">
                                     <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Location</p>
-                                    <p className="text-xs font-black text-white uppercase">{(event.city || 'Private')}</p>
+                                    <p className="text-xs font-black text-white uppercase">{event.city ?? 'Private'}</p>
                                 </div>
                             </div>
 

@@ -170,7 +170,7 @@ export default function RefundsPage() {
             sortable: true,
             render: (val: number, row: RefundRequest) => (
                 <div>
-                    <p className="text-sm font-bold text-white tracking-tight">₹{val.toLocaleString()}</p>
+                    <p className="text-sm font-bold text-white tracking-tight">₹{(val ?? 0).toLocaleString()}</p>
                     {row.isPartial && (
                         <p className="text-[9px] text-amber-500 font-bold uppercase tracking-widest mt-1">Partial</p>
                     )}
@@ -236,7 +236,7 @@ export default function RefundsPage() {
             sortable: true,
             render: (val: string) => (
                 <div className="text-right">
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{new Date(val).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{val ? new Date(val).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</p>
                 </div>
             )
         }

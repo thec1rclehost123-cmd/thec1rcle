@@ -15,9 +15,9 @@ export function PromoterLeaderboardCard({ position }: { position?: any }) {
                     <>
                         <p className="text-text-secondary text-sm font-medium mb-1">CITY RANK</p>
                         <div className="text-5xl font-black tabular-nums tracking-tighter text-text-primary">
-                            #{position.rank}
+                            #{position.rank ?? "—"}
                         </div>
-                        <p className="text-sm text-text-tertiary mt-3">Top {position.percentile}% of promoters</p>
+                        <p className="text-sm text-text-tertiary mt-3">Top {position.percentile ?? "—"}% of promoters</p>
                     </>
                 ) : (
                     <>

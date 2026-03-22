@@ -8,7 +8,7 @@ export function PromoterGuestListPanel({ guestlist }: { guestlist: any }) {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2 gap-4">
                 <div>
                     <h2 className="text-xl font-bold tracking-tight text-text-primary">Guest List</h2>
-                    <p className="text-sm text-text-secondary">You have used {guestlist.used} out of {guestlist.allowance} complimentary spots.</p>
+                    <p className="text-sm text-text-secondary">You have used {guestlist?.used ?? 0} out of {guestlist?.allowance ?? 0} complimentary spots.</p>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                     <button className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-surface-tertiary hover:bg-surface-hover text-text-primary px-4 py-2 rounded-xl font-semibold transition-colors text-sm border border-border-subtle">
@@ -26,11 +26,11 @@ export function PromoterGuestListPanel({ guestlist }: { guestlist: any }) {
                 <div className="h-2 w-full flex bg-surface-tertiary rounded-full overflow-hidden mx-4">
                     <div 
                         className="bg-emerald-500 h-full rounded-full transition-all duration-1000" 
-                        style={{ width: `${(guestlist.used / Math.max(guestlist.allowance, 1)) * 100}%` }} 
+                        style={{ width: `${((guestlist?.used ?? 0) / Math.max(guestlist?.allowance ?? 0, 1)) * 100}%` }}
                     />
                 </div>
                 <div className="pr-4 whitespace-nowrap text-xs font-bold font-mono text-text-tertiary">
-                    {guestlist.used} / {guestlist.allowance} SPOTS
+                    {guestlist?.used ?? 0} / {guestlist?.allowance ?? 0} SPOTS
                 </div>
             </div>
 
@@ -57,7 +57,7 @@ export function PromoterGuestListPanel({ guestlist }: { guestlist: any }) {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle">
-                            {guestlist.guests.map((guest: any) => (
+                            {(guestlist?.guests ?? []).map((guest: any) => (
                                 <tr key={guest.id} className="hover:bg-surface-hover/30 transition-colors group">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">

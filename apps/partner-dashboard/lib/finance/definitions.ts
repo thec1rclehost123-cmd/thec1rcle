@@ -221,7 +221,8 @@ export const TRANSACTION_CATEGORY_LABELS: Record<TransactionCategory, string> = 
 
 // ── Canonical Money Formatters ───────────────────────────────────────────────
 
-export function formatINR(amount: number, opts?: { compact?: boolean }): string {
+export function formatINR(amount: number | null | undefined, opts?: { compact?: boolean }): string {
+    if (amount == null || isNaN(amount as number)) return opts?.compact ? "₹—" : "₹0";
     if (opts?.compact) {
         if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(2)}Cr`;
         if (amount >= 100000)   return `₹${(amount / 100000).toFixed(2)}L`;
@@ -235,7 +236,7 @@ export function formatINR(amount: number, opts?: { compact?: boolean }): string 
     }).format(amount);
 }
 
-export function formatINRCompact(amount: number): string {
+export function formatINRCompact(amount: number | null | undefined): string {
     return formatINR(amount, { compact: true });
 }
 

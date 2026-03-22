@@ -100,6 +100,7 @@ export default function EventsManagementPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!profile?.activeMembership?.partnerId || !user) return;
@@ -151,7 +152,10 @@ export default function EventsManagementPage() {
                         return dateB.getTime() - dateA.getTime();
                     });
                 setEvents(mapped);
-            } catch { }
+                setFetchError(null);
+            } catch {
+                setFetchError("Failed to load events. Please try again.");
+            }
             finally { setLoading(false); }
         })();
     }, [profile, user]);
@@ -272,7 +276,11 @@ export default function EventsManagementPage() {
                     </div>
 
                     {/* ── Events Grid ── */}
-                    {loading ? (
+                    {fetchError ? (
+                        <div className="p-4 rounded-2xl text-sm font-medium" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "var(--v-error)" }}>
+                            {fetchError}
+                        </div>
+                    ) : loading ? (
                         <div className="rounded-[32px] py-24 flex flex-col items-center gap-4" style={{ background: "var(--v-card)" }}>
                             <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--v-orange)" }} />
                             <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>

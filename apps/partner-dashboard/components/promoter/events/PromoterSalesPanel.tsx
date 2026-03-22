@@ -15,8 +15,8 @@ export function PromoterSalesPanel({ stats, commissionRate }: { stats: any; comm
     const kpis = [
         { title: "Total Revenue",    amount: formatINR(stats.totalRevenue),          icon: DollarSign,       trend: "" },
         { title: "Your Commission",  amount: formatINR(stats.estimatedCommission),   icon: TrendingUp,       trend: `${commissionRate}% rate` },
-        { title: "Total Clicks",     amount: stats.totalClicks.toLocaleString(),      icon: MousePointerClick, trend: "" },
-        { title: "Tickets Sold",     amount: stats.totalPurchases.toLocaleString(),   icon: ShoppingCart,     trend: "" },
+        { title: "Total Clicks",     amount: (stats.totalClicks ?? 0).toLocaleString(),    icon: MousePointerClick, trend: "" },
+        { title: "Tickets Sold",     amount: (stats.totalPurchases ?? 0).toLocaleString(), icon: ShoppingCart,     trend: "" },
     ];
 
     const conversionRate = ((stats.totalPurchases / Math.max(stats.totalClicks, 1)) * 100).toFixed(1);

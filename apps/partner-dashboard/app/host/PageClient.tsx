@@ -343,10 +343,10 @@ function EventMiniCard({ event }: { event: UpcomingEvent }) {
             </div>
             <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-bold text-[var(--v-text-tertiary)] uppercase tracking-tight">
-                    {formatDate(event.startDate)} · {event.venueName}
+                    {formatDate(event.startDate)} · {event.venueName ?? "—"}
                 </p>
                 <p className="text-[16px] font-black text-text-primary line-clamp-1 leading-tight uppercase mt-1 tracking-tight">
-                    {event.title}
+                    {event.title ?? "Untitled Event"}
                 </p>
                 <div className="mt-3 flex">
                     <span className="text-[12px] font-black uppercase tracking-widest px-3 py-1 rounded-lg border" style={{ color: cfg.color, borderColor: `${cfg.color}30`, background: `${cfg.color}10` }}>

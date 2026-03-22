@@ -95,7 +95,7 @@ export default function VenueDashboardHome() {
     const { data: tonight, isLoading: tonightLoading } = useQuery({
         queryKey: ['venue', venueId, 'tonight', tonightEvent?.id],
         queryFn: async () => {
-            const res = await fetch(`/api/venue/overview/tonight?eventId=${tonightEvent.id}`);
+            const res = await fetch(`/api/venue/overview/tonight?eventId=${tonightEvent?.id}`);
             return res.json();
         },
         enabled: !!tonightEvent?.id,
@@ -429,7 +429,7 @@ function EventMiniCard({ event }: { event: any }) {
                 {dateStr ? formatDate(dateStr) : "—"}
             </p>
             <p className="text-[14px] font-semibold line-clamp-2 leading-tight uppercase" style={{ color: "var(--v-text-primary)" }}>
-                {event.title}
+                {event.title ?? "—"}
             </p>
             <span className="v-status-pill self-start text-[10px]" style={{ color: cfg.color, background: cfg.bg }}>
                 {cfg.label}
@@ -454,10 +454,10 @@ function AlertRow({ alert }: { alert: any }) {
         <Wrapper href={href} className="flex items-start gap-3 p-3 rounded-xl hover:bg-surface-secondary transition-colors">
             <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ background: !alert.isRead ? "var(--v-orange)" : "var(--v-text-muted)" }} />
             <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-medium truncate" style={{ color: "var(--v-text-primary)" }}>{alert.title}</p>
-                <p className="text-[11px] truncate" style={{ color: "var(--v-text-tertiary)" }}>{alert.description}</p>
+                <p className="text-[13px] font-medium truncate" style={{ color: "var(--v-text-primary)" }}>{alert.title ?? "Notification"}</p>
+                <p className="text-[11px] truncate" style={{ color: "var(--v-text-tertiary)" }}>{alert.description ?? ""}</p>
             </div>
-            <span className="text-[10px] shrink-0 mt-0.5" style={{ color: "var(--v-text-muted)" }}>{alert.timestamp}</span>
+            <span className="text-[10px] shrink-0 mt-0.5" style={{ color: "var(--v-text-muted)" }}>{alert.timestamp ?? ""}</span>
         </Wrapper>
     );
 }

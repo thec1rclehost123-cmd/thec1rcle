@@ -111,15 +111,15 @@ const MemoizedPromoterEventCard = memo(({ event, myLinks, generateLink, generati
                 <div className="space-y-1.5 mb-4">
                     <div className="flex items-center gap-2 text-[12px] text-text-tertiary font-medium">
                         <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                        {new Date(event.startDate).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })} · {event.time}
+                        {event.startDate ? new Date(event.startDate).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "—"} · {event.time ?? ""}
                     </div>
                     <div className="flex items-center gap-2 text-[12px] text-text-tertiary font-medium">
                         <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                        {event.venue}, {event.city}
+                        {[event.venue, event.city].filter(Boolean).join(", ") || "—"}
                     </div>
                     <div className="flex items-center gap-2 text-[12px] text-text-tertiary font-medium">
                         <Ticket className="w-3.5 h-3.5 flex-shrink-0" />
-                        ₹{event.priceRange.min}+ entry
+                        {event.priceRange ? `₹${event.priceRange.min}+ entry` : "Free entry"}
                     </div>
                 </div>
 
@@ -127,7 +127,7 @@ const MemoizedPromoterEventCard = memo(({ event, myLinks, generateLink, generati
                 <div className="flex items-center gap-4 py-3 border-t border-border-subtle">
                     <div className="flex items-center gap-1.5 text-[12px] text-text-tertiary font-medium">
                         <Users className="w-3.5 h-3.5" />
-                        {event.stats.interested} interested
+                        {event.stats?.interested ?? 0} interested
                     </div>
                     <div className="flex items-center gap-1.5 text-[12px] text-emerald-500 font-bold">
                         <Percent className="w-3.5 h-3.5" />
@@ -205,6 +205,7 @@ export default function PromoterEventsPage() {
     const [selectedCity, setSelectedCity] = useState("");
     const [generatingLink, setGeneratingLink] = useState<string | null>(null);
     const [copiedCode, setCopiedCode] = useState<string | null>(null);
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     const promoterId = profile?.activeMembership?.partnerId;
     const promoterName = profile?.displayName;
@@ -226,8 +227,10 @@ export default function PromoterEventsPage() {
             const res = await fetch(`/api/promoter/events?${params}`);
             const data = await res.json();
             setEvents(data.events || []);
+            setFetchError(null);
         } catch (err) {
             console.error("Failed to fetch events:", err);
+            setFetchError("Failed to load events. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -287,8 +290,8 @@ export default function PromoterEventsPage() {
 
     const filteredEvents = useMemo(() => {
         return events.filter(event =>
-            event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            event.venue.toLowerCase().includes(searchQuery.toLowerCase())
+            (event.title ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (event.venue ?? "").toLowerCase().includes(searchQuery.toLowerCase())
         );
     }, [events, searchQuery]);
 
@@ -321,7 +324,11 @@ export default function PromoterEventsPage() {
                 </div>
             }
         >
-            {loading ? (
+            {fetchError ? (
+                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium">
+                    {fetchError}
+                </div>
+            ) : loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[1, 2, 3, 4, 5, 6].map(i => (
                         <div key={i} className="rounded-[32px] bg-surface-elevated border border-border-default animate-pulse">

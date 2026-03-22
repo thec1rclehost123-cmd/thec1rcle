@@ -31,7 +31,7 @@ export function DataTable({
         setSortConfig({ key, direction });
     };
 
-    const sortedData = [...data].sort((a, b) => {
+    const sortedData = [...(data ?? [])].sort((a, b) => {
         if (!sortConfig) return 0;
         const { key, direction } = sortConfig;
         if (a[key] < b[key]) return direction === 'ascending' ? -1 : 1;

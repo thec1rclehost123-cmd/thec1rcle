@@ -137,7 +137,7 @@ export default function VenueHighlights({ highlights = [], venueName = "Venue" }
                             </div>
                             {/* Title */}
                             <span className="text-[10px] font-bold text-black/60 dark:text-white/60 group-hover:text-black dark:group-hover:text-white transition-colors max-w-[80px] truncate">
-                                {highlight.title || 'Highlight'}
+                                {highlight.title ?? 'Highlight'}
                             </span>
                         </button>
                     ))}

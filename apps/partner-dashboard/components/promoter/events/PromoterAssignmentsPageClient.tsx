@@ -9,7 +9,7 @@ export function PromoterAssignmentsPageClient() {
     const [statusFilter, setStatusFilter] = useState("active");
     const [searchQuery, setSearchQuery] = useState("");
 
-    const { data, isLoading, error } = useQuery({
+    const { data, isLoading, error, refetch } = useQuery({
         queryKey: ["promoter", "events", statusFilter],
         queryFn: async () => {
             const res = await fetch(`/api/partner/promoter/events?status=${statusFilter}`);
@@ -91,9 +91,15 @@ export function PromoterAssignmentsPageClient() {
                         ))}
                     </div>
                 ) : error ? (
-                    <div className="w-full p-6 bg-red-500/10 border border-red-500/20 text-red-500 rounded-2xl flex flex-col items-center justify-center text-center">
-                        <p className="font-bold mb-1">Failed to Load</p>
+                    <div className="w-full p-6 bg-red-500/10 border border-red-500/20 text-red-500 rounded-2xl flex flex-col items-center justify-center text-center gap-3">
+                        <p className="font-bold">Failed to Load</p>
                         <p className="text-sm opacity-80">There was an error fetching your event assignments.</p>
+                        <button
+                            onClick={() => refetch()}
+                            className="px-5 py-2 rounded-xl bg-surface-elevated border border-border-subtle text-text-primary text-sm font-semibold hover:bg-surface-hover transition-colors mt-1"
+                        >
+                            Retry
+                        </button>
                     </div>
                 ) : filteredAssignments.length > 0 ? (
                     filteredAssignments.map((assignment: any) => (

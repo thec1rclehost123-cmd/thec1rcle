@@ -27,25 +27,26 @@ export default function HostFinancePageClient() {
 
     const [period, setPeriod]   = useState<Period>("30d");
     const [loading, setLoading] = useState(true);
+    const [error, setError]     = useState(false);
     const [metrics, setMetrics] = useState<FinanceOverviewMetrics | null>(null);
     const [cashflow, setCashflow] = useState<CashflowDataPoint[]>([]);
 
     const fetchData = useCallback(async () => {
         if (!hostId) return;
         setLoading(true);
+        setError(false);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
             const res = await fetch(
                 `/api/host/finance/overview?hostId=${hostId}&period=${period}`,
                 { headers: token ? { Authorization: `Bearer ${token}` } : {} }
             );
-            if (res.ok) {
-                const d = await res.json();
-                setMetrics(d.metrics || null);
-                setCashflow(d.cashflow || []);
-            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const d = await res.json();
+            setMetrics(d.metrics || null);
+            setCashflow(d.cashflow || []);
         } catch {
-            // keep defaults
+            setError(true);
         } finally {
             setLoading(false);
         }
@@ -90,6 +91,21 @@ export default function HostFinancePageClient() {
                 </div>
             }
         >
+            {error ? (
+                <div className="flex flex-col items-center justify-center py-24 rounded-[40px] border border-red-500/20 bg-red-500/5 gap-4 text-center">
+                    <TrendingUp className="w-10 h-10 text-red-400" />
+                    <div>
+                        <p className="text-[16px] font-black text-text-primary">Failed to load financial data</p>
+                        <p className="text-[13px] text-[var(--v-text-tertiary)] mt-2">Could not fetch your earnings. Check your connection and retry.</p>
+                    </div>
+                    <button
+                        onClick={fetchData}
+                        className="h-11 px-8 rounded-2xl bg-surface-tertiary border border-border-subtle text-text-primary text-[13px] font-black uppercase tracking-widest hover:bg-surface-elevated transition-all"
+                    >
+                        Retry
+                    </button>
+                </div>
+            ) : (
             <div className="space-y-10 animate-in fade-in duration-500">
                 {/* Hero — Personal Earnings */}
                 <div className="relative overflow-hidden bg-[var(--v-card)] border border-[var(--v-border)] rounded-[56px] p-12 group bg-gradient-to-br from-[var(--v-card)] to-[var(--v-canvas)]">
@@ -225,6 +241,7 @@ export default function HostFinancePageClient() {
                     </div>
                 </div>
             </div>
+            )}
         </VenuePageShell>
     );
 }

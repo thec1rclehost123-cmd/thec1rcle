@@ -101,9 +101,9 @@ export default function AdminPromoters() {
         const headers = ["ID", "Name", "Status", "Conversion Count", "Joined Date"];
         const rows = filtered.map(p => [
             p.id,
-            p.name || 'Unnamed Partner',
-            p.status || 'Active',
-            p.conversionCount || 0,
+            p.name ?? 'Unnamed Partner',
+            p.status ?? 'Active',
+            p.conversionCount ?? 0,
             p.createdAt ? new Date(p.createdAt).toISOString() : 'N/A'
         ]);
 
@@ -194,19 +194,19 @@ export default function AdminPromoters() {
                                             <div className={`h-1 w-1 rounded-full ${promoter.status === 'active' ? 'bg-emerald-500' :
                                                 promoter.status === 'suspended' ? 'bg-amber-500' : 'bg-iris'
                                                 }`} />
-                                            {promoter.status || 'Active'}
+                                            {promoter.status ?? 'Active'}
                                         </div>
                                     </div>
 
                                     <div className="space-y-1">
-                                        <h3 className="text-lg font-semibold tracking-tight text-white">{promoter.name || 'Unnamed Partner'}</h3>
+                                        <h3 className="text-lg font-semibold tracking-tight text-white">{promoter.name ?? 'Unnamed Partner'}</h3>
                                         <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">ID: {promoter.id?.slice(0, 12)}</p>
                                     </div>
 
                                     <div className="mt-6 grid grid-cols-2 gap-3">
                                         <div className="p-3 rounded-lg bg-black/20 border border-white/[0.02]">
                                             <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-zinc-500 mb-0.5">Impact</p>
-                                            <p className="text-lg font-semibold text-white tracking-tight">{promoter.conversionCount || 0}</p>
+                                            <p className="text-lg font-semibold text-white tracking-tight">{promoter.conversionCount ?? 0}</p>
                                         </div>
                                         <div className="p-3 rounded-lg bg-black/20 border border-white/[0.02]">
                                             <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-zinc-500 mb-0.5">Created</p>

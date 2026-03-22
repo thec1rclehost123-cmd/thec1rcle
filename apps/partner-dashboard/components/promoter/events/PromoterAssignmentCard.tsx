@@ -29,15 +29,15 @@ function formatDate(dateStr: string) {
 }
 
 export function PromoterAssignmentCard({ assignment }: { assignment: any }) {
-    const { event, stats, linkCode, id } = assignment;
-    
+    const { event = {}, stats = {}, linkCode, id } = assignment ?? {};
+
     // Status color mapping
     const statusColors: any = {
         live: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
         upcoming: "bg-amber-500/10 text-amber-500 border-amber-500/20",
         completed: "bg-surface-tertiary text-text-secondary border-border-subtle"
     };
-    
+
     const statusColor = statusColors[event.status?.toLowerCase()] || statusColors.upcoming;
 
     return (
@@ -45,9 +45,9 @@ export function PromoterAssignmentCard({ assignment }: { assignment: any }) {
             {/* Event Thumbnail */}
             <div className="w-full md:w-48 h-32 md:h-full min-h-[128px] relative rounded-xl overflow-hidden bg-surface-tertiary border border-border-subtle flex-shrink-0">
                 {event.coverUrl ? (
-                    <Image 
-                        src={event.coverUrl} 
-                        alt={event.name}
+                    <Image
+                        src={event.coverUrl}
+                        alt={event.name ?? ""}
                         fill
                         className="object-cover"
                     />
@@ -67,7 +67,7 @@ export function PromoterAssignmentCard({ assignment }: { assignment: any }) {
             <div className="flex-1 flex flex-col min-w-0 w-full h-full">
                 <div className="flex-1">
                     <h3 className="text-xl font-bold tracking-tight text-text-primary truncate mb-2">
-                        {event.name}
+                        {event.name ?? "Unnamed Event"}
                     </h3>
                     
                     <div className="flex flex-col gap-1.5 mb-4">
@@ -77,7 +77,7 @@ export function PromoterAssignmentCard({ assignment }: { assignment: any }) {
                         </div>
                         <div className="flex items-center text-sm text-text-secondary">
                             <MapPin className="h-4 w-4 mr-2 text-text-muted" />
-                            <span className="truncate">{event.venue}</span>
+                            <span className="truncate">{event.venue ?? "—"}</span>
                         </div>
                     </div>
                 </div>
@@ -104,20 +104,20 @@ export function PromoterAssignmentCard({ assignment }: { assignment: any }) {
                     <div className="bg-surface-base rounded-xl p-3 border border-border-subtle">
                         <p className="text-xs text-text-tertiary mb-1 font-medium">MY SALES</p>
                         <p className="text-lg font-black tabular-nums tracking-tight text-text-primary">
-                            {formatCurrency(stats.revenue)}
+                            {formatCurrency(stats.revenue ?? 0)}
                         </p>
                     </div>
                     <div className="bg-surface-base rounded-xl p-3 border border-border-subtle">
                         <p className="text-xs text-text-tertiary mb-1 font-medium">TICKETS</p>
                         <p className="text-lg font-black tabular-nums tracking-tight text-text-primary">
-                            {stats.ticketsSold}
+                            {stats.ticketsSold ?? 0}
                         </p>
                     </div>
                 </div>
 
                 <div className="flex items-center justify-between text-sm px-1 mb-2">
                     <span className="text-text-secondary">Commission:</span>
-                    <span className="font-bold text-emerald-500">{stats.commissionRate}%</span>
+                    <span className="font-bold text-emerald-500">{stats.commissionRate ?? 0}%</span>
                 </div>
 
                 <Link

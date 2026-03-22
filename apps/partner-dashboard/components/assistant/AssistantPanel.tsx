@@ -148,7 +148,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                     id: `a-${Date.now()}`,
                     role: "assistant",
                     answer: data.answer,
-                    followUps: data.answer.followUps,
+                    followUps: data.answer?.followUps,
                 };
                 return newThread;
             });
@@ -158,7 +158,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                 ...prev,
                 history: [
                     ...updatedHistory,
-                    { role: "assistant" as const, content: data.answer.text, timestamp: Date.now() },
+                    { role: "assistant" as const, content: data.answer?.text ?? '', timestamp: Date.now() },
                 ].slice(-6),
             }));
 

@@ -102,18 +102,23 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
         (async () => {
             const { onSnapshot, doc } = await import("firebase/firestore");
             const db = await getFirebaseDb();
-            unsubscribe = onSnapshot(doc(db, "events", event.id), (snap) => {
-                if (!snap.exists()) return;
-                const data = snap.data();
-                const tiers = data.ticketCatalog?.tiers || data.tickets || [];
-                setLiveTiers(tiers.map(tier => ({
-                    ...tier,
-                    _liveAvailable: Math.max(0,
-                        Number(tier.remaining ?? tier.quantity ?? 0) - Number(tier.lockedQuantity || 0)
-                    ),
-                })));
-            });
-        })().catch(() => { });
+            unsubscribe = onSnapshot(
+                doc(db, "events", event.id),
+                (snap) => {
+                    if (!snap.exists()) return;
+                    const data = snap.data();
+                    const rawTiers = data?.ticketCatalog?.tiers ?? data?.tickets ?? [];
+                    const tiers = Array.isArray(rawTiers) ? rawTiers : [];
+                    setLiveTiers(tiers.map(tier => ({
+                        ...tier,
+                        _liveAvailable: Math.max(0,
+                            Number(tier.remaining ?? tier.quantity ?? 0) - Number(tier.lockedQuantity || 0)
+                        ),
+                    })));
+                },
+                (err) => { console.error("[Checkout] Live inventory listener error:", err); }
+            );
+        })().catch((err) => { console.error("[Checkout] Failed to start live inventory listener:", err); });
         return () => unsubscribe?.();
     }, [event?.id]);
 

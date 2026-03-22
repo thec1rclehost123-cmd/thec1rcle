@@ -713,7 +713,7 @@ function SidePanel({
                     </p>
                     {isBlocked && data.block?.startTime && (
                         <p className="text-[10px] text-text-tertiary tabular-nums mt-2 font-bold opacity-60">
-                            {data.block.startTime} — {data.block.endTime}
+                            {data.block?.startTime} — {data.block?.endTime}
                         </p>
                     )}
                 </div>
