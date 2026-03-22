@@ -109,7 +109,7 @@ export default function AdminPromotions() {
                                         </div>
                                     </td>
                                     <td className="px-8 py-8">
-                                        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{p.used || 0} / {p.limit || 'Unlimited'} Uses</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{p.used ?? 0} / {p.limit ?? 'Unlimited'} Uses</p>
                                     </td>
                                     <td className="px-8 py-8">
                                         <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">

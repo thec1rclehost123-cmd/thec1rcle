@@ -50,10 +50,10 @@ export const VenueCard = memo(function VenueCard({ venue, onFollow }) {
                     <div className="flex items-start justify-between">
                         <div>
                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-1">
-                                {venue.neighborhood || venue.area || venue.city || 'Pune, IN'}
+                                {venue.neighborhood ?? venue.area ?? venue.city ?? 'Pune, IN'}
                             </p>
                             <h3 className="text-xl font-heading font-black uppercase tracking-tight text-white dark:text-white leading-tight">
-                                {venue.name || venue.displayName || 'Unnamed Venue'}
+                                {venue.name ?? venue.displayName ?? 'Unnamed Venue'}
                             </h3>
                         </div>
                     </div>

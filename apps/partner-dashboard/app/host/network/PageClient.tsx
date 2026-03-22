@@ -255,10 +255,12 @@ export default function HostNetworkPage() {
     const [promoters, setPromoters] = useState<PromoterPartner[]>([]);
     const [requests, setRequests] = useState<PartnershipRequest[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
 
     const fetchData = useCallback(async () => {
         if (!hostId) { setLoading(false); return; }
         setLoading(true);
+        setError(false);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
@@ -297,7 +299,7 @@ export default function HostNetworkPage() {
                 const d = await promoterRes.value.json();
                 setPromoters(d.promoters || d.connections || []);
             }
-        } catch { /* */ }
+        } catch { setError(true); }
         finally { setLoading(false); }
     }, [hostId, getIdToken]);
 
@@ -408,6 +410,22 @@ export default function HostNetworkPage() {
                         </div>
                     )}
                 </div>
+
+                {error && (
+                    <div className="flex flex-col items-center justify-center py-16 rounded-[40px] border border-red-500/20 bg-red-500/5 gap-4 text-center">
+                        <Handshake className="w-10 h-10 text-red-400" />
+                        <div>
+                            <p className="text-[16px] font-black text-text-primary">Failed to load network</p>
+                            <p className="text-[13px] text-[var(--v-text-tertiary)] mt-2">Could not fetch your partnership data. Check your connection.</p>
+                        </div>
+                        <button
+                            onClick={fetchData}
+                            className="h-11 px-8 rounded-2xl bg-surface-tertiary border border-border-subtle text-text-primary text-[13px] font-black uppercase tracking-widest hover:bg-surface-elevated transition-all"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                )}
 
                 {/* Tab content */}
                 <AnimatePresence mode="wait">

@@ -65,7 +65,7 @@ const STATUS_OPTIONS: Array<{ value: SettlementStatus | ""; label: string }> = [
 // ── LedgerTable ──────────────────────────────────────────────────────────────
 
 export function LedgerTable({
-    transactions,
+    transactions = [],
     loading = false,
     error = false,
     onRetry,

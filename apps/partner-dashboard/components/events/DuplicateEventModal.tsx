@@ -39,7 +39,7 @@ export function DuplicateEventModal({
             return res.json();
         },
         onSuccess: (data) => {
-            setNewDraftId(data.draft.id);
+            setNewDraftId(data?.draft?.id);
             setDone(true);
         },
     });

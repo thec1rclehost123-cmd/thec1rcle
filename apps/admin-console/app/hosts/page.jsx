@@ -87,8 +87,8 @@ export default function AdminHosts() {
         const headers = ["ID", "Name", "Role", "Status", "Owner UID"];
         const rows = filteredHosts.map(h => [
             h.id,
-            h.name || 'Anonymous Organizer',
-            h.role || 'Member',
+            h.name ?? 'Anonymous Organizer',
+            h.role ?? 'Member',
             h.status,
             h.ownerUid
         ]);
@@ -121,7 +121,7 @@ export default function AdminHosts() {
                     </div>
                     <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                            <p className="text-sm font-semibold text-white truncate uppercase tracking-tight">{val || 'Anonymous Organizer'}</p>
+                            <p className="text-sm font-semibold text-white truncate uppercase tracking-tight">{val ?? 'Anonymous Organizer'}</p>
                             {row.isVerified && <BadgeCheck className="h-3.5 w-3.5 text-emerald-500" strokeWidth={1.5} />}
                         </div>
                         <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">ID: {row.id.slice(0, 8)}</p>
@@ -135,7 +135,7 @@ export default function AdminHosts() {
             sortable: true,
             render: (val, row) => (
                 <div className="min-w-[140px]">
-                    <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-tight">{val || 'Member'}</p>
+                    <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-tight">{val ?? 'Member'}</p>
                     <p className="text-[10px] text-zinc-600 uppercase tracking-widest mt-1 font-mono-numbers">UID: {row.ownerUid?.slice(0, 8)}</p>
                 </div>
             )

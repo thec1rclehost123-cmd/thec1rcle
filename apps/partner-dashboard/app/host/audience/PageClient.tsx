@@ -91,7 +91,7 @@ function GuestRow({ guest, onVipToggle }: { guest: AudienceGuest; onVipToggle: (
             {/* Name + avatar */}
             <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-black text-sm shrink-0">
-                    {guest.maskedName.charAt(0)}
+                    {guest.maskedName?.charAt(0) ?? "?"}
                 </div>
                 <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -100,7 +100,7 @@ function GuestRow({ guest, onVipToggle }: { guest: AudienceGuest; onVipToggle: (
                         {guest.isRepeat && <Repeat2 className="w-3 h-3 text-indigo-400 shrink-0" />}
                     </div>
                     <p className="text-text-tertiary text-[11px] truncate">
-                        {guest.lastEventNames.join(", ")}
+                        {(guest.lastEventNames ?? []).join(", ")}
                     </p>
                 </div>
             </div>

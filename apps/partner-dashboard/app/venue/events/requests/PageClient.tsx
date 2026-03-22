@@ -54,6 +54,7 @@ export default function VenueEventRequestsPage() {
     const { profile } = useDashboardAuth();
     const [requests, setRequests] = useState<EventRequest[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
     const [activeTab, setActiveTab] = useState<"pending" | "all">("pending");
     const [selectedRequest, setSelectedRequest] = useState<EventRequest | null>(null);
     const [actionModal, setActionModal] = useState<{
@@ -73,6 +74,7 @@ export default function VenueEventRequestsPage() {
 
     const fetchRequests = async () => {
         setLoading(true);
+        setError(false);
         try {
             // 1. Fetch slot requests for this club
             const slotsRes = await fetch(`/api/slots?venueId=${venueId}&status=${activeTab === "pending" ? "pending" : ""}`);
@@ -112,6 +114,7 @@ export default function VenueEventRequestsPage() {
             setRequests([...eventRequestsFromSlots.filter(Boolean), ...eventRequestsFromSubmitted]);
         } catch (err) {
             console.error("Failed to fetch requests:", err);
+            setError(true);
         } finally {
             setLoading(false);
         }
@@ -254,6 +257,20 @@ export default function VenueEventRequestsPage() {
                             </div>
                         </div>
                     ))}
+                </div>
+            ) : error ? (
+                <div className="card p-12 text-center flex flex-col items-center gap-4">
+                    <AlertCircle className="w-10 h-10 text-red-400" />
+                    <div>
+                        <h3 className="text-headline-sm mb-1">Failed to load requests</h3>
+                        <p className="text-body-sm text-[#86868b]">Could not fetch event requests. Check your connection.</p>
+                    </div>
+                    <button
+                        onClick={fetchRequests}
+                        className="px-6 py-2 rounded-xl bg-surface-elevated border border-border-subtle text-text-primary text-sm font-semibold hover:bg-surface-hover transition-colors"
+                    >
+                        Retry
+                    </button>
                 </div>
             ) : requests.length === 0 ? (
                 <div className="card p-12 text-center">

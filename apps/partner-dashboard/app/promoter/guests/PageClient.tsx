@@ -52,6 +52,7 @@ export default function GuestStreamPage() {
     const { profile, user } = useDashboardAuth();
     const [guests, setGuests] = useState<GuestEntry[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [filterStatus, setFilterStatus] = useState<"all" | "checked_in" | "pending">("all");
     const [autoRefresh, setAutoRefresh] = useState(true);
@@ -63,7 +64,7 @@ export default function GuestStreamPage() {
             if (!promoterId) return;
 
             if (isRefresh) setRefreshing(true);
-            else setLoading(true);
+            else { setLoading(true); setError(false); }
 
             try {
                 const token = await user?.getIdToken();
@@ -75,6 +76,7 @@ export default function GuestStreamPage() {
                 setGuests(data.guests || []);
             } catch (err) {
                 console.error("[Guest Stream] Failed to fetch:", err);
+                if (!isRefresh) setError(true);
             } finally {
                 setLoading(false);
                 setRefreshing(false);
@@ -288,6 +290,22 @@ export default function GuestStreamPage() {
                             />
                         ))}
                     </div>
+                ) : error ? (
+                    <div className="py-16 rounded-[32px] flex flex-col items-center text-center gap-4"
+                        style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.15)" }}>
+                        <TrendingUp className="w-10 h-10" style={{ color: "#f87171" }} />
+                        <div>
+                            <p className="font-black text-text-primary">Failed to load guests</p>
+                            <p className="text-sm text-text-tertiary mt-1">Could not fetch your guest stream. Check your connection.</p>
+                        </div>
+                        <button
+                            onClick={() => fetchGuests()}
+                            className="px-6 py-2 rounded-xl text-sm font-bold"
+                            style={{ background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}
+                        >
+                            Retry
+                        </button>
+                    </div>
                 ) : filteredGuests.length === 0 ? (
                     /* ── Premium empty state ── */
                     <div
@@ -387,7 +405,7 @@ export default function GuestStreamPage() {
                                                 color: "#a78bfa",
                                             }}
                                         >
-                                            {guest.guestName[0]}
+                                            {guest.guestName?.[0] ?? "?"}
                                         </div>
                                         <div className="min-w-0">
                                             <p className="text-sm font-bold text-text-primary truncate">

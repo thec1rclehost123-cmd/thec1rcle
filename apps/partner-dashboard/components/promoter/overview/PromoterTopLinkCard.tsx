@@ -13,10 +13,10 @@ export function PromoterTopLinkCard({ topLink }: { topLink?: any }) {
                             {topLink.event?.name}
                         </p>
                         <div className="bg-surface-tertiary px-3 py-2 rounded-lg font-mono text-sm break-all text-text-secondary">
-                            c1rcle.com/e/{topLink.linkCode}
+                            c1rcle.com/e/{topLink.linkCode ?? "—"}
                         </div>
                         <p className="text-sm text-text-tertiary">
-                            Driven <span className="font-bold text-text-primary tabular-nums">{topLink.attributedRevenue}</span> in sales
+                            Driven <span className="font-bold text-text-primary tabular-nums">{topLink.attributedRevenue ?? "₹—"}</span> in sales
                         </p>
                     </div>
                 ) : (

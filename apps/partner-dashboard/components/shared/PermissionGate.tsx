@@ -1,7 +1,7 @@
 "use client";
 
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { VENUE_PERMISSIONS, type Permission, type VenueRole } from "@/lib/rbac/types";
+import { getPermissionsForRole, type Permission } from "@/lib/rbac/types";
 
 interface PermissionGateProps {
     /** One permission or an array — ALL must match for the gate to open */
@@ -14,13 +14,9 @@ interface PermissionGateProps {
 /**
  * PermissionGate
  *
- * Renders children only when the current user's venue role has every
- * permission listed in `require`. If permission is denied, renders
- * `fallback` (default: null).
- *
- * Both the role from JWT claims and from the Firestore membership doc may
- * arrive in any case. We normalise to uppercase before the lookup so
- * 'owner', 'OWNER', and 'Owner' all resolve correctly.
+ * Renders children only when the current user's role has every permission
+ * listed in `require`. Works for venue, host, and promoter partner types —
+ * the correct permission table is selected automatically via getPermissionsForRole().
  *
  * NOTE: This is a UI gate only. Every API route must enforce its own
  * server-side permission check independently.
@@ -36,14 +32,11 @@ interface PermissionGateProps {
  */
 export function PermissionGate({ require, fallback = null, children }: PermissionGateProps) {
     const { profile } = useDashboardAuth();
-    const rawRole = profile?.activeMembership?.role;
+    const membership = profile?.activeMembership;
 
-    // Normalize to uppercase for VENUE_PERMISSIONS lookup
-    const role = rawRole ? (rawRole.toUpperCase() as VenueRole) : null;
+    if (!membership?.role) return <>{fallback}</>;
 
-    if (!role) return <>{fallback}</>;
-
-    const grantedPerms = VENUE_PERMISSIONS[role] ?? [];
+    const grantedPerms = getPermissionsForRole(membership.partnerType, membership.role);
     const required = Array.isArray(require) ? require : [require];
     const allowed = required.every((p) => grantedPerms.includes(p));
 

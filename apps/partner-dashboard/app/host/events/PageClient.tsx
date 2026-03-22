@@ -74,12 +74,14 @@ export default function HostEventsPage() {
     const [events, setEvents] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<EventTab>("all");
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
 
     const fetchEvents = useCallback(async () => {
         const hostId = profile?.activeMembership?.partnerId;
         if (!hostId) { setLoading(false); return; }
         setLoading(true);
+        setError(false);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
             const res = await fetch(`/api/host/events?hostId=${hostId}`, {
@@ -91,6 +93,7 @@ export default function HostEventsPage() {
             setEvents(fetched);
         } catch (error) {
             console.error("Error fetching host events:", error);
+            setError(true);
         } finally {
             setLoading(false);
         }
@@ -219,6 +222,18 @@ export default function HostEventsPage() {
                                     {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
                                         <div key={i} className="h-80 rounded-[40px] animate-pulse bg-[var(--v-card)] border border-[var(--v-border)]" />
                                     ))}
+                                </motion.div>
+                            ) : error ? (
+                                <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                    className="py-24 bg-[var(--v-card)] rounded-[56px] border border-red-500/20 flex flex-col items-center text-center px-12 gap-4">
+                                    <AlertCircle className="w-10 h-10 text-red-400" />
+                                    <div>
+                                        <h3 className="text-xl font-black text-text-primary">Failed to load events</h3>
+                                        <p className="text-[var(--v-text-tertiary)] text-[14px] font-bold mt-2">Could not fetch your production roster. Check your connection.</p>
+                                    </div>
+                                    <button onClick={fetchEvents} className="mt-2 h-11 px-8 rounded-2xl bg-surface-tertiary border border-border-subtle text-text-primary text-[13px] font-black uppercase tracking-widest hover:bg-surface-elevated transition-all">
+                                        Retry
+                                    </button>
                                 </motion.div>
                             ) : filteredEvents.length === 0 ? (
                                 <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}

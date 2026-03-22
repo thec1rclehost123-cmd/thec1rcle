@@ -90,7 +90,7 @@ export function PromoterAnalyticsClient() {
                                  Total Clicks
                              </p>
                              <span className="text-3xl font-black tabular-nums tracking-tighter text-text-primary">
-                                 {data.overview.totalClicks}
+                                 {data.overview?.totalClicks ?? '—'}
                              </span>
                         </div>
                         <div className="bg-surface-elevated border-border-subtle p-5 rounded-2xl border flex flex-col gap-2">
@@ -99,7 +99,7 @@ export function PromoterAnalyticsClient() {
                                  Tickets Sold
                              </p>
                              <span className="text-3xl font-black tabular-nums tracking-tighter text-text-primary">
-                                 {data.overview.ticketsSold}
+                                 {data.overview?.ticketsSold ?? '—'}
                              </span>
                         </div>
                         <div className="bg-surface-elevated border-border-subtle p-5 rounded-2xl border flex flex-col gap-2">
@@ -108,7 +108,7 @@ export function PromoterAnalyticsClient() {
                                  Conversion Rate
                              </p>
                              <span className="text-3xl font-black tabular-nums tracking-tighter text-text-primary">
-                                 {data.overview.conversionRate}
+                                 {data.overview?.conversionRate ?? '—'}
                              </span>
                         </div>
                         <div className="bg-surface-elevated border-emerald-500/30 p-5 rounded-2xl border bg-gradient-to-br from-emerald-500/10 to-surface-elevated flex flex-col gap-2 relative overflow-hidden">
@@ -117,13 +117,13 @@ export function PromoterAnalyticsClient() {
                                  Total Commission
                              </p>
                              <span className="text-3xl font-black tabular-nums tracking-tighter text-text-primary">
-                                 {formatCurrencyInline(data.overview.commission)}
+                                 {formatCurrencyInline(data.overview?.commission ?? 0)}
                              </span>
                         </div>
                     </div>
 
                     {/* Chart */}
-                    <PromoterFunnelChart timeline={data.timeline} />
+                    <PromoterFunnelChart timeline={data.timeline ?? []} />
 
                     {/* Top Links Table */}
                     <div className="bg-surface-elevated rounded-2xl border border-border-subtle overflow-hidden flex flex-col">

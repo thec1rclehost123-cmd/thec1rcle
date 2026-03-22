@@ -261,11 +261,13 @@ export default function HostPartnershipsPage() {
     const [promoters, setPromoters] = useState<PromoterPartner[]>([]);
     const [requests, setRequests] = useState<PartnershipRequest[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
     const [selectedVenue, setSelectedVenue] = useState<{ id: string; name: string } | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!hostId) { setLoading(false); return; }
         setLoading(true);
+        setError(false);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
             const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -322,7 +324,7 @@ export default function HostPartnershipsPage() {
                     return [...venueReqs, ...promoterRequests];
                 });
             }
-        } catch { /* silent — data remains from last successful fetch */ }
+        } catch { setError(true); }
         finally { setLoading(false); }
     }, [hostId, getIdToken]);
 
@@ -441,6 +443,22 @@ export default function HostPartnershipsPage() {
                 </div>
 
                 {/* Tab content */}
+                {error && (
+                    <div className="flex flex-col items-center justify-center py-16 rounded-[40px] border border-red-500/20 bg-red-500/5 gap-4 text-center">
+                        <Handshake className="w-10 h-10 text-red-400" />
+                        <div>
+                            <p className="text-[16px] font-black text-text-primary">Failed to load partnerships</p>
+                            <p className="text-[13px] text-[var(--v-text-tertiary)] mt-2">Could not fetch your partnership data. Check your connection.</p>
+                        </div>
+                        <button
+                            onClick={fetchData}
+                            className="h-11 px-8 rounded-2xl bg-surface-tertiary border border-border-subtle text-text-primary text-[13px] font-black uppercase tracking-widest hover:bg-surface-elevated transition-all"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                )}
+
                 <AnimatePresence mode="wait">
                     {tab === "venues" && (
                         <motion.div key="venues" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: [0.25, 1, 0.5, 1] }}>

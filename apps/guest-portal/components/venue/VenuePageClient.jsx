@@ -93,6 +93,8 @@ export default function VenuePageClient({
         setShowReservation(true);
     };
 
+    if (!venue) return null;
+
     // Extract menu images from venue data
     const menuImages = venue.menuImages || venue.menu?.images || [];
 

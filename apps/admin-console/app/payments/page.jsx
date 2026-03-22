@@ -120,7 +120,7 @@ export default function AdminPayments() {
             sortable: true,
             render: (val, row) => (
                 <div>
-                    <p className="text-sm font-semibold text-white truncate">{val || 'Anonymous'}</p>
+                    <p className="text-sm font-semibold text-white truncate">{val ?? 'Anonymous'}</p>
                     <p className="text-[10px] text-zinc-500 font-medium truncate uppercase tracking-tighter mt-0.5">{row.customerEmail}</p>
                 </div>
             )
@@ -135,7 +135,7 @@ export default function AdminPayments() {
                         <ArrowDownLeft className="h-4 w-4 text-emerald-500" strokeWidth={1.5} />
                     </div>
                     <div className="min-w-0">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 truncate">{row.eventTitle || 'Event Entry'}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 truncate">{row.eventTitle ?? 'Event Entry'}</p>
                         <p className="text-[9px] text-zinc-600 font-medium truncate mt-0.5">#{val.slice(0, 8)}</p>
                     </div>
                 </div>
@@ -160,7 +160,7 @@ export default function AdminPayments() {
                 <div className="flex items-center justify-end gap-2">
                     <div className={`h-1.5 w-1.5 rounded-full ${val === 'captured' || val === 'paid' ? 'bg-emerald-500' : val === 'refunded' ? 'bg-iris' : 'bg-amber-500'}`} />
                     <span className={`text-[10px] font-bold uppercase tracking-widest ${val === 'captured' || val === 'paid' ? 'text-emerald-500' : val === 'refunded' ? 'text-iris' : 'text-amber-500'}`}>
-                        {val || 'pending'}
+                        {val ?? 'pending'}
                     </span>
                 </div>
             )
@@ -250,7 +250,7 @@ export default function AdminPayments() {
                     <div className="grid grid-cols-1 gap-4">
                         <div className="p-4 rounded-xl bg-white/[0.02] border border-[#ffffff05] space-y-1">
                             <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Customer</p>
-                            <p className="text-sm font-semibold text-white truncate">{selectedTxn?.customerName || 'Anonymous'}</p>
+                            <p className="text-sm font-semibold text-white truncate">{selectedTxn?.customerName ?? 'Anonymous'}</p>
                         </div>
                         <div className="p-4 rounded-xl bg-white/[0.02] border border-[#ffffff05] space-y-1">
                             <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Timestamp</p>

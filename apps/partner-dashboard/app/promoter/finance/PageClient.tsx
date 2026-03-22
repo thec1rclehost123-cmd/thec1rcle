@@ -58,6 +58,7 @@ export default function PromoterFinancePageClient() {
 
     const [period, setPeriod] = useState<Period>("30d");
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
     const [balance, setBalance] = useState<PromoterBalance | null>(null);
     const [cashflow, setCashflow] = useState<CashflowDataPoint[]>([]);
     const [tiers, setTiers] = useState<CommissionTier[]>([]);
@@ -65,6 +66,7 @@ export default function PromoterFinancePageClient() {
     const fetchData = useCallback(async () => {
         if (!promoterId) return;
         setLoading(true);
+        setError(false);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
@@ -89,7 +91,7 @@ export default function PromoterFinancePageClient() {
                 setTiers(d.tiers || []);
             }
         } catch {
-            // keep defaults
+            setError(true);
         } finally {
             setLoading(false);
         }
@@ -116,7 +118,22 @@ export default function PromoterFinancePageClient() {
                 </div>
             }
         >
-            {/* ── Hero: Total Earnings ── */}
+            {error ? (
+                <div className="flex flex-col items-center justify-center py-24 rounded-[40px] border border-red-500/20 bg-red-500/5 gap-4 text-center">
+                    <TrendingUp className="w-10 h-10 text-red-400" />
+                    <div>
+                        <p className="text-[16px] font-black text-text-primary">Failed to load financial data</p>
+                        <p className="text-[13px] text-[var(--v-text-tertiary)] mt-2">Could not fetch your earnings. Check your connection and retry.</p>
+                    </div>
+                    <button
+                        onClick={fetchData}
+                        className="h-11 px-8 rounded-2xl bg-surface-tertiary border border-border-subtle text-text-primary text-[13px] font-black uppercase tracking-widest hover:bg-surface-elevated transition-all"
+                    >
+                        Retry
+                    </button>
+                </div>
+            ) : (
+            <>{/* ── Hero: Total Earnings ── */}
             <motion.div {...mp(0)}>
                 <div
                     className="relative rounded-[32px] overflow-hidden px-8 py-10 flex flex-col sm:flex-row sm:items-end justify-between gap-6"
@@ -382,6 +399,8 @@ export default function PromoterFinancePageClient() {
                     />
                 </div>
             </motion.div>
+            </>
+            )}
         </VenuePageShell>
     );
 }

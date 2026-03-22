@@ -109,7 +109,11 @@ export const useHostsStore = create(
 
                     const payload = await res.json();
                     // Normalizing response: { success, hosts: [], nextCursor, hasMore }
-                    const newItems = payload.hosts || payload.data || [];
+                    const newItems = Array.isArray(payload.hosts)
+                        ? payload.hosts
+                        : Array.isArray(payload.data)
+                            ? payload.data
+                            : [];
                     const updatedResults = reset ? newItems : [...existingResults, ...newItems];
 
                     // Store in cache and update current results

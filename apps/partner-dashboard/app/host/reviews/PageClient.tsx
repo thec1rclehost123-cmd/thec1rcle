@@ -52,6 +52,7 @@ export default function HostReviewsPage() {
     const { profile } = useDashboardAuth();
     const [events, setEvents] = useState<EventReview[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
     const [filter, setFilter] = useState<"all" | "high" | "low">("all");
     const [selectedEvent, setSelectedEvent] = useState<EventReview | null>(null);
 
@@ -63,6 +64,7 @@ export default function HostReviewsPage() {
 
     const fetchReviews = async () => {
         setLoading(true);
+        setError(false);
         try {
             const res = await fetch(`/api/events?creatorId=${hostId}&lifecycle=completed,past,ended,scheduled`);
             if (res.ok) {
@@ -104,6 +106,7 @@ export default function HostReviewsPage() {
             }
         } catch (err) {
             console.error("Failed to fetch reviews:", err);
+            setError(true);
         } finally {
             setLoading(false);
         }
@@ -132,6 +135,24 @@ export default function HostReviewsPage() {
             <div className="py-24 flex flex-col items-center justify-center">
                 <Loader2 className="h-10 w-10 text-text-placeholder animate-spin mb-4" />
                 <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Analyzing Past Productions...</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center py-24 rounded-2xl border border-red-500/20 bg-red-500/5 gap-4 text-center">
+                <AlertCircle className="h-10 w-10 text-red-400" />
+                <div>
+                    <p className="font-bold text-text-primary">Failed to load reviews</p>
+                    <p className="text-sm text-text-secondary opacity-80 mt-1">Could not fetch your past event data. Check your connection.</p>
+                </div>
+                <button
+                    onClick={fetchReviews}
+                    className="px-6 py-2 rounded-xl bg-surface-elevated border border-border-subtle text-text-primary text-sm font-semibold hover:bg-surface-hover transition-colors"
+                >
+                    Retry
+                </button>
             </div>
         );
     }

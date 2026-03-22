@@ -66,8 +66,8 @@ export default function HostOpsPage() {
         );
     }
 
-    const checkInRate = data.stats.ticketsSold > 0
-        ? Math.round((data.stats.checkedIn / data.stats.ticketsSold) * 100)
+    const checkInRate = (data?.stats?.ticketsSold ?? 0) > 0
+        ? Math.round(((data?.stats?.checkedIn ?? 0) / data.stats.ticketsSold) * 100)
         : 0;
 
     return (
@@ -97,8 +97,8 @@ export default function HostOpsPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <MetricBox
                     label="Turnout"
-                    value={data.stats.checkedIn}
-                    subValue={`out of ${data.stats.ticketsSold} confirmed`}
+                    value={data?.stats?.checkedIn ?? 0}
+                    subValue={`out of ${data?.stats?.ticketsSold ?? 0} confirmed`}
                     progress={checkInRate}
                     color="orange"
                 />
@@ -138,7 +138,7 @@ export default function HostOpsPage() {
                 </div>
 
                 <div className="h-[140px] w-full flex items-end gap-2 relative z-10">
-                    {data.stats.scansPerHour.map((v: number, i: number) => (
+                    {(data?.stats?.scansPerHour ?? []).map((v: number, i: number) => (
                         <div
                             key={i}
                             style={{ height: `${v}%` }}

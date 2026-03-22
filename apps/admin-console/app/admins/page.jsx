@@ -190,7 +190,7 @@ export default function AdminsManagement() {
                                                     {adm.displayName?.[0] || adm.email?.[0]}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-sm font-semibold text-white truncate">{adm.displayName || 'Unnamed Admin'}</p>
+                                                    <p className="text-sm font-semibold text-white truncate">{adm.displayName ?? 'Unnamed Admin'}</p>
                                                     <p className="text-[10px] text-zinc-500 font-medium truncate uppercase tracking-tighter">{adm.email}</p>
                                                 </div>
                                             </div>
@@ -198,7 +198,7 @@ export default function AdminsManagement() {
                                         <td className="px-6 py-5">
                                             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-white/5 border border-white/5">
                                                 <Shield className="h-3 w-3 text-white opacity-50" strokeWidth={1.5} />
-                                                <span className="text-[10px] font-bold uppercase tracking-widest text-white">{adm.admin_role || 'readonly'}</span>
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-white">{adm.admin_role ?? 'readonly'}</span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-5">

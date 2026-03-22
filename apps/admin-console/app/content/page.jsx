@@ -34,10 +34,10 @@ export default function AdminContent() {
         const headers = ["ID", "Type", "Reporter", "Reason", "Status", "Timestamp"];
         const rows = filtered.map(r => [
             r.id,
-            r.type || 'Media',
-            r.reporterEmail || 'Anonymous',
-            r.reason || 'N/A',
-            r.status || 'Pending',
+            r.type ?? 'Media',
+            r.reporterEmail ?? 'Anonymous',
+            r.reason ?? 'N/A',
+            r.status ?? 'Pending',
             r.timestamp ? new Date(r.timestamp).toISOString() : 'N/A'
         ]);
         const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
@@ -129,7 +129,7 @@ export default function AdminContent() {
                                         {report.type === 'image' ? <ImageIcon className="h-5 w-5 text-iris" /> : <MessageSquare className="h-5 w-5 text-emerald-500" />}
                                     </div>
                                     <div>
-                                        <span className="font-bold uppercase tracking-[0.2em] text-[10px] text-zinc-400">{report.type || 'Media Content'}</span>
+                                        <span className="font-bold uppercase tracking-[0.2em] text-[10px] text-zinc-400">{report.type ?? 'Media Content'}</span>
                                         <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">Ref: {report.id.slice(0, 8)}</p>
                                     </div>
                                 </div>
@@ -138,10 +138,10 @@ export default function AdminContent() {
                                 </div>
                             </div>
                             <p className="text-sm text-zinc-500 font-medium leading-relaxed mb-8">
-                                {(report.reason || 'No description provided for this content alert.')}
+                                {report.reason ?? 'No description provided for this content alert.'}
                             </p>
                             <div className="flex items-center justify-between pt-6 border-t border-[#ffffff05]">
-                                <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Reporter: {report.reporterEmail?.split('@')[0] || 'Anonymous'}</span>
+                                <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Reporter: {report.reporterEmail?.split('@')[0] ?? 'Anonymous'}</span>
                                 <button className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">
                                     Review Media
                                     <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />

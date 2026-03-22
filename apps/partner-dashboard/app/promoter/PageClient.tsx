@@ -488,7 +488,7 @@ function CampaignCard({
                           })
                         : "—"}
                 </p>
-                <h4 className="text-[14px] font-bold text-text-primary truncate">{event.title}</h4>
+                <h4 className="text-[14px] font-bold text-text-primary truncate">{event.title ?? "Untitled Event"}</h4>
                 <p className="text-[12px] text-text-tertiary truncate">
                     {event.venueName || "Premium Venue"}
                 </p>

@@ -219,11 +219,11 @@ export default async function EventDetailPage({ params }) {
   // Falls back to mock data if neither hostData nor venueData is present.
   let hostProfile = null;
 
-  if (event.hostData) {
+  if (event.hostData && Object.keys(event.hostData).length > 0) {
     hostProfile = { ...event.hostData, type: event.hostData.type || "host" };
   }
 
-  if (!hostProfile && event.venueData) {
+  if (!hostProfile && event.venueData && Object.keys(event.venueData).length > 0) {
     hostProfile = { ...event.venueData, type: "venue", avatar: event.venueData.photoURL || event.venueData.image };
   }
 

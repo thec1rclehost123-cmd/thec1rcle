@@ -66,14 +66,14 @@ export function PromoterAssignmentDetailClient({ assignmentId }: { assignmentId:
                 <div>
                      <div className="flex items-center gap-3">
                         <h1 className="text-display-xs text-text-primary tracking-tight font-bold">
-                            {assignment.event.name}
+                            {assignment.event?.name ?? "Unnamed Event"}
                         </h1>
                         <span className="inline-flex items-center bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-emerald-500/20">
                             {assignment.status}
                         </span>
                      </div>
                      <p className="text-text-tertiary text-sm mt-0.5 font-medium flex items-center">
-                          {new Date(assignment.event.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} • {assignment.event.venue}
+                          {assignment.event?.date ? new Date(assignment.event.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"} • {assignment.event?.venue ?? "—"}
                      </p>
                 </div>
             </div>

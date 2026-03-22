@@ -64,7 +64,7 @@ export const useExploreStore = create(
                     if (!response.ok) throw new Error("Unable to fetch events");
 
                     const payload = await response.json();
-                    const newEvents = payload.events || [];
+                    const newEvents = Array.isArray(payload.events) ? payload.events : [];
                     const updatedEvents = reset ? newEvents : [...existingEvents, ...newEvents];
 
                     set({
