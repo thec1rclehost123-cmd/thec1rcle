@@ -10,7 +10,7 @@ const EventGrid = nextDynamic(() => import("../components/EventGrid"), {
 });
 import Selects from "../components/Selects";
 import InterviewSection from "../components/InterviewSection";
-const HeroCarousel = nextDynamic(() => import("../components/HeroCarousel"), { ssr: false });
+import HeroCarousel from "../components/HeroCarousel";
 import SectionReveal from "../components/SectionReveal";
 import { heroVideoSrc, getHomepageContent } from "../lib/homepageData";
 

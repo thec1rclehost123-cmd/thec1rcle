@@ -34,7 +34,8 @@
     "react-easy-crop": "^5.5.5",
     "resend": "^6.5.2",
     "tailwind-merge": "^3.4.0",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "zustand": "^4.5.5"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
