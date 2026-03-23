@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
             ctx.piiPolicy.showPhone
         );
 
-        return ok(result as Record<string, unknown>);
+        return ok(result as unknown as Record<string, unknown>);
     } catch (err: any) {
         logger.error("venue/walk-ins", "Failed to fetch walk-ins", { error: err.message });
         return fail("Failed to fetch walk-ins");
