@@ -17,13 +17,13 @@ import { createHash } from "node:crypto";
 
 export async function GET(
     request: Request,
-    { params }: { params: { eventId: string } }
+    { params }: { params: Promise<{ eventId: string }> }
 ) {
+    const { eventId } = await params;
     try {
         const ctx = await requireVenueAccess(request, "guestlist:read");
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-        const { eventId } = params;
 
         if (!isFirebaseConfigured()) {
             return NextResponse.json({

@@ -25,8 +25,8 @@ function maskName(name: string): string {
 export async function GET(req: NextRequest) {
     const ctx = await requireHostAccess(req);
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { hostId, uid } = ctx as any;
 
-    const { hostId } = ctx;
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 200);
     const cursor = searchParams.get("cursor");
@@ -179,7 +179,7 @@ export async function PATCH(req: NextRequest) {
     const ctx = await requireHostAccess(req, "MANAGE_EVENTS");
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-    const { hostId, uid } = ctx;
+    const { uid, hostId } = ctx as any;
     const db = getAdminDb();
 
     try {

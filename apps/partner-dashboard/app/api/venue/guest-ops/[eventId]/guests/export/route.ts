@@ -7,11 +7,11 @@ import { getAdminDb } from "@/lib/firebase/admin";
 const exportCounts = new Map<string, { count: number; date: string }>();
 const EXPORT_DAILY_LIMIT = 5;
 
-export async function GET(req: NextRequest, { params }: { params: { eventId: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
+    const { eventId } = await params;
     try {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
-        const { eventId } = params;
 
         // Export is OWNER-only
         const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["EXPORT_GUESTS"]);

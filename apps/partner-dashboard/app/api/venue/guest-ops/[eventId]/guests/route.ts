@@ -4,11 +4,11 @@ import { listGuests, addGuest, getGuestRules } from "@/lib/server/guestListStore
 import { logger } from "@/lib/server/logger";
 import { ok, fail } from "@/lib/server/apiResponse";
 
-export async function GET(req: NextRequest, context: { params: { eventId: string } }) {
+export async function GET(req: NextRequest, context: { params: Promise<{ eventId: string }> }) {
+    const { eventId } = await context.params;
     try {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
-        const eventId = context.params.eventId;
 
         const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["VIEW_GUESTLIST"]);
         if ("error" in auth) return fail(auth.error, auth.status);
@@ -35,11 +35,11 @@ export async function GET(req: NextRequest, context: { params: { eventId: string
     }
 }
 
-export async function POST(req: NextRequest, context: { params: { eventId: string } }) {
+export async function POST(req: NextRequest, context: { params: Promise<{ eventId: string }> }) {
+    const { eventId } = await context.params;
     try {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
-        const eventId = context.params.eventId;
 
         const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["VIEW_GUESTLIST"]);
         if ("error" in auth) return fail(auth.error, auth.status);

@@ -15,19 +15,20 @@ import {
 
 export async function GET(
     request: Request,
-    { params }: { params: { profileId: string } }
+    { params }: { params: Promise<{ profileId: string }> }
 ) {
+    const { profileId } = await params;
     try {
         const ctx = await requireManagementRole(request);
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-        const profile = await getStaffProfile(ctx.venueId, params.profileId);
+        const profile = await getStaffProfile(ctx.venueId, profileId);
         if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
         const { searchParams } = new URL(request.url);
         const includeAudit = searchParams.get("audit") === "1";
         const audit = includeAudit
-            ? await listProfileAudit(ctx.venueId, params.profileId, 20)
+            ? await listProfileAudit(ctx.venueId, profileId, 20)
             : undefined;
 
         return NextResponse.json(
@@ -42,8 +43,9 @@ export async function GET(
 
 export async function PATCH(
     request: Request,
-    { params }: { params: { profileId: string } }
+    { params }: { params: Promise<{ profileId: string }> }
 ) {
+    const { profileId } = await params;
     try {
         const ctx = await requireManagementRole(request);
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -67,7 +69,7 @@ export async function PATCH(
 
         const profile = await updateStaffProfile(
             ctx.venueId,
-            params.profileId,
+            profileId,
             updates as any,
             { uid: ctx.uid, name: "" }
         );
@@ -84,13 +86,14 @@ export async function PATCH(
 
 export async function DELETE(
     request: Request,
-    { params }: { params: { profileId: string } }
+    { params }: { params: Promise<{ profileId: string }> }
 ) {
+    const { profileId } = await params;
     try {
         const ctx = await requireManagementRole(request);
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-        await deleteStaffProfile(ctx.venueId, params.profileId, {
+        await deleteStaffProfile(ctx.venueId, profileId, {
             uid: ctx.uid,
             name: "",
         });

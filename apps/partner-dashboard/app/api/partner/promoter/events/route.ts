@@ -11,11 +11,11 @@ import { getAdminDb } from "@/lib/firebase/admin";
 
 export async function GET(req: NextRequest) {
     const ctx = await requirePromoterAccess(req);
+    const { promoterId } = ctx as any;
     if ("error" in ctx) {
         return NextResponse.json({ error: ctx.error }, { status: ctx.status });
     }
 
-    const { promoterId } = ctx;
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status") || "active"; // active, completed
     

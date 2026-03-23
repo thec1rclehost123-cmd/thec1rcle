@@ -11,15 +11,16 @@ import { getAdminDb } from "@/lib/firebase/admin";
 
 export async function GET(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
+    const { id } = await params;
     const ctx = await requirePromoterAccess(req);
+    const { promoterId } = ctx as any;
     if ("error" in ctx) {
         return NextResponse.json({ error: ctx.error }, { status: ctx.status });
     }
 
-    const { promoterId } = ctx;
-    const assignmentId = params.id;
+    const assignmentId = id;
     const db = getAdminDb();
 
     try {

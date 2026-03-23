@@ -18,8 +18,8 @@ const VALID_HOST_ROLES: HostRole[] = ["OWNER", "COHOST", "STAFF"];
 export async function GET(req: NextRequest) {
     const ctx = await requireHostAccess(req);
     if ("error" in ctx) return fail(ctx.error, ctx.status);
+    const { uid, hostId } = ctx as any;
 
-    const { hostId } = ctx;
     const db = getAdminDb();
 
     try {
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     const ctx = await requireHostAccess(req, "MANAGE_STAFF");
     if ("error" in ctx) return fail(ctx.error, ctx.status);
 
-    const { hostId, uid } = ctx;
+    const { uid, hostId } = ctx as any;
     const db = getAdminDb();
 
     try {
@@ -138,7 +138,7 @@ export async function PATCH(req: NextRequest) {
     const ctx = await requireHostAccess(req, "MANAGE_STAFF");
     if ("error" in ctx) return fail(ctx.error, ctx.status);
 
-    const { hostId, uid } = ctx;
+    const { uid, hostId } = ctx as any;
     const { searchParams } = new URL(req.url);
     const membershipId = searchParams.get("membershipId");
     if (!membershipId) return fail("membershipId required", 400);
@@ -180,7 +180,7 @@ export async function DELETE(req: NextRequest) {
     const ctx = await requireHostAccess(req, "MANAGE_STAFF");
     if ("error" in ctx) return fail(ctx.error, ctx.status);
 
-    const { hostId, uid } = ctx;
+    const { uid, hostId } = ctx as any;
     const { searchParams } = new URL(req.url);
     const membershipId = searchParams.get("membershipId");
     if (!membershipId) return fail("membershipId required", 400);

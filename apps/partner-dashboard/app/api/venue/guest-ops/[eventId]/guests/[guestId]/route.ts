@@ -3,11 +3,11 @@ import { requireGuestOpsAccess, writeOverrideLog } from "@/lib/server/guestOpsMi
 import { getGuest, getGuestRules } from "@/lib/server/guestListStore";
 import { getAdminDb } from "@/lib/firebase/admin";
 
-export async function GET(req: NextRequest, { params }: { params: { eventId: string; guestId: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ eventId: string; guestId: string }> }) {
+    const { eventId, guestId} = await params;
     try {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
-        const { eventId, guestId } = params;
 
         const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["VIEW_GUESTLIST"]);
         if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -21,11 +21,11 @@ export async function GET(req: NextRequest, { params }: { params: { eventId: str
     }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { eventId: string; guestId: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ eventId: string; guestId: string }> }) {
+    const { eventId, guestId } = await params;
     try {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
-        const { eventId, guestId } = params;
 
         const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["MANAGE_GUEST_OPS"]);
         if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -65,16 +65,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { eventId: s
     }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { eventId: string; guestId: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ eventId: string; guestId: string }> }) {
+    const { eventId, guestId } = await params;
     try {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
-        const { eventId, guestId } = params;
 
         const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["MANAGE_GUEST_OPS"]);
         if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
         const { membership, user } = auth as any;
+
         const db = getAdminDb();
         const guestRef = db.collection("guest_lists").doc(eventId).collection("guests").doc(guestId);
         const doc = await guestRef.get();

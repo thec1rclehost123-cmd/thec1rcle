@@ -44,11 +44,11 @@ const DEV_SEED: ManualCustomer[] = [
 export async function GET(request: Request) {
     try {
         const ctx = await requireVenueAccess(request);
+    const { venueId } = ctx as any;
         if ("error" in ctx) {
             return NextResponse.json({ error: ctx.error }, { status: ctx.status });
         }
 
-        const { venueId } = ctx;
 
         if (!isFirebaseConfigured()) {
             return NextResponse.json({ customers: DEV_SEED, total: DEV_SEED.length });
@@ -84,11 +84,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const ctx = await requireVenueAccess(request);
+    const { venueId } = ctx as any;
         if ("error" in ctx) {
             return NextResponse.json({ error: ctx.error }, { status: ctx.status });
         }
 
-        const { venueId } = ctx;
 
         const user = await verifyAuth(request);
         if (!user) {

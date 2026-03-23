@@ -11,8 +11,8 @@ import { logger } from "@/lib/server/logger";
 export async function GET(req: NextRequest) {
     const ctx = await requireHostAccess(req);
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { uid, hostId } = ctx as any;
 
-    const { hostId } = ctx;
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status") || "all";
     const db = getAdminDb();
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     const ctx = await requireHostAccess(req, "MANAGE_PROMOTERS");
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-    const { hostId, uid } = ctx;
+    const { uid, hostId } = ctx as any;
     const db = getAdminDb();
 
     try {
