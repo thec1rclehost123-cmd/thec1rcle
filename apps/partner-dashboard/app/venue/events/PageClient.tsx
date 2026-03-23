@@ -68,7 +68,7 @@ const MemoizedVenueEventCard = memo(({ event, index, handleEventUpdate }: any) =
 
     const getPrimaryAction = (e: any) => {
         if (e.canApprove) return { label: "Review Submission", href: `/venue/events/${e.id}`, icon: <ShieldCheck size={16} /> };
-        return { label: "View Analytics", href: `/venue/analytics/overview?eventId=${e.id}`, icon: <BarChart3 size={16} /> };
+        return { label: "View Analytics", href: `/venue/events/${e.id}/analytics`, icon: <BarChart3 size={16} /> };
     };
 
     const secondaryActions: any[] = [];

@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/components/providers/AuthProvider";
+import { useToast } from "@/components/providers/ToastProvider";
 import { useEffect, useState } from "react";
 import {
     Shield,
@@ -31,6 +32,7 @@ const rolesList = [
 
 export default function AdminsManagement() {
     const { user, profile } = useAuth();
+    const { showToast } = useToast();
     const [admins, setAdmins] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedAdmin, setSelectedAdmin] = useState(null);
@@ -48,6 +50,7 @@ export default function AdminsManagement() {
             setAdmins(json.data || []);
         } catch (err) {
             console.error("Failed to fetch admins", err);
+            showToast("Failed to fetch admins", "error");
         } finally {
             setLoading(false);
         }
@@ -84,8 +87,9 @@ export default function AdminsManagement() {
 
             await fetchAdmins();
             setModalConfig(null);
+            showToast("Action applied effectively.", "success");
         } catch (err) {
-            alert(err.message);
+            showToast(err.message, "error");
         }
     };
 
@@ -112,8 +116,9 @@ export default function AdminsManagement() {
             }
 
             await fetchAdmins();
+            showToast(`Provisioned ${name} as ${role} successfully.`, "success");
         } catch (err) {
-            alert(`Setup Error: ${err.message}`);
+            showToast(`Setup Error: ${err.message}`, "error");
             throw err;
         }
     };

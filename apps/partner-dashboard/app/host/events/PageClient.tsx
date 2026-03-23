@@ -147,7 +147,7 @@ export default function HostEventsPage() {
         if (lc === EVENT_LIFECYCLE.DRAFT) return { label: "Continue", href: `/host/create?id=${e.id}`, icon: <Edit3 size={16} /> };
         if (lc === EVENT_LIFECYCLE.SUBMITTED) return { label: "View Submission", href: `/host/events/${e.id}`, icon: <Eye size={16} /> };
         if (lc === EVENT_LIFECYCLE.DENIED || lc === EVENT_LIFECYCLE.NEEDS_CHANGES) return { label: "Fix & Resubmit", href: `/host/create?id=${e.id}`, icon: <RotateCcw size={16} /> };
-        return { label: "View Analytics", href: `/host/analytics/overview?eventId=${e.id}`, icon: <BarChart3 size={16} /> };
+        return { label: "View Analytics", href: `/host/events/${e.id}/analytics`, icon: <BarChart3 size={16} /> };
     };
 
 

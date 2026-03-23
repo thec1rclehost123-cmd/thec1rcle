@@ -555,7 +555,18 @@ export const adminStore = {
         const auth = getAdminAuth();
         const db = getAdminDb();
 
-        const user = await auth.getUserByEmail(email);
+        let user;
+        try {
+            user = await auth.getUserByEmail(email);
+        } catch (authErr) {
+            if (authErr.code === 'auth/user-not-found') {
+                const err = new Error(`No such user found with email: ${email}`);
+                err.statusCode = 404;
+                throw err;
+            }
+            throw authErr;
+        }
+
         const uid = user.uid;
 
         await auth.setCustomUserClaims(uid, {

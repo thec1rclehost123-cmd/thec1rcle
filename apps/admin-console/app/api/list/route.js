@@ -50,7 +50,7 @@ async function handler(req) {
         return NextResponse.json({ data: results, results });
     } catch (error) {
         console.error(`[SECURITY] List API Error [${collection}]:`, error.message);
-        return NextResponse.json({ error: "Generic data error" }, { status: 500 });
+        return NextResponse.json({ error: "Generic data error" }, { status: error.statusCode || 500 });
     }
 }
 

@@ -153,7 +153,7 @@ const DashboardEventCard = ({
 
                 {/* Primary Action Button */}
                 {primaryAction && (
-                    <div className="pt-4 opacity-0 translate-y-4 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0">
+                    <div className="pt-4">
                         {primaryAction.href ? (
                             <Link
                                 href={primaryAction.href}

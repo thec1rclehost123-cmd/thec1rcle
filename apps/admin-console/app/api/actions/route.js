@@ -129,7 +129,7 @@ async function handler(req) {
         return NextResponse.json({
             error: error.message || "Internal Server Error",
             correlationId: req.user?.requestId || 'N/A'
-        }, { status: 500 });
+        }, { status: error.statusCode || 500 });
     }
 }
 
