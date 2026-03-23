@@ -78,7 +78,7 @@ The mobile app acts as the primary execution layer for the platform's multi-part
 - **`ledger-engine.js`**: Accounting logic for platform vs venue splits.
 - **`entitlement-engine.js`**: Zone-based entry validation.
 
-### Mobile Connectors (c1rcle-mobile-standalone)
+### Mobile Connectors (apps/mobile-app)
 - **`store/cartStore.ts`**: State management for user selections.
 - **`lib/api/ticketing.ts`**: API wrapper for reservations.
 - **`lib/safety.ts`**: Geo-fencing and SOS logic.

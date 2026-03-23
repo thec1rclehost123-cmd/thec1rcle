@@ -8,7 +8,7 @@ import { Tabs } from "expo-router";
 import { View, Text, StyleSheet, Platform, Dimensions, AppState, AppStateStatus } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { Compass, Ticket, MessageCircle, Sparkles, type LucideIcon } from "lucide-react-native";
+import { Compass, MapPin, Ticket, MessageCircle, Sparkles, type LucideIcon } from "lucide-react-native";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -269,6 +269,15 @@ export default function PremiumTabLayout() {
                 }}
             />
             <Tabs.Screen
+                name="venues"
+                options={{
+                    title: "Venues",
+                    tabBarIcon: ({ focused }) => (
+                        <PremiumTabIcon Icon={MapPin} label="Venues" focused={focused} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
                 name="tickets"
                 options={{
                     title: "Tickets",
@@ -293,6 +302,18 @@ export default function PremiumTabLayout() {
                     tabBarIcon: ({ focused }) => (
                         <PremiumTabIcon Icon={Sparkles} label="Me" focused={focused} />
                     ),
+                }}
+            />
+            <Tabs.Screen
+                name="social"
+                options={{
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
+                name="dating"
+                options={{
+                    href: null,
                 }}
             />
         </Tabs>

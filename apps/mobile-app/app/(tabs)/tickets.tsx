@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useTicketsStore, Order } from "@/store/ticketsStore";
 import { useAuthStore } from "@/store/authStore";
 import { cacheUserOrders, getCachedUserOrders } from "@/lib/cache";
@@ -474,6 +474,7 @@ export default function TicketsScreen() {
     const { orders, loading, error, fetchUserOrders } = useTicketsStore();
     const { user } = useAuthStore();
     const insets = useSafeAreaInsets();
+    const { orderId } = useLocalSearchParams<{ orderId?: string }>();
 
     const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -531,6 +532,13 @@ export default function TicketsScreen() {
         return (safeDate(o.eventDate)?.getTime() ?? 0) < nowMs;
     });
     const displayedOrders = activeTab === "upcoming" ? upcomingOrders : pastOrders;
+
+    // If opened via deep link, auto-open the order sheet.
+    useEffect(() => {
+        if (!orderId) return;
+        router.replace({ pathname: "/ticket/[id]", params: { id: orderId } } as any);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [orderId, orders, cachedOrders]);
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -613,8 +621,7 @@ export default function TicketsScreen() {
                     <CountdownHero
                         order={nextEvent}
                         onViewTicket={() => {
-                            setSelectedOrder(nextEvent);
-                            setShowQRModal(true);
+                            router.push({ pathname: "/ticket/[id]", params: { id: nextEvent.id } } as any);
                         }}
                     />
                 )}
@@ -644,8 +651,7 @@ export default function TicketsScreen() {
                             key={order.id}
                             order={order}
                             onShowQR={() => {
-                                setSelectedOrder(order);
-                                setShowQRModal(true);
+                                router.push({ pathname: "/ticket/[id]", params: { id: order.id } } as any);
                             }}
                             index={index}
                         />

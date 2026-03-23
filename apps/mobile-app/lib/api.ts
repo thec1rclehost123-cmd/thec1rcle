@@ -283,35 +283,6 @@ export async function cancelUserOrder(orderId: string): Promise<any> {
     });
 }
 
-// ─── Tickets API ─────────────────────────────────────────────────
-
-/**
- * Transfer a ticket
- * Uses: POST /api/tickets/transfer
- */
-export async function transferTicket(payload: {
-    ticketId: string;
-    recipientEmail: string;
-}): Promise<any> {
-    return apiFetch("/api/tickets/transfer", {
-        method: "POST",
-        body: JSON.stringify(payload),
-    });
-}
-
-/**
- * Claim a transferred ticket
- * Uses: POST /api/tickets/claim
- */
-export async function claimTicket(payload: {
-    transferId: string;
-}): Promise<any> {
-    return apiFetch("/api/tickets/claim", {
-        method: "POST",
-        body: JSON.stringify(payload),
-    });
-}
-
 // ─── Events API ──────────────────────────────────────────────────
 
 /**
@@ -352,6 +323,139 @@ export async function searchEvents(query: string): Promise<{ results: any[] }> {
  */
 export async function getNotifications(): Promise<{ notifications: any[] }> {
     return apiFetch("/api/notifications");
+}
+
+// ─── Ticket Sharing + Formal Transfers (guest-portal parity) ───────────────
+
+/**
+ * Preview a share bundle (no auth required).
+ * Uses: GET /api/tickets/claim?token=...
+ */
+export async function getShareBundle(token: string): Promise<any> {
+    return apiFetch(`/api/tickets/claim?token=${encodeURIComponent(token)}`, {
+        requireAuth: false,
+    });
+}
+
+/**
+ * Claim a share bundle slot (auth required).
+ * Uses: POST /api/tickets/claim
+ */
+export async function claimShareTicket(token: string): Promise<any> {
+    return apiFetch(`/api/tickets/claim`, {
+        method: "POST",
+        body: JSON.stringify({ token }),
+    });
+}
+
+/**
+ * Create a share bundle for a ticket tier (auth required).
+ * Uses: POST /api/tickets/share
+ */
+export async function createShareBundle(payload: {
+    orderId: string;
+    eventId: string;
+    quantity: number;
+    tierId: string;
+    expiresAt?: string;
+}): Promise<any> {
+    return apiFetch(`/api/tickets/share`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+}
+
+/**
+ * Fetch formal transfer details by code for preview (no auth required).
+ * Uses: GET /api/tickets/transfer?code=...
+ */
+export async function getTransferDetails(code: string): Promise<any> {
+    return apiFetch(`/api/tickets/transfer?code=${encodeURIComponent(code)}`, {
+        requireAuth: false,
+    });
+}
+
+/**
+ * Initiate a formal ticket transfer (auth required).
+ * Uses: POST /api/tickets/transfer
+ */
+export async function initiateFormalTransfer(payload: {
+    ticketId: string;
+    recipientEmail?: string;
+}): Promise<any> {
+    return apiFetch(`/api/tickets/transfer`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+}
+
+/**
+ * Accept a formal ticket transfer (auth required).
+ * Uses: PATCH /api/tickets/transfer
+ */
+export async function acceptFormalTransfer(payload: {
+    transferCode: string;
+}): Promise<any> {
+    return apiFetch(`/api/tickets/transfer`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+    });
+}
+
+/**
+ * Cancel a pending formal ticket transfer (auth required).
+ * Uses: DELETE /api/tickets/transfer
+ */
+export async function cancelFormalTransfer(payload: {
+    transferId: string;
+}): Promise<any> {
+    return apiFetch(`/api/tickets/transfer`, {
+        method: "DELETE",
+        body: JSON.stringify(payload),
+    });
+}
+
+/**
+ * Fetch all pending transfers for the current user (auth required).
+ * Uses: GET /api/tickets/transfer/pending
+ */
+export async function getPendingFormalTransfers(): Promise<any> {
+    return apiFetch(`/api/tickets/transfer/pending`);
+}
+
+/**
+ * Fetch share bundles + assignments for an order (auth required).
+ * Uses: GET /api/tickets/share?orderId=...
+ */
+export async function getTicketShares(orderId: string): Promise<any> {
+    return apiFetch(`/api/tickets/share?orderId=${encodeURIComponent(orderId)}`);
+}
+
+/**
+ * Reclaim one slot from an active share bundle (auth required).
+ * Uses: DELETE /api/tickets/share
+ */
+export async function reclaimSharedTicket(payload: {
+    bundleId: string;
+    slotIndex: number;
+}): Promise<any> {
+    return apiFetch(`/api/tickets/share`, {
+        method: "DELETE",
+        body: JSON.stringify(payload),
+    });
+}
+
+/**
+ * Cancel an active share bundle entirely (auth required).
+ * Uses: DELETE /api/tickets/share
+ */
+export async function cancelShareBundle(payload: {
+    bundleId: string;
+}): Promise<any> {
+    return apiFetch(`/api/tickets/share`, {
+        method: "DELETE",
+        body: JSON.stringify(payload),
+    });
 }
 
 export { getAuthToken, apiFetch, API_BASE };
