@@ -22,7 +22,8 @@ export type VenueTab =
     // Hub tabs (new nav structure)
     | "door"
     | "partners"
-    | "presence";
+    | "presence"
+    | "crm";
 
 // ── Action-level permissions ──────────────────────────────────────────────────
 export type StaffAction =
