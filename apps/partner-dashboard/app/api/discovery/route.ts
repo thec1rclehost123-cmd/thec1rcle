@@ -113,9 +113,9 @@ export const POST = withAuth(async (req: NextRequest) => {
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const body = await req.json();
         const parsed = CreateRequestSchema.safeParse(body);
-        if (!parsed.success) return fail(parsed.error.errors[0]?.message || "Invalid request body", 400);
+        if (!parsed.success) return fail(parsed.error.issues[0]?.message || "Invalid request body", 400);
 
-        const result = await createRequest(parsed.data, token);
+        const result = await createRequest(parsed.data as any, token);
 
         return ok(result);
     } catch (error: any) {

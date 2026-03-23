@@ -2,7 +2,7 @@
  * GET  /api/host/promoters?hostId=  — List all promoters in host network
  * POST /api/host/promoters          — Invite a new promoter
  */
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireHostAccess, writeAuditLog } from "@/lib/server/hostAuthMiddleware";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { ok, fail } from "@/lib/server/apiResponse";

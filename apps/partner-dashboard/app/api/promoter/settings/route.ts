@@ -9,7 +9,7 @@ export const GET = withAuth(async (req: NextRequest) => {
         if (!promoterId) return fail("promoterId is required", 400);
 
         const settings = await getPromoterSettings(promoterId);
-        return ok(settings);
+        return ok(settings as Record<string, unknown>);
     } catch (error: any) {
         console.error("[GET /api/promoter/settings]", error);
         return fail("Failed to load settings");

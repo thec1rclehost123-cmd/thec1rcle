@@ -16,7 +16,7 @@ const EventsQuery = z.object({
 const UpdateEventBody = z.object({
     eventId: z.string().min(1, "eventId is required"),
     action: z.enum(["approve", "reject", "pause", "resume"], {
-        errorMap: () => ({ message: "action must be 'approve', 'reject', 'pause', or 'resume'" }),
+        error: "action must be 'approve', 'reject', 'pause', or 'resume'",
     }),
     data: z.object({
         notes: z.string().optional(),
@@ -38,7 +38,7 @@ export const GET = withAuth(async (req: NextRequest, auth) => {
     try {
         const { searchParams } = new URL(req.url);
         const parsed = EventsQuery.safeParse(Object.fromEntries(searchParams));
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { venueId, status, limit, lastId, date } = parsed.data;
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
@@ -79,7 +79,7 @@ export const PATCH = withAuth(async (req: NextRequest, auth) => {
     try {
         const rawBody = await req.json();
         const parsed = UpdateEventBody.safeParse(rawBody);
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { eventId, action, data } = parsed.data;
         const newStatus = STATUS_MAP[action];

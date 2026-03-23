@@ -17,7 +17,7 @@ const RequestsQuery = z.object({
 const UpdateRequestBody = z.object({
     connectionId: z.string().min(1, "connectionId is required"),
     action: z.enum(["approve", "reject", "revoke"], {
-        errorMap: () => ({ message: "action must be 'approve', 'reject', or 'revoke'" }),
+        error: "action must be 'approve', 'reject', or 'revoke'",
     }),
     hostId: z.string().optional(),
     hostName: z.string().optional(),
@@ -31,7 +31,7 @@ export const GET = withAuth(async (req: NextRequest) => {
     try {
         const { searchParams } = new URL(req.url);
         const parsed = RequestsQuery.safeParse(Object.fromEntries(searchParams));
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { hostId, status } = parsed.data;
         const requests = await listIncomingRequests(hostId, "host", status);
@@ -49,7 +49,7 @@ export const PATCH = withAuth(async (req: NextRequest) => {
     try {
         const rawBody = await req.json();
         const parsed = UpdateRequestBody.safeParse(rawBody);
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { connectionId, action, hostId, hostName, reason } = parsed.data;
         const actor = { uid: hostId || "", name: hostName || "" };

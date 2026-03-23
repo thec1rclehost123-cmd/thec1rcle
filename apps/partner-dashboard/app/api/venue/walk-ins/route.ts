@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
             ctx.piiPolicy.showPhone
         );
 
-        return ok(result);
+        return ok(result as Record<string, unknown>);
     } catch (err: any) {
         logger.error("venue/walk-ins", "Failed to fetch walk-ins", { error: err.message });
         return fail("Failed to fetch walk-ins");
@@ -71,8 +71,8 @@ export async function POST(request: NextRequest) {
                 guestName: body.guestName,
                 phone: body.phone ?? "",
                 partySize: body.partySize,
-                category: body.category ?? "general",
-                paymentMode: body.paymentMode ?? "cash",
+                category: (body.category ?? "general") as any,
+                paymentMode: (body.paymentMode ?? "cash") as any,
                 amount: body.amount ?? 0,
                 note: body.note ?? "",
                 idempotencyKey: body.idempotencyKey,

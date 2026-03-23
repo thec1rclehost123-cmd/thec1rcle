@@ -33,7 +33,7 @@ const ConnectionsQuery = z.object({
 const CreateConnectionBody = z.object({
     promoterId: z.string().min(1, "promoterId is required"),
     targetId: z.string().min(1, "targetId is required"),
-    targetType: z.enum(["host", "venue"], { errorMap: () => ({ message: "targetType must be 'host' or 'venue'" }) }),
+    targetType: z.enum(["host", "venue"], { error: "targetType must be 'host' or 'venue'" }),
     promoterName: z.string().optional(),
     promoterEmail: z.string().email().optional(),
     targetName: z.string().optional(),
@@ -43,7 +43,7 @@ const CreateConnectionBody = z.object({
 const UpdateConnectionBody = z.object({
     connectionId: z.string().min(1, "connectionId is required"),
     action: z.enum(["cancel", "revoke", "pause", "resume"], {
-        errorMap: () => ({ message: "action must be 'cancel', 'revoke', 'pause', or 'resume'" }),
+        error: "action must be 'cancel', 'revoke', 'pause', or 'resume'",
     }),
     promoterId: z.string().optional(),
 });
@@ -55,7 +55,7 @@ export const GET = withAuth(async (req: NextRequest) => {
     try {
         const { searchParams } = new URL(req.url);
         const parsed = ConnectionsQuery.safeParse(Object.fromEntries(searchParams));
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { promoterId, action, status, type, city, search, limit, targetId, targetType } = parsed.data;
 
@@ -100,9 +100,9 @@ export const POST = withAuth(async (req: NextRequest) => {
     try {
         const rawBody = await req.json();
         const parsed = CreateConnectionBody.safeParse(rawBody);
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        const result = await createConnectionRequest(parsed.data);
+        const result = await createConnectionRequest(parsed.data as any);
         return ok({ ...result }, "Connection request sent", 201);
     } catch (error: any) {
         console.error("[POST /api/promoter/connections]", error);
@@ -117,7 +117,7 @@ export const PATCH = withAuth(async (req: NextRequest, auth) => {
     try {
         const rawBody = await req.json();
         const parsed = UpdateConnectionBody.safeParse(rawBody);
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { connectionId, action, promoterId } = parsed.data;
 

@@ -37,7 +37,7 @@ export const GET = withAuth(async (req: NextRequest) => {
     try {
         const { searchParams } = new URL(req.url);
         const parsed = SlotQuery.safeParse(Object.fromEntries(searchParams));
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { venueId, hostId, status, limit } = parsed.data;
         const requests = await listSlotRequests({ venueId, hostId, status, limit });
@@ -56,7 +56,7 @@ export const POST = withAuth(async (req: NextRequest) => {
     try {
         const rawBody = await req.json();
         const parsed = CreateSlotBody.safeParse(rawBody);
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { eventId, hostId, hostName, venueId, venueName, requestedDate, requestedStartTime, requestedEndTime, notes, priority } = parsed.data;
 

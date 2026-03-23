@@ -24,7 +24,7 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
         const rawBody = await req.json();
         const parsed = CreateEventBody.safeParse(rawBody);
         if (!parsed.success) {
-            return fail(parsed.error.errors[0].message, 400);
+            return fail(parsed.error.issues[0].message, 400);
         }
 
         const body = parsed.data as Record<string, any>;

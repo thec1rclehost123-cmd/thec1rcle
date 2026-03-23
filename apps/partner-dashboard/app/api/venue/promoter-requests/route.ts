@@ -13,7 +13,7 @@ import { ok, fail } from "@/lib/server/apiResponse";
 const UpdateRequestBody = z.object({
     connectionId: z.string().min(1, "connectionId is required"),
     action: z.enum(["approve", "reject", "revoke"], {
-        errorMap: () => ({ message: "action must be 'approve', 'reject', or 'revoke'" }),
+        error: "action must be 'approve', 'reject', or 'revoke'",
     }),
     venueId: z.string().optional(),
     venueName: z.string().optional(),
@@ -51,7 +51,7 @@ export const PATCH = withAuth(async (req: NextRequest) => {
     try {
         const rawBody = await req.json();
         const parsed = UpdateRequestBody.safeParse(rawBody);
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { connectionId, action, venueId, venueName, reason } = parsed.data;
         const actor = { uid: venueId || "", name: venueName || "" };

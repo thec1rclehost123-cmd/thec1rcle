@@ -34,7 +34,7 @@ export const POST = withAuth(async (req: NextRequest, auth, ctx) => {
     try {
         const rawBody = await req.json();
         const parsed = CancelBody.safeParse(rawBody);
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { actor, reason, refundPolicy, partialRefundPercent, notes } = parsed.data;
 

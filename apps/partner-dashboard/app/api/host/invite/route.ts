@@ -21,7 +21,7 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
         const rawBody = await req.json();
         const parsed = InviteBody.safeParse(rawBody);
         if (!parsed.success) {
-            return fail(parsed.error.errors[0].message, 400);
+            return fail(parsed.error.issues[0].message, 400);
         }
         const { hostId, promoterEmail, promoterName } = parsed.data;
 

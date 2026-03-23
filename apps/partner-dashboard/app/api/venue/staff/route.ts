@@ -42,7 +42,7 @@ const InviteStaffBody = z.object({
 const UpdateStaffBody = z.object({
     staffId: z.string().min(1, "staffId is required"),
     action: z.enum(["verify", "suspend", "reactivate", "remove"], {
-        errorMap: () => ({ message: "action must be 'verify', 'suspend', 'reactivate', or 'remove'" }),
+        error: "action must be 'verify', 'suspend', 'reactivate', or 'remove'",
     }),
     reason: z.string().optional(),
 });
@@ -55,7 +55,7 @@ export const GET = withAuth(async (req: NextRequest) => {
     try {
         const { searchParams } = new URL(req.url);
         const parsed = StaffQuery.safeParse(Object.fromEntries(searchParams));
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { venueId, isActive } = parsed.data;
         const statusFilter = isActive === "false" ? "removed" : isActive === "all" ? null : "active";
@@ -78,7 +78,7 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
     try {
         const rawBody = await req.json();
         const parsed = InviteStaffBody.safeParse(rawBody);
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { venueId, email, name, role } = parsed.data;
 
@@ -153,7 +153,7 @@ export const PATCH = withAuth(async (req: NextRequest, auth) => {
     try {
         const rawBody = await req.json();
         const parsed = UpdateStaffBody.safeParse(rawBody);
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { staffId, action, reason } = parsed.data;
         const actor = { uid: auth.uid, name: (auth as any).name || (auth as any).email || "Owner" };

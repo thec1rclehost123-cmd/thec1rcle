@@ -12,14 +12,14 @@ const PartnershipsQuery = z.object({
 
 const UpdatePartnershipBody = z.object({
     partnershipId: z.string().min(1, "partnershipId is required"),
-    action: z.enum(["approve", "reject"], { errorMap: () => ({ message: "action must be 'approve' or 'reject'" }) }),
+    action: z.enum(["approve", "reject"], { error: "action must be 'approve' or 'reject'" }),
 });
 
 export const GET = withAuth(async (req: NextRequest) => {
     try {
         const { searchParams } = new URL(req.url);
         const parsed = PartnershipsQuery.safeParse(Object.fromEntries(searchParams));
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const filters: Record<string, string> = {};
         if (parsed.data.venueId) filters.venueId = parsed.data.venueId;
@@ -38,7 +38,7 @@ export const PATCH = withAuth(async (req: NextRequest) => {
     try {
         const rawBody = await req.json();
         const parsed = UpdatePartnershipBody.safeParse(rawBody);
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { partnershipId, action } = parsed.data;
 

@@ -34,7 +34,7 @@ export const GET = withAuth(async (req: NextRequest) => {
     try {
         const { searchParams } = new URL(req.url);
         const parsed = LinksQuery.safeParse(Object.fromEntries(searchParams));
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { promoterId, eventId, isActive, limit } = parsed.data;
         const links = await listPromoterLinks({
@@ -58,7 +58,7 @@ export const POST = withAuth(async (req: NextRequest) => {
     try {
         const rawBody = await req.json();
         const parsed = CreateLinkBody.safeParse(rawBody);
-        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { promoterId, eventId, promoterName, campaignLabel, channel, ticketTierIds, customCommission } = parsed.data;
 
