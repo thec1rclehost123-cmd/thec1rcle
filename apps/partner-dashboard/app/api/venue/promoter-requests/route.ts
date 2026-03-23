@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import {
     listIncomingRequests,
     approveConnectionRequest,
@@ -6,7 +7,18 @@ import {
     revokeConnection
 } from "@/lib/server/promoterConnectionStore";
 import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
+
+const UpdateRequestBody = z.object({
+    connectionId: z.string().min(1, "connectionId is required"),
+    action: z.enum(["approve", "reject", "revoke"], {
+        error: "action must be 'approve', 'reject', or 'revoke'",
+    }),
+    venueId: z.string().optional(),
+    venueName: z.string().optional(),
+    reason: z.string().optional(),
+});
 
 /**
  * GET /api/venue/promoter-requests
@@ -21,26 +33,13 @@ export async function GET(req: NextRequest) {
         const venueId = searchParams.get("venueId");
         const status = searchParams.get("status");
 
-        if (!venueId) {
-            return NextResponse.json(
-                { error: "venueId is required" },
-                { status: 400 }
-            );
-        }
+        if (!venueId) return fail("venueId is required", 400);
 
-        const requests = await listIncomingRequests(
-            venueId,
-            "venue",
-            status || undefined
-        );
-
-        return NextResponse.json({ requests });
+        const requests = await listIncomingRequests(venueId, "venue", status || undefined);
+        return ok({ requests });
     } catch (error: any) {
         console.error("[Venue Promoter Requests API] GET Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to fetch requests" },
-            { status: 500 }
-        );
+        return fail("Failed to fetch requests");
     }
 }
 
@@ -48,60 +47,30 @@ export async function GET(req: NextRequest) {
  * PATCH /api/venue/promoter-requests
  * Approve, reject, or revoke a promoter connection
  */
-export async function PATCH(req: NextRequest) {
+export const PATCH = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const rawBody = await req.json();
+        const parsed = UpdateRequestBody.safeParse(rawBody);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        const body = await req.json();
-        const { connectionId, action, venueId, venueName, reason } = body;
-
-        if (!connectionId || !action) {
-            return NextResponse.json(
-                { error: "connectionId and action are required" },
-                { status: 400 }
-            );
-        }
+        const { connectionId, action, venueId, venueName, reason } = parsed.data;
+        const actor = { uid: venueId || "", name: venueName || "" };
 
         switch (action) {
-            case "approve": {
-                await approveConnectionRequest(connectionId, {
-                    uid: venueId,
-                    name: venueName || ""
-                });
+            case "approve":
+                await approveConnectionRequest(connectionId, actor);
                 break;
-            }
-
-            case "reject": {
-                await rejectConnectionRequest(
-                    connectionId,
-                    { uid: venueId, name: venueName || "" },
-                    reason || ""
-                );
+            case "reject":
+                await rejectConnectionRequest(connectionId, actor, reason || "");
                 break;
-            }
-
-            case "revoke": {
-                await revokeConnection(connectionId, {
-                    uid: venueId,
-                    name: venueName || ""
-                });
+            case "revoke":
+                await revokeConnection(connectionId, actor);
                 break;
-            }
-
-            default:
-                return NextResponse.json(
-                    { error: "Invalid action. Use 'approve', 'reject', or 'revoke'" },
-                    { status: 400 }
-                );
         }
 
-        return NextResponse.json({ success: true });
+        return ok({ success: true }, "Request updated");
     } catch (error: any) {
         console.error("[Venue Promoter Requests API] PATCH Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to update request" },
-            { status: 400 }
-        );
+        return fail("Failed to update request", 400);
     }
-}
+});

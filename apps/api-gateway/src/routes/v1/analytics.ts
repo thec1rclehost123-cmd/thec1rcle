@@ -20,7 +20,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
             await fastify.cache.set('analytics:venue', cacheKey, stats, 120); // 120s TTL
             return stats;
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            reply.status(500).send({ error: "Internal server error" });
         }
     });
 
@@ -40,7 +40,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
             await fastify.cache.set('analytics:host', id, stats, 120); // 120s TTL
             return stats;
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            reply.status(500).send({ error: "Internal server error" });
         }
     });
 
@@ -60,7 +60,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
             await fastify.cache.set('analytics:promoter', id, funnel, 120); // 120s TTL
             return funnel;
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            reply.status(500).send({ error: "Internal server error" });
         }
     });
 

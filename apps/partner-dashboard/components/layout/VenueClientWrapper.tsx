@@ -12,6 +12,7 @@ import {
     Banknote,
     Globe,
     Settings,
+    Users,
 } from "lucide-react";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
@@ -35,6 +36,7 @@ const MENU_SECTIONS = [
             { icon: BarChart3,       label: "Analytics", href: "/venue/analytics" },
             { icon: Banknote,        label: "Finance",   href: "/venue/finance" },
             { icon: Globe,           label: "Presence",  href: "/venue/presence" },
+            { icon: Users,           label: "CRM",       href: "/venue/crm" },
             { icon: Settings,        label: "Settings",  href: "/venue/settings" },
         ],
     },
@@ -50,6 +52,7 @@ const HREF_TO_TAB: Record<string, VenueTab> = {
     "/venue/analytics":   "analytics",
     "/venue/finance":     "finance",
     "/venue/presence":    "presence",
+    "/venue/crm":         "crm",
     "/venue/settings":    "settings",
     // Legacy hrefs — kept as aliases so active-state still highlights correctly
     "/venue/create":          "events",

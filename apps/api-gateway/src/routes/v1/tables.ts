@@ -25,7 +25,7 @@ export default async function tableRoutes(fastify: FastifyInstance) {
         try {
             return await getFloorPlan(venueId);
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            reply.status(500).send({ error: "Internal server error" });
         }
     });
 
@@ -40,7 +40,7 @@ export default async function tableRoutes(fastify: FastifyInstance) {
         try {
             return await updateMasterTable(venueId, tableData);
         } catch (error: any) {
-            reply.status(400).send({ error: error.message });
+            reply.status(400).send({ error: "Request failed" });
         }
     });
 
@@ -54,7 +54,7 @@ export default async function tableRoutes(fastify: FastifyInstance) {
         try {
             return await assignTable(eventId, tableId, bookingId, status);
         } catch (error: any) {
-            reply.status(400).send({ error: error.message });
+            reply.status(400).send({ error: "Request failed" });
         }
     });
 
@@ -68,7 +68,7 @@ export default async function tableRoutes(fastify: FastifyInstance) {
         try {
             return await getEventAssignments(eventId);
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            reply.status(500).send({ error: "Internal server error" });
         }
     });
 }

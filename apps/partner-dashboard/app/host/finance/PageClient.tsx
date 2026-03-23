@@ -18,6 +18,7 @@ import {
     type FinanceOverviewMetrics,
     type CashflowDataPoint,
 } from "@/lib/finance/definitions";
+import { getPeriodLabel } from "@/lib/utils/format";
 
 type Period = "7d" | "30d" | "90d" | "ytd";
 
@@ -129,7 +130,7 @@ export default function HostFinancePageClient() {
                                 </p>
                             )}
                             <p className="text-[13px] mt-8 text-[var(--v-text-tertiary)] font-black uppercase tracking-[0.2em] bg-[var(--v-elevated)] inline-flex px-4 py-2 rounded-xl border border-[var(--v-border)]">
-                                {period === "7d" ? "Past 7 Days" : period === "30d" ? "Past 30 Days" : period === "90d" ? "Past 90 Days" : "Year to Date Impact"}
+                                {getPeriodLabel(period)}
                             </p>
                         </div>
                         <div className="flex flex-col md:items-end gap-6">

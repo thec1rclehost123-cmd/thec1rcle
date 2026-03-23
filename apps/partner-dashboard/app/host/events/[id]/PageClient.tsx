@@ -26,6 +26,7 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import Link from "next/link";
 import AuditTrail from "@/components/shared/AuditTrail";
 import SurgeMonitor from "@/components/events/SurgeMonitor";
+import { ErrorState } from "@/components/ui/ErrorState";
 
 export default function HostEventDetailPage() {
     const { id } = useParams();
@@ -35,6 +36,8 @@ export default function HostEventDetailPage() {
     const [stats, setStats] = useState<any>(null);
     const [finance, setFinance] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isError, setIsError] = useState(false);
+    const [retryKey, setRetryKey] = useState(0);
 
     const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
         if (!user) {
@@ -55,6 +58,7 @@ export default function HostEventDetailPage() {
         const fetchEventDetail = async () => {
             if (!id || !user) return;
             setIsLoading(true);
+            setIsError(false);
             try {
                 const [eventRes, statsRes, financeRes] = await Promise.all([
                     authedFetch(`/api/events/${id}`),
@@ -75,14 +79,14 @@ export default function HostEventDetailPage() {
                     setFinance(financeData.data);
                 }
             } catch (err) {
-                console.error(err);
+                setIsError(true);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchEventDetail();
-    }, [id, user, authedFetch]);
+    }, [id, user, authedFetch, retryKey]);
 
     if (isLoading) {
         return (
@@ -90,6 +94,16 @@ export default function HostEventDetailPage() {
                 <Loader2 className="h-10 w-10 text-text-placeholder animate-spin mb-4" />
                 <p className="text-text-tertiary font-bold uppercase tracking-widest text-[10px]">Assembling Records...</p>
             </div>
+        );
+    }
+
+    if (isError) {
+        return (
+            <ErrorState
+                title="Failed to load event"
+                message="We couldn't fetch the event details. Check your connection and try again."
+                onRetry={() => setRetryKey(k => k + 1)}
+            />
         );
     }
 

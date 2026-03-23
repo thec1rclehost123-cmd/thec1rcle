@@ -23,7 +23,7 @@ export default async function waitlistRoutes(fastify: FastifyInstance) {
         try {
             return await joinWaitlist(data);
         } catch (error: any) {
-            reply.status(400).send({ error: error.message });
+            reply.status(400).send({ error: "Request failed" });
         }
     });
 
@@ -39,7 +39,7 @@ export default async function waitlistRoutes(fastify: FastifyInstance) {
             if (!next) return { status: 'empty' };
             return next;
         } catch (error: any) {
-            reply.status(400).send({ error: error.message });
+            reply.status(400).send({ error: "Request failed" });
         }
     });
 
@@ -53,7 +53,7 @@ export default async function waitlistRoutes(fastify: FastifyInstance) {
         try {
             return await verifyWaitlistAccess(eventId, email);
         } catch (error: any) {
-            reply.status(400).send({ error: error.message });
+            reply.status(400).send({ error: "Request failed" });
         }
     });
 }

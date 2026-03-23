@@ -30,10 +30,6 @@
     "turbo": "^2.7.3",
     "vitest": "^4.0.18"
   },
-  "overrides": {
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1"
-  },
   "dependencies": {
     "dotenv": "^17.2.3"
   }

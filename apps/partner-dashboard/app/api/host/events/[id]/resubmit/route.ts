@@ -73,6 +73,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         return NextResponse.json({ success: true, lifecycle: "submitted" });
     } catch (err: any) {
         console.error("[events/[id]/resubmit]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to resubmit event" }, { status: 500 });
     }
 }

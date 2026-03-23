@@ -1,13 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextRequest } from "next/server";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const mockProfile = {
             id: "promoter_abc",
             displayName: "DJ Neon",
@@ -22,32 +18,21 @@ export async function GET(req: NextRequest) {
             }
         };
 
-        return NextResponse.json({ profile: mockProfile });
+        return ok({ profile: mockProfile });
     } catch (error: any) {
         console.error("[Promoter Profile API] GET Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Internal server error" },
-            { status: 500 }
-        );
+        return fail("Failed to load promoter profile");
     }
-}
+});
 
-export async function PUT(req: NextRequest) {
+export const PUT = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-        
         const body = await req.json();
-        
+
         // In a real app we'd save to Firestore here
-        return NextResponse.json({ success: true, profile: body });
+        return ok({ profile: body });
     } catch (error: any) {
         console.error("[Promoter Profile API] PUT Error:", error);
-        return NextResponse.json(
-             { error: error.message || "Internal server error" },
-             { status: 500 }
-        );
+        return fail("Failed to update promoter profile");
     }
-}
+});

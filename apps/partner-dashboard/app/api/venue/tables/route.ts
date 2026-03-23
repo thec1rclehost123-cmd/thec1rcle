@@ -1,11 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getVenueMasterTables, saveMasterTable, deleteMasterTable, getEventTableStatus, updateTableStatus } from "@/lib/server/tableStore";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * GET /api/venue/tables
  * List club master tables OR get event-specific status
  */
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
     try {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
@@ -13,64 +15,55 @@ export async function GET(req: NextRequest) {
 
         if (eventId) {
             const status = await getEventTableStatus(eventId);
-            return NextResponse.json(status);
+            return ok({ status });
         }
 
-        if (!venueId) {
-            return NextResponse.json({ error: "venueId is required" }, { status: 400 });
-        }
+        if (!venueId) return fail("venueId is required", 400);
 
         const tables = await getVenueMasterTables(venueId);
-        return NextResponse.json(tables);
+        return ok({ tables });
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to fetch tables");
     }
-}
+});
 
 /**
  * POST /api/venue/tables
  * Create/Update master table OR update event table status
  */
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
     try {
         const body = await req.json();
         const { venueId, eventId, action, tableId, status, notes, table } = body;
 
         if (action === "updateStatus") {
-            if (!eventId || !tableId || !status) {
-                return NextResponse.json({ error: "eventId, tableId, and status are required" }, { status: 400 });
-            }
+            if (!eventId || !tableId || !status) return fail("eventId, tableId, and status are required", 400);
             const result = await updateTableStatus(eventId, tableId, status, notes);
-            return NextResponse.json(result);
+            return ok({ result });
         }
 
-        if (!venueId || !table) {
-            return NextResponse.json({ error: "venueId and table are required" }, { status: 400 });
-        }
+        if (!venueId || !table) return fail("venueId and table are required", 400);
 
         const savedTable = await saveMasterTable(venueId, table);
-        return NextResponse.json(savedTable);
+        return ok({ table: savedTable });
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to save table");
     }
-}
+});
 
 /**
  * DELETE /api/venue/tables
  * Delete a table
  */
-export async function DELETE(req: NextRequest) {
+export const DELETE = withAuth(async (req: NextRequest) => {
     try {
         const { searchParams } = new URL(req.url);
         const tableId = searchParams.get("tableId");
-
-        if (!tableId) {
-            return NextResponse.json({ error: "tableId is required" }, { status: 400 });
-        }
+        if (!tableId) return fail("tableId is required", 400);
 
         await deleteMasterTable(tableId);
-        return NextResponse.json({ success: true });
+        return ok({ success: true }, "Table deleted");
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to delete table");
     }
-}
+});

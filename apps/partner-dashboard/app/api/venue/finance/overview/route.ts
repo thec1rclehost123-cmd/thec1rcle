@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/server/withAuth";
+import { fail } from "@/lib/server/apiResponse";
 import { getApiClient } from "@/lib/server/apiClient";
 import type { FinanceOverviewMetrics, CashflowDataPoint, RevenueBreakdownItem } from "@/lib/finance/definitions";
 
@@ -12,20 +13,16 @@ import type { FinanceOverviewMetrics, CashflowDataPoint, RevenueBreakdownItem } 
  *
  * RBAC: VIEW_FINANCIALS — OWNER or MANAGER only
  */
-export async function GET(request: Request) {
-    try {
-        const user = await verifyAuth(request);
-        if (!user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+export async function GET(request: NextRequest) {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
 
+    try {
         const { searchParams } = new URL(request.url);
         const venueId = searchParams.get("venueId");
         const period   = (searchParams.get("period") || "30d") as FinanceOverviewMetrics["period"];
 
-        if (!venueId) {
-            return NextResponse.json({ error: "Missing venueId" }, { status: 400 });
-        }
+        if (!venueId) return fail("Missing venueId", 400);
 
         // Extract bearer token for gateway calls
         const authHeader = request.headers.get("Authorization") || "";
@@ -81,7 +78,7 @@ export async function GET(request: Request) {
         );
     } catch (err: any) {
         console.error("[VenueFinanceOverview] Error:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return fail("Failed to fetch finance overview");
     }
 }
 

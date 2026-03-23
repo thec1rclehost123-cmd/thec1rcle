@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyAuth } from '@/lib/server/auth'
+import { requireAuth } from '@/lib/server/withAuth'
+import { fail } from '@/lib/server/apiResponse'
 import { getApiClient } from '@/lib/server/apiClient'
 import type { DateRange } from '@/lib/types/venueOverview'
 
@@ -18,18 +19,14 @@ export const dynamic = 'force-dynamic'
  * Cache: 2 min private + 5 min stale-while-revalidate
  */
 export async function GET(req: NextRequest) {
-    const user = await verifyAuth(req)
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await requireAuth(req)
+    if (auth instanceof NextResponse) return auth
 
     const { searchParams } = new URL(req.url)
     const venueId = searchParams.get('venueId')
     const range = (searchParams.get('range') ?? '7d') as DateRange
 
-    if (!venueId) {
-        return NextResponse.json({ error: 'venueId is required' }, { status: 400 })
-    }
+    if (!venueId) return fail('venueId is required', 400)
 
     const token = req.headers.get('authorization')?.split('Bearer ')[1] ?? ''
     const client = getApiClient(token)

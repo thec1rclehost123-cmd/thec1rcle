@@ -73,6 +73,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         });
     } catch (err: any) {
         console.error("[events/[id]/finance]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to fetch event finance" }, { status: 500 });
     }
 }

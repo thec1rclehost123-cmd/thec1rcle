@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { Skeleton } from "@/components/ui/Skeleton";
 import {
     Users, Search, Star, RefreshCw, ChevronRight, Filter,
     Repeat2, UserCheck, Loader2, XCircle, Shield,
@@ -19,12 +20,6 @@ interface AudienceGuest {
     isVip: boolean;
     city: string | null;
     isRepeat: boolean;
-}
-
-// ── Skeleton ──────────────────────────────────────────────────────────────────
-
-function Skeleton({ className = "" }: { className?: string }) {
-    return <div className={`animate-pulse bg-surface-tertiary rounded-xl ${className}`} />;
 }
 
 // ── VIP toggle ────────────────────────────────────────────────────────────────

@@ -24,6 +24,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { parseAsIST, toISODateIST } from "@c1rcle/core/time";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
+import { ErrorState } from "@/components/ui/ErrorState";
 
 // ─── Slot state types ─────────────────────────────────────────────────────────
 
@@ -250,6 +251,7 @@ export default function HostCalendarPage() {
     const [venues, setVenues] = useState<VenueOption[]>([]);
     const [slotsMap, setSlotsMap] = useState<Record<string, CalendarSlot[]>>({});
     const [loading, setLoading] = useState(true);
+    const [isError, setIsError] = useState(false);
     const [showLegend, setShowLegend] = useState(true);
 
     const year = parseInt(currentDate.toLocaleString("en-US", { year: "numeric", timeZone: "Asia/Kolkata" }));
@@ -284,6 +286,7 @@ export default function HostCalendarPage() {
     const fetchCalendar = useCallback(async () => {
         if (!hostId || !selectedVenueId) { setLoading(false); return; }
         setLoading(true);
+        setIsError(false);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
             const startStr = `${year}-${String(month + 1).padStart(2, "0")}-01`;
@@ -332,7 +335,7 @@ export default function HostCalendarPage() {
                 });
                 setSlotsMap(map);
             }
-        } catch { /* */ }
+        } catch { setIsError(true); }
         finally { setLoading(false); }
     }, [hostId, selectedVenueId, year, month, getIdToken]);
 
@@ -392,6 +395,13 @@ export default function HostCalendarPage() {
             }
         >
             <div className="space-y-8 animate-in fade-in duration-500">
+                {isError && (
+                    <ErrorState
+                        title="Failed to load calendar"
+                        message="We couldn't fetch your venue slots. Check your connection and try again."
+                        onRetry={fetchCalendar}
+                    />
+                )}
                 {/* Legend panel */}
                 <AnimatePresence>
                     {showLegend && (

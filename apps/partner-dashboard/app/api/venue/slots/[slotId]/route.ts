@@ -26,7 +26,7 @@ export async function GET(
         return NextResponse.json({ slot });
     } catch (err: any) {
         console.error("[slots/:id GET]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process slot request" }, { status: 500 });
     }
 }
 
@@ -50,7 +50,7 @@ export async function PATCH(
         return NextResponse.json({ slot: updated });
     } catch (err: any) {
         console.error("[slots/:id PATCH]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process slot request" }, { status: 500 });
     }
 }
 
@@ -72,6 +72,6 @@ export async function DELETE(
             return NextResponse.json({ error: "Not found" }, { status: 404 });
         }
         console.error("[slots/:id DELETE]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process slot request" }, { status: 500 });
     }
 }

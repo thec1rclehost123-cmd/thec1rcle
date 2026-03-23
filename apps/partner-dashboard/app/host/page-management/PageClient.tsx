@@ -33,7 +33,8 @@ import {
     TrendingUp,
     Zap,
     ChevronRight,
-    MoreHorizontal
+    MoreHorizontal,
+    AlertTriangle
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { AnimatePresence, motion } from "framer-motion";
@@ -62,6 +63,7 @@ export default function HostPageManagement() {
     const { profile } = useDashboardAuth();
     const [data, setData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isError, setIsError] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<"identity" | "content" | "media" | "engagement" | "broadcast">("identity");
     const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
@@ -88,15 +90,18 @@ export default function HostPageManagement() {
     const fetchProfileData = async () => {
         if (!profile?.activeMembership?.partnerId) return;
         setIsLoading(true);
+        setIsError(false);
         try {
             const partnerId = profile.activeMembership.partnerId;
             const res = await fetch(`/api/profile?profileId=${partnerId}&type=host&stats=true`);
             if (res.ok) {
                 const json = await res.json();
                 setData(json);
+            } else {
+                setIsError(true);
             }
         } catch (err) {
-            console.error("Profile fetch error:", err);
+            setIsError(true);
         } finally {
             setIsLoading(false);
         }
@@ -290,6 +295,22 @@ export default function HostPageManagement() {
             <div className="py-24 flex flex-col items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin mb-4" style={{ color: "var(--v-orange)" }} />
                 <p className="font-bold uppercase tracking-widest text-[10px]" style={{ color: "var(--v-text-tertiary)" }}>Syncing Page Presence...</p>
+            </div>
+        );
+    }
+
+    if (isError) {
+        return (
+            <div className="py-24 flex flex-col items-center justify-center gap-4">
+                <AlertTriangle className="h-8 w-8" style={{ color: "var(--v-error)" }} />
+                <p className="font-semibold text-sm" style={{ color: "var(--v-text-secondary)" }}>Failed to load page data</p>
+                <button
+                    onClick={fetchProfileData}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold"
+                    style={{ background: "var(--v-elevated)", border: "1px solid var(--v-border)", color: "var(--v-text-primary)" }}
+                >
+                    Retry
+                </button>
             </div>
         );
     }

@@ -3,13 +3,13 @@
  * POST /api/venue/finance/venue-payouts — initiate payout
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
 import {
     getVenuePayoutsData,
     initiateVenuePayout,
 } from "@/lib/server/splitFinanceStore";
-import { verifyAuth } from "@/lib/server/auth";
+import { requireAuth } from "@/lib/server/withAuth";
 import { randomUUID } from "node:crypto";
 
 export async function GET(request: Request) {
@@ -35,11 +35,14 @@ export async function GET(request: Request) {
         });
     } catch (err: any) {
         console.error("[finance/venue-payouts GET]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to fetch venue payouts" }, { status: 500 });
     }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     try {
         const ctx = await requireVenueAccess(request, "finance:initiate_payout");
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -48,7 +51,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Finance admin role required" }, { status: 403 });
         }
 
-        const user = await verifyAuth(request);
         const body = await request.json();
 
         if (!body.amountPaise || body.amountPaise < 100) {
@@ -65,12 +67,12 @@ export async function POST(request: Request) {
             body.methodId,
             body.idempotencyKey ?? randomUUID(),
             token,
-            user!.uid
+            auth.uid
         );
 
         return NextResponse.json(result, { status: 201 });
     } catch (err: any) {
         console.error("[finance/venue-payouts POST]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to initiate payout" }, { status: 500 });
     }
 }

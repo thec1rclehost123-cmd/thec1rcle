@@ -325,7 +325,10 @@ export const TicketEmail = ({
                     {previewText}
                     {'\u200C'.repeat(150)}
                 </div>
-                {/* Gmail structured data for calendar card */}
+                {/* Gmail structured data for calendar card.
+                    Safety: jsonLd is constructed entirely from server-controlled values
+                    (event name, date, venue, ticket ID) — never from raw user input.
+                    JSON.stringify ensures all values are properly escaped. */}
                 <script
                     type="application/ld+json"
                     dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

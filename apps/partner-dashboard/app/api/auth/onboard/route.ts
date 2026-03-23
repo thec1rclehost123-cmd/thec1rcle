@@ -1,29 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { z } from "zod";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { checkAndConsumeOtpCompletions } from "@/lib/server/verification";
 import { Resend } from "resend";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
+import { logger } from "@/lib/server/logger";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-export async function POST(req: NextRequest) {
+const OnboardSchema = z.object({
+    type: z.string().min(1).max(50),
+    email: z.string().email().max(200),
+    name: z.string().min(1).max(200),
+    phone: z.string().optional(),
+    entityType: z.string().optional().default("individual"),
+});
+
+export const POST = withAuth(async (req: NextRequest, auth) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
-        const userId = decodedToken.uid;
+        const userId = auth.uid;
         const body = await req.json();
-        const { type, email, name, phone, entityType } = body;
-
-        if (!type || !email || !name) {
-            return NextResponse.json(
-                { error: "Missing required fields: type, email, name" },
-                { status: 400 }
-            );
-        }
+        const parsed = OnboardSchema.safeParse(body);
+        if (!parsed.success) return fail(parsed.error.issues[0]?.message || "Invalid request body", 400);
+        const { type, email, name, phone, entityType } = parsed.data;
 
         const db = getAdminDb();
 
@@ -113,9 +114,9 @@ export async function POST(req: NextRequest) {
             }).catch((err: any) => console.error("[onboard] Confirmation email error:", err));
         }
 
-        return NextResponse.json({ success: true, requestId });
+        return ok({ requestId });
     } catch (error: any) {
-        console.error("[Auth API] POST /onboard Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        logger.error("auth/onboard", "Failed to submit onboarding request", { error: error.message });
+        return fail("Failed to submit onboarding request");
     }
-}
+});

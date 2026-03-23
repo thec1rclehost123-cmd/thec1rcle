@@ -32,6 +32,6 @@ export async function GET(request: Request) {
         );
     } catch (err: any) {
         console.error("[next-event-intelligence GET]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to fetch event intelligence" }, { status: 500 });
     }
 }

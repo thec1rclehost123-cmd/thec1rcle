@@ -1,104 +1,100 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { z } from "zod";
 import { updateEventLifecycle, listEvents } from "@/lib/server/eventStore";
-import { verifyAuth } from "@/lib/server/auth";
-// GET - Fetch all events for a venue via eventStore (API Gateway)
-export async function GET(req: NextRequest) {
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
+import { logger } from "@/lib/server/logger";
+
+const EventsQuery = z.object({
+    venueId: z.string().min(1, "venueId is required"),
+    status: z.string().optional(),
+    limit: z.coerce.number().int().positive().max(200).default(20),
+    lastId: z.string().optional(),
+    date: z.string().optional(),
+});
+
+const UpdateEventBody = z.object({
+    eventId: z.string().min(1, "eventId is required"),
+    action: z.enum(["approve", "reject", "pause", "resume"], {
+        error: "action must be 'approve', 'reject', 'pause', or 'resume'",
+    }),
+    data: z.object({
+        notes: z.string().optional(),
+        reason: z.string().optional(),
+    }).optional(),
+});
+
+const STATUS_MAP: Record<string, string> = {
+    approve: "scheduled",
+    reject: "denied",
+    pause: "paused",
+    resume: "live",
+};
+
+/**
+ * GET /api/venue/events
+ */
+export const GET = withAuth(async (req: NextRequest, auth) => {
     try {
         const { searchParams } = new URL(req.url);
-        const venueId = searchParams.get("venueId");
-        const status = searchParams.get("status");
-        const limit = searchParams.get("limit") || "20";
-        const lastId = searchParams.get("lastId");
-        const date = searchParams.get("date"); // "today" or "YYYY-MM-DD"
+        const parsed = EventsQuery.safeParse(Object.fromEntries(searchParams));
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        if (!venueId) {
-            return NextResponse.json({ error: "venueId is required" }, { status: 400 });
-        }
-
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const { venueId, status, limit, lastId, date } = parsed.data;
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
 
-        const params: any = { venueId, limit, ...(status && status !== "all" ? { lifecycle: status } : {}) };
+        const params: Record<string, any> = {
+            venueId,
+            limit,
+            ...(status && status !== "all" ? { lifecycle: status } : {}),
+        };
         if (lastId) params.lastId = lastId;
 
         const result = await listEvents(params, token);
         let events: any[] = result.events || result || [];
 
-        // Exclude draft events unless explicitly requested
         if (!status || status === "all") {
             events = events.filter((e: any) => e.lifecycle !== "draft" && e.status !== "draft");
         }
 
-        // Server-side date filtering
         if (date) {
-            const targetDate = date === "today" ? new Date().toISOString().split('T')[0] : date;
+            const targetDate = date === "today" ? new Date().toISOString().split("T")[0] : date;
             events = events.filter((e: any) => {
-                const eventDate = (e.date || e.startDate || "").split('T')[0];
+                const eventDate = (e.date || e.startDate || "").split("T")[0];
                 return eventDate === targetDate;
             });
         }
 
-        return NextResponse.json({ events });
+        return ok({ events });
     } catch (error: any) {
-        console.error("Error fetching events:", error);
-        return NextResponse.json(
-            { error: error.message || "Internal server error" },
-            { status: 500 }
-        );
+        logger.error("venue/events", "GET failed", { error: error.message });
+        return fail("Failed to fetch events");
     }
-}
+});
 
-// PATCH - Update event (approve, reject, pause, lock)
-export async function PATCH(req: NextRequest) {
+/**
+ * PATCH /api/venue/events
+ */
+export const PATCH = withAuth(async (req: NextRequest, auth) => {
     try {
-        const decodedToken: any = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const rawBody = await req.json();
+        const parsed = UpdateEventBody.safeParse(rawBody);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        const { eventId, action, data } = await req.json();
+        const { eventId, action, data } = parsed.data;
+        const newStatus = STATUS_MAP[action];
 
-        if (!eventId || !action) {
-            return NextResponse.json(
-                { error: "eventId and action are required" },
-                { status: 400 }
-            );
-        }
-
-        // Map frontend action to canonical lifecycle status.
-        // "approve" publishes a host-submitted event directly to "scheduled"
-        // so it becomes publicly visible without a separate publish step.
-        const statusMap: Record<string, string> = {
-            approve: "scheduled",
-            reject: "denied",
-            pause: "paused",
-            resume: "live"
-        };
-
-        const newStatus = statusMap[action];
-        if (!newStatus) {
-            return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-        }
-
-        // Resolve role from token claims — eventStore.updateEventLifecycle validates permissions
-        let role = decodedToken.partnerType || (decodedToken.admin ? "admin" : "user");
-        // Dev backdoor for testing
-        if (process.env.NODE_ENV === "development" && decodedToken.uid === "dev-user-123") {
+        let role = auth.partnerType || (auth.admin ? "admin" : "user");
+        if (process.env.NODE_ENV === "development" && auth.uid === "dev-user-123") {
             role = "venue";
         }
 
-        const authHeader = req.headers.get("authorization");
-        const token = authHeader?.split("Bearer ")[1] || "";
-
-        // Internal context for eventStore
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const context = {
-            uid: decodedToken.uid,
-            role: role,
+            uid: auth.uid,
+            role,
             requestId: `API_${Date.now()}`,
-            token: token
+            token,
         };
 
         const result = await updateEventLifecycle(
@@ -108,13 +104,9 @@ export async function PATCH(req: NextRequest) {
             data?.notes || data?.reason || ""
         );
 
-        return NextResponse.json(result);
-
+        return ok({ result }, "Event updated");
     } catch (error: any) {
-        console.error("Error updating event:", error);
-        return NextResponse.json(
-            { error: error.message || "Internal server error" },
-            { status: 500 }
-        );
+        logger.error("venue/events", "PATCH failed", { error: error.message });
+        return fail("Failed to update event");
     }
-}
+});

@@ -1,38 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 import { getAdminStorage, isFirebaseConfigured } from "@/lib/firebase/admin";
+import { ALLOWED_IMAGE_MIME_TYPES, MAX_UPLOAD_SIZE_BYTES } from "@/lib/constants";
 
 const ALLOWED_TYPES = ["gov_id", "selfie", "logo"] as const;
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const formData = await req.formData();
         const file = formData.get("file") as File;
         const promoterId = formData.get("promoterId") as string;
         const type = formData.get("type") as string;
 
         if (!file || !promoterId || !type || !ALLOWED_TYPES.includes(type as any)) {
-            return NextResponse.json({ error: "Missing or invalid fields" }, { status: 400 });
+            return fail("Missing or invalid fields", 400);
+        }
+        if (!(ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(file.type)) {
+            return fail("Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.", 400);
+        }
+        if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+            return fail("File too large. Maximum size is 10 MB.", 400);
         }
 
         if (!isFirebaseConfigured()) {
             // Dev fallback: return a placeholder URL so the UI flow can be tested
-            return NextResponse.json({
-                success: true,
-                url: `https://placehold.co/200x200?text=${type}`,
-            });
+            return ok({ url: `https://placehold.co/200x200?text=${type}` });
         }
 
         const storage = getAdminStorage();
-        const bucketName =
-            process.env.FIREBASE_STORAGE_BUCKET ||
-            process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
-            "c1rcle-staging.firebasestorage.app";
+        const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+        if (!bucketName) {
+            console.error("[POST /api/promoter/upload] FIREBASE_STORAGE_BUCKET is not set");
+            return fail("Server misconfiguration", 500);
+        }
 
         const bucket = storage.bucket(bucketName);
         const buffer = Buffer.from(await file.arrayBuffer());
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        return NextResponse.json({ success: true, url });
+        return ok({ url });
     } catch (error: any) {
         const errStr = String(error?.message ?? "") + String(error?.response?.data ?? "");
         // GCP billing not linked — dev fallback so UI flow still works locally
@@ -76,6 +77,6 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: true, url: "https://placehold.co/200x200?text=upload" });
         }
         console.error("[POST /api/promoter/upload]", error.message);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to upload file");
     }
-}
+});

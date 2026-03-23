@@ -21,7 +21,7 @@ async function handler(request) {
     } catch (error) {
         console.error("GET /api/admin/refunds error:", error);
         return NextResponse.json(
-            { error: error.message || "Failed to fetch refunds" },
+            { error: "Failed to fetch refunds" },
             { status: 500 }
         );
     }

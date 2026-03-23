@@ -1,70 +1,54 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getEvent, updateEventLifecycle, updateEvent } from "@/lib/server/eventStore";
 import { verifyPartnerAccess } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
+import { logger } from "@/lib/server/logger";
 
 /**
  * GET /api/events/[id]
  * Get event details
  */
-export async function GET(
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
     try {
-        const { id } = await params;
+        const { id } = await (ctx?.params as any);
         console.log("[debug] GET /api/events/[id] id:", id);
         if (!id || typeof id !== "string") {
             console.error("[Firestore] Invalid id in GET /api/events/[id]:", id);
-            return NextResponse.json({ error: "Invalid event ID" }, { status: 400 });
+            return fail("Invalid event ID", 400);
         }
-        const authHeader = req.headers.get("authorization");
-        const token = authHeader?.split("Bearer ")[1] || "";
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const event = await getEvent(id, token);
 
-        if (!event) {
-            return NextResponse.json(
-                { error: "Event not found" },
-                { status: 404 }
-            );
-        }
+        if (!event) return fail("Event not found", 404);
 
-        return NextResponse.json({ event });
+        return ok({ event });
     } catch (error: any) {
-        console.error("[Events API] GET Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to fetch event" },
-            { status: 500 }
-        );
+        logger.error("events/[id]", "GET failed", { error: error.message });
+        return fail("Failed to fetch event");
     }
-}
+});
 
 /**
  * PATCH /api/events/[id]
  * Update event (draft updates, lifecycle changes)
  */
-export async function PATCH(
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
+export const PATCH = withAuth(async (req: NextRequest, auth, ctx) => {
     try {
-        const { id } = await params;
+        const { id } = await (ctx?.params as any);
         const body = await req.json();
         const { action, actor, notes, updates } = body;
 
-        const authHeader = req.headers.get("authorization");
-        const token = authHeader?.split("Bearer ")[1] || "";
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
 
         if (!actor || !actor.uid || !actor.role) {
-            return NextResponse.json(
-                { error: "Actor information required" },
-                { status: 400 }
-            );
+            return fail("Actor information required", 400);
         }
 
         console.log("[debug] PATCH /api/events/[id] id:", id);
         if (!id || typeof id !== "string") {
             console.error("[Firestore] Invalid id in PATCH /api/events/[id]:", id);
-            return NextResponse.json({ error: "Invalid event ID" }, { status: 400 });
+            return fail("Invalid event ID", 400);
         }
 
         let latestEvent: any = null;
@@ -91,7 +75,7 @@ export async function PATCH(
                     newStatus = "submitted";
                     break;
                 case "approve":
-                    newStatus = "approved"; // Moving to internal approved state (confirmed)
+                    newStatus = "approved";
                     break;
                 case "reject":
                 case "deny":
@@ -102,7 +86,7 @@ export async function PATCH(
                     break;
                 case "publish":
                 case "resume":
-                    newStatus = "scheduled"; // Published/Resumed -> Publicly visible
+                    newStatus = "scheduled";
                     break;
                 case "pause":
                     newStatus = "paused";
@@ -114,82 +98,61 @@ export async function PATCH(
                     newStatus = "draft";
                     break;
                 default:
-                    return NextResponse.json(
-                        { error: `Invalid action: ${action}` },
-                        { status: 400 }
-                    );
+                    return fail(`Invalid action: ${action}`, 400);
             }
 
             // Verify management access for approve/reject/publish
             if (["approve", "reject", "deny", "publish", "request_changes"].includes(action) && actor.role !== 'admin') {
                 const event = await getEvent(id, token);
-                if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
+                if (!event) return fail("Event not found", 404);
 
                 const venueId = event.venueId;
-                if (!venueId) return NextResponse.json({ error: "Venue ID not associated with this event" }, { status: 400 });
+                if (!venueId) return fail("Venue ID not associated with this event", 400);
 
                 const hasAccess = await verifyPartnerAccess(req, venueId);
-                if (!hasAccess) return NextResponse.json({ error: "Unauthorized access to this venue" }, { status: 403 });
+                if (!hasAccess) return fail("Unauthorized access to this venue", 403);
             }
 
             const result = await updateEventLifecycle(id, newStatus, { ...actor, token }, notes);
-            return NextResponse.json({ success: true, result, event: latestEvent });
+            return ok({ result, event: latestEvent });
         }
 
-        if (latestEvent) {
-            return NextResponse.json({ success: true, event: latestEvent });
-        }
+        if (latestEvent) return ok({ event: latestEvent });
 
-        return NextResponse.json(
-            { error: "Action or updates required" },
-            { status: 400 }
-        );
+        return fail("Action or updates required", 400);
     } catch (error: any) {
-        console.error("[Events API] PATCH Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to update event" },
-            { status: 500 }
-        );
+        logger.error("events/[id]", "PATCH failed", { error: error.message });
+        return fail("Failed to update event");
     }
-}
+});
 
 /**
  * DELETE /api/events/[id]
  * Soft delete an event
  */
-export async function DELETE(
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
+export const DELETE = withAuth(async (req: NextRequest, auth, ctx) => {
     try {
-        const { id } = await params;
-        const authHeader = req.headers.get("authorization");
-        const token = authHeader?.split("Bearer ")[1] || "";
+        const { id } = await (ctx?.params as any);
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const body = await req.json();
         const { actor } = body;
 
         if (!actor || !actor.uid || !actor.role) {
-            return NextResponse.json(
-                { error: "Actor information required" },
-                { status: 400 }
-            );
+            return fail("Actor information required", 400);
         }
 
         console.log("[debug] DELETE /api/events/[id] id:", id);
         if (!id || typeof id !== "string") {
             console.error("[Firestore] Invalid id in DELETE /api/events/[id]:", id);
-            return NextResponse.json({ error: "Invalid event ID" }, { status: 400 });
+            return fail("Invalid event ID", 400);
         }
 
         const { deleteEvent } = await import("@/lib/server/eventStore");
         const result = await deleteEvent(id, token);
 
-        return NextResponse.json({ success: true, result });
+        return ok({ result });
     } catch (error: any) {
-        console.error("[Events API] DELETE Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to delete event" },
-            { status: 500 }
-        );
+        logger.error("events/[id]", "DELETE failed", { error: error.message });
+        return fail("Failed to delete event");
     }
-}
+});

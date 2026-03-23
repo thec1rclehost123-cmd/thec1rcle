@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 export const dynamic = 'force-dynamic';
 
 import {
@@ -11,31 +11,28 @@ import {
     getEventTimeline,
     getEventStudioInsights
 } from "@/lib/server/analyticsStore";
-
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * GET /api/venue/analytics/[type]
  * Fetches specific analytics for a venue
  */
-export async function GET(
-    req: NextRequest,
-    { params }: { params: Promise<{ type: string }> }
-) {
+export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
     try {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId") || searchParams.get("partnerId");
         const range = searchParams.get("range") || "30d";
-        const resolvedParams = await params;
-        const { type } = resolvedParams;
+        
+        // Next.js 15+ Dynamic API: params is a Promise
+        const params = await ctx?.params;
+        const type = params?.type || "";
 
-        console.log(`📡 [API/Analytics] Request: type=${type}, venueId=${venueId}, range=${range}`);
-
-        if (!venueId) {
-            return NextResponse.json({ error: "venueId is required" }, { status: 400 });
-        }
+        if (!venueId) return fail("venueId is required", 400);
 
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         let analytics;
+
         switch (type) {
             case "overview":
                 analytics = await getVenueAnalytics(venueId, range, token);
@@ -52,7 +49,6 @@ export async function GET(
                 analytics = await getVenueOpsAnalytics(venueId, range, token);
                 break;
             case "revenue":
-                // Standard venue overview covers revenue totals
                 analytics = await getVenueAnalytics(venueId, range, token);
                 break;
             case "attribution":
@@ -62,25 +58,25 @@ export async function GET(
             case "strategy":
                 analytics = await getVenueStrategyAnalytics(venueId, token);
                 break;
-            case "timeline":
+            case "timeline": {
                 const eventId = searchParams.get("eventId");
-                if (!eventId) return NextResponse.json({ error: "eventId required for timeline" }, { status: 400 });
+                if (!eventId) return fail("eventId required for timeline", 400);
                 analytics = await getEventTimeline(eventId, token);
                 break;
-            case "insights":
+            }
+            case "insights": {
                 const eId = searchParams.get("eventId");
-                if (!eId) return NextResponse.json({ error: "eventId required for insights" }, { status: 400 });
+                if (!eId) return fail("eventId required for insights", 400);
                 analytics = await getEventStudioInsights(eId, token);
                 break;
-
+            }
             default:
-                return NextResponse.json({ error: "Invalid analytics type" }, { status: 400 });
+                return fail("Invalid analytics type", 400);
         }
 
-        return NextResponse.json(analytics);
-
+        return ok({ analytics });
     } catch (error: any) {
         console.error(`[Venue Analytics API] Error:`, error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to fetch analytics");
     }
-}
+});

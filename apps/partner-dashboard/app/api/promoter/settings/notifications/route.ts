@@ -1,20 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextRequest } from "next/server";
 import { patchPreferences } from "@/lib/server/promoterSettingsStore";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
-export async function PATCH(req: NextRequest) {
+export const PATCH = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const body = await req.json();
         const { promoterId, notifications, operationalDefaults, security } = body;
 
-        if (!promoterId) {
-            return NextResponse.json({ error: "promoterId is required" }, { status: 400 });
-        }
+        if (!promoterId) return fail("promoterId is required", 400);
 
         const preferences = await patchPreferences(promoterId, {
             notifications,
@@ -22,9 +16,9 @@ export async function PATCH(req: NextRequest) {
             security,
         });
 
-        return NextResponse.json({ success: true, preferences });
+        return ok({ preferences });
     } catch (error: any) {
         console.error("[PATCH /api/promoter/settings/notifications]", error);
-        return NextResponse.json({ error: "Failed to update preferences" }, { status: 500 });
+        return fail("Failed to update preferences");
     }
-}
+});

@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextRequest } from "next/server";
+import { z } from "zod";
 import {
     inviteStaff,
     getVenueStaff,
@@ -9,6 +9,8 @@ import {
     ROLE_PRESETS,
 } from "@/lib/server/staffService";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 import { Resend } from "resend";
 
 // Guard: only initialize Resend if the API key is configured
@@ -25,69 +27,73 @@ const STAFF_ROLE_LABELS: Record<string, string> = {
     owner: "Owner",
 };
 
+const StaffQuery = z.object({
+    venueId: z.string().min(1, "venueId is required"),
+    isActive: z.string().optional(),
+});
+
+const InviteStaffBody = z.object({
+    venueId: z.string().min(1, "venueId is required"),
+    email: z.string().email("Invalid email address"),
+    name: z.string().min(1, "name is required"),
+    role: z.string().min(1, "role is required"),
+});
+
+const UpdateStaffBody = z.object({
+    staffId: z.string().min(1, "staffId is required"),
+    action: z.enum(["verify", "suspend", "reactivate", "remove"], {
+        error: "action must be 'verify', 'suspend', 'reactivate', or 'remove'",
+    }),
+    reason: z.string().optional(),
+});
+
 /**
  * GET /api/venue/staff
  * List all staff members for a venue (direct Firestore read)
  */
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
     try {
-        const user = await verifyAuth(req);
-        if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
         const { searchParams } = new URL(req.url);
-        const venueId = searchParams.get("venueId");
-        const isActiveParam = searchParams.get("isActive");
+        const parsed = StaffQuery.safeParse(Object.fromEntries(searchParams));
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        if (!venueId) {
-            return NextResponse.json({ error: "venueId is required" }, { status: 400 });
-        }
-
-        const statusFilter = isActiveParam === "false" ? "removed" : isActiveParam === "all" ? null : "active";
+        const { venueId, isActive } = parsed.data;
+        const statusFilter = isActive === "false" ? "removed" : isActive === "all" ? null : "active";
         const staff = await getVenueStaff(venueId, { status: statusFilter ?? undefined });
 
         const roleOptions = ["STAFF", "FINANCE_ADMIN", "manager", "supervisor", "security"];
 
-        return NextResponse.json({ staff, roleOptions });
+        return ok({ staff, roleOptions });
     } catch (error: any) {
         console.error("[Staff API] GET Error:", error);
-        return NextResponse.json({ error: error.message || "Failed to fetch staff" }, { status: 500 });
+        return fail("Failed to fetch staff");
     }
-}
+});
 
 /**
  * POST /api/venue/staff
  * Invite a new staff member, sends email via Resend
  */
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest, auth) => {
     try {
-        const user = await verifyAuth(req);
-        if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const rawBody = await req.json();
+        const parsed = InviteStaffBody.safeParse(rawBody);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        const body = await req.json();
-        const { venueId, email, name, role } = body;
-
-        if (!venueId || !email || !name || !role) {
-            return NextResponse.json(
-                { error: "venueId, email, name, and role are required" },
-                { status: 400 }
-            );
-        }
+        const { venueId, email, name, role } = parsed.data;
 
         if (!(ROLE_PRESETS as any)[role]) {
-            return NextResponse.json(
-                { error: `Invalid role. Valid roles: ${Object.keys(ROLE_PRESETS).join(", ")}` },
-                { status: 400 }
-            );
+            return fail(`Invalid role. Valid roles: ${Object.keys(ROLE_PRESETS).join(", ")}`, 400);
         }
 
         const result = await inviteStaff(
             venueId,
             { email, name, role },
-            { uid: user.uid, name: (user as any).name || (user as any).email || "Owner" }
+            { uid: auth.uid, name: (auth as any).name || (auth as any).email || "Owner" }
         );
 
         if (!result.success) {
-            return NextResponse.json({ error: result.error }, { status: 409 });
+            return fail(result.error || "Staff member already exists", 409);
         }
 
         // Fetch venue name for the invite email
@@ -132,42 +138,33 @@ export async function POST(req: NextRequest) {
             console.warn("[Staff API] Failed to send invite email:", emailErr);
         }
 
-        return NextResponse.json({ staff: result.staffMember, inviteCode: result.inviteCode }, { status: 201 });
+        return ok({ staff: result.staffMember, inviteCode: result.inviteCode }, "Staff member invited", 201);
     } catch (error: any) {
         console.error("[Staff API] POST Error:", error);
-        if (error.message?.includes("already exists")) {
-            return NextResponse.json({ error: error.message }, { status: 409 });
-        }
-        return NextResponse.json({ error: error.message || "Failed to add staff member" }, { status: 500 });
+        return fail("Failed to add staff member");
     }
-}
+});
 
 /**
  * PATCH /api/venue/staff
  * Update a staff member (verify, suspend, reactivate, remove)
  */
-export async function PATCH(req: NextRequest) {
+export const PATCH = withAuth(async (req: NextRequest, auth) => {
     try {
-        const user = await verifyAuth(req);
-        if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const rawBody = await req.json();
+        const parsed = UpdateStaffBody.safeParse(rawBody);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        const body = await req.json();
-        const { staffId, action } = body;
-
-        if (!staffId || !action) {
-            return NextResponse.json({ error: "staffId and action are required" }, { status: 400 });
-        }
-
-        const actor = { uid: user.uid, name: (user as any).name || (user as any).email || "Owner" };
-        let result;
+        const { staffId, action, reason } = parsed.data;
+        const actor = { uid: auth.uid, name: (auth as any).name || (auth as any).email || "Owner" };
 
         switch (action) {
             case "verify":
-                result = await verifyStaff(staffId, actor);
+                await verifyStaff(staffId, actor);
                 break;
 
             case "suspend":
-                result = await suspendStaff(staffId, body.reason || "Suspended by owner", actor);
+                await suspendStaff(staffId, reason || "Suspended by owner", actor);
                 break;
 
             case "reactivate": {
@@ -179,24 +176,17 @@ export async function PATCH(req: NextRequest) {
                     suspensionReason: null,
                     updatedAt: new Date().toISOString(),
                 });
-                result = { success: true };
                 break;
             }
 
             case "remove":
-                result = await removeStaff(staffId, actor);
+                await removeStaff(staffId, actor);
                 break;
-
-            default:
-                return NextResponse.json(
-                    { error: "Invalid action. Valid: verify, suspend, reactivate, remove" },
-                    { status: 400 }
-                );
         }
 
-        return NextResponse.json({ success: true });
+        return ok({ success: true }, "Staff member updated");
     } catch (error: any) {
         console.error("[Staff API] PATCH Error:", error);
-        return NextResponse.json({ error: error.message || "Failed to update staff member" }, { status: 500 });
+        return fail("Failed to update staff member");
     }
-}
+});

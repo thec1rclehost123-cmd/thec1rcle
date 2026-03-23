@@ -54,7 +54,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             return result;
         } catch (error: any) {
             fastify.log.error(`Pricing validation failed: ${error.message}`);
-            return reply.status(500).send({ success: false, error: error.message || 'Internal Server Error' });
+            return reply.status(500).send({ success: false, error: "Internal server error" });
         }
     });
 
@@ -111,7 +111,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             return result;
         } catch (error: any) {
             fastify.log.error(`Reservation failed: ${error.message}`);
-            return reply.status(409).send({ success: false, error: error.message || 'Failed to reserve tickets' });
+            return reply.status(409).send({ success: false, error: "Request conflict" });
         }
     });
 
@@ -155,7 +155,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             }
 
             fastify.log.error(`Initiate checkout failed: ${error.message}`);
-            return reply.status(500).send({ success: false, error: error.message || 'Internal Server Error' });
+            return reply.status(500).send({ success: false, error: "Internal server error" });
         }
     });
 

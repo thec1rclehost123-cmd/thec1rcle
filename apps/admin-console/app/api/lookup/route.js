@@ -41,7 +41,7 @@ async function handler(req) {
         return NextResponse.json({ results: uniqueResults });
     } catch (error) {
         console.error("Lookup Error:", error.message);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }
 

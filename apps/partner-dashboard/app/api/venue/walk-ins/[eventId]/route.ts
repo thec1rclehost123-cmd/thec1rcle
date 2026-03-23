@@ -4,7 +4,7 @@
  * DELETE /api/venue/walk-ins/[eventId]?venueId=&logId=  (void)
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
 import {
     listWalkIns,
@@ -12,10 +12,11 @@ import {
     voidWalkIn,
     getWalkInEventSummary,
 } from "@/lib/server/walkInStore";
-import { verifyAuth } from "@/lib/server/auth";
+import { requireAuth } from "@/lib/server/withAuth";
+import { fail } from "@/lib/server/apiResponse";
 
 export async function GET(
-    request: Request,
+    request: NextRequest,
     { params }: { params: { eventId: string } }
 ) {
     try {
@@ -45,23 +46,25 @@ export async function GET(
         });
     } catch (err: any) {
         console.error("[walk-ins/:eventId GET]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return fail("Failed to fetch walk-ins");
     }
 }
 
 export async function PATCH(
-    request: Request,
+    request: NextRequest,
     { params }: { params: { eventId: string } }
 ) {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     try {
         const ctx = await requireVenueAccess(request, "walkins:edit");
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
         const { searchParams } = new URL(request.url);
         const logId = searchParams.get("logId");
-        if (!logId) return NextResponse.json({ error: "logId required" }, { status: 400 });
+        if (!logId) return fail("logId required", 400);
 
-        const user = await verifyAuth(request);
         const body = await request.json();
 
         const entry = await updateWalkIn(
@@ -75,38 +78,37 @@ export async function PATCH(
                 amountPaise: body.amount != null ? Math.round(body.amount * 100) : undefined,
                 note: body.note,
             },
-            { uid: user!.uid },
+            { uid: auth.uid },
             ctx.piiPolicy.showPhone
         );
 
         return NextResponse.json({ entry });
     } catch (err: any) {
-        if (err.message === "Entry not found") {
-            return NextResponse.json({ error: "Not found" }, { status: 404 });
-        }
+        if (err.message === "Entry not found") return fail("Not found", 404);
         console.error("[walk-ins/:eventId PATCH]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return fail("Failed to update walk-in");
     }
 }
 
 export async function DELETE(
-    request: Request,
+    request: NextRequest,
     { params }: { params: { eventId: string } }
 ) {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     try {
         const ctx = await requireVenueAccess(request, "walkins:delete");
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
         const { searchParams } = new URL(request.url);
         const logId = searchParams.get("logId");
-        if (!logId) return NextResponse.json({ error: "logId required" }, { status: 400 });
+        if (!logId) return fail("logId required", 400);
 
-        const user = await verifyAuth(request);
-        await voidWalkIn(params.eventId, logId, { uid: user!.uid });
-
+        await voidWalkIn(params.eventId, logId, { uid: auth.uid });
         return NextResponse.json({ ok: true });
     } catch (err: any) {
         console.error("[walk-ins/:eventId DELETE]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return fail("Failed to void walk-in");
     }
 }

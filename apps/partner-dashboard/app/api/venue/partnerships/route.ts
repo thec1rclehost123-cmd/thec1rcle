@@ -1,50 +1,56 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { z } from "zod";
 import { listPartnerships, approvePartnership, rejectPartnership } from "@/lib/server/partnershipStore";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
-export async function GET(req: NextRequest) {
+const PartnershipsQuery = z.object({
+    venueId: z.string().optional(),
+    hostId: z.string().optional(),
+    status: z.string().optional(),
+});
+
+const UpdatePartnershipBody = z.object({
+    partnershipId: z.string().min(1, "partnershipId is required"),
+    action: z.enum(["approve", "reject"], { error: "action must be 'approve' or 'reject'" }),
+});
+
+export const GET = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
         const { searchParams } = new URL(req.url);
-        const venueId = searchParams.get("venueId");
-        const hostId = searchParams.get("hostId");
-        const status = searchParams.get("status");
+        const parsed = PartnershipsQuery.safeParse(Object.fromEntries(searchParams));
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        const filters: any = {};
-        if (venueId) filters.venueId = venueId;
-        if (hostId) filters.hostId = hostId;
-        if (status) filters.status = status;
+        const filters: Record<string, string> = {};
+        if (parsed.data.venueId) filters.venueId = parsed.data.venueId;
+        if (parsed.data.hostId) filters.hostId = parsed.data.hostId;
+        if (parsed.data.status) filters.status = parsed.data.status;
 
         const partnerships = await listPartnerships(filters);
-        return NextResponse.json({ partnerships });
+        return ok({ partnerships });
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("[GET /api/venue/partnerships]", error);
+        return fail("Failed to fetch partnerships");
     }
-}
+});
 
-export async function PATCH(req: NextRequest) {
+export const PATCH = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const rawBody = await req.json();
+        const parsed = UpdatePartnershipBody.safeParse(rawBody);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        const { partnershipId, action } = await req.json();
-
-        if (!partnershipId || !action) {
-            return NextResponse.json({ error: "partnershipId and action are required" }, { status: 400 });
-        }
+        const { partnershipId, action } = parsed.data;
 
         if (action === "approve") {
             await approvePartnership(partnershipId);
-        } else if (action === "reject") {
-            await rejectPartnership(partnershipId);
         } else {
-            return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+            await rejectPartnership(partnershipId);
         }
 
-        return NextResponse.json({ success: true });
+        return ok({ success: true }, "Partnership updated");
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("[PATCH /api/venue/partnerships]", error);
+        return fail("Failed to update partnership");
     }
-}
+});

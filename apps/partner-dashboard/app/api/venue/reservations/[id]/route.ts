@@ -3,7 +3,8 @@
  * Delegates to API Gateway for individual reservation updates
  */
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { fail } from "@/lib/server/apiResponse";
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
 
@@ -11,17 +12,10 @@ const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
  * PATCH /api/venue/reservations/[id]
  * Update a reservation status (approve / reject / cancel)
  */
-export async function PATCH(
-    req: NextRequest,
-    { params }: { params: { id: string } }
-) {
-    if (!GATEWAY_URL) {
-        return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
-    }
-    const auth = await verifyAuth(req);
-    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const PATCH = withAuth(async (req: NextRequest, auth, ctx) => {
+    if (!GATEWAY_URL) return fail("Service unavailable", 503);
 
-    const { id } = params;
+    const id = ctx?.params?.id || "";
     const body = await req.json();
 
     const res = await fetch(`${GATEWAY_URL}/api/v1/venue-settings/venue/reservations/${id}`, {
@@ -34,4 +28,4 @@ export async function PATCH(
     });
     const data = await res.json().catch(() => ({}));
     return NextResponse.json(data, { status: res.status });
-}
+});

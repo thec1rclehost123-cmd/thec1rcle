@@ -5,6 +5,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireHostAccess, writeAuditLog } from "@/lib/server/hostAuthMiddleware";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { ok, fail } from "@/lib/server/apiResponse";
+import { logger } from "@/lib/server/logger";
 
 export async function GET(req: NextRequest) {
     const ctx = await requireHostAccess(req);
@@ -26,7 +28,7 @@ export async function GET(req: NextRequest) {
         const promoterIds = connectionsSnap.docs.map((d: any) => d.data().promoterId);
 
         if (!promoterIds.length) {
-            return NextResponse.json({ promoters: [] });
+            return ok({ promoters: [] });
         }
 
         // Aggregate assignment stats per promoter
@@ -69,10 +71,10 @@ export async function GET(req: NextRequest) {
             };
         });
 
-        return NextResponse.json({ promoters });
+        return ok({ promoters });
     } catch (err: any) {
-        console.error("[host/promoters] GET:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        logger.error("host/promoters", "GET failed", { error: err.message });
+        return fail("Failed to process promoter request");
     }
 }
 
@@ -88,7 +90,7 @@ export async function POST(req: NextRequest) {
         const { promoterEmail, promoterId, defaultCommissionRate } = body;
 
         if (!promoterEmail && !promoterId) {
-            return NextResponse.json({ error: "promoterEmail or promoterId required" }, { status: 422 });
+            return fail("promoterEmail or promoterId required", 422);
         }
 
         let resolvedId = promoterId;
@@ -119,12 +121,12 @@ export async function POST(req: NextRequest) {
                     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
                 });
                 await writeAuditLog(hostId, uid, "promoter.invite", { email: promoterEmail, inviteId: inviteRef.id });
-                return NextResponse.json({ success: true, status: "invited", inviteId: inviteRef.id });
+                return ok({ status: "invited", inviteId: inviteRef.id });
             }
         }
 
         if (!resolvedId) {
-            return NextResponse.json({ error: "Could not resolve promoter" }, { status: 422 });
+            return fail("Could not resolve promoter", 422);
         }
 
         // Check if already connected
@@ -137,11 +139,11 @@ export async function POST(req: NextRequest) {
         if (!existingSnap.empty) {
             const existing = existingSnap.docs[0];
             if (existing.data().status !== "deactivated") {
-                return NextResponse.json({ error: "Promoter already in your network" }, { status: 409 });
+                return fail("Promoter already in your network", 409);
             }
             // Reactivate
             await existing.ref.update({ status: "active", reactivatedAt: new Date().toISOString() });
-            return NextResponse.json({ success: true, connectionId: existing.id, status: "reactivated" });
+            return ok({ connectionId: existing.id, status: "reactivated" });
         }
 
         const connRef = await db.collection("promoter_connections").add({
@@ -157,9 +159,9 @@ export async function POST(req: NextRequest) {
 
         await writeAuditLog(hostId, uid, "promoter.invite", { promoterId: resolvedId, promoterName: resolvedName });
 
-        return NextResponse.json({ success: true, connectionId: connRef.id, status: "connected" });
+        return ok({ connectionId: connRef.id, status: "connected" });
     } catch (err: any) {
-        console.error("[host/promoters] POST:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        logger.error("host/promoters", "POST failed", { error: err.message });
+        return fail("Failed to process promoter request");
     }
 }

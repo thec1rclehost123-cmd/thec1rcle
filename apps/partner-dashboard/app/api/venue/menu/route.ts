@@ -1,68 +1,50 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth, verifyPartnerAccess } from "@/lib/server/auth";
+import { NextRequest } from "next/server";
+import { verifyPartnerAccess } from "@/lib/server/auth";
 import {
     addMenuImage,
     removeMenuImage,
     reorderMenuImages
 } from "@/lib/server/venuePageStore";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * POST /api/venue/menu
- * 
  * Handle all menu operations
  * Actions: add, remove, reorder
  */
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const body = await req.json();
         const { venueId, action, data } = body;
 
-        if (!venueId || !action) {
-            return NextResponse.json({ error: "venueId and action are required" }, { status: 400 });
-        }
+        if (!venueId || !action) return fail("venueId and action are required", 400);
 
-        // Verify access
         const hasAccess = await verifyPartnerAccess(req, venueId);
-        if (!hasAccess) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
+        if (!hasAccess) return fail("Forbidden", 403);
 
         let result;
 
         switch (action) {
             case "add":
-                if (!data.imageUrl) {
-                    return NextResponse.json({ error: "imageUrl required" }, { status: 400 });
-                }
+                if (!data.imageUrl) return fail("imageUrl required", 400);
                 result = await addMenuImage(venueId, data.imageUrl, data.title);
                 break;
-
             case "remove":
-                if (!data.menuId) {
-                    return NextResponse.json({ error: "menuId required" }, { status: 400 });
-                }
+                if (!data.menuId) return fail("menuId required", 400);
                 result = await removeMenuImage(data.menuId);
                 break;
-
             case "reorder":
-                if (!data.orderedIds) {
-                    return NextResponse.json({ error: "orderedIds required" }, { status: 400 });
-                }
+                if (!data.orderedIds) return fail("orderedIds required", 400);
                 result = await reorderMenuImages(venueId, data.orderedIds);
                 break;
-
             default:
-                return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+                return fail("Invalid action", 400);
         }
 
-        return NextResponse.json({ success: true, result });
+        return ok({ result }, "Menu updated");
     } catch (error: any) {
         console.error("[API /venue/menu POST]", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to update menu");
     }
-}
+});

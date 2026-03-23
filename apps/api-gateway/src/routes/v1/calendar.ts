@@ -45,7 +45,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
         try {
             return await getVenueAvailability(id, start, end);
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            reply.status(500).send({ error: "Internal server error" });
         }
     });
 
@@ -60,7 +60,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
         try {
             return await blockDate(venueId, date, reason, user, startTime, endTime);
         } catch (error: any) {
-            reply.status(400).send({ error: error.message });
+            reply.status(400).send({ error: "Request failed" });
         }
     });
 
@@ -74,7 +74,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
         try {
             return await unblockDate(venueId, date);
         } catch (error: any) {
-            reply.status(400).send({ error: error.message });
+            reply.status(400).send({ error: "Request failed" });
         }
     });
 
@@ -89,7 +89,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
         try {
             return await createSlotRequest(data, actor);
         } catch (error: any) {
-            reply.status(400).send({ error: error.message });
+            reply.status(400).send({ error: "Request failed" });
         }
     });
 
@@ -104,7 +104,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
         try {
             return await respondToSlotRequest(id, action, responseData, user);
         } catch (error: any) {
-            reply.status(400).send({ error: error.message });
+            reply.status(400).send({ error: "Request failed" });
         }
     });
 
@@ -120,7 +120,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
             // @ts-ignore
             return await getOperatingCalendar(fastify.db, partnerId, role, start, end);
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            reply.status(500).send({ error: "Internal server error" });
         }
     });
 }

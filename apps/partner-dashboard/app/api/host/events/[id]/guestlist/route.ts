@@ -68,7 +68,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         return NextResponse.json({ guests, total: guests.length });
     } catch (err: any) {
         console.error("[events/[id]/guestlist] GET:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process guestlist request" }, { status: 500 });
     }
 }
 
@@ -114,6 +114,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         return NextResponse.json({ success: true, guestId: guestRef.id });
     } catch (err: any) {
         console.error("[events/[id]/guestlist] POST:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process guestlist request" }, { status: 500 });
     }
 }

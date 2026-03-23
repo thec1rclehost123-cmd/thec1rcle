@@ -27,7 +27,7 @@ async function handler(request, { params }) {
         const status = error.message.includes('not found') ? 404
             : error.message.includes('already') ? 400 : 500;
         return NextResponse.json(
-            { error: error.message || "Failed to reject refund" },
+            { error: "Failed to reject refund" },
             { status }
         );
     }

@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ notifications, unreadCount });
     } catch (err: any) {
         console.error("[host/notifications] GET:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process notification request" }, { status: 500 });
     }
 }
 
@@ -96,6 +96,6 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ success: true });
     } catch (err: any) {
         console.error("[host/notifications] PATCH:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process notification request" }, { status: 500 });
     }
 }

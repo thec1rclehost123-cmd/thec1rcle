@@ -20,6 +20,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import * as crypto from "crypto";
+import { withAuth } from "@/lib/server/withAuth";
 
 // ============================================
 // CONFIGURATION
@@ -494,7 +495,7 @@ interface PosterResponse {
 // POST — Generate Poster
 // ============================================
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest) => {
     const generationId = crypto.randomUUID();
     const timestamp = new Date().toISOString();
 
@@ -613,7 +614,7 @@ export async function POST(request: NextRequest) {
             message: "An unexpected error occurred. Please try again.",
         } satisfies PosterResponse, { status: 500 });
     }
-}
+});
 
 // ============================================
 // GET — Health Check + Available Options

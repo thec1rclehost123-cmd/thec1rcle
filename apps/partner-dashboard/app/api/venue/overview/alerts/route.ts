@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyAuth } from '@/lib/server/auth'
+import { requireAuth } from '@/lib/server/withAuth'
+import { fail } from '@/lib/server/apiResponse'
 import { getAdminDb, isFirebaseConfigured } from '@/lib/firebase/admin'
 
 export const dynamic = 'force-dynamic'
@@ -15,17 +16,13 @@ export const dynamic = 'force-dynamic'
  * Cache: 60s private + 2 min stale-while-revalidate
  */
 export async function GET(req: NextRequest) {
-    const user = await verifyAuth(req)
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await requireAuth(req)
+    if (auth instanceof NextResponse) return auth
 
     const { searchParams } = new URL(req.url)
     const venueId = searchParams.get('venueId')
 
-    if (!venueId) {
-        return NextResponse.json({ error: 'venueId is required' }, { status: 400 })
-    }
+    if (!venueId) return fail('venueId is required', 400)
 
     const cacheHeaders = {
         'Cache-Control': 'private, max-age=60, stale-while-revalidate=120',

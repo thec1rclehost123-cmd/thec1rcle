@@ -119,7 +119,12 @@ export async function listGuests({ eventId, cursor, limit = 50, filter = {}, sor
 
     if (cursor) {
         const cursorDoc = await db.collection('guest_lists').doc(eventId).collection('guests').doc(cursor).get();
-        if (cursorDoc.exists) query = query.startAfter(cursorDoc);
+        if (cursorDoc.exists) {
+            query = query.startAfter(cursorDoc);
+        } else {
+            // Cursor document was deleted — return empty page to signal end of pagination
+            return { guests: [], nextCursor: null, hasMore: false };
+        }
     }
 
     const pageSize = Math.min(Number(limit), 100);

@@ -4,6 +4,7 @@ import ThemeProvider from "../components/providers/ThemeProvider";
 import { ToastProvider } from "../components/ui/Toast";
 import { QueryProvider } from "../components/providers/QueryProvider";
 import { WebVitals } from "../components/WebVitals";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 
 export const dynamic = "force-dynamic";
 
@@ -39,9 +40,11 @@ export default function RootLayout({ children }) {
         >
           <QueryProvider>
             <DashboardAuthProvider>
-              <ToastProvider position="top-center">
-                {children}
-              </ToastProvider>
+              <ErrorBoundary>
+                <ToastProvider position="top-center">
+                  {children}
+                </ToastProvider>
+              </ErrorBoundary>
             </DashboardAuthProvider>
           </QueryProvider>
         </ThemeProvider>

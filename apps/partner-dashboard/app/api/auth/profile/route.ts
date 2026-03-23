@@ -1,14 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getApiClient } from "@/lib/server/apiClient";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const client = getApiClient(token);
 
@@ -19,20 +15,15 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify(body)
         });
 
-        return NextResponse.json(data);
+        return ok(data);
     } catch (error: any) {
         console.error("[Auth API] POST /profile Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to update profile");
     }
-}
+});
 
-export async function PATCH(req: NextRequest) {
+export const PATCH = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const client = getApiClient(token);
 
@@ -43,9 +34,9 @@ export async function PATCH(req: NextRequest) {
             body: JSON.stringify(body)
         });
 
-        return NextResponse.json(data);
+        return ok(data);
     } catch (error: any) {
         console.error("[Auth API] PATCH /profile Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to update profile");
     }
-}
+});

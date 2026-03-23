@@ -6,7 +6,6 @@
 import { NextResponse } from "next/server";
 import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
 import { getPaymentsData } from "@/lib/server/splitFinanceStore";
-import { verifyAuth } from "@/lib/server/auth";
 
 export async function GET(request: Request) {
     try {
@@ -17,7 +16,6 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: "Finance admin role required" }, { status: 403 });
         }
 
-        const user = await verifyAuth(request);
         const token = request.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
         const data = await getPaymentsData(ctx.venueId, token);
 
@@ -26,6 +24,6 @@ export async function GET(request: Request) {
         });
     } catch (err: any) {
         console.error("[finance/payments GET]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to fetch payments" }, { status: 500 });
     }
 }

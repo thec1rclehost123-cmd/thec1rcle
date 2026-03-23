@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { requireAuth } from "@/lib/server/withAuth";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { resolveEffectiveProfile } from "@/lib/server/staffProfileStore";
+import { fail } from "@/lib/server/apiResponse";
+import { logger } from "@/lib/server/logger";
 
 /**
  * GET /api/auth/me
@@ -11,13 +13,11 @@ import { resolveEffectiveProfile } from "@/lib/server/staffProfileStore";
  * and staff users (membership resolved from partner_memberships collection).
  */
 export async function GET(req: NextRequest) {
-    try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+    const auth = await requireAuth(req);
+    if (auth instanceof NextResponse) return auth;
 
-        const userId = (decodedToken as any).uid;
+    try {
+        const userId = auth.uid;
         const db = getAdminDb();
 
         const [userDoc, onboardingSnap] = await Promise.all([
@@ -34,10 +34,10 @@ export async function GET(req: NextRequest) {
             : onboardingSnap.docs[0].data();
 
         // Determine partnerId from JWT claims or users doc
-        const claimsPartnerId = (decodedToken as any).partnerId;
+        const claimsPartnerId = (auth as any).partnerId;
         const docPartnerId = userData?.activeMembership?.partnerId;
         let partnerId: string | null = claimsPartnerId || docPartnerId || null;
-        let partnerType: string | null = (decodedToken as any).partnerType || userData?.activeMembership?.partnerType || null;
+        let partnerType: string | null = (auth as any).partnerType || userData?.activeMembership?.partnerType || null;
 
         // ── Staff path: no JWT claims and no activeMembership in users doc ──
         if (!partnerId) {
@@ -83,8 +83,8 @@ export async function GET(req: NextRequest) {
                     ? { ...userData }
                     : {
                           uid: userId,
-                          email: (decodedToken as any).email || "",
-                          displayName: (decodedToken as any).name || (decodedToken as any).email || "Staff Member",
+                          email: (auth as any).email || "",
+                          displayName: (auth as any).name || (auth as any).email || "Staff Member",
                           isApproved: true,
                       };
 
@@ -132,13 +132,13 @@ export async function GET(req: NextRequest) {
                     userData.subscriptionPlan = partnerData?.subscriptionPlan || partnerData?.tier || "basic";
                 }
             } catch (partnerErr) {
-                console.warn("[Auth API] Failed to fetch partner name:", partnerErr);
+                logger.warn("auth/me", "Failed to fetch partner name", { error: (partnerErr as any)?.message });
             }
         }
 
         return NextResponse.json({ user: userData, onboardingRequest });
     } catch (error: any) {
-        console.error("[Auth API] GET /me Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        logger.error("auth/me", "GET /me failed", { error: error.message });
+        return fail("Failed to load user profile");
     }
 }

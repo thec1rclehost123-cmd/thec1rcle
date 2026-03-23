@@ -14,16 +14,20 @@ import {
     TrendingUp
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { ErrorState } from "@/components/ui/ErrorState";
 
 export default function HostOpsPage() {
     const { profile } = useDashboardAuth();
     const [data, setData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isError, setIsError] = useState(false);
+    const [retryKey, setRetryKey] = useState(0);
 
     useEffect(() => {
         const fetchOpsData = async () => {
             if (!profile?.activeMembership?.partnerId) return;
             setIsLoading(true);
+            setIsError(false);
             try {
                 const hostId = profile.activeMembership.partnerId;
                 const res = await fetch(`/api/host/ops/tonight?hostId=${hostId}`);
@@ -31,8 +35,8 @@ export default function HostOpsPage() {
                     const json = await res.json();
                     setData(json);
                 }
-            } catch (err) {
-                console.error("Ops fetch error:", err);
+            } catch {
+                setIsError(true);
             } finally {
                 setIsLoading(false);
             }
@@ -41,7 +45,7 @@ export default function HostOpsPage() {
         fetchOpsData();
         const interval = setInterval(fetchOpsData, 30000); // Pulse every 30s
         return () => clearInterval(interval);
-    }, [profile]);
+    }, [profile, retryKey]);
 
     if (isLoading && !data) {
         return (
@@ -50,6 +54,16 @@ export default function HostOpsPage() {
                 <Loader2 className="h-12 w-12 text-orange-500 animate-spin mb-6" />
                 <p className="text-text-tertiary font-black uppercase tracking-[0.2em] text-[10px]">Connecting to Entry Grid...</p>
             </div>
+        );
+    }
+
+    if (isError) {
+        return (
+            <ErrorState
+                title="Failed to load ops data"
+                message="We couldn't connect to the entry grid. Check your connection and try again."
+                onRetry={() => setRetryKey(k => k + 1)}
+            />
         );
     }
 

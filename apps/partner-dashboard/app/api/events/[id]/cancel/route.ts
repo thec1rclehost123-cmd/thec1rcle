@@ -1,6 +1,6 @@
 /**
  * POST /api/events/[id]/cancel
- * 
+ *
  * Dedicated cancellation endpoint that:
  *   1. Validates the actor has permission to cancel
  *   2. Updates event lifecycle to "cancelled"
@@ -8,67 +8,43 @@
  *   4. Returns immediate response (refunds happen asynchronously)
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { z } from "zod";
 import { getEvent, updateEventLifecycle } from "@/lib/server/eventStore";
 import { verifyPartnerAccess } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
-interface CancelRequest {
-    actor: {
-        uid: string;
-        role: string;
-        partnerId?: string;
-        name?: string;
-    };
-    reason: string;
-    refundPolicy: "full" | "partial" | "none";
-    partialRefundPercent?: number;
-    notes?: string;
-}
+const CancelBody = z.object({
+    actor: z.object({
+        uid: z.string().min(1, "actor.uid is required"),
+        role: z.string().min(1, "actor.role is required"),
+        partnerId: z.string().optional(),
+        name: z.string().optional(),
+    }),
+    reason: z.string().min(1, "Cancellation reason is required"),
+    refundPolicy: z.enum(["full", "partial", "none"]).default("full"),
+    partialRefundPercent: z.number().min(0).max(100).optional(),
+    notes: z.string().optional(),
+});
 
-export async function POST(
-    req: NextRequest,
-    { params }: { params: { id: string } }
-) {
-    const eventId = params.id;
+export const POST = withAuth(async (req: NextRequest, auth, ctx) => {
+    const eventId = ctx?.params?.id || "";
 
     try {
-        const body: CancelRequest = await req.json();
-        const { actor, reason, refundPolicy = "full", partialRefundPercent, notes } = body;
+        const rawBody = await req.json();
+        const parsed = CancelBody.safeParse(rawBody);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        // ── Validate Actor ──
-        if (!actor?.uid || !actor?.role) {
-            return NextResponse.json(
-                { error: "Actor information required (uid, role)" },
-                { status: 400 }
-            );
-        }
+        const { actor, reason, refundPolicy, partialRefundPercent, notes } = parsed.data;
 
-        if (!reason || reason.trim().length === 0) {
-            return NextResponse.json(
-                { error: "Cancellation reason is required" },
-                { status: 400 }
-            );
-        }
-
-        // ── Fetch Event ──
         const event = await getEvent(eventId);
-        if (!event) {
-            return NextResponse.json(
-                { error: "Event not found" },
-                { status: 404 }
-            );
-        }
+        if (!event) return fail("Event not found", 404);
 
-        // ── Check if already cancelled ──
         if (event.lifecycle === "cancelled") {
-            return NextResponse.json(
-                { error: "Event is already cancelled", alreadyCancelled: true },
-                { status: 409 }
-            );
+            return fail("Event is already cancelled", 409);
         }
 
-        // ── Authorization ──
-        // Only event creator, venue owner, or admin can cancel
         const isCreator = event.creatorId === actor.uid;
         const isAdmin = actor.role === "admin";
         let isVenueManager = false;
@@ -78,24 +54,16 @@ export async function POST(
         }
 
         if (!isCreator && !isAdmin && !isVenueManager) {
-            return NextResponse.json(
-                { error: "Unauthorized: Only event creator, venue manager, or admin can cancel" },
-                { status: 403 }
-            );
+            return fail("Only the event creator, venue manager, or admin can cancel this event", 403);
         }
-
-        // ── Update Event Lifecycle ──
-        const now = new Date().toISOString();
 
         await updateEventLifecycle(
             eventId,
             "cancelled",
             actor,
-            // Embed metadata in the notes passed to the lifecycle engine
             JSON.stringify({ reason, notes, refundPolicy, partialRefundPercent, cancelledByName: actor.name || actor.uid })
         );
 
-        // ── Dispatch Inngest Workflow ──
         let workflowDispatched = false;
         try {
             const { sendEvent, Events } = await import("@c1rcle/core/inngest-client");
@@ -111,29 +79,18 @@ export async function POST(
                 user: { id: actor.uid },
             });
             workflowDispatched = true;
-            console.log(`[Cancel API] ✅ Inngest workflow dispatched for event ${eventId}`);
-        } catch (error) {
-            console.error("[Cancel API] ❌ Failed to dispatch Inngest workflow:", error);
-            // Workflow failed to dispatch — refunds will need manual processing
+        } catch (inngestError) {
+            console.error("[POST /api/events/[id]/cancel] Inngest dispatch failed:", inngestError);
         }
 
-        // ── Response ──
-        return NextResponse.json({
-            success: true,
-            eventId,
-            lifecycle: "cancelled",
-            refundPolicy,
-            refundStatus: workflowDispatched ? "processing" : "manual_required",
-            message: workflowDispatched
+        return ok(
+            { eventId, lifecycle: "cancelled", refundPolicy, refundStatus: workflowDispatched ? "processing" : "manual_required" },
+            workflowDispatched
                 ? "Event cancelled. Refunds are being processed automatically."
-                : "Event cancelled. Refunds require manual processing (background job failed to start).",
-        });
-
-    } catch (error: any) {
-        console.error("[Cancel API] Exception:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to cancel event" },
-            { status: 500 }
+                : "Event cancelled. Refunds require manual processing."
         );
+    } catch (error: any) {
+        console.error("[POST /api/events/[id]/cancel]", error);
+        return fail("Failed to cancel event");
     }
-}
+});

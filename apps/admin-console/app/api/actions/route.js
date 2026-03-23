@@ -127,7 +127,7 @@ async function handler(req) {
     } catch (error) {
         console.error("Admin Action Error:", error.message);
         return NextResponse.json({
-            error: error.message || "Internal Server Error",
+            error: "Internal server error",
             correlationId: req.user?.requestId || 'N/A'
         }, { status: error.statusCode || 500 });
     }

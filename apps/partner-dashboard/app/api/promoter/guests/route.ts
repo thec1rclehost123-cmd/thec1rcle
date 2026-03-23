@@ -1,38 +1,33 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getApiClient } from "@/lib/server/apiClient";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
+import { logger } from "@/lib/server/logger";
 
 /**
  * GET /api/promoter/guests
  * Live Guest Stream — returns recent orders attributed to this promoter.
  * Privacy-safe: only first name + last initial shown.
  */
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
     try {
         const { searchParams } = new URL(req.url);
         const promoterId = searchParams.get("promoterId");
-        const limit = parseInt(searchParams.get("limit") || "50");
+        const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 200);
         const cursor = searchParams.get("cursor") || undefined;
 
-        if (!promoterId) {
-            return NextResponse.json(
-                { error: "promoterId is required" },
-                { status: 400 }
-            );
-        }
+        if (!promoterId) return fail("promoterId is required", 400);
 
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const client = getApiClient(token);
 
-        // Query orders attributed to this promoter
         let orders: any[];
         try {
             orders = await client.request(`/orders?promoterId=${promoterId}&status=confirmed,completed&limit=${limit}&orderBy=createdAt&orderDirection=desc${cursor ? `&cursor=${cursor}` : ''}`);
         } catch {
-            // Fallback: try direct Firestore query via analytics
             orders = [];
         }
 
-        // If the API client doesn't return orders directly, try the promoter-links commissions
         if (!orders || !Array.isArray(orders) || orders.length === 0) {
             try {
                 const commissions = await client.request(`/promoter-links/commissions/${promoterId}`);
@@ -51,17 +46,13 @@ export async function GET(req: NextRequest) {
                         createdAt: comm.createdAt || new Date().toISOString()
                     }));
 
-                    return NextResponse.json({
-                        guests,
-                        meta: { total: guests.length, hasMore: commissions.length > limit }
-                    });
+                    return ok({ guests, meta: { total: guests.length, hasMore: commissions.length > limit } });
                 }
             } catch {
                 // Fall through to empty response
             }
         }
 
-        // Map orders to guest stream format
         const guests = (Array.isArray(orders) ? orders : []).map((order: any) => ({
             id: order.id,
             guestName: privacySafeName(order.guestName || order.buyerName || "Guest"),
@@ -76,25 +67,13 @@ export async function GET(req: NextRequest) {
             createdAt: order.createdAt || new Date().toISOString()
         }));
 
-        return NextResponse.json({
-            guests,
-            meta: {
-                total: guests.length,
-                hasMore: guests.length >= limit
-            }
-        });
+        return ok({ guests, meta: { total: guests.length, hasMore: guests.length >= limit } });
     } catch (error: any) {
-        console.error("[Promoter Guests API] GET Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to fetch guest stream" },
-            { status: 500 }
-        );
+        logger.error("promoter/guests", "Failed to fetch guest stream", { error: error.message });
+        return fail("Failed to fetch guest stream");
     }
-}
+});
 
-/**
- * Privacy-safe name: "Aayush Divase" → "Aayush D."
- */
 function privacySafeName(name: string): string {
     if (!name || name === "Guest") return "Guest";
     const parts = name.trim().split(" ");

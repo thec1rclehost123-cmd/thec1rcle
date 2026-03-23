@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { useGuestOpsShellData } from "@/lib/hooks/useGuestOpsShellData";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import {
     Users, CheckCircle2, XCircle, Flag, AlertTriangle, ScanLine,
@@ -204,10 +205,10 @@ function DeviceCard({ device }: { device: ScannerDevice }) {
 
 function SkeletonKPI() {
     return (
-        <div className="p-4 rounded-xl border animate-pulse" style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}>
-            <div className="w-8 h-8 rounded-lg bg-[var(--v-elevated)] mb-3" />
-            <div className="h-3 w-16 bg-[var(--v-elevated)] rounded mb-2" />
-            <div className="h-7 w-12 bg-[var(--v-elevated)] rounded" />
+        <div className="p-4 rounded-xl border" style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}>
+            <Skeleton className="w-8 h-8 rounded-lg mb-3" />
+            <Skeleton className="h-3 w-16 mb-2" />
+            <Skeleton className="h-7 w-12" />
         </div>
     );
 }

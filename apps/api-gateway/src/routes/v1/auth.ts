@@ -40,7 +40,23 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         try {
             const userDoc = await fastify.db.collection('users').doc(userId).get();
-            const userData = userDoc.exists ? userDoc.data() : null;
+            const raw = userDoc.exists ? userDoc.data() : null;
+
+            // Project only safe public fields — never return tokens, private metadata, or internal flags
+            const userData = raw ? {
+                uid: raw.uid,
+                email: raw.email,
+                displayName: raw.displayName,
+                photoURL: raw.photoURL ?? null,
+                handle: raw.handle ?? null,
+                role: raw.role ?? null,
+                partnerType: raw.partnerType ?? null,
+                partnerId: raw.partnerId ?? null,
+                isApproved: raw.isApproved ?? false,
+                isVerified: raw.isVerified ?? false,
+                city: raw.city ?? null,
+                createdAt: raw.createdAt ?? null,
+            } : null;
 
             // Find any onboarding requests
             const reqSnapshot = await fastify.db.collection('onboarding_requests')
@@ -48,7 +64,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 .limit(1)
                 .get();
 
-            const onboardingRequest = reqSnapshot.empty ? null : reqSnapshot.docs[0].data();
+            const rawRequest = reqSnapshot.empty ? null : reqSnapshot.docs[0].data();
+            const onboardingRequest = rawRequest ? {
+                id: reqSnapshot.docs[0].id,
+                status: rawRequest.status,
+                type: rawRequest.type,
+                submittedAt: rawRequest.createdAt ?? null,
+                reviewedAt: rawRequest.reviewedAt ?? null,
+                rejectionReason: rawRequest.rejectionReason ?? null,
+            } : null;
 
             return {
                 user: userData,

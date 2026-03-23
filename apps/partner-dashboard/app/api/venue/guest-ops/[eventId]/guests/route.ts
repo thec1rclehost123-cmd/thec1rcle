@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireGuestOpsAccess } from "@/lib/server/guestOpsMiddleware";
 import { listGuests, addGuest, getGuestRules } from "@/lib/server/guestListStore";
+import { logger } from "@/lib/server/logger";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 export async function GET(req: NextRequest, context: { params: { eventId: string } }) {
     try {
@@ -9,10 +11,10 @@ export async function GET(req: NextRequest, context: { params: { eventId: string
         const eventId = context.params.eventId;
 
         const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["VIEW_GUESTLIST"]);
-        if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+        if ("error" in auth) return fail(auth.error, auth.status);
 
         const cursor = searchParams.get("cursor") ?? undefined;
-        const limit = Number(searchParams.get("limit") ?? 50);
+        const limit = Math.min(Number(searchParams.get("limit") ?? 50), 500);
         const filter: any = {};
         if (searchParams.get("status")) filter.status = searchParams.get("status");
         if (searchParams.get("guestType")) filter.guestType = searchParams.get("guestType");
@@ -26,10 +28,10 @@ export async function GET(req: NextRequest, context: { params: { eventId: string
             { eventId, cursor, limit, filter, sort: { field: sortField, dir: sortDir } },
             (auth as any).membership.role
         );
-        return NextResponse.json(result);
+        return ok(result);
     } catch (err: any) {
-        console.error("GET guest-ops/guests error", err);
-        return NextResponse.json({ error: "Failed to load guest list" }, { status: 500 });
+        logger.error("venue/guest-ops/guests", "Failed to load guest list", { error: err.message });
+        return fail("Failed to load guest list");
     }
 }
 
@@ -40,29 +42,29 @@ export async function POST(req: NextRequest, context: { params: { eventId: strin
         const eventId = context.params.eventId;
 
         const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["VIEW_GUESTLIST"]);
-        if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+        if ("error" in auth) return fail(auth.error, auth.status);
 
         const { membership, user } = auth as any;
         // SECURITY cannot add guests
         if (membership.role === "SECURITY" || membership.role === "FINANCE_ADMIN") {
-            return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
+            return fail("Insufficient permissions", 403);
         }
 
         const body = await req.json();
         const rules = await getGuestRules(eventId);
 
         if (rules.isLocked) {
-            return NextResponse.json({ error: "EVENT_LOCKED", message: "Event is locked" }, { status: 409 });
+            return fail("EVENT_LOCKED", 409);
         }
 
         const actor = { uid: user.uid, name: user.name || user.email, role: membership.role };
         const result = await addGuest(eventId, venueId!, body, actor, rules);
-        return NextResponse.json(result, { status: 201 });
+        return ok(result);
     } catch (err: any) {
         if (err.code) {
-            return NextResponse.json({ error: err.code, message: err.message, ...err }, { status: 409 });
+            return fail(err.code, 409);
         }
-        console.error("POST guest-ops/guests error", err);
-        return NextResponse.json({ error: "Failed to add guest" }, { status: 500 });
+        logger.error("venue/guest-ops/guests", "Failed to add guest", { error: err.message });
+        return fail("Failed to add guest");
     }
 }

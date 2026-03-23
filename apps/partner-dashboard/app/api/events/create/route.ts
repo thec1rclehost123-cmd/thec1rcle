@@ -1,27 +1,48 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { z } from "zod";
 import { createEvent } from "@/lib/server/eventStore";
 import { createSlotRequest } from "@/lib/server/slotStore";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
-export async function POST(req: NextRequest) {
+const CreateEventBody = z.object({
+    title: z.string().min(1, "Title is required").max(200),
+    creatorRole: z.enum(["host", "venue", "club"]),
+    creatorId: z.string().optional(),
+    lifecycle: z.string().optional(),
+    startDate: z.string().optional(),
+    startTime: z.string().optional(),
+    endTime: z.string().optional(),
+    venueId: z.string().optional(),
+    venueName: z.string().optional(),
+    venue: z.string().optional(),
+    host: z.string().optional(),
+}).passthrough(); // allow additional event fields through to the store
+
+export const POST = withAuth(async (req: NextRequest, auth) => {
     try {
-        const body = await req.json();
+        const rawBody = await req.json();
+        const parsed = CreateEventBody.safeParse(rawBody);
+        if (!parsed.success) {
+            return fail(parsed.error.issues[0].message, 400);
+        }
+
+        const body = parsed.data as Record<string, any>;
 
         // Enforce lifecycle based on role, only if NOT a draft
-        if (body.lifecycle !== 'draft') {
-            if (body.creatorRole === 'host') {
-                body.lifecycle = 'submitted';
-            } else if (body.creatorRole === 'venue' || body.creatorRole === 'club') {
-                body.lifecycle = 'scheduled';
+        if (body.lifecycle !== "draft") {
+            if (body.creatorRole === "host") {
+                body.lifecycle = "submitted";
+            } else if (body.creatorRole === "venue" || body.creatorRole === "club") {
+                body.lifecycle = "scheduled";
             }
         }
 
-        const authHeader = req.headers.get("authorization");
-        const token = authHeader?.split("Bearer ")[1] || "";
-
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] ?? "";
         const event = await createEvent(body, token);
 
-        // If it's a host event, also create a slot request
-        if (body.creatorRole === 'host' && body.venueId) {
+        // If it's a host event, also create a slot request (non-fatal)
+        if (body.creatorRole === "host" && body.venueId) {
             try {
                 await createSlotRequest({
                     eventId: event.id,
@@ -32,17 +53,16 @@ export async function POST(req: NextRequest) {
                     requestedDate: body.startDate,
                     requestedStartTime: body.startTime,
                     requestedEndTime: body.endTime,
-                    notes: `Event creation request: ${body.title}`
+                    notes: `Event creation request: ${body.title}`,
                 }, token);
             } catch (slotError) {
-                console.error("Failed to create slot request:", slotError);
-                // We don't fail the whole event creation, but we log it
+                console.error("[POST /api/events/create] slot request failed:", slotError);
             }
         }
 
-        return NextResponse.json({ success: true, event });
+        return ok({ event }, "Event created", 201);
     } catch (error: any) {
-        console.error("Create Event error:", error);
-        return NextResponse.json({ error: error.message || "Failed to create event" }, { status: 500 });
+        console.error("[POST /api/events/create]", error);
+        return fail("Failed to create event");
     }
-}
+});

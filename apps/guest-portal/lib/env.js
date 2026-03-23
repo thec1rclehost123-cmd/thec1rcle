@@ -16,6 +16,12 @@ const serverEnvSchema = z.object({
     FIREBASE_PROJECT_ID: z.string().optional(),
     FIREBASE_CLIENT_EMAIL: z.string().optional(),
     FIREBASE_PRIVATE_KEY: z.string().optional(),
+}).superRefine((data, ctx) => {
+    if (data.NODE_ENV === 'production') {
+        if (!data.FIREBASE_PROJECT_ID) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'FIREBASE_PROJECT_ID is required in production', path: ['FIREBASE_PROJECT_ID'] });
+        if (!data.FIREBASE_CLIENT_EMAIL) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'FIREBASE_CLIENT_EMAIL is required in production', path: ['FIREBASE_CLIENT_EMAIL'] });
+        if (!data.FIREBASE_PRIVATE_KEY) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'FIREBASE_PRIVATE_KEY is required in production', path: ['FIREBASE_PRIVATE_KEY'] });
+    }
 });
 
 const clientEnvSchema = z.object({

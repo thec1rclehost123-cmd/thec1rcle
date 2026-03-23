@@ -3,7 +3,8 @@
  * Delegates to API Gateway for event code validation and management
  */
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { fail } from "@/lib/server/apiResponse";
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
 
@@ -33,16 +34,11 @@ export async function POST(req: NextRequest) {
  * GET /api/scan/auth?eventId=XXX
  * List event codes for an event (requires auth)
  */
-export async function GET(req: NextRequest) {
-    if (!GATEWAY_URL) {
-        return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
-    }
-    const auth = await verifyAuth(req);
-    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+export const GET = withAuth(async (req: NextRequest) => {
+    if (!GATEWAY_URL) return fail("Service unavailable", 503);
     const { searchParams } = new URL(req.url);
     return gatewayRequest(
         `${GATEWAY_URL}/api/v1/scan/auth?${searchParams.toString()}`,
         { headers: { Authorization: req.headers.get("Authorization") || "" } }
     );
-}
+});

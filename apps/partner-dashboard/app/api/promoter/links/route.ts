@@ -1,109 +1,86 @@
-import { NextRequest, NextResponse } from "next/server";
-import { EVENT_LIFECYCLE, canPromoterCreateLink } from "@c1rcle/core/events";
+import { NextRequest } from "next/server";
+import { z } from "zod";
+import { canPromoterCreateLink } from "@c1rcle/core/events";
 import {
     createPromoterLink,
     listPromoterLinks,
-    getPromoterStats,
-    recordLinkClick,
-    deactivateLink
 } from "@/lib/server/promoterLinkStore";
 import { getEvent } from "@/lib/server/eventStore";
 import { isConnected } from "@/lib/server/promoterConnectionStore";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
+
+const LinksQuery = z.object({
+    promoterId: z.string().optional(),
+    eventId: z.string().optional(),
+    isActive: z.enum(["true", "false"]).optional(),
+    limit: z.coerce.number().int().positive().max(200).default(50),
+});
+
+const CreateLinkBody = z.object({
+    promoterId: z.string().min(1, "promoterId is required"),
+    eventId: z.string().min(1, "eventId is required"),
+    promoterName: z.string().optional(),
+    campaignLabel: z.string().optional(),
+    channel: z.string().optional(),
+    ticketTierIds: z.array(z.string()).optional(),
+    customCommission: z.number().positive().optional(),
+});
 
 /**
  * GET /api/promoter/links
- * List promoter's links or event's promoter links
  */
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
     try {
         const { searchParams } = new URL(req.url);
-        const promoterId = searchParams.get("promoterId");
-        const eventId = searchParams.get("eventId");
-        const isActive = searchParams.get("isActive");
-        const limit = parseInt(searchParams.get("limit") || "50");
+        const parsed = LinksQuery.safeParse(Object.fromEntries(searchParams));
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
+        const { promoterId, eventId, isActive, limit } = parsed.data;
         const links = await listPromoterLinks({
-            promoterId: promoterId || undefined,
-            eventId: eventId || undefined,
+            promoterId,
+            eventId,
             isActive: isActive === "true" ? true : isActive === "false" ? false : undefined,
-            limit
+            limit,
         });
-
-        return NextResponse.json({ links });
+        return ok({ links });
     } catch (error: any) {
-        console.error("[Promoter Links API] GET Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to fetch links" },
-            { status: 500 }
-        );
+        console.error("[GET /api/promoter/links]", error);
+        return fail("Failed to fetch links");
     }
-}
+});
 
 /**
  * POST /api/promoter/links
  * Create a new promoter link for an event
  */
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const rawBody = await req.json();
+        const parsed = CreateLinkBody.safeParse(rawBody);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        const body = await req.json();
-        const {
-            promoterId,
-            promoterName,
-            eventId,
-            campaignLabel,
-            channel,
-            ticketTierIds,
-            customCommission
-        } = body;
+        const { promoterId, eventId, promoterName, campaignLabel, channel, ticketTierIds, customCommission } = parsed.data;
 
-        // Validation
-        if (!promoterId || !eventId) {
-            return NextResponse.json(
-                { error: "Missing required fields: promoterId, eventId" },
-                { status: 400 }
-            );
-        }
-
-        // Get event to verify it exists and promoters are enabled
         const event = await getEvent(eventId);
-        if (!event) {
-            return NextResponse.json(
-                { error: "Event not found" },
-                { status: 404 }
-            );
-        }
+        if (!event) return fail("Event not found", 404);
 
-        // 🟢 Connection Verification
-        // Only allow if promoter is connected to the event's host or venue
         const hostId = event.hostId || event.creatorId;
-        const venueId = event.venueId || event.venueId;
+        const venueId = event.venueId;
 
         const [isHostPartner, isVenuePartner] = await Promise.all([
             hostId ? isConnected(promoterId, hostId) : Promise.resolve(false),
-            venueId ? isConnected(promoterId, venueId) : Promise.resolve(false)
+            venueId ? isConnected(promoterId, venueId) : Promise.resolve(false),
         ]);
 
         if (!isHostPartner && !isVenuePartner) {
-            return NextResponse.json(
-                { error: "You must be connected with the host or venue to promote this event" },
-                { status: 403 }
-            );
+            return fail("You must be connected with the host or venue to promote this event", 403);
         }
 
         if (!canPromoterCreateLink(event)) {
-            return NextResponse.json(
-                { error: "Event is not available for promoter links" },
-                { status: 403 }
-            );
+            return fail("Event is not available for promoter links", 403);
         }
 
-        // Use custom commission if provided and allowed, otherwise use event default
         const commissionRate = customCommission || event.promoterSettings?.defaultCommission || event.commission || 15;
 
         const link = await createPromoterLink({
@@ -115,21 +92,16 @@ export async function POST(req: NextRequest) {
             channel: channel || undefined,
             ticketTierIds: ticketTierIds || [],
             commissionRate,
-            commissionType: "percentage"
+            commissionType: "percentage",
         });
 
-        // 409 from gateway = duplicate — return existing link with flag
-        return NextResponse.json({ link, duplicate: false }, { status: 201 });
+        return ok({ link, duplicate: false }, "Link created", 201);
     } catch (error: any) {
-        console.error("[Promoter Links API] POST Error:", error);
+        console.error("[POST /api/promoter/links]", error);
         if (error.status === 409 || error.message?.includes("already") || error.message?.includes("exists")) {
-            // Gateway returned existing link in error body
             const existingLink = error.data?.link || null;
-            return NextResponse.json({ link: existingLink, duplicate: true }, { status: 200 });
+            return ok({ link: existingLink, duplicate: true });
         }
-        return NextResponse.json(
-            { error: error.message || "Failed to create promoter link" },
-            { status: 500 }
-        );
+        return fail("Failed to create promoter link");
     }
-}
+});

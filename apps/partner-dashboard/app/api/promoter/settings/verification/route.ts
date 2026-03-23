@@ -1,28 +1,20 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextRequest } from "next/server";
 import { updateVerification } from "@/lib/server/promoterSettingsStore";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const body = await req.json();
         const { promoterId, govDocUrl, selfieUrl } = body;
 
-        if (!promoterId) {
-            return NextResponse.json({ error: "promoterId is required" }, { status: 400 });
-        }
-        if (!govDocUrl && !selfieUrl) {
-            return NextResponse.json({ error: "At least one document URL is required" }, { status: 400 });
-        }
+        if (!promoterId) return fail("promoterId is required", 400);
+        if (!govDocUrl && !selfieUrl) return fail("At least one document URL is required", 400);
 
         const verification = await updateVerification(promoterId, { govDocUrl, selfieUrl });
-        return NextResponse.json({ success: true, verification });
+        return ok({ verification });
     } catch (error: any) {
         console.error("[POST /api/promoter/settings/verification]", error);
-        return NextResponse.json({ error: "Failed to update verification" }, { status: 500 });
+        return fail("Failed to update verification");
     }
-}
+});

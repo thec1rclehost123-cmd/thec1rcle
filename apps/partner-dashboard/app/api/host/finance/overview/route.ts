@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/server/withAuth";
+import { fail } from "@/lib/server/apiResponse";
 import { getApiClient } from "@/lib/server/apiClient";
 import type { FinanceOverviewMetrics, CashflowDataPoint } from "@/lib/finance/definitions";
 
@@ -12,20 +13,16 @@ import type { FinanceOverviewMetrics, CashflowDataPoint } from "@/lib/finance/de
  *
  * RBAC: VIEW_FINANCIALS — OWNER only
  */
-export async function GET(request: Request) {
-    try {
-        const user = await verifyAuth(request);
-        if (!user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+export async function GET(request: NextRequest) {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
 
+    try {
         const { searchParams } = new URL(request.url);
         const hostId = searchParams.get("hostId");
         const period = (searchParams.get("period") || "30d") as FinanceOverviewMetrics["period"];
 
-        if (!hostId) {
-            return NextResponse.json({ error: "Missing hostId" }, { status: 400 });
-        }
+        if (!hostId) return fail("Missing hostId", 400);
 
         const authHeader = request.headers.get("Authorization") || "";
         const token = authHeader.replace("Bearer ", "").trim();
@@ -68,7 +65,7 @@ export async function GET(request: Request) {
         );
     } catch (err: any) {
         console.error("[HostFinanceOverview] Error:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return fail("Failed to fetch host finance overview");
     }
 }
 

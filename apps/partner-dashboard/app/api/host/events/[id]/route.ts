@@ -72,7 +72,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         return NextResponse.json({ event });
     } catch (err: any) {
         console.error("[host/events/[id]] GET error:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to fetch event" }, { status: 500 });
     }
 }
 
@@ -112,6 +112,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         return NextResponse.json({ success: true });
     } catch (err: any) {
         console.error("[host/events/[id]] PATCH error:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to update event" }, { status: 500 });
     }
 }

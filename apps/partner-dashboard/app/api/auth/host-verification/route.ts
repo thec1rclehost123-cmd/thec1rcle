@@ -1,14 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getApiClient } from "@/lib/server/apiClient";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
+import { logger } from "@/lib/server/logger";
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const client = getApiClient(token);
 
@@ -19,9 +16,9 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify(body)
         });
 
-        return NextResponse.json(data);
+        return ok(data);
     } catch (error: any) {
-        console.error("[Auth API] POST /host-verification Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        logger.error("auth/host-verification", "Failed to submit host verification", { error: error.message });
+        return fail("Failed to submit host verification");
     }
-}
+});

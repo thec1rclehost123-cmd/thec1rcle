@@ -3,7 +3,8 @@
  * Delegates to API Gateway for aggregated notification feed
  */
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
 
@@ -16,13 +17,8 @@ async function gatewayRequest(url: string, init: RequestInit) {
 /**
  * GET /api/venue/notifications?venueId=XXX
  */
-export async function GET(req: NextRequest) {
-    if (!GATEWAY_URL) {
-        return NextResponse.json({ notifications: [] });
-    }
-    const auth = await verifyAuth(req);
-    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+export const GET = withAuth(async (req: NextRequest) => {
+    if (!GATEWAY_URL) return ok({ notifications: [] });
     const { searchParams } = new URL(req.url);
     try {
         return await gatewayRequest(
@@ -30,21 +26,16 @@ export async function GET(req: NextRequest) {
             { headers: { Authorization: req.headers.get("Authorization") || "" } }
         );
     } catch {
-        return NextResponse.json({ notifications: [] });
+        return ok({ notifications: [] });
     }
-}
+});
 
 /**
  * PATCH /api/venue/notifications
  * Mark notification(s) as read or perform quick actions
  */
-export async function PATCH(req: NextRequest) {
-    if (!GATEWAY_URL) {
-        return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
-    }
-    const auth = await verifyAuth(req);
-    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+export const PATCH = withAuth(async (req: NextRequest) => {
+    if (!GATEWAY_URL) return fail("Service unavailable", 503);
     const body = await req.json();
     try {
         return await gatewayRequest(`${GATEWAY_URL}/api/v1/notifications/read`, {
@@ -53,21 +44,16 @@ export async function PATCH(req: NextRequest) {
             body: JSON.stringify(body)
         });
     } catch {
-        return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+        return fail("Service unavailable", 503);
     }
-}
+});
 
 /**
  * POST /api/venue/notifications
  * Perform a quick action on a notification
  */
-export async function POST(req: NextRequest) {
-    if (!GATEWAY_URL) {
-        return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
-    }
-    const auth = await verifyAuth(req);
-    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+export const POST = withAuth(async (req: NextRequest) => {
+    if (!GATEWAY_URL) return fail("Service unavailable", 503);
     const body = await req.json();
     try {
         return await gatewayRequest(`${GATEWAY_URL}/api/v1/notifications/action`, {
@@ -76,6 +62,6 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify(body)
         });
     } catch {
-        return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+        return fail("Service unavailable", 503);
     }
-}
+});
