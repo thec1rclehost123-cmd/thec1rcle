@@ -3,15 +3,30 @@
  * POST /api/venue/walk-ins
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
 import { listWalkIns, createWalkIn } from "@/lib/server/walkInStore";
-import { verifyAuth } from "@/lib/server/auth";
+import { requireAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
+import { logger } from "@/lib/server/logger";
+import { z } from "zod";
 
-export async function GET(request: Request) {
+const WalkInBodySchema = z.object({
+    eventId: z.string().min(1).max(100),
+    guestName: z.string().min(1).max(100),
+    idempotencyKey: z.string().min(1).max(200),
+    partySize: z.number().int().min(1).max(100),
+    phone: z.string().max(20).optional(),
+    category: z.string().max(50).optional(),
+    paymentMode: z.string().max(50).optional(),
+    amount: z.number().min(0).optional(),
+    note: z.string().max(500).optional(),
+});
+
+export async function GET(request: NextRequest) {
     try {
         const ctx = await requireVenueAccess(request, "walkins:read");
-        if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+        if ("error" in ctx) return fail(ctx.error, ctx.status);
 
         const { searchParams } = new URL(request.url);
 
@@ -24,40 +39,30 @@ export async function GET(request: Request) {
                 category: (searchParams.get("category") as any) ?? undefined,
                 paymentMode: (searchParams.get("paymentMode") as any) ?? undefined,
                 cursor: searchParams.get("cursor") ?? undefined,
-                limit: Number(searchParams.get("limit") ?? "50"),
+                limit: Math.min(Number(searchParams.get("limit") ?? "50"), 200),
             },
             ctx.piiPolicy.showPhone
         );
 
-        return NextResponse.json(result, {
-            headers: { "Cache-Control": "private, no-store" },
-        });
+        return ok(result);
     } catch (err: any) {
-        console.error("[walk-ins GET]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        logger.error("venue/walk-ins", "Failed to fetch walk-ins", { error: err.message });
+        return fail("Failed to fetch walk-ins");
     }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     try {
         const ctx = await requireVenueAccess(request, "walkins:create");
-        if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+        if ("error" in ctx) return fail(ctx.error, ctx.status);
 
-        const user = await verifyAuth(request);
-        const body = await request.json();
-
-        if (!body.eventId) {
-            return NextResponse.json({ error: "eventId is required" }, { status: 422 });
-        }
-        if (!body.guestName?.trim()) {
-            return NextResponse.json({ error: "guestName is required" }, { status: 422 });
-        }
-        if (!body.idempotencyKey) {
-            return NextResponse.json({ error: "idempotencyKey is required" }, { status: 422 });
-        }
-        if (!body.partySize || body.partySize < 1) {
-            return NextResponse.json({ error: "partySize must be >= 1" }, { status: 422 });
-        }
+        const rawBody = await request.json();
+        const parsed = WalkInBodySchema.safeParse(rawBody);
+        if (!parsed.success) return fail(parsed.error.issues[0].message, 422);
+        const body = parsed.data;
 
         const entry = await createWalkIn(
             body.eventId,
@@ -72,13 +77,13 @@ export async function POST(request: Request) {
                 note: body.note ?? "",
                 idempotencyKey: body.idempotencyKey,
             },
-            { uid: user!.uid, name: user!.name ?? "Operator" },
+            { uid: auth.uid, name: (auth as any).name ?? "Operator" },
             ctx.piiPolicy.showPhone
         );
 
-        return NextResponse.json({ entry }, { status: 201 });
+        return ok({ entry });
     } catch (err: any) {
-        console.error("[walk-ins POST]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        logger.error("venue/walk-ins", "Failed to create walk-in", { error: err.message });
+        return fail("Failed to create walk-in");
     }
 }

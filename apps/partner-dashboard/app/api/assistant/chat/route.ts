@@ -14,8 +14,8 @@
  * The user's role and partnerId are always resolved from the verified token.
  */
 
-import { NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/server/auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/server/withAuth';
 import { buildPermissionContext } from '@/lib/assistant/permission-gate';
 import { orchestrate } from '@/lib/assistant/orchestrator';
 import type { AssistantChatRequest, AssistantPermissionContext } from '@/lib/assistant/types';
@@ -157,16 +157,14 @@ function auditLog(entry: {
 
 // ── Route Handler ─────────────────────────────────────────────────────────────
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     const start = Date.now();
 
     // 1. Verify auth
-    const decodedToken = await verifyAuth(request);
-    if (!decodedToken) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
 
-    const { uid } = decodedToken;
+    const { uid } = auth;
 
     // 2. Rate limit
     if (!checkRateLimit(uid)) {
@@ -195,7 +193,7 @@ export async function POST(request: Request) {
     }
 
     // 4. Resolve partner context (server-side — never trust client)
-    const ctx = await resolvePartnerContext(decodedToken, request);
+    const ctx = await resolvePartnerContext(auth, request);
     if (!ctx) {
         auditLog({
             uid, partnerId: 'unknown', partnerType: 'unknown', role: 'unknown',

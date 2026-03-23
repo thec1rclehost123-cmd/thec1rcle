@@ -8,8 +8,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getVenueCalendar, getDateAvailability } from "@/lib/server/calendarStore";
 import { validatePartnership } from "@/lib/rbac/validatePartnership";
 import { isFirebaseConfigured } from "@/lib/firebase/admin";
+import { withAuth } from "@/lib/server/withAuth";
+import { fail } from "@/lib/server/apiResponse";
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest) => {
     try {
         const { searchParams } = new URL(request.url);
         const venueId = searchParams.get("venueId");
@@ -18,16 +20,14 @@ export async function GET(request: NextRequest) {
         const endDate = searchParams.get("endDate");
         const date = searchParams.get("date"); // For single date availability
 
-        if (!venueId) {
-            return NextResponse.json({ error: "venueId is required" }, { status: 400 });
-        }
+        if (!venueId) return fail("venueId is required", 400);
 
         // Validate host-venue partnership and resolve tier
         let calendarAccess: "full" | "limited" = "full";
         if (hostId && isFirebaseConfigured()) {
             const { valid, tier, reason } = await validatePartnership(hostId, venueId);
             if (!valid) {
-                return NextResponse.json({ error: reason || "No active venue partnership" }, { status: 403 });
+                return fail(reason || "No active venue partnership", 403);
             }
             calendarAccess = tier === "trusted" ? "full" : "limited";
         }
@@ -62,9 +62,8 @@ export async function GET(request: NextRequest) {
             endDate,
             calendarAccess,
         });
-
     } catch (err: any) {
         console.error("[Host Venue Calendar API] Error:", err);
-        return NextResponse.json({ error: err.message || "Failed to fetch calendar" }, { status: 500 });
+        return fail(err.message || "Failed to fetch calendar");
     }
-}
+});

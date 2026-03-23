@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import {
     getPromoterAnalytics,
     getPromoterEventPerformance,
@@ -7,24 +7,21 @@ import {
     getPromoterTrustAnalytics,
     getPromoterStrategyAnalytics
 } from "@/lib/server/analyticsStore";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * GET /api/promoter/analytics/[type]
  * Fetches specific analytics for a promoter
  */
-export async function GET(
-    req: NextRequest,
-    { params }: { params: { type: string } }
-) {
+export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
     try {
         const { searchParams } = new URL(req.url);
         const promoterId = searchParams.get("promoterId");
         const range = searchParams.get("range") || "30d";
-        const { type } = params;
+        const type = ctx?.params?.type as string;
 
-        if (!promoterId) {
-            return NextResponse.json({ error: "promoterId is required" }, { status: 400 });
-        }
+        if (!promoterId) return fail("promoterId is required", 400);
 
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         let analytics;
@@ -48,13 +45,12 @@ export async function GET(
                 analytics = await getPromoterStrategyAnalytics(promoterId, range, token);
                 break;
             default:
-                return NextResponse.json({ error: "Invalid analytics type" }, { status: 400 });
+                return fail("Invalid analytics type", 400);
         }
 
-        return NextResponse.json(analytics);
-
+        return ok(analytics);
     } catch (error: any) {
-        console.error(`[Promoter Analytics API][${params.type}] Error:`, error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error(`[Promoter Analytics API][${ctx?.params?.type}] Error:`, error);
+        return fail("Failed to fetch analytics");
     }
-}
+});

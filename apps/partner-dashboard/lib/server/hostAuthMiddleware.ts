@@ -20,6 +20,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { verifyAuth } from "@/lib/server/auth";
+import { logger } from "@/lib/server/logger";
 import {
     HOST_PERMISSIONS,
     type HostRole,
@@ -46,7 +47,7 @@ export async function writeAuditLog(
             createdAt: new Date().toISOString(),
         });
     } catch (e) {
-        console.error("[writeAuditLog] Failed to write audit entry:", e);
+        logger.error("hostAuthMiddleware/writeAuditLog", "Failed to write audit entry", { hostId, uid, action, error: (e as any)?.message });
     }
 }
 

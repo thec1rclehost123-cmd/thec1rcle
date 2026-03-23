@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import Link from "next/link";
+import { ErrorState } from "@/components/ui/ErrorState";
 
 interface SlotRequest {
     id: string;
@@ -48,6 +49,7 @@ export default function HostSlotRequestsPage() {
     const { profile } = useDashboardAuth();
     const [requests, setRequests] = useState<SlotRequest[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isError, setIsError] = useState(false);
     const [activeTab, setActiveTab] = useState<"pending" | "approved" | "rejected" | "all">("pending");
     const [selectedRequest, setSelectedRequest] = useState<SlotRequest | null>(null);
     const [refreshing, setRefreshing] = useState(false);
@@ -62,27 +64,35 @@ export default function HostSlotRequestsPage() {
 
     const fetchRequests = async () => {
         setLoading(true);
+        setIsError(false);
         try {
             const statusFilter = activeTab !== "all" ? `&status=${activeTab}` : "";
             const res = await fetch(`/api/slots?hostId=${hostId}${statusFilter}`);
             const data = await res.json();
 
-            // Enrich with event details
-            const enrichedRequests = await Promise.all(
-                (data.requests || []).map(async (req: SlotRequest) => {
+            // Enrich with event details — deduplicate by eventId to avoid N+1 fetches
+            const rawRequests: SlotRequest[] = data.requests || [];
+            const uniqueEventIds = [...new Set(rawRequests.map((r) => r.eventId))];
+            const eventMap: Record<string, SlotRequest["event"]> = {};
+            await Promise.all(
+                uniqueEventIds.map(async (eventId) => {
                     try {
-                        const eventRes = await fetch(`/api/events/${req.eventId}`);
+                        const eventRes = await fetch(`/api/events/${eventId}`);
                         const eventData = await eventRes.json();
-                        return { ...req, event: eventData.event };
+                        if (eventData.event) eventMap[eventId] = eventData.event;
                     } catch {
-                        return req;
+                        // leave eventMap[eventId] undefined; UI gracefully falls back
                     }
                 })
             );
+            const enrichedRequests = rawRequests.map((req) => ({
+                ...req,
+                event: eventMap[req.eventId],
+            }));
 
             setRequests(enrichedRequests);
-        } catch (err) {
-            console.error("Failed to fetch slot requests:", err);
+        } catch {
+            setIsError(true);
         } finally {
             setLoading(false);
         }
@@ -224,6 +234,12 @@ export default function HostSlotRequestsPage() {
                 <div className="flex items-center justify-center py-20">
                     <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
                 </div>
+            ) : isError ? (
+                <ErrorState
+                    title="Failed to load requests"
+                    message="We couldn't fetch your slot requests. Check your connection and try again."
+                    onRetry={fetchRequests}
+                />
             ) : requests.length === 0 ? (
                 <div className="bg-surface-elevated border border-border-default rounded-3xl p-12 text-center">
                     <div className="w-16 h-16 rounded-full bg-surface-secondary flex items-center justify-center mx-auto mb-4">

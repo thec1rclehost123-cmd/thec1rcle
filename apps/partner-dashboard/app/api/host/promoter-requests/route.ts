@@ -1,106 +1,74 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { z } from "zod";
 import {
     listIncomingRequests,
     approveConnectionRequest,
     rejectConnectionRequest,
-    revokeConnection
+    revokeConnection,
 } from "@/lib/server/promoterConnectionStore";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
+
+const RequestsQuery = z.object({
+    hostId: z.string().min(1, "hostId is required"),
+    status: z.string().optional(),
+});
+
+const UpdateRequestBody = z.object({
+    connectionId: z.string().min(1, "connectionId is required"),
+    action: z.enum(["approve", "reject", "revoke"], {
+        errorMap: () => ({ message: "action must be 'approve', 'reject', or 'revoke'" }),
+    }),
+    hostId: z.string().optional(),
+    hostName: z.string().optional(),
+    reason: z.string().optional(),
+});
 
 /**
  * GET /api/host/promoter-requests
- * List incoming promoter connection requests for a host
  */
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
         const { searchParams } = new URL(req.url);
-        const hostId = searchParams.get("hostId");
-        const status = searchParams.get("status");
+        const parsed = RequestsQuery.safeParse(Object.fromEntries(searchParams));
+        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
 
-        if (!hostId) {
-            return NextResponse.json(
-                { error: "hostId is required" },
-                { status: 400 }
-            );
-        }
-
-        const requests = await listIncomingRequests(
-            hostId,
-            "host",
-            status || undefined
-        );
-
-        return NextResponse.json({ requests });
+        const { hostId, status } = parsed.data;
+        const requests = await listIncomingRequests(hostId, "host", status);
+        return ok({ requests });
     } catch (error: any) {
-        console.error("[Host Promoter Requests API] GET Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to fetch requests" },
-            { status: 500 }
-        );
+        console.error("[GET /api/host/promoter-requests]", error);
+        return fail("Failed to fetch requests");
     }
-}
+});
 
 /**
  * PATCH /api/host/promoter-requests
- * Approve, reject, or revoke a promoter connection
  */
-export async function PATCH(req: NextRequest) {
+export const PATCH = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const rawBody = await req.json();
+        const parsed = UpdateRequestBody.safeParse(rawBody);
+        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
 
-        const body = await req.json();
-        const { connectionId, action, hostId, hostName, reason } = body;
-
-        if (!connectionId || !action) {
-            return NextResponse.json(
-                { error: "connectionId and action are required" },
-                { status: 400 }
-            );
-        }
+        const { connectionId, action, hostId, hostName, reason } = parsed.data;
+        const actor = { uid: hostId || "", name: hostName || "" };
 
         switch (action) {
-            case "approve": {
-                await approveConnectionRequest(connectionId, {
-                    uid: hostId,
-                    name: hostName || ""
-                });
+            case "approve":
+                await approveConnectionRequest(connectionId, actor);
                 break;
-            }
-
-            case "reject": {
-                await rejectConnectionRequest(
-                    connectionId,
-                    { uid: hostId, name: hostName || "" },
-                    reason || ""
-                );
+            case "reject":
+                await rejectConnectionRequest(connectionId, actor, reason || "");
                 break;
-            }
-
-            case "revoke": {
-                await revokeConnection(connectionId, {
-                    uid: hostId,
-                    name: hostName || ""
-                });
+            case "revoke":
+                await revokeConnection(connectionId, actor);
                 break;
-            }
-
-            default:
-                return NextResponse.json(
-                    { error: "Invalid action. Use 'approve', 'reject', or 'revoke'" },
-                    { status: 400 }
-                );
         }
 
-        return NextResponse.json({ success: true });
+        return ok({ success: true }, "Request updated");
     } catch (error: any) {
-        console.error("[Host Promoter Requests API] PATCH Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to update request" },
-            { status: 400 }
-        );
+        console.error("[PATCH /api/host/promoter-requests]", error);
+        return fail("Failed to update request", 400);
     }
-}
+});

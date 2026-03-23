@@ -67,6 +67,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         return NextResponse.json({ history });
     } catch (err: any) {
         console.error("[submission-history]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to fetch submission history" }, { status: 500 });
     }
 }

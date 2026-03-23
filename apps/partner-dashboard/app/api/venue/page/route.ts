@@ -7,10 +7,11 @@ import {
     getVenueUpcomingEvents,
     getVenuePastEvents
 } from "@/lib/server/venuePageStore";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * GET /api/venue/page
- * 
  * Get venue page data
  * Query params:
  *   - venueId: Venue ID
@@ -26,42 +27,29 @@ export async function GET(req: NextRequest) {
 
         const decodedToken = await verifyAuth(req);
 
-        // Auto-resolve venueId if missing in dashboard mode
         if (!venueId && isDashboard && decodedToken) {
             venueId = (decodedToken as any).partnerId;
         }
 
-        if (!venueId) {
-            return NextResponse.json({ error: "venueId is required" }, { status: 400 });
-        }
+        if (!venueId) return fail("venueId is required", 400);
 
-        // For dashboard view, verify user has access to this venue
         if (isDashboard) {
-            if (!decodedToken) {
-                return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-            }
+            if (!decodedToken) return fail("Unauthorized", 401);
 
             const hasAccess = await verifyPartnerAccess(req, venueId);
-            if (!hasAccess) {
-                return NextResponse.json({ error: "Forbidden: You don't have access to this venue" }, { status: 403 });
-            }
+            if (!hasAccess) return fail("Forbidden: You don't have access to this venue", 403);
         }
 
-        const authHeader = req.headers.get("Authorization") || "";
-        const token = authHeader.replace("Bearer ", "").trim();
+        const token = req.headers.get("Authorization")?.replace("Bearer ", "").trim() || "";
 
-        // Get page data
         const pageData = isDashboard
             ? await getVenuePageDataForDashboard(venueId, token)
             : await getVenuePageData(venueId, token);
 
-        if (!pageData) {
-            return NextResponse.json({ error: "Venue not found" }, { status: 404 });
-        }
+        if (!pageData) return fail("Venue not found", 404);
 
-        // Optionally include events
-        let events = [];
-        let pastEvents = [];
+        let events: any[] = [];
+        let pastEvents: any[] = [];
         if (includeEvents) {
             [events, pastEvents] = await Promise.all([
                 getVenueUpcomingEvents(venueId, token),
@@ -69,50 +57,33 @@ export async function GET(req: NextRequest) {
             ]);
         }
 
-        return NextResponse.json({
-            ...pageData,
-            events,
-            pastEvents
-        });
+        return NextResponse.json({ ...pageData, events, pastEvents });
     } catch (error: any) {
         console.error("[API /venue/page GET]", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to fetch venue page");
     }
 }
 
 /**
  * POST /api/venue/page
- * 
  * Update venue basic details
  */
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const body = await req.json();
         const { venueId, updates } = body;
 
-        if (!venueId || !updates) {
-            return NextResponse.json({ error: "venueId and updates are required" }, { status: 400 });
-        }
+        if (!venueId || !updates) return fail("venueId and updates are required", 400);
 
-        // Verify access
         const hasAccess = await verifyPartnerAccess(req, venueId);
-        if (!hasAccess) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
+        if (!hasAccess) return fail("Forbidden", 403);
 
-        const authHeader = req.headers.get("Authorization") || "";
-        const token = authHeader.replace("Bearer ", "").trim();
-
+        const token = req.headers.get("Authorization")?.replace("Bearer ", "").trim() || "";
         const result = await updateVenueDetails(venueId, updates, token);
 
-        return NextResponse.json({ success: true, result });
+        return ok({ result }, "Venue updated");
     } catch (error: any) {
         console.error("[API /venue/page POST]", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to update venue");
     }
-}
+});

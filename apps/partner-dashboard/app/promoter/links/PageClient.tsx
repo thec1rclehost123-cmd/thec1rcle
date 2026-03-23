@@ -5,6 +5,7 @@ import { AnimatePresence } from "framer-motion";
 import { Link2, Plus, Copy, CheckCircle2, Search, ChevronDown } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
+import { Skeleton } from "@/components/ui/Skeleton";
 import GenerateLinkModal from "@/components/promoter/links/GenerateLinkModal";
 import AnalyticsDrawer from "@/components/promoter/links/AnalyticsDrawer";
 
@@ -57,8 +58,7 @@ function SkeletonRow() {
         <tr>
             {[1, 2, 3, 4, 5, 6].map(i => (
                 <td key={i} className="px-4 py-4">
-                    <div className="h-4 rounded animate-pulse"
-                        style={{ background: "var(--v-elevated, #222226)", width: i === 1 ? "70%" : i === 2 ? "55%" : "40%" }} />
+                    <Skeleton className="h-4" style={{ width: i === 1 ? "70%" : i === 2 ? "55%" : "40%" }} />
                 </td>
             ))}
         </tr>

@@ -20,7 +20,6 @@
 import { NextResponse } from "next/server";
 import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
 import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
-import { verifyAuth } from "@/lib/server/auth";
 import { randomUUID } from "node:crypto";
 
 // Fields safe to copy verbatim
@@ -59,7 +58,6 @@ export async function POST(
         const ctx = await requireVenueAccess(request, "events:duplicate");
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-        const user = await verifyAuth(request);
         const body = await request.json().catch(() => ({}));
 
         const idempotencyKey: string = body.idempotencyKey ?? randomUUID();
@@ -113,7 +111,7 @@ export async function POST(
             status: "DRAFT",
             sourceEventId: sourceId,
             duplicateIdempotencyKey: idempotencyKey,
-            createdBy: user!.uid,
+            createdBy: ctx.uid,
             createdAt: now,
             updatedAt: now,
             // Reset fields
@@ -155,7 +153,7 @@ export async function POST(
         // Audit log
         await db.collection("audit_logs").add({
             action: "event_duplicated",
-            actorUid: user!.uid,
+            actorUid: ctx.uid,
             sourceEventId: sourceId,
             newEventId: newId,
             venueId: ctx.venueId,
@@ -165,6 +163,6 @@ export async function POST(
         return NextResponse.json({ draft }, { status: 201 });
     } catch (err: any) {
         console.error("[duplicate POST]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to duplicate event" }, { status: 500 });
     }
 }

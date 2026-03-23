@@ -24,6 +24,6 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ user: userData, onboardingRequest });
     } catch (error: any) {
         console.error("[Auth API] GET /me Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

@@ -1,40 +1,46 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextRequest } from "next/server";
+import { z } from "zod";
 import { discoverPartners } from "@/lib/server/promoterConnectionStore";
 import { createRequest, approveRequest, rejectRequest, blockRequest, listConnections } from "@/lib/server/connectionService";
 import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
+import { logger } from "@/lib/server/logger";
+
+const CreateRequestSchema = z.object({
+    requesterId: z.string().min(1).max(128),
+    requesterType: z.string().max(50).optional(),
+    requesterName: z.string().max(200).optional(),
+    requesterEmail: z.string().email().max(200).optional(),
+    targetId: z.string().min(1).max(128),
+    targetType: z.string().min(1).max(50),
+    targetName: z.string().max(200).optional(),
+    message: z.string().max(1000).optional(),
+});
 
 /**
  * GET /api/discovery
  * Discover partners and check connection status
  */
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const { searchParams } = new URL(req.url);
         const action = searchParams.get("action") || "discover";
         const partnerId = searchParams.get("partnerId"); // The ID of the requester
         const role = searchParams.get("role"); // The role of the requester
 
-        if (!partnerId || !role) {
-            return NextResponse.json({ error: "partnerId and role are required" }, { status: 400 });
-        }
+        if (!partnerId || !role) return fail("partnerId and role are required", 400);
 
         switch (action) {
             case "discover": {
                 const type = searchParams.get("type") as any;
                 const city = searchParams.get("city");
                 const search = searchParams.get("search");
-                const limit = parseInt(searchParams.get("limit") || "20");
+                const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 100);
 
                 const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
 
-                // Fetch discovered partners + existing connections in parallel (single list call,
-                // avoids N individual /status calls against a missing API Gateway endpoint)
+                // Fetch discovered partners + existing connections in parallel
                 const [partners, existingConnections] = await Promise.all([
                     discoverPartners({
                         type: type === "all" ? undefined : type,
@@ -67,103 +73,70 @@ export async function GET(req: NextRequest) {
                         };
                     });
 
-                return NextResponse.json({ partners: partnersWithStatus });
+                return ok({ partners: partnersWithStatus });
             }
 
             case "list": {
                 const status = searchParams.get("status");
                 const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
                 const connections = await listConnections(partnerId, role, status, token);
-                return NextResponse.json({ connections });
+                return ok({ connections });
             }
 
             case "auditlog": {
-                if (!isFirebaseConfigured()) return NextResponse.json({ entries: [] });
+                if (!isFirebaseConfigured()) return ok({ entries: [] });
                 const db = getAdminDb();
                 const auditSnap = await db.collection("partnership_audit_log")
                     .where("actorId", "==", partnerId)
                     .orderBy("timestamp", "desc")
                     .limit(100)
                     .get();
-                const entries = auditSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-                return NextResponse.json({ entries });
+                const entries = auditSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+                return ok({ entries });
             }
 
             default:
-                return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+                return fail("Invalid action", 400);
         }
     } catch (error: any) {
-        console.error("[Discovery API] GET Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        logger.error("discovery", "GET failed", { error: error.message });
+        return fail("Failed to fetch discovery data");
     }
-}
+});
 
 /**
  * POST /api/discovery
  * Create a connection request
  */
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const body = await req.json();
-        const {
-            requesterId,
-            requesterType,
-            requesterName,
-            requesterEmail,
-            targetId,
-            targetType,
-            targetName,
-            message
-        } = body;
+        const parsed = CreateRequestSchema.safeParse(body);
+        if (!parsed.success) return fail(parsed.error.errors[0]?.message || "Invalid request body", 400);
 
-        if (!requesterId || !targetId || !targetType) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-        }
+        const result = await createRequest(parsed.data, token);
 
-        const result = await createRequest({
-            requesterId,
-            requesterType,
-            requesterName,
-            requesterEmail,
-            targetId,
-            targetType,
-            targetName,
-            message
-        }, token);
-
-        return NextResponse.json(result);
+        return ok(result);
     } catch (error: any) {
-        console.error("[Discovery API] POST Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        logger.error("discovery", "POST failed", { error: error.message });
+        return fail("Failed to create connection request");
     }
-}
+});
 
 /**
  * PATCH /api/discovery
  * Approve or Reject a request
  */
-export async function PATCH(req: NextRequest) {
+export const PATCH = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const body = await req.json();
         const { connectionId, action, role, partnerId, partnerName, reason, tier } = body;
 
         const type = body.type || "promoter_connection"; // default
 
-        if (!connectionId || !action) {
-            return NextResponse.json({ error: "connectionId and action are required" }, { status: 400 });
-        }
+        if (!connectionId || !action) return fail("connectionId and action are required", 400);
 
         if (action === "approve") {
             await approveRequest(connectionId, type, role, partnerId, partnerName, token, tier);
@@ -172,12 +145,12 @@ export async function PATCH(req: NextRequest) {
         } else if (action === "block") {
             await blockRequest(connectionId, type, role, partnerId, partnerName, reason, token);
         } else {
-            return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+            return fail("Invalid action", 400);
         }
 
-        return NextResponse.json({ success: true });
+        return ok({});
     } catch (error: any) {
-        console.error("[Discovery API] PATCH Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        logger.error("discovery", "PATCH failed", { error: error.message });
+        return fail("Failed to process connection request");
     }
-}
+});

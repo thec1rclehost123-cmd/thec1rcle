@@ -25,6 +25,6 @@ export async function GET(request: Request) {
         });
     } catch (err: any) {
         console.error("[finance/promoter-payouts GET]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to fetch promoter payouts" }, { status: 500 });
     }
 }

@@ -52,6 +52,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         return NextResponse.json({ tiers: tiersWithSales, totalSold, totalInventory });
     } catch (err: any) {
         console.error("[events/[id]/tickets]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to fetch event tickets" }, { status: 500 });
     }
 }

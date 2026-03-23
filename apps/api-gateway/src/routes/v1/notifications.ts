@@ -85,7 +85,7 @@ export default async function notificationsRoutes(fastify: FastifyInstance) {
             return { success: true, newStatus };
         } catch (error: any) {
             fastify.log.error(`Error in POST /notifications/action: ${error.message}`);
-            return reply.status(400).send({ error: error.message || "Action failed" });
+            return reply.status(400).send({ error: "Action failed" });
         }
     });
 

@@ -1,22 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextRequest } from "next/server";
 import { isFirebaseConfigured, getAdminApp } from "@/lib/firebase/admin";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest, auth) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         if (isFirebaseConfigured()) {
             const { getAuth } = await import("firebase-admin/auth");
-            await getAuth(getAdminApp()).revokeRefreshTokens(decodedToken.uid);
+            await getAuth(getAdminApp()).revokeRefreshTokens(auth.uid);
         }
 
-        return NextResponse.json({ success: true });
+        return ok({});
     } catch (error: any) {
         console.error("[POST /api/promoter/settings/security/logout-all]", error);
-        return NextResponse.json({ error: "Failed to revoke sessions" }, { status: 500 });
+        return fail("Failed to revoke sessions");
     }
-}
+});

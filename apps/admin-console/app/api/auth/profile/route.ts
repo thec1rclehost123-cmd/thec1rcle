@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, uid });
     } catch (error: any) {
         console.error("[Auth API] POST /profile Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }
 
@@ -67,6 +67,6 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ success: true, message: "Profile updated successfully" });
     } catch (error: any) {
         console.error("[Auth API] PATCH /profile Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

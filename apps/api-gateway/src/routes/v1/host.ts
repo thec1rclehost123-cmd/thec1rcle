@@ -88,7 +88,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
 
         } catch (error: any) {
             fastify.log.error(`Host overview failed: ${error.message}`);
-            return reply.status(error.message.includes('Forbidden') ? 403 : 500).send({ error: error.message });
+            return reply.status(error.message.includes('Forbidden') || error.message.includes('Unauthorized') ? 403 : 500).send({ error: error.message.includes('Forbidden') || error.message.includes('Unauthorized') ? "Access denied" : "Internal server error" });
         }
     });
 
@@ -168,7 +168,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
 
         } catch (error: any) {
             fastify.log.error(`Host events list failed: ${error.message}`);
-            return reply.status(error.message.includes('Forbidden') ? 403 : 500).send({ error: error.message });
+            return reply.status(error.message.includes('Forbidden') || error.message.includes('Unauthorized') ? 403 : 500).send({ error: error.message.includes('Forbidden') || error.message.includes('Unauthorized') ? "Access denied" : "Internal server error" });
         }
     });
 }

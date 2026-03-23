@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextRequest } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * GET /api/auth/onboard-status?requestId=xxx
@@ -8,35 +9,24 @@ import { getAdminDb } from "@/lib/firebase/admin";
  * Returns the status of a specific onboarding request by document ID.
  * Only the authenticated user who owns the request can read it.
  */
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest, auth) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const requestId = req.nextUrl.searchParams.get("requestId");
-        if (!requestId) {
-            return NextResponse.json({ error: "Missing requestId" }, { status: 400 });
-        }
+        if (!requestId) return fail("Missing requestId", 400);
 
         const db = getAdminDb();
         const doc = await db.collection("onboarding_requests").doc(requestId).get();
 
-        if (!doc.exists) {
-            return NextResponse.json({ error: "Not found" }, { status: 404 });
-        }
+        if (!doc.exists) return fail("Not found", 404);
 
         const data = doc.data()!;
 
         // Ensure the requesting user owns this document
-        if (data.uid !== (decodedToken as any).uid) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
+        if (data.uid !== auth.uid) return fail("Forbidden", 403);
 
-        return NextResponse.json({ status: data.status as string });
+        return ok({ status: data.status as string });
     } catch (error: any) {
         console.error("[Auth API] GET /onboard-status Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to fetch onboarding status");
     }
-}
+});

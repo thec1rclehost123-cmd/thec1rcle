@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyAuth } from '@/lib/server/auth'
+import { withAuth } from '@/lib/server/withAuth'
+import { ok, fail } from '@/lib/server/apiResponse'
 import { getAdminDb } from '@/lib/firebase/admin'
 
 export const dynamic = 'force-dynamic'
@@ -10,41 +11,28 @@ export const dynamic = 'force-dynamic'
  * Marks an alert as dismissed in Firestore.
  * Verifies the alert belongs to the authenticated user's venue before writing.
  */
-export async function PATCH(
-    req: NextRequest,
-    { params }: { params: { id: string } },
-) {
-    const user = await verifyAuth(req)
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const alertId = params.id
-    if (!alertId) {
-        return NextResponse.json({ error: 'Alert ID is required' }, { status: 400 })
-    }
+export const PATCH = withAuth(async (req: NextRequest, auth, ctx) => {
+    const alertId = ctx?.params?.id || ""
+    if (!alertId) return fail('Alert ID is required', 400)
 
     try {
         const db = getAdminDb()
         const alertRef = db.collection('venue_alerts').doc(alertId)
         const snap = await alertRef.get()
 
-        if (!snap.exists) {
-            return NextResponse.json({ error: 'Alert not found' }, { status: 404 })
-        }
+        if (!snap.exists) return fail('Alert not found', 404)
 
-        // Verify the alert belongs to a venue the caller is authorized for
         const alertData = snap.data()!
         const venueId = alertData.venueId as string | undefined
-        if (venueId && (user as any).partnerId && (user as any).partnerId !== venueId) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        if (venueId && (auth as any).partnerId && (auth as any).partnerId !== venueId) {
+            return fail('Forbidden', 403)
         }
 
         await alertRef.update({ dismissed: true, dismissedAt: new Date().toISOString() })
 
-        return NextResponse.json({ ok: true })
+        return ok(null, 'Alert dismissed')
     } catch (err: any) {
         console.error('[PATCH /api/venue/alerts/[id]/dismiss]', err)
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+        return fail('Failed to dismiss alert')
     }
-}
+})

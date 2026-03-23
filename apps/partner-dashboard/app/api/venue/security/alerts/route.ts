@@ -1,46 +1,40 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getVenueSOSAlerts, resolveSOSAlert } from "@/lib/server/securityStore";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * GET /api/venue/security/alerts
  * Fetches active SOS alerts for the venue
  */
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
     try {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
-
-        if (!venueId) {
-            return NextResponse.json({ error: "venueId is required" }, { status: 400 });
-        }
+        if (!venueId) return fail("venueId is required", 400);
 
         const alerts = await getVenueSOSAlerts(venueId);
-        return NextResponse.json({ alerts });
-
+        return ok({ alerts });
     } catch (error: any) {
         console.error("[Safety Alerts API] Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to fetch security alerts");
     }
-}
+});
 
 /**
- * POST /api/venue/security/alerts/resolve
+ * POST /api/venue/security/alerts
  * Resolves an SOS alert
  */
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
     try {
         const body = await req.json();
         const { alertId, resolvedBy } = body;
-
-        if (!alertId) {
-            return NextResponse.json({ error: "alertId is required" }, { status: 400 });
-        }
+        if (!alertId) return fail("alertId is required", 400);
 
         await resolveSOSAlert(alertId, resolvedBy || "System");
-        return NextResponse.json({ success: true });
-
+        return ok({ success: true }, "Alert resolved");
     } catch (error: any) {
         console.error("[Resolve Alert API] Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to resolve alert");
     }
-}
+});

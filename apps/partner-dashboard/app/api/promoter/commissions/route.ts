@@ -1,24 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { listPromoterCommissions } from "@/lib/server/promoterLinkStore";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
+import { logger } from "@/lib/server/logger";
 
 /**
  * GET /api/promoter/commissions
  * List commissions for a promoter
  */
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
     try {
         const { searchParams } = new URL(req.url);
         const promoterId = searchParams.get("promoterId");
         const eventId = searchParams.get("eventId");
         const status = searchParams.get("status");
-        const limit = parseInt(searchParams.get("limit") || "50");
+        const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 200);
 
-        if (!promoterId && !eventId) {
-            return NextResponse.json(
-                { error: "promoterId or eventId is required" },
-                { status: 400 }
-            );
-        }
+        if (!promoterId && !eventId) return fail("promoterId or eventId is required", 400);
 
         const commissions = await listPromoterCommissions({
             promoterId: promoterId || undefined,
@@ -27,12 +25,9 @@ export async function GET(req: NextRequest) {
             limit
         });
 
-        return NextResponse.json({ commissions });
+        return ok({ commissions });
     } catch (error: any) {
-        console.error("[Promoter Commissions API] GET Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to fetch commissions" },
-            { status: 500 }
-        );
+        logger.error("promoter/commissions", "Failed to fetch commissions", { error: error.message });
+        return fail("Failed to fetch commissions");
     }
-}
+});

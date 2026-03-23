@@ -22,9 +22,13 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
      * Get Razorpay client configuration
      */
     fastify.get('/payments/config', async (request, reply) => {
+        if (!RAZORPAY_KEY_ID) {
+            fastify.log.error("RAZORPAY_KEY_ID is not set — payment config unavailable");
+            return reply.status(503).send({ error: "Payment service unavailable" });
+        }
         return {
             config: {
-                key: RAZORPAY_KEY_ID || "rzp_test_DEVELOPMENT",
+                key: RAZORPAY_KEY_ID,
                 currency: "INR",
                 name: "THE C1RCLE",
                 description: "Event Tickets",
@@ -54,7 +58,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         } catch (error: any) {
             fastify.log.error(`Payment order failed: ${error.message}`);
             const status = error.message === 'Forbidden' ? 403 : (error.message === 'Order not found' ? 404 : 500);
-            return reply.status(status).send({ error: error.message || 'Internal Server Error' });
+            return reply.status(status).send({ error: "Payment processing failed" });
         }
     });
 
@@ -97,7 +101,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
 
         } catch (error: any) {
             fastify.log.error(`Payment verification failed: ${error.message}`);
-            return reply.status(500).send({ error: error.message || 'Internal Server Error' });
+            return reply.status(500).send({ error: "Internal server error" });
         }
     });
 }

@@ -38,7 +38,7 @@ export async function GET(request: Request) {
         });
     } catch (err: any) {
         console.error("[slots GET]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process slot request" }, { status: 500 });
     }
 }
 
@@ -82,6 +82,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: err.message }, { status: 409 });
         }
         console.error("[slots POST]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process slot request" }, { status: 500 });
     }
 }

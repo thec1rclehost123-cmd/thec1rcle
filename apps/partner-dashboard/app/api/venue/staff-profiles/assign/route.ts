@@ -13,7 +13,6 @@ import {
     assignProfileToMember,
     revokeProfileFromMember,
 } from "@/lib/server/staffProfileStore";
-import { verifyAuth } from "@/lib/server/auth";
 import { getAdminDb } from "@/lib/firebase/admin";
 
 async function getMembershipId(venueId: string, staffUserId: string): Promise<string | null> {
@@ -65,7 +64,6 @@ export async function POST(request: Request) {
         const ctx = await requireManagementRole(request);
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-        const user = await verifyAuth(request);
         const { staffUserId, profileId } = await request.json();
 
         if (!staffUserId || !profileId) {
@@ -77,7 +75,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "No active membership found for this staff member" }, { status: 404 });
         }
 
-        const actor = { uid: user!.uid, name: (user as any).name ?? "" };
+        const actor = { uid: ctx.uid, name: "" };
         await assignProfileToMember(ctx.venueId, membershipId, profileId, actor);
 
         return NextResponse.json({ ok: true });
@@ -92,7 +90,6 @@ export async function DELETE(request: Request) {
         const ctx = await requireManagementRole(request);
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-        const user = await verifyAuth(request);
         const { staffUserId } = await request.json();
 
         if (!staffUserId) {
@@ -104,7 +101,7 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ error: "No active membership found for this staff member" }, { status: 404 });
         }
 
-        const actor = { uid: user!.uid, name: (user as any).name ?? "" };
+        const actor = { uid: ctx.uid, name: "" };
         await revokeProfileFromMember(ctx.venueId, membershipId, actor);
 
         return NextResponse.json({ ok: true });

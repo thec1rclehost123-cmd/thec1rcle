@@ -33,7 +33,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
             const connections = await listConnections(entityId, entityType, status);
             return connections;
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            reply.status(500).send({ error: "Internal server error" });
         }
     });
 
@@ -53,7 +53,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
             });
             return result;
         } catch (error: any) {
-            reply.status(400).send({ error: error.message });
+            reply.status(400).send({ error: "Request failed" });
         }
     });
 
@@ -70,7 +70,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
             const stats = await getPromoterStats(id);
             return stats;
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            reply.status(500).send({ error: "Internal server error" });
         }
     });
 
@@ -87,7 +87,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
             const link = await generatePromoterLink(promoterId, eventId);
             return link;
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            reply.status(500).send({ error: "Internal server error" });
         }
     });
 }

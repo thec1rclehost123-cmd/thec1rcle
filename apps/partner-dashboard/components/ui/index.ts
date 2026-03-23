@@ -9,6 +9,7 @@ export { default as Badge, type BadgeProps } from "./Badge";
 export { default as Toggle } from "./Toggle";
 export { default as ListItem, type ListItemProps } from "./ListItem";
 export { default as EmptyState, type EmptyStateProps } from "./EmptyState";
+export { default as ErrorState, type ErrorStateProps } from "./ErrorState";
 
 // Enhanced Stats & Metrics
 export { default as StatCard, type StatCardProps } from "./StatCard";

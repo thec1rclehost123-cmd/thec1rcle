@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { z } from "zod";
 import {
     createConnectionRequest,
     cancelConnectionRequest,
@@ -8,222 +9,142 @@ import {
     listPromoterConnections,
     discoverPartners,
     getConnectionStatus,
-    getPromoterConnectionStats
+    getPromoterConnectionStats,
 } from "@/lib/server/promoterConnectionStore";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 const isDev = process.env.NODE_ENV === "development";
 
+const ConnectionsQuery = z.object({
+    promoterId: z.string().min(1, "promoterId is required"),
+    action: z.enum(["list", "discover", "stats", "status"]).default("list"),
+    status: z.string().optional(),
+    // discover params
+    type: z.enum(["host", "venue", "promoter"]).optional(),
+    city: z.string().optional(),
+    search: z.string().optional(),
+    limit: z.coerce.number().int().positive().max(100).default(20),
+    // status params
+    targetId: z.string().optional(),
+    targetType: z.enum(["host", "venue"]).optional(),
+});
+
+const CreateConnectionBody = z.object({
+    promoterId: z.string().min(1, "promoterId is required"),
+    targetId: z.string().min(1, "targetId is required"),
+    targetType: z.enum(["host", "venue"], { errorMap: () => ({ message: "targetType must be 'host' or 'venue'" }) }),
+    promoterName: z.string().optional(),
+    promoterEmail: z.string().email().optional(),
+    targetName: z.string().optional(),
+    message: z.string().optional(),
+});
+
+const UpdateConnectionBody = z.object({
+    connectionId: z.string().min(1, "connectionId is required"),
+    action: z.enum(["cancel", "revoke", "pause", "resume"], {
+        errorMap: () => ({ message: "action must be 'cancel', 'revoke', 'pause', or 'resume'" }),
+    }),
+    promoterId: z.string().optional(),
+});
+
 /**
  * GET /api/promoter/connections
- * List promoter's connections or discover partners
  */
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
         const { searchParams } = new URL(req.url);
-        const promoterId = searchParams.get("promoterId");
-        const action = searchParams.get("action") || "list"; // list, discover, stats, status
+        const parsed = ConnectionsQuery.safeParse(Object.fromEntries(searchParams));
+        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
 
-        if (!promoterId) {
-            return NextResponse.json(
-                { error: "promoterId is required" },
-                { status: 400 }
-            );
-        }
+        const { promoterId, action, status, type, city, search, limit, targetId, targetType } = parsed.data;
 
         switch (action) {
             case "discover": {
-                // Discover hosts and venues
-                const type = searchParams.get("type") as "host" | "venue" | "promoter" | null;
-                const city = searchParams.get("city");
-                const search = searchParams.get("search");
-                const limit = parseInt(searchParams.get("limit") || "20");
-
-                const partners = await discoverPartners({
-                    type: type || undefined,
-                    city: city || undefined,
-                    search: search || undefined,
-                    limit
-                });
-
-                // Get connection status for each partner
+                const partners = await discoverPartners({ type, city, search, limit });
                 const partnersWithStatus = await Promise.all(
-                    partners.map(async (partner) => {
-                        const status = await getConnectionStatus(
-                            promoterId,
-                            partner.id,
-                            partner.type
-                        );
-                        return {
-                            ...partner,
-                            connectionStatus: status?.status || null,
-                            connectionId: status?.id || null
-                        };
+                    partners.map(async (partner: any) => {
+                        const connStatus = await getConnectionStatus(promoterId, partner.id, partner.type);
+                        return { ...partner, connectionStatus: connStatus?.status || null, connectionId: connStatus?.id || null };
                     })
                 );
-
-                return NextResponse.json({ partners: partnersWithStatus });
+                return ok({ partners: partnersWithStatus });
             }
 
             case "stats": {
                 const stats = await getPromoterConnectionStats(promoterId);
-                return NextResponse.json({ stats });
+                return ok({ stats });
             }
 
             case "status": {
-                const targetId = searchParams.get("targetId");
-                const targetType = searchParams.get("targetType") as "host" | "venue";
-
-                if (!targetId || !targetType) {
-                    return NextResponse.json(
-                        { error: "targetId and targetType are required" },
-                        { status: 400 }
-                    );
-                }
-
-                const status = await getConnectionStatus(promoterId, targetId, targetType);
-                return NextResponse.json({ status });
+                if (!targetId || !targetType) return fail("targetId and targetType are required", 400);
+                const connStatus = await getConnectionStatus(promoterId, targetId, targetType);
+                return ok({ status: connStatus });
             }
 
-            case "list":
             default: {
-                const status = searchParams.get("status");
-                const connections = await listPromoterConnections(
-                    promoterId,
-                    status || undefined
-                );
-                return NextResponse.json({ connections });
+                const connections = await listPromoterConnections(promoterId, status);
+                return ok({ connections });
             }
         }
     } catch (error: any) {
-        console.error("[Promoter Connections API] GET Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to fetch connections" },
-            { status: 500 }
-        );
+        console.error("[GET /api/promoter/connections]", error);
+        return fail("Failed to fetch connections");
     }
-}
+});
 
 /**
  * POST /api/promoter/connections
- * Create a new connection request
  */
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const rawBody = await req.json();
+        const parsed = CreateConnectionBody.safeParse(rawBody);
+        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
 
-        const body = await req.json();
-        const {
-            promoterId,
-            promoterName,
-            promoterEmail,
-            targetId,
-            targetType,
-            targetName,
-            message
-        } = body;
-
-        if (!promoterId || !targetId || !targetType) {
-            return NextResponse.json(
-                { error: "promoterId, targetId, and targetType are required" },
-                { status: 400 }
-            );
-        }
-
-        const result = await createConnectionRequest({
-            promoterId,
-            promoterName,
-            promoterEmail,
-            targetId,
-            targetType,
-            targetName,
-            message
-        });
-
-        return NextResponse.json(result);
+        const result = await createConnectionRequest(parsed.data);
+        return ok({ ...result }, "Connection request sent", 201);
     } catch (error: any) {
-        console.error("[Promoter Connections API] POST Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to create connection request" },
-            { status: 400 }
-        );
+        console.error("[POST /api/promoter/connections]", error);
+        return fail("Failed to create connection request", 400);
     }
-}
+});
 
 /**
  * PATCH /api/promoter/connections
- * Update connection (cancel, revoke)
  */
-export async function PATCH(req: NextRequest) {
+export const PATCH = withAuth(async (req: NextRequest, auth) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const rawBody = await req.json();
+        const parsed = UpdateConnectionBody.safeParse(rawBody);
+        if (!parsed.success) return fail(parsed.error.errors[0].message, 400);
 
-        const body = await req.json();
-        const { connectionId, action, promoterId } = body;
+        const { connectionId, action, promoterId } = parsed.data;
 
-        // Verify the caller is the promoter making the mutation
-        if (!isDev && promoterId && decodedToken.uid !== promoterId) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
-
-        if (!connectionId || !action) {
-            return NextResponse.json(
-                { error: "connectionId and action are required" },
-                { status: 400 }
-            );
+        if (!isDev && promoterId && auth.uid !== promoterId) {
+            return fail("Forbidden", 403);
         }
 
         switch (action) {
-            case "cancel": {
-                if (!promoterId) {
-                    return NextResponse.json(
-                        { error: "promoterId required to cancel" },
-                        { status: 400 }
-                    );
-                }
+            case "cancel":
+                if (!promoterId) return fail("promoterId required to cancel", 400);
                 await cancelConnectionRequest(connectionId, promoterId);
                 break;
-            }
-
-            case "revoke": {
-                if (!promoterId) {
-                    return NextResponse.json(
-                        { error: "promoterId required to revoke" },
-                        { status: 400 }
-                    );
-                }
+            case "revoke":
+                if (!promoterId) return fail("promoterId required to revoke", 400);
                 await revokeConnection(connectionId, { uid: promoterId, name: "" });
                 break;
-            }
-
-            case "pause": {
+            case "pause":
                 await pauseConnection(connectionId, "");
                 break;
-            }
-
-            case "resume": {
+            case "resume":
                 await resumeConnection(connectionId, "");
                 break;
-            }
-
-            default:
-                return NextResponse.json(
-                    { error: "Invalid action. Use 'cancel', 'revoke', 'pause', or 'resume'" },
-                    { status: 400 }
-                );
         }
 
-        return NextResponse.json({ success: true });
+        return ok({ success: true }, "Connection updated");
     } catch (error: any) {
-        console.error("[Promoter Connections API] PATCH Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to update connection" },
-            { status: 400 }
-        );
+        console.error("[PATCH /api/promoter/connections]", error);
+        return fail("Failed to update connection", 400);
     }
-}
+});

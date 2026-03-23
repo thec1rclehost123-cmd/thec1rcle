@@ -1,25 +1,34 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { z } from "zod";
 import { randomBytes } from "crypto";
 import { getApiClient } from "@/lib/server/apiClient";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * POST /api/host/invite
- *
- * Creates a promoter invite record by proxying to the API Gateway.
- * No direct Firestore access in this server route.
+ * Creates a promoter invite record via the API Gateway.
  */
-export async function POST(req: NextRequest) {
+
+const InviteBody = z.object({
+    hostId: z.string().min(1, "hostId is required"),
+    promoterEmail: z.string().email("Invalid email address"),
+    promoterName: z.string().optional(),
+});
+
+export const POST = withAuth(async (req: NextRequest, auth) => {
     try {
-        const decodedToken: any = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const rawBody = await req.json();
+        const parsed = InviteBody.safeParse(rawBody);
+        if (!parsed.success) {
+            return fail(parsed.error.errors[0].message, 400);
         }
+        const { hostId, promoterEmail, promoterName } = parsed.data;
 
-        const { hostId, promoterEmail, promoterName } = await req.json();
-
-        if (!hostId || !promoterEmail) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+        if (!appUrl) {
+            console.error("[POST /api/host/invite] NEXT_PUBLIC_APP_URL is not set");
+            return fail("Server misconfiguration");
         }
 
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
@@ -28,7 +37,6 @@ export async function POST(req: NextRequest) {
         const inviteId = randomBytes(16).toString("hex");
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-        // Delegate invite record creation to the API Gateway
         await client.request("/promoter-connections/invites", {
             method: "POST",
             body: JSON.stringify({
@@ -38,15 +46,14 @@ export async function POST(req: NextRequest) {
                 name: promoterName || "",
                 type: "promoter",
                 status: "pending",
-                expiresAt
-            })
+                expiresAt,
+            }),
         });
 
-        const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL || "https://posh-india.vercel.app"}/onboard?type=promoter&inviteId=${inviteId}&hostId=${hostId}&email=${encodeURIComponent(promoterEmail)}`;
-
-        return NextResponse.json({ success: true, inviteLink });
+        const inviteLink = `${appUrl}/onboard?type=promoter&inviteId=${inviteId}&hostId=${hostId}&email=${encodeURIComponent(promoterEmail)}`;
+        return ok({ inviteLink }, "Invite created");
     } catch (error: any) {
-        console.error("Error creating invite:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("[POST /api/host/invite]", error);
+        return fail("Failed to create invite");
     }
-}
+});

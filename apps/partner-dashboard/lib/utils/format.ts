@@ -90,6 +90,19 @@ export function formatNumberCompact(value: number | undefined | null): string {
     return new Intl.NumberFormat('en-IN').format(value);
 }
 
+// ── Period Labels ─────────────────────────────────────────────────────────────
+
+/** Returns a human-readable label for a time period selector value. */
+export function getPeriodLabel(period: string): string {
+    switch (period) {
+        case "7d":  return "Past 7 Days";
+        case "30d": return "Past 30 Days";
+        case "90d": return "Past 90 Days";
+        case "ytd": return "Year to Date";
+        default:    return period;
+    }
+}
+
 /** +12.3% or -4.5% */
 export function formatPercentChange(value: number, decimals = 1): string {
     if (isNaN(value)) return '—';

@@ -1,23 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextRequest } from "next/server";
 import { getPromoterSettings } from "@/lib/server/promoterSettingsStore";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const promoterId = new URL(req.url).searchParams.get("promoterId");
-        if (!promoterId) {
-            return NextResponse.json({ error: "promoterId is required" }, { status: 400 });
-        }
+        if (!promoterId) return fail("promoterId is required", 400);
 
         const settings = await getPromoterSettings(promoterId);
-        return NextResponse.json(settings);
+        return ok(settings);
     } catch (error: any) {
         console.error("[GET /api/promoter/settings]", error);
-        return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
+        return fail("Failed to load settings");
     }
-}
+});

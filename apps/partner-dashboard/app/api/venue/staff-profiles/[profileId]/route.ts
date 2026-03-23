@@ -36,7 +36,7 @@ export async function GET(
         );
     } catch (err: any) {
         console.error("[staff-profiles/:id GET]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process staff profile request" }, { status: 500 });
     }
 }
 
@@ -98,6 +98,6 @@ export async function DELETE(
         return NextResponse.json({ ok: true });
     } catch (err: any) {
         console.error("[staff-profiles/:id DELETE]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process staff profile request" }, { status: 500 });
     }
 }

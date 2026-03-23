@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProfile, updateProfile, createPost, createHighlight, getProfilePosts, getProfileHighlights, deletePost, deleteHighlight, getProfileStats } from "@/lib/server/profileStore";
-import { verifyAuth, verifyPartnerAccess } from "@/lib/server/auth";
+import { verifyPartnerAccess } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * Common API for Venue and Host Profile Management
@@ -37,28 +39,23 @@ export async function GET(req: NextRequest) {
             stats
         });
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: "Failed to fetch profile" }, { status: 500 });
     }
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const body = await req.json();
         const { profileId, type, action, data } = body;
 
         if (!profileId || !type || !action) {
-            return NextResponse.json({ error: "profileId, type, and action are required" }, { status: 400 });
+            return fail("profileId, type, and action are required", 400);
         }
 
         // VERIFY PERMISSION
         const hasAccess = await verifyPartnerAccess(req, profileId);
         if (!hasAccess) {
-            return NextResponse.json({ error: "Forbidden: No management access to this partner" }, { status: 403 });
+            return fail("Forbidden: No management access to this partner", 403);
         }
 
         const authHeader = req.headers.get("Authorization") || "";
@@ -76,7 +73,6 @@ export async function POST(req: NextRequest) {
                 result = await createHighlight(profileId, type, data, token);
                 break;
             case "deletePost":
-                // Additional check: Ensure post belongs to this profile
                 result = await deletePost(data.postId, token);
                 break;
             case "deleteHighlight":
@@ -89,12 +85,12 @@ export async function POST(req: NextRequest) {
                 result = await updateProfile(profileId, type, { [data.field]: null }, token);
                 break;
             default:
-                return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+                return fail("Invalid action", 400);
         }
 
-        return NextResponse.json({ success: true, result });
+        return ok({ result });
     } catch (error: any) {
         console.error("Profile API Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to process profile request");
     }
-}
+});

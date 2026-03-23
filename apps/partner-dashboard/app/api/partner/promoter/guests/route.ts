@@ -1,13 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextRequest } from "next/server";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         // Mock global guest data
         const mockGuests = {
             totalAllowance: 150,
@@ -21,12 +17,9 @@ export async function GET(req: NextRequest) {
             ]
         };
 
-        return NextResponse.json(mockGuests);
+        return ok(mockGuests);
     } catch (error: any) {
         console.error("[Promoter Guests API] GET Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Internal server error" },
-            { status: 500 }
-        );
+        return fail("Failed to load guests");
     }
-}
+});

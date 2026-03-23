@@ -73,6 +73,6 @@ export async function GET(
         );
     } catch (err: any) {
         console.error("[guestlist-package GET]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to load guestlist package" }, { status: 500 });
     }
 }

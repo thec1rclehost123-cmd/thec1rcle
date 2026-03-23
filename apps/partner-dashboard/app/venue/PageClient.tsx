@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
     TrendingUp, Users, Calendar, Zap, Bell, Plus,
-    BarChart3, Ticket, ArrowRight, ChevronRight, Sparkles
+    BarChart3, Ticket, ArrowRight, ChevronRight, Sparkles, AlertTriangle
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useQuery } from "@tanstack/react-query";
@@ -60,7 +60,7 @@ export default function VenueDashboardHome() {
     });
 
     // 2. Summary
-    const { data: summaryData, isLoading: summaryLoading } = useQuery({
+    const { data: summaryData, isLoading: summaryLoading, isError: summaryError } = useQuery({
         queryKey: ['venue', venueId, 'summary'],
         queryFn: async () => {
             const res = await fetch(`/api/venue/overview/summary?venueId=${venueId}`);
@@ -71,7 +71,7 @@ export default function VenueDashboardHome() {
     });
 
     // 3. Events List
-    const { data: eventsData, isLoading: eventsLoading } = useQuery({
+    const { data: eventsData, isLoading: eventsLoading, isError: eventsError } = useQuery({
         queryKey: ['venue', venueId, 'events'],
         queryFn: async () => {
             const res = await fetch(`/api/venue/events?venueId=${venueId}`);
@@ -104,6 +104,7 @@ export default function VenueDashboardHome() {
     });
 
     const loading = summaryLoading || eventsLoading;
+    const isError = summaryError || eventsError;
     const alerts = alertsData?.notifications?.slice(0, 3) || [];
     const summary = summaryData;
 
@@ -117,6 +118,18 @@ export default function VenueDashboardHome() {
         shouldReduceMotion
             ? {}
             : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1], delay } };
+
+    if (isError) {
+        return (
+            <VenuePageShell title="Dashboard">
+                <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+                    <AlertTriangle className="w-10 h-10 text-red-400" />
+                    <p className="text-[16px] font-semibold" style={{ color: "var(--v-text-primary)" }}>Failed to load dashboard data</p>
+                    <p className="text-[13px]" style={{ color: "var(--v-text-tertiary)" }}>Please refresh the page to try again.</p>
+                </div>
+            </VenuePageShell>
+        );
+    }
 
     return (
         <VenuePageShell

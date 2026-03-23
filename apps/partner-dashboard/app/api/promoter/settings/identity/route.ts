@@ -1,27 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextRequest } from "next/server";
 import { updateIdentity } from "@/lib/server/promoterSettingsStore";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest, auth) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const body = await req.json();
         const { promoterId, ...fields } = body;
-        if (!promoterId) {
-            return NextResponse.json({ error: "promoterId is required" }, { status: 400 });
-        }
+        if (!promoterId) return fail("promoterId is required", 400);
 
-        const identity = await updateIdentity(promoterId, fields, { uid: decodedToken.uid });
-        return NextResponse.json({ success: true, identity });
+        const identity = await updateIdentity(promoterId, fields, { uid: auth.uid });
+        return ok({ identity });
     } catch (error: any) {
         if (error.message === "BRAND_NAME_TAKEN") {
-            return NextResponse.json({ error: "Brand name is already taken" }, { status: 409 });
+            return fail("Brand name is already taken", 409);
         }
         console.error("[POST /api/promoter/settings/identity]", error);
-        return NextResponse.json({ error: "Failed to update identity" }, { status: 500 });
+        return fail("Failed to update identity");
     }
-}
+});

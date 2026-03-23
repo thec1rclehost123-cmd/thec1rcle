@@ -38,14 +38,13 @@ export default async function financeRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
         const { entityId, type } = request.query as { entityId: string, type: string };
 
-        // RBAC: Ensure user has access to this entity
-        // await fastify.verifyPartnerAccess(request, entityId);
-
         try {
+            await fastify.verifyPartnerAccess(request, entityId);
             const summary = await getFinancialSummary(entityId, type);
             return summary;
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            fastify.log.error(`Finance summary failed for entityId=${entityId}: ${error.message}`);
+            return reply.status(error.message.includes('Forbidden') || error.message.includes('Unauthorized') ? 403 : 500).send({ error: "Failed to load financial summary" });
         }
     });
 
@@ -65,7 +64,8 @@ export default async function financeRoutes(fastify: FastifyInstance) {
             });
             return history;
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            fastify.log.error(`Finance history failed for entityId=${entityId}: ${error.message}`);
+            reply.status(500).send({ error: "Failed to load transaction history" });
         }
     });
 
@@ -81,7 +81,8 @@ export default async function financeRoutes(fastify: FastifyInstance) {
             const result = await processRefund(orderId, amount, reason, (request as any).user?.uid);
             return result;
         } catch (error: any) {
-            reply.status(400).send({ error: error.message });
+            fastify.log.error(`Refund failed for orderId=${orderId}: ${error.message}`);
+            reply.status(400).send({ error: "Failed to process refund" });
         }
     });
 
@@ -96,7 +97,8 @@ export default async function financeRoutes(fastify: FastifyInstance) {
             const { getPromoterPayoutBalance } = await import('@c1rcle/core/payout-engine');
             return await getPromoterPayoutBalance(promoterId);
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            fastify.log.error(`Payout balance failed for promoterId=${promoterId}: ${error.message}`);
+            reply.status(500).send({ error: "Failed to load payout balance" });
         }
     });
 
@@ -111,7 +113,8 @@ export default async function financeRoutes(fastify: FastifyInstance) {
             const { requestPromoterPayout } = await import('@c1rcle/core/payout-engine');
             return await requestPromoterPayout(data);
         } catch (error: any) {
-            reply.status(400).send({ error: error.message });
+            fastify.log.error(`Payout request failed: ${error.message}`);
+            reply.status(400).send({ error: "Failed to request payout" });
         }
     });
 
@@ -126,7 +129,8 @@ export default async function financeRoutes(fastify: FastifyInstance) {
             const { listPromoterPayouts } = await import('@c1rcle/core/payout-engine');
             return await listPromoterPayouts(promoterId);
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            fastify.log.error(`Payout list failed for promoterId=${promoterId}: ${error.message}`);
+            reply.status(500).send({ error: "Failed to load payouts" });
         }
     });
 }

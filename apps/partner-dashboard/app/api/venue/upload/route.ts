@@ -1,57 +1,43 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth, verifyPartnerAccess } from "@/lib/server/auth";
+import { NextRequest } from "next/server";
+import { verifyPartnerAccess } from "@/lib/server/auth";
 import { getAdminStorage } from "@/lib/firebase/admin";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
+import { ALLOWED_IMAGE_MIME_TYPES, MAX_UPLOAD_SIZE_BYTES } from "@/lib/constants";
+import { logger } from "@/lib/server/logger";
 
 /**
  * POST /api/venue/upload
  * Handles server-side image uploads to bypass Firebase Storage client-side rules
  */
-export async function POST(req: NextRequest) {
-    console.log("[API /venue/upload] POST request received");
-
+export const POST = withAuth(async (req: NextRequest) => {
     try {
-        // 1. Authenticate user
-        console.log("[API /venue/upload] Starting authentication...");
-        const decodedToken = await verifyAuth(req);
-
-        if (!decodedToken) {
-            console.error("[API /venue/upload] Authentication failed - no decoded token");
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
-        console.log("[API /venue/upload] Authentication successful for uid:", decodedToken.uid);
-
         const formData = await req.formData();
         const file = formData.get("file") as File;
         const venueId = formData.get("venueId") as string;
-        const type = formData.get("type") as string; // 'cover' or 'logo'
+        const type = formData.get("type") as string;
 
-        if (!file || !venueId || !type) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-        }
+        if (!file || !venueId || !type) return fail("Missing required fields", 400);
+        if (!(ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(file.type)) return fail("Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.", 400);
+        if (file.size > MAX_UPLOAD_SIZE_BYTES) return fail("File too large. Maximum size is 10 MB.", 400);
 
-        // 2. Verify user has access to this venue
         const hasAccess = await verifyPartnerAccess(req, venueId);
-        if (!hasAccess) {
-            return NextResponse.json({ error: "Forbidden: No access to this venue" }, { status: 403 });
+        if (!hasAccess) return fail("Forbidden: No access to this venue", 403);
+
+        const bucketName = process.env.FIREBASE_STORAGE_BUCKET ||
+            process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+
+        if (!bucketName) {
+            logger.error("venue/upload", "Storage bucket not configured");
+            return fail("Storage not configured", 503);
         }
 
-        // 3. Upload to Firebase Storage using Admin SDK
         const storage = getAdminStorage();
-        // Explicitly get the bucket name from env as a fallback
-        const bucketName = process.env.FIREBASE_STORAGE_BUCKET ||
-            process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
-            "c1rcle-staging.firebasestorage.app";
-
-        console.log(`[API /venue/upload] Using bucket: ${bucketName}`);
-
         const bucket = storage.bucket(bucketName);
         const buffer = Buffer.from(await file.arrayBuffer());
 
         const fileName = `${type}_${Date.now()}.${file.name.split('.').pop()}`;
         const destination = `venues/${venueId}/${type}/${fileName}`;
-
-        console.log(`[API /venue/upload] Destination path: ${destination}`);
 
         const storageFile = bucket.file(destination);
 
@@ -62,32 +48,20 @@ export async function POST(req: NextRequest) {
             },
         });
 
-        // 5. Make file public so it can be viewed on the web
         try {
             await storageFile.makePublic();
-            console.log(`[API /venue/upload] File made public successfully`);
         } catch (err: any) {
-            console.warn("[API /venue/upload] Could not make file public:", err.message);
-            // If makePublic fails, we might need to use a signed URL or check bucket permissions
+            logger.warn("venue/upload", "Could not make file public", { error: err.message });
         }
 
-        // 4. Generate a long-lived Signed URL (valid for ~50 years)
-        // This is the most reliable way to get a URL that works across all environments
-        // without worrying about bucket-level public access rules.
         const [publicURL] = await storageFile.getSignedUrl({
             action: 'read',
-            expires: '01-01-2070', // Long-term expiration
+            expires: '01-01-2070',
         });
 
-        console.log(`[API /venue/upload] Generated Signed URL: ${publicURL}`);
-
-        return NextResponse.json({
-            success: true,
-            url: publicURL
-        });
-
+        return ok({ url: publicURL });
     } catch (error: any) {
-        console.error("[API /venue/upload POST] CRITICAL ERROR:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        logger.error("venue/upload", "Failed to upload file", { error: error.message });
+        return fail("Failed to upload file");
     }
-}
+});

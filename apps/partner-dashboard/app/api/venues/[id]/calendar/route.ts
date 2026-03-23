@@ -1,27 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getVenueCalendar, getDateAvailability, blockDate, unblockDate } from "@/lib/server/calendarStore";
 import { checkPartnership } from "@/lib/server/partnershipStore";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * GET /api/venues/[id]/calendar
  * Get venue availability calendar
  */
-export async function GET(
-    req: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
     try {
         const { searchParams } = new URL(req.url);
-        const venueId = params.id;
+        const venueId = ctx?.params?.id as string;
         const startDate = searchParams.get("startDate");
         const endDate = searchParams.get("endDate");
         const hostId = searchParams.get("hostId");
-
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
 
         if (!startDate || !endDate) {
             // Default to next 30 days
@@ -31,79 +24,54 @@ export async function GET(
                 .toISOString().split("T")[0];
 
             const calendar = await getVenueCalendar(venueId, defaultStart, defaultEnd, hostId || undefined);
-            return NextResponse.json({ calendar });
+            return ok({ calendar });
         }
 
         // Security: If not admin/venue staff, must be a host with an active partnership
-        const token = decodedToken as any;
-        if (token.role !== 'admin' && token.role !== 'venue' && token.role !== 'venue') {
+        const token = auth as any;
+        if (token.role !== 'admin' && token.role !== 'venue') {
             const effectiveHostId = hostId || token.partnerId || token.uid;
             const hasPartnership = await checkPartnership(effectiveHostId, venueId);
 
             if (!hasPartnership) {
-                return NextResponse.json(
-                    { error: "No active partnership with this venue. Access denied." },
-                    { status: 403 }
-                );
+                return fail("No active partnership with this venue. Access denied.", 403);
             }
         }
 
         const calendar = await getVenueCalendar(venueId, startDate, endDate, hostId || undefined);
 
-        return NextResponse.json({ calendar });
+        return ok({ calendar });
     } catch (error: any) {
         console.error("[Calendar API] GET Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to fetch calendar" },
-            { status: 500 }
-        );
+        return fail("Failed to fetch calendar");
     }
-}
+});
 
 /**
  * POST /api/venues/[id]/calendar
  * Block or unblock a date (venue action only)
  */
-export async function POST(
-    req: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export const POST = withAuth(async (req: NextRequest, auth, ctx) => {
     try {
-        const venueId = params.id;
+        const venueId = ctx?.params?.id as string;
         const body = await req.json();
         const { action, date, reason, actor } = body;
 
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         if (!actor || !actor.uid || !actor.role) {
-            return NextResponse.json(
-                { error: "Actor information required" },
-                { status: 400 }
-            );
+            return fail("Actor information required", 400);
         }
 
         // Security: Ensure actor UID matches authenticated user
-        if (actor.uid !== decodedToken.uid) {
-            return NextResponse.json({ error: "Actor UID mismatch" }, { status: 403 });
+        if (actor.uid !== auth.uid) {
+            return fail("Actor UID mismatch", 403);
         }
 
         // Verify actor is from this venue
-        if (actor.role !== "venue" && actor.role !== "venue" && actor.role !== "admin") {
-            return NextResponse.json(
-                { error: "Only venue managers can modify the calendar" },
-                { status: 403 }
-            );
+        if (actor.role !== "venue" && actor.role !== "admin") {
+            return fail("Only venue managers can modify the calendar", 403);
         }
 
-        if (!date) {
-            return NextResponse.json(
-                { error: "Date is required" },
-                { status: 400 }
-            );
-        }
+        if (!date) return fail("Date is required", 400);
 
         let result;
 
@@ -121,18 +89,12 @@ export async function POST(
                 break;
 
             default:
-                return NextResponse.json(
-                    { error: "Invalid action. Use: block, unblock, or availability" },
-                    { status: 400 }
-                );
+                return fail("Invalid action. Use: block, unblock, or availability", 400);
         }
 
-        return NextResponse.json({ result });
+        return ok({ result });
     } catch (error: any) {
         console.error("[Calendar API] POST Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to update calendar" },
-            { status: 500 }
-        );
+        return fail("Failed to update calendar");
     }
-}
+});

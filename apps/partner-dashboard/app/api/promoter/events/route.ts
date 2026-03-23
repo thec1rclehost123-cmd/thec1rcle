@@ -1,24 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { listEventsForPromoter } from "@/lib/server/eventStore";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
+import { logger } from "@/lib/server/logger";
 
 /**
  * GET /api/promoter/events
  * List events available for promoters to sell.
  * Scoped to events from active partnerships only.
  */
-export async function GET(req: NextRequest) {
+export const GET = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
         const { searchParams } = new URL(req.url);
         const city = searchParams.get("city") || undefined;
-        const limit = parseInt(searchParams.get("limit") || "20");
+        const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 100);
         const promoterId = searchParams.get("promoterId");
 
         if (!promoterId) {
-            return NextResponse.json({ error: "promoterId is required" }, { status: 400 });
+            return fail("promoterId is required", 400);
         }
 
         const events = await listEventsForPromoter({
@@ -64,17 +63,14 @@ export async function GET(req: NextRequest) {
             }
         }));
 
-        return NextResponse.json({
+        return ok({
             events: promoterEvents,
             meta: {
                 total: promoterEvents.length
             }
         });
     } catch (error: any) {
-        console.error("[Promoter Events API] GET Error:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to fetch events" },
-            { status: 500 }
-        );
+        logger.error("promoter/events", "Failed to fetch events", { error: error.message });
+        return fail("Failed to fetch events", 500);
     }
-}
+});

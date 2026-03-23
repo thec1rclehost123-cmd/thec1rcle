@@ -5,14 +5,15 @@
  * State machine: draft → submitted
  * Enforced server-side — client cannot skip validation.
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireHostAccess, writeAuditLog } from "@/lib/server/hostAuthMiddleware";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { FieldValue } from "firebase-admin/firestore";
+import { ok, fail } from "@/lib/server/apiResponse";
+import { logger } from "@/lib/server/logger";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
     const ctx = await requireHostAccess(req, "MANAGE_EVENTS");
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return fail(ctx.error, ctx.status);
 
     const { hostId, uid } = ctx;
     const eventId = params.id;
@@ -20,16 +21,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     try {
         const eventDoc = await db.collection("events").doc(eventId).get();
-        if (!eventDoc.exists) return NextResponse.json({ error: "Event not found" }, { status: 404 });
+        if (!eventDoc.exists) return fail("Event not found", 404);
 
         const ev = eventDoc.data()!;
         if (ev.hostId !== hostId && ev.creatorId !== hostId) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+            return fail("Forbidden", 403);
         }
 
         const currentLc = (ev.lifecycle || ev.status || "").toLowerCase();
         if (currentLc !== "draft") {
-            return NextResponse.json({ error: `Cannot submit from state: ${currentLc}` }, { status: 409 });
+            return fail(`Cannot submit from state: ${currentLc}`, 409);
         }
 
         // Validate required fields
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         if (!tiers.length) errors.push("At least one ticket tier is required");
 
         if (errors.length > 0) {
-            return NextResponse.json({ error: "Validation failed", validationErrors: errors }, { status: 422 });
+            return fail(errors.join("; "), 422);
         }
 
         const body = await req.json().catch(() => ({}));
@@ -88,9 +89,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
         await writeAuditLog(hostId, uid, "event.submit", { eventId, eventName: ev.title || ev.name, venueId: ev.venueId });
 
-        return NextResponse.json({ success: true, lifecycle: "submitted" });
+        return ok({ lifecycle: "submitted" });
     } catch (err: any) {
-        console.error("[events/[id]/submit]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        logger.error("host/events/submit", "Failed to submit event", { error: err.message });
+        return fail("Failed to submit event");
     }
 }

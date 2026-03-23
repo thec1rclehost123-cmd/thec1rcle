@@ -22,6 +22,7 @@ import {
     Bell,
     Plus,
     BarChart3,
+    AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
@@ -88,13 +89,25 @@ export default function HostOverviewPage() {
     const displayName = profile?.displayName || "Host";
     const shouldReduceMotion = useReducedMotion();
 
-    const { data: rawData, isLoading: loading } = useHostOverviewSummary(hostId);
+    const { data: rawData, isLoading: loading, isError } = useHostOverviewSummary(hostId);
     const summary: OverviewSummary | null = rawData ? (rawData.summary || rawData) : null;
 
     const mp = (delay: number) =>
         shouldReduceMotion
             ? {}
             : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1], delay } };
+
+    if (isError) {
+        return (
+            <VenuePageShell title="Overview">
+                <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+                    <AlertTriangle className="w-10 h-10 text-red-400" />
+                    <p className="text-[16px] font-semibold" style={{ color: "var(--v-text-primary)" }}>Failed to load host overview</p>
+                    <p className="text-[13px]" style={{ color: "var(--v-text-tertiary)" }}>Please refresh the page to try again.</p>
+                </div>
+            </VenuePageShell>
+        );
+    }
 
     return (
         <VenuePageShell
@@ -130,7 +143,7 @@ export default function HostOverviewPage() {
                                     {profile?.photoURL ? (
                                         <img src={profile.photoURL} alt="" className="w-full h-full rounded-[20px] object-cover" />
                                     ) : (
-                                        displayName[0]
+                                        displayName[0] ?? "H"
                                     )}
                                 </div>
                                 <div className="min-w-0">

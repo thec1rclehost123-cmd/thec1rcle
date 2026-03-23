@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/server/withAuth";
+import { fail } from "@/lib/server/apiResponse";
 import { getApiClient } from "@/lib/server/apiClient";
 import type { LedgerTransaction, TransactionCategory, SettlementStatus } from "@/lib/finance/definitions";
 
@@ -22,13 +23,11 @@ import type { LedgerTransaction, TransactionCategory, SettlementStatus } from "@
  *
  * RBAC: VIEW_FINANCIALS — OWNER or MANAGER only
  */
-export async function GET(request: Request) {
-    try {
-        const user = await verifyAuth(request);
-        if (!user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+export async function GET(request: NextRequest) {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
 
+    try {
         const { searchParams } = new URL(request.url);
         const venueId  = searchParams.get("venueId");
         const page     = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
@@ -40,9 +39,7 @@ export async function GET(request: Request) {
         const to       = searchParams.get("to") || "";
         const eventId  = searchParams.get("eventId") || "";
 
-        if (!venueId) {
-            return NextResponse.json({ error: "Missing venueId" }, { status: 400 });
-        }
+        if (!venueId) return fail("Missing venueId", 400);
 
         const authHeader = request.headers.get("Authorization") || "";
         const token = authHeader.replace("Bearer ", "").trim();
@@ -93,7 +90,7 @@ export async function GET(request: Request) {
         );
     } catch (err: any) {
         console.error("[VenueFinanceLedger] Error:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return fail("Failed to fetch ledger");
     }
 }
 

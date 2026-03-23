@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getEventGuestlist, getEventSalesStats } from "@/lib/server/orderStore";
 import { getEventPromoterSummary } from "@/lib/server/promoterLinkStore";
 import { getEvent } from "@/lib/server/eventStore";
+import { requireAuth } from "@/lib/server/withAuth";
+import { fail } from "@/lib/server/apiResponse";
 
 /**
  * GET /api/venue/overview/tonight
@@ -9,23 +11,20 @@ import { getEvent } from "@/lib/server/eventStore";
  */
 export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
+    const auth = await requireAuth(req);
+    if (auth instanceof NextResponse) return auth;
+
     try {
         const { searchParams } = new URL(req.url);
         const eventId = searchParams.get("eventId");
 
-        if (!eventId) {
-            return NextResponse.json({ error: "eventId is required" }, { status: 400 });
-        }
+        if (!eventId) return fail("eventId is required", 400);
 
-        const authHeader = req.headers.get("authorization");
-        const token = authHeader?.split("Bearer ")[1] || "";
+        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
 
         const event = await getEvent(eventId, token);
-        if (!event) {
-            return NextResponse.json({ error: "Event not found" }, { status: 404 });
-        }
+        if (!event) return fail("Event not found", 404);
 
-        // Fetch parallel stats
         const [guestlist, promoterSummary, salesStats] = await Promise.all([
             getEventGuestlist(eventId, 50, token),
             getEventPromoterSummary(eventId, token),
@@ -33,17 +32,16 @@ export async function GET(req: NextRequest) {
         ]);
 
         return NextResponse.json({
-            expected: guestlist.length, // All people on guestlist (confirmed + pending + claimed)
-            confirmed: guestlist.filter(g => g.status === 'confirmed' || g.status === 'checked_in').length,
-            guestlistCount: guestlist.filter(g => g.type === 'guestlist' || g.type === 'rsvp').length,
+            expected: guestlist.length,
+            confirmed: guestlist.filter((g: any) => g.status === 'confirmed' || g.status === 'checked_in').length,
+            guestlistCount: guestlist.filter((g: any) => g.type === 'guestlist' || g.type === 'rsvp').length,
             promotersCount: promoterSummary.totalPromoters,
             revenue: salesStats.revenue,
             ticketsSold: salesStats.ticketsSold,
-            checkedIn: guestlist.filter(g => g.status === 'checked_in').length
+            checkedIn: guestlist.filter((g: any) => g.status === 'checked_in').length
         });
-
     } catch (error: any) {
         console.error("[Overview API] Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to fetch tonight's overview");
     }
 }

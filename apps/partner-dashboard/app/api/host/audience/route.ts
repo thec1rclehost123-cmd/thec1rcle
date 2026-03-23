@@ -171,7 +171,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ guests: result, hasMore, nextCursor, total });
     } catch (err: any) {
         console.error("[host/audience] GET:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to fetch audience" }, { status: 500 });
     }
 }
 
@@ -205,6 +205,6 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ success: true });
     } catch (err: any) {
         console.error("[host/audience] PATCH:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to update guest VIP status" }, { status: 500 });
     }
 }

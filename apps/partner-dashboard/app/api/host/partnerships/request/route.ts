@@ -1,25 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requestPartnership } from "@/lib/server/partnershipStore";
-import { verifyAuth, verifyPartnerAccess } from "@/lib/server/auth";
+import { verifyPartnerAccess } from "@/lib/server/auth";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req: NextRequest) => {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
         const { hostId, venueId, hostName, venueName } = await req.json();
 
-        if (!hostId || !venueId) {
-            return NextResponse.json({ error: "hostId and venueId are required" }, { status: 400 });
-        }
+        if (!hostId || !venueId) return fail("hostId and venueId are required", 400);
 
-        // Verify the caller has access to the hostId they're requesting on behalf of
         const hasAccess = await verifyPartnerAccess(req, hostId);
-        if (!hasAccess) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        if (!hasAccess) return fail("Forbidden", 403);
 
         const result = await requestPartnership(hostId, venueId, hostName, venueName);
-        return NextResponse.json(result);
+        return ok({ result });
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to request partnership");
     }
-}
+});

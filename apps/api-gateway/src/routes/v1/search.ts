@@ -27,7 +27,7 @@ export default async function searchRoutes(fastify: FastifyInstance) {
             await fastify.cache.set('search:public', cacheKey, results, 60); // 60s TTL
             return results;
         } catch (error: any) {
-            reply.status(500).send({ error: error.message });
+            reply.status(500).send({ error: "Internal server error" });
         }
     });
 }

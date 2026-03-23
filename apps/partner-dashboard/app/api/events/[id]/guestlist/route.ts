@@ -1,25 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@c1rcle/core/admin";
 import { getEvent } from "@/lib/server/eventStore";
+import { withAuth } from "@/lib/server/withAuth";
+import { fail } from "@/lib/server/apiResponse";
 
 /**
  * GET /api/events/[id]/guestlist
  * Returns the paginated guestlist for an event
  */
-export async function GET(
-    req: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
     try {
-        const eventId = params.id;
+        const eventId = ctx?.params?.id as string;
         const limitStr = req.nextUrl.searchParams.get('limit');
         const cursor = req.nextUrl.searchParams.get('cursor');
         const limit = limitStr ? parseInt(limitStr, 10) : 50;
 
         const event = await getEvent(eventId);
-        if (!event) {
-            return NextResponse.json({ error: "Event not found" }, { status: 404 });
-        }
+        if (!event) return fail("Event not found", 404);
 
         const db = getAdminDb();
 
@@ -72,6 +69,6 @@ export async function GET(
         });
     } catch (error: any) {
         console.error("[GuestlistAPI] Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to load guest list");
     }
-}
+});

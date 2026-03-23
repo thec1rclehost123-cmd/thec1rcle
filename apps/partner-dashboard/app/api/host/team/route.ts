@@ -6,16 +6,18 @@
  *
  * All team mutations require MANAGE_STAFF permission (OWNER only).
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireHostAccess, writeAuditLog } from "@/lib/server/hostAuthMiddleware";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { ok, fail } from "@/lib/server/apiResponse";
+import { logger } from "@/lib/server/logger";
 import type { HostRole } from "@/lib/rbac/types";
 
 const VALID_HOST_ROLES: HostRole[] = ["OWNER", "COHOST", "STAFF"];
 
 export async function GET(req: NextRequest) {
     const ctx = await requireHostAccess(req);
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return fail(ctx.error, ctx.status);
 
     const { hostId } = ctx;
     const db = getAdminDb();
@@ -40,16 +42,16 @@ export async function GET(req: NextRequest) {
             };
         });
 
-        return NextResponse.json({ members });
+        return ok({ members });
     } catch (err: any) {
-        console.error("[host/team] GET:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        logger.error("host/team", "GET failed", { error: err.message });
+        return fail("Failed to process team request");
     }
 }
 
 export async function POST(req: NextRequest) {
     const ctx = await requireHostAccess(req, "MANAGE_STAFF");
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return fail(ctx.error, ctx.status);
 
     const { hostId, uid } = ctx;
     const db = getAdminDb();
@@ -57,14 +59,14 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const { email, role } = body;
-        if (!email) return NextResponse.json({ error: "email required" }, { status: 422 });
+        if (!email) return fail("email required", 422);
         const targetRole = (role as HostRole) || "STAFF";
         if (!VALID_HOST_ROLES.includes(targetRole)) {
-            return NextResponse.json({ error: "Invalid role" }, { status: 422 });
+            return fail("Invalid role", 422);
         }
         // Prevent assigning OWNER through this endpoint (must be done manually)
         if (targetRole === "OWNER") {
-            return NextResponse.json({ error: "Cannot assign OWNER role through invite" }, { status: 403 });
+            return fail("Cannot assign OWNER role through invite", 403);
         }
 
         // Look up user by email
@@ -85,7 +87,7 @@ export async function POST(req: NextRequest) {
                 .get();
 
             if (!existingSnap.empty && existingSnap.docs[0].data().isActive) {
-                return NextResponse.json({ error: "User already has an active membership" }, { status: 409 });
+                return fail("User already has an active membership", 409);
             }
 
             // Create or update membership
@@ -125,25 +127,21 @@ export async function POST(req: NextRequest) {
 
         await writeAuditLog(hostId, uid, "team.invite", { email, role: targetRole, inviteId: inviteRef.id });
 
-        return NextResponse.json({
-            success: true,
-            inviteId: inviteRef.id,
-            status: targetUid ? "activated" : "pending_signup",
-        });
+        return ok({ inviteId: inviteRef.id, status: targetUid ? "activated" : "pending_signup" });
     } catch (err: any) {
-        console.error("[host/team] POST:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        logger.error("host/team", "POST failed", { error: err.message });
+        return fail("Failed to process team request");
     }
 }
 
 export async function PATCH(req: NextRequest) {
     const ctx = await requireHostAccess(req, "MANAGE_STAFF");
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return fail(ctx.error, ctx.status);
 
     const { hostId, uid } = ctx;
     const { searchParams } = new URL(req.url);
     const membershipId = searchParams.get("membershipId");
-    if (!membershipId) return NextResponse.json({ error: "membershipId required" }, { status: 400 });
+    if (!membershipId) return fail("membershipId required", 400);
 
     const db = getAdminDb();
 
@@ -151,15 +149,15 @@ export async function PATCH(req: NextRequest) {
         const body = await req.json();
         const { role } = body;
         if (!role || !VALID_HOST_ROLES.includes(role)) {
-            return NextResponse.json({ error: "Valid role required" }, { status: 422 });
+            return fail("Valid role required", 422);
         }
         if (role === "OWNER") {
-            return NextResponse.json({ error: "Cannot assign OWNER role" }, { status: 403 });
+            return fail("Cannot assign OWNER role", 403);
         }
 
         const memberDoc = await db.collection("partner_memberships").doc(membershipId).get();
         if (!memberDoc.exists || memberDoc.data()?.partnerId !== hostId) {
-            return NextResponse.json({ error: "Membership not found" }, { status: 404 });
+            return fail("Membership not found", 404);
         }
 
         await memberDoc.ref.update({ role, updatedAt: Date.now(), updatedBy: uid });
@@ -171,33 +169,33 @@ export async function PATCH(req: NextRequest) {
             targetUid: memberDoc.data()?.uid,
         });
 
-        return NextResponse.json({ success: true });
+        return ok(null);
     } catch (err: any) {
-        console.error("[host/team] PATCH:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        logger.error("host/team", "PATCH failed", { error: err.message });
+        return fail("Failed to process team request");
     }
 }
 
 export async function DELETE(req: NextRequest) {
     const ctx = await requireHostAccess(req, "MANAGE_STAFF");
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return fail(ctx.error, ctx.status);
 
     const { hostId, uid } = ctx;
     const { searchParams } = new URL(req.url);
     const membershipId = searchParams.get("membershipId");
-    if (!membershipId) return NextResponse.json({ error: "membershipId required" }, { status: 400 });
+    if (!membershipId) return fail("membershipId required", 400);
 
     const db = getAdminDb();
 
     try {
         const memberDoc = await db.collection("partner_memberships").doc(membershipId).get();
         if (!memberDoc.exists || memberDoc.data()?.partnerId !== hostId) {
-            return NextResponse.json({ error: "Membership not found" }, { status: 404 });
+            return fail("Membership not found", 404);
         }
 
         // Prevent revoking own access
         if (memberDoc.data()?.uid === uid) {
-            return NextResponse.json({ error: "Cannot revoke your own access" }, { status: 409 });
+            return fail("Cannot revoke your own access", 409);
         }
 
         // Deactivate (soft delete — audit trail)
@@ -213,9 +211,9 @@ export async function DELETE(req: NextRequest) {
             targetUid: memberDoc.data()?.uid,
         });
 
-        return NextResponse.json({ success: true });
+        return ok(null);
     } catch (err: any) {
-        console.error("[host/team] DELETE:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        logger.error("host/team", "DELETE failed", { error: err.message });
+        return fail("Failed to process team request");
     }
 }

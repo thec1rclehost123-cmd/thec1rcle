@@ -1,18 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getEvent, updateEvent } from "@/lib/server/eventStore";
 import { listIncomingRequests } from "@/lib/server/promoterConnectionStore";
+import { withAuth } from "@/lib/server/withAuth";
+import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * GET /api/events/[id]/promoters
  * List eligible and currently selected promoters for an event
  */
-export async function GET(
-    req: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
     try {
-        const event = await getEvent(params.id);
-        if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
+        const event = await getEvent(ctx?.params?.id as string);
+        if (!event) return fail("Event not found", 404);
 
         // Get approved promoters for this club/host
         const targetId = event.venueId || event.hostId;
@@ -20,37 +19,34 @@ export async function GET(
 
         const connections = await listIncomingRequests(targetId, targetType, "approved");
 
-        const promoters = connections.map(conn => ({
+        const promoters = connections.map((conn: any) => ({
             id: conn.promoterId,
             name: conn.promoterName,
             avatar: conn.avatar || null,
             isSelected: event.promoterSettings?.allowedPromoterIds?.includes(conn.promoterId) || false
         }));
 
-        return NextResponse.json({ promoters });
+        return ok({ promoters });
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to fetch promoters");
     }
-}
+});
 
 /**
  * PATCH /api/events/[id]/promoters
  * Update selected promoters and global promoter toggle
  */
-export async function PATCH(
-    req: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export const PATCH = withAuth(async (req: NextRequest, auth, ctx) => {
     try {
         const body = await req.json();
         const { allowedPromoterIds, enabled, actor } = body;
 
-        const event = await getEvent(params.id);
-        if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
+        const event = await getEvent(ctx?.params?.id as string);
+        if (!event) return fail("Event not found", 404);
 
         // Authorization check
         if (actor.uid !== event.creatorId && actor.role !== 'admin') {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+            return fail("Unauthorized", 403);
         }
 
         const updatedSettings = {
@@ -59,14 +55,14 @@ export async function PATCH(
             allowedPromoterIds: allowedPromoterIds ?? event.promoterSettings?.allowedPromoterIds ?? []
         };
 
-        const updatedEvent = await updateEvent(params.id, {
+        const updatedEvent = await updateEvent(ctx?.params?.id as string, {
             promoterSettings: updatedSettings,
             creatorId: actor.uid,
             creatorRole: actor.role
         });
 
-        return NextResponse.json({ success: true, event: updatedEvent });
+        return ok({ event: updatedEvent });
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return fail("Failed to update promoters");
     }
-}
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useDashboardAuth } from "../../components/providers/DashboardAuthProvider";
 import {
     Wallet,
@@ -15,6 +15,7 @@ import {
     Zap,
     ArrowRight,
     Star,
+    AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -50,6 +51,7 @@ export default function PromoterDashboardHome() {
     const [recentCommissions, setRecentCommissions] = useState<any[]>([]);
     const [activeEvents, setActiveEvents] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!profile?.activeMembership?.partnerId) return;
@@ -102,7 +104,7 @@ export default function PromoterDashboardHome() {
             setLoading(false);
         };
 
-        fetchAll().catch(() => setLoading(false));
+        fetchAll().catch(() => { setError("Failed to load promoter data"); setLoading(false); });
     }, [profile]);
 
     const copyLink = (eventId: string, slug?: string) => {
@@ -114,14 +116,30 @@ export default function PromoterDashboardHome() {
     };
 
     const firstName = profile?.displayName?.split(" ")[0] || "there";
-    const tierLabel =
-        stats.totalConversions >= 200
-            ? "Gold"
-            : stats.totalConversions >= 100
-            ? "Silver"
-            : stats.totalConversions >= 30
-            ? "Bronze"
-            : "Starter";
+    const tierLabel = useMemo(() => {
+        if (stats.totalConversions >= 200) return "Gold";
+        if (stats.totalConversions >= 100) return "Silver";
+        if (stats.totalConversions >= 30) return "Bronze";
+        return "Starter";
+    }, [stats.totalConversions]);
+
+    if (error) {
+        return (
+            <VenuePageShell title="Overview" subtitle="Your performance at a glance">
+                <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+                    <AlertTriangle className="w-10 h-10 text-red-400" />
+                    <p className="text-[16px] font-semibold" style={{ color: "var(--v-text-primary)" }}>Failed to load promoter data</p>
+                    <button
+                        onClick={() => { setError(null); setLoading(true); }}
+                        className="px-4 py-2 rounded-xl text-[13px] font-medium"
+                        style={{ background: "var(--v-elevated)", color: "var(--v-text-primary)" }}
+                    >
+                        Retry
+                    </button>
+                </div>
+            </VenuePageShell>
+        );
+    }
 
     return (
         <VenuePageShell

@@ -53,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         return NextResponse.json({ promoters });
     } catch (err: any) {
         console.error("[events/[id]/promoters] GET:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process promoter request" }, { status: 500 });
     }
 }
 
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         });
     } catch (err: any) {
         console.error("[events/[id]/promoters] POST:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process promoter request" }, { status: 500 });
     }
 }
 
@@ -180,6 +180,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         return NextResponse.json({ success: true });
     } catch (err: any) {
         console.error("[events/[id]/promoters] DELETE:", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process promoter request" }, { status: 500 });
     }
 }

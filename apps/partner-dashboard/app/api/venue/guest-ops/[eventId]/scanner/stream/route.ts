@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireGuestOpsAccess } from "@/lib/server/guestOpsMiddleware";
 import { getScanStream } from "@/lib/server/scanLogStore";
+import { PAGE_SIZE_MAX_GUESTS } from "@/lib/constants";
 
 export async function GET(req: NextRequest, { params }: { params: { eventId: string } }) {
     try {
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest, { params }: { params: { eventId: str
         const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["VIEW_REAL_TIME_SCANS", "VIEW_GUESTLIST"]);
         if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-        const limit = Number(searchParams.get("limit") ?? 100);
+        const limit = Math.min(Number(searchParams.get("limit") ?? 100), PAGE_SIZE_MAX_GUESTS);
         const scans = await getScanStream(eventId, limit);
         return NextResponse.json({ scans });
     } catch (err: any) {

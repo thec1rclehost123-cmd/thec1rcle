@@ -22,7 +22,7 @@ export async function GET(request: Request) {
         );
     } catch (err: any) {
         console.error("[staff-profiles GET]", err.message);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to process staff profile request" }, { status: 500 });
     }
 }
 
