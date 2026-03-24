@@ -34,7 +34,8 @@ export async function validateBody(request, schema) {
         return { data: schema.parse(body), error: null };
     } catch (error) {
         if (error instanceof z.ZodError) {
-            return { data: null, error: error.errors[0].message };
+            const firstIssue = error.issues?.[0] || error.errors?.[0];
+            return { data: null, error: firstIssue?.message || "Invalid request body" };
         }
         return { data: null, error: "Invalid request body" };
     }

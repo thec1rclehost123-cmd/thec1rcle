@@ -9,7 +9,9 @@
   ],
   "scripts": {
     "build": "node ../../node_modules/typescript/bin/tsc",
-    "dev": "node ../../node_modules/typescript/bin/tsc --watch"
+    "dev": "node ../../node_modules/typescript/bin/tsc --watch",
+    "lint": "node ../../node_modules/typescript/bin/tsc --noEmit",
+    "type-check": "node ../../node_modules/typescript/bin/tsc --noEmit"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

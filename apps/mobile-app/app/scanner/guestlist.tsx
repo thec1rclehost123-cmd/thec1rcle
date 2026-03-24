@@ -1,24 +1,26 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
     View,
     Text,
     TextInput,
-    FlatList,
     Pressable,
     RefreshControl,
     StyleSheet,
+    Alert,
 } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { useScannerStore } from "@/store/scannerStore";
-import { fetchGuestList } from "@/lib/scanner";
+import { fetchGuestList, manualCheckIn } from "@/lib/scanner";
 import { Guest } from "@/lib/scanner/types";
 import { colors } from "@/lib/design/theme";
 
 type FilterType = "all" | "entered" | "not_entered" | "door";
 
 export default function GuestListScreen() {
-    const { eventData } = useScannerStore();
+    const { eventData, sessionToken } = useScannerStore();
     const [guests, setGuests] = useState<Guest[]>([]);
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState<FilterType>("all");
@@ -32,44 +34,74 @@ export default function GuestListScreen() {
 
     const loadGuests = useCallback(async () => {
         try {
-            const data = await fetchGuestList(eventData?.event.id || "", eventData?.code || "");
+            const data = await fetchGuestList(
+                eventData?.event.id || "",
+                eventData?.code || "",
+                sessionToken || eventData?.sessionToken,
+            );
             setGuests(data);
-        } catch (e) {
-            console.error("Failed to load guests:", e);
-        }
+        } catch {}
         setLoading(false);
-    }, [eventData]);
+    }, [eventData, sessionToken]);
 
-    const onRefresh = async () => {
+    const onRefresh = useCallback(async () => {
         setRefreshing(true);
         await loadGuests();
         setRefreshing(false);
-    };
+    }, [loadGuests]);
 
-    const filteredGuests = guests.filter((g) => {
+    // M9: useMemo — filter only recomputes when deps change
+    const filteredGuests = useMemo(() => guests.filter((g) => {
         if (search && !g.name.toLowerCase().includes(search.toLowerCase())) return false;
         if (filter === "entered") return g.status === "entered";
         if (filter === "not_entered") return g.status === "not_entered";
         if (filter === "door") return g.source === "door";
         return true;
-    });
+    }), [guests, search, filter]);
 
-    const counts = {
+    const counts = useMemo(() => ({
         all: guests.length,
         entered: guests.filter((g) => g.status === "entered").length,
         not_entered: guests.filter((g) => g.status === "not_entered").length,
         door: guests.filter((g) => g.source === "door").length,
-    };
+    }), [guests]);
 
-    const filters: { key: FilterType; label: string }[] = [
-        { key: "all", label: "All" },
-        { key: "entered", label: "Entered" },
-        { key: "not_entered", label: "Pending" },
-        { key: "door", label: "Door" },
-    ];
+    // Manual check-in on long-press
+    const handleLongPress = useCallback(async (guest: Guest) => {
+        if (guest.status === "entered") return;
+        Alert.alert("Check In", `Mark ${guest.name} as checked in?`, [
+            { text: "Cancel", style: "cancel" },
+            {
+                text: "Check In",
+                onPress: async () => {
+                    const result = await manualCheckIn(
+                        guest.id,
+                        eventData?.event.id || "",
+                        eventData?.code || "",
+                        sessionToken || eventData?.sessionToken,
+                    );
+                    if (result.success) {
+                        setGuests((prev) =>
+                            prev.map((g) =>
+                                g.id === guest.id
+                                    ? { ...g, status: "entered" as const, enteredAt: new Date().toISOString() }
+                                    : g
+                            )
+                        );
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    } else {
+                        Alert.alert("Error", result.error || "Check-in failed");
+                    }
+                },
+            },
+        ]);
+    }, [eventData, sessionToken]);
 
-    const renderGuest = ({ item }: { item: Guest }) => (
-        <View style={styles.guestCard}>
+    const renderGuest = useCallback(({ item }: { item: Guest }) => (
+        <Pressable
+            onLongPress={() => handleLongPress(item)}
+            style={styles.guestCard}
+        >
             <View style={[styles.statusIcon, item.status === "entered" ? styles.statusEntered : styles.statusPending]}>
                 <Text style={{ fontSize: 16 }}>{item.status === "entered" ? "✓" : "⏳"}</Text>
             </View>
@@ -93,6 +125,25 @@ export default function GuestListScreen() {
                 <Text style={styles.entryTime}>
                     {new Date(item.enteredAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </Text>
+            )}
+        </Pressable>
+    ), [handleLongPress]);
+
+    const filters: { key: FilterType; label: string }[] = [
+        { key: "all", label: "All" },
+        { key: "entered", label: "Entered" },
+        { key: "not_entered", label: "Pending" },
+        { key: "door", label: "Door" },
+    ];
+
+    const emptyComponent = (
+        <View style={styles.emptyContainer}>
+            <Text style={{ fontSize: 40 }}>👥</Text>
+            <Text style={styles.emptyText}>
+                {loading ? "Loading guests..." : search ? "No guests found" : "No guests yet"}
+            </Text>
+            {!loading && !search && (
+                <Text style={styles.emptyHint}>Long-press a guest to manually check them in</Text>
             )}
         </View>
     );
@@ -147,8 +198,8 @@ export default function GuestListScreen() {
                 </View>
             </View>
 
-            {/* List */}
-            <FlatList
+            {/* M9: FlashList replaces FlatList — O(viewport) vs O(n) layout */}
+            <FlashList
                 data={filteredGuests}
                 renderItem={renderGuest}
                 keyExtractor={(item) => item.id}
@@ -156,14 +207,7 @@ export default function GuestListScreen() {
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.iris} />
                 }
-                ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <Text style={{ fontSize: 40 }}>👥</Text>
-                        <Text style={styles.emptyText}>
-                            {loading ? "Loading guests..." : search ? "No guests found" : "No guests yet"}
-                        </Text>
-                    </View>
-                }
+                ListEmptyComponent={emptyComponent}
             />
         </SafeAreaView>
     );
@@ -204,4 +248,5 @@ const styles = StyleSheet.create({
     entryTime: { color: colors.goldMetallic, fontSize: 12 },
     emptyContainer: { alignItems: "center", paddingTop: 60 },
     emptyText: { color: colors.goldMetallic, fontSize: 15, marginTop: 12 },
+    emptyHint: { color: "rgba(255,255,255,0.25)", fontSize: 12, marginTop: 8, textAlign: "center", paddingHorizontal: 32 },
 });

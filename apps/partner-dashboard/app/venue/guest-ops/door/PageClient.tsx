@@ -13,9 +13,29 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { cn } from "@/lib/utils";
 import {
     Search, Loader2, CheckCircle2, XCircle, AlertTriangle, ScanLine,
-    User, Phone, Hash, FileText,
+    User, Phone, Hash, FileText, KeyRound, Copy, Trash2, ChevronDown,
+    ChevronUp, Plus, Smartphone,
 } from "lucide-react";
 import type { GuestRecord } from "@/lib/types/guestOps";
+
+// ── Scanner Code types ─────────────────────────────────────────────────────────
+type CodeType = "full" | "scan_only" | "charge";
+interface ScannerCode {
+    id: string;
+    code: string;
+    type: CodeType;
+    gate?: string | null;
+    isRevoked: boolean;
+    createdAt: string;
+    usageCount: number;
+    expiresAt?: string | null;
+}
+
+const CODE_TYPE_META: Record<CodeType, { label: string; color: string; desc: string }> = {
+    full:      { label: "Full Access",   color: "text-emerald-400 bg-emerald-500/10", desc: "Scan + Door Entry" },
+    scan_only: { label: "Scan Only",     color: "text-blue-400 bg-blue-500/10",       desc: "QR scanning only" },
+    charge:    { label: "Cover Charge",  color: "text-violet-400 bg-violet-500/10",   desc: "Wallet charging only" },
+};
 
 type SearchField = "name" | "phone" | "ticketId" | "ref";
 
@@ -61,6 +81,70 @@ export default function DoorSearchPageClient() {
 
     const permissions = VENUE_PERMISSIONS[role as keyof typeof VENUE_PERMISSIONS] ?? [];
     const canManage = permissions.includes("MANAGE_GUEST_OPS");
+
+    // ── Scanner codes state ────────────────────────────────────────────────────
+    const [codes, setCodes] = useState<ScannerCode[]>([]);
+    const [codesLoading, setCodesLoading] = useState(false);
+    const [codesExpanded, setCodesExpanded] = useState(false);
+    const [showNewCodeForm, setShowNewCodeForm] = useState(false);
+    const [newCodeType, setNewCodeType] = useState<CodeType>("full");
+    const [newCodeGate, setNewCodeGate] = useState("");
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [justCopied, setJustCopied] = useState<string | null>(null);
+    const [revokingId, setRevokingId] = useState<string | null>(null);
+
+    const fetchCodes = useCallback(async () => {
+        if (!eventId) return;
+        setCodesLoading(true);
+        try {
+            const res = await fetch(`/api/event-codes?eventId=${eventId}`, { headers: authHeaders() });
+            if (res.ok) {
+                const data = await res.json();
+                setCodes((Array.isArray(data) ? data : []).filter((c: ScannerCode) => !c.isRevoked));
+            }
+        } finally {
+            setCodesLoading(false);
+        }
+    }, [eventId, authHeaders]);
+
+    useEffect(() => {
+        if (eventId && codesExpanded) fetchCodes();
+    }, [eventId, codesExpanded, fetchCodes]);
+
+    const handleGenerateCode = useCallback(async () => {
+        if (!eventId) return;
+        setIsGenerating(true);
+        try {
+            const res = await fetch("/api/event-codes", {
+                method: "POST",
+                headers: { ...authHeaders(), "Content-Type": "application/json" },
+                body: JSON.stringify({ eventId, type: newCodeType, gate: newCodeGate.trim() || null }),
+            });
+            if (res.ok) {
+                setNewCodeGate("");
+                setShowNewCodeForm(false);
+                await fetchCodes();
+            }
+        } finally {
+            setIsGenerating(false);
+        }
+    }, [eventId, newCodeType, newCodeGate, authHeaders, fetchCodes]);
+
+    const handleCopy = useCallback((code: string) => {
+        navigator.clipboard.writeText(code);
+        setJustCopied(code);
+        setTimeout(() => setJustCopied(null), 2000);
+    }, []);
+
+    const handleRevoke = useCallback(async (id: string) => {
+        setRevokingId(id);
+        try {
+            await fetch(`/api/event-codes?id=${id}`, { method: "DELETE", headers: authHeaders() });
+            setCodes(prev => prev.filter(c => c.id !== id));
+        } finally {
+            setRevokingId(null);
+        }
+    }, [authHeaders]);
 
     // Offline sync engine
     useEffect(() => {
@@ -163,6 +247,174 @@ export default function DoorSearchPageClient() {
                     <NoEventState />
                 ) : (
                     <>
+                        {/* ── Scanner Access Codes ──────────────────────── */}
+                        <div
+                            className="rounded-2xl border overflow-hidden"
+                            style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
+                        >
+                            {/* Header row */}
+                            <button
+                                onClick={() => setCodesExpanded(v => !v)}
+                                className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-[var(--v-card-hover)] transition-colors"
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-7 h-7 rounded-lg bg-[var(--v-orange)]/10 flex items-center justify-center">
+                                        <Smartphone size={14} className="text-[var(--v-orange)]" />
+                                    </div>
+                                    <span className="text-[13px] font-semibold text-[var(--v-text-primary)]">
+                                        Scanner Access Codes
+                                    </span>
+                                    {codes.length > 0 && (
+                                        <span className="px-1.5 py-0.5 rounded-full bg-[var(--v-elevated)] text-[10px] font-bold text-[var(--v-text-muted)]">
+                                            {codes.length} active
+                                        </span>
+                                    )}
+                                </div>
+                                {codesExpanded ? <ChevronUp size={15} className="text-[var(--v-text-muted)]" /> : <ChevronDown size={15} className="text-[var(--v-text-muted)]" />}
+                            </button>
+
+                            {codesExpanded && (
+                                <div className="border-t px-4 pb-4 pt-3 space-y-3" style={{ borderColor: "var(--v-border)" }}>
+                                    {/* Existing codes */}
+                                    {codesLoading ? (
+                                        <div className="flex items-center gap-2 py-3 text-[12px] text-[var(--v-text-muted)]">
+                                            <Loader2 size={13} className="animate-spin" /> Loading codes…
+                                        </div>
+                                    ) : codes.length === 0 ? (
+                                        <p className="text-[12px] text-[var(--v-text-muted)] py-1">
+                                            No active codes. Generate one below.
+                                        </p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {codes.map(c => {
+                                                const meta = CODE_TYPE_META[c.type] ?? CODE_TYPE_META.full;
+                                                return (
+                                                    <div
+                                                        key={c.id}
+                                                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                                                        style={{ background: "var(--v-elevated)" }}
+                                                    >
+                                                        <KeyRound size={13} className="text-[var(--v-text-muted)] shrink-0" />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="font-mono text-[14px] font-bold text-[var(--v-text-primary)] tracking-wider">
+                                                                    {c.code}
+                                                                </span>
+                                                                <span className={cn("px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide", meta.color)}>
+                                                                    {meta.label}
+                                                                </span>
+                                                                {c.gate && (
+                                                                    <span className="text-[11px] text-[var(--v-text-muted)]">
+                                                                        {c.gate}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-[11px] text-[var(--v-text-muted)] mt-0.5">
+                                                                {c.usageCount} use{c.usageCount !== 1 ? "s" : ""} · {meta.desc}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            <button
+                                                                onClick={() => handleCopy(c.code)}
+                                                                className="p-1.5 rounded-lg hover:bg-[var(--v-card)] transition-colors"
+                                                                title="Copy code"
+                                                            >
+                                                                {justCopied === c.code
+                                                                    ? <CheckCircle2 size={14} className="text-emerald-400" />
+                                                                    : <Copy size={14} className="text-[var(--v-text-muted)]" />}
+                                                            </button>
+                                                            {canManage && (
+                                                                <button
+                                                                    onClick={() => handleRevoke(c.id)}
+                                                                    disabled={revokingId === c.id}
+                                                                    className="p-1.5 rounded-lg hover:bg-red-500/10 text-[var(--v-text-muted)] hover:text-red-400 transition-colors disabled:opacity-40"
+                                                                    title="Revoke code"
+                                                                >
+                                                                    {revokingId === c.id
+                                                                        ? <Loader2 size={14} className="animate-spin" />
+                                                                        : <Trash2 size={14} />}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {/* New code form */}
+                                    {canManage && !showNewCodeForm && (
+                                        <button
+                                            onClick={() => setShowNewCodeForm(true)}
+                                            className="flex items-center gap-1.5 text-[12px] font-semibold text-[var(--v-orange)] hover:opacity-80 transition-opacity"
+                                        >
+                                            <Plus size={13} /> Generate New Code
+                                        </button>
+                                    )}
+
+                                    {canManage && showNewCodeForm && (
+                                        <div className="space-y-2.5 pt-1">
+                                            {/* Type selector */}
+                                            <div className="flex gap-1.5">
+                                                {(Object.keys(CODE_TYPE_META) as CodeType[]).map(t => (
+                                                    <button
+                                                        key={t}
+                                                        onClick={() => setNewCodeType(t)}
+                                                        className={cn(
+                                                            "flex-1 py-2 rounded-xl text-[11px] font-semibold transition-all border",
+                                                            newCodeType === t
+                                                                ? "bg-[var(--v-orange)] text-white border-[var(--v-orange)]"
+                                                                : "text-[var(--v-text-secondary)] border-[var(--v-border)] hover:border-[var(--v-orange)]/50"
+                                                        )}
+                                                        style={newCodeType !== t ? { background: "var(--v-elevated)" } : undefined}
+                                                    >
+                                                        {CODE_TYPE_META[t].label}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            {/* Gate input */}
+                                            <input
+                                                type="text"
+                                                value={newCodeGate}
+                                                onChange={e => setNewCodeGate(e.target.value)}
+                                                placeholder="Gate label (optional) — e.g. Main Gate"
+                                                className="w-full px-3 py-2.5 rounded-xl text-[13px] border focus:outline-none focus:ring-2 focus:ring-[var(--v-orange)]"
+                                                style={{
+                                                    background: "var(--v-elevated)",
+                                                    borderColor: "var(--v-border)",
+                                                    color: "var(--v-text-primary)",
+                                                }}
+                                            />
+
+                                            {/* Type description */}
+                                            <p className="text-[11px] text-[var(--v-text-muted)]">
+                                                {CODE_TYPE_META[newCodeType].desc} — staff enter this code in the scanner app to authenticate.
+                                            </p>
+
+                                            {/* Actions */}
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={handleGenerateCode}
+                                                    disabled={isGenerating}
+                                                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--v-orange)] hover:opacity-90 text-white text-[12px] font-semibold transition-all disabled:opacity-50"
+                                                >
+                                                    {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                                                    Generate
+                                                </button>
+                                                <button
+                                                    onClick={() => { setShowNewCodeForm(false); setNewCodeGate(""); }}
+                                                    className="px-4 py-2 rounded-xl text-[12px] font-medium text-[var(--v-text-muted)] hover:text-[var(--v-text-secondary)] transition-colors"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
                         {/* Search field tabs */}
                         <div className="flex gap-1.5">
                             {SEARCH_TABS.map(tab => {

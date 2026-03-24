@@ -19,6 +19,7 @@ import checkoutRoutes from './routes/v1/checkout';
 import paymentRoutes from './routes/v1/payments';
 import hostRoutes from './routes/v1/host';
 import scanRoutes from './routes/v1/scan';
+import coverChargeRoutes from './routes/v1/cover-charge';
 import ticketRoutes from './routes/v1/tickets';
 import staffRoutes from './routes/v1/staff';
 import profileRoutes from './routes/v1/profiles';
@@ -139,7 +140,13 @@ async function main() {
     });
 
     // Register Core Plugins
-    const allowedOrigins = config.FRONTEND_URLS ? config.FRONTEND_URLS.split(',') : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'];
+    const allowedOrigins = Array.from(
+        new Set(
+            config.FRONTEND_URLS.split(',')
+                .map((origin) => origin.trim())
+                .filter(Boolean)
+        )
+    );
     await server.register(cors, {
         origin: process.env.NODE_ENV === 'production' ? allowedOrigins : true,
         credentials: true
@@ -164,6 +171,7 @@ async function main() {
     await server.register(paymentRoutes, { prefix: '/api/v1' });
     await server.register(hostRoutes, { prefix: '/api/v1' });
     await server.register(scanRoutes, { prefix: '/api/v1/scan' });
+    await server.register(coverChargeRoutes, { prefix: '/api/v1/cover-charge' });
     await server.register(ticketRoutes, { prefix: '/api/v1' });
     await server.register(staffRoutes, { prefix: '/api/v1' });
     await server.register(profileRoutes, { prefix: '/api/v1' });

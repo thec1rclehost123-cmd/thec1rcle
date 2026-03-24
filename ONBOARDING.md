@@ -19,7 +19,7 @@ The C1rcle is an end-to-end ticketing, discovery, and event management platform.
 2. **Guest** discovers the event on the Guest Portal homepage.
 3. **Guest** pays for tickets via Razorpay (Stripe alternative).
 4. System generates an order and sends a QR code ticket.
-5. **Venue Staff** uses the Scanner App to scan the Guest's QR code at the door.
+5. **Venue Staff** uses the scanner flow in the mobile app to scan the Guest's QR code at the door.
 
 ---
 
@@ -31,8 +31,7 @@ We use **Turborepo** to manage multiple apps inside a single repository. This al
 - **`guest-portal`**: The consumer-facing Next.js website (`/explore`, `/checkout`). *You will fix most UI/Frontend bugs here.*
 - **`partner-dashboard`**: The B2B Next.js tool for organizers (`/host/create`, `/venue/analytics`). *Heavy use of complex forms and wizards.*
 - **`admin-console`**: The internal Next.js tool for our staff (`/refunds`, `/approvals`).
-- **`mobile-app`**: A React Native (Expo) consumer app mirroring the Guest Portal. *(Currently in development, secondary priority).*
-- **`scanner-app`**: A React Native (Expo) app for bouncers to scan QR codes.
+- **`mobile-app`**: A React Native (Expo) app that now includes both the consumer experience and the staff scanner flow.
 - **`api-gateway`**: A Fastify Node.js server that sits between the frontend and the database to cache data and speed up requests.
 
 ### The Packages (`packages/`)

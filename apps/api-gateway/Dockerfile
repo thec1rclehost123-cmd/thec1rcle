@@ -9,7 +9,7 @@ RUN npm install -g turbo
 COPY . .
 
 # Prune the workspace for the api-gateway app
-RUN turbo prune api-gateway --docker
+RUN turbo prune @c1rcle/api-gateway --docker
 
 # --- Build Stage ---
 FROM node:20-alpine AS installer
@@ -25,7 +25,7 @@ RUN npm install
 # Build the project
 COPY --from=builder /app/out/full/ .
 COPY turbo.json turbo.json
-RUN npx turbo run build --filter=api-gateway
+RUN npx turbo run build --filter=@c1rcle/api-gateway
 
 # --- Runner Stage ---
 FROM node:20-alpine AS runner

@@ -2,6 +2,8 @@
     "name": "functions",
     "scripts": {
         "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=lib/index.js --external:firebase-admin --external:firebase-functions",
+        "type-check": "tsc --noEmit",
+        "lint": "tsc --noEmit",
         "serve": "npm run build && firebase emulators:start --only functions,firestore",
         "shell": "npm run build && firebase functions:shell",
         "start": "npm run shell",

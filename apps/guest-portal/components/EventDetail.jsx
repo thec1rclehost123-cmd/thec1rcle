@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { formatEventDate } from "@c1rcle/core/time";
-import { Minus, Plus, Share2, Music2, ChevronDown, ArrowUpRight, MapPin } from "lucide-react";
+import { Minus, Plus, Share2, Music2, ChevronDown, ArrowUpRight, MapPin, Calendar } from "lucide-react";
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -147,6 +147,75 @@ function CountdownBlock({ label, value }) {
   );
 }
 
+// ─── AVATAR STACK ─────────────────────────────────────────────────────────────
+
+function AvatarStack({ users = [], count = 0 }) {
+  const display = users.slice(0, 5);
+  const total = count || display.length;
+  if (total === 0) return null;
+
+  return (
+    <div className="flex items-center gap-3">
+      {display.length > 0 && (
+        <div className="flex -space-x-2.5">
+          {display.map((u, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.7 + i * 0.06, duration: 0.3 }}
+              className="h-8 w-8 rounded-full border-2 border-black overflow-hidden bg-zinc-800 ring-1 ring-white/[0.05]"
+              style={{ zIndex: display.length - i }}
+            >
+              {(u.avatar || u.photoURL) ? (
+                <Image
+                  src={u.avatar || u.photoURL}
+                  alt=""
+                  width={32}
+                  height={32}
+                  className="object-cover w-full h-full"
+                  unoptimized
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-[#F44A22]/25 to-zinc-900 flex items-center justify-center text-[10px] font-bold text-white/50">
+                  {(u.displayName || u.name || "?").charAt(0).toUpperCase()}
+                </div>
+              )}
+            </motion.div>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+        </span>
+        <span className="text-[13px] font-medium text-white/50">
+          {(total + 80).toLocaleString()}+ going
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── INFINITE SCROLL ──────────────────────────────────────────────────────────
+
+function InfiniteScroll({ text, className = "" }) {
+  const content = Array(10).fill(text).join("  ·  ");
+  return (
+    <div className={`whitespace-nowrap overflow-hidden ${className}`}>
+      <motion.div
+        animate={{ x: ["0%", "-50%"] }}
+        transition={{ duration: 45, repeat: Infinity, ease: "linear" }}
+        className="inline-flex will-change-transform"
+      >
+        <span className="shrink-0 pr-8">{content}</span>
+        <span className="shrink-0 pr-8">{content}</span>
+      </motion.div>
+    </div>
+  );
+}
+
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 
 export default function EventDetail({
@@ -201,7 +270,6 @@ export default function EventDetail({
   const secs = timeLeft % 60;
   const isDoorsOpen = timeLeft === 0 && !!event?.startDate;
 
-  // Event image — checks all common field names
   const eventImage = useMemo(() => {
     if (!event) return null;
     return (
@@ -275,6 +343,9 @@ export default function EventDetail({
     onAction?.("SHARE", { id: type });
   };
 
+  const showBothHostAndLocation =
+    !!host && !!(event?.location || event?.venue || event?.address);
+
   // ── RENDER ──────────────────────────────────────────────────────────────────
   return (
     <div className="relative isolate min-h-screen bg-black text-white overflow-x-hidden">
@@ -297,17 +368,28 @@ export default function EventDetail({
             transition={{ type: "spring", stiffness: 440, damping: 42 }}
             className="fixed top-0 left-0 right-0 z-[150] px-3 pt-3"
           >
-            <div className="mx-auto max-w-5xl flex items-center justify-between gap-3 rounded-full border border-white/10 bg-black/85 px-5 py-3 backdrop-blur-2xl shadow-2xl">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="h-6 w-6 rounded-full bg-white flex items-center justify-center text-black font-black text-[10px] shrink-0">
-                  C
-                </div>
-                <p className="text-[11px] font-bold text-white/80 truncate">{event?.title}</p>
-                {event?.startDate && (
-                  <span className="hidden sm:block shrink-0 text-[10px] text-white/25 font-medium">
-                    {formatEventDate(event.startDate)}
-                  </span>
+            <div className="mx-auto max-w-5xl flex items-center justify-between gap-3 rounded-full border border-white/10 bg-black/88 px-4 py-2.5 backdrop-blur-2xl shadow-2xl">
+              <div className="flex items-center gap-3 min-w-0">
+                {eventImage && (
+                  <div className="h-9 w-9 rounded-xl overflow-hidden shrink-0 border border-white/10">
+                    <Image
+                      src={eventImage}
+                      alt=""
+                      width={36}
+                      height={36}
+                      className="object-cover w-full h-full"
+                      unoptimized
+                    />
+                  </div>
                 )}
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold text-white/85 truncate leading-tight">{event?.title}</p>
+                  {event?.startDate && (
+                    <p className="text-[9px] text-white/25 font-medium leading-tight">
+                      {formatEventDate(event.startDate)}
+                    </p>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() =>
@@ -330,24 +412,24 @@ export default function EventDetail({
           <div
             className="absolute inset-0 -z-10"
             style={{
-              maskImage: "radial-gradient(ellipse 80% 60% at 60% 20%, black 0%, transparent 75%)",
-              WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 60% 20%, black 0%, transparent 75%)",
+              maskImage: "radial-gradient(ellipse 90% 70% at 65% 25%, black 0%, transparent 70%)",
+              WebkitMaskImage: "radial-gradient(ellipse 90% 70% at 65% 25%, black 0%, transparent 70%)",
             }}
           >
             <Image
               src={eventImage}
               alt=""
               fill
-              className="object-cover blur-[110px] saturate-[2.2] scale-[1.5] opacity-55"
+              className="object-cover blur-[120px] saturate-[2.5] scale-[1.6] opacity-60"
               unoptimized
               priority
             />
           </div>
         )}
 
-        {/* Gradient overlays for text legibility */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/15 to-black pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent pointer-events-none" />
+        {/* Gradient overlays */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/10 to-black pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent pointer-events-none" />
 
         {/* ── Nav ──────────────────────────────────────────────────────── */}
         <motion.header
@@ -367,29 +449,6 @@ export default function EventDetail({
             </Link>
 
             <div className="flex items-center gap-2">
-              {/* Like */}
-              <button
-                onClick={() => {
-                  setIsLiked((v) => !v);
-                  onAction?.("LIKE", { val: !isLiked });
-                }}
-                className={`h-9 w-9 flex items-center justify-center rounded-full border transition-all ${
-                  isLiked
-                    ? "border-red-500/40 bg-red-500/10 text-red-400"
-                    : "border-white/10 bg-black/30 text-white/40 hover:text-white hover:border-white/20"
-                }`}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="w-4 h-4"
-                  fill={isLiked ? "currentColor" : "none"}
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                </svg>
-              </button>
-
               {/* Share */}
               <div className="relative" ref={shareRef}>
                 <button
@@ -429,120 +488,229 @@ export default function EventDetail({
         </motion.header>
 
         {/* ── Hero content ─────────────────────────────────────────────── */}
-        <div className="relative z-20 mx-auto max-w-7xl w-full px-4 md:px-8 lg:px-10 mt-auto pb-14 pt-10 flex flex-col lg:grid lg:grid-cols-[1fr_360px] lg:items-end lg:gap-14 min-h-[88dvh]">
+        <div className="relative z-20 mx-auto max-w-7xl w-full px-4 md:px-8 lg:px-10 flex flex-col justify-end lg:justify-center flex-1 pb-14 lg:pb-20 pt-10">
+          <div className="lg:grid lg:grid-cols-[1fr_390px] lg:items-center lg:gap-16">
 
-          {/* Left — text */}
-          <motion.div
-            initial={{ opacity: 0, y: 36 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
-          >
-            {/* Status chip */}
-            <div className="flex flex-wrap gap-2 mb-5">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#F44A22]/30 bg-[#F44A22]/10 px-3.5 py-1.5 text-[9px] font-black uppercase tracking-[0.25em] text-[#F44A22]">
-                <span
-                  className={`h-1.5 w-1.5 rounded-full bg-[#F44A22] ${isLive ? "animate-pulse" : ""}`}
-                />
-                {isLive ? "Live now" : isTonight ? "Tonight" : event?.category || "Event"}
-              </span>
-              {event?.isHighDemand && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-1.5 text-[9px] font-black uppercase tracking-[0.25em] text-amber-400">
-                  Selling fast
-                </span>
-              )}
-            </div>
-
-            {/* Title */}
-            <h1 className="text-[clamp(2.6rem,8vw,7rem)] font-black uppercase tracking-tighter leading-[0.87] text-white mb-4 max-w-2xl">
-              {event?.title || "Event"}
-            </h1>
-
-            {/* By host */}
-            {host?.name && (
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#F44A22] mb-2">
-                by {host.name}
-              </p>
+            {/* Mobile poster — shown above text on mobile, hidden on desktop */}
+            {eventImage && (
+              <motion.div
+                initial={{ opacity: 0, y: 24, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+                className="lg:hidden relative w-full max-w-[300px] mx-auto aspect-[3/4] mb-10"
+              >
+                {/* Poster glow */}
+                <div className="absolute -inset-14 blur-[70px] opacity-55 -z-10">
+                  <Image
+                    src={eventImage}
+                    alt=""
+                    fill
+                    className="object-cover saturate-150"
+                    unoptimized
+                  />
+                </div>
+                <div className="relative w-full h-full rounded-[22px] overflow-hidden border border-white/[0.08] shadow-[0_32px_80px_rgba(0,0,0,0.85)]">
+                  <Image
+                    src={eventImage}
+                    alt={event?.title || ""}
+                    fill
+                    className="object-cover"
+                    priority
+                  />
+                  {/* Inner shine */}
+                  <div className="absolute inset-0 ring-1 ring-inset ring-white/[0.06] rounded-[22px]" />
+                </div>
+              </motion.div>
             )}
 
-            {/* Date · Venue */}
-            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/35 mb-9">
-              {formatEventDate(event?.startDate)}
-              {(event?.venue || event?.location) && (
-                <> &middot; {event?.venue || event?.location}</>
-              )}
-              {event?.city && <>, {event.city}</>}
-            </p>
-
-            {/* Countdown */}
-            {event?.startDate && (
-              <div className="mb-9">
-                {isDoorsOpen ? (
-                  <motion.div
-                    animate={{ scale: [1, 1.02, 1] }}
-                    transition={{ repeat: Infinity, duration: 2.4, ease: "easeInOut" }}
-                    className="inline-flex items-center gap-3 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-6 py-3"
-                  >
-                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-sm font-black uppercase tracking-[0.28em] text-emerald-400">
-                      Doors open now
-                    </span>
-                  </motion.div>
-                ) : (
-                  <div className="flex items-end gap-3 sm:gap-5">
-                    <CountdownBlock label="Days" value={days} />
-                    <span className="text-white/15 text-2xl font-light pb-5 select-none">:</span>
-                    <CountdownBlock label="Hours" value={hours} />
-                    <span className="text-white/15 text-2xl font-light pb-5 select-none">:</span>
-                    <CountdownBlock label="Min" value={mins} />
-                    <span className="text-white/15 text-2xl font-light pb-5 select-none">:</span>
-                    <CountdownBlock label="Sec" value={secs} />
-                  </div>
+            {/* ── Info column ───────────────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0, y: 36 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
+            >
+              {/* Status chips */}
+              <div className="flex flex-wrap gap-2 mb-5">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#F44A22]/30 bg-[#F44A22]/10 px-3.5 py-1.5 text-[9px] font-black uppercase tracking-[0.25em] text-[#F44A22]">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full bg-[#F44A22] ${isLive ? "animate-pulse" : ""}`}
+                  />
+                  {isLive ? "Live now" : isTonight ? "Tonight" : event?.category || "Event"}
+                </span>
+                {event?.isHighDemand && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-1.5 text-[9px] font-black uppercase tracking-[0.25em] text-amber-400">
+                    Selling fast
+                  </span>
                 )}
               </div>
-            )}
 
-            {/* Social proof + CTA row */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
-              {interestedCount > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                  </span>
-                  <span className="text-sm font-bold text-white/65">
-                    {(interestedCount + 80).toLocaleString()}+ going
+              {/* Title */}
+              <h1 className="text-[clamp(2.8rem,9vw,7.5rem)] font-black uppercase tracking-tighter leading-[0.84] text-white mb-5 max-w-2xl">
+                {event?.title || "Event"}
+              </h1>
+
+              {/* Host credit with avatar */}
+              {host?.name && (
+                <div className="flex items-center gap-2.5 mb-7">
+                  <div className="h-7 w-7 rounded-full overflow-hidden border border-white/10 bg-zinc-900 shrink-0">
+                    {host.avatar ? (
+                      <Image
+                        src={host.avatar}
+                        alt={host.name}
+                        width={28}
+                        height={28}
+                        className="object-cover w-full h-full"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white/50 bg-gradient-to-br from-[#F44A22]/20 to-zinc-900">
+                        {host.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[13px] font-medium text-white/40">
+                    by <span className="text-[#F44A22] font-semibold">{host.name}</span>
                   </span>
                 </div>
               )}
-              <button
-                onClick={() =>
-                  document.getElementById("ticket-section")?.scrollIntoView({ behavior: "smooth" })
-                }
-                className="rounded-full bg-white px-8 py-4 text-[11px] font-black uppercase tracking-[0.32em] text-black transition-all hover:bg-white/92 active:scale-95 shadow-[0_0_60px_rgba(255,255,255,0.12)]"
-              >
-                {isFree ? "Get in free" : `From ${formatINR(startingPrice)}`}
-              </button>
-            </div>
-          </motion.div>
 
-          {/* Right — poster card (desktop only) */}
-          {eventImage && (
-            <motion.div
-              initial={{ opacity: 0, x: 32, rotate: 4 }}
-              animate={{ opacity: 1, x: 0, rotate: 2 }}
-              transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.08 }}
-              className="hidden lg:block w-full aspect-[3/4] rounded-[28px] overflow-hidden shadow-[0_50px_130px_rgba(0,0,0,0.85)] border border-white/8 relative"
-            >
-              <Image
-                src={eventImage}
-                alt={event?.title || ""}
-                fill
-                className="object-cover"
-                sizes="380px"
-                priority
-              />
+              {/* Info rows */}
+              <div className="flex flex-col gap-3 mb-8">
+                {event?.startDate && (
+                  <div className="flex items-center gap-3">
+                    <Calendar className="w-[15px] h-[15px] text-white/20 shrink-0" />
+                    <span className="text-[13px] font-medium text-white/45">
+                      {formatEventDate(event.startDate)}
+                    </span>
+                  </div>
+                )}
+                {(event?.venue || event?.location) && (
+                  <div className="flex items-center gap-3">
+                    <MapPin className="w-[15px] h-[15px] text-white/20 shrink-0" />
+                    <span className="text-[13px] font-medium text-white/45">
+                      {event?.venue || event?.location}
+                      {event?.city && `, ${event.city}`}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Countdown */}
+              {event?.startDate && (
+                <div className="mb-8">
+                  {isDoorsOpen ? (
+                    <motion.div
+                      animate={{ scale: [1, 1.02, 1] }}
+                      transition={{ repeat: Infinity, duration: 2.4, ease: "easeInOut" }}
+                      className="inline-flex items-center gap-3 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-6 py-3"
+                    >
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-sm font-black uppercase tracking-[0.28em] text-emerald-400">
+                        Doors open now
+                      </span>
+                    </motion.div>
+                  ) : (
+                    <div className="flex items-end gap-3 sm:gap-5">
+                      <CountdownBlock label="Days" value={days} />
+                      <span className="text-white/15 text-2xl font-light pb-5 select-none">:</span>
+                      <CountdownBlock label="Hours" value={hours} />
+                      <span className="text-white/15 text-2xl font-light pb-5 select-none">:</span>
+                      <CountdownBlock label="Min" value={mins} />
+                      <span className="text-white/15 text-2xl font-light pb-5 select-none">:</span>
+                      <CountdownBlock label="Sec" value={secs} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Social proof */}
+              <div className="mb-7">
+                <AvatarStack users={interestedData.users} count={interestedCount} />
+              </div>
+
+              {/* CTA row */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() =>
+                    document.getElementById("ticket-section")?.scrollIntoView({ behavior: "smooth" })
+                  }
+                  className="rounded-full bg-white px-9 py-4 text-[11px] font-black uppercase tracking-[0.28em] text-black transition-all hover:bg-white/90 active:scale-95 shadow-[0_0_60px_rgba(255,255,255,0.1)]"
+                >
+                  {isFree ? "Get in free" : `From ${formatINR(startingPrice)}`}
+                </button>
+                <button
+                  onClick={() => {
+                    setIsLiked((v) => !v);
+                    onAction?.("LIKE", { val: !isLiked });
+                  }}
+                  className={`h-[52px] w-[52px] flex items-center justify-center rounded-full border transition-all ${
+                    isLiked
+                      ? "border-red-500/40 bg-red-500/10 text-red-400"
+                      : "border-white/10 bg-white/[0.04] text-white/30 hover:text-white/70 hover:border-white/20"
+                  }`}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="w-5 h-5"
+                    fill={isLiked ? "currentColor" : "none"}
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                  >
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                  </svg>
+                </button>
+              </div>
             </motion.div>
-          )}
+
+            {/* ── Desktop poster ────────────────────────────────────── */}
+            {eventImage && (
+              <motion.div
+                initial={{ opacity: 0, y: 40, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+                className="hidden lg:block relative self-center"
+              >
+                {/* Poster glow */}
+                <div className="absolute -inset-20 blur-[90px] opacity-45 -z-10">
+                  <Image
+                    src={eventImage}
+                    alt=""
+                    fill
+                    className="object-cover saturate-[1.6]"
+                    unoptimized
+                  />
+                </div>
+                {/* Poster card */}
+                <div className="relative w-full aspect-[3/4] rounded-[22px] overflow-hidden border border-white/[0.07] shadow-[0_50px_120px_rgba(0,0,0,0.75)]">
+                  <Image
+                    src={eventImage}
+                    alt={event?.title || ""}
+                    fill
+                    className="object-cover"
+                    sizes="420px"
+                    priority
+                  />
+                  {/* Inner shine */}
+                  <div className="absolute inset-0 ring-1 ring-inset ring-white/[0.05] rounded-[22px]" />
+                  {/* Bottom fade for text readability */}
+                  <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
+                </div>
+
+                {/* Poster caption */}
+                <div className="mt-4 px-1 flex items-center justify-between">
+                  <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/20">
+                    {event?.venue || event?.location || ""}
+                  </p>
+                  {tickets.length > 0 && (
+                    <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/20">
+                      {tickets.length} tier{tickets.length > 1 ? "s" : ""} available
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+          </div>
         </div>
 
         {/* Scroll cue */}
@@ -556,11 +724,19 @@ export default function EventDetail({
         </motion.div>
       </section>
 
-      {/* ─── BODY ────────────────────────────────────────────────────────── */}
-      <main className="mx-auto max-w-7xl px-4 pt-14 pb-44 sm:px-6 lg:px-8 space-y-4">
+      {/* ─── MARQUEE DIVIDER ────────────────────────────────────────────── */}
+      <div className="border-y border-white/[0.05] py-[14px] overflow-hidden">
+        <InfiniteScroll
+          text={`${event?.title || "EVENT"}  ·  ${formatEventDate(event?.startDate) || ""}  ·  ${event?.venue || event?.location || ""}`}
+          className="text-[9px] font-black uppercase tracking-[0.4em] text-white/[0.07]"
+        />
+      </div>
 
-        {/* ── About + Vibe (2-col on desktop) ──────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_290px] gap-4">
+      {/* ─── BODY ────────────────────────────────────────────────────────── */}
+      <main className="mx-auto max-w-7xl px-4 pt-14 pb-44 sm:px-6 lg:px-8 space-y-5">
+
+        {/* ── About + Vibe ──────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
 
           {/* About */}
           {event?.description && (
@@ -569,9 +745,9 @@ export default function EventDetail({
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.55 }}
-              className="rounded-[28px] border border-white/8 bg-white/[0.02] p-8 md:p-10"
+              className="rounded-[24px] border border-white/[0.07] bg-white/[0.02] p-8 md:p-10"
             >
-              <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/25 mb-5">
+              <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/22 mb-5">
                 About this night
               </p>
               <div
@@ -579,7 +755,7 @@ export default function EventDetail({
                   descExpanded ? "max-h-[600px]" : "max-h-[5.8rem]"
                 }`}
               >
-                <p className="text-[15px] leading-[1.72] text-white/60 font-medium whitespace-pre-line">
+                <p className="text-[15px] leading-[1.76] text-white/55 font-medium whitespace-pre-line">
                   {event.description}
                 </p>
                 {!descExpanded && (
@@ -605,9 +781,9 @@ export default function EventDetail({
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.55, delay: 0.08 }}
-              className="rounded-[28px] border border-white/8 bg-white/[0.02] p-8"
+              className="rounded-[24px] border border-white/[0.07] bg-white/[0.02] p-8"
             >
-              <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/25 mb-5">
+              <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/22 mb-5">
                 The vibe
               </p>
               <div className="flex flex-wrap gap-2">
@@ -656,11 +832,11 @@ export default function EventDetail({
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.55 }}
-            className="rounded-[28px] border border-white/8 bg-white/[0.02] p-8"
+            className="rounded-[24px] border border-white/[0.07] bg-white/[0.02] p-8"
           >
             <div className="flex items-center gap-2 mb-5">
               <Music2 className="w-3.5 h-3.5 text-[#1DB954]" />
-              <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/25">
+              <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/22">
                 get in the mood
               </p>
             </div>
@@ -683,12 +859,12 @@ export default function EventDetail({
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.55 }}
-            className="rounded-[28px] border border-white/8 bg-white/[0.02] p-8 md:p-10"
+            className="rounded-[24px] border border-white/[0.07] bg-white/[0.02] p-8 md:p-10"
           >
-            <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/25 mb-7">
+            <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/22 mb-7">
               Lineup
             </p>
-            <div className="flex gap-7 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-x">
+            <div className="flex gap-8 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-x">
               {event.artists.map((name, i) => (
                 <motion.div
                   key={i}
@@ -696,19 +872,19 @@ export default function EventDetail({
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.06 }}
-                  className="flex flex-col items-center gap-2.5 shrink-0 snap-start"
+                  className="flex flex-col items-center gap-3 shrink-0 snap-start group"
                 >
-                  <div className="h-[76px] w-[76px] rounded-full overflow-hidden border-2 border-white/10 bg-zinc-900 ring-2 ring-transparent hover:ring-white/10 transition-all">
+                  <div className="h-[84px] w-[84px] rounded-full overflow-hidden border-2 border-white/8 bg-zinc-900 ring-2 ring-transparent group-hover:ring-white/12 transition-all duration-300">
                     <Image
                       src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=1c1c2e,14142a,0f0f23&fontFamily=Arial&fontSize=38`}
                       alt={name}
-                      width={76}
-                      height={76}
+                      width={84}
+                      height={84}
                       className="w-full h-full object-cover"
                       unoptimized
                     />
                   </div>
-                  <span className="text-[9px] font-black uppercase tracking-wider text-white/50 max-w-[76px] text-center leading-tight">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-white/45 max-w-[84px] text-center leading-tight group-hover:text-white/70 transition-colors">
                     {name}
                   </span>
                 </motion.div>
@@ -724,21 +900,21 @@ export default function EventDetail({
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.55 }}
-          className="rounded-[28px] border border-white/8 bg-white/[0.02] p-8 md:p-10"
+          className="rounded-[24px] border border-white/[0.07] bg-white/[0.02] p-8 md:p-10"
         >
           <div className="flex items-end justify-between mb-8">
             <div>
-              <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/25 mb-1">
+              <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/22 mb-1">
                 Grab your spot
               </p>
               {tickets.length > 0 && (
-                <p className="text-xs text-white/20">
+                <p className="text-xs text-white/18">
                   {tickets.length} tier{tickets.length > 1 ? "s" : ""} available
                 </p>
               )}
             </div>
             {startingPrice > 0 && (
-              <p className="text-sm font-bold text-white/30">
+              <p className="text-sm font-bold text-white/28">
                 from <span className="text-white">{formatINR(startingPrice)}</span>
               </p>
             )}
@@ -749,7 +925,7 @@ export default function EventDetail({
               Ticket info coming soon.
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {tickets.map((ticket) => {
                 const style = getTierStyle(ticket);
                 const avail = getAvailability(ticket);
@@ -760,15 +936,15 @@ export default function EventDetail({
                 return (
                   <motion.div
                     key={ticket.id}
-                    whileHover={!soldOut ? { y: -3, transition: { duration: 0.2 } } : {}}
-                    className={`rounded-[20px] border p-5 transition-colors ${style.border} ${style.bg} ${
-                      soldOut ? "opacity-45" : "hover:border-white/15"
+                    whileHover={!soldOut ? { y: -2, transition: { duration: 0.18 } } : {}}
+                    className={`rounded-[18px] border p-6 transition-colors duration-200 ${style.border} ${style.bg} ${
+                      soldOut ? "opacity-45" : "hover:border-white/14"
                     }`}
                   >
                     {/* Header row */}
-                    <div className="flex items-start justify-between gap-2 mb-4">
+                    <div className="flex items-start justify-between gap-3 mb-5">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-white leading-snug mb-1.5">
+                        <p className="text-[14px] font-bold text-white leading-snug mb-2">
                           {ticket.name}
                         </p>
                         <span
@@ -779,7 +955,7 @@ export default function EventDetail({
                       </div>
                       <div className="text-right shrink-0">
                         <p
-                          className={`text-lg font-black leading-none tracking-tight ${
+                          className={`text-xl font-black leading-none tracking-tight ${
                             soldOut ? "line-through text-white/20" : "text-white"
                           }`}
                         >
@@ -789,7 +965,7 @@ export default function EventDetail({
                     </div>
 
                     {/* Availability bar */}
-                    <div className="mb-4">
+                    <div className="mb-5">
                       <div className="h-[3px] w-full rounded-full bg-white/6 overflow-hidden">
                         <motion.div
                           initial={{ width: 0 }}
@@ -801,7 +977,7 @@ export default function EventDetail({
                           className={`h-full rounded-full ${avail.barColor}`}
                         />
                       </div>
-                      <div className="flex items-center gap-1.5 mt-1.5">
+                      <div className="flex items-center gap-1.5 mt-2">
                         {avail.isFewLeft && (
                           <span className="h-1.5 w-1.5 rounded-full bg-red-400 shrink-0" />
                         )}
@@ -813,7 +989,7 @@ export default function EventDetail({
 
                     {/* Qty selector or sold out */}
                     {soldOut ? (
-                      <div className="h-10 rounded-full bg-white/4 flex items-center justify-center">
+                      <div className="h-11 rounded-full bg-white/4 flex items-center justify-center">
                         <span className="text-[9px] font-black uppercase tracking-[0.3em] text-white/20">
                           Sold out
                         </span>
@@ -823,7 +999,7 @@ export default function EventDetail({
                         <button
                           onClick={() => setQty(ticket.id, -1, maxQty)}
                           disabled={qty === 0}
-                          className="h-8 w-8 flex items-center justify-center rounded-full text-white/35 hover:bg-white/10 hover:text-white disabled:opacity-20 transition-all"
+                          className="h-9 w-9 flex items-center justify-center rounded-full text-white/35 hover:bg-white/10 hover:text-white disabled:opacity-20 transition-all"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
@@ -833,7 +1009,7 @@ export default function EventDetail({
                         <button
                           onClick={() => setQty(ticket.id, 1, maxQty)}
                           disabled={qty >= maxQty}
-                          className="h-8 w-8 flex items-center justify-center rounded-full text-white/35 hover:bg-white/10 hover:text-white disabled:opacity-20 transition-all"
+                          className="h-9 w-9 flex items-center justify-center rounded-full text-white/35 hover:bg-white/10 hover:text-white disabled:opacity-20 transition-all"
                         >
                           <Plus className="w-3 h-3" />
                         </button>
@@ -846,118 +1022,121 @@ export default function EventDetail({
           )}
         </motion.section>
 
-        {/* ── Host card ────────────────────────────────────────────────── */}
-        {host && (
-          <motion.section
-            initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.55 }}
-            className="rounded-[28px] border border-white/8 bg-white/[0.02] p-8 md:p-10"
-          >
-            <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/25 mb-6">
-              Hosted by
-            </p>
-            <div className="flex items-center justify-between gap-6">
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="h-14 w-14 rounded-full overflow-hidden border-2 border-white/10 bg-zinc-900 shrink-0">
-                  {host.avatar ? (
-                    <Image
-                      src={host.avatar}
-                      alt={host.name || ""}
-                      width={56}
-                      height={56}
-                      className="object-cover w-full h-full"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-xl font-black text-white/50 bg-gradient-to-br from-[#F44A22]/20 to-zinc-900">
-                      {(host.name || "H").charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-base font-bold text-white truncate">{host.name}</p>
-                  {(host.eventCount || host.eventsCount) > 0 && (
-                    <p className="text-[11px] text-white/30">
-                      {host.eventCount || host.eventsCount} events hosted
-                    </p>
-                  )}
-                </div>
-              </div>
-              {(host.id || host.slug) && (
-                <Link
-                  href={`/hosts/${host.slug || host.id}`}
-                  className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-white/10 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/40 hover:border-white/20 hover:text-white/70 transition-all"
-                >
-                  More events
-                  <ArrowUpRight className="w-3 h-3" />
-                </Link>
-              )}
-            </div>
-          </motion.section>
-        )}
+        {/* ── Host + Location ───────────────────────────────────────────── */}
+        <div className={`grid grid-cols-1 ${showBothHostAndLocation ? "lg:grid-cols-2" : ""} gap-5`}>
 
-        {/* ── Location ─────────────────────────────────────────────────── */}
-        {(event?.location || event?.venue || event?.address) && (
-          <motion.section
-            initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.55 }}
-            className="rounded-[28px] border border-white/8 overflow-hidden"
-          >
-            {/* Map */}
-            <div className="h-60 relative bg-zinc-950">
-              <iframe
-                title="venue location"
-                src={mapSrc}
-                width="100%"
-                height="100%"
-                style={{
-                  border: "none",
-                  filter: "grayscale(1) brightness(0.55) contrast(1.05)",
-                  display: "block",
-                }}
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
-              {/* Inner edge shadow */}
-              <div className="absolute inset-0 shadow-[inset_0_0_50px_rgba(0,0,0,0.6)] pointer-events-none rounded-t-[28px]" />
-            </div>
-            {/* Info */}
-            <div className="p-8 flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3 min-w-0">
-                <MapPin className="w-4 h-4 text-white/25 shrink-0 mt-0.5" />
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-white mb-0.5">
-                    {event?.venue || event?.location}
-                  </p>
-                  {event?.address && (
-                    <p className="text-xs text-white/35 leading-relaxed">{event.address}</p>
-                  )}
+          {/* Host card */}
+          {host && (
+            <motion.section
+              initial={{ opacity: 0, y: 18 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.55 }}
+              className="rounded-[24px] border border-white/[0.07] bg-white/[0.02] p-8"
+            >
+              <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/22 mb-6">
+                Hosted by
+              </p>
+              <div className="flex items-center justify-between gap-6">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-white/10 bg-zinc-900 shrink-0">
+                    {host.avatar ? (
+                      <Image
+                        src={host.avatar}
+                        alt={host.name || ""}
+                        width={64}
+                        height={64}
+                        className="object-cover w-full h-full"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-2xl font-black text-white/50 bg-gradient-to-br from-[#F44A22]/20 to-zinc-900">
+                        {(host.name || "H").charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-base font-bold text-white truncate">{host.name}</p>
+                    {(host.eventCount || host.eventsCount) > 0 && (
+                      <p className="text-[11px] text-white/28 mt-0.5">
+                        {host.eventCount || host.eventsCount} events hosted
+                      </p>
+                    )}
+                  </div>
                 </div>
+                {(host.id || host.slug) && (
+                  <Link
+                    href={`/hosts/${host.slug || host.id}`}
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-white/10 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/38 hover:border-white/20 hover:text-white/65 transition-all"
+                  >
+                    More events
+                    <ArrowUpRight className="w-3 h-3" />
+                  </Link>
+                )}
               </div>
-              <a
-                href={`https://maps.google.com/maps?q=${encodeURIComponent(
-                  event?.address || event?.location || event?.venue || ""
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-white/10 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/40 hover:border-white/20 hover:text-white/70 transition-all"
-              >
-                Directions
-                <ArrowUpRight className="w-3 h-3" />
-              </a>
-            </div>
-          </motion.section>
-        )}
+            </motion.section>
+          )}
+
+          {/* Location */}
+          {(event?.location || event?.venue || event?.address) && (
+            <motion.section
+              initial={{ opacity: 0, y: 18 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.55, delay: showBothHostAndLocation ? 0.06 : 0 }}
+              className="rounded-[24px] border border-white/[0.07] overflow-hidden"
+            >
+              {/* Map */}
+              <div className="h-52 relative bg-zinc-950">
+                <iframe
+                  title="venue location"
+                  src={mapSrc}
+                  width="100%"
+                  height="100%"
+                  style={{
+                    border: "none",
+                    filter: "grayscale(1) brightness(0.5) contrast(1.1)",
+                    display: "block",
+                  }}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+                <div className="absolute inset-0 shadow-[inset_0_0_50px_rgba(0,0,0,0.5)] pointer-events-none" />
+              </div>
+              {/* Info */}
+              <div className="p-7 flex items-start justify-between gap-4 bg-white/[0.02]">
+                <div className="flex items-start gap-3 min-w-0">
+                  <MapPin className="w-4 h-4 text-white/22 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-white mb-0.5">
+                      {event?.venue || event?.location}
+                    </p>
+                    {event?.address && (
+                      <p className="text-xs text-white/32 leading-relaxed">{event.address}</p>
+                    )}
+                  </div>
+                </div>
+                <a
+                  href={`https://maps.google.com/maps?q=${encodeURIComponent(
+                    event?.address || event?.location || event?.venue || ""
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-white/10 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/38 hover:border-white/20 hover:text-white/65 transition-all"
+                >
+                  Directions
+                  <ArrowUpRight className="w-3 h-3" />
+                </a>
+              </div>
+            </motion.section>
+          )}
+        </div>
 
         {/* ── Share strip ──────────────────────────────────────────────── */}
-        <div className="flex items-center justify-center gap-3 py-6 flex-wrap">
-          <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/15">
+        <div className="flex items-center justify-center gap-3 py-8 flex-wrap">
+          <p className="text-[8px] font-black uppercase tracking-[0.35em] text-white/12">
             Share this night
           </p>
-          <div className="h-px w-10 bg-white/8 hidden sm:block" />
+          <div className="h-px w-8 bg-white/[0.06] hidden sm:block" />
           {[
             { id: "copy", label: "Copy link" },
             { id: "whatsapp", label: "WhatsApp" },
@@ -966,7 +1145,7 @@ export default function EventDetail({
             <button
               key={s.id}
               onClick={() => handleShare(s.id)}
-              className="rounded-full border border-white/8 px-4 py-2 text-[10px] font-bold text-white/25 hover:border-white/18 hover:text-white/50 transition-all"
+              className="rounded-full border border-white/[0.07] px-5 py-2.5 text-[10px] font-bold text-white/22 hover:border-white/15 hover:text-white/45 transition-all"
             >
               {s.label}
             </button>
@@ -985,21 +1164,21 @@ export default function EventDetail({
             className="fixed bottom-0 left-0 right-0 z-[120] px-3 pb-4 pt-0"
             style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
           >
-            <div className="mx-auto max-w-2xl flex items-center justify-between gap-4 rounded-full border border-white/12 bg-[#0a0a0a]/92 px-6 py-3.5 backdrop-blur-2xl shadow-[0_-24px_80px_rgba(0,0,0,0.9)]">
+            <div className="mx-auto max-w-2xl flex items-center justify-between gap-4 rounded-full border border-white/12 bg-[#0a0a0a]/94 px-6 py-3.5 backdrop-blur-2xl shadow-[0_-24px_80px_rgba(0,0,0,0.9)]">
               <div>
                 <p className="text-sm font-bold text-white leading-snug">
                   {totalSelected} ticket{totalSelected > 1 ? "s" : ""}
                   {totalPrice > 0 && (
-                    <> &nbsp;&middot;&nbsp; <span className="text-white/70">{formatINR(totalPrice)}</span></>
+                    <> &nbsp;&middot;&nbsp; <span className="text-white/65">{formatINR(totalPrice)}</span></>
                   )}
                 </p>
-                <p className="text-[9px] text-white/25 uppercase tracking-wider">
+                <p className="text-[9px] text-white/22 uppercase tracking-wider">
                   {totalPrice === 0 ? "Free entry" : "Tap to continue"}
                 </p>
               </div>
               <button
                 onClick={handleConfirm}
-                className="rounded-full bg-[#F44A22] px-7 py-3.5 text-[10px] font-black uppercase tracking-[0.28em] text-white transition-all hover:bg-[#FF5E36] active:scale-95 shadow-[0_4px_30px_rgba(244,74,34,0.4)]"
+                className="rounded-full bg-[#F44A22] px-7 py-3.5 text-[10px] font-black uppercase tracking-[0.28em] text-white transition-all hover:bg-[#FF5E36] active:scale-95 shadow-[0_4px_30px_rgba(244,74,34,0.45)]"
               >
                 {totalPrice === 0 ? "RSVP →" : "Confirm & pay →"}
               </button>

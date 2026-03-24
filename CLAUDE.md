@@ -163,8 +163,7 @@ thec1rcle/
 │   │       ├── plugins/       # Fastify plugins (firebase, cache, redis, rbac, rate-limit, validate)
 │   │       └── routes/v1/     # 30+ route files (events, venues, orders, auth, scan, tickets…)
 │   │
-│   ├── mobile-app/            # Expo React Native app for guests (Expo ~54)
-│   └── scanner-app/           # Expo React Native QR scanner for event staff
+│   └── mobile-app/            # Expo React Native app for guests and event staff scanner flows
 │
 ├── packages/
 │   ├── core/                  # All business logic: engines, services, repositories, API client

@@ -15,7 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useScannerStore } from "@/store/scannerStore";
-import { validateEventCode } from "@/lib/scanner";
+import { validateEventCode, prewarmConnection, registerScannerDevice } from "@/lib/scanner";
 import { colors, gradients } from "@/lib/design/theme";
 
 export default function ScannerCodeScreen() {
@@ -51,8 +51,23 @@ export default function ScannerCodeScreen() {
 
             if (result.valid) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                setEventData(result);
-                router.replace("/scanner/scan" as any);
+                await setEventData(result);
+                if (result.permissions.canScan && result.sessionToken && result.event.venueId) {
+                    const registration = await registerScannerDevice(
+                        result.event.venueId,
+                        result.sessionToken,
+                    );
+                    if (!registration.success) {
+                        throw new Error(registration.error || "Failed to register scanner device");
+                    }
+                }
+                prewarmConnection(result.code, result.sessionToken); // warm TCP before first scan hits
+                // H5: Route to cover-charge when code is charge-only
+                if (result.permissions.canCharge && !result.permissions.canScan) {
+                    router.replace("/scanner/cover-charge" as any);
+                } else {
+                    router.replace("/scanner/scan" as any);
+                }
             } else {
                 setError(result.error || "Invalid or expired code");
                 shake();

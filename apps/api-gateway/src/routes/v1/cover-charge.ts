@@ -70,16 +70,90 @@ const WalletParams = z.object({
     walletId: z.string().min(1),
 }).strict();
 
+const WalletByOrderParams = z.object({
+    orderId: z.string().min(1),
+}).strict();
+
 const ReconciliationQuery = z.object({
     eventId: z.string().min(1),
     venueId: z.string().min(1),
 }).strict();
 
 // =============================================================================
+// Scanner session token validation (C3 — scanner is a no-Firebase-auth route)
+// =============================================================================
+
+async function validateScannerToken(fastify: FastifyInstance, request: any): Promise<boolean> {
+    const authHeader = (request.headers.authorization as string) || '';
+    const token = authHeader.replace('Bearer ', '').trim();
+    if (!token) return false;
+
+    // Try Firebase ID token first (staff also logged in as guest user)
+    try {
+        await (fastify as any).firebase.auth().verifyIdToken(token);
+        return true;
+    } catch {}
+
+    // Fall back to scanner session token stored in event_codes
+    const snap = await (fastify as any).db.collection('event_codes')
+        .where('activeSessionToken', '==', token)
+        .where('isRevoked', '==', false)
+        .limit(1)
+        .get();
+    if (snap.empty) return false;
+    const data = snap.docs[0].data();
+    if (data.sessionExpiresAt && new Date(data.sessionExpiresAt) < new Date()) return false;
+    request.scannerCodeId = snap.docs[0].id;
+    return true;
+}
+
+// =============================================================================
 // Route Registration
 // =============================================================================
 
 export default async function coverChargeRoutes(fastify: FastifyInstance) {
+
+    // ── POST /api/v1/cover-charge/debit ────────────────────────────────────
+
+    // ── GET /api/v1/cover-charge/wallet/by-order/:orderId ──────────────────
+    // H3: QR only contains orderId — look up wallet by orderId
+
+    fastify.get('/wallet/by-order/:orderId', {
+        preHandler: [fastify.validate({ params: WalletByOrderParams })]
+    }, async (request: any, reply) => {
+        const isAuthorized = await validateScannerToken(fastify, request);
+        if (!isAuthorized) return reply.status(401).send({ error: 'Unauthorized' });
+
+        const { orderId } = request.params as any;
+        const snap = await (fastify as any).db.collection('cover_wallets')
+            .where('orderId', '==', orderId)
+            .where('state', '==', 'ACTIVE')
+            .limit(1)
+            .get();
+
+        if (snap.empty) return reply.status(404).send({ error: 'No active wallet for this order' });
+
+        const doc = snap.docs[0];
+        const w = doc.data() as any;
+        return {
+            wallet: {
+                id: doc.id,
+                orderId: w.orderId,
+                currentBalancePaise: w.currentBalancePaise,
+                openingBalancePaise: w.openingBalancePaise,
+                totalDebitedPaise: w.totalDebitedPaise || 0,
+                guestFirstName: w.guestFirstName || 'Guest',
+                state: w.state,
+                terminationTime: w.rules?.terminationTime || null,
+                rules: {
+                    allowedPresetItems: w.rules?.allowedPresetItems || [],
+                    showBalanceToGuest: w.rules?.showBalanceToGuest ?? true,
+                    maxChargeAmountPaise: w.rules?.maxChargeAmountPaise || 0,
+                    minChargeAmountPaise: w.rules?.minChargeAmountPaise || 0,
+                },
+            }
+        };
+    });
 
     // ── POST /api/v1/cover-charge/debit ────────────────────────────────────
 
@@ -97,12 +171,15 @@ export default async function coverChargeRoutes(fastify: FastifyInstance) {
             });
         }
 
-        // Verify Firebase Auth token — operatorId must match authenticated user
-        const authenticatedUid = request.user?.uid;
-        if (!authenticatedUid) {
+        // C3: Accept scanner session token OR Firebase auth
+        const isScannerAuthorized = await validateScannerToken(fastify, request);
+        if (!isScannerAuthorized) {
             return reply.status(401).send({ success: false, code: 'UNAUTHENTICATED', message: 'Authentication required' });
         }
-        if (authenticatedUid !== body.operatorId) {
+
+        // Only enforce operatorId match for Firebase-authenticated users (not scanner sessions)
+        const authenticatedUid = request.user?.uid;
+        if (authenticatedUid && authenticatedUid !== body.operatorId) {
             return reply.status(403).send({ success: false, code: 'OPERATOR_MISMATCH', message: 'operatorId must match authenticated user' });
         }
 

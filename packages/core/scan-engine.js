@@ -30,22 +30,22 @@ export function verifyScanSignature(payload) {
  * Validates if a device is authorized to scan for a specific venue.
  */
 export async function validateScannerDevice(db, deviceId, venueId) {
-    const snapshot = await db.collection("bound_devices")
-        .where("deviceId", "==", deviceId)
-        .where("venueId", "==", venueId)
-        .where("status", "==", "active")
-        .limit(1)
-        .get();
+    const deviceRef = db.collection("bound_devices").doc(`${venueId}_${deviceId}`);
+    const deviceDoc = await deviceRef.get();
 
-    if (snapshot.empty) {
+    if (!deviceDoc.exists) {
         return { valid: false, error: "Device not authorized for this venue" };
     }
 
-    const deviceDoc = snapshot.docs[0];
+    const device = deviceDoc.data() || {};
+    if (device.status !== "active" && device.bound !== true) {
+        return { valid: false, error: "Device not authorized for this venue" };
+    }
+
     return {
         valid: true,
-        device: { id: deviceDoc.id, ...deviceDoc.data() },
-        ref: deviceDoc.ref
+        device: { id: deviceDoc.id, ...device },
+        ref: deviceRef
     };
 }
 
