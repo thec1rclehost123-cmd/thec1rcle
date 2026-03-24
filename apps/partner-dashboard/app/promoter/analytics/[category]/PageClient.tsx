@@ -1,7 +1,7 @@
 "use client";
 
-import UnifiedAnalyticsClient from "@/components/analytics/UnifiedAnalyticsClient";
+import { PromoterAnalyticsClient } from "@/components/promoter/analytics/PromoterAnalyticsClient";
 
 export default function CategoryPageClient() {
-    return <UnifiedAnalyticsClient role="promoter" idParam="promoterId" />;
+    return <PromoterAnalyticsClient />;
 }

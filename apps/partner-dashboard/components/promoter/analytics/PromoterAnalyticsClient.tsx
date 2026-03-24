@@ -4,24 +4,31 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, MousePointerClick, DollarSign, RefreshCw, BarChart } from "lucide-react";
 import { PromoterFunnelChart } from "./PromoterFunnelChart";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 function formatCurrencyInline(amount: number) {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("en-IN", {
         style: "currency",
-        currency: "USD"
+        currency: "INR",
+        maximumFractionDigits: 0,
     }).format(amount);
 }
 
 export function PromoterAnalyticsClient() {
     const [range, setRange] = useState("30d");
+    const { user } = useDashboardAuth();
 
     const { data, isLoading, error, refetch, isRefetching } = useQuery({
         queryKey: ["promoter", "analytics", range],
         queryFn: async () => {
-            const res = await fetch(`/api/partner/promoter/analytics?range=${range}`);
+            const token = await user!.getIdToken();
+            const res = await fetch(`/api/partner/promoter/analytics?range=${range}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
             if (!res.ok) throw new Error("Failed to fetch analytics");
             return res.json();
         },
+        enabled: !!user,
     });
 
     return (

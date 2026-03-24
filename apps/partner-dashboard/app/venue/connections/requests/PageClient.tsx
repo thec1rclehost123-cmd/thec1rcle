@@ -26,7 +26,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useVenueConnections } from "@/lib/hooks/useVenueQueries";
-import { formatDate } from "@/lib/utils/format";
+import { formatRelativeDate } from "@/lib/utils/format";
 import { DiscoveryView } from "@/components/discovery/DiscoveryView";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -84,6 +84,7 @@ export default function VenueConnectionsPage() {
 
     const handleAction = async (connectionId: string, action: 'approve' | 'reject' | 'block', type: 'host' | 'promoter') => {
         setProcessingRequest(connectionId);
+        const connectionType = type === 'promoter' ? 'promoter_connection' : 'partnership';
         try {
             const token = await user?.getIdToken();
             const res = await fetch('/api/discovery', {
@@ -95,6 +96,7 @@ export default function VenueConnectionsPage() {
                 body: JSON.stringify({
                     connectionId,
                     action,
+                    type: connectionType,
                     role: 'venue',
                     partnerId: venueId,
                     partnerName: venueName
@@ -179,7 +181,7 @@ export default function VenueConnectionsPage() {
                                                         </span>
                                                         <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">•</span>
                                                         <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">
-                                                            Received {formatDate(request.createdAt)}
+                                                            {formatRelativeDate(request.createdAt)}
                                                         </span>
                                                     </div>
                                                 </div>

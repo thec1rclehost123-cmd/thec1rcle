@@ -139,10 +139,10 @@ export function getDefaultTabVisibility(
 
     if (partnerType === 'promoter') {
         if (r === 'TEAM_LEAD') return null;
-        // PROMOTER — core features only; no team management or partner controls
+        // PROMOTER — core features; partners tab enabled for network management
         return {
             overview: true, links: true, events: true, calendar: true,
-            partners: false, analytics: true, finance: true, settings: false,
+            partners: true, analytics: true, finance: true, settings: false,
         };
     }
 

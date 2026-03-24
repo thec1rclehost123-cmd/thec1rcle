@@ -332,7 +332,7 @@ function DirectoryCard({
                                 {partner.name}
                             </h3>
                             <div className="flex items-center gap-1.5 mt-2 text-caption font-bold text-text-muted">
-                                <MapPin className="w-3 h-3 text-accent-primary" /> {partner.city}
+                                <MapPin className="w-3 h-3 text-accent-primary" /> {partner.city || "India"}
                             </div>
                         </div>
                     </div>
@@ -362,16 +362,16 @@ function DirectoryCard({
                         <div>
                             <p className="text-[10px] font-black text-text-muted uppercase tracking-tighter">Events</p>
                             <p className="text-body font-black text-text-primary leading-none">
-                                {partner.eventsCount}
+                                {partner.eventsCount > 0 ? partner.eventsCount : "—"}
                             </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2.5 p-3 bg-surface-tertiary rounded-2xl border border-border-subtle group-hover:border-accent-primary/10 transition-colors">
                         <Users className="w-4 h-4 text-accent-primary/60" />
                         <div>
-                            <p className="text-[10px] font-black text-text-muted uppercase tracking-tighter">Fans</p>
+                            <p className="text-[10px] font-black text-text-muted uppercase tracking-tighter">Followers</p>
                             <p className="text-body font-black text-text-primary leading-none">
-                                {partner.followersCount}
+                                {partner.followersCount > 0 ? partner.followersCount.toLocaleString("en-IN") : "—"}
                             </p>
                         </div>
                     </div>

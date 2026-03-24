@@ -42,6 +42,32 @@ export function formatDate(value: any): string {
     return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+/** Mar 2026 */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function formatMonthYear(value: any): string {
+    const d = toDate(value);
+    if (!d) return '—';
+    return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+}
+
+/** "2 days ago", "3h ago", "just now" — falls back to formatDate beyond 30 days */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function formatRelativeDate(value: any): string {
+    const d = toDate(value);
+    if (!d) return '—';
+    const diff = Date.now() - d.getTime();
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 1)   return 'just now';
+    if (mins < 60)  return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days === 1) return 'yesterday';
+    if (days < 7)   return `${days} days ago`;
+    if (days < 30)  return `${Math.floor(days / 7)} weeks ago`;
+    return formatDate(value);
+}
+
 /** 15 Jan */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function formatDateShort(value: any): string {
