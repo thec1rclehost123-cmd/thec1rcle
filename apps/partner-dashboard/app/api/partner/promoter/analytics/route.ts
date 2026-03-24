@@ -42,12 +42,11 @@ export async function GET(req: NextRequest) {
     const db    = getAdminDb();
 
     try {
-        // 1. Fetch all promoter links
+        // 1. Fetch all promoter links (sort in-memory to avoid composite index requirement)
         const linksSnap = await db
             .collection("promoter_links")
             .where("promoterId", "==", promoterId)
-            .orderBy("clicks", "desc")
-            .limit(100)
+            .limit(200)
             .get();
 
         const links = linksSnap.docs.map((d) => {
@@ -135,7 +134,8 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        // 4. Top links (sorted by Firestore already)
+        // 4. Top links sorted by clicks in memory
+        links.sort((a, b) => b.clicks - a.clicks);
         const topLinks = links.slice(0, 10).map((l) => ({
             id: l.id,
             eventName: l.eventName,

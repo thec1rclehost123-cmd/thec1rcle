@@ -22,7 +22,7 @@ import { DiscoverDirectory } from "@/components/partnerships/DiscoverDirectory";
 import { TierSelectionModal, ContractTier } from "@/components/partnerships/TierSelectionModal";
 import { NetworkProfileModal, NetworkProfile } from "@/components/partnerships/NetworkProfileModal";
 import { motion, AnimatePresence } from "framer-motion";
-import { formatDate } from "@/lib/utils/format";
+import { formatMonthYear } from "@/lib/utils/format";
 
 type Tab = "roster" | "pending" | "discover";
 
@@ -177,7 +177,7 @@ export default function VenuePartnershipsPage() {
                     <ActiveRoster
                         connections={roster}
                         loading={loading}
-                        formatDate={formatDate}
+                        formatDate={formatMonthYear}
                         onViewProfile={(conn) =>
                             setProfileTarget({
                                 id: conn.otherId,
@@ -306,7 +306,7 @@ function ActiveRoster({
                     <div className="relative flex items-center justify-between py-4 border-y border-border-subtle mb-6">
                         <span className="flex items-center gap-1.5 text-[11px] font-medium text-text-tertiary">
                             <Clock className="w-3.5 h-3.5 opacity-40" />
-                            Partner since {formatDate(conn.updatedAt || conn.createdAt)}
+                            Partner since {formatMonthYear(conn.updatedAt || conn.createdAt)}
                         </span>
                         <span className="flex items-center gap-1.5 font-black text-[10px] uppercase tracking-widest text-orange-500">
                             <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" /> Active
