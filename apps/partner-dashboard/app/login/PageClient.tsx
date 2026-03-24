@@ -32,7 +32,7 @@ const roleConfig = {
 };
 
 function LoginForm() {
-    const { signIn, signOut, user, profile, isApproved, onboardingStatus, loading: authLoading } = useDashboardAuth();
+    const { signIn, signInWithGoogle, signOut, user, profile, isApproved, onboardingStatus, loading: authLoading } = useDashboardAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -143,11 +143,68 @@ function LoginForm() {
             if (err.code === 'auth/user-not-found') {
                 setError("No account found with this email. Please apply for access or check your email.");
             } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
-                // This also occurs when the account uses Google Sign-In (no password set).
-                // In that case the user should reset their password via "Forgot password?".
-                setError("Invalid credentials. If you registered via Google, use 'Forgot password?' to set a password.");
+                setError("Invalid credentials. If you registered via Google, use 'Continue with Google' below.");
             } else {
                 setError("An error occurred. Please try again.");
+            }
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleLogin = async () => {
+        setError("");
+        setLoading(true);
+        try {
+            await signInWithGoogle();
+
+            const auth = getFirebaseAuth();
+            const currentUser = auth.currentUser;
+
+            if (currentUser) {
+                const token = await currentUser.getIdToken(true);
+                const res = await fetch('/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!res.ok) {
+                    setError("Failed to fetch user profile.");
+                    await auth.signOut();
+                    setLoading(false);
+                    return;
+                }
+
+                const data = await res.json();
+                const userData = data.user || {};
+                const onboardingRequest = data.onboardingRequest || null;
+
+                let assignedType: string | null = null;
+
+                if (userData.role === 'host') assignedType = 'host';
+                else if (userData.role === 'promoter') assignedType = 'promoter';
+                else if (userData.role === 'partner' || userData.venueId) assignedType = 'venue';
+
+                if (!assignedType && userData.activeMembership?.partnerType) {
+                    const pt = userData.activeMembership.partnerType;
+                    assignedType = (pt === 'venue' || pt === 'club') ? 'venue' : pt;
+                }
+
+                if (!assignedType) {
+                    if (onboardingRequest) {
+                        setError("You don't have partner access yet. Your application is pending review.");
+                    } else {
+                        setError("This account is not registered. Please apply for access.");
+                    }
+                    await auth.signOut();
+                    setLoading(false);
+                    return;
+                }
+
+                router.push(`/${assignedType}`);
+            }
+        } catch (err: any) {
+            console.error("Google login error:", err);
+            if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+                setError("Google sign-in failed. Please try again.");
             }
             setLoading(false);
         }

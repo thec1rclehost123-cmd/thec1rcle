@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import HostDiscoverPage from "./PageClient";
 
 export default function Page() {
-    redirect("/host/network?tab=discover");
+    return <HostDiscoverPage />;
 }

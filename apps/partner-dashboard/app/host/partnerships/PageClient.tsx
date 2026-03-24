@@ -336,7 +336,7 @@ export default function HostPartnershipsPage() {
             await fetch("/api/host/partnerships/request", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                body: JSON.stringify({ hostId, venueId, type: "venue" }),
+                body: JSON.stringify({ hostId, venueId }),
             });
             fetchData();
         } catch { /* */ }
@@ -370,7 +370,7 @@ export default function HostPartnershipsPage() {
 
     const tabs: { id: NetworkTab; label: string; count?: number }[] = [
         { id: "venues", label: "Infrastructure", count: venues.filter(v => v.partnershipStatus === "active").length },
-        { id: "promoters", label: "Distribution", count: promoters.filter(p => p.partnershipStatus === "active").length },
+        { id: "promoters", label: "Promoter", count: promoters.filter(p => p.partnershipStatus === "active").length },
         { id: "requests", label: "Audit Log", count: pendingRequestCount || undefined },
     ];
 
@@ -382,7 +382,7 @@ export default function HostPartnershipsPage() {
                 <Link href="/host/discover">
                     <VenueActionButton variant="primary">
                         <Compass className="w-5 h-5 mr-2" />
-                        Explore Network
+                        Explore Venues
                     </VenueActionButton>
                 </Link>
             }
@@ -392,7 +392,7 @@ export default function HostPartnershipsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {[
                         { icon: Building2, label: "Infrastructure", value: venues.filter(v => v.partnershipStatus === "active").length, color: "var(--v-info)" },
-                        { icon: Users, label: "Distribution", value: promoters.filter(p => p.partnershipStatus === "active").length, color: "var(--v-orange)" },
+                        { icon: Users, label: "Promoter", value: promoters.filter(p => p.partnershipStatus === "active").length, color: "var(--v-orange)" },
                         { icon: TrendingUp, label: "Network Effect", value: promoters.reduce((acc, p) => acc + (p.totalGuestsBrought ?? 0), 0), color: "var(--v-success)" },
                     ].map(stat => {
                         const Icon = stat.icon;
@@ -433,7 +433,7 @@ export default function HostPartnershipsPage() {
                             <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--v-text-muted)] group-focus-within:text-[var(--v-orange)] transition-colors" />
                             <input
                                 type="text"
-                                placeholder={tab === "venues" ? "Locate infrastructure..." : "Locate distribution..."}
+                                placeholder={tab === "venues" ? "Locate venues..." : "Locate promoters..."}
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                                 className="w-full bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] pl-14 pr-6 py-4 text-[15px] text-text-primary placeholder:text-[var(--v-text-muted)] focus:outline-none focus:border-[var(--v-orange)]/50 transition-all font-bold tracking-tight shadow-sm"

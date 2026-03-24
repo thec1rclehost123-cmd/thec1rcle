@@ -6,22 +6,22 @@ import {
     RefreshCw,
     Users,
     ShieldCheck,
-    Zap,
     MapPin,
-    Star,
     CalendarDays,
     Clock,
     CheckCircle2,
     UserCircle,
     Building2,
-    Filter,
     XCircle,
     Send,
-    Loader2
+    Loader2,
+    Star,
+    Zap,
 } from "lucide-react";
 import { VirtuosoGrid } from "react-virtuoso";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 
 type PartnerType = "host" | "venue" | "promoter" | "all";
 
@@ -76,9 +76,7 @@ export function DiscoveryView({
             if (searchQuery) params.set("search", searchQuery);
 
             const res = await fetch(`/api/discovery?${params}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+                headers: { "Authorization": `Bearer ${token}` }
             });
             const data = await res.json();
             setPartners(data.partners || []);
@@ -90,9 +88,7 @@ export function DiscoveryView({
     }, [partnerId, role, user, filterType, filterCity, searchQuery]);
 
     useEffect(() => {
-        if (partnerId) {
-            fetchPartners();
-        }
+        if (partnerId) fetchPartners();
     }, [partnerId, fetchPartners]);
 
     const handleRequest = async (partner: Partner) => {
@@ -100,11 +96,11 @@ export function DiscoveryView({
         setSendingRequest(partner.id);
         try {
             const token = await user?.getIdToken();
-            const res = await fetch('/api/discovery', {
-                method: 'POST',
+            const res = await fetch("/api/discovery", {
+                method: "POST",
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     requesterId: partnerId,
@@ -131,36 +127,39 @@ export function DiscoveryView({
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-700">
-            {/* Search Controls */}
-            <div className="flex flex-col md:flex-row gap-3 sticky top-4 z-30 p-1.5 bg-surface-elevated/80 backdrop-blur-xl border border-border-default/60 rounded-2xl shadow-sm">
-                <div className="flex-1 relative group">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary group-focus-within:text-blue-600 transition-colors" />
+        <div className="space-y-8">
+            {/* Search & Filter Bar */}
+            <div className="flex flex-col xl:flex-row xl:items-center gap-4">
+                {/* Search input */}
+                <div className="relative group flex-1">
+                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--v-text-muted)] group-focus-within:text-[var(--v-orange)] transition-colors" />
                     <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search Circle..."
-                        className="w-full bg-transparent border-none rounded-xl pl-10 pr-4 py-2 text-[13px] text-text-primary focus:outline-none transition-all font-medium placeholder:text-text-tertiary"
+                        placeholder="Search venues, cities, names..."
+                        className="w-full bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] pl-14 pr-6 py-4 text-[15px] text-text-primary placeholder:text-[var(--v-text-muted)] focus:outline-none focus:border-[var(--v-orange)]/50 transition-all font-bold tracking-tight shadow-sm"
                     />
                 </div>
-                <div className="flex gap-1.5 p-0.5">
-                    <select
-                        value={filterType}
-                        onChange={(e) => setFilterType(e.target.value as PartnerType)}
-                        className="pl-3 pr-8 py-1.5 bg-surface-tertiary border border-border-default/50 rounded-lg text-[11px] font-bold text-text-secondary focus:outline-none appearance-none cursor-pointer hover:bg-surface-secondary transition-colors"
-                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '10px' }}
-                    >
-                        {allowedTypes.includes("all") && <option value="all">Everywhere</option>}
-                        {allowedTypes.includes("venue") && <option value="venue">Venues</option>}
-                        {allowedTypes.includes("host") && <option value="host">Hosts</option>}
-                        {allowedTypes.includes("promoter") && <option value="promoter">Promoters</option>}
-                    </select>
+
+                {/* Filter controls */}
+                <div className="flex items-center gap-3">
+                    <div className="flex p-2 bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] gap-2">
+                        {allowedTypes.filter(t => t !== "all").map(t => (
+                            <button
+                                key={t}
+                                onClick={() => setFilterType(t)}
+                                className={`px-5 py-2.5 rounded-[16px] text-[12px] font-black uppercase tracking-wider transition-all ${filterType === t ? "bg-[var(--v-elevated)] text-text-primary shadow-lg" : "text-[var(--v-text-tertiary)] hover:text-text-primary"}`}
+                            >
+                                {t === "venue" ? "Venues" : t === "promoter" ? "Promoters" : t}
+                            </button>
+                        ))}
+                    </div>
+
                     <select
                         value={filterCity}
                         onChange={(e) => setFilterCity(e.target.value)}
-                        className="pl-3 pr-8 py-1.5 bg-surface-tertiary border border-border-default/50 rounded-lg text-[11px] font-bold text-text-secondary focus:outline-none appearance-none cursor-pointer hover:bg-surface-secondary transition-colors"
-                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '10px' }}
+                        className="bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] px-5 py-4 text-[13px] font-black text-text-primary focus:outline-none focus:border-[var(--v-orange)]/50 transition-all appearance-none cursor-pointer"
                     >
                         <option value="">All Cities</option>
                         <option value="Pune">Pune</option>
@@ -168,43 +167,53 @@ export function DiscoveryView({
                         <option value="Goa">Goa</option>
                         <option value="Bengaluru">Bengaluru</option>
                     </select>
+
                     <button
                         onClick={() => fetchPartners()}
-                        className="p-2 bg-surface-elevated border border-border-default/50 rounded-lg text-text-tertiary hover:text-blue-600 transition-all shadow-sm active:scale-95"
+                        className="w-14 h-14 flex items-center justify-center rounded-[20px] bg-[var(--v-card)] border border-[var(--v-border)] text-[var(--v-text-muted)] hover:text-[var(--v-orange)] hover:border-[var(--v-orange)]/30 transition-all active:scale-95"
                     >
-                        <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                        <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
                     </button>
                 </div>
             </div>
 
             {/* Partner Grid */}
             {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <div key={i} className="h-[320px] bg-surface-tertiary/50 rounded-2xl animate-pulse border border-border-subtle" />)}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                        <div key={i} className="h-80 rounded-[32px] animate-pulse bg-[var(--v-card)] border border-[var(--v-border)]" />
+                    ))}
                 </div>
             ) : partners.length === 0 ? (
-                <div className="py-20 bg-surface-elevated/50 backdrop-blur-sm rounded-3xl border border-dashed border-border-default flex flex-col items-center text-center px-8">
-                    <div className="w-12 h-12 bg-surface-tertiary rounded-full flex items-center justify-center mb-4">
-                        <Users className="w-6 h-6 text-text-placeholder" />
+                <div className="py-32 rounded-[56px] bg-[var(--v-card)] border border-dashed border-[var(--v-border)] flex flex-col items-center text-center px-12">
+                    <div className="w-20 h-20 rounded-full bg-surface-tertiary flex items-center justify-center mb-8">
+                        <Building2 className="w-10 h-10 text-text-tertiary" />
                     </div>
-                    <h4 className="text-lg font-bold text-text-primary tracking-tight">No Discoveries Found</h4>
-                    <p className="text-text-tertiary text-xs font-medium mt-1 max-w-xs">We couldn't find any partners matching those filters right now.</p>
+                    <h3 className="text-2xl font-black text-text-primary">No results found</h3>
+                    <p className="text-[15px] text-[var(--v-text-tertiary)] mt-3 mb-10 max-w-sm leading-relaxed">
+                        Try adjusting your filters or search to find partners on The C1rcle network.
+                    </p>
+                    <button
+                        onClick={() => { setSearchQuery(""); setFilterCity(""); }}
+                        className="h-12 px-8 rounded-2xl bg-surface-tertiary border border-border-subtle text-text-primary text-[13px] font-black uppercase tracking-widest hover:bg-surface-elevated transition-all"
+                    >
+                        Clear Filters
+                    </button>
                 </div>
             ) : (
                 <VirtuosoGrid
                     useWindowScroll
                     data={partners}
                     totalCount={partners.length}
-                    overscan={200}
-                    listClassName="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4"
+                    overscan={300}
+                    listClassName="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
                     itemContent={(index, partner) => (
-                        <div className="p-0.5">
-                            <PartnerCard
-                                partner={partner}
-                                onAction={() => handleRequest(partner)}
-                                isActionLoading={sendingRequest === partner.id}
-                            />
-                        </div>
+                        <PartnerCard
+                            key={partner.id}
+                            partner={partner}
+                            onAction={() => handleRequest(partner)}
+                            isActionLoading={sendingRequest === partner.id}
+                        />
                     )}
                 />
             )}
@@ -212,26 +221,30 @@ export function DiscoveryView({
             {/* Success Modal */}
             <AnimatePresence>
                 {showSuccessModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[8px]">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
                         <motion.div
-                            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                            initial={{ scale: 0.92, opacity: 0, y: 24 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
-                            exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                            className="bg-surface-elevated rounded-[2.5rem] p-8 max-w-[340px] w-full text-center shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-white/20"
+                            exit={{ scale: 0.92, opacity: 0, y: 24 }}
+                            transition={{ duration: 0.3, ease: [0.34, 1.56, 0.64, 1] }}
+                            className="rounded-[40px] p-10 max-w-[360px] w-full text-center border border-[var(--v-border)]"
+                            style={{ background: "var(--v-elevated)" }}
                         >
-                            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6">
-                                <Send className="w-8 h-8" />
+                            <div className="w-20 h-20 rounded-[24px] flex items-center justify-center mx-auto mb-7"
+                                style={{ background: "var(--v-orange)10", border: "1px solid var(--v-orange)20" }}>
+                                <Send className="w-9 h-9" style={{ color: "var(--v-orange)" }} />
                             </div>
-                            <h2 className="text-2xl font-semibold text-text-primary mb-2 tracking-tight">Request Sent</h2>
-                            <p className="text-text-tertiary font-medium leading-relaxed mb-8 px-4">
-                                Connection request for <span className="text-text-primary font-bold">{selectedPartner?.name}</span> is on its way.
+                            <h2 className="text-2xl font-black text-text-primary mb-3 tracking-tight">Request Sent</h2>
+                            <p className="text-[var(--v-text-tertiary)] font-bold leading-relaxed mb-8 px-2">
+                                Your partnership request to <span className="text-text-primary">{selectedPartner?.name}</span> is now pending their approval.
                             </p>
-                            <button
+                            <VenueActionButton
+                                variant="primary"
+                                className="w-full h-13"
                                 onClick={() => setShowSuccessModal(false)}
-                                className="w-full py-4 bg-blue-600 text-text-primary rounded-2xl font-bold tracking-tight hover:bg-blue-700 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20"
                             >
                                 Done
-                            </button>
+                            </VenueActionButton>
                         </motion.div>
                     </div>
                 )}
@@ -240,97 +253,109 @@ export function DiscoveryView({
     );
 }
 
-function PartnerCard({ partner, onAction, isActionLoading }: { partner: Partner, onAction: () => void, isActionLoading: boolean }) {
+function PartnerCard({ partner, onAction, isActionLoading }: {
+    partner: Partner;
+    onAction: () => void;
+    isActionLoading: boolean;
+}) {
+    const typeColor = partner.type === "venue" ? "var(--v-info)" : partner.type === "promoter" ? "var(--v-orange)" : "var(--v-success)";
+    const TypeIcon = partner.type === "venue" ? Building2 : partner.type === "host" ? UserCircle : Users;
+
     return (
         <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="group bg-surface-elevated border border-border-default/60 rounded-2xl overflow-hidden flex flex-col hover:border-border-strong hover:shadow-[0_10px_30px_rgba(0,0,0,0.04)] transition-all duration-500"
+            className="group relative rounded-[32px] bg-[var(--v-card)] border border-[var(--v-border)] hover:bg-[var(--v-elevated)] transition-all overflow-hidden"
         >
-            {/* Image Section */}
-            <div className="relative h-32 bg-surface-secondary overflow-hidden">
+            {/* Cover */}
+            <div className="h-44 bg-surface-tertiary relative overflow-hidden">
                 {partner.coverImage ? (
-                    <img src={partner.coverImage} alt={partner.name} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-1000" />
+                    <img
+                        src={partner.coverImage}
+                        alt=""
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                    />
                 ) : (
-                    <div className="h-full w-full bg-gradient-to-br from-indigo-50/50 to-purple-50/50" />
-                )}
-
-                {/* Glass Badges */}
-                <div className="absolute top-2.5 left-2.5 z-20 flex flex-wrap gap-1.5">
-                    <div className="px-2 py-1 bg-surface-elevated/70 backdrop-blur-md rounded-lg text-[9px] font-bold tracking-tight text-text-primary border border-white/40 shadow-sm">
-                        {partner.city}
+                    <div className="absolute inset-0 flex items-center justify-center"
+                        style={{ background: `linear-gradient(135deg, ${typeColor}15, ${typeColor}05)` }}>
+                        <TypeIcon className="w-12 h-12 text-text-tertiary" />
                     </div>
-                    <div className={`px-2 py-1 backdrop-blur-md rounded-lg text-[9px] font-bold tracking-tight text-text-primary flex items-center gap-1 border border-white/20 shadow-sm ${partner.type === 'host' ? 'bg-purple-500/80' :
-                        partner.type === 'venue' ? 'bg-blue-500/80' : 'bg-green-500/80'
-                        }`}>
-                        {partner.type === 'host' ? <UserCircle className="w-3 h-3" /> : partner.type === 'venue' ? <Building2 className="w-3 h-3" /> : <Users className="w-3 h-3" />}
-                        {partner.type.charAt(0).toUpperCase() + partner.type.slice(1)}
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+
+                {/* City + Type badges */}
+                <div className="absolute top-4 left-4 flex items-center gap-2">
+                    {partner.city && (
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest border border-white/10 backdrop-blur-md"
+                            style={{ background: "rgba(0,0,0,0.4)", color: "rgba(255,255,255,0.9)" }}>
+                            <MapPin className="w-3 h-3" />
+                            {partner.city}
+                        </div>
+                    )}
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest border backdrop-blur-md"
+                        style={{ background: `${typeColor}20`, borderColor: `${typeColor}40`, color: typeColor }}>
+                        <TypeIcon className="w-3 h-3" />
+                        {partner.type}
                     </div>
                 </div>
 
-                {/* Verification Overlay */}
+                {/* Verified badge */}
                 {partner.isVerified && (
-                    <div className="absolute bottom-2.5 right-2.5 z-20 p-1.5 bg-surface-elevated/70 backdrop-blur-md rounded-lg border border-white/40 shadow-sm">
-                        <ShieldCheck className="h-3 w-3 text-blue-600" />
+                    <div className="absolute top-4 right-4 p-2 rounded-xl border border-white/10 backdrop-blur-md"
+                        style={{ background: "rgba(0,0,0,0.4)" }}>
+                        <ShieldCheck className="w-4 h-4" style={{ color: "var(--v-info)" }} />
                     </div>
                 )}
             </div>
 
-            {/* Details Section */}
-            <div className="p-4 flex-1 flex flex-col">
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-bold text-text-primary tracking-tight leading-tight truncate">{partner.name}</h3>
-                </div>
-
-                <p className="text-text-tertiary text-[11px] font-medium mb-4 line-clamp-2 leading-relaxed">
-                    {partner.bio || 'Verified circle network partner.'}
+            {/* Content */}
+            <div className="p-6">
+                <h3 className="text-[17px] font-black text-text-primary tracking-tight truncate mb-1">{partner.name}</h3>
+                <p className="text-[13px] text-[var(--v-text-tertiary)] font-bold line-clamp-2 leading-relaxed mb-5">
+                    {partner.bio || "Verified C1rcle network partner."}
                 </p>
 
-                <div className="grid grid-cols-2 gap-2 mb-4">
-                    <div className="flex items-center gap-1.5 px-2 py-1.5 bg-surface-tertiary rounded-xl border border-border-subtle/50">
-                        <CalendarDays className="h-3 w-3 text-text-tertiary" />
-                        <span className="text-[10px] font-bold text-text-primary tracking-tight truncate">{partner.eventsCount} Events</span>
+                {/* Stats */}
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                    <div className="flex items-center gap-2 p-3 rounded-2xl bg-surface-tertiary border border-border-subtle">
+                        <CalendarDays className="w-4 h-4 text-[var(--v-text-muted)] shrink-0" />
+                        <span className="text-[12px] font-black text-text-primary tabular-nums">{partner.eventsCount} Events</span>
                     </div>
-                    <div className="flex items-center gap-1.5 px-2 py-1.5 bg-surface-tertiary rounded-xl border border-border-subtle/50">
-                        <Star className="h-3 w-3 text-text-tertiary" />
-                        <span className="text-[10px] font-bold text-text-primary tracking-tight truncate">{partner.followersCount} Fans</span>
+                    <div className="flex items-center gap-2 p-3 rounded-2xl bg-surface-tertiary border border-border-subtle">
+                        <Star className="w-4 h-4 text-[var(--v-text-muted)] shrink-0" />
+                        <span className="text-[12px] font-black text-text-primary tabular-nums">{partner.followersCount} Fans</span>
                     </div>
                 </div>
 
-                <div className="mt-auto pt-2">
-                    {partner.connectionStatus === 'approved' ? (
-                        <div className="w-full py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-bold tracking-tight flex items-center justify-center gap-1.5 border border-emerald-100/50">
-                            <CheckCircle2 className="w-3 h-3" /> Connected
-                        </div>
-                    ) : partner.connectionStatus === 'pending' ? (
-                        <div className="w-full py-2 bg-amber-50 text-amber-600 rounded-xl text-[10px] font-bold tracking-tight flex items-center justify-center gap-1.5 border border-amber-100/50">
-                            <Clock className="w-3 h-3" /> Pending
-                        </div>
-                    ) : partner.connectionStatus === 'rejected' ? (
-                        <div className="w-full py-2 bg-surface-tertiary text-text-tertiary rounded-xl text-[10px] font-bold tracking-tight flex items-center justify-center gap-1.5 border border-border-default">
-                            <XCircle className="w-3 h-3" /> Rejected
-                        </div>
-                    ) : partner.connectionStatus === 'blocked' ? (
-                        <div className="w-full py-2 bg-red-50 text-red-600 rounded-xl text-[10px] font-bold tracking-tight flex items-center justify-center gap-1.5 border border-red-100/50">
-                            <ShieldCheck className="w-3 h-3" /> Blocked
-                        </div>
-                    ) : (
-                        <button
-                            onClick={onAction}
-                            disabled={isActionLoading}
-                            className="w-full py-2.5 bg-surface-secondary hover:bg-surface-tertiary text-text-primary rounded-xl text-[10px] font-black tracking-tight shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50"
-                        >
-                            {isActionLoading ? (
-                                <Loader2 className="w-3 h-3 animate-spin text-text-primary" />
-                            ) : (
-                                <>
-                                    Connect
-                                    <Zap className="h-3 w-3 fill-current opacity-80" />
-                                </>
-                            )}
-                        </button>
-                    )}
-                </div>
+                {/* Action */}
+                {partner.connectionStatus === "approved" ? (
+                    <div className="flex items-center justify-center gap-2 h-11 rounded-2xl text-[12px] font-black uppercase tracking-widest"
+                        style={{ background: "var(--v-success-bg)", color: "var(--v-success)", border: "1px solid var(--v-success)20" }}>
+                        <CheckCircle2 className="w-4 h-4" /> Connected
+                    </div>
+                ) : partner.connectionStatus === "pending" ? (
+                    <div className="flex items-center justify-center gap-2 h-11 rounded-2xl text-[12px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500/60 border border-amber-500/10 cursor-not-allowed">
+                        <Clock className="w-4 h-4" /> Request Pending
+                    </div>
+                ) : partner.connectionStatus === "rejected" ? (
+                    <div className="flex items-center justify-center gap-2 h-11 rounded-2xl text-[12px] font-black uppercase tracking-widest bg-surface-tertiary text-text-tertiary border border-border-subtle">
+                        <XCircle className="w-4 h-4" /> Rejected
+                    </div>
+                ) : (
+                    <button
+                        onClick={onAction}
+                        disabled={isActionLoading}
+                        className="w-full flex items-center justify-center gap-2.5 h-11 rounded-2xl text-[12px] font-black uppercase tracking-widest bg-[var(--v-orange)]/10 hover:bg-[var(--v-orange)] text-[var(--v-orange)] hover:text-white border border-[var(--v-orange)]/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isActionLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <>
+                                <Send className="w-4 h-4" /> Request Access
+                            </>
+                        )}
+                    </button>
+                )}
             </div>
         </motion.div>
     );
