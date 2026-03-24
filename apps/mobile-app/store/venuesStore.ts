@@ -53,7 +53,7 @@ export const useVenuesStore = create<VenuesState>((set) => ({
             }
 
             const snapshot = await getDocs(qRef);
-            let venues: Venue[] = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Venue[];
+            let venues: Venue[] = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as object) })) as Venue[];
 
             if (filters.area) {
                 const clean = filters.area.toLowerCase().trim();

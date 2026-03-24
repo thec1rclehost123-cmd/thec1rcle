@@ -172,10 +172,10 @@ export function subscribeToGroupTyping(
         where("chatId", "==", eventId)
     );
 
-    const unsubscribe = onSnapshot(typingQuery, (snapshot) => {
+    const unsubscribe = onSnapshot(typingQuery, (snapshot: any) => {
         typersMap.clear();
 
-        snapshot.docs.forEach((doc) => {
+        snapshot.docs.forEach((doc: any) => {
             const data = doc.data();
             if (data.userId !== currentUserId) {
                 const timestamp = data.timestamp?.toDate?.()?.getTime() || Date.now();
@@ -215,11 +215,11 @@ export function subscribeToDMTyping(
         where("chatId", "==", conversationId)
     );
 
-    return onSnapshot(typingQuery, (snapshot) => {
+    return onSnapshot(typingQuery, (snapshot: any) => {
         let otherTyping = false;
         let otherName = "";
 
-        snapshot.docs.forEach((doc) => {
+        snapshot.docs.forEach((doc: any) => {
             const data = doc.data();
             if (data.userId !== currentUserId) {
                 const timestamp = data.timestamp?.toDate?.()?.getTime() || Date.now();

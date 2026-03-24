@@ -9,3 +9,8 @@ declare module "expo-network" {
 declare module "expo-crypto" {
     export function randomUUID(): string;
 }
+
+declare module "react-native-razorpay" {
+    const RazorpayCheckout: any;
+    export default RazorpayCheckout;
+}

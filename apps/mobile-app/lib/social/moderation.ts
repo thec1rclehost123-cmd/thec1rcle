@@ -27,10 +27,10 @@ export async function reportUser(
         const report: Omit<UserReport, "id"> = {
             reporterId,
             reportedId,
-            eventId: eventId || null,
-            messageId: messageId || null,
+            eventId: eventId || undefined,
+            messageId: messageId || undefined,
             category,
-            description: description || null,
+            description: description || undefined,
             status: "pending",
             createdAt: serverTimestamp(),
         };
