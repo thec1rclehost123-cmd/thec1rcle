@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
     inviteStaff,
@@ -9,7 +9,7 @@ import {
     ROLE_PRESETS,
 } from "@/lib/server/staffService";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { withAuth } from "@/lib/server/withAuth";
+import { requireVenueAccess, applyPIIMask } from "@/lib/rbac/staffProfileEnforcer";
 import { ok, fail } from "@/lib/server/apiResponse";
 import { Resend } from "resend";
 
@@ -50,37 +50,47 @@ const UpdateStaffBody = z.object({
 /**
  * GET /api/venue/staff
  * List all staff members for a venue (direct Firestore read)
+ * RBAC: staff:read — OWNER or staff with explicit permission
  */
-export const GET = withAuth(async (req: NextRequest) => {
+export async function GET(req: NextRequest) {
+    const ctx = await requireVenueAccess(req, "staff:read");
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+
     try {
         const { searchParams } = new URL(req.url);
         const parsed = StaffQuery.safeParse(Object.fromEntries(searchParams));
         if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        const { venueId, isActive } = parsed.data;
+        const { isActive } = parsed.data;
         const statusFilter = isActive === "false" ? "removed" : isActive === "all" ? null : "active";
-        const staff = await getVenueStaff(venueId, { status: statusFilter ?? undefined });
+        const staff = await getVenueStaff(ctx.venueId, { status: statusFilter ?? undefined });
 
+        const masked = (staff as any[]).map(s => applyPIIMask(s, ctx.piiPolicy));
         const roleOptions = ["STAFF", "FINANCE_ADMIN", "manager", "supervisor", "security"];
 
-        return ok({ staff, roleOptions });
+        return ok({ staff: masked, roleOptions });
     } catch (error: any) {
         console.error("[Staff API] GET Error:", error);
         return fail("Failed to fetch staff");
     }
-});
+}
 
 /**
  * POST /api/venue/staff
  * Invite a new staff member, sends email via Resend
+ * RBAC: staff:invite — OWNER or staff with explicit permission
  */
-export const POST = withAuth(async (req: NextRequest, auth) => {
+export async function POST(req: NextRequest) {
+    const ctx = await requireVenueAccess(req, "staff:invite");
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+
     try {
         const rawBody = await req.json();
         const parsed = InviteStaffBody.safeParse(rawBody);
         if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        const { venueId, email, name, role } = parsed.data;
+        const { email, name, role } = parsed.data;
+        const venueId = ctx.venueId;
 
         if (!(ROLE_PRESETS as any)[role]) {
             return fail(`Invalid role. Valid roles: ${Object.keys(ROLE_PRESETS).join(", ")}`, 400);
@@ -89,7 +99,7 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
         const result = await inviteStaff(
             venueId,
             { email, name, role },
-            { uid: auth.uid, name: (auth as any).name || (auth as any).email || "Owner" }
+            { uid: ctx.uid, name: ctx.uid }
         );
 
         if (!result.success) {
@@ -143,20 +153,24 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
         console.error("[Staff API] POST Error:", error);
         return fail("Failed to add staff member");
     }
-});
+}
 
 /**
  * PATCH /api/venue/staff
  * Update a staff member (verify, suspend, reactivate, remove)
+ * RBAC: staff:revoke — OWNER or staff with explicit permission
  */
-export const PATCH = withAuth(async (req: NextRequest, auth) => {
+export async function PATCH(req: NextRequest) {
+    const ctx = await requireVenueAccess(req, "staff:revoke");
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+
     try {
         const rawBody = await req.json();
         const parsed = UpdateStaffBody.safeParse(rawBody);
         if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
         const { staffId, action, reason } = parsed.data;
-        const actor = { uid: auth.uid, name: (auth as any).name || (auth as any).email || "Owner" };
+        const actor = { uid: ctx.uid, name: ctx.uid };
 
         switch (action) {
             case "verify":
@@ -189,4 +203,4 @@ export const PATCH = withAuth(async (req: NextRequest, auth) => {
         console.error("[Staff API] PATCH Error:", error);
         return fail("Failed to update staff member");
     }
-});
+}

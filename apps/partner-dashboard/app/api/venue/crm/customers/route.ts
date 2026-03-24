@@ -9,7 +9,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
+import { requireVenueAccess, applyPIIMask } from "@/lib/rbac/staffProfileEnforcer";
 import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
 import { verifyAuth } from "@/lib/server/auth";
 
@@ -44,14 +44,12 @@ const DEV_SEED: ManualCustomer[] = [
 export async function GET(request: Request) {
     try {
         const ctx = await requireVenueAccess(request);
-    const { venueId } = ctx as any;
-        if ("error" in ctx) {
-            return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-        }
-
+        if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+        const { venueId, piiPolicy } = ctx;
 
         if (!isFirebaseConfigured()) {
-            return NextResponse.json({ customers: DEV_SEED, total: DEV_SEED.length });
+            const masked = DEV_SEED.map(c => applyPIIMask(c, piiPolicy));
+            return NextResponse.json({ customers: masked, total: masked.length });
         }
 
         const db = getAdminDb();
@@ -69,8 +67,10 @@ export async function GET(request: Request) {
             ...(d.data() as Omit<ManualCustomer, "id">),
         }));
 
+        const masked = customers.map(c => applyPIIMask(c, piiPolicy));
+
         return NextResponse.json(
-            { customers, total: customers.length },
+            { customers: masked, total: masked.length },
             { headers: { "Cache-Control": "private, no-store" } }
         );
     } catch (err: any) {
@@ -84,11 +84,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const ctx = await requireVenueAccess(request);
-    const { venueId } = ctx as any;
-        if ("error" in ctx) {
-            return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-        }
-
+        if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+        const { venueId } = ctx;
 
         const user = await verifyAuth(request);
         if (!user) {

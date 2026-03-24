@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 export const dynamic = 'force-dynamic';
 
 import {
@@ -11,24 +11,26 @@ import {
     getEventTimeline,
     getEventStudioInsights
 } from "@/lib/server/analyticsStore";
-import { withAuth } from "@/lib/server/withAuth";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
 import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * GET /api/venue/analytics/[type]
  * Fetches specific analytics for a venue
+ * RBAC: analytics:read — OWNER or staff with explicit permission
  */
-export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ type: string }> }) {
+    const venueCtx = await requireVenueAccess(req, "analytics:read");
+    if ("error" in venueCtx) return NextResponse.json({ error: venueCtx.error }, { status: venueCtx.status });
+
     try {
         const { searchParams } = new URL(req.url);
-        const venueId = searchParams.get("venueId") || searchParams.get("partnerId");
+        const venueId = venueCtx.venueId;
         const range = searchParams.get("range") || "30d";
-        
+
         // Next.js 15+ Dynamic API: params is a Promise
         const params = await ctx?.params;
         const type = params?.type || "";
-
-        if (!venueId) return fail("venueId is required", 400);
 
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         let analytics;
@@ -79,4 +81,4 @@ export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
         console.error(`[Venue Analytics API] Error:`, error);
         return fail("Failed to fetch analytics");
     }
-});
+}

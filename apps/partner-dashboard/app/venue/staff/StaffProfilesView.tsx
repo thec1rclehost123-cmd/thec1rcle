@@ -282,6 +282,12 @@ export default function ProfilesView() {
         [acceptedStaff, assignmentMap]
     );
 
+    // Staff who can be assigned to the currently selected profile (excludes those already in it)
+    const assignableStaff = useMemo(
+        () => acceptedStaff.filter(s => s.userId && assignmentMap[s.userId] !== selectedProfileId),
+        [acceptedStaff, assignmentMap, selectedProfileId]
+    );
+
     const profileStaffCount = useMemo(() => {
         const counts: Record<string, number> = {};
         profiles.forEach(p => { counts[p.id] = 0; });
@@ -609,7 +615,7 @@ export default function ProfilesView() {
                                                 </button>
                                             </div>
                                         ))}
-                                        {unassignedStaff.length > 0 && (
+                                        {assignableStaff.length > 0 && (
                                             <div className="flex items-center gap-2 ml-auto">
                                                 <select
                                                     value={assignTarget}
@@ -617,7 +623,7 @@ export default function ProfilesView() {
                                                     className="bg-surface-tertiary border border-border-default rounded-full px-4 py-1.5 text-[11px] outline-none hover:border-[var(--v-orange)] transition-colors appearance-none pr-8 cursor-pointer"
                                                 >
                                                     <option value="">Quick Assign...</option>
-                                                    {unassignedStaff.map(s => <option key={s.id} value={s.userId}>{s.name}</option>)}
+                                                    {assignableStaff.map(s => <option key={s.id} value={s.userId}>{s.name}</option>)}
                                                 </select>
                                                 <button onClick={handleAssign} disabled={!assignTarget || assigning} className="p-1.5 rounded-full bg-[var(--v-orange)] text-white hover:scale-110 active:scale-90 transition-transform disabled:opacity-50">
                                                     <Plus className="w-4 h-4" />
@@ -634,7 +640,7 @@ export default function ProfilesView() {
                                     {saved ? (
                                         <div className="flex items-center gap-2 text-[var(--v-success)]">
                                             <div className="w-2 h-2 rounded-full bg-current animate-pulse" />
-                                            <span className="text-[11px] font-black uppercase tracking-widest">Configuration Synced</span>
+                                            <span className="text-[11px] font-black uppercase tracking-widest">Saved — staff will see changes on their next page load</span>
                                         </div>
                                     ) : saveError ? (
                                         <span className="text-[11px] text-red-400 font-bold">{saveError}</span>

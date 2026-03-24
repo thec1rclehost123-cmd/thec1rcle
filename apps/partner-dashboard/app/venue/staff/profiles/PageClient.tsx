@@ -220,6 +220,12 @@ export function StaffProfilesClient() {
         [acceptedStaff, assignmentMap]
     );
 
+    // Staff who can be assigned to the currently selected profile (excludes those already in it)
+    const assignableStaff = useMemo(
+        () => acceptedStaff.filter(s => s.userId && assignmentMap[s.userId] !== selectedProfileId),
+        [acceptedStaff, assignmentMap, selectedProfileId]
+    );
+
     const profileStaffCount = useMemo(() => {
         const counts: Record<string, number> = {};
         profiles.forEach(p => { counts[p.id] = 0; });
@@ -595,7 +601,7 @@ export function StaffProfilesClient() {
                                                     </div>
                                                 )}
 
-                                                {unassignedStaff.length > 0 && (
+                                                {assignableStaff.length > 0 && (
                                                     <div className="flex gap-2 mt-2">
                                                         <div className="relative flex-1">
                                                             <select value={assignTarget}
@@ -608,7 +614,7 @@ export function StaffProfilesClient() {
                                                                     outline: "none",
                                                                 }}>
                                                                 <option value="">Add staff member…</option>
-                                                                {unassignedStaff.map(s => (
+                                                                {assignableStaff.map(s => (
                                                                     <option key={s.id} value={s.userId ?? ""}>
                                                                         {s.name} ({ROLE_LABELS[s.role] ?? s.role})
                                                                     </option>

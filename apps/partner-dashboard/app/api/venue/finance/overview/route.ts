@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/server/withAuth";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
 import { fail } from "@/lib/server/apiResponse";
 import { getApiClient } from "@/lib/server/apiClient";
 import type { FinanceOverviewMetrics, CashflowDataPoint, RevenueBreakdownItem } from "@/lib/finance/definitions";
@@ -11,18 +11,16 @@ import type { FinanceOverviewMetrics, CashflowDataPoint, RevenueBreakdownItem } 
  * Requires: Authorization header with Firebase ID token
  * Query params: venueId, period (7d|30d|90d|ytd)
  *
- * RBAC: VIEW_FINANCIALS — OWNER or MANAGER only
+ * RBAC: finance:read_overview — OWNER, FINANCE_ADMIN, or staff with explicit permission
  */
 export async function GET(request: NextRequest) {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    const ctx = await requireVenueAccess(request, "finance:read_overview");
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
     try {
         const { searchParams } = new URL(request.url);
-        const venueId = searchParams.get("venueId");
+        const venueId = ctx.venueId;
         const period   = (searchParams.get("period") || "30d") as FinanceOverviewMetrics["period"];
-
-        if (!venueId) return fail("Missing venueId", 400);
 
         // Extract bearer token for gateway calls
         const authHeader = request.headers.get("Authorization") || "";

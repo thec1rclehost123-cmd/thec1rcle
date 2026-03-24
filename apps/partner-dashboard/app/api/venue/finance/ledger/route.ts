@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/server/withAuth";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
 import { fail } from "@/lib/server/apiResponse";
 import { getApiClient } from "@/lib/server/apiClient";
 import type { LedgerTransaction, TransactionCategory, SettlementStatus } from "@/lib/finance/definitions";
@@ -21,15 +21,15 @@ import type { LedgerTransaction, TransactionCategory, SettlementStatus } from "@
  *   to           — ISO date end
  *   eventId      — filter by event
  *
- * RBAC: VIEW_FINANCIALS — OWNER or MANAGER only
+ * RBAC: finance:read_ledger — OWNER, FINANCE_ADMIN, or staff with explicit permission
  */
 export async function GET(request: NextRequest) {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    const ctx = await requireVenueAccess(request, "finance:read_ledger");
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
     try {
         const { searchParams } = new URL(request.url);
-        const venueId  = searchParams.get("venueId");
+        const venueId  = ctx.venueId;
         const page     = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
         const limit    = Math.min(200, Math.max(10, parseInt(searchParams.get("limit") || "50", 10)));
         const category = searchParams.get("category") || "";
@@ -38,8 +38,6 @@ export async function GET(request: NextRequest) {
         const from     = searchParams.get("from") || "";
         const to       = searchParams.get("to") || "";
         const eventId  = searchParams.get("eventId") || "";
-
-        if (!venueId) return fail("Missing venueId", 400);
 
         const authHeader = request.headers.get("Authorization") || "";
         const token = authHeader.replace("Bearer ", "").trim();

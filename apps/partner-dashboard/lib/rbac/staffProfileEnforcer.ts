@@ -156,12 +156,16 @@ export async function requireVenueAccess(
     };
 }
 
-/** Apply PII masking to a guest/walk-in record based on policy */
-export function applyPIIMask<T extends Record<string, unknown>>(
-    record: T,
-    policy: PIIPolicy
-): T {
-    const out: Record<string, unknown> = { ...record };
+/** Apply PII masking to any record (or array of records) based on policy.
+ *  Recursively masks nested objects and arrays so nested PII fields like
+ *  booking.user.phone or event.guest.email are also protected. */
+export function applyPIIMask<T>(record: T, policy: PIIPolicy): T {
+    if (!record || typeof record !== "object") return record;
+    if (Array.isArray(record)) {
+        return (record as unknown[]).map(item => applyPIIMask(item, policy)) as unknown as T;
+    }
+
+    const out: Record<string, unknown> = { ...(record as Record<string, unknown>) };
 
     if (!policy.showPhone) {
         if ("phoneFull" in out && typeof out.phoneFull === "string") {
@@ -175,13 +179,18 @@ export function applyPIIMask<T extends Record<string, unknown>>(
 
     if (!policy.showEmail && "email" in out && typeof out.email === "string") {
         const parts = (out.email as string).split("@");
-        (out as any).email = `${parts[0].slice(0, 2)}****@${parts[1]}`;
+        (out as any).email = `${parts[0].slice(0, 2)}****@${parts[1] ?? ""}`;
     }
 
-    if (!policy.showLastName && "guestName" in out && typeof out.guestName === "string") {
-        const parts = (out.guestName as string).split(" ");
-        if (parts.length > 1) {
-            (out as any).guestName = `${parts[0]} ${parts[1][0]}.`;
+    if (!policy.showLastName) {
+        if ("guestName" in out && typeof out.guestName === "string") {
+            const parts = (out.guestName as string).split(" ");
+            if (parts.length > 1) {
+                (out as any).guestName = `${parts[0]} ${parts[1][0]}.`;
+            }
+        }
+        if ("lastName" in out && typeof out.lastName === "string") {
+            (out as any).lastName = `${out.lastName[0]}.`;
         }
     }
 
@@ -192,7 +201,22 @@ export function applyPIIMask<T extends Record<string, unknown>>(
         (out as any).netPaise = undefined;
     }
 
-    return out as T;
+    if (!policy.showPayoutAmounts) {
+        (out as any).payoutAmount = undefined;
+        (out as any).payoutAmountPaise = undefined;
+        (out as any).settledAmount = undefined;
+        (out as any).pendingAmount = undefined;
+    }
+
+    // Recurse into nested objects (depth guard via typeof check avoids Dates/RegExp etc.)
+    for (const key of Object.keys(out)) {
+        const val = out[key];
+        if (val && typeof val === "object") {
+            out[key] = applyPIIMask(val, policy);
+        }
+    }
+
+    return out as unknown as T;
 }
 
 /** Check if request is from an OWNER or MANAGER (for management-only endpoints) */

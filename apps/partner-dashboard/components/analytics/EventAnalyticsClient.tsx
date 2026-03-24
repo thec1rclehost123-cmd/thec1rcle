@@ -8,7 +8,9 @@ import { useQuery } from "@tanstack/react-query";
 import { normalizeAnalyticsData } from "@/lib/analytics/zeroState";
 import { mapEventForClient } from "@c1rcle/core/events";
 import { parseAsIST } from "@c1rcle/core/time";
-import { format } from "date-fns";
+function format(date: Date | string, _fmt: string): string {
+    return new Date(date).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
+}
 
 import {
     KPISection,

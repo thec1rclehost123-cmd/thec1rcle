@@ -98,6 +98,7 @@ export async function GET(req: NextRequest) {
                     isActive: true,
                     staffProfileId: memberData.staffProfileId || null,
                     partnerName,
+                    membershipId: memberDoc.id,
                 };
                 // Attach resolved permissions as private fields
                 staffUserData._staffTabVisibility = tabVisibility;

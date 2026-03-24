@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import {
     User,
     onAuthStateChanged,
@@ -11,8 +11,22 @@ import {
     createUserWithEmailAndPassword,
     updateProfile as updateFirebaseProfile
 } from "firebase/auth";
-import { getFirebaseAuth } from "@/lib/firebase/client";
+import { doc, onSnapshot } from "firebase/firestore";
+import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/client";
 import { DashboardProfile, PartnerMembership, PartnerType, StaffRole } from "@/lib/rbac/types";
+
+// ── Atomic permissions object — always set together to avoid race conditions ──
+interface PermissionsState {
+    tabVisibility: Partial<Record<string, boolean>> | null;
+    actionPermissions: Partial<Record<string, boolean>> | null;
+    piiPolicy: Partial<Record<string, boolean>> | null;
+}
+
+const EMPTY_PERMISSIONS: PermissionsState = {
+    tabVisibility: null,
+    actionPermissions: null,
+    piiPolicy: null,
+};
 
 interface AuthContextValue {
     user: User | null;
@@ -49,9 +63,11 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     const [kycStatus, setKycStatus] = useState<string | null>(null);
     const [entityType, setEntityType] = useState<string | null>(null);
     const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
-    const [tabVisibility, setTabVisibility] = useState<Partial<Record<string, boolean>> | null>(null);
-    const [actionPermissions, setActionPermissions] = useState<Partial<Record<string, boolean>> | null>(null);
-    const [piiPolicy, setPiiPolicy] = useState<Partial<Record<string, boolean>> | null>(null);
+    // Atomic permissions — always updated together to prevent mid-render inconsistency
+    const [permissions, setPermissions] = useState<PermissionsState>(EMPTY_PERMISSIONS);
+    // membershipId for onSnapshot real-time listener (staff only)
+    const [membershipId, setMembershipId] = useState<string | null>(null);
+    const lastProfileFetchRef = useRef<number>(0);
 
     useEffect(() => {
         const auth = getFirebaseAuth();
@@ -64,9 +80,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 setKycStatus(null);
                 setEntityType(null);
                 setSubscriptionPlan(null);
-                setTabVisibility(null);
-                setActionPermissions(null);
-                setPiiPolicy(null);
+                setPermissions(EMPTY_PERMISSIONS);
+                setMembershipId(null);
                 setLoading(false);
             }
         });
@@ -134,11 +149,9 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                         role: claims.partnerRole as StaffRole,
                         joinedAt: 0,
                         isActive: true,
-                        // partnerName is not stored in JWT claims, but the /api/auth/me
-                        // endpoint now resolves it from the venue/host Firestore document
                         partnerName: userData.activeMembership?.partnerName || undefined
                     };
-                } else if (userData.activeMembership) { // Assuming activeMembership is now part of userData from /api/auth/me
+                } else if (userData.activeMembership) {
                     activeMembership = {
                         uid: user.uid,
                         partnerId: userData.activeMembership.partnerId,
@@ -146,20 +159,24 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                         role: userData.activeMembership.role,
                         joinedAt: userData.activeMembership.joinedAt,
                         isActive: userData.activeMembership.isActive,
-                        partnerName: userData.activeMembership.partnerName // Assuming partnerName is also returned
+                        partnerName: userData.activeMembership.partnerName
                     };
                 }
 
                 if (approvedState && activeMembership) {
-                    // Subscription plan should also come from the API now
                     plan = userData.subscriptionPlan || userData.tier || 'basic';
                     setSubscriptionPlan(plan);
                 }
 
-                // Resolved permissions (server-side; null for owners = show/allow all)
-                setTabVisibility(userData._staffTabVisibility ?? null);
-                setActionPermissions(userData._staffActionPermissions ?? null);
-                setPiiPolicy(userData._staffPiiPolicy ?? null);
+                // Set permissions atomically — all three fields in a single state update
+                setPermissions({
+                    tabVisibility: userData._staffTabVisibility ?? null,
+                    actionPermissions: userData._staffActionPermissions ?? null,
+                    piiPolicy: userData._staffPiiPolicy ?? null,
+                });
+
+                // Capture membershipId for real-time onSnapshot listener (staff only)
+                setMembershipId(userData.activeMembership?.membershipId ?? null);
 
                 setProfile({
                     uid: user.uid,
@@ -167,6 +184,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                     displayName: userData.displayName || userData.username || "User",
                     activeMembership
                 });
+                lastProfileFetchRef.current = Date.now();
             } catch (err) {
                 console.error("Error fetching user data in auth provider:", err);
                 setLoading(false);
@@ -177,6 +195,64 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
 
         fetchUserData();
     }, [user]);
+
+    // Re-fetch profile when tab becomes visible after 60s — ensures staff see
+    // updated permissions after the venue owner reassigns their access profile.
+    useEffect(() => {
+        if (!user) return;
+        const handleVisibility = () => {
+            if (document.visibilityState === "visible") {
+                const elapsed = Date.now() - lastProfileFetchRef.current;
+                if (elapsed > 60 * 1000) {
+                    user.getIdToken().then(token => {
+                        fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } })
+                            .then(r => r.ok ? r.json() : null)
+                            .then(data => {
+                                if (!data?.user) return;
+                                const userData = data.user;
+                                // Atomic update — all three permissions together
+                                setPermissions({
+                                    tabVisibility: userData._staffTabVisibility ?? null,
+                                    actionPermissions: userData._staffActionPermissions ?? null,
+                                    piiPolicy: userData._staffPiiPolicy ?? null,
+                                });
+                                lastProfileFetchRef.current = Date.now();
+                            })
+                            .catch(() => {});
+                    });
+                }
+            }
+        };
+        document.addEventListener("visibilitychange", handleVisibility);
+        return () => document.removeEventListener("visibilitychange", handleVisibility);
+    }, [user]);
+
+    // Real-time permission sync via Firestore onSnapshot on the staff's membership doc.
+    // When the owner reassigns the staff member to a different profile, this fires
+    // immediately and re-fetches fresh permissions from /api/auth/me — no reload needed.
+    useEffect(() => {
+        if (!user || !membershipId) return;
+        const db = getFirebaseDb();
+        const memberRef = doc(db, "partner_memberships", membershipId);
+        const unsub = onSnapshot(memberRef, () => {
+            user.getIdToken().then(token => {
+                fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } })
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                        if (!data?.user) return;
+                        const userData = data.user;
+                        setPermissions({
+                            tabVisibility: userData._staffTabVisibility ?? null,
+                            actionPermissions: userData._staffActionPermissions ?? null,
+                            piiPolicy: userData._staffPiiPolicy ?? null,
+                        });
+                        lastProfileFetchRef.current = Date.now();
+                    })
+                    .catch(() => {});
+            });
+        });
+        return () => unsub();
+    }, [user, membershipId]);
 
     const signIn = async (email: string, password: string) => {
         const auth = getFirebaseAuth();
@@ -247,10 +323,28 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     };
 
     const canDo = (action: string) =>
-        !actionPermissions || actionPermissions[action] === true;
+        !permissions.actionPermissions || permissions.actionPermissions[action] === true;
 
     return (
-        <AuthContext.Provider value={{ user, profile, loading, isApproved, onboardingStatus, kycStatus, entityType, subscriptionPlan, tabVisibility, actionPermissions, piiPolicy, canDo, signIn, signUp, signInWithGoogle, signOut, switchPartner }}>
+        <AuthContext.Provider value={{
+            user,
+            profile,
+            loading,
+            isApproved,
+            onboardingStatus,
+            kycStatus,
+            entityType,
+            subscriptionPlan,
+            tabVisibility: permissions.tabVisibility,
+            actionPermissions: permissions.actionPermissions,
+            piiPolicy: permissions.piiPolicy,
+            canDo,
+            signIn,
+            signUp,
+            signInWithGoogle,
+            signOut,
+            switchPartner
+        }}>
             {children}
         </AuthContext.Provider>
     );

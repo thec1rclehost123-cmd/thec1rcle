@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Menu, X, PlusCircle } from "lucide-react";
 import {
     LayoutDashboard,
@@ -22,7 +22,7 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AssistantButton } from "@/components/assistant/AssistantButton";
 import { KycBanner } from "@/components/shared/KycBanner";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { VenueTab } from "@/lib/types/staffProfile";
 
 const MENU_SECTIONS = [
@@ -100,8 +100,9 @@ interface VenueClientWrapperProps {
 export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
-    const { tabVisibility: ctxTabVisibility } = useDashboardAuth();
+    const { tabVisibility: ctxTabVisibility, loading } = useDashboardAuth();
     const pathname = usePathname();
+    const router = useRouter();
 
     const venuePrimaryAction = { label: "+ Create Event", href: "/venue/create", icon: PlusCircle };
 
@@ -113,6 +114,18 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
         () => applyTabVisibility(MENU_SECTIONS, tabVisibility as Partial<Record<VenueTab, boolean>> | null),
         [tabVisibility]
     );
+
+    // Redirect to /venue if the current path maps to a tab the staff can't access
+    useEffect(() => {
+        if (!tabVisibility || !pathname) return;
+        const currentTab = itemTab(pathname);
+        if (currentTab && tabVisibility[currentTab] !== true) {
+            router.replace("/venue");
+        }
+    }, [tabVisibility, pathname, router]);
+
+    // Block render until permissions are resolved — prevents flash of unauthorized content
+    if (loading) return null;
 
     return (
         <ApprovalGuard>
