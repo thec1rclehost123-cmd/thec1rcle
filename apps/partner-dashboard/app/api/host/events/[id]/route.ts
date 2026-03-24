@@ -6,12 +6,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireHostAccess, writeAuditLog } from "@/lib/server/hostAuthMiddleware";
 import { getAdminDb } from "@/lib/firebase/admin";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
     const ctx = await requireHostAccess(req);
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { uid, hostId } = ctx as any;
 
-    const { hostId } = ctx;
-    const eventId = params.id;
+    const eventId = id;
     if (!eventId) return NextResponse.json({ error: "Event ID required" }, { status: 400 });
 
     try {
@@ -76,12 +77,13 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
     const ctx = await requireHostAccess(req, "MANAGE_EVENTS");
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { hostId, uid } = ctx as any;
 
-    const { hostId, uid } = ctx;
-    const eventId = params.id;
+    const eventId = id;
 
     try {
         const db = getAdminDb();

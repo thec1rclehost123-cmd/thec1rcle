@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, ScrollView, RefreshControl, Pressable, StyleSheet } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useScannerStore } from "@/store/scannerStore";
@@ -10,18 +11,20 @@ interface StatsData {
     totalEntered: number;
     prebooked: number;
     doorEntries: number;
+    walkIns: number;
     capacity: number;
     doorRevenue: number;
     byEntryType: Record<string, number>;
 }
 
 export default function StatsScreen() {
-    const { eventData } = useScannerStore();
+    const { eventData, sessionToken } = useScannerStore();
 
     const [stats, setStats] = useState<StatsData>({
         totalEntered: eventData?.stats?.totalEntered || 0,
         prebooked: eventData?.stats?.prebooked || 0,
         doorEntries: eventData?.stats?.doorEntries || 0,
+        walkIns: eventData?.stats?.walkIns || 0,
         capacity: eventData?.event.capacity || 500,
         doorRevenue: eventData?.stats?.doorRevenue || 0,
         byEntryType: {},
@@ -35,12 +38,16 @@ export default function StatsScreen() {
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
-            const data = await refreshEventStats(eventData?.code || "");
+            const data = await refreshEventStats(
+                eventData?.code || "",
+                sessionToken || eventData?.sessionToken,
+            );
             if (data) {
                 setStats({
                     totalEntered: data.totalEntered ?? stats.totalEntered,
                     prebooked: data.prebooked ?? stats.prebooked,
                     doorEntries: data.doorEntries ?? stats.doorEntries,
+                    walkIns: data.walkIns ?? stats.walkIns,
                     capacity: eventData?.event.capacity || 500,
                     doorRevenue: data.doorRevenue ?? stats.doorRevenue,
                     byEntryType: data.byEntryType || {},
@@ -50,7 +57,13 @@ export default function StatsScreen() {
             console.error("Stats refresh failed:", e);
         }
         setRefreshing(false);
-    }, [eventData?.code]);
+    }, [eventData?.code, eventData?.event.capacity, eventData?.sessionToken, sessionToken, stats.doorEntries, stats.doorRevenue, stats.prebooked, stats.totalEntered, stats.walkIns]);
+
+    // M8: 30s auto-refresh while screen is focused — cancel on blur
+    useFocusEffect(useCallback(() => {
+        const interval = setInterval(onRefresh, 30_000);
+        return () => clearInterval(interval);
+    }, [onRefresh]));
 
     const fillPct = Math.min(100, (stats.totalEntered / stats.capacity) * 100);
 
@@ -101,6 +114,16 @@ export default function StatsScreen() {
                         <Text style={styles.statIcon}>🚪</Text>
                         <Text style={styles.statLabel}>Door Entry</Text>
                         <Text style={styles.statValue}>{stats.doorEntries}</Text>
+                    </View>
+                </View>
+
+                <View style={styles.statCard}>
+                    <View style={styles.revenueRow}>
+                        <View>
+                            <Text style={styles.statIcon}>🚶</Text>
+                            <Text style={styles.statLabel}>Walk-ins</Text>
+                        </View>
+                        <Text style={styles.statValue}>{stats.walkIns}</Text>
                     </View>
                 </View>
 

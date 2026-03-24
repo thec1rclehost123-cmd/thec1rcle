@@ -9,7 +9,8 @@
     "dev:prod": "node ../../node_modules/tsx/dist/cli.mjs watch --env-file=.env.production src/app.ts",
     "start": "node --env-file=.env.production dist/app.js",
     "build": "node ../../node_modules/typescript/bin/tsc",
-    "lint": "echo \"No lint required\""
+    "lint": "node ../../node_modules/typescript/bin/tsc --noEmit",
+    "type-check": "node ../../node_modules/typescript/bin/tsc --noEmit"
   },
   "dependencies": {
     "@fastify/compress": "^8.3.1",

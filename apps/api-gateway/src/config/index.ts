@@ -1,7 +1,13 @@
 import { z } from 'zod';
 
+export const DEFAULT_FRONTEND_ORIGINS = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+];
+
 const envSchema = z.object({
-    PORT: z.string().optional().default('3001').transform(Number),
+    PORT: z.string().optional().default('4000').transform(Number),
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     FIREBASE_PROJECT_ID: z.string().min(1, 'FIREBASE_PROJECT_ID is required'),
     FIREBASE_CLIENT_EMAIL: z.string().optional(),
@@ -11,7 +17,11 @@ const envSchema = z.object({
     RAZORPAY_KEY_ID: z.string().optional(),
     RAZORPAY_KEY_SECRET: z.string().optional(),
     QR_SECRET_KEY: z.string().optional().default('c1rcle-qr-secret-2024'),
-    FRONTEND_URLS: z.string().optional().describe('Comma separated trusted CORS origins'),
+    FRONTEND_URLS: z
+        .string()
+        .optional()
+        .default(DEFAULT_FRONTEND_ORIGINS.join(','))
+        .describe('Comma separated trusted CORS origins'),
 });
 
 const _env = envSchema.safeParse(process.env);

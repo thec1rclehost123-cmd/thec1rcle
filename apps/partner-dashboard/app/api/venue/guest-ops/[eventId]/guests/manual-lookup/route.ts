@@ -19,11 +19,11 @@ function checkRateLimit(uid: string): boolean {
     return entry.count <= RATE_LIMIT;
 }
 
-export async function POST(req: NextRequest, { params }: { params: { eventId: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
+    const { eventId } = await params;
     try {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
-        const { eventId } = params;
 
         const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["VIEW_GUESTLIST"]);
         if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });

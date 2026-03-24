@@ -6,6 +6,7 @@ import {
     StyleSheet,
     Dimensions,
     Modal,
+    Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from "expo-camera";
@@ -19,12 +20,23 @@ import Animated, {
     withTiming,
 } from "react-native-reanimated";
 import { useScannerStore } from "@/store/scannerStore";
-import { processQRScan } from "@/lib/scanner";
+import { processQRScan, recordStaffDeny } from "@/lib/scanner";
 import { ScanResultData, ScanResultType } from "@/lib/scanner/types";
 import { colors, gradients } from "@/lib/design/theme";
 
 const { width } = Dimensions.get("window");
 const SCAN_AREA_SIZE = width * 0.68;
+
+type TierBadge = { label: string; bg: string; fg: string };
+function getTierBadge(entryType: string): TierBadge | null {
+    switch (entryType?.toLowerCase()) {
+        case "stag":   return { label: "STAG  ·  MALE ONLY", bg: "rgba(251,191,36,0.18)", fg: colors.warning };
+        case "female": return { label: "FEMALE ONLY", bg: "rgba(236,72,153,0.18)", fg: "#EC4899" };
+        case "couple": return { label: "COUPLE ENTRY", bg: "rgba(99,102,241,0.18)", fg: "#818CF8" };
+        case "vip":    return { label: "VIP ACCESS", bg: "rgba(168,85,247,0.18)", fg: "#a855f7" };
+        default:       return null;
+    }
+}
 
 export default function ScanScreen() {
     const [permission, requestPermission] = useCameraPermissions();
@@ -35,7 +47,7 @@ export default function ScanScreen() {
     const [pendingCoupleData, setPendingCoupleData] = useState<any>(null);
     const [entryCount, setEntryCount] = useState(0);
 
-    const { eventData, clearEvent } = useScannerStore();
+    const { eventData, clearEvent, sessionToken } = useScannerStore();
     const lastScannedRef = useRef<string | null>(null);
     const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -90,7 +102,18 @@ export default function ScanScreen() {
                 eventId: eventData?.event.id || "",
                 eventCode: eventData?.code || "",
                 gate: eventData?.gate,
-            });
+                venueId: eventData?.event.venueId,
+            }, sessionToken || eventData?.sessionToken);
+
+            // H10: Session expired — code revoked mid-session
+            if (result.result === "session_expired") {
+                Alert.alert(
+                    "Session Expired",
+                    "Your scanner code has been revoked. Please get a new code.",
+                    [{ text: "OK", onPress: () => { clearEvent(); router.replace("/scanner" as any); } }]
+                );
+                return;
+            }
 
             if (result.success && result.ticket?.entryType === "couple") {
                 setPendingCoupleData(result);
@@ -152,18 +175,21 @@ export default function ScanScreen() {
     const getResultColor = (type: ScanResultType): string => {
         if (type === "valid") return colors.success;
         if (type === "already_scanned") return colors.warning;
+        if (type === "network_error") return colors.warning;
         return colors.error;
     };
 
     const getResultIcon = (type: ScanResultType): string => {
         if (type === "valid") return "✅";
         if (type === "already_scanned") return "⚠️";
+        if (type === "network_error") return "📡";
         return "❌";
     };
 
     const getResultTitle = (type: ScanResultType): string => {
         if (type === "valid") return "Entry Approved";
         if (type === "already_scanned") return "Already Scanned";
+        if (type === "network_error") return "Connection Issue";
         return "Entry Denied";
     };
 
@@ -210,6 +236,21 @@ export default function ScanScreen() {
 
             {/* Overlay */}
             <View style={styles.overlay}>
+                {/* L6: Capacity warning banner */}
+                {(() => {
+                    const capacity = eventData?.event.capacity || 500;
+                    const pct = entryCount / capacity;
+                    if (pct < 0.80) return null;
+                    const isCritical = pct >= 0.95;
+                    return (
+                        <View style={[styles.capacityBanner, { backgroundColor: isCritical ? "rgba(239,68,68,0.9)" : "rgba(251,191,36,0.9)" }]}>
+                            <Text style={[styles.capacityBannerText, { color: isCritical ? "#fff" : "#000" }]}>
+                                {isCritical ? "VENUE NEAR CAPACITY" : `${Math.round(pct * 100)}% FULL`}
+                            </Text>
+                        </View>
+                    );
+                })()}
+
                 {/* Top Bar — Event info + navigation */}
                 <SafeAreaView edges={["top"]}>
                     <View style={styles.topBar}>
@@ -221,6 +262,9 @@ export default function ScanScreen() {
                             <Text style={styles.eventTitle} numberOfLines={1}>
                                 {eventData?.event.title}
                             </Text>
+                            {eventData?.gate && (
+                                <Text style={styles.gateText}>{eventData.gate}</Text>
+                            )}
                         </View>
                         <View style={styles.topBarRight}>
                             <View style={styles.counterBadge}>
@@ -254,13 +298,15 @@ export default function ScanScreen() {
                     <View style={styles.bottomBar}>
                         {/* Navigation Buttons Row */}
                         <View style={styles.navRow}>
-                            <Pressable
-                                onPress={() => router.push("/scanner/door-entry" as any)}
-                                style={styles.navButton}
-                            >
-                                <Text style={styles.navIcon}>🚪</Text>
-                                <Text style={styles.navLabel}>Door Entry</Text>
-                            </Pressable>
+                            {eventData?.permissions.canDoorEntry && (
+                                <Pressable
+                                    onPress={() => router.push("/scanner/door-entry" as any)}
+                                    style={styles.navButton}
+                                >
+                                    <Text style={styles.navIcon}>🚪</Text>
+                                    <Text style={styles.navLabel}>Door Entry</Text>
+                                </Pressable>
+                            )}
 
                             <Pressable
                                 onPress={() => setFlashEnabled(!flashEnabled)}
@@ -286,6 +332,16 @@ export default function ScanScreen() {
                                 <Text style={styles.navIcon}>👥</Text>
                                 <Text style={styles.navLabel}>Guests</Text>
                             </Pressable>
+
+                            {eventData?.permissions.canWalkIn && (
+                                <Pressable
+                                    onPress={() => router.push("/scanner/walk-ins" as any)}
+                                    style={styles.navButton}
+                                >
+                                    <Text style={styles.navIcon}>🚶</Text>
+                                    <Text style={styles.navLabel}>Walk-ins</Text>
+                                </Pressable>
+                            )}
                         </View>
 
                         {/* Exit Button */}
@@ -321,10 +377,37 @@ export default function ScanScreen() {
                                         </View>
                                     )}
                                 </View>
-                                <Text style={styles.resultEntryType}>
-                                    {scanResult.guest.entryType} Entry
-                                </Text>
+                                {/* Gender / tier badge */}
+                                {(() => {
+                                    const badge = getTierBadge(scanResult.guest?.entryType || "");
+                                    if (!badge) return null;
+                                    return (
+                                        <View style={[styles.tierBadge, { backgroundColor: badge.bg }]}>
+                                            <Text style={[styles.tierBadgeText, { color: badge.fg }]}>{badge.label}</Text>
+                                        </View>
+                                    );
+                                })()}
                             </View>
+                        )}
+
+                        {/* Staff deny override — valid scans only */}
+                        {scanResult.type === "valid" && (
+                            <Pressable
+                                onPress={() => {
+                                    dismissResult();
+                                    recordStaffDeny({
+                                        qrData: lastScannedRef.current || "",
+                                        eventId: eventData?.event.id || "",
+                                        eventCode: eventData?.code || "",
+                                        gate: eventData?.gate,
+                                        reason: "staff_visual_check",
+                                    }, sessionToken || eventData?.sessionToken);
+                                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                                }}
+                                style={styles.denyOverrideBtn}
+                            >
+                                <Text style={styles.denyOverrideBtnText}>DENY ENTRY</Text>
+                            </Pressable>
                         )}
 
                         {scanResult.type === "already_scanned" && scanResult.previousScan && (
@@ -406,6 +489,7 @@ const styles = StyleSheet.create({
     liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success, marginRight: 6 },
     liveText: { color: colors.success, fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
     eventTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
+    gateText: { color: "rgba(255,255,255,0.45)", fontSize: 12, fontWeight: "600", marginTop: 2 },
     counterBadge: { alignItems: "center", backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8 },
     counterNumber: { color: "#fff", fontSize: 22, fontWeight: "800" },
     counterLabel: { color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: "600" },
@@ -466,6 +550,18 @@ const styles = StyleSheet.create({
     resultPrevBy: { color: "rgba(255,255,255,0.6)", fontSize: 14, marginTop: 4 },
     resultMessage: { color: "rgba(255,255,255,0.8)", fontSize: 16, marginTop: 16, textAlign: "center" },
     resultDismissHint: { color: "rgba(255,255,255,0.4)", fontSize: 13, marginTop: 40 },
+
+    // Capacity banner
+    capacityBanner: { paddingVertical: 6, alignItems: "center" },
+    capacityBannerText: { fontSize: 12, fontWeight: "800", letterSpacing: 1.5 },
+
+    // Tier badge
+    tierBadge: { marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999 },
+    tierBadgeText: { fontSize: 13, fontWeight: "800", letterSpacing: 1.2 },
+
+    // Staff deny override
+    denyOverrideBtn: { marginTop: 20, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.4)", borderWidth: 2, borderColor: "rgba(255,255,255,0.5)" },
+    denyOverrideBtnText: { color: "#fff", fontSize: 14, fontWeight: "800", letterSpacing: 1.5 },
 
     // Couple modal
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },

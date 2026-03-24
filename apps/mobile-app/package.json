@@ -14,8 +14,10 @@
     "dev:staging": "node -e \"require('fs').copyFileSync('.env.staging', '.env')\" && cross-env NODE_OPTIONS=--no-experimental-require-module npx expo start --port 8082",
     "dev:prod": "node -e \"require('fs').copyFileSync('.env.production', '.env')\" && cross-env NODE_OPTIONS=--no-experimental-require-module npx expo start --port 8082",
     "prebuild": "expo prebuild",
-    "lint": "echo \"Mobile app lint skipped in CI\"",
-    "doctor": "npx expo-doctor"
+    "lint": "npx tsc --noEmit",
+    "doctor": "npx expo-doctor",
+    "test": "npx jest --testPathPattern=scanner --verbose",
+    "test:watch": "npx jest --testPathPattern=scanner --watch"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -68,12 +70,36 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.9",
+    "@testing-library/react-native": "^13.0.0",
+    "@types/jest": "^29.5.14",
     "@types/react": "~19.1.10",
     "cross-env": "^10.1.0",
     "eslint": "^8.57.1",
     "eslint-config-universe": "^14.0.0",
+    "jest": "^29.7.0",
+    "jest-expo": "~55.0.0",
+    "jest-fetch-mock": "^3.0.3",
     "tailwindcss": "^3.4.15",
     "typescript": "~5.9.2"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "transform": {
+      "^.+\\.(js|ts|tsx)$": ["babel-jest", {"configFile": "./babel.config.js"}]
+    },
+    "setupFilesAfterEnv": [
+      "./jest.setup.js"
+    ],
+    "testMatch": [
+      "**/__tests__/**/*.test.ts",
+      "**/__tests__/**/*.test.tsx"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@shopify/flash-list|react-navigation|@react-navigation/.*)/)"
+    ],
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/$1"
+    }
   },
   "private": true
 }

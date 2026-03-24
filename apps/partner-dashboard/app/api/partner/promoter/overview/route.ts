@@ -27,11 +27,11 @@ function daysAgo(n: number): Date {
 
 export async function GET(req: NextRequest) {
     const ctx = await requirePromoterAccess(req);
+    const { promoterId } = ctx as any;
     if ("error" in ctx) {
         return NextResponse.json({ error: ctx.error }, { status: ctx.status });
     }
 
-    const { promoterId } = ctx;
     const db = getAdminDb();
     const now = new Date();
 

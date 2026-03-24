@@ -52,8 +52,9 @@ const RESET_TIER_FIELDS = ["soldCount", "revenue", "isSoldOut"];
 
 export async function POST(
     request: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
+    const { id } = await params;
     try {
         const ctx = await requireVenueAccess(request, "events:duplicate");
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -61,7 +62,7 @@ export async function POST(
         const body = await request.json().catch(() => ({}));
 
         const idempotencyKey: string = body.idempotencyKey ?? randomUUID();
-        const sourceId = params.id;
+        const sourceId = id;
 
         if (!isFirebaseConfigured()) {
             return NextResponse.json({

@@ -4,20 +4,22 @@
   "packageManager": "npm@11.6.2",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "functions"
   ],
   "scripts": {
-    "dev": "turbo dev --filter=!@c1rcle/mobile-app --filter=!@c1rcle/scanner-app",
+    "dev": "turbo dev --filter=!@c1rcle/mobile-app",
     "dev:guest": "turbo run dev --filter=@c1rcle/guest-portal",
     "dev:partner": "turbo run dev --filter=@c1rcle/partner-dashboard",
     "dev:admin": "turbo run dev --filter=@c1rcle/admin-console",
     "dev:mobile": "npm run dev --workspace=apps/mobile-app",
-    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:3005/api/inngest",
+    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:3000/api/inngest",
     "build": "turbo build",
     "lint": "turbo lint --cache-dir=.turbo",
     "type-check": "turbo type-check",
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
+    "doctor:stack": "node scripts/doctor-stack.mjs",
     "install:all": "npx npm install",
     "postinstall": "node scripts/patchExpoRouter.js"
   },

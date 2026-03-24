@@ -9,8 +9,8 @@ import { getAdminDb } from "@/lib/firebase/admin";
 export async function GET(req: NextRequest) {
     const ctx = await requireHostAccess(req);
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { hostId } = ctx as any;
 
-    const { hostId } = ctx;
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "30"), 100);
     const unreadOnly = searchParams.get("unreadOnly") === "true";
@@ -61,7 +61,7 @@ export async function PATCH(req: NextRequest) {
     const ctx = await requireHostAccess(req);
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-    const { hostId } = ctx;
+    const { hostId } = ctx as any;
     const db = getAdminDb();
 
     try {

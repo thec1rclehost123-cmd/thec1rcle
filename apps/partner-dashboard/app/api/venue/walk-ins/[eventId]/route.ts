@@ -17,8 +17,9 @@ import { fail } from "@/lib/server/apiResponse";
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { eventId: string } }
+    { params }: { params: Promise<{ eventId: string }> }
 ) {
+    const { eventId } = await params;
     try {
         const ctx = await requireVenueAccess(request, "walkins:read");
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -29,7 +30,7 @@ export async function GET(
         const [result, summary] = await Promise.all([
             listWalkIns(
                 {
-                    eventId: params.eventId,
+                    eventId: eventId,
                     q: searchParams.get("q") ?? undefined,
                     category: (searchParams.get("category") as any) ?? undefined,
                     paymentMode: (searchParams.get("paymentMode") as any) ?? undefined,
@@ -38,7 +39,7 @@ export async function GET(
                 },
                 ctx.piiPolicy.showPhone
             ),
-            includeSummary ? getWalkInEventSummary(params.eventId) : Promise.resolve(null),
+            includeSummary ? getWalkInEventSummary(eventId) : Promise.resolve(null),
         ]);
 
         return NextResponse.json({ ...result, summary }, {
@@ -52,23 +53,24 @@ export async function GET(
 
 export async function PATCH(
     request: NextRequest,
-    { params }: { params: { eventId: string } }
+    { params }: { params: Promise<{ eventId: string }> }
 ) {
+    const { eventId } = await params;
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
 
     try {
+        const { searchParams } = new URL(request.url);
         const ctx = await requireVenueAccess(request, "walkins:edit");
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-        const { searchParams } = new URL(request.url);
         const logId = searchParams.get("logId");
         if (!logId) return fail("logId required", 400);
 
         const body = await request.json();
 
         const entry = await updateWalkIn(
-            params.eventId,
+            eventId,
             logId,
             {
                 guestName: body.guestName,
@@ -92,20 +94,21 @@ export async function PATCH(
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { eventId: string } }
+    { params }: { params: Promise<{ eventId: string }> }
 ) {
+    const { eventId } = await params;
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
 
     try {
+        const { searchParams } = new URL(request.url);
         const ctx = await requireVenueAccess(request, "walkins:delete");
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-        const { searchParams } = new URL(request.url);
         const logId = searchParams.get("logId");
         if (!logId) return fail("logId required", 400);
 
-        await voidWalkIn(params.eventId, logId, { uid: auth.uid });
+        await voidWalkIn(eventId, logId, { uid: auth.uid });
         return NextResponse.json({ ok: true });
     } catch (err: any) {
         console.error("[walk-ins/:eventId DELETE]", err.message);

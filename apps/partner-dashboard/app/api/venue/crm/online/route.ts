@@ -82,11 +82,11 @@ const DEV_SEED: OnlineCustomer[] = [
 export async function GET(request: Request) {
     try {
         const ctx = await requireVenueAccess(request, "guestlist:read");
+    const { venueId, piiPolicy } = ctx as any;
         if ("error" in ctx) {
             return NextResponse.json({ error: ctx.error }, { status: ctx.status });
         }
 
-        const { venueId, piiPolicy } = ctx;
 
         if (!isFirebaseConfigured()) {
             return NextResponse.json({ customers: DEV_SEED, total: DEV_SEED.length });

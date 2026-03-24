@@ -2,7 +2,7 @@ import axios from "axios";
 
 async function checkApi() {
     const venueId = "venue_NPpsWyAw";
-    const url = `http://localhost:3001/api/venue/analytics/reach?venueId=${venueId}&range=30d`;
+    const url = `http://localhost:4000/api/v1/analytics/reach?venueId=${venueId}&range=30d`;
 
     try {
         console.log(`📡 Fetching: ${url}`);

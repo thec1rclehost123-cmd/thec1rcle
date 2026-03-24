@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     View,
     Text,
@@ -15,13 +15,18 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useScannerStore } from "@/store/scannerStore";
 import { createDoorEntry } from "@/lib/scanner";
+import { randomUUID } from "expo-crypto";
 import { EventTier } from "@/lib/scanner/types";
 import { colors, gradients } from "@/lib/design/theme";
+import QRCode from "react-native-qrcode-svg";
 
 type PaymentMethod = "cash" | "upi" | "card";
 
 export default function DoorEntryScreen() {
-    const { eventData } = useScannerStore();
+    const { eventData, sessionToken } = useScannerStore();
+
+    // H1: Idempotency key — generated once per form session, regenerated on resetForm
+    const idempotencyKeyRef = useRef<string>(randomUUID());
 
     const [guestName, setGuestName] = useState("");
     const [guestPhone, setGuestPhone] = useState("");
@@ -40,6 +45,8 @@ export default function DoorEntryScreen() {
     const total = selectedTier ? selectedTier.price * quantity : 0;
 
     const resetForm = () => {
+        // Generate new idempotency key for next guest
+        idempotencyKeyRef.current = randomUUID();
         setGuestName("");
         setGuestPhone("");
         setSelectedTier(null);
@@ -77,7 +84,8 @@ export default function DoorEntryScreen() {
                 totalAmount: total,
                 paymentMethod,
                 gate: eventData?.gate,
-            });
+                idempotencyKey: idempotencyKeyRef.current,
+            }, sessionToken || eventData?.sessionToken);
 
             if (result.success) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -115,6 +123,16 @@ export default function DoorEntryScreen() {
                         </Text>
                         <Text style={styles.successTotal}>₹{successData.total.toLocaleString()}</Text>
                     </View>
+                    {successData.qrData && (
+                        <View style={styles.successQrCard}>
+                            <QRCode
+                                value={successData.qrData}
+                                size={160}
+                                backgroundColor="#FFFFFF"
+                                color="#000000"
+                            />
+                        </View>
+                    )}
                     <Text style={styles.successOrderId}>Order: {successData.orderId}</Text>
                     <Pressable onPress={resetForm} style={styles.successButton}>
                         <Text style={styles.successButtonText}>Next Guest</Text>
@@ -170,6 +188,11 @@ export default function DoorEntryScreen() {
                         style={styles.textInput}
                         keyboardType="phone-pad"
                     />
+                    {eventData?.gate && (
+                        <View style={styles.gateBadge}>
+                            <Text style={styles.gateBadgeText}>{eventData.gate}</Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* Ticket Type */}
@@ -293,6 +316,8 @@ const styles = StyleSheet.create({
     formCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 16 },
     textInput: { color: colors.gold, fontSize: 17, paddingVertical: 14 },
     textInputBorder: { borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)" },
+    gateBadge: { alignSelf: "flex-start", marginTop: 12, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+    gateBadgeText: { color: colors.goldMetallic, fontSize: 12, fontWeight: "700" },
     tiersRow: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
     tierCard: {
         flex: 1, minWidth: 100, padding: 16, borderRadius: 14,
@@ -339,6 +364,7 @@ const styles = StyleSheet.create({
     successName: { color: "#fff", fontSize: 22, fontWeight: "700" },
     successTier: { color: "rgba(255,255,255,0.8)", fontSize: 16, marginTop: 8 },
     successTotal: { color: "#fff", fontSize: 28, fontWeight: "800", marginTop: 12 },
+    successQrCard: { backgroundColor: "#fff", borderRadius: 20, padding: 16, marginTop: 20 },
     successOrderId: { color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 20 },
     successButton: { backgroundColor: "#fff", marginTop: 28, paddingHorizontal: 40, paddingVertical: 16, borderRadius: 14 },
     successButtonText: { color: colors.success, fontSize: 17, fontWeight: "700" },

@@ -1,4 +1,4 @@
-// Scanner module types — ported from scanner-app
+// Scanner module types for the shared mobile scanner flow
 
 export interface EventTier {
     id: string;
@@ -12,6 +12,8 @@ export interface ScannerEventData {
     valid: boolean;
     code: string;
     codeId?: string;
+    sessionToken?: string;
+    sessionExpiresAt?: string;
     event: {
         id: string;
         title: string;
@@ -26,6 +28,8 @@ export interface ScannerEventData {
     permissions: {
         canScan: boolean;
         canDoorEntry: boolean;
+        canWalkIn?: boolean;
+        canCharge?: boolean;
     };
     tiers: EventTier[];
     gate?: string;
@@ -34,6 +38,7 @@ export interface ScannerEventData {
         prebooked: number;
         doorEntries: number;
         doorRevenue: number;
+        walkIns?: number;
     };
     error?: string;
 }
@@ -43,6 +48,7 @@ export interface ScanRequest {
     eventId: string;
     eventCode: string;
     gate?: string;
+    venueId?: string;
 }
 
 export interface ScanResponse {
@@ -83,6 +89,7 @@ export interface DoorEntryRequest {
     totalAmount: number;
     paymentMethod: "cash" | "upi" | "card";
     gate?: string;
+    idempotencyKey?: string;
 }
 
 export interface DoorEntryResponse {
@@ -104,7 +111,16 @@ export interface Guest {
     enteredAt?: string;
 }
 
-export type ScanResultType = "valid" | "already_scanned" | "invalid" | "wrong_event" | "not_confirmed" | null;
+export type ScanResultType =
+    | "valid"
+    | "already_scanned"
+    | "invalid"
+    | "wrong_event"
+    | "not_confirmed"
+    | "network_error"
+    | "session_expired"
+    | "device_invalid"
+    | null;
 
 export interface ScanResultData {
     type: ScanResultType;
@@ -119,4 +135,75 @@ export interface ScanResultData {
         time: string;
         by: string;
     };
+}
+
+export interface WalletContext {
+    id: string;
+    orderId: string;
+    currentBalancePaise: number;
+    openingBalancePaise: number;
+    totalDebitedPaise: number;
+    guestFirstName: string;
+    state: string;
+    terminationTime: string | null;
+    rules: {
+        allowedPresetItems: PresetItem[];
+        showBalanceToGuest: boolean;
+        maxChargeAmountPaise: number;
+        minChargeAmountPaise: number;
+    };
+}
+
+export interface PresetItem {
+    id: string;
+    name: string;
+    amountPaise: number;
+    category?: string;
+    isAvailable: boolean;
+    sortOrder: number;
+}
+
+export interface DebitRequest {
+    walletId: string;
+    presetItemId: string;
+    quantity: number;
+    idempotencyKey: string;
+    operatorId: string;
+    operatorName: string;
+    operatorRole: string;
+    deviceId: string;
+    eventCodeId: string;
+    isOnline: true;
+}
+
+export interface DebitResponse {
+    success: boolean;
+    balanceAfterPaise?: number;
+    receipt?: { itemName: string; amountPaise: number };
+    error?: string;
+}
+
+export interface WalkInRequest {
+    eventCode: string;
+    eventId: string;
+    venueId: string;
+    guestName: string;
+    guestAge?: number;
+    guestPhone?: string;
+    gate?: string;
+}
+
+export interface WalkInEntry {
+    id: string;
+    guestName: string;
+    guestAge?: number | null;
+    phoneHash?: string;
+    gate?: string | null;
+    addedAt: string;
+}
+
+export interface WalkInResponse {
+    success: boolean;
+    walkInId?: string;
+    error?: string;
 }

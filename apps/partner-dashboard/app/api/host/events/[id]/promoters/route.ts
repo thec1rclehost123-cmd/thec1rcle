@@ -12,12 +12,13 @@ function generateShortCode(): string {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
     const ctx = await requireHostAccess(req);
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { uid, hostId } = ctx as any;
 
-    const { hostId } = ctx;
-    const eventId = params.id;
+    const eventId = id;
     const db = getAdminDb();
 
     try {
@@ -57,12 +58,13 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
     const ctx = await requireHostAccess(req, "MANAGE_PROMOTERS");
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { hostId, uid } = ctx as any;
 
-    const { hostId, uid } = ctx;
-    const eventId = params.id;
+    const eventId = id;
     const db = getAdminDb();
 
     try {
@@ -148,12 +150,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
     const ctx = await requireHostAccess(req, "MANAGE_PROMOTERS");
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { hostId, uid } = ctx as any;
 
-    const { hostId, uid } = ctx;
-    const eventId = params.id;
+    const eventId = id;
     const { searchParams } = new URL(req.url);
     const assignmentId = searchParams.get("assignmentId");
     if (!assignmentId) return NextResponse.json({ error: "assignmentId required" }, { status: 400 });

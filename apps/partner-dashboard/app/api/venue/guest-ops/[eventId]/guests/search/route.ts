@@ -27,11 +27,11 @@ function isSuspicious(uid: string): boolean {
     return entry ? entry.count > SUSPICIOUS_THRESHOLD : false;
 }
 
-export async function GET(req: NextRequest, { params }: { params: { eventId: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
+    const { eventId } = await params;
     try {
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
-        const { eventId } = params;
 
         const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["VIEW_GUESTLIST"]);
         if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });

@@ -8,7 +8,16 @@ const APP_SCHEME = "c1rcle";
 const WEB_DOMAIN = "thec1rcle.com";
 
 // Deep link types
-export type DeepLinkType = "event" | "transfer" | "profile" | "invite";
+export type DeepLinkType =
+    | "event"
+    | "transfer"
+    | "profile"
+    | "invite"
+    | "ticket"
+    | "chat"
+    | "safety"
+    | "claim"
+    | "going";
 
 // Build deep link URL
 export function buildDeepLink(type: DeepLinkType, params: Record<string, string>): string {
@@ -110,12 +119,25 @@ export function parseDeepLink(url: string): {
     try {
         const parsed = Linking.parse(url);
 
-        // Extract type from path
-        const pathParts = parsed.path?.split("/").filter(Boolean) || [];
-        const type = pathParts[pathParts.length - 1] as DeepLinkType | undefined;
+        // Extract type and potential ID from path
+        // Pattern: scheme://type/id or scheme://type?id=xxx
+        const pathParts = (parsed.path || "").split("/").filter(Boolean);
+        const type = pathParts[0] as DeepLinkType | undefined;
 
-        // Extract query params
+        // Extract query params and path params
         const params: Record<string, string> = {};
+
+        // If we have an ID in the path (e.g. event/123), add it to params
+        if (pathParts.length > 1) {
+            params.id = pathParts[1];
+            if (type === "event") params.eventId = pathParts[1];
+            if (type === "ticket") params.orderId = pathParts[1];
+            if (type === "chat") params.eventId = pathParts[1];
+            if (type === "claim") params.token = pathParts[1];
+            if (type === "going") params.orderId = pathParts[1];
+            if (type === "transfer") params.code = pathParts[1];
+        }
+
         if (parsed.queryParams) {
             Object.entries(parsed.queryParams).forEach(([key, value]) => {
                 if (typeof value === "string") {
@@ -149,14 +171,34 @@ export function handleDeepLink(
                 navigation.navigate("event/[id]", { id: params.id });
             }
             break;
+        case "ticket":
+            if (params.orderId || params.id) {
+                navigation.navigate("ticket/[id]", { id: params.orderId || params.id });
+            }
+            break;
         case "transfer":
-            if (params.code) {
-                navigation.navigate("transfer", { code: params.code });
+            if (params.code || params.id) {
+                navigation.navigate("transfer/[token]", { code: params.code || params.id });
+            }
+            break;
+        case "claim":
+            if (params.token || params.id) {
+                navigation.navigate("claim/[token]", { token: params.token || params.id });
             }
             break;
         case "profile":
             if (params.userId) {
                 navigation.navigate("profile", { userId: params.userId });
+            }
+            break;
+        case "chat":
+            if (params.eventId || params.id) {
+                navigation.navigate("social/group/[eventId]", { eventId: params.eventId || params.id });
+            }
+            break;
+        case "going":
+            if (params.orderId || params.id) {
+                navigation.navigate("going/[orderId]", { orderId: params.orderId || params.id });
             }
             break;
         case "invite":
@@ -165,6 +207,9 @@ export function handleDeepLink(
                 // Store referral code for signup flow
                 console.log("Referral code:", params.ref);
             }
+            break;
+        case "safety":
+            navigation.navigate("safety");
             break;
         default:
             console.log("Unknown deep link type:", type);

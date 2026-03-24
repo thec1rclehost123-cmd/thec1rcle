@@ -17,6 +17,7 @@ export async function GET(
     request: Request,
     { params }: { params: Promise<{ profileId: string }> }
 ) {
+    const { profileId } = await params;
     try {
         const { profileId } = await params;
         const ctx = await requireManagementRole(request);
@@ -45,6 +46,7 @@ export async function PATCH(
     request: Request,
     { params }: { params: Promise<{ profileId: string }> }
 ) {
+    const { profileId } = await params;
     try {
         const { profileId } = await params;
         const ctx = await requireManagementRole(request);
@@ -88,6 +90,7 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ profileId: string }> }
 ) {
+    const { profileId } = await params;
     try {
         const { profileId } = await params;
         const ctx = await requireManagementRole(request);

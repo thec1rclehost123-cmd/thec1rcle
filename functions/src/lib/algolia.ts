@@ -1,13 +1,25 @@
 import { algoliasearch } from 'algoliasearch';
 
-// Initialize Algolia
-// In production, these should be set via environment variables:
-// firebase functions:config:set algolia.app_id="APP_ID" algolia.api_key="API_KEY"
-const APP_ID = process.env.ALGOLIA_APP_ID || '';
-const API_KEY = process.env.ALGOLIA_API_KEY || '';
-
-const client = algoliasearch(APP_ID, API_KEY);
+// Lazy initialization of Algolia client to prevent crash during deployment analysis
+let client: any = null;
 const INDEX_NAME = 'events';
+
+/**
+ * Gets or initializes the Algolia client
+ */
+function getAlgoliaClient() {
+    const APP_ID = process.env.ALGOLIA_APP_ID || '';
+    const API_KEY = process.env.ALGOLIA_API_KEY || '';
+
+    if (!APP_ID || !API_KEY) {
+        return null;
+    }
+
+    if (!client) {
+        client = algoliasearch(APP_ID, API_KEY);
+    }
+    return client;
+}
 
 /**
  * Maps a Firestore event document to an Algolia record
@@ -49,7 +61,8 @@ export function mapEventToAlgolia(event: any, eventId: string) {
  * Syncs an event to Algolia
  */
 export async function syncEventToAlgolia(eventId: string, event: any) {
-    if (!APP_ID || !API_KEY) {
+    const algoliaClient = getAlgoliaClient();
+    if (!algoliaClient) {
         console.warn('[Algolia] Missing credentials, skipping sync');
         return;
     }
@@ -60,13 +73,13 @@ export async function syncEventToAlgolia(eventId: string, event: any) {
     const PUBLIC_LIFECYCLE_STATES = ['scheduled', 'live'];
     if (!PUBLIC_LIFECYCLE_STATES.includes(event.lifecycle)) {
         console.log(`[Algolia] Removing/skipping event ${eventId} (lifecycle: ${event.lifecycle} is not public)`);
-        await client.deleteObject({ indexName: INDEX_NAME, objectID: eventId });
+        await algoliaClient.deleteObject({ indexName: INDEX_NAME, objectID: eventId });
         return;
     }
 
     try {
         const record = mapEventToAlgolia(event, eventId);
-        await client.saveObject({ indexName: INDEX_NAME, body: record });
+        await algoliaClient.saveObject({ indexName: INDEX_NAME, body: record });
         console.log(`[Algolia] Successfully synced event ${eventId}`);
     } catch (error) {
         console.error(`[Algolia] Error syncing event ${eventId}:`, error);
@@ -77,10 +90,11 @@ export async function syncEventToAlgolia(eventId: string, event: any) {
  * Removes an event from Algolia
  */
 export async function removeEventFromAlgolia(eventId: string) {
-    if (!APP_ID || !API_KEY) return;
+    const algoliaClient = getAlgoliaClient();
+    if (!algoliaClient) return;
 
     try {
-        await client.deleteObject({ indexName: INDEX_NAME, objectID: eventId });
+        await algoliaClient.deleteObject({ indexName: INDEX_NAME, objectID: eventId });
         console.log(`[Algolia] Successfully removed event ${eventId}`);
     } catch (error) {
         console.error(`[Algolia] Error removing event ${eventId}:`, error);

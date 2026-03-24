@@ -1,21 +1,49 @@
-/**
- * postinstall patch: create expo-router/internal/routing shim
- *
- * @expo/router-server@55 imports from 'expo-router/internal/routing' but
- * expo-router@5 ships those exports in build/getRoutesCore.js with getRoutesCore
- * renamed to getRoutes. This shim bridges the gap.
- */
 const fs = require("fs");
 const path = require("path");
 
-const shimDir = path.join(__dirname, "..", "node_modules", "expo-router", "internal");
-const shimFile = path.join(shimDir, "routing.js");
-
+/**
+ * Patch only Expo Router v5 installs that are missing the internal routing shim.
+ * Newer majors do not need this bridge, and older hoisted installs may not even
+ * match the API this shim expects.
+ */
 const content = `"use strict";
 const core = require("../build/getRoutesCore.js");
 module.exports = { ...core, getRoutesCore: core.getRoutes };
 `;
 
-fs.mkdirSync(shimDir, { recursive: true });
-fs.writeFileSync(shimFile, content);
-console.log("[postinstall] Patched expo-router/internal/routing shim");
+const candidates = [
+    path.join(__dirname, "..", "node_modules", "expo-router"),
+    path.join(__dirname, "..", "apps", "mobile-app", "node_modules", "expo-router"),
+];
+
+let patched = 0;
+
+for (const routerDir of candidates) {
+    const packageJsonPath = path.join(routerDir, "package.json");
+    if (!fs.existsSync(packageJsonPath)) {
+        continue;
+    }
+
+    const version = JSON.parse(fs.readFileSync(packageJsonPath, "utf8")).version || "";
+    const major = Number(version.split(".")[0]);
+
+    if (major !== 5) {
+        continue;
+    }
+
+    const shimDir = path.join(routerDir, "internal");
+    const shimFile = path.join(shimDir, "routing.js");
+
+    if (fs.existsSync(shimFile)) {
+        continue;
+    }
+
+    fs.mkdirSync(shimDir, { recursive: true });
+    fs.writeFileSync(shimFile, content);
+    patched += 1;
+    console.log(`[postinstall] Patched expo-router/internal/routing shim in ${path.relative(path.join(__dirname, ".."), routerDir)}`);
+}
+
+if (patched === 0) {
+    console.log("[postinstall] No Expo Router v5 installs needed patching");
+}

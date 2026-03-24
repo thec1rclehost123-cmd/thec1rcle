@@ -31,11 +31,11 @@ function parseRange(range: string): Date {
 
 export async function GET(req: NextRequest) {
     const ctx = await requirePromoterAccess(req);
+    const { promoterId } = ctx as any;
     if ("error" in ctx) {
         return NextResponse.json({ error: ctx.error }, { status: ctx.status });
     }
 
-    const { promoterId } = ctx;
     const { searchParams } = new URL(req.url);
     const range = searchParams.get("range") || "30d";
     const from  = parseRange(range);

@@ -6,12 +6,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
 import { getAdminDb } from "@/lib/firebase/admin";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
     const ctx = await requireHostAccess(req);
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { hostId } = ctx as any;
 
-    const { hostId } = ctx;
-    const eventId = params.id;
+    const eventId = id;
     const db = getAdminDb();
 
     try {

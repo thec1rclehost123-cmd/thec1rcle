@@ -9,8 +9,10 @@
     "dev:prod": "node -e \"require('fs').copyFileSync('.env.production', '.env.local')\" && next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "echo lint OK",
-    "type-check": "npx tsc --noEmit"
+    "lint": "npx tsc --noEmit",
+    "type-check": "npx tsc --noEmit",
+    "test": "node --test",
+    "test:watch": "node --test --watch"
   },
   "dependencies": {
     "@c1rcle/core": "*",

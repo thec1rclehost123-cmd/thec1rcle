@@ -14,11 +14,13 @@ import {
 } from "firebase/auth";
 import { getFirestore, Firestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { getStorage, FirebaseStorage } from "firebase/storage";
+import { getFunctions, Functions } from "firebase/functions";
 import { Platform } from "react-native";
 import { firebaseConfig } from "./config";
 
 // Initialize Firebase App (singleton)
 let firebaseApp: FirebaseApp;
+let firebaseFunctions: Functions;
 
 export function getFirebaseApp(): FirebaseApp {
     if (!firebaseApp) {
@@ -40,6 +42,14 @@ export function getFirebaseDb(): Firestore {
 // Firebase Storage
 export function getFirebaseStorage(): FirebaseStorage {
     return getStorage(getFirebaseApp());
+}
+
+// Firebase Functions
+export function getFirebaseFunctions(): Functions {
+    if (!firebaseFunctions) {
+        firebaseFunctions = getFunctions(getFirebaseApp());
+    }
+    return firebaseFunctions;
 }
 
 // ─── Auth helper functions ───────────────────────────────────────
@@ -177,4 +187,3 @@ export async function loginWithGoogle(): Promise<{ user: User }> {
 }
 
 export type { User };
-

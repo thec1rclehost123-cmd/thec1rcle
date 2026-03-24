@@ -99,7 +99,7 @@ export function useLiveEvent(venueId: string | undefined) {
                 ]);
 
                 const { onSnapshot, doc, collection, query, where, orderBy, limit } =
-                    firestoreSDK;
+                    firestoreSDK as any;
 
                 const db = getFirebaseDb();
                 const cap = todayEvent.capacity ?? 0;

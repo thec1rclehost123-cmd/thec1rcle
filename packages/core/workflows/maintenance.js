@@ -13,7 +13,7 @@ export const maintenanceWarmup = inngest.createFunction(
     },
     { cron: "*/10 * * * *" }, // Every 10 minutes
     async ({ step }) => {
-        const baseUrl = process.env.API_GATEWAY_URL || "http://localhost:3001/api/v1";
+        const baseUrl = process.env.API_GATEWAY_URL || "http://localhost:4000/api/v1";
 
         await step.run("ping-key-endpoints", async () => {
             const endpoints = [

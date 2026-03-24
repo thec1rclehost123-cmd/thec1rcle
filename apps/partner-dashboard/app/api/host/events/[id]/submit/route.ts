@@ -11,12 +11,13 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { ok, fail } from "@/lib/server/apiResponse";
 import { logger } from "@/lib/server/logger";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
     const ctx = await requireHostAccess(req, "MANAGE_EVENTS");
     if ("error" in ctx) return fail(ctx.error, ctx.status);
+    const { uid, hostId } = ctx as any;
 
-    const { hostId, uid } = ctx;
-    const eventId = params.id;
+    const eventId = id;
     const db = getAdminDb();
 
     try {

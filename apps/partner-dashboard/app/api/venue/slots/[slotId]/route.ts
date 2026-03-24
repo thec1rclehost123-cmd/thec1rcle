@@ -14,13 +14,14 @@ import {
 
 export async function GET(
     request: Request,
-    { params }: { params: { slotId: string } }
+    { params }: { params: Promise<{ slotId: string }> }
 ) {
+    const { slotId } = await params;
     try {
         const ctx = await requireVenueAccess(request, "calendar:read");
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-        const slot = await getSlot(ctx.venueId, params.slotId);
+        const slot = await getSlot(ctx.venueId, slotId);
         if (!slot) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
         return NextResponse.json({ slot });
@@ -32,8 +33,9 @@ export async function GET(
 
 export async function PATCH(
     request: Request,
-    { params }: { params: { slotId: string } }
+    { params }: { params: Promise<{ slotId: string }> }
 ) {
+    const { slotId } = await params;
     try {
         const ctx = await requireVenueAccess(request, "calendar:block_slot");
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -41,12 +43,12 @@ export async function PATCH(
         const body = await request.json();
 
         if (body.status) {
-            await updateSlotStatus(ctx.venueId, params.slotId, body.status, { uid: ctx.uid }, {
+            await updateSlotStatus(ctx.venueId, slotId, body.status, { uid: ctx.uid }, {
                 note: body.note,
             });
         }
 
-        const updated = await getSlot(ctx.venueId, params.slotId);
+        const updated = await getSlot(ctx.venueId, slotId);
         return NextResponse.json({ slot: updated });
     } catch (err: any) {
         console.error("[slots/:id PATCH]", err.message);
@@ -56,13 +58,14 @@ export async function PATCH(
 
 export async function DELETE(
     request: Request,
-    { params }: { params: { slotId: string } }
+    { params }: { params: Promise<{ slotId: string }> }
 ) {
+    const { slotId } = await params;
     try {
         const ctx = await requireVenueAccess(request, "calendar:unblock_slot");
         if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-        await unblockSlot(ctx.venueId, params.slotId, { uid: ctx.uid });
+        await unblockSlot(ctx.venueId, slotId, { uid: ctx.uid });
         return NextResponse.json({ ok: true });
     } catch (err: any) {
         if (err.message.startsWith("Cannot unblock")) {
