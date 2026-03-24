@@ -87,7 +87,7 @@ function applyTabVisibility(
             items: section.items.filter((item) => {
                 const tab = itemTab(item.href);
                 if (!tab) return true;
-                return tabVisibility[tab] !== false;
+                return tabVisibility[tab] === true;
             }),
         }))
         .filter((section) => section.items.length > 0) as typeof MENU_SECTIONS;

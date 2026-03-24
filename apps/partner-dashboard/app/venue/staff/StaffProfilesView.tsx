@@ -4,31 +4,28 @@ import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Plus, Shield, Trash2, ChevronDown, Loader2, Save,
-    LayoutDashboard, BarChart3, Calendar, Banknote, ClipboardList,
-    Users, FileText, Building2, Settings, X, Eye, EyeOff,
+    LayoutDashboard, BarChart3, Calendar, Banknote,
+    Users, Settings, X, Eye, EyeOff, DoorOpen, Handshake, Globe,
 } from "lucide-react";
 import Toggle from "@/components/ui/Toggle";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import Link from "next/link";
 import { BentoCard } from "@/components/ui/BentoCard";
 import type {
-    StaffProfile, VenueTab, StaffAction, PIIPolicy, GuestlistScope,
+    StaffProfile, VenueTab, StaffAction, PIIPolicy, GuestlistScope, VenueRole,
 } from "@/lib/types/staffProfile";
-import { DEFAULT_PII_POLICY } from "@/lib/types/staffProfile";
+import { DEFAULT_PII_POLICY, ROLE_DEFAULT_TABS } from "@/lib/types/staffProfile";
 
 const TAB_META: { key: VenueTab; label: string; icon: React.ElementType }[] = [
-    { key: "overview",        label: "Overview",     icon: LayoutDashboard },
-    { key: "analytics",       label: "Analytics",    icon: BarChart3 },
-    { key: "events",          label: "Events",       icon: Calendar },
-    { key: "finance",         label: "Finance",      icon: Banknote },
-    { key: "calendar",        label: "Calendar",     icon: Calendar },
-    { key: "walk_ins",        label: "Walk-ins",     icon: ClipboardList },
-    { key: "guest_ops",       label: "Guest Ops",    icon: Users },
-    { key: "partnerships",    label: "Partnerships", icon: Users },
-    { key: "staff",           label: "Staff",        icon: Shield },
-    { key: "registers",       label: "Registers",    icon: FileText },
-    { key: "page_management", label: "Venue Page",   icon: Building2 },
-    { key: "settings",        label: "Settings",     icon: Settings },
+    { key: "overview",  label: "Overview",  icon: LayoutDashboard },
+    { key: "events",    label: "Events",    icon: Calendar },
+    { key: "calendar",  label: "Calendar",  icon: Calendar },
+    { key: "door",      label: "Door",      icon: DoorOpen },
+    { key: "partners",  label: "Partners",  icon: Handshake },
+    { key: "analytics", label: "Analytics", icon: BarChart3 },
+    { key: "finance",   label: "Finance",   icon: Banknote },
+    { key: "presence",  label: "Presence",  icon: Globe },
+    { key: "crm",       label: "CRM",       icon: Users },
+    { key: "settings",  label: "Settings",  icon: Settings },
 ];
 
 const ACTION_GROUPS: { group: string; actions: { key: StaffAction; label: string }[] }[] = [
@@ -107,11 +104,12 @@ const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
     SECURITY:      { bg: "rgba(239,68,68,0.15)",    text: "var(--v-error)" },
 };
 
-const ROLE_LABELS: Record<string, string> = {
-    STAFF: "Employee", FINANCE_ADMIN: "Finance",
-    manager: "Manager", security: "Security",
-    SECURITY: "Security", MANAGER: "Manager",
-};
+const ROLE_OPTIONS: { value: VenueRole; label: string }[] = [
+    { value: "STAFF",         label: "Employee" },
+    { value: "MANAGER",       label: "Manager" },
+    { value: "FINANCE_ADMIN", label: "Finance" },
+    { value: "SECURITY",      label: "Security" },
+];
 
 interface StaffMember {
     id: string; name: string; email: string;
@@ -127,6 +125,67 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         <div className="space-y-3">
             <p className="v-label text-[10px] font-bold tracking-wider opacity-60 uppercase">{title}</p>
             {children}
+        </div>
+    );
+}
+
+// ── Shared PII toggles ────────────────────────────────────────────────────────
+function PiiSection({
+    pii, onChange,
+}: {
+    pii: PIIPolicy;
+    onChange: (key: keyof PIIPolicy, val: boolean) => void;
+}) {
+    return (
+        <div className="space-y-2 bg-surface-tertiary p-4 rounded-2xl border border-border-subtle">
+            {([
+                { key: "showPhone" as const,        label: "Phone Numbers" },
+                { key: "showEmail" as const,        label: "Email Addresses" },
+                { key: "showLastName" as const,     label: "Guest Last Names" },
+                { key: "showOrderAmount" as const,  label: "Order Financials" },
+                { key: "showPayoutAmounts" as const,label: "Settlement Values" },
+            ]).map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between group">
+                    <div className="flex items-center gap-3">
+                        <div className={`p-1.5 rounded-lg transition-colors ${pii[key] ? "bg-[var(--v-orange-dim)] text-[var(--v-orange)]" : "bg-surface-tertiary text-[var(--v-text-muted)]"}`}>
+                            {pii[key] ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                        </div>
+                        <span className="text-[12px] font-medium text-[var(--v-text-secondary)]">{label}</span>
+                    </div>
+                    <Toggle size="sm" checked={!!pii[key]} onChange={v => onChange(key, v)} />
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// ── Shared Guestlist scope selector ──────────────────────────────────────────
+function ScopeSection({
+    scope, onChange,
+}: {
+    scope: GuestlistScope;
+    onChange: (s: GuestlistScope) => void;
+}) {
+    return (
+        <div className="flex flex-col gap-2">
+            {(['none', 'read_only', 'editable'] as GuestlistScope[]).map((s) => (
+                <div
+                    key={s}
+                    onClick={() => onChange(s)}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                        scope === s
+                            ? "bg-surface-tertiary border-[var(--v-orange)] shadow-[0_0_20px_rgba(249,115,22,0.1)]"
+                            : "bg-surface-tertiary border-white/[0.02] hover:border-border-default opacity-60"
+                    }`}
+                >
+                    <p className="text-[12px] font-bold uppercase tracking-widest">{s.replace('_', ' ')}</p>
+                    <p className="text-[10px] text-[var(--v-text-muted)] mt-0.5">
+                        {s === 'none' && 'Access completely disabled'}
+                        {s === 'read_only' && 'Visualization only, no mutations'}
+                        {s === 'editable' && 'Full check-in and entry control'}
+                    </p>
+                </div>
+            ))}
         </div>
     );
 }
@@ -152,6 +211,17 @@ export default function ProfilesView() {
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
+
+    // ── Create Profile modal state ─────────────────────────────────────────────
+    const [showCreate, setShowCreate] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [createError, setCreateError] = useState<string | null>(null);
+    const [createName, setCreateName] = useState("");
+    const [createRole, setCreateRole] = useState<VenueRole>("STAFF");
+    const [createTabs, setCreateTabs] = useState<Partial<Record<VenueTab, boolean>>>({});
+    const [createActions, setCreateActions] = useState<Partial<Record<StaffAction, boolean>>>({});
+    const [createPii, setCreatePii] = useState<PIIPolicy>(DEFAULT_PII_POLICY);
+    const [createScope, setCreateScope] = useState<GuestlistScope>("read_only");
 
     const authHeaders = async (): Promise<HeadersInit> => {
         const token = user ? await user.getIdToken() : null;
@@ -225,7 +295,7 @@ export default function ProfilesView() {
     }, [profiles, acceptedStaff, assignmentMap]);
 
     const handleSave = async () => {
-        if (!selectedProfileId) return;
+        if (!selectedProfileId || !venueId) return;
         setSaving(true);
         setSaveError(null);
         setSaved(false);
@@ -259,7 +329,7 @@ export default function ProfilesView() {
     };
 
     const handleAssign = async () => {
-        if (!assignTarget || !selectedProfileId) return;
+        if (!assignTarget || !selectedProfileId || !venueId) return;
         setAssigning(true);
         try {
             const h = { ...(await authHeaders()), "Content-Type": "application/json" };
@@ -277,6 +347,7 @@ export default function ProfilesView() {
     };
 
     const handleRemove = async (uid: string) => {
+        if (!venueId) return;
         setAssigning(true);
         try {
             const h = { ...(await authHeaders()), "Content-Type": "application/json" };
@@ -291,7 +362,7 @@ export default function ProfilesView() {
     };
 
     const handleDelete = async () => {
-        if (!selectedProfileId) return;
+        if (!selectedProfileId || !venueId) return;
         const count = profileStaffCount[selectedProfileId] ?? 0;
         const msg = count > 0
             ? `This profile has ${count} staff assigned. Deleting will remove their custom access. Continue?`
@@ -320,6 +391,50 @@ export default function ProfilesView() {
         }
     };
 
+    // ── Create profile handler ─────────────────────────────────────────────────
+    const handleCreate = async () => {
+        if (!venueId || !createName.trim()) return;
+        setCreating(true);
+        setCreateError(null);
+        try {
+            const h = { ...(await authHeaders()), "Content-Type": "application/json" };
+            const res = await fetch(`/api/venue/staff-profiles?venueId=${venueId}`, {
+                method: "POST", headers: h,
+                body: JSON.stringify({
+                    profileName: createName.trim(),
+                    baseRole: createRole,
+                    tabVisibility: createTabs,
+                    actionPermissions: createActions,
+                    piiPolicy: createPii,
+                    guestlistScope: createScope,
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                setCreateError(err.error ?? "Failed to create profile");
+            } else {
+                const { profile: newProfile } = await res.json();
+                setProfiles(prev => [...prev, newProfile]);
+                setSelectedProfileId(newProfile.id);
+                setShowCreate(false);
+                setCreateName("");
+                setCreateRole("STAFF");
+                setCreateTabs({});
+                setCreateActions({});
+                setCreatePii(DEFAULT_PII_POLICY);
+                setCreateScope("read_only");
+            }
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    // When create role changes, pre-populate tabs from role defaults
+    const handleCreateRoleChange = (role: VenueRole) => {
+        setCreateRole(role);
+        setCreateTabs({ ...(ROLE_DEFAULT_TABS[role] ?? {}) });
+    };
+
     if (loading) return (
         <div className="flex items-center justify-center py-20 bg-[var(--v-card)] rounded-2xl border border-border-subtle">
             <Loader2 className="w-5 h-5 animate-spin text-[var(--v-orange)]" />
@@ -327,16 +442,18 @@ export default function ProfilesView() {
     );
 
     return (
+        <>
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Profile Selection List */}
             <div className="lg:col-span-4 space-y-3">
                 <div className="flex items-center justify-between px-2">
                     <h3 className="text-xs font-black uppercase tracking-widest text-[var(--v-text-muted)]">Active Profiles</h3>
-                    <Link href="/venue/staff/profiles/new">
-                        <button className="p-1.5 rounded-lg bg-surface-tertiary hover:bg-[var(--v-orange-dim)] text-[var(--v-orange)] transition-colors">
-                            <Plus className="w-3.5 h-3.5" />
-                        </button>
-                    </Link>
+                    <button
+                        onClick={() => setShowCreate(true)}
+                        className="p-1.5 rounded-lg bg-surface-tertiary hover:bg-[var(--v-orange-dim)] text-[var(--v-orange)] transition-colors"
+                    >
+                        <Plus className="w-3.5 h-3.5" />
+                    </button>
                 </div>
 
                 <div className="space-y-2">
@@ -351,8 +468,8 @@ export default function ProfilesView() {
                                 layout
                                 onClick={() => setSelectedProfileId(prev => prev === p.id ? null : p.id)}
                                 className={`group p-4 rounded-2xl border transition-all cursor-pointer ${
-                                    isSelected 
-                                        ? "border-[var(--v-orange)] bg-[var(--v-orange-dim)]" 
+                                    isSelected
+                                        ? "border-[var(--v-orange)] bg-[var(--v-orange-dim)]"
                                         : "border-border-subtle bg-[var(--v-card)] hover:border-border-default hover:bg-surface-tertiary"
                                 }`}
                             >
@@ -366,7 +483,7 @@ export default function ProfilesView() {
                                         <p className="text-[14px] font-bold text-[var(--v-text-primary)] truncate">{p.profileName}</p>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md" style={{ background: rc.bg, color: rc.text }}>
-                                                {p.baseRole}
+                                                {ROLE_OPTIONS.find(r => r.value === p.baseRole)?.label ?? p.baseRole}
                                             </span>
                                             <span className="text-[11px] text-[var(--v-text-muted)]">{count} Members</span>
                                         </div>
@@ -380,6 +497,12 @@ export default function ProfilesView() {
                     {profiles.length === 0 && (
                         <div className="p-8 text-center bg-[var(--v-card)] rounded-2xl border border-dashed border-border-default">
                             <p className="text-[12px] text-[var(--v-text-muted)]">No custom profiles yet.</p>
+                            <button
+                                onClick={() => setShowCreate(true)}
+                                className="mt-3 text-[11px] font-bold text-[var(--v-orange)] hover:underline"
+                            >
+                                Create your first profile →
+                            </button>
                         </div>
                     )}
                 </div>
@@ -410,25 +533,25 @@ export default function ProfilesView() {
                                 </div>
                                 <button
                                     onClick={handleDelete}
-                                    className="p-3 rounded-2xl bg-red-400/5 text-red-400 hover:bg-red-400/10 transition-colors"
+                                    disabled={deleting}
+                                    className="p-3 rounded-2xl bg-red-400/5 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
                                 >
-                                    <Trash2 className="w-4 h-4" />
+                                    {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                                 </button>
                             </div>
 
                             <div className="p-8 space-y-10 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                                {/* Grid container for sections */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                     {/* Sidebar Access */}
                                     <Section title="Sidebar Visibility">
                                         <div className="grid grid-cols-2 gap-2">
                                             {TAB_META.map(({ key, label, icon: Icon }) => (
-                                                <div 
+                                                <div
                                                     key={key}
                                                     onClick={() => setEditTabs(prev => ({ ...prev, [key]: !prev[key] }))}
                                                     className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
-                                                        editTabs[key] 
-                                                            ? "bg-[var(--v-orange-dim)] border-[var(--v-orange)]/30" 
+                                                        editTabs[key]
+                                                            ? "bg-[var(--v-orange-dim)] border-[var(--v-orange)]/30"
                                                             : "bg-surface-tertiary border-border-subtle opacity-50 grayscale"
                                                     }`}
                                                 >
@@ -440,51 +563,15 @@ export default function ProfilesView() {
                                     </Section>
 
                                     <div className="space-y-10">
-                                        {/* PII Policy */}
                                         <Section title="Data Masking (PII)">
-                                            <div className="space-y-2 bg-surface-tertiary p-4 rounded-2xl border border-border-subtle">
-                                                {([
-                                                    { key: "showPhone" as const,        label: "Phone Numbers" },
-                                                    { key: "showEmail" as const,        label: "Email Addresses" },
-                                                    { key: "showLastName" as const,     label: "Guest Last Names" },
-                                                    { key: "showOrderAmount" as const,  label: "Order Financials" },
-                                                    { key: "showPayoutAmounts" as const,label: "Settlement Values" },
-                                                ]).map(({ key, label }) => (
-                                                    <div key={key} className="flex items-center justify-between group">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`p-1.5 rounded-lg transition-colors ${editPii[key] ? "bg-[var(--v-orange-dim)] text-[var(--v-orange)]" : "bg-surface-tertiary text-[var(--v-text-muted)]"}`}>
-                                                                {editPii[key] ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                                                            </div>
-                                                            <span className="text-[12px] font-medium text-[var(--v-text-secondary)]">{label}</span>
-                                                        </div>
-                                                        <Toggle size="sm" checked={!!editPii[key]} onChange={v => setEditPii(prev => ({ ...prev, [key]: v }))} />
-                                                    </div>
-                                                ))}
-                                            </div>
+                                            <PiiSection
+                                                pii={editPii}
+                                                onChange={(key, val) => setEditPii(prev => ({ ...prev, [key]: val }))}
+                                            />
                                         </Section>
 
-                                        {/* Guestlist Scope */}
                                         <Section title="Guestlist Authority">
-                                             <div className="flex flex-col gap-2">
-                                                {(['none', 'read_only', 'editable'] as GuestlistScope[]).map((scope) => (
-                                                    <div 
-                                                        key={scope}
-                                                        onClick={() => setEditScope(scope)}
-                                                        className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                                                            editScope === scope 
-                                                                ? "bg-surface-tertiary border-[var(--v-orange)] shadow-[0_0_20px_rgba(249,115,22,0.1)]" 
-                                                                : "bg-surface-tertiary border-white/[0.02] hover:border-border-default opacity-60"
-                                                        }`}
-                                                    >
-                                                        <p className="text-[12px] font-bold uppercase tracking-widest">{scope.replace('_', ' ')}</p>
-                                                        <p className="text-[10px] text-[var(--v-text-muted)] mt-0.5">
-                                                            {scope === 'none' && 'Access completely disabled'}
-                                                            {scope === 'read_only' && 'Visualization only, no mutations'}
-                                                            {scope === 'editable' && 'Full check-in and entry control'}
-                                                        </p>
-                                                    </div>
-                                                ))}
-                                             </div>
+                                            <ScopeSection scope={editScope} onChange={setEditScope} />
                                         </Section>
                                     </div>
                                 </div>
@@ -508,7 +595,7 @@ export default function ProfilesView() {
                                     </div>
                                 </Section>
 
-                                {/* Staff Assignments in Profile */}
+                                {/* Staff Assignments */}
                                 <Section title={`Assigned Members (${profileStaff.length})`}>
                                     <div className="flex flex-wrap gap-2">
                                         {profileStaff.map(s => (
@@ -523,8 +610,8 @@ export default function ProfilesView() {
                                             </div>
                                         ))}
                                         {unassignedStaff.length > 0 && (
-                                             <div className="flex items-center gap-2 ml-auto">
-                                                <select 
+                                            <div className="flex items-center gap-2 ml-auto">
+                                                <select
                                                     value={assignTarget}
                                                     onChange={e => setAssignTarget(e.target.value)}
                                                     className="bg-surface-tertiary border border-border-default rounded-full px-4 py-1.5 text-[11px] outline-none hover:border-[var(--v-orange)] transition-colors appearance-none pr-8 cursor-pointer"
@@ -535,7 +622,7 @@ export default function ProfilesView() {
                                                 <button onClick={handleAssign} disabled={!assignTarget || assigning} className="p-1.5 rounded-full bg-[var(--v-orange)] text-white hover:scale-110 active:scale-90 transition-transform disabled:opacity-50">
                                                     <Plus className="w-4 h-4" />
                                                 </button>
-                                             </div>
+                                            </div>
                                         )}
                                     </div>
                                 </Section>
@@ -574,10 +661,182 @@ export default function ProfilesView() {
                             <p className="text-[13px] text-[var(--v-text-muted)] max-w-xs mt-2">
                                 Pick a profile from the registry to view and modify its granular permissions and member assignments.
                             </p>
+                            <button
+                                onClick={() => setShowCreate(true)}
+                                className="mt-6 px-6 py-2.5 rounded-xl bg-[var(--v-orange)] text-white text-xs font-black uppercase tracking-widest hover:translate-y-[-2px] transition-all"
+                            >
+                                + New Profile
+                            </button>
                         </div>
                     )}
                 </AnimatePresence>
             </div>
         </div>
+
+        {/* ── Create Profile Modal ───────────────────────────────────────────────── */}
+        <AnimatePresence>
+            {showCreate && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                    style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
+                    onClick={e => { if (e.target === e.currentTarget) setShowCreate(false); }}
+                >
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.96, y: 16 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.96, y: 16 }}
+                        transition={{ duration: 0.2 }}
+                        className="w-full max-w-4xl max-h-[90vh] flex flex-col bg-[var(--v-card)] rounded-[2rem] border border-border-subtle overflow-hidden"
+                        style={{ boxShadow: "0 25px 60px -12px rgba(0,0,0,0.8)" }}
+                    >
+                        {/* Modal Header */}
+                        <div className="px-8 py-6 border-b border-border-subtle bg-surface-tertiary/30 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-[1.25rem] flex items-center justify-center border border-[var(--v-orange)]/30 bg-[var(--v-orange-dim)]">
+                                    <Shield className="w-6 h-6 text-[var(--v-orange)]" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-[var(--v-text-primary)]">New Access Profile</h2>
+                                    <p className="text-[11px] text-[var(--v-text-muted)] uppercase tracking-[0.2em] font-black">Custom Permission Set</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowCreate(false)}
+                                className="p-3 rounded-2xl bg-surface-tertiary text-[var(--v-text-muted)] hover:text-[var(--v-text-primary)] hover:bg-[var(--v-elevated)] transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-10">
+                            {/* Profile Name + Role */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--v-text-muted)]">Profile Name</p>
+                                    <input
+                                        type="text"
+                                        value={createName}
+                                        onChange={e => setCreateName(e.target.value)}
+                                        placeholder="e.g. Door Staff, Finance Viewer…"
+                                        className="w-full bg-surface-tertiary border border-border-default rounded-xl px-4 py-3 text-[13px] text-[var(--v-text-primary)] placeholder:text-[var(--v-text-muted)] outline-none focus:border-[var(--v-orange)] transition-colors"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--v-text-muted)]">Base Role</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {ROLE_OPTIONS.map(({ value, label }) => {
+                                            const rc = ROLE_COLORS[value] ?? ROLE_COLORS.STAFF;
+                                            return (
+                                                <button
+                                                    key={value}
+                                                    onClick={() => handleCreateRoleChange(value)}
+                                                    className={`px-3 py-2.5 rounded-xl border text-[11px] font-black uppercase tracking-widest transition-all ${
+                                                        createRole === value
+                                                            ? "border-[var(--v-orange)]"
+                                                            : "border-border-subtle hover:border-border-default"
+                                                    }`}
+                                                    style={{
+                                                        background: createRole === value ? rc.bg : "var(--surface-tertiary)",
+                                                        color: createRole === value ? rc.text : "var(--v-text-muted)",
+                                                    }}
+                                                >
+                                                    {label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Sidebar Visibility */}
+                            <Section title="Sidebar Visibility">
+                                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                                    {TAB_META.map(({ key, label, icon: Icon }) => (
+                                        <div
+                                            key={key}
+                                            onClick={() => setCreateTabs(prev => ({ ...prev, [key]: !prev[key] }))}
+                                            className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
+                                                createTabs[key]
+                                                    ? "bg-[var(--v-orange-dim)] border-[var(--v-orange)]/30"
+                                                    : "bg-surface-tertiary border-border-subtle opacity-50 grayscale"
+                                            }`}
+                                        >
+                                            <Icon className={`w-4 h-4 ${createTabs[key] ? "text-[var(--v-orange)]" : "text-[var(--v-text-muted)]"}`} />
+                                            <span className="text-[10px] font-bold">{label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </Section>
+
+                            {/* Fine-Grained Actions */}
+                            <Section title="Fine-Grained Actions">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                                    {ACTION_GROUPS.map(grp => (
+                                        <div key={grp.group} className="space-y-3">
+                                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--v-orange)]">{grp.group}</p>
+                                            <div className="space-y-1">
+                                                {grp.actions.map(({ key, label }) => (
+                                                    <div key={key} className="flex items-center justify-between py-2 border-b border-white/[0.02] last:border-0">
+                                                        <span className="text-[12px] text-[var(--v-text-secondary)]">{label}</span>
+                                                        <Toggle
+                                                            size="sm"
+                                                            checked={createActions[key] ?? false}
+                                                            onChange={v => setCreateActions(prev => ({ ...prev, [key]: v }))}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </Section>
+
+                            {/* PII + Guestlist side by side */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                <Section title="Data Masking (PII)">
+                                    <PiiSection
+                                        pii={createPii}
+                                        onChange={(key, val) => setCreatePii(prev => ({ ...prev, [key]: val }))}
+                                    />
+                                </Section>
+                                <Section title="Guestlist Authority">
+                                    <ScopeSection scope={createScope} onChange={setCreateScope} />
+                                </Section>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-8 py-6 bg-surface-tertiary/50 border-t border-border-subtle flex items-center justify-between shrink-0">
+                            <div>
+                                {createError && (
+                                    <span className="text-[11px] text-red-400 font-bold">{createError}</span>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => setShowCreate(false)}
+                                    className="px-6 py-2.5 rounded-xl bg-surface-tertiary border border-border-default text-[11px] font-black uppercase tracking-widest text-[var(--v-text-muted)] hover:text-[var(--v-text-primary)] hover:border-border-strong transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleCreate}
+                                    disabled={creating || !createName.trim()}
+                                    className="px-8 py-2.5 rounded-xl bg-[var(--v-orange)] text-white text-xs font-black uppercase tracking-[0.2em] shadow-[0_10px_30px_rgba(249,115,22,0.3)] hover:translate-y-[-2px] active:translate-y-[0] transition-all flex items-center gap-2 disabled:opacity-50 disabled:translate-y-0"
+                                >
+                                    {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                                    Create Profile
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+        </>
     );
 }

@@ -46,7 +46,9 @@ export async function requireVenueAccess(
         request.headers.get("x-partner-id") ??
         null;
 
-    if (!venueId) return { error: "venueId required", status: 400 };
+    if (!venueId || venueId === "null" || venueId === "undefined") {
+        return { error: "venueId required", status: 400 };
+    }
 
     if (!isFirebaseConfigured()) {
         // Dev fallback: all actions allowed

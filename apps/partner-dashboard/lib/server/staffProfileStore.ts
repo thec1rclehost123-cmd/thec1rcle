@@ -30,6 +30,9 @@ const _profiles = new Map<string, StaffProfile>();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function profilesRef(venueId: string) {
+    if (!venueId || venueId === "null" || venueId === "undefined") {
+        throw new Error("venueId is required");
+    }
     return getAdminDb().collection("venues").doc(venueId).collection("staff_profiles");
 }
 
@@ -295,16 +298,20 @@ export async function resolveEffectiveProfile(
 
     // If a custom profile is assigned, it wins
     if (data.staffProfileId) {
-        const profile = await getStaffProfile(venueId, data.staffProfileId);
-        if (profile && profile.isActive) {
-            return {
-                baseRole: profile.baseRole,
-                tabVisibility: profile.tabVisibility,
-                actionPermissions: profile.actionPermissions,
-                piiPolicy: profile.piiPolicy,
-                guestlistScope: profile.guestlistScope,
-                eventScope: profile.eventScope,
-            };
+        try {
+            const profile = await getStaffProfile(venueId, data.staffProfileId);
+            if (profile && profile.isActive) {
+                return {
+                    baseRole: profile.baseRole,
+                    tabVisibility: profile.tabVisibility,
+                    actionPermissions: profile.actionPermissions,
+                    piiPolicy: profile.piiPolicy,
+                    guestlistScope: profile.guestlistScope,
+                    eventScope: profile.eventScope,
+                };
+            }
+        } catch {
+            // stale or invalid staffProfileId — fall through to role defaults
         }
     }
 

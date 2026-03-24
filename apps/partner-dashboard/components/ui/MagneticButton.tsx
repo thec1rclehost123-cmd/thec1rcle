@@ -50,7 +50,7 @@ export default function MagneticButton({ children, className = "", href, onClick
             ref={buttonRef as any}
             href={href}
             onClick={onClick}
-            className={className}
+            className={`cursor-pointer ${className}`}
             animate={{ x: position.x, y: position.y }}
             transition={{ type: "spring", stiffness: 150, damping: 15, mass: 0.1 }}
         >

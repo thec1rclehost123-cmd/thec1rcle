@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import LandingPageLoader from '@/components/landing/LandingPageLoader';
 
 export default function RootPage() {
-    redirect('/venue');
+  return <LandingPageLoader />;
 }

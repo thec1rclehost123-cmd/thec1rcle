@@ -681,14 +681,14 @@ function RoleCard({ icon: Icon, title, description, active, onClick }: {
 }) {
     return (
         <motion.button onClick={onClick} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
-            className={`p-6 rounded-2xl border-2 text-left transition-all duration-300 group ${active ? "bg-[var(--text-primary)] border-[var(--text-primary)] shadow-xl" : "bg-[var(--surface-elevated)] border-[var(--border-subtle)] hover:border-[var(--border-default)]"}`}>
+            className={`p-6 rounded-2xl border-2 text-left transition-all duration-300 group ${active ? "bg-[var(--surface-tertiary)] border-[var(--accent-primary)] shadow-lg" : "bg-[var(--surface-elevated)] border-[var(--border-subtle)] hover:border-[var(--border-default)]"}`}>
             <div className="flex items-start gap-4">
-                <div className={`h-12 w-12 rounded-xl flex items-center justify-center transition-all ${active ? "bg-white/10 text-white" : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]"}`}>
+                <div className={`h-12 w-12 rounded-xl flex items-center justify-center transition-all ${active ? "bg-[var(--accent-primary)] text-white" : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]"}`}>
                     <Icon className="h-6 w-6" />
                 </div>
                 <div className="flex-1">
-                    <h3 className={`text-[16px] font-semibold mb-1 ${active ? "text-white" : "text-[var(--text-primary)]"}`}>{title}</h3>
-                    <p className={`text-[13px] leading-relaxed ${active ? "text-white/60" : "text-[var(--text-tertiary)]"}`}>{description}</p>
+                    <h3 className={`text-[16px] font-semibold mb-1 text-[var(--text-primary)]`}>{title}</h3>
+                    <p className={`text-[13px] leading-relaxed ${active ? "text-[var(--text-secondary)]" : "text-[var(--text-tertiary)]"}`}>{description}</p>
                 </div>
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${active ? "border-[var(--accent-primary)] bg-[var(--accent-primary)]" : "border-[var(--border-default)]"}`}>
                     {active && <div className="w-2 h-2 rounded-full bg-white" />}

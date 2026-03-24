@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent scrollbar-induced layout shift on every page */
+html {
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+/* Landing page — lock viewport completely, no scroll, no shift */
+body {
+  overflow-x: hidden;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    THE C1RCLE — PARTNER DASHBOARD DESIGN SYSTEM v2.0
    Enterprise-Grade • Bloomberg-Inspired • Premium Nightlife
