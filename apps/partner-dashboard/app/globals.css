@@ -1734,21 +1734,21 @@ select option {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .venue-shell {
-  /* ── Surfaces — Apple-style warm light gray ── */
-  --v-canvas:        #F5F5F7;
+  /* ── Surfaces — off-white canvas, pure-white cards pop cleanly ── */
+  --v-canvas:        #F9FAFB;
   --v-card:          #FFFFFF;
-  --v-card-hover:    #F9F9FB;
-  --v-hero:          #EAEAEC;
+  --v-card-hover:    #F9FAFB;
+  --v-hero:          #EAECF0;
   --v-elevated:      #FFFFFF;
-  --v-border:        rgba(0,0,0,0.09);
-  --v-border-strong: rgba(0,0,0,0.16);
+  --v-border:        rgba(0,0,0,0.08);
+  --v-border-strong: rgba(0,0,0,0.14);
   --v-divider:       rgba(0,0,0,0.05);
 
-  /* ── Typography ── */
-  --v-text-primary:   #1D1D1F;
-  --v-text-secondary: #48484A;
-  --v-text-tertiary:  #6E6E73;
-  --v-text-muted:     #8E8E93;
+  /* ── Typography — deep charcoal hierarchy ── */
+  --v-text-primary:   #111827;
+  --v-text-secondary: #374151;
+  --v-text-tertiary:  #6B7280;
+  --v-text-muted:     #9CA3AF;
 
   /* ── Brand — unchanged across modes ── */
   --v-orange:      #F44A22;
@@ -1895,6 +1895,266 @@ select option {
   --sidebar-border: rgba(255,255,255,0.06);
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   LIGHT THEME — GLOBAL PREMIUM OVERRIDES
+   Scoped to html:not(.dark) .venue-shell — NEVER touches .dark mode.
+   Two layers:
+     (a) --v-* venue tokens  → picked up by v-bento, v-hero-card, HubTabBar, etc.
+     (b) global surface/border/text tokens → picked up by sidebar, topbar,
+         .card, .nav-item, filter tabs, inputs, and every Tailwind utility
+         that references these vars (bg-surface-*, border-border-*, text-text-*)
+   ══════════════════════════════════════════════════════════════════════ */
+html:not(.dark) .venue-shell {
+
+  /* ── Venue-scoped surfaces ── */
+  --v-canvas:          #F3F5F8;      /* page background — cool off-white        */
+  --v-card:            #F7F9FB;      /* tab-bar / search-box container           */
+  --v-elevated:        #FFFFFF;      /* active tab, main cards — pure white      */
+  --v-card-hover:      #EDF0F4;
+  --v-hero:            #FFFFFF;
+  --v-border:          #D1D5DB;      /* gray-300 — clearly visible everywhere    */
+  --v-border-strong:   #9CA3AF;      /* gray-400 — hover + accent states         */
+  --v-divider:         #E9EAEC;
+  --v-neutral-bg:      rgba(0,0,0,0.04);
+
+  /* ── Venue-scoped typography ── */
+  --v-text-primary:    #111827;
+  --v-text-secondary:  #374151;
+  --v-text-tertiary:   #6B7280;
+  --v-text-muted:      #9CA3AF;
+
+  /* ── Venue-scoped skeleton ── */
+  --v-skeleton:        #E5E7EB;
+  --v-skeleton-shine:  #F9FAFB;
+
+  /* ── Venue-scoped shadows ── */
+  --v-shadow-card:  0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --v-shadow-hover: 0 8px 24px rgba(0,0,0,0.09);
+  --v-shadow-hero:  0 12px 40px rgba(0,0,0,0.07);
+
+  /* ── Global surface tokens (sidebar, topbar, .card, nav-item) ── */
+  --surface-base:      #F3F5F8;
+  --surface-secondary: #EBEDF0;
+  --surface-tertiary:  #DDE0E4;
+  --surface-elevated:  #FFFFFF;
+  --surface-overlay:   rgba(0,0,0,0.40);
+
+  /* ── Global border tokens ── */
+  --border-subtle:     #D1D5DB;      /* strongest possible without looking heavy */
+  --border-default:    #C4C8CE;
+  --border-strong:     #9CA3AF;
+
+  /* ── Global text tokens ── */
+  --text-primary:      #111827;
+  --text-secondary:    #374151;
+  --text-tertiary:     #6B7280;
+  --text-placeholder:  #9CA3AF;
+  --text-inverse:      #FFFFFF;
+
+  /* ── Sidebar ── */
+  --sidebar-bg:        #FFFFFF;
+  --sidebar-border:    #E5E7EB;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   KPI TILES — base (0,3,1 specificity) sets a solid neutral border.
+   State rules below use 4-class specificity (0,4,1) so they WIN
+   and paint each card its own accent color.
+   ───────────────────────────────────────────────────────────────── */
+html:not(.dark) .venue-shell .kpi-tile {
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.04), 0 8px 10px -6px rgba(0,0,0,0.04);
+}
+
+/* Weekend Revenue — orange accent */
+html:not(.dark) .venue-shell .kpi-tile[class*='border-orange-500'] {
+  border-color: #FDBA74;
+}
+html:not(.dark) .venue-shell .kpi-tile[class*='border-orange-500']:hover {
+  border-color: #F44A22;
+}
+
+/* Upcoming Events — indigo info */
+html:not(.dark) .venue-shell .kpi-tile[class*='border-indigo-500'] {
+  border-color: #A5B4FC;
+}
+html:not(.dark) .venue-shell .kpi-tile[class*='border-indigo-500']:hover {
+  border-color: #6366F1;
+}
+
+/* Entry Rate — amber warning */
+html:not(.dark) .venue-shell .kpi-tile[class*='border-amber-500'] {
+  border-color: #FCD34D;
+}
+html:not(.dark) .venue-shell .kpi-tile[class*='border-amber-500']:hover {
+  border-color: #F59E0B;
+}
+
+/* Guest Profiles — emerald success */
+html:not(.dark) .venue-shell .kpi-tile[class*='border-emerald-500'] {
+  border-color: #6EE7B7;
+}
+html:not(.dark) .venue-shell .kpi-tile[class*='border-emerald-500']:hover {
+  border-color: #10B981;
+}
+
+/* Error state — red */
+html:not(.dark) .venue-shell .kpi-tile[class*='border-red-500'] {
+  border-color: #FCA5A5;
+}
+html:not(.dark) .venue-shell .kpi-tile[class*='border-red-500']:hover {
+  border-color: #EF4444;
+}
+
+/* Generic hover lift — applies to all kpi-tile states */
+html:not(.dark) .venue-shell .kpi-tile:hover {
+  box-shadow: 0 20px 40px -8px rgba(0,0,0,0.08), 0 12px 16px -8px rgba(0,0,0,0.05);
+  transform: translateY(-2px);
+}
+
+/* ── Icon boxes — boost saturation so colors pop against pure white ── */
+html:not(.dark) .venue-shell .kpi-icon {
+  filter: saturate(1.6) brightness(0.96);
+}
+
+/* ── .card blocks (Tonight, Alerts, Upcoming Schedule) ── */
+html:not(.dark) .venue-shell .card {
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.04), 0 8px 10px -6px rgba(0,0,0,0.04);
+}
+
+html:not(.dark) .venue-shell .card:hover {
+  border-color: rgba(244,74,34,0.45);
+  box-shadow: 0 16px 32px -6px rgba(0,0,0,0.07), 0 10px 14px -8px rgba(0,0,0,0.04);
+}
+
+/* ── .v-hero-card (KPIStrip, Analytics bento) ── */
+html:not(.dark) .venue-shell .v-hero-card {
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.04), 0 8px 10px -6px rgba(0,0,0,0.04);
+}
+
+html:not(.dark) .venue-shell .v-hero-card:hover {
+  border-color: rgba(244,74,34,0.45);
+  box-shadow: 0 16px 32px -6px rgba(0,0,0,0.07), 0 10px 14px -8px rgba(0,0,0,0.04);
+}
+
+/* ── .v-bento ── */
+html:not(.dark) .venue-shell .v-bento {
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.04), 0 8px 10px -6px rgba(0,0,0,0.04);
+}
+
+html:not(.dark) .venue-shell .v-bento:hover {
+  border-color: rgba(244,74,34,0.45);
+  box-shadow: 0 16px 32px -6px rgba(0,0,0,0.07), 0 10px 14px -8px rgba(0,0,0,0.04);
+}
+
+/* ── Section headings ── */
+html:not(.dark) .venue-shell .text-headline-sm {
+  font-weight: 700;
+  color: #111827;
+}
+
+html:not(.dark) .venue-shell .text-title {
+  font-weight: 700;
+  color: #1F2937;
+}
+
+/* ── .card and .card-elevated — light border + depth ── */
+html:not(.dark) .venue-shell .card,
+html:not(.dark) .venue-shell .card-elevated {
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+}
+html:not(.dark) .venue-shell .card-interactive:hover,
+html:not(.dark) .venue-shell .card:hover {
+  border-color: #9CA3AF;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+/* ── Inputs & textareas ── */
+html:not(.dark) .venue-shell input:not([type='checkbox']):not([type='radio']),
+html:not(.dark) .venue-shell textarea,
+html:not(.dark) .venue-shell select {
+  background: #FFFFFF;
+  border-color: #D1D5DB;
+  color: #111827;
+}
+html:not(.dark) .venue-shell input:focus,
+html:not(.dark) .venue-shell textarea:focus,
+html:not(.dark) .venue-shell select:focus {
+  border-color: #F44A22;
+  box-shadow: 0 0 0 3px rgba(244,74,34,0.12);
+}
+
+/* ── Skeleton loading states ── */
+html:not(.dark) .venue-shell .v-skeleton {
+  background: linear-gradient(90deg, #E5E7EB 25%, #F3F4F6 50%, #E5E7EB 75%);
+}
+
+/* ── VenueFilterTabs — active pill ── */
+html:not(.dark) .venue-shell [data-active-tab='true'],
+html:not(.dark) .venue-shell button[style*='var(--v-elevated)'] {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+}
+
+/* ── Rounded stat cards (e.g. Events KPI strip: LIVE NOW / REQUESTS) ── */
+html:not(.dark) .venue-shell .rounded-2xl.border {
+  background: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+}
+
+/* ── Accent borders on stat cards by icon color ── */
+/* Green icon (LIVE NOW) */
+html:not(.dark) .venue-shell .rounded-2xl.border:has([style*='--v-success']) {
+  border-color: #A7F3D0;
+}
+/* Amber icon (REQUESTS) */
+html:not(.dark) .venue-shell .rounded-2xl.border:has([style*='--v-warning']) {
+  border-color: #FDE68A;
+}
+/* Indigo icon (PUBLISHED) */
+html:not(.dark) .venue-shell .rounded-2xl.border:has([style*='--v-info']) {
+  border-color: #C7D2FE;
+}
+/* Orange icon (REVENUE) */
+html:not(.dark) .venue-shell .rounded-2xl.border:has([style*='--v-orange']) {
+  border-color: #FDBA74;
+}
+
+/* ── Table containers ── */
+html:not(.dark) .venue-shell [class*='rounded'][class*='overflow-hidden']:not(.venue-shell) {
+  border-color: #D1D5DB;
+}
+html:not(.dark) .venue-shell table thead tr th {
+  background: #EBEDF0;
+  color: #374151;
+  border-bottom-color: #D1D5DB;
+}
+html:not(.dark) .venue-shell table tbody tr:hover td {
+  background: #F3F5F8;
+}
+html:not(.dark) .venue-shell table tbody tr td {
+  border-bottom-color: #E9EAEC;
+  color: #111827;
+}
+
+/* ── Secondary action buttons (VenueActionButton variant=secondary) ── */
+html:not(.dark) .venue-shell button[class*='border'][class*='bg-[var(--v-elevated)'] {
+  border-color: #D1D5DB;
+}
+
+/* ── Page canvas background (covers main content area explicitly) ── */
+html:not(.dark) .venue-shell > div {
+  background-color: #F3F5F8;
+}
+
 /* ── Scoped surface transitions (major shells only, NOT *) ── */
 .venue-shell,
 .venue-shell .v-bento,
@@ -1977,6 +2237,22 @@ select option {
   background-size: 800px 100%;
   animation: v-shimmer 1.4s ease-in-out infinite;
   border-radius: var(--v-r-md);
+}
+
+/* ── Analytics sub-nav — dark mode only ── */
+/* Inline styles can't be hovered via Tailwind, so we use !important here to
+   override them on pointer entry. Light mode is completely unaffected because
+   the entire block is scoped to .dark .venue-shell. */
+.dark .venue-shell .studio-nav-tabs a:not([data-active]) span,
+.dark .venue-shell .studio-nav-tabs a span {
+  transition: color 150ms ease;
+}
+.dark .venue-shell .studio-nav-tabs a:hover span {
+  color: #E2E8F0 !important; /* slate-200 — crisp hover brightening */
+}
+.dark .venue-shell .studio-nav-tabs a:hover svg {
+  color: #94A3B8 !important; /* slate-400 — icon lifts to match inactive text base */
+  filter: none !important;
 }
 
 /* Reduced motion — kill all venue animations */

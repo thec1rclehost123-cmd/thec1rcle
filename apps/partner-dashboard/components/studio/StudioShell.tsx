@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useState, useEffect, useRef } from "react";
+import { useTheme } from "next-themes";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import {
     Search, Calendar, ChevronDown, Activity, TrendingUp,
@@ -31,6 +32,9 @@ export default function StudioShell({
     const router = useRouter();
     const searchParams = useSearchParams();
     const urlEventId = searchParams.get("eventId");
+
+    const { resolvedTheme } = useTheme();
+    const isDark = resolvedTheme === "dark";
 
     const { user, profile } = useDashboardAuth();
     const [range, setRange] = useState("30d");
@@ -122,11 +126,13 @@ export default function StudioShell({
             <div
                 className="sticky top-0 z-30"
                 style={{
-                    background: "rgba(10,10,11,0.92)",
+                    background: isDark ? "rgba(10,10,11,0.92)" : "rgba(255,255,255,0.90)",
                     backdropFilter: "blur(24px)",
                     WebkitBackdropFilter: "blur(24px)",
-                    borderBottom: "1px solid rgba(255,255,255,0.06)",
-                    boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 8px 32px rgba(0,0,0,0.4)",
+                    borderBottom: isDark ? "1px solid rgba(255,255,255,0.11)" : "1px solid rgba(0,0,0,0.08)",
+                    boxShadow: isDark
+                        ? "0 1px 0 rgba(255,255,255,0.04), 0 8px 32px rgba(0,0,0,0.4)"
+                        : "0 1px 0 rgba(0,0,0,0.04), 0 8px 32px rgba(0,0,0,0.06)",
                 }}
             >
                 {/* Top bar */}
@@ -155,7 +161,7 @@ export default function StudioShell({
                         </div>
 
                         {/* Separator */}
-                        <div className="w-px h-5 shrink-0 opacity-20" style={{ background: "linear-gradient(180deg, transparent, #FFF, transparent)" }} />
+                        <div className="w-px h-5 shrink-0 opacity-20" style={{ background: isDark ? "linear-gradient(180deg, transparent, #FFF, transparent)" : "linear-gradient(180deg, transparent, #000, transparent)" }} />
 
                         {/* Running Well pill */}
                         <div
@@ -182,7 +188,7 @@ export default function StudioShell({
                         </div>
 
                         {/* Separator */}
-                        <div className="w-px h-5 shrink-0 opacity-20" style={{ background: "linear-gradient(180deg, transparent, #FFF, transparent)" }} />
+                        <div className="w-px h-5 shrink-0 opacity-20" style={{ background: isDark ? "linear-gradient(180deg, transparent, #FFF, transparent)" : "linear-gradient(180deg, transparent, #000, transparent)" }} />
 
                         {/* Event selector */}
                         <div className="relative" ref={dropdownRef}>
@@ -192,8 +198,8 @@ export default function StudioShell({
                                 style={{
                                     background: isEventSelectorOpen
                                         ? "rgba(244,74,34,0.08)"
-                                        : "rgba(255,255,255,0.04)",
-                                    border: `1px solid ${isEventSelectorOpen ? "rgba(244,74,34,0.35)" : "rgba(255,255,255,0.08)"}`,
+                                        : isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                                    border: `1px solid ${isEventSelectorOpen ? "rgba(244,74,34,0.35)" : isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)"}`,
                                     color: "var(--v-text-primary)",
                                 }}
                             >
@@ -213,7 +219,7 @@ export default function StudioShell({
                                 <ChevronDown
                                     className="w-3 h-3 shrink-0 transition-transform"
                                     style={{
-                                        color: "rgba(255,255,255,0.3)",
+                                        color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.35)",
                                         transform: isEventSelectorOpen ? "rotate(180deg)" : "rotate(0deg)",
                                     }}
                                 />
@@ -287,8 +293,8 @@ export default function StudioShell({
                         <div
                             className="flex items-center gap-0.5 p-[3px] rounded-xl"
                             style={{
-                                background: "rgba(255,255,255,0.04)",
-                                border: "1px solid rgba(255,255,255,0.07)",
+                                background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)",
+                                border: isDark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.10)",
                             }}
                         >
                             {RANGES.map(r => (
@@ -305,7 +311,7 @@ export default function StudioShell({
                                             }
                                             : {
                                                 background: "transparent",
-                                                color: "rgba(255,255,255,0.35)",
+                                                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.45)",
                                             }
                                     }
                                 >
@@ -317,9 +323,9 @@ export default function StudioShell({
                         <button
                             className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:scale-105"
                             style={{
-                                background: "rgba(255,255,255,0.04)",
-                                border: "1px solid rgba(255,255,255,0.07)",
-                                color: "rgba(255,255,255,0.4)",
+                                background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)",
+                                border: isDark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.10)",
+                                color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.45)",
                             }}
                         >
                             <Calendar className="w-3.5 h-3.5" />
@@ -329,10 +335,12 @@ export default function StudioShell({
 
                 {/* Tab bar */}
                 <div
-                    className="px-6 flex items-end gap-1.5 overflow-x-auto scrollbar-hide relative min-h-[58px]"
-                    style={{ 
-                        borderTop: "1px solid rgba(255,255,255,0.06)",
-                        background: "linear-gradient(180deg, rgba(255,255,255,0.012) 0%, transparent 100%)",
+                    className="studio-nav-tabs px-6 flex items-center gap-1.5 overflow-x-auto scrollbar-hide relative min-h-[58px]"
+                    style={{
+                        borderTop: isDark ? "1px solid rgba(255,255,255,0.09)" : "1px solid rgba(0,0,0,0.06)",
+                        background: isDark
+                            ? "linear-gradient(180deg, rgba(255,255,255,0.012) 0%, transparent 100%)"
+                            : "linear-gradient(180deg, rgba(0,0,0,0.015) 0%, transparent 100%)",
                     }}
                 >
                     {tabs.map(tab => {
@@ -342,31 +350,33 @@ export default function StudioShell({
                             <Link
                                 key={tab.href}
                                 href={tab.href}
-                                className="relative flex items-center gap-2.5 px-6 py-4.5 text-[10px] uppercase transition-all shrink-0 group rounded-t-xl"
+                                className="relative flex items-center gap-2.5 px-5 py-3.5 text-[11px] uppercase transition-all shrink-0 group rounded-t-xl"
                                 style={{
-                                    color: active ? "#FFF" : "rgba(255,255,255,0.35)",
-                                    background: active ? "rgba(244,74,34,0.03)" : "transparent",
+                                    color: active
+                                        ? (isDark ? "#FFFFFF" : "#111827")
+                                        : (isDark ? "#94A3B8" : "#4B5563"),
+                                    background: active ? "rgba(244,74,34,0.04)" : "transparent",
                                     letterSpacing: "0.14em"
                                 }}
                             >
                                 <Icon
-                                    className="w-3.5 h-3.5 transition-all duration-300 transform"
+                                    className="w-4 h-4 transition-all duration-300 transform"
                                     style={{
-                                        color: active ? "var(--v-orange)" : "rgba(255,255,255,0.25)",
+                                        color: active ? "var(--v-orange)" : (isDark ? "#64748B" : "#6B7280"),
                                         filter: active ? "drop-shadow(0 0 8px rgba(244,74,34,0.45))" : "none",
                                         transform: active ? "scale(1.15)" : "scale(1)",
                                     }}
                                 />
-                                <span 
+                                <span
                                     className="relative z-10 transition-all duration-300"
                                     style={{
-                                        fontWeight: active ? 900 : 700,
-                                        opacity: active ? 1 : 0.8
+                                        fontWeight: active ? 900 : 800,
+                                        opacity: 1,
                                     }}
                                 >
                                     {tab.label}
                                 </span>
-                                
+
                                 {/* Active indicator line - premium double line glow */}
                                 {active && (
                                     <>
@@ -377,7 +387,7 @@ export default function StudioShell({
                                                 boxShadow: "0 -4px 12px rgba(244,74,34,0.5), 0 0 24px rgba(244,74,34,0.25)",
                                             }}
                                         />
-                                        <div 
+                                        <div
                                             className="absolute inset-0 bg-gradient-to-t from-[rgba(244,74,34,0.05)] to-transparent opacity-100 transition-opacity duration-300"
                                         />
                                     </>
@@ -385,9 +395,9 @@ export default function StudioShell({
 
                                 {/* Hover state */}
                                 {!active && (
-                                    <div 
+                                    <div
                                         className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-200"
-                                        style={{ background: "rgba(255,255,255,0.02)" }}
+                                        style={{ background: isDark ? "rgba(148,163,184,0.06)" : "rgba(0,0,0,0.03)" }}
                                     />
                                 )}
                             </Link>
