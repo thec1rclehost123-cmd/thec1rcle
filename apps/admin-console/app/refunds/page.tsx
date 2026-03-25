@@ -309,7 +309,7 @@ export default function RefundsPage() {
                         Export History
                     </button>
                     <button
-                        onClick={fetchRefundRequests}
+                        onClick={() => fetchRefundRequests(null)}
                         disabled={loading}
                         className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-zinc-400 text-[11px] font-bold uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all"
                     >
