@@ -5,14 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/server/withAuth";
 import { fail } from "@/lib/server/apiResponse";
-
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
-
-async function gatewayRequest(url: string, init: RequestInit) {
-    const res = await fetch(url, init);
-    const data = await res.json().catch(() => ({}));
-    return NextResponse.json(data, { status: res.status });
-}
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
 /**
  * GET /api/event-codes?eventId=XXX
@@ -20,7 +13,7 @@ async function gatewayRequest(url: string, init: RequestInit) {
 export const GET = withAuth(async (req: NextRequest) => {
     if (!GATEWAY_URL) return fail("Service unavailable", 503);
     const { searchParams } = new URL(req.url);
-    return gatewayRequest(
+    return proxyToGateway(
         `${GATEWAY_URL}/api/v1/scan/codes?${searchParams.toString()}`,
         { headers: { Authorization: req.headers.get("Authorization") || "" } }
     );
@@ -33,7 +26,7 @@ export const GET = withAuth(async (req: NextRequest) => {
 export const POST = withAuth(async (req: NextRequest, auth) => {
     if (!GATEWAY_URL) return fail("Service unavailable", 503);
     const body = await req.json();
-    return gatewayRequest(`${GATEWAY_URL}/api/v1/scan/codes`, {
+    return proxyToGateway(`${GATEWAY_URL}/api/v1/scan/codes`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: req.headers.get("Authorization") || "" },
         body: JSON.stringify({ ...body, createdBy: { uid: auth.uid, name: (auth as any).name || (auth as any).email } })
@@ -50,7 +43,7 @@ export const DELETE = withAuth(async (req: NextRequest, auth) => {
     const codeId = searchParams.get("id");
     if (!codeId) return fail("id required", 400);
 
-    return gatewayRequest(`${GATEWAY_URL}/api/v1/scan/codes/${codeId}`, {
+    return proxyToGateway(`${GATEWAY_URL}/api/v1/scan/codes/${codeId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: req.headers.get("Authorization") || "" },
         body: JSON.stringify({ revokedBy: { uid: auth.uid, name: (auth as any).name || (auth as any).email } })

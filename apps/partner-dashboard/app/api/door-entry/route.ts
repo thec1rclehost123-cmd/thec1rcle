@@ -5,8 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/server/withAuth";
 import { fail } from "@/lib/server/apiResponse";
-
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
 /**
  * POST /api/door-entry
@@ -18,7 +17,7 @@ export const POST = withAuth(async (req: NextRequest) => {
     }
 
     const body = await req.json();
-    const res = await fetch(`${GATEWAY_URL}/api/v1/scan/door-entry`, {
+    return proxyToGateway(`${GATEWAY_URL}/api/v1/scan/door-entry`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -26,8 +25,6 @@ export const POST = withAuth(async (req: NextRequest) => {
         },
         body: JSON.stringify(body),
     });
-    const data = await res.json().catch(() => ({}));
-    return NextResponse.json(data, { status: res.status });
 });
 
 /**
@@ -40,10 +37,8 @@ export const GET = withAuth(async (req: NextRequest) => {
     }
 
     const { searchParams } = new URL(req.url);
-    const res = await fetch(
+    return proxyToGateway(
         `${GATEWAY_URL}/api/v1/scan/door-entry?${searchParams.toString()}`,
         { headers: { Authorization: req.headers.get("Authorization") || "" } }
     );
-    const data = await res.json().catch(() => ({}));
-    return NextResponse.json(data, { status: res.status });
 });

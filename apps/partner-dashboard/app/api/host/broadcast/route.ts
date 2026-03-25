@@ -6,14 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/server/withAuth";
 import { fail } from "@/lib/server/apiResponse";
-
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
-
-async function gatewayRequest(url: string, init: RequestInit) {
-    const res = await fetch(url, init);
-    const data = await res.json().catch(() => ({}));
-    return NextResponse.json(data, { status: res.status });
-}
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
 /**
  * POST /api/host/broadcast
@@ -27,7 +20,7 @@ export const POST = withAuth(async (req: NextRequest) => {
 
         if (!hostId || !title || !message) return fail("hostId, title, and message are required", 400);
 
-        return gatewayRequest(`${GATEWAY_URL}/api/v1/notifications/broadcast`, {
+        return proxyToGateway(`${GATEWAY_URL}/api/v1/notifications/broadcast`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -58,7 +51,7 @@ export const GET = withAuth(async (req: NextRequest) => {
     const hostId = searchParams.get("hostId");
     if (!hostId) return fail("hostId is required", 400);
 
-    return gatewayRequest(
+    return proxyToGateway(
         `${GATEWAY_URL}/api/v1/notifications/broadcast?senderId=${hostId}&senderRole=host`,
         { headers: { Authorization: req.headers.get("Authorization") || "" } }
     );
