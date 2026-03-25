@@ -6,7 +6,11 @@
 import { createHmac } from "node:crypto";
 import { getQrSecret } from "./scan-secret.js";
 
-const QR_SECRET = getQrSecret();
+let _QR_SECRET = null;
+function QR_SECRET() {
+    if (!_QR_SECRET) _QR_SECRET = getQrSecret();
+    return _QR_SECRET;
+}
 
 /**
  * Verifies the signature of a ticket QR code.
@@ -19,7 +23,7 @@ export function verifyScanSignature(payload) {
     // Standard data format: orderId:eventId:ticketId:userId:quantity:timestamp:STATUS
     // Matches qrStore.js implementation
     const dataToSign = `${payload.o}:${payload.e}:${payload.t}:${payload.u}:${payload.q}:${payload.ts}:${isRSVP ? 'RSVP' : 'PAID'}`;
-    const expectedSignature = createHmac("sha256", QR_SECRET)
+    const expectedSignature = createHmac("sha256", QR_SECRET())
         .update(dataToSign)
         .digest("hex")
         .substring(0, 16);
