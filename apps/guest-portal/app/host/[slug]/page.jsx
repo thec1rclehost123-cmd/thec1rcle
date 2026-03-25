@@ -1,7 +1,8 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { getHostBySlug } from "../../../lib/server/hostStore";
+import { getHostBySlug as getHostBySlugBase } from "../../../lib/server/hostStore";
 import { getProfilePosts, getProfileHighlights, getProfileStats } from "../../../lib/server/partnerProfileStore";
 import { listEvents } from "../../../lib/server/eventStore";
 import { CheckCircle2, MapPin, ExternalLink, Instagram, Music, Play, Calendar, ChevronRight } from "lucide-react";
@@ -9,10 +10,13 @@ import { ShimmerImage } from "@c1rcle/ui";
 import ProfileClient from "../../venue/[slug]/ProfileClient";
 import HostFollowCta from "../../../components/profile/HostFollowCta";
 
+// Cache host lookup so metadata + page share a single Firestore fetch
+const getHostBySlug = cache(getHostBySlugBase);
+
 export const revalidate = 60;
 
 export async function generateMetadata({ params }) {
-    const { slug } = params;
+    const { slug } = await params;
     const host = await getHostBySlug(slug);
     if (!host) return { title: "Host Not Found" };
 
@@ -28,29 +32,24 @@ export async function generateMetadata({ params }) {
 }
 
 export default async function HostPublicPage({ params }) {
-    const { slug } = params;
+    const { slug } = await params;
 
-    // Fetch host details
+    // Fetch host details (cached — shared with generateMetadata)
     const host = await getHostBySlug(slug);
     if (!host) notFound();
 
-    // Fetch posts, highlights, and stats
-    const [posts, highlights, stats, allEvents] = await Promise.all([
+    // Fetch posts, highlights, stats, and host's events in parallel.
+    // Using the host filter directly instead of fetching all 100 events.
+    const [posts, highlights, stats, hostEvents] = await Promise.all([
         getProfilePosts(host.id, "host"),
         getProfileHighlights(host.id, "host"),
         getProfileStats(host.id, "host"),
-        listEvents({ limit: 100 })
+        listEvents({ host: host.handle || host.name, limit: 50 })
     ]);
 
-    // Filter events for this host
-    const hostEvents = allEvents.filter(e =>
-        e.hostId === host.id ||
-        e.host?.toLowerCase() === host.name?.toLowerCase() ||
-        e.host === host.handle
-    );
-
-    const upcomingEvents = hostEvents.filter(e => new Date(e.startDate || e.startAt) > new Date());
-    const pastEvents = hostEvents.filter(e => new Date(e.startDate || e.startAt) <= new Date()).slice(0, 6);
+    const now = new Date();
+    const upcomingEvents = hostEvents.filter(e => new Date(e.startDate || e.startAt) > now);
+    const pastEvents = hostEvents.filter(e => new Date(e.startDate || e.startAt) <= now).slice(0, 6);
 
     // Normalize host object to match ProfileClient expectations
     const hostProfile = {

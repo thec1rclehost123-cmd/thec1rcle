@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAdminAuth } from "@/lib/server/adminMiddleware";
 import { adminStore } from "@/lib/server/adminStore";
+import { rateLimit } from "@/lib/server/rateLimit";
 
 export const dynamic = 'force-dynamic';
 
@@ -8,10 +9,14 @@ const ALLOWED_EXPORTS = ['users', 'venues', 'hosts', 'events', 'orders', 'admin_
 
 async function handler(req) {
     try {
+        if (!await rateLimit(req, 3)) {
+            return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
+        }
+
         const { searchParams } = new URL(req.url);
         const collection = searchParams.get('collection');
-        const limitStr = searchParams.get('limit') || '2000';
-        const limit = Math.min(parseInt(limitStr), 2000);
+        const limitStr = searchParams.get('limit') || '500';
+        const limit = Math.min(parseInt(limitStr), 500);
         const adminId = req.user.uid;
         const adminRole = req.user.admin_role;
 

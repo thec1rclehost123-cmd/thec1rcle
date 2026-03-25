@@ -5,7 +5,15 @@ import { MONEY_STATES } from "@c1rcle/core/ledger-engine";
 import { transferEntitlement } from "@c1rcle/core/entitlement-engine";
 import { getEvent } from "./eventStore";
 import { SECURITY_CONFIG } from "./security";
+import {
+    deriveDirectTransferMetadata,
+    getBundleInventoryMode,
+    parseDirectTicketId,
+    shouldReduceInventoryOnBundleClaim,
+    shouldReduceInventoryOnBundleCreation,
+} from "./ticketingLogic";
 
+const ORDERS_COLLECTION = "orders";
 const SHARE_BUNDLES_COLLECTION = "share_bundles";
 const TICKET_ASSIGNMENTS_COLLECTION = "ticket_assignments";
 const TRANSFERS_COLLECTION = "transfers";
@@ -285,6 +293,7 @@ export async function createShareBundle(orderId, userId, eventId, quantity, tier
 
     const effectiveSlotsCount = slots.length;
     const hasOwnerClaimed = slots.some(s => s.slotType === "owner_locked" && s.claimStatus === "claimed");
+    const inventoryMode = getBundleInventoryMode(order);
 
     // Default to 'individual' mode for Per-Ticket Identity (Refinement 155)
     const isSharedQrMode = false;
@@ -305,6 +314,7 @@ export async function createShareBundle(orderId, userId, eventId, quantity, tier
         slots,
         genderRequirement: tier?.genderRequirement || "any",
         isCouple: !!tier?.isCouple,
+        inventoryMode,
         token,
         status: "active",
         createdAt: now.toISOString(),
@@ -312,9 +322,7 @@ export async function createShareBundle(orderId, userId, eventId, quantity, tier
     };
 
     // HANDLE DEFERRED INVENTORY FOR OWNER SLOT
-    if (hasOwnerClaimed && tier) {
-        const isClaimBasedFreeTier = (tier.price === 0 || tier.isFree) && (tier.genderRequirement || order.isRSVP);
-        if (isClaimBasedFreeTier) {
+    if (shouldReduceInventoryOnBundleCreation(inventoryMode, hasOwnerClaimed) && tier) {
             const eventRef = db.collection("events").doc(eventId);
             await db.runTransaction(async (transaction) => {
                 const eDoc = await transaction.get(eventRef);
@@ -331,7 +339,6 @@ export async function createShareBundle(orderId, userId, eventId, quantity, tier
                     }
                 }
             });
-        }
     }
 
     const docRef = await db.collection(SHARE_BUNDLES_COLLECTION).add(bundle);
@@ -481,19 +488,17 @@ export async function claimTicketSlot(token, redeemerId) {
             status: bundle.remainingSlots - 1 === 0 ? "exhausted" : "active"
         });
 
-        // DEFERRED INVENTORY REDUCTION (Refinement 237)
-        const eventRef = db.collection("events").doc(bundle.eventId);
-        const eventDoc = await transaction.get(eventRef);
-        if (eventDoc.exists) {
-            const currentEvent = eventDoc.data();
-            const updatedEventTickets = [...(currentEvent.tickets || [])];
-            const ticketIndex = updatedEventTickets.findIndex(t => t.id === bundle.tierId);
+        // RSVP inventory is claim-based; paid/free checkout inventory is already committed.
+        if (shouldReduceInventoryOnBundleClaim(bundle.inventoryMode)) {
+            const eventRef = db.collection("events").doc(bundle.eventId);
+            const eventDoc = await transaction.get(eventRef);
+            if (eventDoc.exists) {
+                const currentEvent = eventDoc.data();
+                const updatedEventTickets = [...(currentEvent.tickets || [])];
+                const ticketIndex = updatedEventTickets.findIndex(t => t.id === bundle.tierId);
 
-            if (ticketIndex !== -1) {
-                const tier = updatedEventTickets[ticketIndex];
-                const isClaimBasedFreeTier = tier.price === 0 && tier.genderRequirement;
-
-                if (isClaimBasedFreeTier) {
+                if (ticketIndex !== -1) {
+                    const tier = updatedEventTickets[ticketIndex];
                     const currentRemaining = Number(tier.remaining ?? tier.quantity) || 0;
                     if (currentRemaining > 0) {
                         updatedEventTickets[ticketIndex].remaining = currentRemaining - 1;
@@ -914,13 +919,16 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
     if (!isFirebaseConfigured()) throw new Error("Firebase not configured");
     const db = getAdminDb();
 
-    const parts = ticketId.split("-");
     const isClaimRecord = ticketId.startsWith("CLAIM-");
-    const orderId = isClaimRecord ? null : parts.slice(0, parts.length - 2).join("-");
+    let orderId = null;
 
     let eventId;
     let currentOwnerId;
     let entitlementId = null;
+    let tierId = null;
+    let slotIndex = null;
+    let requiredGender = "any";
+    let ticketType = "Ticket";
 
     // 1. Ownership and State Check
     if (isClaimRecord) {
@@ -936,7 +944,19 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
         eventId = data.eventId;
         currentOwnerId = data.redeemerId;
         entitlementId = data.entitlementId || null;
-    } else {
+        orderId = data.orderId || null;
+        tierId = data.tierId || null;
+        slotIndex = data.slotIndex || null;
+        requiredGender = data.requiredGender || "any";
+        ticketType = data.ticketType || "Transferred Ticket";
+    }
+
+    let event = null;
+
+    if (!isClaimRecord) {
+        const parsedTicket = parseDirectTicketId(ticketId);
+        orderId = parsedTicket.orderId;
+
         // Direct order ticket
         const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
         const orderDoc = await orderRef.get();
@@ -948,6 +968,13 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
 
         eventId = order.eventId;
         currentOwnerId = order.userId;
+        event = await getEvent(eventId);
+        const directMetadata = deriveDirectTransferMetadata(ticketId, order, event);
+        orderId = directMetadata.orderId;
+        tierId = directMetadata.tierId;
+        slotIndex = directMetadata.slotIndex;
+        requiredGender = directMetadata.requiredGender;
+        ticketType = directMetadata.ticketType;
 
         // Check if this specific ticket index has been checked in
         const scanRef = db.collection("ticket_scans").doc(ticketId);
@@ -964,10 +991,21 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
             const assignment = assignmentSnapshot.docs[0].data();
             if (assignment.redeemerId !== senderId) throw new Error("This ticket is currently owned by someone else via transfer.");
         }
+        const entitlementsSnapshot = await db.collection("entitlements")
+            .where("orderId", "==", orderId)
+            .where("metadata.tierId", "==", tierId)
+            .where("metadata.index", "==", slotIndex)
+            .limit(1)
+            .get();
+        if (!entitlementsSnapshot.empty) {
+            entitlementId = entitlementsSnapshot.docs[0].id;
+        }
     }
 
-    // 2. Security Check: Time before event
-    const event = await getEvent(eventId);
+    if (!event) {
+        event = await getEvent(eventId);
+    }
+
     if (event) {
         const start = new Date(event.startDate || event.startAt);
         const hoursUntilEvent = (start - new Date()) / 36e5;
@@ -998,12 +1036,19 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
     // 4. Create Transfer Record
     const token = generateToken(20);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const senderProfile = await db.collection("users").doc(senderId).get();
+    const senderData = senderProfile.exists ? senderProfile.data() : {};
 
     const transfer = {
         ticketId,
+        orderId,
+        tierId,
+        slotIndex,
+        ticketType,
+        requiredGender,
         entitlementId,
         senderId,
-        senderName: (await db.collection("users").doc(senderId).get())?.data()?.name || "Member",
+        senderName: senderData.displayName || senderData.name || "Member",
         recipientEmail: recipientEmail ? recipientEmail.toLowerCase() : null,
         eventId,
         eventTitle: event?.title || "Event",
@@ -1073,6 +1118,11 @@ export async function acceptTransfer(tokenOrId, recipientId) {
         }
 
         const ticketId = transfer.ticketId;
+        const recipientGender = await getUserGender(recipientId);
+        const transferGenderRequirement = transfer.requiredGender || "any";
+        if (transferGenderRequirement !== "any" && recipientGender !== transferGenderRequirement) {
+            throw new Error(`Restricted: This ticket is for ${transferGenderRequirement === "female" ? "Females" : "Males"} only.`);
+        }
         const parts = ticketId.split("-");
 
         // 2. Ownership Verify (Verify sender still owns it)
@@ -1100,7 +1150,7 @@ export async function acceptTransfer(tokenOrId, recipientId) {
         if (ticketId.startsWith("CLAIM-")) {
             const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(ticketId);
             const assignmentData = (await transaction.get(assignmentRef)).data();
-            requiredGender = assignmentData.requiredGender || "any";
+            requiredGender = assignmentData.requiredGender || transferGenderRequirement;
 
             // Log old identity removal
             await logAuditEvent("assignment_transferred_out", { assignmentId: ticketId, formerOwner: transfer.senderId, newOwner: recipientId }, db);
@@ -1120,14 +1170,19 @@ export async function acceptTransfer(tokenOrId, recipientId) {
 
             const assignment = {
                 originalTicketId: ticketId,
-                orderId: parts.slice(0, parts.length - 2).join("-"),
+                orderId: transfer.orderId || parts.slice(0, parts.length - 2).join("-"),
+                tierId: transfer.tierId || parts[parts.length - 2],
+                slotIndex: transfer.slotIndex || Number(parts[parts.length - 1]),
                 redeemerId: recipientId,
+                originalPurchaserId: transfer.senderId,
                 senderId: transfer.senderId,
                 eventId: transfer.eventId,
                 status: "active",
                 assignmentId,
                 qrPayload,
-                requiredGender: "any", // Default
+                requiredGender: transferGenderRequirement,
+                entitlementId: transfer.entitlementId || null,
+                ticketType: transfer.ticketType || "Transferred Pass",
                 transferredAt: now,
                 createdAt: now,
                 updatedAt: now,

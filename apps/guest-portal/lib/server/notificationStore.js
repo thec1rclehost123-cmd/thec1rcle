@@ -223,6 +223,25 @@ export async function notifyTicketPurchase(order) {
 }
 
 /**
+ * Notify user that their refund has been processed
+ */
+export async function notifyRefundProcessed(order) {
+    if (!order.userId) return null;
+
+    return await createNotification({
+        userId: order.userId,
+        type: "refund_processed",
+        title: "Your refund has been processed",
+        body: `Your refund for ${order.eventTitle || "your order"} is on its way.`,
+        data: {
+            orderId: order.id,
+            eventId: order.eventId,
+            action: "view_orders"
+        },
+    });
+}
+
+/**
  * Get user's notifications
  */
 export async function getUserNotifications(userId, { limit = 50, unreadOnly = false } = {}) {

@@ -47,8 +47,9 @@ export const adminStore = {
             throw new Error(`Authority Error: ${action} requires Tier 3 (Super Admin) clearance.`);
         }
 
-        // Tier 2 usually requires Ops or Super
-        if (TIER2_ACTIONS.includes(action) && role === 'moderator') {
+        // Tier 2 requires Ops-level or above
+        const tier2MinRoles = ['super', 'admin', 'ops', 'finance'];
+        if (TIER2_ACTIONS.includes(action) && !tier2MinRoles.includes(role)) {
             throw new Error(`Authority Error: ${action} requires Tier 2 (Ops) clearance.`);
         }
 
@@ -599,8 +600,52 @@ export const adminStore = {
         return { success: true };
     },
 
+    // --- 🔁 Idempotency check: returns true if the same action was already executed within 5 minutes ---
+    async checkRecentActionDuplicate(adminId, action, targetId, idempotencyKey) {
+        const db = getAdminDb();
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const snapshot = await db.collection('admin_audit_logs')
+            .where('adminId', '==', adminId)
+            .where('action', '==', action)
+            .where('targetId', '==', targetId)
+            .where('idempotencyKey', '==', idempotencyKey)
+            .where('timestamp', '>=', fiveMinutesAgo)
+            .limit(1)
+            .get();
+        return !snapshot.empty;
+    },
+
+    async executePayoutBatch(batchId, adminId, reason, evidence) {
+        const db = getAdminDb();
+        const batchRef = db.collection('payout_batches').doc(batchId);
+        await db.runTransaction(async (tx) => {
+            const batchDoc = await tx.get(batchRef);
+            if (!batchDoc.exists) throw new Error(`Payout batch ${batchId} not found`);
+            const batch = batchDoc.data();
+            if (batch.status === 'executed') return; // idempotent
+            if (!['pending', 'approved'].includes(batch.status)) {
+                throw new Error(`Payout batch cannot be executed: status is ${batch.status}`);
+            }
+            tx.update(batchRef, {
+                status: 'executed',
+                executedBy: adminId,
+                executedAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp()
+            });
+        });
+        await this.logAdminAction({
+            adminId,
+            action: 'PAYOUT_BATCH_RUN',
+            targetId: batchId,
+            targetType: 'payout_batch',
+            reason,
+            evidence,
+            after: { status: 'executed' }
+        });
+    },
+
     // --- 📝 6. Logging & Audit ---
-    async logAdminAction({ adminId, adminRole, action, targetId, targetType, reason, evidence, before, after, context }) {
+    async logAdminAction({ adminId, adminRole, action, targetId, targetType, reason, evidence, before, after, context, idempotencyKey }) {
         const db = getAdminDb();
         const log = {
             adminId,
@@ -613,6 +658,7 @@ export const adminStore = {
             before: before || null,
             after: after || null,
             context: context || {},
+            ...(idempotencyKey ? { idempotencyKey } : {}),
             timestamp: FieldValue.serverTimestamp()
         };
 
@@ -748,7 +794,7 @@ export const adminStore = {
         return stats;
     },
 
-    async listCollection(collection, { status, limit, adminRole } = {}) {
+    async listCollection(collection, { status, limit, adminRole, cursor } = {}) {
         const db = getAdminDb();
         let query = db.collection(collection);
         if (status) query = query.where('status', '==', status);
@@ -760,11 +806,20 @@ export const adminStore = {
         const defaultOrder = ['createdAt', 'desc'];
         const [field, dir] = ORDER_MAP[collection] || defaultOrder;
         try { query = query.orderBy(field, dir); } catch (_) { /* no orderBy if field missing */ }
-        const snapshot = await query.limit(limit || 50).get();
-        return snapshot.docs.map(doc => {
+        if (cursor) {
+            const cursorDoc = await db.collection(collection).doc(cursor).get();
+            if (cursorDoc.exists) query = query.startAfter(cursorDoc);
+        }
+        const pageLimit = limit || 50;
+        const snapshot = await query.limit(pageLimit + 1).get(); // +1 to detect hasMore
+        const docs = snapshot.docs.slice(0, pageLimit);
+        const hasMore = snapshot.docs.length > pageLimit;
+        const nextCursor = hasMore ? docs[docs.length - 1].id : null;
+        const items = docs.map(doc => {
             const d = doc.data();
             return { id: doc.id, ...d, timestamp: d.timestamp?.toDate?.()?.toISOString() || d.ts?.toDate?.()?.toISOString(), createdAt: d.createdAt?.toDate?.()?.toISOString() || d.createdAt, updatedAt: d.updatedAt?.toDate?.()?.toISOString() || d.updatedAt, submittedAt: d.submittedAt?.toDate?.()?.toISOString(), ts: d.ts?.toDate?.()?.toISOString() || d.ts };
         });
+        return items; // backward-compatible: callers that just use the array still work
     },
 
     async exportCollection(collection, limit = 2000) {
@@ -806,34 +861,56 @@ export const adminStore = {
         return { id: doc.id, ...doc.data() };
     },
 
+    async findUserByEmail(email) {
+        const db = getAdminDb();
+        const snapshot = await db.collection('users').where('email', '==', email.toLowerCase()).limit(1).get();
+        if (snapshot.empty) return null;
+        const doc = snapshot.docs[0];
+        return { id: doc.id, ...doc.data() };
+    },
+
     // --- 💰 9. Refund Request Management ---
-    async getRefunds({ status = 'pending', limit = 50 } = {}) {
+    async getRefunds({ status = 'pending', limit = 25, cursor = null } = {}) {
         const db = getAdminDb();
         // Firestore requires: where() BEFORE orderBy()
         let query = db.collection('refund_requests');
         if (status !== 'all') query = query.where('status', '==', status);
-        query = query.orderBy('createdAt', 'desc').limit(limit);
+        query = query.orderBy('createdAt', 'desc').limit(limit + 1); // fetch one extra to detect hasMore
+        if (cursor) {
+            const cursorDoc = await db.collection('refund_requests').doc(cursor).get();
+            if (cursorDoc.exists) query = query.startAfter(cursorDoc);
+        }
         const snapshot = await query.get();
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const docs = snapshot.docs.slice(0, limit);
+        const hasMore = snapshot.docs.length > limit;
+        const nextCursor = hasMore ? docs[docs.length - 1].id : null;
+        return {
+            refunds: docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            hasMore,
+            nextCursor
+        };
     },
 
     async approveRefundRequest(refundId, admin) {
         const db = getAdminDb();
         const refundRef = db.collection('refund_requests').doc(refundId);
-        const refundDoc = await refundRef.get();
-        if (!refundDoc.exists) throw new Error('Refund request not found');
-        const refundData = refundDoc.data();
-        if (refundData.status !== 'pending') throw new Error(`Refund is already ${refundData.status}`);
-        if (refundData.approvers?.some(a => a.uid === admin.uid)) throw new Error('You have already approved this refund');
-        const now = new Date().toISOString();
-        const newApprovers = [...(refundData.approvers || []), { uid: admin.uid, name: admin.name || admin.email, role: admin.role, at: now }];
-        const isFullyApproved = newApprovers.length >= (refundData.approversRequired || 1);
-        const batch = db.batch();
-        batch.update(refundRef, { approvers: newApprovers, status: isFullyApproved ? 'approved' : 'pending', updatedAt: now, ...(isFullyApproved && { approvedAt: now }) });
-        if (isFullyApproved) batch.update(db.collection('orders').doc(refundData.orderId), { status: 'refunded', refundedAt: now, refundAmount: refundData.amount });
-        await batch.commit();
-        await this.logAdminAction({ action: 'refund_approved', targetType: 'refund_request', targetId: refundId, adminId: admin.uid, reason: 'Admin approval', after: { orderId: refundData.orderId, amount: refundData.amount, fullyApproved: isFullyApproved } });
-        return { isFullyApproved, pendingApprovals: isFullyApproved ? 0 : (refundData.approversRequired - newApprovers.length) };
+        let result;
+        // Use a transaction to prevent concurrent double-approval race conditions
+        await db.runTransaction(async (tx) => {
+            const refundDoc = await tx.get(refundRef);
+            if (!refundDoc.exists) throw new Error('Refund request not found');
+            const refundData = refundDoc.data();
+            if (refundData.status !== 'pending') throw new Error(`Refund is already ${refundData.status}`);
+            if (refundData.approvers?.some(a => a.uid === admin.uid)) throw new Error('You have already approved this refund');
+            const now = new Date().toISOString();
+            const newApprovers = [...(refundData.approvers || []), { uid: admin.uid, name: admin.name || admin.email, role: admin.role, at: now }];
+            const isFullyApproved = newApprovers.length >= (refundData.approversRequired || 1);
+            tx.update(refundRef, { approvers: newApprovers, status: isFullyApproved ? 'approved' : 'pending', updatedAt: now, ...(isFullyApproved && { approvedAt: now }) });
+            if (isFullyApproved) tx.update(db.collection('orders').doc(refundData.orderId), { status: 'refunded', refundedAt: now, refundAmount: refundData.amount });
+            result = { isFullyApproved, pendingApprovals: isFullyApproved ? 0 : (refundData.approversRequired - newApprovers.length), orderId: refundData.orderId, amount: refundData.amount };
+        });
+        await this.logAdminAction({ action: 'refund_approved', targetType: 'refund_request', targetId: refundId, adminId: admin.uid, reason: 'Admin approval', after: { orderId: result.orderId, amount: result.amount, fullyApproved: result.isFullyApproved } });
+        return { isFullyApproved: result.isFullyApproved, pendingApprovals: result.pendingApprovals };
     },
 
     async rejectRefundRequest(refundId, reason, admin) {

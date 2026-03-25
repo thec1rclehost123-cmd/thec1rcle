@@ -19,12 +19,123 @@ import {
     AlertCircle,
     Loader2,
     Check,
-    Tag
+    Tag,
+    ChevronDown
 } from "lucide-react";
 import { useAuth } from "./providers/AuthProvider";
 import { CartTimer } from "./checkout/CartTimer";
 import { PromoCodeInput } from "./checkout/PromoCodeInput";
 import { getFirebaseDb } from "../lib/firebase/client";
+
+function truncateInfo(value, maxLength = 88) {
+    if (!value) return "";
+    const normalized = String(value).replace(/\s+/g, " ").trim();
+    if (normalized.length <= maxLength) return normalized;
+    return `${normalized.slice(0, maxLength).trimEnd()}...`;
+}
+
+function formatNeedToKnowTime(event) {
+    if (event?.startTime || event?.endTime) {
+        if (event.startTime && event.endTime) return `${event.startTime} - ${event.endTime}`;
+        return event.startTime || event.endTime || "";
+    }
+
+    if (!event?.startDate) return "";
+
+    try {
+        const formatter = new Intl.DateTimeFormat("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit"
+        });
+        const startLabel = formatter.format(new Date(event.startDate));
+        if (!event?.endDate) return startLabel;
+        const endFormatter = new Intl.DateTimeFormat("en-US", {
+            hour: "numeric",
+            minute: "2-digit"
+        });
+        return `${startLabel} - ${endFormatter.format(new Date(event.endDate))}`;
+    } catch {
+        return "";
+    }
+}
+
+function prettifyRule(value) {
+    if (!value) return "";
+    return String(value)
+        .replace(/_/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function buildNeedToKnowItems(event, selectedTickets = []) {
+    const items = [];
+    const pushItem = (label, value) => {
+        const normalized = truncateInfo(value);
+        if (!normalized) return;
+        if (items.some((item) => item.label === label && item.value === normalized)) return;
+        items.push({ label, value: normalized });
+    };
+
+    pushItem("Doors", event?.doorsOpen || event?.doorsTime || event?.doorTime || event?.doors);
+    pushItem("Timing", formatNeedToKnowTime(event));
+    pushItem("Last entry", event?.lastEntry);
+
+    const ageRule = event?.ageRestriction || event?.ageLimit;
+    if (ageRule && String(ageRule).toLowerCase() !== "all") {
+        pushItem("Age", ageRule);
+    }
+
+    pushItem("Outfit", event?.dressCodeDescription || prettifyRule(event?.dressCode || event?.dress));
+
+    const entryNote =
+        event?.entryRules ||
+        event?.guestListRules ||
+        event?.houseRules ||
+        event?.terms ||
+        event?.policyNotes;
+    pushItem("Entry", Array.isArray(entryNote) ? entryNote.join(", ") : entryNote);
+
+    selectedTickets.forEach((ticket) => {
+        const isCoverTicket =
+            String(ticket?.entryType || "").toLowerCase() === "cover" ||
+            /cover/i.test(String(ticket?.name || ""));
+
+        if (ticket?.description) {
+            pushItem(ticket.name || "Tier", ticket.description);
+            return;
+        }
+
+        if (isCoverTicket) {
+            pushItem(ticket.name || "Cover", "Venue cover policy applies to this tier.");
+        }
+    });
+
+    return items.slice(0, 7);
+}
+
+function NeedToKnowCard({ items, className = "" }) {
+    if (!items?.length) return null;
+
+    return (
+        <div className={`rounded-[28px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-2xl ${className}`}>
+            <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-orange" />
+                <p className="text-[10px] font-black uppercase tracking-[0.28em] text-orange">Need to know</p>
+            </div>
+            <div className="mt-4 space-y-3">
+                {items.map((item) => (
+                    <div key={`${item.label}-${item.value}`} className="flex items-start justify-between gap-4 border-b border-white/6 pb-3 last:border-b-0 last:pb-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">{item.label}</p>
+                        <p className="max-w-[24ch] text-right text-sm font-medium leading-6 text-white/[0.72]">{item.value}</p>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
 
 export default function CheckoutContainer({ event, initialTickets = [] }) {
     const router = useRouter();
@@ -54,6 +165,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     const [promoterDiscount, setPromoterDiscount] = useState(0);
     const [pricingResult, setPricingResult] = useState(null);
     const [otherEventReservation, setOtherEventReservation] = useState(null);
+    const [feesBreakdownOpen, setFeesBreakdownOpen] = useState(false);
 
     useEffect(() => {
         setMounted(true);
@@ -187,6 +299,16 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     const displayTotal = pricingResult?.grandTotal ?? totalAmount;
     const displayFees = pricingResult?.fees?.total ?? 0;
     const isFreeOrder = pricingResult ? pricingResult.isFree : totalAmount === 0;
+    const feeBreakdown = useMemo(() => {
+        const fees = pricingResult?.fees;
+        if (!fees) return [];
+
+        return [
+            { label: "Platform fee", value: Number(fees.platform) || 0 },
+            { label: "Payment fee", value: Number(fees.payment) || 0 },
+            { label: "GST on fees", value: Number(fees.gst) || 0 }
+        ].filter((item) => item.value > 0);
+    }, [pricingResult]);
 
     // Handle promo code application
     const handleApplyPromoCode = async (code) => {
@@ -260,6 +382,13 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     const canProceedStep2 = attendeeDetails.name.trim() !== "" && attendeeDetails.email.trim() !== "";
 
     const displayTiers = liveTiers ?? event.tickets ?? [];
+    const needToKnowItems = useMemo(() => buildNeedToKnowItems(event, selectedTickets), [event, selectedTickets]);
+
+    useEffect(() => {
+        if (displayFees <= 0) {
+            setFeesBreakdownOpen(false);
+        }
+    }, [displayFees]);
 
     const handleTicketChange = (ticketId, delta) => {
         const updated = displayTiers.map(t => {
@@ -644,6 +773,10 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                             </motion.div>
                         )}
                     </AnimatePresence>
+
+                    <div className="mt-6 md:hidden">
+                        <NeedToKnowCard items={needToKnowItems} />
+                    </div>
                 </div>
 
                 {/* Vertical Summary Container */}
@@ -683,9 +816,11 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                 onApply={handleApplyPromoCode}
                                 appliedCode={appliedPromoCode}
                                 onRemove={handleRemovePromoCode}
-                                className="[&_input]:bg-white/10 [&_input]:border-white/10 [&_input]:text-white [&_input]:placeholder:text-white/30 [&_button]:bg-orange [&_button:hover]:bg-orange/80"
+                                className="[&_input]:bg-white/10 [&_input]:border-white/10 [&_input]:text-white [&_input]:placeholder:text-white/30"
                             />
                         </div>
+
+                        <NeedToKnowCard items={needToKnowItems} className="mb-4" />
 
                         <div className="pt-6 border-t border-white/10 mt-auto space-y-3">
                             {/* Subtotal */}
@@ -706,9 +841,38 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
 
                             {/* Platform Fees (shown once backend pricing is loaded) */}
                             {displayFees > 0 && (
-                                <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Fees & GST</span>
-                                    <span className="text-[12px] font-bold text-white/60">+₹{displayFees.toLocaleString('en-IN')}</span>
+                                <div className="space-y-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFeesBreakdownOpen((open) => !open)}
+                                        className="flex w-full items-center justify-between rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-2 transition-colors hover:border-white/14 hover:bg-white/[0.04]"
+                                    >
+                                        <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-white/40">
+                                            Fees & GST
+                                            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${feesBreakdownOpen ? "rotate-180" : ""}`} />
+                                        </span>
+                                        <span className="text-[12px] font-bold text-white/72">+₹{displayFees.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
+                                    </button>
+
+                                    <AnimatePresence initial={false}>
+                                        {feesBreakdownOpen && feeBreakdown.length > 0 && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0, y: -4 }}
+                                                animate={{ opacity: 1, height: "auto", y: 0 }}
+                                                exit={{ opacity: 0, height: 0, y: -4 }}
+                                                className="overflow-hidden rounded-2xl border border-white/8 bg-white/[0.03]"
+                                            >
+                                                <div className="space-y-2 p-3">
+                                                    {feeBreakdown.map((item) => (
+                                                        <div key={item.label} className="flex items-center justify-between gap-4">
+                                                            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">{item.label}</span>
+                                                            <span className="text-[12px] font-semibold text-white/70">₹{item.value.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             )}
 

@@ -56,7 +56,7 @@ export default function UnifiedAnalyticsClient({
     const category = (params.category || searchParams.get("tab") || "overview") as string;
     const catConfig = CATEGORY_MAP[category] || CATEGORY_MAP.overview;
 
-    const { profile } = useDashboardAuth();
+    const { profile, getIdToken } = useDashboardAuth() as any;
     const entityId = profile?.activeMembership?.partnerId;
 
     const [range, setRange] = useState<DateRange | undefined>({
@@ -65,15 +65,26 @@ export default function UnifiedAnalyticsClient({
     });
     const [eventId, setEventId] = useState<string>("all");
 
+    // Derive a stable range string for the API and query key
+    const rangeStr = !range ? "30d"
+        : (range.to.getTime() - range.from.getTime()) <= 8 * 86_400_000 ? "7d"
+        : (range.to.getTime() - range.from.getTime()) <= 31 * 86_400_000 ? "30d"
+        : (range.to.getTime() - range.from.getTime()) <= 91 * 86_400_000 ? "90d"
+        : "ytd";
+
     const { data: analyticsData, isLoading, isError } = useQuery({
-        queryKey: [role, "analytics", entityId, eventId, range],
+        queryKey: [role, "analytics", entityId, eventId, rangeStr],
         queryFn: async () => {
-            const url = `/api/${role}/analytics/overview?${idParam}=${entityId}&eventId=${eventId}`;
-            const r = await fetch(url);
+            const token = typeof getIdToken === "function" ? await getIdToken() : "";
+            const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+            const url = `/api/${role}/analytics/overview?${idParam}=${entityId}&eventId=${eventId}&range=${rangeStr}`;
+            const r = await fetch(url, { headers });
             if (!r.ok) return null;
             return r.json();
         },
         enabled: !!entityId,
+        staleTime: 5 * 60 * 1000,
+        refetchOnWindowFocus: true,
     });
 
     const data = normalizeAnalyticsData(analyticsData);

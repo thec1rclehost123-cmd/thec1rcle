@@ -94,6 +94,19 @@ service cloud.firestore {
       // ALL writes go through the Admin SDK via server-side API routes.
       // Clients NEVER write events directly.
       allow write: if isAdmin(); // Partners write via server routes only
+
+      match /scan_logs/{scanId} {
+        allow read: if isAdmin() ||
+                      (isSignedIn() && (
+                        get(/databases/$(database)/documents/events/$(eventId)).data.creatorId == request.auth.uid ||
+                        get(/databases/$(database)/documents/events/$(eventId)).data.venueId == request.auth.uid ||
+                        get(/databases/$(database)/documents/events/$(eventId)).data.hostId == request.auth.uid ||
+                        request.auth.token.partnerId == get(/databases/$(database)/documents/events/$(eventId)).data.creatorId ||
+                        request.auth.token.partnerId == get(/databases/$(database)/documents/events/$(eventId)).data.venueId ||
+                        request.auth.token.partnerId == get(/databases/$(database)/documents/events/$(eventId)).data.hostId
+                      ));
+        allow write: if isAdmin();
+      }
     }
 
     // --- 🔖 RSVP / LIKES ---

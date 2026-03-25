@@ -4,8 +4,9 @@
  */
 
 import { createHmac } from "node:crypto";
+import { getQrSecret } from "./scan-secret.js";
 
-const QR_SECRET = process.env.QR_SECRET_KEY || "c1rcle-qr-secret-2024";
+const QR_SECRET = getQrSecret();
 
 /**
  * Verifies the signature of a ticket QR code.
@@ -38,7 +39,7 @@ export async function validateScannerDevice(db, deviceId, venueId) {
     }
 
     const device = deviceDoc.data() || {};
-    if (device.status !== "active" && device.bound !== true) {
+    if (device.status !== "active" || device.bound !== true) {
         return { valid: false, error: "Device not authorized for this venue" };
     }
 

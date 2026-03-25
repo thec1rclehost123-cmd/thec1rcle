@@ -16,7 +16,8 @@ const envSchema = z.object({
     SENTRY_DSN: z.string().url().optional().or(z.literal('')),
     RAZORPAY_KEY_ID: z.string().optional(),
     RAZORPAY_KEY_SECRET: z.string().optional(),
-    QR_SECRET_KEY: z.string().optional().default('c1rcle-qr-secret-2024'),
+    QR_SECRET_KEY: z.string().optional(),
+    SCANNER_SESSION_SECRET: z.string().optional(),
     FRONTEND_URLS: z
         .string()
         .optional()
@@ -29,6 +30,15 @@ const _env = envSchema.safeParse(process.env);
 if (!_env.success) {
     console.error('❌ Invalid environment variables:', _env.error.format());
     process.exit(1);
+}
+
+if (_env.data.NODE_ENV === 'production') {
+    const missingSecrets = ['QR_SECRET_KEY', 'SCANNER_SESSION_SECRET']
+        .filter((name) => !process.env[name]);
+    if (missingSecrets.length > 0) {
+        console.error(`❌ Missing required production secrets: ${missingSecrets.join(', ')}`);
+        process.exit(1);
+    }
 }
 
 export const config = _env.data;

@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import { trackedGet } from "./firestoreMetrics";
+import { getAdminDb, isFirebaseConfigured } from "../firebase/admin.js";
+import { trackedGet } from "./firestoreMetrics.js";
 import { algoliasearch } from 'algoliasearch';
 import { EVENT_LIFECYCLE, PUBLIC_LIFECYCLE_STATES, normalizeCity, resolvePoster, mapEventForClient } from "@c1rcle/core/events";
 import { filterAndSortEvents, calculateHeatScore as coreHeatScore, buildEvent } from "@c1rcle/core/event-engine";
 import { events as seedEvents } from "../../data/events.js";
+import { normalizeInterestedUserGender, selectInterestedUsersForDisplay } from "./eventAudienceUtils.js";
 
 /**
  * Helper to serialize data for RSC
@@ -51,6 +52,8 @@ const cityKeywords = [
   { city: "Goa, IN", matchers: ["goa", "anjuna", "morjim", "panaji", "panjim"] }
 ];
 
+let fallbackEventOverrides = null;
+
 const duplicateEvent = (event) => ({
   ...event,
   guests: Array.isArray(event.guests) ? [...event.guests] : [],
@@ -60,7 +63,18 @@ const duplicateEvent = (event) => ({
 
 // Use a function to get fresh fallback events to avoid state pollution/memory leaks
 // Fix: Memory Leak / State Pollution (Issue #8)
-const getFallbackEvents = () => seedEvents.map(duplicateEvent);
+const getFallbackEvents = () => {
+  const source = fallbackEventOverrides ?? seedEvents;
+  return source.map(duplicateEvent);
+};
+
+export const __setFallbackEventsForTests = (events) => {
+  fallbackEventOverrides = Array.isArray(events) ? events.map(duplicateEvent) : [];
+};
+
+export const __resetFallbackEventsForTests = () => {
+  fallbackEventOverrides = null;
+};
 
 const findFallbackEvent = (identifier) => {
   const events = getFallbackEvents();
@@ -394,7 +408,8 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
   const baseLimit = Math.max(limit || 12, 12);
   let snapshot;
   try {
-    snapshot = await trackedGet(query.limit(baseLimit), "eventStore.listEvents");
+    const _timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore timeout")), 8000));
+    snapshot = await Promise.race([trackedGet(query.limit(baseLimit), "eventStore.listEvents"), _timeout]);
   } catch (e) {
     try {
       // Silent fallback to avoid crash if index is missing
@@ -473,27 +488,28 @@ export async function getEventInterested(eventId, limit = 20) {
 
   if (!isFirebaseConfigured()) {
     const mockUsers = [
-      { id: "u1", name: "Ari", handle: "@ari", color: "#FDE047", initials: "AR" },
-      { id: "u2", name: "Dev", handle: "@dev", color: "#F43F5E", initials: "DV" },
-      { id: "u3", name: "Ira", handle: "@ira", color: "#A855F7", initials: "IR" },
-      { id: "u4", name: "Nia", handle: "@nia", color: "#38BDF8", initials: "NI" },
-      { id: "u5", name: "Vik", handle: "@vik", color: "#34D399", initials: "VK" }
+      { id: "u1", name: "Ari", handle: "@ari", color: "#FDE047", initials: "AR", gender: "female" },
+      { id: "u2", name: "Dev", handle: "@dev", color: "#F43F5E", initials: "DV", gender: "male" },
+      { id: "u3", name: "Ira", handle: "@ira", color: "#A855F7", initials: "IR", gender: "female" },
+      { id: "u4", name: "Nia", handle: "@nia", color: "#38BDF8", initials: "NI", gender: "female" },
+      { id: "u5", name: "Vik", handle: "@vik", color: "#34D399", initials: "VK", gender: "male" }
     ];
-    return { count: 622, users: mockUsers };
+    return { count: 622, users: selectInterestedUsersForDisplay(mockUsers, limit) };
   }
 
   const db = getAdminDb();
   const eventDoc = await db.collection(EVENT_COLLECTION).doc(eventId).get();
   const eventData = eventDoc.exists ? eventDoc.data() : {};
   const count = eventData.stats?.saves || 0;
+  const fetchLimit = Math.max(limit * 5, 60);
 
   const likesSnapshot = await db.collection("likes")
     .where("eventId", "==", eventId)
     .orderBy("createdAt", "desc")
-    .limit(limit)
+    .limit(fetchLimit)
     .get();
 
-  const userIds = likesSnapshot.docs.map(doc => doc.data().userId);
+  const userIds = Array.from(new Set(likesSnapshot.docs.map(doc => doc.data().userId).filter(Boolean)));
   if (userIds.length === 0) return { count, users: [] };
 
   // Fetch user details
@@ -507,11 +523,12 @@ export async function getEventInterested(eventId, limit = 20) {
         name: d.displayName || "C1RCLE Member",
         handle: d.handle || `@${(d.displayName || "guest").toLowerCase().replace(/\s/g, "")}`,
         photoURL: d.photoURL || null,
-        initials: (d.displayName || "G").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
+        initials: (d.displayName || "G").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2),
+        gender: normalizeInterestedUserGender(d.gender)
       };
     });
 
-  return serialize({ count, users });
+  return serialize({ count, users: selectInterestedUsersForDisplay(users, limit) });
 }
 
 export async function getEventGuestlist(eventId, limit = 50) {

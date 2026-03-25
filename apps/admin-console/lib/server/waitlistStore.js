@@ -2,6 +2,12 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { getEvent } from "./eventStore";
 import { getUserOrders } from "./orderStore";
+import { Resend } from "resend";
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const FROM_ADDR = process.env.NODE_ENV === "development"
+    ? "THE C1RCLE <onboarding@resend.dev>"
+    : "THE C1RCLE <noreply@thec1rcle.com>";
 
 // In-memory fallback for development
 let fallbackWaitlist = [];
@@ -105,8 +111,20 @@ export async function processWaitlist(eventId, ticketId) {
         await db.collection(WAITLIST_COLLECTION).doc(nextUser.id).update(updates);
     }
 
-    // TODO: Trigger email notification here
-    console.log(`[Waitlist] Notified user ${nextUser.email} for event ${eventId}`);
+    if (resend && nextUser.email) {
+        try {
+            await resend.emails.send({
+                from: FROM_ADDR,
+                to: nextUser.email,
+                subject: "You're off the waitlist — your spot is confirmed",
+                html: `<p>Hi there,</p><p>Great news! A spot has opened up for the event you were waitlisted for (Event ID: <strong>${eventId}</strong>). Your spot is now confirmed — head back to the app to complete your purchase before it expires.</p><p>— THE C1RCLE</p>`
+            });
+        } catch (emailErr) {
+            console.error(`[Waitlist] Failed to send promotion email to ${nextUser.email}:`, emailErr.message);
+        }
+    } else {
+        console.log(`[Waitlist] Notified user ${nextUser.email} for event ${eventId}`);
+    }
 
     return { ...nextUser, ...updates };
 }

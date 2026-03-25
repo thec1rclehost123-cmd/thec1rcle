@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/server/withAuth";
 import { fail } from "@/lib/server/apiResponse";
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
+const GATEWAY_URL = process.env.GATEWAY_URL || process.env.NEXT_PUBLIC_GATEWAY_URL;
 
 async function gatewayRequest(url: string, init: RequestInit) {
     const res = await fetch(url, init);

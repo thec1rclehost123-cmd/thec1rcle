@@ -9,6 +9,8 @@ import { createHmac } from "node:crypto";
 import { confirmOrder, getOrderById, updateOrderStatus, logWebhookProcessed, wasWebhookProcessed, updateOrderRefundStatus } from "@/lib/server/orderStore";
 import { getEvent } from "@/lib/server/eventStore";
 import { sendTicketEmail } from "@/lib/email";
+import { notifyRefundProcessed } from "@/lib/server/notificationStore";
+import { isFirebaseConfigured } from "@/lib/firebase/admin";
 
 // Collection to track processed webhooks (idempotency)
 const WEBHOOK_LOGS_COLLECTION = "payment_webhook_logs";
@@ -30,11 +32,15 @@ function verifyWebhookSignature(body, signature, secret) {
 
 // Check if webhook was already processed (Redis + Firestore Idempotency via orderStore)
 async function checkAndMarkWebhookProcessed(paymentId) {
-    // 1. Redis fast path
-    const redis = (await import("@c1rcle/core/redis")).getRedisClient();
-    const redisKey = `payment:${paymentId}:processed`;
-    const isLocked = await redis.set(redisKey, "1", "NX", "EX", 86400);
-    if (!isLocked) return true;
+    try {
+        const redis = (await import("@c1rcle/core/redis")).getRedisClient();
+        const redisKey = `payment:${paymentId}:processed`;
+        const isLocked = await redis.set(redisKey, "1", "NX", "EX", 86400);
+        if (!isLocked) return true;
+    } catch (error) {
+        console.warn(`[Webhook] Redis idempotency lock unavailable for ${paymentId}:`, error.message);
+    }
+
     // 2. Firestore fallback via orderStore
     return await wasWebhookProcessed(paymentId);
 }
@@ -91,6 +97,17 @@ export async function POST(request) {
                 });
             }
 
+            const paymentDetails = {
+                paymentId,
+                razorpayPaymentId: paymentId,
+                razorpayOrderId: paymentEntity.order_id,
+                razorpaySignature: signature || null,
+                provider: "razorpay",
+                method: paymentEntity.method,
+                amount: paymentEntity.amount / 100, // Convert from paise
+                paidAt: new Date().toISOString()
+            };
+
             // Get order and verify status
             const order = await getOrderById(orderId);
 
@@ -105,22 +122,13 @@ export async function POST(request) {
             // Skip if already confirmed
             if (order.status === 'confirmed' || order.status === 'checked_in') {
                 console.log(`[Webhook] Order ${orderId} already confirmed, skipping`);
+                await updateOrderStatus(orderId, order.status, paymentDetails);
                 await logWebhookProcessed(paymentId, orderId, 'already_confirmed');
                 return NextResponse.json({
                     status: "already_confirmed",
                     message: "Order was already confirmed"
                 });
             }
-
-            // Confirm the order (this generates QR codes and handles promoter tracking)
-            const paymentDetails = {
-                razorpayPaymentId: paymentId,
-                razorpayOrderId: paymentEntity.order_id,
-                provider: "razorpay",
-                method: paymentEntity.method,
-                amount: paymentEntity.amount / 100, // Convert from paise
-                paidAt: new Date().toISOString()
-            };
 
             const confirmedOrder = await confirmOrder(orderId, paymentDetails);
 
@@ -255,6 +263,8 @@ export async function POST(request) {
                 return NextResponse.json({ status: "handled", message: "Refund event acknowledged (no DB)" });
             }
 
+            const now = new Date().toISOString();
+
             // Delegate all refund state management to orderStore
             const refundResult = await updateOrderRefundStatus(paymentId, eventType, {
                 refundId,
@@ -265,6 +275,13 @@ export async function POST(request) {
 
             if (!refundResult) {
                 return NextResponse.json({ status: "handled", message: "Refund event acknowledged (order not found)" });
+            }
+
+            // Send in-app notification when refund is fully processed
+            if (refundResult.status === "refunded" && refundResult.order?.userId) {
+                notifyRefundProcessed(refundResult.order).catch(e =>
+                    console.error(`[Webhook] Refund notification failed for order:`, e.message)
+                );
             }
 
             return NextResponse.json({

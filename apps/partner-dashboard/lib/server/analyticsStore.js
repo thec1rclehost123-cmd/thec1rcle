@@ -15,8 +15,13 @@ export async function getVenueAnalytics(venueId, range = "30d", token) {
     try {
         return await client.getAnalytics('venue', venueId);
     } catch (error) {
-        console.error("[AnalyticsStore] getVenueAnalytics failed:", error.message);
-        return { totalRevenue: 0, totalTicketsSold: 0, dataReady: false };
+        console.error("[AnalyticsStore] getVenueAnalytics failed, using direct Firestore fallback:", error.message);
+        try {
+            const { getVenueAnalytics: coreFn } = await import('@c1rcle/core/analytics-engine');
+            return await coreFn(venueId, range);
+        } catch {
+            return { totalRevenue: 0, totalTicketsSold: 0, dataReady: false };
+        }
     }
 }
 
@@ -41,8 +46,13 @@ export async function getHostAnalytics(hostId, range = "30d", token) {
     try {
         return await client.getAnalytics('host', hostId);
     } catch (error) {
-        console.error("[AnalyticsStore] getHostAnalytics failed:", error.message);
-        return { totalEvents: 0, approvalRate: 0, dataReady: false };
+        console.error("[AnalyticsStore] getHostAnalytics failed, using direct Firestore fallback:", error.message);
+        try {
+            const { getHostAnalytics: coreFn } = await import('@c1rcle/core/analytics-engine');
+            return await coreFn(hostId);
+        } catch {
+            return { totalEvents: 0, approvalRate: 0, dataReady: false };
+        }
     }
 }
 

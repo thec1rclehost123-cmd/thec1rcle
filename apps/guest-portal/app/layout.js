@@ -77,7 +77,8 @@ export const viewport = {
   userScalable: false,
 };
 
-export const dynamic = "force-dynamic";
+// Removed force-dynamic — it was cascading to ALL routes, blocking the server.
+// Individual pages/API routes that need dynamic rendering already declare it themselves.
 
 import Navbar from "../components/Navbar";
 import FooterContent from "../components/FooterContent";

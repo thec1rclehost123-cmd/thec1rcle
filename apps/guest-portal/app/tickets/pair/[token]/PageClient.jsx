@@ -18,9 +18,15 @@ export default function PartnerClaimPage() {
         if (!authLoading && !user) {
             // Store redirect URL
             const currentUrl = window.location.pathname;
-            router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`);
+            router.push(`/login?returnUrl=${encodeURIComponent(currentUrl)}`);
         }
     }, [user, authLoading, router]);
+
+    useEffect(() => {
+        if (!authLoading && user && status === "verifying") {
+            setStatus("ready");
+        }
+    }, [authLoading, user, status]);
 
     const handleClaim = async () => {
         setStatus("claiming");

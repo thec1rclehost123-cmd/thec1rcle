@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { withAdminAuth } from "@/lib/server/adminMiddleware";
 import { getAdminApp } from "@/lib/firebase/admin";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { rateLimit } from "@/lib/server/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,10 @@ async function getHandler(req, { params }) {
 // ── PATCH — admin approves/rejects/requests_resubmission on a step ────────────
 
 async function patchHandler(req, { params }) {
+    if (!await rateLimit(req, 10)) {
+        return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
+    }
+
     const { uid } = params;
     const body = await req.json();
     const { stepId, action, note, resubmitReason } = body;
@@ -117,7 +122,7 @@ async function patchHandler(req, { params }) {
 
     const newStepStatus = ACTION_TO_STATUS[action];
     if (!newStepStatus) {
-        return NextResponse.json({ error: "Invalid action. Must be: approve | reject | request_resubmission | mark_under_review" }, { status: 400 });
+        return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 
     kycStepStatus[stepId] = newStepStatus;

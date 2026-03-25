@@ -1,11 +1,11 @@
 import { randomUUID, createHmac } from "node:crypto";
 import { getAdminDb } from "./admin.js";
+import { getQrSecret } from "./scan-secret.js";
 
 const ENTITLEMENT_COLLECTION = "entitlements";
 const SCAN_LEDGER_COLLECTION = "scan_ledger";
 
-// Secret key for HMAC signing (should be in env vars in production)
-const QR_SECRET = process.env.QR_SECRET_KEY || "c1rcle-qr-secret-2024";
+const QR_SECRET = getQrSecret();
 
 export const ENTITLEMENT_STATES = {
     ISSUED: "ISSUED",       // Created, potentially unclaimed slot

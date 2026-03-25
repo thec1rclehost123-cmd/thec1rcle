@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import { getEvent } from "./eventStore";
-import { createOrder, confirmOrder } from "./orderStore";
-import { generateOrderQRCodes } from "./qrStore";
-import { getPromoterLinkByCode, recordConversion } from "./promoterStore";
+import { getAdminDb, isFirebaseConfigured } from "../firebase/admin.js";
+import { getEvent } from "./eventStore.js";
+import { createOrder, confirmOrder } from "./orderStore.js";
+import { generateOrderQRCodes } from "./qrStore.js";
+import { getPromoterLinkByCode, recordConversion } from "./promoterStore.js";
 import { validatePromoCode } from "@c1rcle/core/promo-service";
 import { calculatePricing as coreCalculatePricing, getEffectivePrice } from "@c1rcle/core/pricing-engine";
 import { createReservation as coreCreateReservation, releaseReservation as coreReleaseReservation } from "@c1rcle/core/inventory-engine";
@@ -16,6 +16,37 @@ const RESERVATIONS_COLLECTION = "cart_reservations";
 
 // In-memory fallback
 const fallbackReservations = new Map();
+
+export const __seedReservationForTests = (reservation) => {
+    if (!reservation?.id) {
+        throw new Error("Reservation id is required");
+    }
+    fallbackReservations.set(reservation.id, structuredClone(reservation));
+};
+
+export const __resetCheckoutStateForTests = () => {
+    fallbackReservations.clear();
+};
+
+const buildExistingOrderResponse = (order, reservationId, pricing = null, promoterCode = null) => {
+    const requiresPayment = !order.isRSVP
+        && order.paymentMethod !== 'free'
+        && !['confirmed', 'cancelled', 'refunded'].includes(order.status);
+
+    return {
+        success: true,
+        requiresPayment,
+        order,
+        reservationId,
+        pricing,
+        promoterCode,
+        message: order.isRSVP
+            ? 'RSVP already confirmed!'
+            : requiresPayment
+                ? 'Checkout already initiated.'
+                : 'Order confirmed! Your tickets are ready.'
+    };
+};
 
 // getEffectivePrice is now imported from @c1rcle/core/pricing-engine
 
@@ -228,6 +259,13 @@ export async function initiateCheckout(reservationId, userId, userDetails, optio
         return { success: false, error: 'Reservation not found' };
     }
 
+    const { getOrderByReservationId, checkExistingRSVP } = await import("./orderStore.js");
+    const existingOrder = await getOrderByReservationId(reservationId);
+
+    if (existingOrder && reservation.status !== 'active') {
+        return buildExistingOrderResponse(existingOrder, reservationId);
+    }
+
     if (reservation.status !== 'active') {
         return { success: false, error: `Reservation is ${reservation.status}` };
     }
@@ -268,10 +306,13 @@ export async function initiateCheckout(reservationId, userId, userDetails, optio
 
     const pricing = pricingResult.pricing;
 
+    if (existingOrder) {
+        return buildExistingOrderResponse(existingOrder, reservationId, pricing, promoterCode);
+    }
+
     // RULE: Event type determines backend flow.
     if (event.isRSVP) {
         // Enforce 1 ticket per user across the entire event for RSVP
-        const { checkExistingRSVP } = await import("./orderStore");
         const hasRSVP = await checkExistingRSVP(reservation.eventId, {
             userId,
             email: userDetails.email
@@ -279,15 +320,8 @@ export async function initiateCheckout(reservationId, userId, userDetails, optio
 
         if (hasRSVP) {
             // Check if there is already an order for THIS reservation to return it (idempotency)
-            const { getOrderByReservationId } = await import("./orderStore");
-            const existingOrder = await getOrderByReservationId(reservationId);
             if (existingOrder) {
-                return {
-                    success: true,
-                    requiresPayment: false,
-                    order: existingOrder,
-                    message: 'RSVP already confirmed!'
-                };
+                return buildExistingOrderResponse(existingOrder, reservationId, pricing, promoterCode);
             }
 
             return {
@@ -360,7 +394,7 @@ export async function initiateCheckout(reservationId, userId, userDetails, optio
  * Process an RSVP order (Strictly for RSVP-type events)
  */
 async function processRSVPOrder(reservation, userId, userDetails, pricing, promoterCode) {
-    const { createRSVPOrder } = await import("./orderStore");
+    const { createRSVPOrder } = await import("./orderStore.js");
 
     // Create RSVP payload
     const rsvpPayload = {

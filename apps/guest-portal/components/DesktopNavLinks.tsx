@@ -19,7 +19,8 @@ export default function DesktopNavLinks() {
 
     // Scroll effect (originally in Navbar.tsx) handles global nav styling
     useEffect(() => {
-        function onScroll() {
+        function applyNavStyle() {
+            const isDark = document.documentElement.classList.contains("dark");
             const progress = Math.min(window.scrollY / 100, 1);
             const header = document.getElementById("navbar-header");
             const nav = document.getElementById("navbar-inner");
@@ -27,11 +28,21 @@ export default function DesktopNavLinks() {
             header.style.transform = `translateY(${progress * 20}px)`;
             nav.style.width = `${100 - progress * 10}%`;
             nav.style.backdropFilter = `blur(${progress * 20}px)`;
-            nav.style.backgroundColor = `rgba(3,3,3,${progress * 0.75})`;
-            nav.style.borderColor = `rgba(255,255,255,${progress * 0.06})`;
+            nav.style.backgroundColor = isDark
+                ? `rgba(3,3,3,${progress * 0.80})`
+                : `rgba(250,250,249,${progress * 0.92})`;
+            nav.style.borderColor = isDark
+                ? `rgba(255,255,255,${progress * 0.06})`
+                : `rgba(0,0,0,${progress * 0.06})`;
         }
-        window.addEventListener("scroll", onScroll, { passive: true });
-        return () => window.removeEventListener("scroll", onScroll);
+        window.addEventListener("scroll", applyNavStyle, { passive: true });
+        // Re-apply whenever the theme class on <html> changes (e.g. toggle while scrolled)
+        const observer = new MutationObserver(applyNavStyle);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        return () => {
+            window.removeEventListener("scroll", applyNavStyle);
+            observer.disconnect();
+        };
     }, []);
 
     // Slide the active nav pill to the current link's position after each route change.

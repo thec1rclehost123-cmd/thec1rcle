@@ -128,6 +128,29 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
     });
 
     /**
+     * POST /api/v1/promoter-links/track-click
+     * Records a click on a promoter link by code. No auth required — called from guest-portal.
+     */
+    const TrackClickBody = z.object({ code: z.string() }).strict();
+    fastify.post('/track-click', {
+        preHandler: [fastify.validate({ body: TrackClickBody })]
+    }, async (request: any, reply) => {
+        const { code } = request.body;
+        const snap = await fastify.db.collection(LINKS_COL)
+            .where('code', '==', code)
+            .where('isActive', '==', true)
+            .limit(1)
+            .get();
+        if (snap.empty) return reply.status(404).send({ error: 'Link not found' });
+        const { FieldValue } = await import('firebase-admin/firestore');
+        await snap.docs[0].ref.update({
+            clicks: FieldValue.increment(1),
+            updatedAt: new Date().toISOString(),
+        });
+        return { success: true };
+    });
+
+    /**
      * PATCH /api/v1/promoter-links/:id/deactivate
      */
     fastify.patch('/:id/deactivate', {

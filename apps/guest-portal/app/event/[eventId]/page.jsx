@@ -1,12 +1,16 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import EventRSVP from "../../../components/EventRSVP";
-import { getEvent, getEventInterested } from "../../../lib/server/eventStore";
+import { getEvent as getEventBase, getEventInterested } from "../../../lib/server/eventStore";
 import { getHostProfile as getMockHostProfile } from "../../../data/hosts";
 import { PUBLIC_LIFECYCLE_STATES } from "@c1rcle/core/events";
 
+// Cache getEvent so metadata + page render share a single Firestore fetch
+const getEvent = cache(getEventBase);
 
 export async function generateMetadata({ params }) {
-  const identifier = decodeURIComponent(params.eventId);
+  const { eventId } = await params;
+  const identifier = decodeURIComponent(eventId);
   const event = await getEvent(identifier);
 
   if (!event || !PUBLIC_LIFECYCLE_STATES.includes(event.lifecycle) && event.lifecycle !== "cancelled") {
@@ -50,9 +54,25 @@ const AuroraBackground = () => (
   </div>
 );
 
+const toPartnerSlug = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, "")
+    .replace(/[^\w\s-]/g, "")
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
 export default async function EventDetailPage({ params }) {
-  const identifier = decodeURIComponent(params.eventId);
-  const event = await getEvent(identifier);
+  const { eventId } = await params;
+  const identifier = decodeURIComponent(eventId);
+
+  // Fetch event and social proof in parallel
+  const [event, interestedData] = await Promise.all([
+    getEvent(identifier),
+    getEventInterested(identifier)
+  ]);
 
   if (!event) {
     return (
@@ -234,18 +254,16 @@ export default async function EventDetailPage({ params }) {
       ...mock,
       type: "host",
       handle: event.host || "@guest",
-      slug: (event.host || "@guest").replace("@", "").replace(/\./g, "-")
+      slug: toPartnerSlug(event.host || "@guest")
     };
   }
 
   // Ensure hostProfile always has a type and fallback slug
   if (hostProfile && !hostProfile.type) hostProfile.type = "host";
   if (hostProfile && !hostProfile.slug) {
-    hostProfile.slug = hostProfile.handle ? hostProfile.handle.replace("@", "").replace(/\./g, "-") : hostProfile.id;
+    hostProfile.slug = hostProfile.handle ? toPartnerSlug(hostProfile.handle) : hostProfile.id;
   }
 
-  // Fetch live social proof — first 20 saves for avatar display
-  const interestedData = await getEventInterested(event.id);
 
   return (
     <EventRSVP
@@ -256,4 +274,3 @@ export default async function EventDetailPage({ params }) {
     />
   );
 }
-

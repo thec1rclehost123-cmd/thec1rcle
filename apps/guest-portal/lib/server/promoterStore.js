@@ -3,7 +3,7 @@
  * Manages promoter link resolution and conversion tracking
  */
 
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+import { getAdminDb, isFirebaseConfigured } from "../firebase/admin.js";
 import { randomUUID } from "node:crypto";
 
 const LINKS_COLLECTION = "promoter_links";

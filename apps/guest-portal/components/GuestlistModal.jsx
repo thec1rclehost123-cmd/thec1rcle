@@ -67,23 +67,23 @@ export default function GuestlistModal({ guests = [], open, onClose, title = "Gu
                         animate={{ y: 0, opacity: 1, scale: 1 }}
                         exit={{ y: 40, opacity: 0, scale: 0.96 }}
                         transition={{ duration: 0.35, ease: "easeOut" }}
-                        className="glass-panel card-hover relative w-full max-w-xl rounded-[40px] border border-white/15 bg-black/80 p-6 text-white shadow-glow"
+                        className="glass-panel card-hover relative w-full max-w-xl rounded-[40px] border border-black/[0.08] dark:border-white/15 bg-white dark:bg-black/80 p-6 text-black dark:text-white dark:shadow-glow"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="flex items-start justify-between gap-4">
                             <div>
-                                <p className="text-xs uppercase tracking-[0.5em] text-white/40">{title}</p>
+                                <p className="text-xs uppercase tracking-[0.5em] text-black/40 dark:text-white/40">{title}</p>
                                 <h3 className="mt-2 text-2xl font-display">
                                     {title === "Interested List" ? "Who's Interested" : "Community Going"}
                                 </h3>
-                                <p className="text-sm text-white/60">
+                                <p className="text-sm text-black/60 dark:text-white/60">
                                     {title === "Interested List" ? "Find them in the app to connect." : "Tap follow to add them to your orbit."}
                                 </p>
                             </div>
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/60 transition hover:border-white/40 hover:text-white"
+                                className="rounded-full border border-black/[0.08] dark:border-white/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-black/60 dark:text-white/60 transition hover:border-black/30 dark:hover:border-white/40 hover:text-black dark:hover:text-white"
                                 aria-label="Close guestlist"
                             >
                                 Close
@@ -96,7 +96,7 @@ export default function GuestlistModal({ guests = [], open, onClose, title = "Gu
                                     initial={{ opacity: 0, y: 12 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: index * 0.02 }}
-                                    className="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur"
+                                    className="flex items-center justify-between gap-4 rounded-3xl border border-black/[0.06] dark:border-white/10 bg-black/[0.02] dark:bg-white/5 px-4 py-3 backdrop-blur"
                                 >
                                     <div className="flex items-center gap-3">
                                         <span
@@ -107,13 +107,13 @@ export default function GuestlistModal({ guests = [], open, onClose, title = "Gu
                                         </span>
                                         <div>
                                             <p className="text-base font-semibold">{guest.name}</p>
-                                            <p className="text-xs uppercase tracking-[0.35em] text-white/50">{guest.handle}</p>
-                                            <p className="text-xs text-white/60">{guest.stats}</p>
+                                            <p className="text-xs uppercase tracking-[0.35em] text-black/50 dark:text-white/50">{guest.handle}</p>
+                                            <p className="text-xs text-black/60 dark:text-white/60">{guest.stats}</p>
                                         </div>
                                     </div>
                                     <button
                                         type="button"
-                                        className="rounded-full border border-white/20 px-4 py-1.5 text-[11px] uppercase tracking-[0.35em] text-white/80 transition hover:border-white/50"
+                                        className="rounded-full border border-black/[0.10] dark:border-white/20 px-4 py-1.5 text-[11px] uppercase tracking-[0.35em] text-black/80 dark:text-white/80 transition hover:border-black/30 dark:hover:border-white/50"
                                     >
                                         Follow
                                     </button>

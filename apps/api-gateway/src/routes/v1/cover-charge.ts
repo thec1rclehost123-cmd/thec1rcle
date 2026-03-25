@@ -17,6 +17,7 @@ import {
     checkAndIncrementVelocity,
     generateReconciliation,
 } from '@c1rcle/core/cover-charge-engine';
+import { validateScannerSession } from '../../lib/scannerSessions';
 
 // =============================================================================
 // Zod Schemas
@@ -94,16 +95,10 @@ async function validateScannerToken(fastify: FastifyInstance, request: any): Pro
         return true;
     } catch {}
 
-    // Fall back to scanner session token stored in event_codes
-    const snap = await (fastify as any).db.collection('event_codes')
-        .where('activeSessionToken', '==', token)
-        .where('isRevoked', '==', false)
-        .limit(1)
-        .get();
-    if (snap.empty) return false;
-    const data = snap.docs[0].data();
-    if (data.sessionExpiresAt && new Date(data.sessionExpiresAt) < new Date()) return false;
-    request.scannerCodeId = snap.docs[0].id;
+    const session = await validateScannerSession(fastify, token);
+    if (!session.authorized) return false;
+    request.scannerCodeId = session.codeDoc.id;
+    request.scannerCodeData = session.codeData;
     return true;
 }
 

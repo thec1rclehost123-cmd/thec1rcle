@@ -156,7 +156,8 @@ export async function listVenues({ area, vibe, search, tablesOnly } = {}) {
 
     if (area) query = query.where("area", "==", area);
 
-    const snapshot = await trackedGet(query.limit(50), "venueStore.listVenues");
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore timeout")), 8000));
+    const snapshot = await Promise.race([trackedGet(query.limit(50), "venueStore.listVenues"), timeout]);
     let venues = snapshot.docs.map(doc => {
         const serialized = serializeDoc(doc);
         return {

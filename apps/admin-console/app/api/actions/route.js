@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { adminStore, TIER2_ACTIONS, TIER3_ACTIONS } from "@/lib/server/adminStore";
 import { withAdminAuth } from "@/lib/server/adminMiddleware";
+import { rateLimit } from "@/lib/server/rateLimit";
+
+const DatabaseCorrectionParamsSchema = z.object({
+    id: z.string().optional(),
+    after: z.record(z.string(), z.unknown()),
+    type: z.string().optional(),
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +23,10 @@ const GOVERNANCE_CONFIG = {
 async function handler(req) {
     const start = Date.now();
     try {
+        if (!await rateLimit(req, 10)) {
+            return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
+        }
+
         const body = await req.json();
         const { action, targetId, reason, evidence, params } = body;
         const adminId = req.user.uid;
@@ -28,6 +40,17 @@ async function handler(req) {
 
         if (!action || !targetId) {
             return NextResponse.json({ error: "Action and targetId are required" }, { status: 400 });
+        }
+
+        // Idempotency guard for financial actions — prevents double-execution on retry/double-click
+        const IDEMPOTENT_ACTIONS = ['FINANCIAL_REFUND', 'PAYOUT_BATCH_RUN'];
+        if (IDEMPOTENT_ACTIONS.includes(action) && body.idempotencyKey) {
+            const isDuplicate = await adminStore.checkRecentActionDuplicate(
+                adminId, action, targetId, body.idempotencyKey
+            );
+            if (isDuplicate) {
+                return NextResponse.json({ success: true, idempotent: true });
+            }
         }
 
         const isTier2 = TIER2_ACTIONS.includes(action);
@@ -112,9 +135,17 @@ async function handler(req) {
             case 'PAYOUT_BATCH_RUN':
                 await adminStore.executePayoutBatch(targetId, adminId, reason, evidence);
                 break;
-            case 'DATABASE_CORRECTION':
-                await adminStore.databaseCorrection(targetId, params.id || 'global', params.after, adminId, reason, context);
+            case 'DATABASE_CORRECTION': {
+                if (adminRole !== 'super') {
+                    return NextResponse.json({ error: "Not Found" }, { status: 404 });
+                }
+                const parsedParams = DatabaseCorrectionParamsSchema.safeParse(params);
+                if (!parsedParams.success) {
+                    return NextResponse.json({ error: "Invalid params for DATABASE_CORRECTION" }, { status: 400 });
+                }
+                await adminStore.databaseCorrection(targetId, parsedParams.data.id || 'global', parsedParams.data.after, adminId, reason, context);
                 break;
+            }
             default:
                 return NextResponse.json({ error: "Unknown action" }, { status: 400 });
         }

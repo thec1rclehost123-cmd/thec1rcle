@@ -41,7 +41,7 @@ export default function CheckoutAwareShell({ children, navbar, footer }) {
     <>
       {isLoaded && <PageLoadingAnimation />}
       {isLoaded && <ScrollProgressBar />}
-      <div className="page-shell relative flex min-h-screen flex-col bg-white dark:bg-black text-black dark:text-white transition-colors duration-300 overflow-x-hidden">
+      <div className="page-shell relative flex min-h-screen flex-col bg-white dark:bg-black text-black dark:text-white transition-colors duration-300">
         {/* Ambient background gradients (dark mode only) */}
         <div className="pointer-events-none fixed inset-0 -z-10 opacity-0 dark:opacity-90 transition-opacity duration-300" style={{ contain: "strict" }}>
           <div className="absolute inset-x-0 top-0 h-[60vh] bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),transparent_55%)] blur-[120px]" style={{ willChange: "filter", transform: "translateZ(0)" }} />

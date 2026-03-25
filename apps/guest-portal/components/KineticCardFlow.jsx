@@ -1,262 +1,353 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+    motion,
+    useAnimationFrame,
+    useMotionTemplate,
+    useMotionValue,
+    useReducedMotion,
+    useTransform,
+} from "framer-motion";
 import { resolvePoster } from "@c1rcle/core/events";
 import { formatEventDate } from "@c1rcle/core/time";
 import { useRouter } from "next/navigation";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// CONFIGURATION — Cinematic Conveyor Belt
-// ═══════════════════════════════════════════════════════════════════════════════
-const N_VISIBLE = 15;
-const N_BUFFER = 4;
-const N_SLOTS = N_VISIBLE + N_BUFFER; // 19
-const HALF = Math.floor(N_SLOTS / 2); // 9
+const AUTO_SCROLL_PX_PER_SECOND = 42;
+const MIN_CARD_WIDTH = 168;
+const MAX_CARD_WIDTH = 330;
+const SINGLE_CARD_MAX_WIDTH = 420;
+const MIN_CARD_HEIGHT_RATIO = 1.42;
+const MIN_COPIES = 3;
 
-const BASE_W = 400;              // card width at scale 1.0 (+25%)
-const BASE_H = 600;              // card height at scale 1.0 (+25%)
-const CONTAINER_H = 720;         // section height
-
-const PX_PER_SEC = 30;           // cinematic velocity (spec: 25–40 px/s)
-const OVERLAP_FRAC = 0.06;       // 6% overlap between adjacent cards (spec: 4–8%)
-
-// Scale table: user-specified dramatic falloff
-const SCALES = [1.0, 0.6, 0.5, 0.45, 0.40, 0.37, 0.33, 0.30, 0.27, 0.24];
-
-/** Smooth linear interpolation between scale stops — zero stepping artifacts */
-function scaleAt(dist) {
-    const d = Math.abs(dist);
-    const max = SCALES.length - 1;
-    if (d >= max) return SCALES[max];
-    const lo = Math.floor(d);
-    const f = d - lo;
-    return SCALES[lo] + (SCALES[lo + 1] - SCALES[lo]) * f;
+function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
-export default function KineticCardFlow({ events = [] }) {
-    const containerRef = useRef(null);
-    const rafRef = useRef(null);
-    const prevTRef = useRef(null);
-    const offsetRef = useRef(0);
-    const hoveredRef = useRef(-1);
-    const router = useRouter();
+function wrap(value, min, max) {
+    const range = max - min;
+    if (range <= 0) return min;
+    return ((((value - min) % range) + range) % range) + min;
+}
 
-    const evts = events?.length > 0 ? events : [];
+function getEventHref(event) {
+    if (event?.href) return event.href;
+    if (event?.slug) return `/event/${event.slug}`;
+    if (event?.id) return `/event/${event.id}`;
+    if (event?.handle) return `/event/${event.handle}`;
+    return null;
+}
 
-    const slots = useRef(
-        Array.from({ length: N_SLOTS }, (_, i) => ({
-            i, evIdx: 0, el: null, pos: 0,
-            scale: 1, w: BASE_W, x: -9999,
-            hLift: 0, hScl: 1,
-        }))
-    );
+function getVenueLabel(event) {
+    return event?.venueName || event?.venue?.name || event?.venue || event?.location || "Venue TBA";
+}
 
-    // ── Imperatively paint card contents ──────────────────────────────────────
-    const paint = useCallback((slot) => {
-        const el = slot.el;
-        if (!el || !evts.length) return;
-        const ev = evts[((slot.evIdx % evts.length) + evts.length) % evts.length];
-        if (!ev) return;
-        el.dataset.eventId = ev.id || "";
-        el.dataset.slug = ev.slug || "";
-        const img = el.querySelector("[data-poster]");
-        const title = el.querySelector("[data-title]");
-        const date = el.querySelector("[data-date]");
-        const venue = el.querySelector("[data-venue]");
-        const live = el.querySelector("[data-live]");
-        if (img) { const s = resolvePoster(ev); if (img.src !== s) img.src = s; }
-        if (title) title.textContent = ev.title || "Untitled";
-        if (date) date.textContent = formatEventDate(ev.startDate || ev.date || Date.now());
-        if (venue) venue.textContent = ev.venueName || ev.venue?.name || "TBA";
-        if (live) live.style.display = ev.lifecycle === "live" ? "flex" : "none";
-    }, [evts]);
+function getDateLabel(event) {
+    return formatEventDate(event?.startDate || event?.date || Date.now());
+}
 
-    // ── Core animation tick — 60 fps GPU-accelerated ─────────────────────────
-    const tick = useCallback((now) => {
-        if (!evts.length || !containerRef.current) {
-            rafRef.current = requestAnimationFrame(tick);
-            return;
-        }
-        const dt = prevTRef.current ? Math.min(now - prevTRef.current, 50) : 16;
-        prevTRef.current = now;
+function buildRail(events, copies) {
+    return Array.from({ length: events.length * copies }, (_, index) => ({
+        event: events[index % events.length],
+        key: `${events[index % events.length]?.id || "event"}-${index}`,
+    }));
+}
 
-        const cw = containerRef.current.offsetWidth;
-        const evLen = evts.length;
+function useElementWidth(ref) {
+    const [width, setWidth] = useState(0);
 
-        // ── 1. Advance offset — constant linear velocity, never stops ────────
-        offsetRef.current += (PX_PER_SEC / 1000 / BASE_W) * dt;
-
-        const baseShift = Math.floor(offsetRef.current);
-        const frac = offsetRef.current - baseShift;
-
-        // ── 2. Assign continuous positions & resolve event indices ────────────
-        for (let i = 0; i < N_SLOTS; i++) {
-            const s = slots.current[i];
-            let vp = ((i - baseShift) % N_SLOTS + N_SLOTS) % N_SLOTS;
-            if (vp > HALF) vp -= N_SLOTS;
-            s.pos = vp - frac;
-            s.scale = scaleAt(s.pos);
-            s.w = BASE_W * s.scale;
-
-            let nev = ((i + baseShift) % evLen + evLen) % evLen;
-            if (s.evIdx !== nev) { s.evIdx = nev; paint(s); }
-        }
-
-        // ── 3. Sort by position → compute edge-to-edge X layout ─────────────
-        const sorted = [...slots.current].sort((a, b) => a.pos - b.pos);
-
-        // Find center slot (closest to pos 0)
-        let ci = 0, minD = Infinity;
-        for (let i = 0; i < sorted.length; i++) {
-            const d = Math.abs(sorted[i].pos);
-            if (d < minD) { minD = d; ci = i; }
-        }
-
-        // Anchor center card — drift proportional to its fractional offset
-        const cs = sorted[ci];
-        cs.x = (cw - cs.w) / 2 + cs.pos * cs.w;
-
-        // Chain leftward: right edge of card[i] overlaps left edge of card[i+1]
-        for (let i = ci - 1; i >= 0; i--)
-            sorted[i].x = sorted[i + 1].x - sorted[i].w * (1 - OVERLAP_FRAC);
-
-        // Chain rightward: left edge of card[i] overlaps right edge of card[i-1]
-        for (let i = ci + 1; i < sorted.length; i++)
-            sorted[i].x = sorted[i - 1].x + sorted[i - 1].w - sorted[i].w * OVERLAP_FRAC;
-
-        // ── 4. Apply transforms to DOM ───────────────────────────────────────
-        const yBase = (CONTAINER_H - BASE_H) / 2;
-
-        for (const s of slots.current) {
-            if (!s.el) continue;
-            const ad = Math.abs(s.pos);
-            const isH = hoveredRef.current === s.i;
-            const lerp = 0.08;
-
-            // Smooth hover spring
-            s.hLift += ((isH ? -12 : 0) - s.hLift) * lerp;
-            s.hScl += ((isH ? 1.05 : 1) - s.hScl) * lerp;
-
-            // Buffer fade
-            let op = 1;
-            if (ad > 6.5) op = Math.max(0, 7.5 - ad);
-
-            const z = isH ? 200 : Math.round(100 - ad * 10);
-
-            // Outer: position only (no layout reflow)
-            s.el.style.transform = `translate3d(${s.x}px, ${yBase + s.hLift}px, 0)`;
-            s.el.style.zIndex = String(z);
-            s.el.style.opacity = String(op);
-            s.el.style.pointerEvents = ad < 7.5 ? "auto" : "none";
-
-            // Inner: scale from left-center so left edge stays anchored to layout
-            const inner = s.el.querySelector(".card-inner");
-            if (inner) {
-                inner.style.transform = `scale(${s.scale * s.hScl})`;
-                inner.style.boxShadow = isH
-                    ? "0 25px 50px -10px rgba(255,75,31,0.3), 0 0 0 1px rgba(255,75,31,0.25)"
-                    : `0 20px 40px -10px rgba(0,0,0,${0.3 + ad * 0.04})`;
-                inner.style.borderColor = isH ? "rgba(255,75,31,0.4)" : "rgba(255,255,255,0.06)";
-            }
-
-            const dk = s.el.querySelector(".card-darken");
-            if (dk) dk.style.opacity = String(isH ? 0 : Math.min(0.55, ad * 0.12));
-        }
-
-        rafRef.current = requestAnimationFrame(tick);
-    }, [evts, paint]);
-
-    // ── Lifecycle ────────────────────────────────────────────────────────────
     useEffect(() => {
-        if (!evts.length) return;
-        slots.current.forEach((s, i) => { s.evIdx = i % evts.length; paint(s); });
-        rafRef.current = requestAnimationFrame(tick);
-        return () => { cancelAnimationFrame(rafRef.current); prevTRef.current = null; };
-    }, [tick, evts, paint]);
+        const node = ref.current;
+        if (!node) return undefined;
 
-    if (!evts.length) return null;
+        const updateWidth = (nextWidth) => {
+            setWidth((current) => {
+                if (Math.abs(current - nextWidth) < 1) return current;
+                return nextWidth;
+            });
+        };
+
+        updateWidth(node.getBoundingClientRect().width);
+
+        if (typeof ResizeObserver === "undefined") {
+            const handleResize = () => updateWidth(node.getBoundingClientRect().width);
+            window.addEventListener("resize", handleResize);
+            return () => window.removeEventListener("resize", handleResize);
+        }
+
+        const observer = new ResizeObserver((entries) => {
+            const nextWidth = entries[0]?.contentRect?.width || node.getBoundingClientRect().width;
+            updateWidth(nextWidth);
+        });
+
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, [ref]);
+
+    return width;
+}
+
+function EventCardFace({ event, overlayOpacity, imageScale, imageFilter, accentOpacity, sheenOpacity }) {
+    const poster = resolvePoster(event);
+    const dateLabel = getDateLabel(event);
+    const venueLabel = getVenueLabel(event);
+    const isLive = event?.lifecycle === "live";
+
+    return (
+        <>
+            <motion.img
+                src={poster}
+                alt={event?.title || "Featured event"}
+                draggable="false"
+                loading="lazy"
+                decoding="async"
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{
+                    scale: imageScale,
+                    filter: imageFilter,
+                }}
+            />
+
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,126,74,0.22),transparent_42%)]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/10 to-black/65" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/25 to-transparent" />
+            <motion.div
+                className="absolute inset-0 bg-[#040202]"
+                style={{ opacity: overlayOpacity }}
+            />
+            <motion.div
+                className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.28)_0%,rgba(255,255,255,0.08)_18%,transparent_34%)]"
+                style={{ opacity: sheenOpacity }}
+            />
+            <motion.div
+                className="absolute inset-[1px] rounded-[27px] border border-[#ff6a3d]/80"
+                style={{ opacity: accentOpacity }}
+            />
+            <motion.div
+                className="absolute inset-x-8 bottom-0 h-24 rounded-full bg-[#ff6a3d] blur-3xl"
+                style={{ opacity: accentOpacity }}
+            />
+
+            <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-white/12 bg-black/35 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.28em] text-white/90 backdrop-blur-md">
+                <span className={`h-1.5 w-1.5 rounded-full ${isLive ? "bg-[#ff5a2b] animate-pulse" : "bg-[#ffd1c2]"}`} />
+                {isLive ? "Live" : "C1RCLE Pick"}
+            </div>
+
+            <div className="absolute inset-x-0 bottom-0 z-10 p-5 md:p-6">
+                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.28em] text-[#ff6a3d]">
+                    {dateLabel}
+                </p>
+                <h3 className="line-clamp-3 text-2xl font-black uppercase leading-[0.88] tracking-[-0.04em] text-white md:text-[2rem]">
+                    {event?.title || "Untitled Event"}
+                </h3>
+                <div className="mt-4 flex items-center gap-2 text-sm font-medium text-white/72">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-white/6 text-white/90">
+                        •
+                    </span>
+                    <p className="truncate">{venueLabel}</p>
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.24em] text-white/58">
+                    <span>Featured Drop</span>
+                    <span className="text-[#ff9b7d]">Enter</span>
+                </div>
+            </div>
+        </>
+    );
+}
+
+function FlowCard({
+    event,
+    index,
+    centerIndex,
+    cardPitch,
+    arcRadius,
+    progress,
+    cardWidth,
+    cardHeight,
+    centerYRatio,
+    onOpen,
+}) {
+    const baseOffset = (index - centerIndex) * cardPitch;
+    const maxAngle = Math.PI * 0.58;
+
+    const theta = () => clamp((baseOffset - progress.get()) / arcRadius, -maxAngle, maxAngle);
+    const focus = useTransform(() => {
+        const angle = Math.abs(theta());
+        return clamp(1 - angle / (maxAngle * 0.96), 0, 1);
+    });
+
+    const x = useTransform(() => Math.sin(theta()) * arcRadius);
+    const y = useTransform(() => (1 - Math.cos(theta())) * cardHeight * 0.32);
+    const z = useTransform(() => (Math.cos(theta()) - 1) * arcRadius * 1.25);
+    const opacity = useTransform(focus, [0, 1], [0.2, 1]);
+    const rotateY = useTransform(() => (-theta() * 180) / Math.PI);
+    const rotateZ = useTransform(() => clamp((theta() * 180) / Math.PI * 0.08, -4.5, 4.5));
+    const overlayOpacity = useTransform(focus, [0, 1], [0.48, 0.04]);
+    const imageScale = useTransform(focus, [0, 1], [1.08, 1.02]);
+    const imageBrightness = useTransform(focus, [0, 1], [0.62, 1]);
+    const imageSaturate = useTransform(focus, [0, 1], [0.8, 1.06]);
+    const accentOpacity = useTransform(focus, [0, 1], [0.06, 0.48]);
+    const sheenOpacity = useTransform(focus, [0, 1], [0.08, 0.4]);
+    const imageFilter = useMotionTemplate`brightness(${imageBrightness}) saturate(${imageSaturate})`;
+    const shadowAlpha = useTransform(focus, [0, 1], [0.1, 0.34]);
+    const shadow = useMotionTemplate`0 30px 80px rgba(0, 0, 0, ${shadowAlpha})`;
+    const zIndex = useTransform(() => Math.round(120 + focus.get() * 180));
+
+    return (
+        <motion.button
+            type="button"
+            className="absolute left-1/2 top-1/2 overflow-hidden rounded-[28px] border border-white/10 bg-[#120907] text-left outline-none focus-visible:ring-2 focus-visible:ring-[#ff6a3d]/80"
+            style={{
+                width: cardWidth,
+                height: cardHeight,
+                marginLeft: -cardWidth / 2,
+                marginTop: -cardHeight / 2,
+                top: `${centerYRatio * 100}%`,
+                x,
+                y,
+                z,
+                rotateY,
+                rotateZ,
+                opacity,
+                zIndex,
+                boxShadow: shadow,
+                transformStyle: "preserve-3d",
+                transformOrigin: "center 78%",
+                willChange: "transform",
+            }}
+            onClick={() => onOpen(event)}
+            aria-label={event?.title ? `Open ${event.title}` : "Open featured event"}
+        >
+            <EventCardFace
+                event={event}
+                overlayOpacity={overlayOpacity}
+                imageScale={imageScale}
+                imageFilter={imageFilter}
+                accentOpacity={accentOpacity}
+                sheenOpacity={sheenOpacity}
+            />
+        </motion.button>
+    );
+}
+
+function SingleFeaturedCard({ event, cardWidth, cardHeight, onOpen }) {
+    return (
+        <motion.button
+            type="button"
+            className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[#120907] text-left outline-none focus-visible:ring-2 focus-visible:ring-[#ff6a3d]/80"
+            style={{
+                width: cardWidth,
+                height: cardHeight,
+                boxShadow: "0 38px 110px rgba(0, 0, 0, 0.34)",
+            }}
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            onClick={() => onOpen(event)}
+            aria-label={event?.title ? `Open ${event.title}` : "Open featured event"}
+        >
+            <EventCardFace
+                event={event}
+                overlayOpacity={0.08}
+                imageScale={1.03}
+                imageFilter="brightness(1) saturate(1.04)"
+                accentOpacity={0.28}
+                sheenOpacity={0.24}
+            />
+        </motion.button>
+    );
+}
+
+export default function KineticCardFlow({ events = [] }) {
+    const router = useRouter();
+    const shouldReduceMotion = useReducedMotion();
+    const containerRef = useRef(null);
+    const progress = useMotionValue(0);
+    const containerWidth = useElementWidth(containerRef);
+
+    const stageWidth = containerWidth || 1200;
+    const isMobile = stageWidth < 768;
+    const cardWidth = clamp(stageWidth * (isMobile ? 0.56 : 0.24), MIN_CARD_WIDTH, MAX_CARD_WIDTH);
+    const cardHeight = Math.round(cardWidth * MIN_CARD_HEIGHT_RATIO);
+    const cardPitch = cardWidth;
+    const arcRadius = Math.max(stageWidth * (isMobile ? 0.54 : 0.48), cardWidth * (isMobile ? 1.7 : 1.95));
+    const stageHeight = Math.round(cardHeight + cardHeight * (isMobile ? 0.48 : 0.6));
+    const centerYRatio = isMobile ? 0.43 : 0.4;
+    const cycleWidth = Math.max(cardPitch * events.length, 1);
+    const visibleSlots = Math.ceil((stageWidth + cardWidth * 2) / cardPitch);
+    const copies = Math.max(MIN_COPIES, Math.ceil((visibleSlots + events.length * 2) / Math.max(events.length, 1)));
+    const rail = useMemo(() => buildRail(events, copies), [events, copies]);
+    const centerIndex = Math.floor(rail.length / 2);
+
+    useEffect(() => {
+        progress.set(cycleWidth > 0 ? wrap(progress.get(), 0, cycleWidth) : 0);
+    }, [cycleWidth, progress]);
+
+    useAnimationFrame((_, delta) => {
+        if (shouldReduceMotion || events.length < 2 || cycleWidth <= 0) return;
+        const next = wrap(progress.get() + (AUTO_SCROLL_PX_PER_SECOND * delta) / 1000, 0, cycleWidth);
+        progress.set(next);
+    });
+
+    const openEvent = (event) => {
+        const href = getEventHref(event);
+        if (href) router.push(href);
+    };
+
+    if (!events.length) return null;
+
+    if (events.length === 1) {
+        const staticWidth = clamp(stageWidth * (isMobile ? 0.84 : 0.32), MIN_CARD_WIDTH, SINGLE_CARD_MAX_WIDTH);
+        const staticHeight = Math.round(staticWidth * MIN_CARD_HEIGHT_RATIO);
+
+        return (
+            <div
+                ref={containerRef}
+                className="relative mx-auto flex w-full items-center justify-center px-4"
+                style={{ minHeight: staticHeight + 48 }}
+            >
+                <SingleFeaturedCard
+                    event={events[0]}
+                    cardWidth={staticWidth}
+                    cardHeight={staticHeight}
+                    onOpen={openEvent}
+                />
+            </div>
+        );
+    }
 
     return (
         <div
             ref={containerRef}
-            className="relative w-full overflow-hidden select-none"
-            style={{ height: CONTAINER_H }}
-            onMouseLeave={() => { hoveredRef.current = -1; }}
+            className="relative mx-auto w-full select-none overflow-hidden"
+            style={{
+                height: stageHeight,
+                perspective: "1800px",
+            }}
         >
-            {/* ── Cinematic Background Glow ── */}
-            <div className="absolute pointer-events-none z-0" style={{
-                top: "50%", left: "50%", width: 1000, height: 800,
-                transform: "translate(-50%, -50%)",
-                background: "radial-gradient(ellipse at center, rgba(255,75,31,0.15) 0%, rgba(200,50,15,0.06) 40%, rgba(80,20,5,0.02) 65%, transparent 85%)",
-                filter: "blur(40px)",
-                animation: "kineticGlow 25s ease-in-out infinite alternate",
-            }} />
-            <div className="absolute pointer-events-none z-0" style={{
-                top: "50%", left: "50%", width: 600, height: 600,
-                transform: "translate(-50%, -50%)",
-                background: "radial-gradient(circle, rgba(255,144,104,0.12) 0%, transparent 70%)",
-                filter: "blur(80px)",
-                animation: "kineticGlow 20s ease-in-out infinite alternate-reverse",
-            }} />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,98,53,0.22),transparent_40%)]" />
+            <div className="pointer-events-none absolute left-1/2 top-[12%] h-[110%] w-[140%] -translate-x-1/2 rounded-[999px] border border-white/[0.05]" />
+            <div className="pointer-events-none absolute left-1/2 top-[20%] h-[96%] w-[118%] -translate-x-1/2 rounded-[999px] border border-[#ff6a3d]/[0.08]" />
+            <div className="pointer-events-none absolute inset-y-0 left-0 z-[400] w-24 bg-gradient-to-r from-[#050505] via-[#050505]/86 to-transparent md:w-40" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 z-[400] w-24 bg-gradient-to-l from-[#050505] via-[#050505]/86 to-transparent md:w-40" />
 
-            {/* ── Card Slots ── */}
             <div className="absolute inset-0">
-                {slots.current.map((slot, k) => (
-                    <div
-                        key={k}
-                        ref={(el) => { slot.el = el; }}
-                        className="absolute will-change-transform cursor-pointer"
-                        style={{ left: 0, top: 0, transform: "translate3d(-9999px,0,0)" }}
-                        onMouseEnter={() => { hoveredRef.current = k; }}
-                        onClick={() => {
-                            const slug = slot.el?.dataset?.slug;
-                            const evId = slot.el?.dataset?.eventId;
-                            if (slug || evId) router.push(`/event/${slug || evId}`);
-                        }}
-                    >
-                        <div
-                            className="card-inner relative rounded-2xl overflow-hidden flex flex-col justify-end will-change-transform bg-zinc-950 border border-white/[0.06] transition-[border-color] duration-500"
-                            style={{ width: BASE_W, height: BASE_H, transformOrigin: "left center" }}
-                        >
-                            <img data-poster src="/events/placeholder.svg" alt="" draggable="false" decoding="async"
-                                className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent pointer-events-none" />
-                            <div className="absolute inset-x-0 top-0 h-[35%] bg-gradient-to-b from-black/30 to-transparent pointer-events-none" />
-                            <div className="card-darken absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0 }} />
-
-                            <div data-live className="absolute top-3 right-3 bg-red-600 text-white text-[9px] font-black uppercase tracking-[0.2em] px-2.5 py-1 rounded-sm flex items-center gap-1.5 shadow-lg backdrop-blur-sm" style={{ display: "none" }}>
-                                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> Live
-                            </div>
-
-                            <div className="relative z-10 p-4 w-full pointer-events-none">
-                                <p data-date className="text-[#ff4b1f] text-[10px] font-bold uppercase tracking-[0.15em] mb-1 drop-shadow-sm" />
-                                <h3 data-title className="text-white font-bold text-sm leading-snug line-clamp-2 drop-shadow-md mb-0.5" />
-                                <div className="flex items-center gap-1.5 mt-1 text-white/55">
-                                    <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.242-4.243a8 8 0 1111.314 0z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
-                                    <p data-venue className="text-[11px] font-medium truncate drop-shadow-sm" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                {rail.map(({ event, key }, index) => (
+                    <FlowCard
+                        key={key}
+                        event={event}
+                        index={index}
+                        centerIndex={centerIndex}
+                        cardPitch={cardPitch}
+                        arcRadius={arcRadius}
+                        progress={progress}
+                        cardWidth={cardWidth}
+                        cardHeight={cardHeight}
+                        centerYRatio={centerYRatio}
+                        onOpen={openEvent}
+                    />
                 ))}
             </div>
-
-            {/* ── Cinematic Edge Fades ── */}
-            <div className="absolute top-0 bottom-0 left-0 w-40 bg-gradient-to-r from-[#050505] via-[#050505]/80 to-transparent pointer-events-none z-[200]" />
-            <div className="absolute top-0 bottom-0 right-0 w-40 bg-gradient-to-l from-[#050505] via-[#050505]/80 to-transparent pointer-events-none z-[200]" />
-
-            <style jsx global>{`
-                @keyframes kineticGlow {
-                    0%   { opacity: 0.6; transform: translate(-50%, -50%) scale(0.95); }
-                    100% { opacity: 1;   transform: translate(-50%, -50%) scale(1.1); }
-                }
-            `}</style>
         </div>
     );
 }

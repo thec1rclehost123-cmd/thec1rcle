@@ -4,7 +4,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
+const GATEWAY_URL = process.env.GATEWAY_URL || process.env.NEXT_PUBLIC_GATEWAY_URL;
 
 /**
  * POST /api/scan
@@ -17,7 +17,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const res = await fetch(`${GATEWAY_URL}/api/v1/scan/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: req.headers.get("Authorization") || "",
+        },
         body: JSON.stringify(body)
     });
     const data = await res.json().catch(() => ({}));
@@ -33,7 +36,9 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
     }
     const { searchParams } = new URL(req.url);
-    const res = await fetch(`${GATEWAY_URL}/api/v1/scan/history?${searchParams.toString()}`);
+    const res = await fetch(`${GATEWAY_URL}/api/v1/scan/history?${searchParams.toString()}`, {
+        headers: { Authorization: req.headers.get("Authorization") || "" },
+    });
     const data = await res.json().catch(() => ({}));
     return NextResponse.json(data, { status: res.status });
 }

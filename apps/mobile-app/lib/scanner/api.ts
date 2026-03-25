@@ -78,6 +78,9 @@ export async function registerScannerDevice(
     venueId: string,
     sessionToken: string,
     deviceName = "C1RCLE Scanner",
+    eventId?: string,
+    eventCode?: string,
+    gate?: string,
 ): Promise<{ success: boolean; error?: string; deviceId?: string }> {
     const { signal, cleanup } = makeAbort(8000);
     try {
@@ -85,7 +88,7 @@ export async function registerScannerDevice(
         const res = await fetch(`${SCAN_API}/devices`, {
             method: "POST",
             headers: withScannerAuth(sessionToken, { "Content-Type": "application/json" }),
-            body: JSON.stringify({ deviceId, venueId, deviceName }),
+            body: JSON.stringify({ deviceId, venueId, deviceName, eventId, eventCode, gate }),
             signal,
         });
         cleanup();
@@ -105,6 +108,37 @@ export async function registerScannerDevice(
             success: false,
             error: err.name === "AbortError" ? "Device registration timed out" : "Unable to register device",
         };
+    }
+}
+
+export async function sendScannerHeartbeat(input: {
+    eventId: string;
+    eventCode: string;
+    venueId?: string;
+    gate?: string;
+    deviceName?: string;
+}, sessionToken?: string): Promise<boolean> {
+    const { signal, cleanup } = makeAbort(5000);
+    try {
+        const deviceId = await getScannerDeviceId();
+        const res = await fetch(`${SCAN_API}/heartbeat`, {
+            method: "POST",
+            headers: withScannerAuth(sessionToken, { "Content-Type": "application/json" }),
+            body: JSON.stringify({
+                deviceId,
+                eventId: input.eventId,
+                eventCode: input.eventCode,
+                venueId: input.venueId,
+                gate: input.gate,
+                deviceName: input.deviceName || "C1RCLE Scanner",
+            }),
+            signal,
+        });
+        cleanup();
+        return res.ok;
+    } catch {
+        cleanup();
+        return false;
     }
 }
 

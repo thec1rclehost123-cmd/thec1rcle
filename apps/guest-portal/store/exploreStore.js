@@ -93,12 +93,27 @@ export const useExploreStore = create(
             // Guard localStorage access: during SSR (Next.js server), window is undefined.
             // Returning undefined tells Zustand to skip persistence server-side and only
             // hydrate on the client — prevents "storage.setItem is not a function" crash.
-            storage: createJSONStorage(() =>
-                typeof window !== "undefined" ? localStorage : undefined
-            ),
-            // Persist only the data — transient UI state (status, revalidating, error) is not persisted
+            // Additionally, wrap setItem to catch QuotaExceededError so persistence
+            // failures don't crash the app — the store works fine without cache.
+            storage: createJSONStorage(() => {
+                if (typeof window === "undefined") return undefined;
+                return {
+                    getItem: (name) => localStorage.getItem(name),
+                    setItem: (name, value) => {
+                        try {
+                            localStorage.setItem(name, value);
+                        } catch (e) {
+                            // QuotaExceededError — silently skip cache write
+                            console.warn("[explore-cache] localStorage quota exceeded, skipping cache write.");
+                        }
+                    },
+                    removeItem: (name) => localStorage.removeItem(name),
+                };
+            }),
+            // Persist only the data — transient UI state (status, revalidating, error) is not persisted.
+            // Cap cached events at 24 to keep the payload within localStorage limits.
             partialize: (state) => ({
-                events: state.events,
+                events: state.events.slice(0, 24),
                 lastFetchedAt: state.lastFetchedAt,
                 nextCursor: state.nextCursor,
                 hasMore: state.hasMore,

@@ -20,7 +20,7 @@ export default function MobileBottomNav() {
 
   // Early returns AFTER all hooks
   if (!mounted) return null;
-  if (pathname?.startsWith("/host") || pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/auth") return null;
+  if (pathname?.startsWith("/host") || pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname?.startsWith("/event/") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/auth") return null;
 
   const navItems = [
     { label: "Explore", href: "/explore", icon: Compass },

@@ -109,6 +109,14 @@ export async function POST(request) {
  */
 export async function PATCH(request) {
     try {
+        const decodedToken = await verifyAuth(request);
+        if (!decodedToken) {
+            return NextResponse.json(
+                { error: "Authentication required" },
+                { status: 401 }
+            );
+        }
+
         const body = await request.json();
         const {
             orderId,
@@ -148,10 +156,22 @@ export async function PATCH(request) {
             );
         }
 
+        if (order.userId !== decodedToken.uid) {
+            return NextResponse.json(
+                { error: "Unauthorized" },
+                { status: 403 }
+            );
+        }
+
         // Confirm the order (orderStore handles the rest)
         const confirmedOrder = await confirmOrder(orderId, {
             paymentId: razorpay_payment_id,
-            paymentMethod: "razorpay"
+            razorpayPaymentId: razorpay_payment_id,
+            razorpayOrderId: razorpay_order_id,
+            razorpaySignature: razorpay_signature,
+            provider: "razorpay",
+            paymentMethod: "razorpay",
+            paidAt: new Date().toISOString()
         });
 
         return NextResponse.json({
