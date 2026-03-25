@@ -22,9 +22,9 @@ jobs:
         run: |
           node scripts/smoke-test.js
         env:
-          STAGING_GUEST_URL: "https://staging.thec1rcle.com"
-          STAGING_ADMIN_URL: "https://staging-admin.thec1rcle.com"
-          STAGING_API_URL: "https://api-staging.thec1rcle.com/health"
+          STAGING_GUEST_URL: "https://thec1rcle-guest-portal-git-staging-thec1rcles-projects.vercel.app/"
+          STAGING_ADMIN_URL: "https://thec1rcle-admin-panel-git-staging-thec1rcles-projects.vercel.app/"
+          STAGING_API_URL: "https://thec1rcle-partner-dashboard-git-staging-thec1rcles-projects.vercel.app/api/health"
 
       - name: Notify on Failure
         if: failure()

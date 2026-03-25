@@ -399,7 +399,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     // Remote auto-save (debounced)
     useEffect(() => {
         const timer = setTimeout(async () => {
-            if ((formData.title || formData.description) && formData.lifecycle === 'draft') {
+            if (formData.title?.trim() && formData.lifecycle === 'draft') {
                 setSaveState('saving');
                 try {
                     const payload = {

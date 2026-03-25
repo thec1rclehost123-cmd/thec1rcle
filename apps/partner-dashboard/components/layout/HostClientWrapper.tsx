@@ -85,7 +85,7 @@ export function HostClientWrapper({ children }: HostClientWrapperProps) {
     const { tabVisibility: ctxTabVisibility, profile } = useDashboardAuth();
     const pathname = usePathname();
 
-    const hostPrimaryAction = { label: "+ Create Event", href: "/host/create", icon: PlusCircle };
+    const hostPrimaryAction = { label: "+ Create Event", href: "/host/create/select-venue", icon: PlusCircle };
 
     // Use server-resolved tabVisibility from auth context if set (custom staff profiles).
     // Fall back to role-based defaults so host COHOST/STAFF only see permitted tabs

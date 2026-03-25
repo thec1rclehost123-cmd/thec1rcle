@@ -10,9 +10,9 @@ import { promisify } from 'util';
 const lookup = promisify(dns.lookup);
 
 const services = [
-    { name: 'Guest Portal', url: process.env.STAGING_GUEST_URL || 'https://staging.thec1rcle.com' },
-    { name: 'Admin Console', url: process.env.STAGING_ADMIN_URL || 'https://staging-admin.thec1rcle.com' },
-    { name: 'API Gateway', url: process.env.STAGING_API_URL || 'https://api-staging.thec1rcle.com/health' }
+    { name: 'Guest Portal', url: process.env.STAGING_GUEST_URL || 'https://thec1rcle-guest-portal-git-staging-thec1rcles-projects.vercel.app/' },
+    { name: 'Admin Console', url: process.env.STAGING_ADMIN_URL || 'https://thec1rcle-admin-panel-git-staging-thec1rcles-projects.vercel.app/' },
+    { name: 'API Gateway', url: process.env.STAGING_API_URL || 'https://thec1rcle-partner-dashboard-git-staging-thec1rcles-projects.vercel.app/api/health' }
 ];
 
 async function checkUrl(service) {
