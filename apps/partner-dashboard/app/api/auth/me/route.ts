@@ -143,3 +143,51 @@ export async function GET(req: NextRequest) {
         return fail("Failed to load user profile");
     }
 }
+/**
+ * POST /api/auth/me
+ *
+ * Updates the user's activeMembership (partner switch).
+ */
+export async function POST(req: NextRequest) {
+    const auth = await requireAuth(req);
+    if (auth instanceof NextResponse) return auth;
+
+    try {
+        const body = await req.json();
+        const { partnerId } = body;
+        if (!partnerId) return fail("partnerId required", 400);
+
+        const userId = auth.uid;
+        const db = getAdminDb();
+
+        // Verify membership exists and is active
+        const memberSnap = await db
+            .collection("partner_memberships")
+            .where("uid", "==", userId)
+            .where("partnerId", "==", partnerId)
+            .where("isActive", "==", true)
+            .limit(1)
+            .get();
+
+        if (memberSnap.empty) {
+            return fail("Invalid or inactive partner membership", 403);
+        }
+
+        const memberData = memberSnap.docs[0].data();
+
+        // Update activeMembership in users doc
+        await db.collection("users").doc(userId).set({
+            activeMembership: {
+                partnerId: memberData.partnerId,
+                partnerType: memberData.partnerType,
+                role: memberData.role,
+                switchedAt: Date.now()
+            }
+        }, { merge: true });
+
+        return NextResponse.json({ success: true });
+    } catch (error: any) {
+        logger.error("auth/me", "POST /me failed", { error: error.message });
+        return fail("Failed to switch partner");
+    }
+}

@@ -17,11 +17,10 @@ export const POST = withAuth(async (req: NextRequest) => {
     }
 
     const body = await req.json();
-    return proxyToGateway(`${GATEWAY_URL}/api/v1/scan/door-entry`, {
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/scan/door-entry`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            Authorization: req.headers.get("Authorization") || "",
         },
         body: JSON.stringify(body),
     });
@@ -38,7 +37,8 @@ export const GET = withAuth(async (req: NextRequest) => {
 
     const { searchParams } = new URL(req.url);
     return proxyToGateway(
+        req,
         `${GATEWAY_URL}/api/v1/scan/door-entry?${searchParams.toString()}`,
-        { headers: { Authorization: req.headers.get("Authorization") || "" } }
+        {}
     );
 });

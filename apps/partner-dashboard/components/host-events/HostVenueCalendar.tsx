@@ -195,7 +195,7 @@ export function HostVenueCalendar() {
     const handleConfirm = () => {
         if (selectedDate && selectedTimeSlot) {
             const params = new URLSearchParams({
-                venueId,
+                venue: venueId,
                 venueName: venueName,
                 date: selectedDate,
                 startTime: selectedTimeSlot.startTime,

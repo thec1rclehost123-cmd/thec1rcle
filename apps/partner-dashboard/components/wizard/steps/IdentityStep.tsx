@@ -1,6 +1,6 @@
 "use client";
 
-import { Users, Building2 } from "lucide-react";
+import { Users, Building2, CalendarCheck, Lock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface IdentityStepProps {
@@ -10,6 +10,13 @@ interface IdentityStepProps {
     role: 'venue' | 'host';
     partnerships: any[];
     profile: any;
+    prefilledSlot?: {
+        venueId: string;
+        venueName: string;
+        date: string;
+        startTime: string;
+        endTime: string;
+    } | null;
 }
 
 export function IdentityStep({
@@ -18,7 +25,8 @@ export function IdentityStep({
     validationErrors,
     role,
     partnerships,
-    profile
+    profile,
+    prefilledSlot
 }: IdentityStepProps) {
     return (
         <div className="grid grid-cols-[1fr_256px] gap-5">
@@ -177,6 +185,34 @@ export function IdentityStep({
                             </div>
                         </div>
                         <p className="text-[10px] text-text-tertiary mt-2">Your facility is auto-linked.</p>
+                    </div>
+                ) : prefilledSlot ? (
+                    // Locked single-venue view when coming from calendar slot selection
+                    <div className="p-3 rounded-xl bg-indigo-500/5 border-2 border-indigo-500/30">
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500">Venue Partner</span>
+                            <div className="ml-auto flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20">
+                                <Lock className="w-2.5 h-2.5 text-indigo-400" />
+                                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400">From Calendar</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                                <CalendarCheck className="w-4 h-4 text-indigo-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[13px] font-bold text-text-primary truncate">{prefilledSlot.venueName}</p>
+                                <p className="text-[10px] text-text-tertiary">
+                                    {prefilledSlot.date} · {prefilledSlot.startTime}–{prefilledSlot.endTime}
+                                </p>
+                            </div>
+                            <div className="w-4 h-4 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0">
+                                <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                        </div>
                     </div>
                 ) : (
                     <div className={`p-3 rounded-xl bg-surface-secondary border transition-all ${validationErrors.venueId ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-border-subtle'}`}>

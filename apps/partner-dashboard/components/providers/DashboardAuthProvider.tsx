@@ -11,7 +11,6 @@ import {
     createUserWithEmailAndPassword,
     updateProfile as updateFirebaseProfile
 } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/client";
 import { DashboardProfile, PartnerMembership, PartnerType, StaffRole } from "@/lib/rbac/types";
 
@@ -27,6 +26,35 @@ const EMPTY_PERMISSIONS: PermissionsState = {
     actionPermissions: null,
     piiPolicy: null,
 };
+
+interface MeApiResponse {
+    user: {
+        uid: string;
+        email: string;
+        displayName?: string;
+        username?: string;
+        isApproved?: boolean;
+        kycStatus?: string;
+        onboardingEntityType?: string;
+        subscriptionPlan?: string;
+        tier?: string;
+        activeMembership?: {
+            partnerId: string;
+            partnerType: PartnerType;
+            role: StaffRole;
+            joinedAt: number;
+            isActive: boolean;
+            partnerName?: string;
+            membershipId?: string;
+        };
+        _staffTabVisibility?: Record<string, boolean>;
+        _staffActionPermissions?: Record<string, boolean>;
+        _staffPiiPolicy?: Record<string, boolean>;
+    } | null;
+    onboardingRequest?: {
+        status: string;
+    } | null;
+}
 
 interface AuthContextValue {
     user: User | null;
@@ -109,7 +137,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                     return;
                 }
 
-                const data = await res.json();
+                const data: MeApiResponse = await res.json();
                 const userData = data.user;
                 const onboardingRequest = data.onboardingRequest;
 
@@ -119,7 +147,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 }
 
                 const tokenResult = await user.getIdTokenResult();
-                const claims = tokenResult.claims;
+                const claims = tokenResult.claims as Record<string, any>;
 
                 const approvedByDoc = userData.isApproved || false;
                 const approvedByClaims = !!claims.partnerId;
@@ -228,30 +256,36 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     }, [user]);
 
     // Real-time permission sync via Firestore onSnapshot on the staff's membership doc.
-    // When the owner reassigns the staff member to a different profile, this fires
-    // immediately and re-fetches fresh permissions from /api/auth/me — no reload needed.
     useEffect(() => {
         if (!user || !membershipId) return;
-        const db = getFirebaseDb();
-        const memberRef = doc(db, "partner_memberships", membershipId);
-        const unsub = onSnapshot(memberRef, () => {
-            user.getIdToken().then(token => {
-                fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } })
-                    .then(r => r.ok ? r.json() : null)
-                    .then(data => {
-                        if (!data?.user) return;
-                        const userData = data.user;
+        let unsub: (() => void) | undefined;
+
+        const setupSnapshot = async () => {
+            try {
+                const { doc: firestoreDoc, onSnapshot: firestoreOnSnapshot } = await import("firebase/firestore") as any;
+                const db = getFirebaseDb();
+                const docRef = firestoreDoc(db, "partner_memberships", membershipId);
+
+                unsub = firestoreOnSnapshot(docRef, (snapshot: any) => {
+                    const data = snapshot.data();
+                    if (data) {
                         setPermissions({
-                            tabVisibility: userData._staffTabVisibility ?? null,
-                            actionPermissions: userData._staffActionPermissions ?? null,
-                            piiPolicy: userData._staffPiiPolicy ?? null,
+                            tabVisibility: (data.tabVisibility as Record<string, boolean>) || null,
+                            actionPermissions: (data.actionPermissions as Record<string, boolean>) || null,
+                            piiPolicy: (data.piiPolicy as Record<string, boolean>) || null,
                         });
-                        lastProfileFetchRef.current = Date.now();
-                    })
-                    .catch(() => {});
-            });
-        });
-        return () => unsub();
+                    }
+                });
+            } catch (err) {
+                console.error("Error setting up Firestore snapshot:", err);
+            }
+        };
+
+        setupSnapshot();
+
+        return () => {
+            if (unsub) unsub();
+        };
     }, [user, membershipId]);
 
     const signIn = async (email: string, password: string) => {
@@ -319,7 +353,28 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     };
 
     const switchPartner = async (partnerId: string) => {
-        console.log("Switching to partner:", partnerId);
+        if (!user) return;
+        try {
+            setLoading(true);
+            const token = await user.getIdToken();
+            const res = await fetch('/api/auth/me', {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ partnerId })
+            });
+            if (res.ok) {
+                // Refresh token to get new claims
+                await user.getIdToken(true);
+                window.location.reload();
+            }
+        } catch (err) {
+            console.error("Failed to switch partner:", err);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const canDo = (action: string) =>

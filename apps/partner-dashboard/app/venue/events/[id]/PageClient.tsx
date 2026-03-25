@@ -170,7 +170,7 @@ export default function EventManagementPage() {
         setIsUpdating(true);
         try {
             const newEnabled = !event.promoterSettings?.enabled;
-            const res = await fetch(`/api/events/${id}/promoters`, {
+            const res = await authedFetch(`/api/events/${id}/promoters`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -195,7 +195,7 @@ export default function EventManagementPage() {
                 ? currentIds.filter((pid: string) => pid !== promoterId)
                 : [...currentIds, promoterId];
 
-            const res = await fetch(`/api/events/${id}/promoters`, {
+            const res = await authedFetch(`/api/events/${id}/promoters`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -214,7 +214,7 @@ export default function EventManagementPage() {
     const handleApprove = async () => {
         setIsUpdating(true);
         try {
-            const res = await fetch(`/api/venue/events`, {
+            const res = await authedFetch(`/api/venue/events`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

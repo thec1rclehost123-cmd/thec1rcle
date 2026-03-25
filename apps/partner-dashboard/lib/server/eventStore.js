@@ -97,17 +97,29 @@ export async function listEvents({ city, limit, sort, search, host, venueId, lif
     const db = getAdminDb();
     let ref = db.collection(EVENT_COLLECTION);
 
-    // Use a single equality filter as the primary Firestore predicate
+    // Use a single equality filter as the primary Firestore predicate.
+    // For host queries, also query by hostId to catch events created before the
+    // creatorId bug fix (those have hostId=partnerId but creatorId=firebaseUid).
+    let events;
     if (creatorId) {
-        ref = ref.where("creatorId", "==", creatorId);
+        const [byCreator, byHost] = await Promise.all([
+            ref.where("creatorId", "==", creatorId).limit(300).get(),
+            ref.where("hostId", "==", creatorId).limit(300).get(),
+        ]);
+        const seen = new Set();
+        events = [...byCreator.docs, ...byHost.docs]
+            .filter(d => !seen.has(d.id) && seen.add(d.id))
+            .map(d => ({ id: d.id, ...d.data() }));
     } else if (venueId) {
-        ref = ref.where("venueId", "==", venueId);
+        const snapshot = await ref.where("venueId", "==", venueId).limit(300).get();
+        events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } else if (host) {
-        ref = ref.where("host", "==", host);
+        const snapshot = await ref.where("host", "==", host).limit(300).get();
+        events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } else {
+        const snapshot = await ref.limit(300).get();
+        events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     }
-
-    const snapshot = await ref.limit(300).get();
-    let events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     // Secondary filters applied client-side
     if (lifecycle && lifecycle !== "all") {

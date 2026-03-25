@@ -754,6 +754,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                                 role={role}
                                                 partnerships={partnerships}
                                                 profile={profile}
+                                                prefilledSlot={prefilledSlot}
                                             />
                                         )}
 

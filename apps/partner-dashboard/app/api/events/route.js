@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createEvent, listEvents } from "../../../lib/server/eventStore";
 import { verifyAuth, verifyHostRole } from "../../../lib/server/auth";
+import { tryProxyToGateway, GATEWAY_URL } from "../../../lib/server/apiGateway";
 
 const getQueryParams = (request) => {
   const { searchParams } = new URL(request.url);
@@ -18,38 +19,10 @@ const getQueryParams = (request) => {
 };
 
 export async function GET(request) {
-  const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL;
+  const data = await tryProxyToGateway(request, `${GATEWAY_URL}/api/v1/events?${new URL(request.url).searchParams.toString()}`, {});
+  if (data) return NextResponse.json(data);
 
-  if (gatewayUrl) {
-    try {
-      const { searchParams } = new URL(request.url);
-      const authHeader = request.headers.get("Authorization");
-
-      // Build the query string dynamically
-      let endpoint = "/api/v1/events?";
-      searchParams.forEach((value, key) => {
-        endpoint += `${key}=${encodeURIComponent(value)}&`;
-      });
-
-      const response = await fetch(`${gatewayUrl}${endpoint.slice(0, -1)}`, {
-        headers: {
-          'Authorization': authHeader || '',
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        return NextResponse.json({ error: errorData.error || "Gateway error" }, { status: response.status });
-      }
-
-      const data = await response.json();
-      return NextResponse.json(data);
-    } catch (error) {
-      console.error("[Events Redirect] Gateway unavailable, falling back to Firestore:", error.message);
-      // Fall through to direct Firestore below
-    }
-  }
-
+  // Fallback to Firestore
   try {
     const { city, limit, sort, search, host, venueId, lifecycle, creatorRole, creatorId } = getQueryParams(request);
     const events = await listEvents({ city, limit, sort, search, host, venueId, lifecycle, creatorRole, creatorId });
@@ -59,6 +32,7 @@ export async function GET(request) {
     return NextResponse.json({ error: "Failed to load events." }, { status: 500 });
   }
 }
+
 
 export async function POST(request) {
   // Keeping POST local for now as it involves complex event building, 

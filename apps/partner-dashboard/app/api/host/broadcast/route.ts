@@ -20,11 +20,10 @@ export const POST = withAuth(async (req: NextRequest) => {
 
         if (!hostId || !title || !message) return fail("hostId, title, and message are required", 400);
 
-        return proxyToGateway(`${GATEWAY_URL}/api/v1/notifications/broadcast`, {
+        return proxyToGateway(req, `${GATEWAY_URL}/api/v1/notifications/broadcast`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                Authorization: req.headers.get("Authorization") || ""
             },
             body: JSON.stringify({
                 senderId: hostId,
@@ -52,7 +51,8 @@ export const GET = withAuth(async (req: NextRequest) => {
     if (!hostId) return fail("hostId is required", 400);
 
     return proxyToGateway(
+        req,
         `${GATEWAY_URL}/api/v1/notifications/broadcast?senderId=${hostId}&senderRole=host`,
-        { headers: { Authorization: req.headers.get("Authorization") || "" } }
+        {}
     );
 });
