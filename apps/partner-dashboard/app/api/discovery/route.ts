@@ -224,7 +224,7 @@ export const POST = withAuth(async (req: NextRequest) => {
             const id = randomUUID();
             await db.collection("partnerships").doc(id).set({
                 id, hostId, venueId, hostName, venueName,
-                status: "pending", createdAt: now, updatedAt: now,
+                status: "pending", initiatedBy: requesterType, createdAt: now, updatedAt: now,
             });
             return ok({ id });
         }
@@ -249,7 +249,7 @@ export const POST = withAuth(async (req: NextRequest) => {
             id, promoterId, promoterName, promoterEmail,
             targetId: connTargetId, targetType: connTargetType, targetName: connTargetName,
             message: message || "",
-            status: "pending", createdAt: now, updatedAt: now,
+            status: "pending", initiatedBy: requesterType, createdAt: now, updatedAt: now,
         });
         return ok({ id });
     } catch (error: any) {

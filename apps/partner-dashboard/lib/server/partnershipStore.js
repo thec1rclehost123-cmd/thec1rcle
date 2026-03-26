@@ -19,7 +19,7 @@ export async function requestPartnership(hostId, venueId, hostName, venueName) {
         }
         const ref = await db.collection('partnerships').add({
             hostId, venueId, hostName: hostName || '', venueName: venueName || '',
-            status: 'pending',
+            status: 'pending', initiatedBy: 'host',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         });

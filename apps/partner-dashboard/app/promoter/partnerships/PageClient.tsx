@@ -14,7 +14,10 @@ import {
     Network,
     Handshake,
     Zap,
+    Bell,
+    X,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { usePromoterPartnerships } from "@/lib/hooks/usePromoterQueries";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
@@ -24,7 +27,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { StatTrendCard } from "@/components/promoter/PlaceholderCharts";
 import { formatDate } from "@/lib/utils/format";
 
-type Tab = "discover" | "pending" | "active" | "declined";
+type Tab = "discover" | "incoming" | "pending" | "active" | "declined";
 
 interface Partnership {
     id: string;
@@ -35,6 +38,7 @@ interface Partnership {
     tier?: "trusted" | "standard";
     createdAt: any;
     updatedAt?: any;
+    initiatedBy?: string;
 }
 
 const mp = (delay: number) => ({
@@ -44,33 +48,48 @@ const mp = (delay: number) => ({
 });
 
 export default function PromoterPartnershipsPage() {
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth() as any;
     const [activeTab, setActiveTab] = useState<Tab>("discover");
     const [profileTarget, setProfileTarget] = useState<NetworkProfile | null>(null);
+    const [processingId, setProcessingId] = useState<string | null>(null);
+    const queryClient = useQueryClient();
 
     const promoterId = profile?.activeMembership?.partnerId;
 
     const { data, isLoading: loading } = usePromoterPartnerships(promoterId);
     const partnerships: Partnership[] = data?.connections || [];
 
-
-    const pending = partnerships.filter((p) => p.status === "pending");
+    const allPending = partnerships.filter((p) => p.status === "pending");
+    const pendingIncoming = allPending.filter((p) => p.initiatedBy !== "promoter");
+    const pendingOutgoing = allPending.filter((p) => p.initiatedBy === "promoter");
     const active = partnerships.filter(
         (p) => p.status === "approved" || p.status === "active"
     );
     const declined = partnerships.filter((p) => p.status === "rejected");
 
+    const handleAction = async (connectionId: string, action: "approve" | "reject") => {
+        setProcessingId(connectionId);
+        try {
+            const token = user ? await user.getIdToken() : "";
+            await fetch("/api/discovery", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ connectionId, action, type: "promoter_connection" }),
+            });
+            queryClient.invalidateQueries({ queryKey: ["promoter-partnerships", promoterId || ""] });
+        } catch { /* */ } finally { setProcessingId(null); }
+    };
+
     const TABS: { id: Tab; label: string; count?: number }[] = [
         { id: "discover", label: "Discover" },
-        { id: "pending", label: "Pending", count: pending.length },
+        { id: "incoming", label: "Incoming", count: pendingIncoming.length },
+        { id: "pending", label: "Pending", count: pendingOutgoing.length },
         { id: "active", label: "Active", count: active.length },
         { id: "declined", label: "Declined", count: declined.length },
     ];
 
     const filtered =
-        activeTab === "pending"
-            ? pending
-            : activeTab === "active"
+        activeTab === "active"
             ? active
             : activeTab === "declined"
             ? declined
@@ -113,7 +132,7 @@ export default function PromoterPartnershipsPage() {
                             className="text-[20px] font-black tabular-nums"
                             style={{ color: "#f59e0b" }}
                         >
-                            {pending.length}
+                            {allPending.length}
                         </p>
                         <p
                             className="text-[10px] font-black uppercase tracking-widest"
@@ -169,7 +188,7 @@ export default function PromoterPartnershipsPage() {
                     />
                     <StatTrendCard
                         label="Pending Requests"
-                        value={pending.length}
+                        value={allPending.length}
                         color="#f59e0b"
                         icon={<Clock className="w-4 h-4" />}
                     />
@@ -214,6 +233,11 @@ export default function PromoterPartnershipsPage() {
                             {tab.id === "discover" && (
                                 <Search
                                     className={`w-4 h-4 ${activeTab === tab.id ? "text-[#818cf8]" : ""}`}
+                                />
+                            )}
+                            {tab.id === "incoming" && (
+                                <Bell
+                                    className={`w-4 h-4 ${activeTab === tab.id ? "text-[#a78bfa]" : ""}`}
                                 />
                             )}
                             {tab.id === "pending" && (
@@ -263,6 +287,96 @@ export default function PromoterPartnershipsPage() {
                                 partnerId={promoterId}
                                 role="promoter"
                             />
+                        </motion.div>
+                    ) : activeTab === "incoming" ? (
+                        <motion.div key="incoming" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                            {loading ? (
+                                <div className="flex justify-center py-32">
+                                    <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#7c3aed" }} />
+                                </div>
+                            ) : pendingIncoming.length === 0 ? (
+                                <EmptyState tab="incoming" />
+                            ) : (
+                                <div className="space-y-4">
+                                    <AnimatePresence mode="popLayout">
+                                        {pendingIncoming.map(p => (
+                                            <motion.div key={p.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                                                className="border border-border-subtle p-6 rounded-[2rem]" style={{ background: "var(--v-card)" }}>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-5">
+                                                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black" style={{ background: "rgba(124,58,237,0.15)", color: "#a78bfa" }}>
+                                                            {(p.otherName?.[0] || "?").toUpperCase()}
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-xl font-black text-text-primary">{p.otherName}</h3>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                {p.otherType === "venue" ? <Building2 className="w-3.5 h-3.5 text-[#a78bfa]" /> : <UserCircle className="w-3.5 h-3.5 text-[#a78bfa]" />}
+                                                                <span className="text-[10px] font-black uppercase tracking-widest text-[#a78bfa] capitalize">{p.otherType}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <button
+                                                            onClick={() => handleAction(p.id, "approve")}
+                                                            disabled={!!processingId}
+                                                            className="flex items-center gap-2 px-6 py-3 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                                                            style={{ background: "linear-gradient(135deg, #7c3aed, #a78bfa)" }}
+                                                        >
+                                                            {processingId === p.id
+                                                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                                                : <>Approve <CheckCircle2 className="w-3.5 h-3.5" /></>}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleAction(p.id, "reject")}
+                                                            disabled={!!processingId}
+                                                            className="h-12 w-12 rounded-xl border border-border-subtle text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
+                                                            style={{ background: "var(--v-elevated)" }}
+                                                        >
+                                                            <X className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        ))}
+                                    </AnimatePresence>
+                                </div>
+                            )}
+                        </motion.div>
+                    ) : activeTab === "pending" ? (
+                        <motion.div key="pending" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                            {loading ? (
+                                <div className="flex justify-center py-32">
+                                    <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#7c3aed" }} />
+                                </div>
+                            ) : pendingOutgoing.length === 0 ? (
+                                <EmptyState tab="pending" />
+                            ) : (
+                                <div className="space-y-4">
+                                    {pendingOutgoing.map(p => (
+                                        <motion.div key={p.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                                            className="border border-border-subtle p-6 rounded-[2rem] opacity-75" style={{ background: "var(--v-card)" }}>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-5">
+                                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black text-text-tertiary" style={{ background: "rgba(255,255,255,0.05)" }}>
+                                                        {(p.otherName?.[0] || "?").toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-xl font-black text-text-primary">{p.otherName}</h3>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            {p.otherType === "venue" ? <Building2 className="w-3.5 h-3.5 text-[#a78bfa]" /> : <UserCircle className="w-3.5 h-3.5 text-[#a78bfa]" />}
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-[#a78bfa] capitalize">{p.otherType}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.15)" }}>
+                                                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                                    <span className="text-[11px] font-black uppercase tracking-widest text-amber-400">Awaiting approval</span>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            )}
                         </motion.div>
                     ) : (
                         <motion.div
@@ -437,10 +551,15 @@ function EmptyState({ tab }: { tab: Tab }) {
         string,
         { icon: React.ReactNode; title: string; subtitle: string }
     > = {
+        incoming: {
+            icon: <Bell className="w-8 h-8" style={{ color: "#a78bfa" }} />,
+            title: "No incoming requests",
+            subtitle: "Partnership requests from venues and hosts will appear here for your approval.",
+        },
         pending: {
             icon: <Clock className="w-8 h-8" style={{ color: "#f59e0b" }} />,
-            title: "No pending requests",
-            subtitle: "Requests you send will appear here until venues respond.",
+            title: "No sent requests",
+            subtitle: "Requests you've sent awaiting venue or host approval will appear here.",
         },
         active: {
             icon: <CheckCircle2 className="w-8 h-8" style={{ color: "#34d399" }} />,

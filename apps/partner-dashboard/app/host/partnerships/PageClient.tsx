@@ -15,6 +15,8 @@ import {
     TrendingUp,
     Compass,
     Plus,
+    Loader2,
+    X,
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -263,6 +265,7 @@ export default function HostPartnershipsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
     const [selectedVenue, setSelectedVenue] = useState<{ id: string; name: string } | null>(null);
+    const [processingRequest, setProcessingRequest] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!hostId) { setLoading(false); return; }
@@ -285,7 +288,7 @@ export default function HostPartnershipsPage() {
                 const reqList: PartnershipRequest[] = allPartners.map((p: any) => ({
                     id: p.id,
                     type: "venue" as const,
-                    direction: "outgoing" as const,
+                    direction: p.initiatedBy === "venue" ? "incoming" : "outgoing",
                     partnerName: p.name || p.venueName || "Venue",
                     partnerCity: p.city,
                     status: (p.status || p.partnershipStatus || "pending") as any,
@@ -352,6 +355,20 @@ export default function HostPartnershipsPage() {
             });
             fetchData();
         } catch { /* */ }
+    };
+
+    const handlePartnershipAction = async (partnershipId: string, action: "approve" | "reject") => {
+        setProcessingRequest(partnershipId);
+        try {
+            const token = typeof getIdToken === "function" ? await getIdToken() : "";
+            await fetch("/api/venue/partnerships", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ partnershipId, action }),
+            });
+            fetchData();
+        } catch { /* */ }
+        finally { setProcessingRequest(null); }
     };
 
     const handleSelectSlot = (date: string, startTime: string, endTime: string) => {
@@ -529,10 +546,50 @@ export default function HostPartnershipsPage() {
                                 </div>
                             ) : (
                                 <div className="space-y-6">
-                                    {requests.filter(r => r.status === "pending").length > 0 && (
+                                    {/* Incoming pending requests from venues — host must approve/reject */}
+                                    {requests.filter(r => r.status === "pending" && r.direction === "incoming").length > 0 && (
+                                        <>
+                                            <p className="text-[12px] font-black uppercase tracking-[0.2em] text-[var(--v-text-muted)] border-l-4 border-l-[var(--v-warning)] pl-4">Incoming Requests</p>
+                                            <div className="space-y-4">
+                                                {requests.filter(r => r.status === "pending" && r.direction === "incoming").map(r => (
+                                                    <div key={r.id} className="flex items-center gap-6 px-7 py-5 rounded-[24px] bg-[var(--v-card)] border border-[var(--v-border)] hover:bg-[var(--v-elevated)] transition-all">
+                                                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border border-border-subtle bg-amber-500/08">
+                                                            {r.type === "venue" ? <Building2 className="w-6 h-6 text-amber-400" /> : <Users className="w-6 h-6 text-amber-400" />}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-[16px] font-black text-text-primary truncate tracking-tight">{r.partnerName}</p>
+                                                            <div className="flex items-center gap-3 text-[13px] text-[var(--v-text-tertiary)] font-bold mt-1">
+                                                                <span className="capitalize">{r.type}</span>
+                                                                <span className="opacity-20">·</span>
+                                                                <span>{new Date(r.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-3 shrink-0">
+                                                            <button
+                                                                onClick={() => handlePartnershipAction(r.id, "approve")}
+                                                                disabled={!!processingRequest}
+                                                                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-rose-600 hover:from-orange-400 hover:to-rose-500 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-orange-500/20 transition-all active:scale-95 disabled:opacity-50"
+                                                            >
+                                                                {processingRequest === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve"}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handlePartnershipAction(r.id, "reject")}
+                                                                disabled={!!processingRequest}
+                                                                className="h-10 w-10 rounded-xl bg-surface-tertiary border border-border-subtle text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
+                                                            >
+                                                                <X className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                    {/* Outgoing pending requests — host sent these, awaiting venue approval */}
+                                    {requests.filter(r => r.status === "pending" && r.direction === "outgoing").length > 0 && (
                                         <>
                                             <p className="text-[12px] font-black uppercase tracking-[0.2em] text-[var(--v-text-muted)] border-l-4 border-l-[var(--v-warning)] pl-4">In Review</p>
-                                            {requests.filter(r => r.status === "pending").map(r => <RequestRow key={r.id} req={r} />)}
+                                            {requests.filter(r => r.status === "pending" && r.direction === "outgoing").map(r => <RequestRow key={r.id} req={r} />)}
                                         </>
                                     )}
                                     {requests.filter(r => r.status !== "pending").length > 0 && (

@@ -143,7 +143,7 @@ function LoginForm() {
             if (err.code === 'auth/user-not-found') {
                 setError("No account found with this email. Please apply for access or check your email.");
             } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
-                setError("Invalid credentials. If you registered via Google, use 'Continue with Google' below.");
+                setError(`Invalid credentials for the ${userType} workspace. Please check your email/password or ensure you've selected the correct workspace and environment.`);
             } else {
                 setError("An error occurred. Please try again.");
             }
