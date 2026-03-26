@@ -5,7 +5,7 @@ import { Info, RefreshCw, Calendar, ArrowLeft, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useQuery } from "@tanstack/react-query";
-import { normalizeAnalyticsData } from "@/lib/analytics/zeroState";
+import { normalizeAnalyticsV2 } from "@/lib/analytics/zeroState";
 import { mapEventForClient } from "@c1rcle/core/events";
 import { parseAsIST } from "@c1rcle/core/time";
 function format(date: Date | string, _fmt: string): string {
@@ -81,7 +81,7 @@ export default function EventAnalyticsClient({
         enabled: !!entityId,
     });
 
-    const data = normalizeAnalyticsData(analyticsData);
+    const data = normalizeAnalyticsV2(analyticsData);
     const isLoading = isEventLoading || isAnalyticsLoading;
 
     return (
