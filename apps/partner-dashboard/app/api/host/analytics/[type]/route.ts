@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
     getHostAnalytics,
     getHostPerformanceAnalytics,
@@ -48,7 +48,11 @@ export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
                 return fail("Invalid analytics type", 400);
         }
 
-        return ok(analytics);
+        const cacheSeconds = type === "overview" ? 60 : 300;
+        return NextResponse.json(
+            { success: true, ...analytics, message: "" },
+            { headers: { "Cache-Control": `private, max-age=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 4}` } }
+        );
     } catch (error: any) {
         console.error(`[Host Analytics API][${ctx?.params?.type}] Error:`, error);
         return fail("Failed to fetch analytics");

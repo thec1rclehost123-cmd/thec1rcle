@@ -43,11 +43,15 @@ export async function requireVenueAccess(
     const { searchParams } = new URL(request.url);
     const venueId =
         searchParams.get("venueId") ??
+        searchParams.get("hostId") ??
+        searchParams.get("promoterId") ??
         request.headers.get("x-partner-id") ??
+        request.headers.get("x-venue-id") ??
+        request.headers.get("x-host-id") ??
         null;
 
     if (!venueId || venueId === "null" || venueId === "undefined") {
-        return { error: "venueId required", status: 400 };
+        return { error: "partnerId (venue/host) required", status: 400 };
     }
 
     if (!isFirebaseConfigured()) {
@@ -82,12 +86,11 @@ export async function requireVenueAccess(
 
     const db = getAdminDb();
 
-    // Find active membership for this user + venue
+    // Find active membership for this user + partnerId
     const snap = await db
         .collection("partner_memberships")
         .where("uid", "==", user.uid)
         .where("partnerId", "==", venueId)
-        .where("partnerType", "==", "venue")
         .where("isActive", "==", true)
         .limit(1)
         .get();

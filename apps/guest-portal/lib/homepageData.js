@@ -2,6 +2,7 @@ import { cache } from "react";
 import { getAdminDb, isFirebaseConfigured } from "./firebase/admin";
 import { DEFAULT_CITY, getCategoryFilters, listEvents } from "./server/eventStore";
 import { formatEventTime, getEventHref } from "./eventCardUtils";
+import { getFeaturedEvents } from "./server/featuredFeed";
 
 export const heroVideoSrc = "/background-video.mp4";
 
@@ -24,7 +25,7 @@ const loadCollection = async (collectionName) => {
 };
 
 const mapHeroCards = (events) =>
-  events.slice(0, 30).map((event) => ({
+  events.map((event) => ({
     id: event.id,
     title: event.title,
     location: event.location,
@@ -71,12 +72,15 @@ const getCity = (city) => city || DEFAULT_CITY;
 
 export const getHomepageContent = cache(async (city) => {
   const selectedCity = getCity(city);
-  const events = await listEvents({ city: selectedCity, limit: 30, sort: "heat" });
-  const heroCards = mapHeroCards(events);
+  const [featuredEvents, events, selects, interviews] = await Promise.all([
+    getFeaturedEvents(),
+    listEvents({ city: selectedCity, limit: 30, sort: "heat" }),
+    loadCollection(SELECTS_COLLECTION),
+    loadCollection(INTERVIEWS_COLLECTION),
+  ]);
+  const heroCards = mapHeroCards(featuredEvents);
   const eventGrid = mapEventGrid(events);
   const categories = getCategoryFilters(events);
-  const selects = await loadCollection(SELECTS_COLLECTION);
-  const interviews = await loadCollection(INTERVIEWS_COLLECTION);
   const stats = buildStats(events, selectedCity);
 
   return {

@@ -7,6 +7,7 @@ import { Resend } from "resend";
 import { withAuth } from "@/lib/server/withAuth";
 import { ok, fail } from "@/lib/server/apiResponse";
 import { logger } from "@/lib/server/logger";
+import { escapeHtml } from "@/lib/server/sanitize";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -86,6 +87,7 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
 
         // Send submission confirmation email
         if (resend) {
+            const safeName = escapeHtml(name);
             const fromAddr = process.env.NODE_ENV === "development"
                 ? "THE C1RCLE <onboarding@resend.dev>"
                 : "THE C1RCLE <noreply@thec1rcle.com>";
@@ -98,7 +100,7 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
                         <h1 style="color:#FF5A00;text-transform:uppercase;letter-spacing:5px;">THE C1RCLE</h1>
                         <p style="text-transform:uppercase;letter-spacing:2px;color:#666;font-size:12px;">Application Received</p>
                         <div style="margin:32px auto;max-width:420px;text-align:left;">
-                            <p style="font-size:16px;font-weight:600;color:#fff;">Hi ${name},</p>
+                            <p style="font-size:16px;font-weight:600;color:#fff;">Hi ${safeName},</p>
                             <p style="color:#aaa;font-size:14px;line-height:1.6;">
                                 Thanks for applying to join the C1RCLE partner network. We've received your application and our team will review it within <strong style="color:#fff;">24–48 hours</strong>.
                             </p>

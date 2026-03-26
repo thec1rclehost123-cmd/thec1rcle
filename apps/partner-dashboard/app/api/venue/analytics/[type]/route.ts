@@ -76,7 +76,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ type: strin
                 return fail("Invalid analytics type", 400);
         }
 
-        return ok({ analytics });
+        // Cache: live/insights data freshest (30s), overview/audience moderate (60s), historical long (5min)
+        const cacheSeconds = ["timeline", "insights"].includes(type) ? 30
+            : type === "overview" ? 60
+            : 300;
+        return NextResponse.json(
+            { success: true, analytics, message: "" },
+            { headers: { "Cache-Control": `private, max-age=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 4}` } }
+        );
     } catch (error: any) {
         console.error(`[Venue Analytics API] Error:`, error);
         return fail("Failed to fetch analytics");

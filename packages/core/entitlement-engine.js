@@ -1,11 +1,15 @@
 import { randomUUID, createHmac } from "node:crypto";
 import { getAdminDb } from "./admin.js";
+import { getQrSecret } from "./scan-secret.js";
 
 const ENTITLEMENT_COLLECTION = "entitlements";
 const SCAN_LEDGER_COLLECTION = "scan_ledger";
 
-// Secret key for HMAC signing (should be in env vars in production)
-const QR_SECRET = process.env.QR_SECRET_KEY || "c1rcle-qr-secret-2024";
+let _QR_SECRET = null;
+function QR_SECRET() {
+    if (!_QR_SECRET) _QR_SECRET = getQrSecret();
+    return _QR_SECRET;
+}
 
 export const ENTITLEMENT_STATES = {
     ISSUED: "ISSUED",       // Created, potentially unclaimed slot
@@ -73,7 +77,7 @@ export function generateEntitlementQR(entitlementId) {
     const window = Math.floor(timestamp / 30);
 
     const dataToSign = `${entitlementId}:${window}`;
-    const signature = createHmac("sha256", QR_SECRET)
+    const signature = createHmac("sha256", QR_SECRET())
         .update(dataToSign)
         .digest("hex")
         .substring(0, 16);
@@ -102,7 +106,7 @@ export function verifyEntitlementQR(payload) {
     // Check current and prev window to be extra safe with timing
     const verifyWindow = (w) => {
         const dataToSign = `${eid}:${w}`;
-        const expected = createHmac("sha256", QR_SECRET)
+        const expected = createHmac("sha256", QR_SECRET())
             .update(dataToSign)
             .digest("hex")
             .substring(0, 16);

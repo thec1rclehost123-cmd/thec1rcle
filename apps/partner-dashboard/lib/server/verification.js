@@ -50,7 +50,7 @@ export async function sendEmailOtp(email) {
         console.warn("[verification] Resend not configured — using mock OTP.");
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = Math.floor(100000 + (require("node:crypto").randomInt(900000))).toString();
     const expiresAt = new Date(Date.now() + SECURITY_CONFIG.OTP_EXPIRY_MINUTES * 60 * 1000);
 
     const db = getAdminDb();

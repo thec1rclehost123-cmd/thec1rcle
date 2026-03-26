@@ -241,11 +241,11 @@ export default function EditProfileModal({ open, onClose }) {
                             exit={{ opacity: 0, scale: 0.95 }}
                             className="fixed inset-0 z-[60] flex items-center justify-center p-4"
                         >
-                            <div className="relative w-full max-w-3xl bg-black rounded-3xl border border-white/20 overflow-hidden">
-                                <div className="p-6 border-b border-white/10">
-                                    <h3 className="text-xl font-bold text-white uppercase tracking-widest">Crop Profile Picture</h3>
+                            <div className="relative w-full max-w-3xl bg-white dark:bg-black rounded-3xl border border-black/[0.08] dark:border-white/20 overflow-hidden">
+                                <div className="p-6 border-b border-black/[0.06] dark:border-white/10">
+                                    <h3 className="text-xl font-bold text-black dark:text-white uppercase tracking-widest">Crop Profile Picture</h3>
                                 </div>
-                                <div className="relative h-[500px] bg-black">
+                                <div className="relative h-[500px] bg-[#FAFAF9] dark:bg-black">
                                     <Cropper
                                         image={imageSrc}
                                         crop={crop}
@@ -258,9 +258,9 @@ export default function EditProfileModal({ open, onClose }) {
                                         onCropComplete={onCropComplete}
                                     />
                                 </div>
-                                <div className="p-6 space-y-4 bg-gradient-to-b from-black to-black/95">
+                                <div className="p-6 space-y-4 bg-gradient-to-b from-white dark:from-black to-white/95 dark:to-black/95">
                                     <div className="space-y-2">
-                                        <label className="text-xs text-white/60 uppercase tracking-widest">Zoom</label>
+                                        <label className="text-xs text-black/60 dark:text-white/60 uppercase tracking-widest">Zoom</label>
                                         <input
                                             type="range"
                                             min={1}
@@ -268,14 +268,14 @@ export default function EditProfileModal({ open, onClose }) {
                                             step={0.1}
                                             value={zoom}
                                             onChange={(e) => setZoom(parseFloat(e.target.value))}
-                                            className="w-full h-2 bg-white/10 rounded-full appearance-none cursor-pointer accent-iris"
+                                            className="w-full h-2 bg-black/10 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-iris"
                                         />
                                     </div>
                                     <div className="flex gap-3">
                                         <button
                                             type="button"
                                             onClick={handleCropCancel}
-                                            className="flex-1 rounded-full border border-white/20 px-6 py-3 text-sm uppercase tracking-widest text-white/80 hover:bg-white/10 transition-all"
+                                            className="flex-1 rounded-full border border-black/10 dark:border-white/20 px-6 py-3 text-sm uppercase tracking-widest text-black/80 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/10 transition-all"
                                         >
                                             Cancel
                                         </button>
@@ -302,23 +302,23 @@ export default function EditProfileModal({ open, onClose }) {
                                     animate={{ scale: 1, opacity: 1, y: 0 }}
                                     exit={{ scale: 0.95, opacity: 0, y: 20 }}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="relative w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden rounded-[32px] border border-white/20 bg-[#0A0A0A] p-6 sm:p-7 shadow-[0_0_120px_rgba(244,74,34,0.2)] backdrop-blur-3xl"
+                                    className="relative w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden rounded-[32px] border border-black/[0.08] dark:border-white/20 bg-white dark:bg-[#0A0A0A] p-6 sm:p-7 shadow-[0_20px_60px_rgba(0,0,0,0.14)] dark:shadow-[0_0_120px_rgba(244,74,34,0.2)] backdrop-blur-3xl"
                                 >
                                     {/* Glow Layer */}
                                     <div className="absolute -top-[20%] -right-[20%] h-[50%] w-[50%] rounded-full bg-orange/5 blur-[100px] pointer-events-none" />
 
                                     <div className="mb-6 flex items-center justify-between">
                                         <div className="space-y-0.5">
-                                            <h2 className="text-2xl font-black uppercase tracking-tighter text-white">
+                                            <h2 className="text-2xl font-black uppercase tracking-tighter text-black dark:text-white">
                                                 Edit Profile
                                             </h2>
-                                            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">
+                                            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-black/50 dark:text-white/50">
                                                 Identity Management
                                             </p>
                                         </div>
                                         <button
                                             onClick={onClose}
-                                            className="group flex h-9 w-9 items-center justify-center rounded-full bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 hover:text-white transition-all shadow-inner"
+                                            className="group flex h-9 w-9 items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.06] dark:border-white/10 text-black/60 dark:text-white/60 hover:bg-black/10 dark:hover:bg-white/10 hover:text-black dark:hover:text-white transition-all shadow-inner"
                                         >
                                             <svg className="h-4 w-4 transition-transform group-hover:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -330,15 +330,15 @@ export default function EditProfileModal({ open, onClose }) {
                                         {/* Scrollable Content Area */}
                                         <div className="flex-1 overflow-y-auto pr-1 -mr-1 space-y-6 scrollbar-hide py-1">
                                             {/* Profile Picture Upload - Premium Card */}
-                                            <div className="group rounded-[24px] border border-white/5 bg-white/[0.03] p-5 transition-all hover:bg-white/[0.04]">
-                                                <label className="mb-4 block text-[9px] font-black uppercase tracking-[0.2em] text-white/60">
+                                            <div className="group rounded-[24px] border border-black/[0.04] dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.03] p-5 transition-all hover:bg-black/[0.03] dark:hover:bg-white/[0.04]">
+                                                <label className="mb-4 block text-[9px] font-black uppercase tracking-[0.2em] text-black/60 dark:text-white/60">
                                                     Avatar Configuration
                                                 </label>
                                                 <div className="flex flex-col sm:flex-row items-center gap-8">
                                                     {/* Preview */}
                                                     <div className="relative h-28 w-28 shrink-0">
                                                         <div className="absolute inset-0 rounded-full bg-gradient-to-br from-orange/20 to-iris/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                                        <div className="relative h-full w-full overflow-hidden rounded-full border-2 border-white/10 bg-black/40 shadow-2xl">
+                                                        <div className="relative h-full w-full overflow-hidden rounded-full border-2 border-black/[0.08] dark:border-white/10 bg-black/[0.04] dark:bg-black/40 shadow-2xl">
                                                             {imagePreview || formData.photoURL ? (
                                                                 <ShimmerImage
                                                                     src={imagePreview || formData.photoURL}
@@ -347,7 +347,7 @@ export default function EditProfileModal({ open, onClose }) {
                                                                     className="object-cover transition-transform duration-500 hover:scale-110"
                                                                 />
                                                             ) : (
-                                                                <div className="flex h-full w-full items-center justify-center text-3xl font-black text-white/10">
+                                                                <div className="flex h-full w-full items-center justify-center text-3xl font-black text-black/10 dark:text-white/10">
                                                                     {formData.displayName?.charAt(0) || "?"}
                                                                 </div>
                                                             )}
@@ -372,8 +372,8 @@ export default function EditProfileModal({ open, onClose }) {
                                                             {uploadingImage ? "Processing..." : "Change Image"}
                                                         </button>
                                                         <div className="flex items-center justify-center sm:justify-start gap-4">
-                                                            <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest whitespace-nowrap">High Res Preferred</span>
-                                                            <div className="h-px w-full bg-white/5" />
+                                                            <span className="text-[10px] font-bold text-black/20 dark:text-white/20 uppercase tracking-widest whitespace-nowrap">High Res Preferred</span>
+                                                            <div className="h-px w-full bg-black/[0.04] dark:bg-white/5" />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -383,7 +383,7 @@ export default function EditProfileModal({ open, onClose }) {
                                             <div className="space-y-5">
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                                     <div className="space-y-1.5">
-                                                        <label className="ml-1 block text-[9px] font-black uppercase tracking-[0.2em] text-white/60">
+                                                        <label className="ml-1 block text-[9px] font-black uppercase tracking-[0.2em] text-black/60 dark:text-white/60">
                                                             Full Name
                                                         </label>
                                                         <input
@@ -391,13 +391,13 @@ export default function EditProfileModal({ open, onClose }) {
                                                             name="displayName"
                                                             value={formData.displayName}
                                                             onChange={handleChange}
-                                                            className="h-14 w-full rounded-2xl border border-white/10 bg-white/[0.05] px-6 text-sm font-bold tracking-wide text-white transition-all focus:border-orange/30 focus:bg-white/[0.08] focus:outline-none focus:ring-4 focus:ring-orange/5"
+                                                            className="h-14 w-full rounded-2xl border border-black/[0.08] dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.05] px-6 text-sm font-bold tracking-wide text-black dark:text-white transition-all focus:border-orange/40 focus:bg-black/[0.05] dark:focus:bg-white/[0.08] focus:outline-none focus:ring-4 focus:ring-orange/5 placeholder:text-black/30 dark:placeholder:text-white/30"
                                                             placeholder="Your Identity"
                                                             autoCapitalize="words"
                                                         />
                                                     </div>
                                                     <div className="space-y-1.5">
-                                                        <label className="ml-1 block text-[9px] font-black uppercase tracking-[0.2em] text-white/60">
+                                                        <label className="ml-1 block text-[9px] font-black uppercase tracking-[0.2em] text-black/60 dark:text-white/60">
                                                             Location
                                                         </label>
                                                         <input
@@ -405,7 +405,7 @@ export default function EditProfileModal({ open, onClose }) {
                                                             name="city"
                                                             value={formData.city}
                                                             onChange={handleChange}
-                                                            className="h-14 w-full rounded-2xl border border-white/10 bg-white/[0.05] px-6 text-sm font-bold tracking-wide text-white transition-all focus:border-orange/30 focus:bg-white/[0.08] focus:outline-none focus:ring-4 focus:ring-orange/5"
+                                                            className="h-14 w-full rounded-2xl border border-black/[0.08] dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.05] px-6 text-sm font-bold tracking-wide text-black dark:text-white transition-all focus:border-orange/40 focus:bg-black/[0.05] dark:focus:bg-white/[0.08] focus:outline-none focus:ring-4 focus:ring-orange/5 placeholder:text-black/30 dark:placeholder:text-white/30"
                                                             placeholder="Base City"
                                                             autoCapitalize="words"
                                                         />
@@ -414,11 +414,11 @@ export default function EditProfileModal({ open, onClose }) {
 
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                                     <div className="space-y-1.5">
-                                                        <label className="ml-1 block text-[9px] font-black uppercase tracking-[0.2em] text-white/60">
+                                                        <label className="ml-1 block text-[9px] font-black uppercase tracking-[0.2em] text-black/60 dark:text-white/60">
                                                             Instagram
                                                         </label>
                                                         <div className="relative group/input">
-                                                            <span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/20 font-bold group-focus-within/input:text-orange transition-colors">@</span>
+                                                            <span className="absolute left-6 top-1/2 -translate-y-1/2 text-black/20 dark:text-white/20 font-bold group-focus-within/input:text-orange transition-colors">@</span>
                                                             <input
                                                                 type="text"
                                                                 name="instagram"
@@ -431,7 +431,7 @@ export default function EditProfileModal({ open, onClose }) {
                                                         </div>
                                                     </div>
                                                     <div className="space-y-1.5">
-                                                        <label className="ml-1 block text-[9px] font-black uppercase tracking-[0.2em] text-white/60">
+                                                        <label className="ml-1 block text-[9px] font-black uppercase tracking-[0.2em] text-black/60 dark:text-white/60">
                                                             Phone Number
                                                         </label>
                                                         <input
@@ -439,7 +439,7 @@ export default function EditProfileModal({ open, onClose }) {
                                                             name="phoneNumber"
                                                             value={formData.phoneNumber}
                                                             onChange={handleChange}
-                                                            className="h-14 w-full rounded-2xl border border-white/10 bg-white/[0.05] px-6 text-sm font-bold tracking-wide text-white transition-all focus:border-orange/30 focus:bg-white/[0.08] focus:outline-none focus:ring-4 focus:ring-orange/5"
+                                                            className="h-14 w-full rounded-2xl border border-black/[0.08] dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.05] px-6 text-sm font-bold tracking-wide text-black dark:text-white transition-all focus:border-orange/40 focus:bg-black/[0.05] dark:focus:bg-white/[0.08] focus:outline-none focus:ring-4 focus:ring-orange/5 placeholder:text-black/30 dark:placeholder:text-white/30"
                                                             placeholder="+91 ••••• •••••"
                                                         />
                                                     </div>
@@ -448,7 +448,7 @@ export default function EditProfileModal({ open, onClose }) {
 
                                             {/* Security Strategy Layer */}
                                             {!isGoogleUser ? (
-                                                <div className="rounded-[24px] border border-white/5 bg-white/[0.03] p-6 space-y-6">
+                                                <div className="rounded-[24px] border border-black/[0.04] dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.03] p-6 space-y-6">
                                                     <div className="flex items-center gap-2.5">
                                                         <div className="h-7 w-7 rounded-lg bg-orange/10 flex items-center justify-center">
                                                             <svg className="w-3.5 h-3.5 text-orange" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -468,14 +468,14 @@ export default function EditProfileModal({ open, onClose }) {
                                                                 name="currentPassword"
                                                                 value={passwordData.currentPassword}
                                                                 onChange={handlePasswordChange}
-                                                                className="h-12 w-full rounded-xl border border-white/5 bg-black/40 px-5 text-sm font-bold tracking-[0.3em] text-white transition-all focus:border-white/20 focus:outline-none"
+                                                                className="h-12 w-full rounded-xl border border-black/[0.06] dark:border-white/5 bg-black/[0.03] dark:bg-black/40 px-5 text-sm font-bold tracking-[0.3em] text-black dark:text-white transition-all focus:border-orange/30 dark:focus:border-white/20 focus:outline-none placeholder:text-black/20 dark:placeholder:text-white/20"
                                                                 placeholder="••••••••"
                                                             />
                                                         </div>
 
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                             <div className="space-y-2">
-                                                                <label className="ml-1 block text-[9px] font-black uppercase tracking-[0.3em] text-white/30">
+                                                                <label className="ml-1 block text-[9px] font-black uppercase tracking-[0.3em] text-black/30 dark:text-white/30">
                                                                     New Secret
                                                                 </label>
                                                                 <input
@@ -483,12 +483,12 @@ export default function EditProfileModal({ open, onClose }) {
                                                                     name="newPassword"
                                                                     value={passwordData.newPassword}
                                                                     onChange={handlePasswordChange}
-                                                                    className="h-12 w-full rounded-xl border border-white/5 bg-black/40 px-5 text-sm font-bold tracking-[0.3em] text-white transition-all focus:border-white/20 focus:outline-none"
+                                                                    className="h-12 w-full rounded-xl border border-black/[0.06] dark:border-white/5 bg-black/[0.03] dark:bg-black/40 px-5 text-sm font-bold tracking-[0.3em] text-black dark:text-white transition-all focus:border-orange/30 dark:focus:border-white/20 focus:outline-none placeholder:text-black/20 dark:placeholder:text-white/20"
                                                                     placeholder="••••••••"
                                                                 />
                                                             </div>
                                                             <div className="space-y-2">
-                                                                <label className="ml-1 block text-[9px] font-black uppercase tracking-[0.3em] text-white/30">
+                                                                <label className="ml-1 block text-[9px] font-black uppercase tracking-[0.3em] text-black/30 dark:text-white/30">
                                                                     Verify
                                                                 </label>
                                                                 <input
@@ -496,7 +496,7 @@ export default function EditProfileModal({ open, onClose }) {
                                                                     name="confirmPassword"
                                                                     value={passwordData.confirmPassword}
                                                                     onChange={handlePasswordChange}
-                                                                    className="h-12 w-full rounded-xl border border-white/5 bg-black/40 px-5 text-sm font-bold tracking-[0.3em] text-white transition-all focus:border-white/20 focus:outline-none"
+                                                                    className="h-12 w-full rounded-xl border border-black/[0.06] dark:border-white/5 bg-black/[0.03] dark:bg-black/40 px-5 text-sm font-bold tracking-[0.3em] text-black dark:text-white transition-all focus:border-orange/30 dark:focus:border-white/20 focus:outline-none placeholder:text-black/20 dark:placeholder:text-white/20"
                                                                     placeholder="••••••••"
                                                                 />
                                                             </div>
@@ -504,11 +504,11 @@ export default function EditProfileModal({ open, onClose }) {
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className="rounded-[24px] border border-white/5 bg-white/[0.03] p-5">
+                                                <div className="rounded-[24px] border border-black/[0.04] dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.03] p-5">
                                                     <div className="flex items-center justify-between">
                                                         <div className="space-y-0.5">
-                                                            <p className="text-[9px] font-black uppercase tracking-[0.1em] text-white/70">Account Security</p>
-                                                            <p className="text-[8px] font-medium text-white/30 uppercase tracking-widest">Authorized via Google</p>
+                                                            <p className="text-[9px] font-black uppercase tracking-[0.1em] text-black/70 dark:text-white/70">Account Security</p>
+                                                            <p className="text-[8px] font-medium text-black/30 dark:text-white/30 uppercase tracking-widest">Authorized via Google</p>
                                                         </div>
                                                         <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-emerald-500/5 border border-emerald-500/10 transition-all hover:bg-emerald-500/10 group">
                                                             <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)] animate-pulse" />
@@ -521,7 +521,7 @@ export default function EditProfileModal({ open, onClose }) {
                                             {/* Identity Selection */}
                                             <div className="pt-3">
                                                 <div className="mb-3 flex items-center justify-between px-1">
-                                                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/60">
+                                                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-black/60 dark:text-white/60">
                                                         Primary Identity
                                                     </label>
                                                     {profile?.gender && (
@@ -541,7 +541,7 @@ export default function EditProfileModal({ open, onClose }) {
                                             </div>
                                         </div>
 
-                                        <div className="pt-6 border-t border-white/5 bg-[#0A0A0A] mt-auto">
+                                        <div className="pt-6 border-t border-black/[0.04] dark:border-white/5 bg-white dark:bg-[#0A0A0A] mt-auto">
                                             <AnimatePresence>
                                                 {error && (
                                                     <motion.div

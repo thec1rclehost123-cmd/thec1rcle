@@ -19,60 +19,65 @@ export const dynamic = 'force-dynamic'
  * Cache: 2 min private + 5 min stale-while-revalidate
  */
 export async function GET(req: NextRequest) {
-    const auth = await requireAuth(req)
-    if (auth instanceof NextResponse) return auth
+    try {
+        const auth = await requireAuth(req)
+        if (auth instanceof NextResponse) return auth
 
-    const { searchParams } = new URL(req.url)
-    const venueId = searchParams.get('venueId')
-    const range = (searchParams.get('range') ?? '7d') as DateRange
+        const { searchParams } = new URL(req.url)
+        const venueId = searchParams.get('venueId')
+        const range = (searchParams.get('range') ?? '7d') as DateRange
 
-    if (!venueId) return fail('venueId is required', 400)
+        if (!venueId) return fail('venueId is required', 400)
 
-    const token = req.headers.get('authorization')?.split('Bearer ')[1] ?? ''
-    const client = getApiClient(token)
+        const token = req.headers.get('authorization')?.split('Bearer ')[1] ?? ''
+        const client = getApiClient(token)
 
-    // ── Parallel gateway calls — one failure must not block the other ─────────
-    const [kpisResult, financeResult] = await Promise.allSettled([
-        client.getAnalytics('venue', venueId, 'overview'),
-        client.request(`/finance/summary?entityId=${venueId}&type=venue&period=${range}`),
-    ])
+        // ── Parallel gateway calls — one failure must not block the other ─────────
+        const [kpisResult, financeResult] = await Promise.allSettled([
+            client.getAnalytics('venue', venueId, 'overview'),
+            client.request(`/finance/summary?entityId=${venueId}&type=venue&period=${range}`),
+        ])
 
-    const kpis       = kpisResult.status === 'fulfilled'    ? kpisResult.value    : null
-    const financeRaw = financeResult.status === 'fulfilled' ? financeResult.value : null
+        const kpis       = kpisResult.status === 'fulfilled'    ? kpisResult.value    : null
+        const financeRaw = financeResult.status === 'fulfilled' ? financeResult.value : null
 
-    const failures: string[] = [
-        kpisResult.status    === 'rejected' ? 'kpis'    : null,
-        financeResult.status === 'rejected' ? 'finance' : null,
-    ].filter(Boolean) as string[]
+        const failures: string[] = [
+            kpisResult.status    === 'rejected' ? 'kpis'    : null,
+            financeResult.status === 'rejected' ? 'finance' : null,
+        ].filter(Boolean) as string[]
 
-    const finance = financeRaw ? normalizeFinance(financeRaw, range) : null
+        const finance = financeRaw ? normalizeFinance(financeRaw, range) : null
 
-    return NextResponse.json(
-        {
-            // ── Flat KPI fields (backward compat with KPIGridModule) ──────────
-            weekendRevenue:        kpis?.weekendRevenue        ?? 0,
-            activeEventsCount:     kpis?.activeEventsCount     ?? 0,
-            avgEntryVelocity:      kpis?.avgEntryVelocity      ?? null,
-            totalGuestProfiles:    kpis?.totalGuestProfiles    ?? 0,
-            newGuestsThisWeek:     kpis?.newGuestsThisWeek     ?? 0,
-            revenueTrend:          kpis?.revenueTrend          ?? null,
-            revenueTrendDirection: kpis?.revenueTrendDirection ?? 'neutral',
-            dataReady:             !!kpis?.dataReady,
-            // ── New keys ─────────────────────────────────────────────────────
-            finance,
-            _meta: {
-                fetchedAt: new Date().toISOString(),
-                range,
-                partial:  failures.length > 0,
-                failures,
+        return NextResponse.json(
+            {
+                // ── Flat KPI fields (backward compat with KPIGridModule) ──────────
+                weekendRevenue:        kpis?.weekendRevenue        ?? 0,
+                activeEventsCount:     kpis?.activeEventsCount     ?? 0,
+                avgEntryVelocity:      kpis?.avgEntryVelocity      ?? null,
+                totalGuestProfiles:    kpis?.totalGuestProfiles    ?? 0,
+                newGuestsThisWeek:     kpis?.newGuestsThisWeek     ?? 0,
+                revenueTrend:          kpis?.revenueTrend          ?? null,
+                revenueTrendDirection: kpis?.revenueTrendDirection ?? 'neutral',
+                dataReady:             !!kpis?.dataReady,
+                // ── New keys ─────────────────────────────────────────────────────
+                finance,
+                _meta: {
+                    fetchedAt: new Date().toISOString(),
+                    range,
+                    partial:  failures.length > 0,
+                    failures,
+                },
             },
-        },
-        {
-            headers: {
-                'Cache-Control': 'private, max-age=120, stale-while-revalidate=300',
+            {
+                headers: {
+                    'Cache-Control': 'private, max-age=120, stale-while-revalidate=300',
+                },
             },
-        },
-    )
+        )
+    } catch (error: any) {
+        console.error("[Summary API Error]", error)
+        return fail("Failed to fetch summary data: " + (error.message || "Unknown error"))
+    }
 }
 
 // ── Normalizers ───────────────────────────────────────────────────────────────

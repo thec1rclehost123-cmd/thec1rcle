@@ -1,4 +1,6 @@
-export default function sitemap() {
+import { listEvents } from "@/lib/server/eventStore";
+
+export default async function sitemap() {
     const baseUrl = 'https://thec1rcle.com';
 
     // Core pages
@@ -17,5 +19,19 @@ export default function sitemap() {
         priority: route === '' ? 1 : 0.8,
     }));
 
-    return [...routes];
+    // Dynamic event pages (live + scheduled)
+    let eventRoutes = [];
+    try {
+        const events = await listEvents({ limit: 500 });
+        eventRoutes = (events || []).map((event) => ({
+            url: `${baseUrl}/event/${event.id}`,
+            lastModified: new Date(event.updatedAt || event.createdAt || Date.now()),
+            changeFrequency: 'weekly',
+            priority: 0.7,
+        }));
+    } catch (e) {
+        console.error('[sitemap] Failed to fetch events:', e.message);
+    }
+
+    return [...routes, ...eventRoutes];
 }

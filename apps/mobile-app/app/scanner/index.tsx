@@ -56,6 +56,10 @@ export default function ScannerCodeScreen() {
                     const registration = await registerScannerDevice(
                         result.event.venueId,
                         result.sessionToken,
+                        "C1RCLE Scanner",
+                        result.event.id,
+                        result.code,
+                        result.gate,
                     );
                     if (!registration.success) {
                         throw new Error(registration.error || "Failed to register scanner device");

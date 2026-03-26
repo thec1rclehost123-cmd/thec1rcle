@@ -83,10 +83,10 @@ function SearchInput({ value, onChange }) {
 
     return (
         <div className="relative" ref={containerRef}>
-            <div className="flex items-center gap-2 px-4 py-2.5">
+            <div className="flex items-center gap-3 px-6 py-3.5">
                 {/* Search icon */}
                 <svg
-                    className="w-3.5 h-3.5 text-black/40 dark:text-white/40 shrink-0"
+                    className="w-4 h-4 text-white/40 shrink-0"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -101,8 +101,8 @@ function SearchInput({ value, onChange }) {
                     onChange={(e) => onChange(e.target.value)}
                     onFocus={handleFocus}
                     onKeyDown={handleKeyDown}
-                    placeholder="Search"
-                    className="bg-transparent text-[10px] font-bold uppercase tracking-widest text-black dark:text-white placeholder:text-black/30 dark:placeholder:text-white/30 outline-none w-20 md:w-28"
+                    placeholder="SEARCH"
+                    className="bg-transparent text-[11px] font-black uppercase tracking-[0.2em] text-white placeholder:text-white/30 outline-none w-24 md:w-32"
                 />
             </div>
 
@@ -164,13 +164,12 @@ function FilterPill({ label, value, options, onChange, icon: Icon }) {
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className={clsx(
-                    "group flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-full transition-all duration-300",
+                    "group flex items-center gap-3 px-6 py-3.5 text-sm font-black rounded-[20px] transition-all duration-300",
                     isActive
-                        ? "text-white bg-[#F44A22] shadow-[0_0_20px_rgba(244,74,34,0.3)]"
-                        : "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
+                        ? "text-white bg-[#F44A22] shadow-[0_4px_20px_rgba(244,74,34,0.4)]"
+                        : "text-white/60 hover:text-white hover:bg-white/5"
                 )}
             >
-                {Icon && <Icon className="w-4 h-4" />}
                 <span className="uppercase tracking-widest text-[10px]">{value || label}</span>
                 <svg
                     className={clsx("w-3 h-3 transition-transform duration-300 opacity-50 group-hover:opacity-100", isOpen && "rotate-180")}
@@ -260,15 +259,15 @@ export default function ExploreFilterBar({
     return (
         <div className="flex justify-center w-full px-4">
             <motion.div
-                initial={{ y: -20, opacity: 0 }}
+                initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-                className="inline-flex items-center gap-1 p-1.5 rounded-full border border-black/5 dark:border-white/10 bg-white/50 dark:bg-black/50 shadow-sm dark:shadow-glow backdrop-blur-2xl"
+                transition={{ duration: 0.8, ease: "easeOut" }}
+                className="inline-flex items-center gap-1.5 p-2 rounded-full border border-white/10 bg-[#0A0A0A] shadow-[0_20px_50px_rgba(0,0,0,0.5),0_0_40px_rgba(244,74,34,0.15)] backdrop-blur-3xl"
             >
                 {setSearchTerm && (
                     <>
                         <SearchInput value={searchTerm} onChange={setSearchTerm} />
-                        <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 mx-1" />
+                        <div className="h-6 w-[1.5px] bg-white/10 mx-1.5" />
                     </>
                 )}
                 <FilterPill
@@ -277,14 +276,14 @@ export default function ExploreFilterBar({
                     options={sortOptions}
                     onChange={setSort}
                 />
-                <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 mx-1" />
+                <div className="h-6 w-[1.5px] bg-white/10 mx-1.5" />
                 <FilterPill
                     label="Date"
                     value={dateOptions.find(o => o.value === date)?.label}
                     options={dateOptions}
                     onChange={setDate}
                 />
-                <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 mx-1" />
+                <div className="h-6 w-[1.5px] bg-white/10 mx-1.5" />
                 <FilterPill
                     label="City"
                     value={cityOptions.find(o => o.value === city)?.label || city}

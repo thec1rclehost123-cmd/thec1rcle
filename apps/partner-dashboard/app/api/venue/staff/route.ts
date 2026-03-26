@@ -11,6 +11,7 @@ import {
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireVenueAccess, applyPIIMask } from "@/lib/rbac/staffProfileEnforcer";
 import { ok, fail } from "@/lib/server/apiResponse";
+import { escapeHtml } from "@/lib/server/sanitize";
 import { Resend } from "resend";
 
 // Guard: only initialize Resend if the API key is configured
@@ -128,8 +129,8 @@ export async function POST(req: NextRequest) {
                     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #0d0d0f; color: #fff; border-radius: 16px;">
                         <h2 style="font-size: 22px; font-weight: 900; margin-bottom: 8px;">You're invited!</h2>
                         <p style="color: #aaa; margin-bottom: 24px;">
-                            You've been invited to join <strong style="color: #fff;">${venueName}</strong>
-                            as a <strong style="color: #f97316;">${roleLabel}</strong>
+                            You've been invited to join <strong style="color: #fff;">${escapeHtml(venueName)}</strong>
+                            as a <strong style="color: #f97316;">${escapeHtml(roleLabel)}</strong>
                             on The C1rcle Partner Dashboard.
                         </p>
                         <a href="${inviteUrl}" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #f97316, #e11d48); color: #fff; font-weight: 700; border-radius: 12px; text-decoration: none; font-size: 14px;">

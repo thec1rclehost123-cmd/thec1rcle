@@ -6,7 +6,7 @@ type BadgeVariant = "solid" | "soft" | "outline";
 type BadgeTone = AccentName | "neutral" | "success" | "danger";
 
 const tonePalette: Record<Exclude<BadgeTone, AccentName>, { bg: string; text: string; border: string }> = {
-  neutral: { bg: "rgba(255,255,255,0.08)", text: "rgba(255,255,255,0.75)", border: "rgba(255,255,255,0.2)" },
+  neutral: { bg: "var(--surface-2)", text: "var(--text-secondary)", border: "var(--border-primary)" },
   success: { bg: "rgba(34,197,94,0.15)", text: "#34D399", border: "rgba(34,197,94,0.4)" },
   danger: { bg: "rgba(248,113,113,0.18)", text: "#F87171", border: "rgba(248,113,113,0.5)" },
 };

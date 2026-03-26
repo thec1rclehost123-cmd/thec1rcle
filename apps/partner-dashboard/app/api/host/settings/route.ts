@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/server/withAuth";
 import { fail } from "@/lib/server/apiResponse";
 import { PAGE_SIZE_MAX_LIST } from "@/lib/constants";
+import { tryProxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 import {
     getHostSettings,
     updateHostSettings,
@@ -17,18 +18,6 @@ import {
     type HostSettingsAction,
     type HostSettingsSection,
 } from "@/lib/server/hostSettingsStore";
-
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
-
-async function tryGateway(url: string, init: RequestInit): Promise<Response | null> {
-    if (!GATEWAY_URL) return null;
-    try {
-        const res = await fetch(url, { ...init, signal: AbortSignal.timeout(4000) });
-        return res;
-    } catch {
-        return null;
-    }
-}
 
 /**
  * GET /api/host/settings?hostId=XXX
@@ -53,25 +42,12 @@ export const GET = withAuth(async (req: NextRequest, auth) => {
     }
 
     if (include === "payouts") {
-        const gwRes = await tryGateway(
-            `${GATEWAY_URL}/api/v1/host/payouts?${searchParams.toString()}`,
-            { headers: { Authorization: req.headers.get("Authorization") || "" } }
-        );
-        if (gwRes?.ok) {
-            const data = await gwRes.json();
-            return NextResponse.json(data);
-        }
-        return NextResponse.json({ payouts: [] });
+        const data = await tryProxyToGateway(req, `${GATEWAY_URL}/api/v1/host/payouts?${searchParams.toString()}`, {});
+        return NextResponse.json(data || { payouts: [] });
     }
 
-    const gwRes = await tryGateway(
-        `${GATEWAY_URL}/api/v1/venue-settings/host?${searchParams.toString()}`,
-        { headers: { Authorization: req.headers.get("Authorization") || "" } }
-    );
-    if (gwRes?.ok) {
-        const data = await gwRes.json();
-        return NextResponse.json(data);
-    }
+    const data = await tryProxyToGateway(req, `${GATEWAY_URL}/api/v1/venue-settings/host?${searchParams.toString()}`, {});
+    if (data) return NextResponse.json(data);
 
     const settings = await getHostSettings(hostId);
     return NextResponse.json(settings, { headers: { "Cache-Control": "private, no-store" } });
@@ -87,18 +63,11 @@ export const PATCH = withAuth(async (req: NextRequest, auth) => {
     const { hostId, patch, action = "GENERAL_UPDATED", section = "general" } = body;
     const actor = { uid: auth.uid, displayName: (auth as any).name ?? auth.uid };
 
-    const gwRes = await tryGateway(`${GATEWAY_URL}/api/v1/venue-settings/host`, {
+    const data = await tryProxyToGateway(req, `${GATEWAY_URL}/api/v1/venue-settings/host`, {
         method: "PATCH",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: req.headers.get("Authorization") || "",
-        },
         body: JSON.stringify(body),
     });
-    if (gwRes?.ok) {
-        const data = await gwRes.json();
-        return NextResponse.json(data);
-    }
+    if (data) return NextResponse.json(data);
 
     try {
         const updated = await updateHostSettings(hostId, patch, actor, action as HostSettingsAction, section as HostSettingsSection);
@@ -141,18 +110,11 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
     const patch = body.settings ?? {};
     const actor = { uid: auth.uid, displayName: (auth as any).name ?? auth.uid };
 
-    const gwRes = await tryGateway(`${GATEWAY_URL}/api/v1/venue-settings/host`, {
-        method: "PATCH",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: req.headers.get("Authorization") || "",
-        },
+    const data = await tryProxyToGateway(req, `${GATEWAY_URL}/api/v1/venue-settings/host`, {
+        method: "PATCH", // Save settings via patch on Gateway
         body: JSON.stringify({ hostId, patch }),
     });
-    if (gwRes?.ok) {
-        const data = await gwRes.json();
-        return NextResponse.json(data);
-    }
+    if (data) return NextResponse.json(data);
 
     try {
         const updated = await updateHostSettings(hostId, patch, actor, "GENERAL_UPDATED", "general");
@@ -162,3 +124,4 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
         return fail("Failed to save settings");
     }
 });
+

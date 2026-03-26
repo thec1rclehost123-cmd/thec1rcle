@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import { getEvent } from "./eventStore";
-import { sendTicketEmail } from "../email"; // Import email sender for delayed sending
-import { getPromoterLinkByCode, recordConversion } from "./promoterStore";
-import { generateOrderQRCodes } from "./qrStore";
+import { getAdminDb, isFirebaseConfigured } from "../firebase/admin.js";
+import { getEvent } from "./eventStore.js";
+import { getPromoterLinkByCode, recordConversion } from "./promoterStore.js";
+import { generateOrderQRCodes } from "./qrStore.js";
 import {
     recordOrderAuthorized,
     recordOrderCaptured,
@@ -15,6 +14,7 @@ import {
 import { validateOrder as coreValidateOrder, executeOrderCreation as coreExecuteOrderCreation, generateOrderId } from "@c1rcle/core/order-engine";
 import inventoryEngine from "@c1rcle/core/inventory-engine";
 import { sendEvent, Events } from "@c1rcle/core/inngest";
+import { buildStoredOrderTicket } from "./ticketingLogic.js";
 
 const ORDERS_COLLECTION = "orders";
 const RSVP_COLLECTION = "rsvp_orders";
@@ -22,6 +22,15 @@ const RSVP_COLLECTION = "rsvp_orders";
 // In-memory fallback for development without Firebase
 let fallbackOrders = [];
 let fallbackRSVPs = [];
+
+export const __resetOrderStoreForTests = () => {
+    fallbackOrders = [];
+    fallbackRSVPs = [];
+};
+
+export const __getFallbackOrdersForTests = () => [...fallbackOrders];
+
+export const __getFallbackRSVPsForTests = () => [...fallbackRSVPs];
 
 // Local fallback order ID generator (used in mock/dev env where core engine isn't available).
 // Renamed to avoid shadowing the named import from '@c1rcle/core/order-engine'.
@@ -173,10 +182,10 @@ export async function createRSVPOrder(payload) {
     // Fire-and-forget: admission consumption and promoter conversion
     if (reservationId) {
         (async () => {
-            const { getReservation } = await import("./checkoutService");
+            const { getReservation } = await import("./checkoutService.js");
             const res = await getReservation(reservationId);
             if (res?.queueId) {
-                const { consumeAdmission } = await import("./queueStore");
+                const { consumeAdmission } = await import("./queueStore.js");
                 await consumeAdmission(res.queueId);
             }
         })().catch(err => console.error("[OrderStore] Failed to consume admission for RSVP:", err));
@@ -270,14 +279,7 @@ export async function createOrder(payload) {
             );
         }
 
-        orderTickets.push({
-            ticketId: eventTicket.id,
-            name: eventTicket.name,
-            price: Number(eventTicket.price) || 0,
-            quantity: Number(quantity),
-            subtotal: (Number(eventTicket.price) || 0) * Number(quantity),
-            entryType: eventTicket.entryType || 'general'
-        });
+        orderTickets.push(buildStoredOrderTicket(selectedTicket, eventTicket));
 
         ticketUpdates.push({
             ticketId: eventTicket.id,
@@ -441,10 +443,10 @@ export async function createOrder(payload) {
             // Consumption of admission for auto-confirmed free tickets
             if (reservationId) {
                 (async () => {
-                    const { getReservation } = await import("./checkoutService");
+                    const { getReservation } = await import("./checkoutService.js");
                     const res = await getReservation(reservationId);
                     if (res?.queueId) {
-                        const { consumeAdmission } = await import("./queueStore");
+                        const { consumeAdmission } = await import("./queueStore.js");
                         await consumeAdmission(res.queueId);
                     }
                 })().catch(err => console.error("[OrderStore] Failed to consume admission for free order:", err));
@@ -984,7 +986,7 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
 
     // Fire-and-forget: share bundle creation (best-effort, not critical path)
     (async () => {
-        const { createShareBundle } = await import("./ticketShareStore");
+                const { createShareBundle } = await import("./ticketShareStore.js");
         for (const ticket of order.tickets) {
             await createShareBundle(orderId, order.userId, order.eventId, ticket.quantity, ticket.ticketId);
         }
@@ -1003,7 +1005,7 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
     // Consume admission if this order came from a waiting room
     if (order.reservationId) {
         try {
-            const { getReservation } = await import("./checkoutService");
+            const { getReservation } = await import("./checkoutService.js");
             const res = await getReservation(order.reservationId);
             if (res?.queueId) {
                 const { consumeAdmission } = await import("./queueStore");
@@ -1124,10 +1126,39 @@ export async function updateOrderRefundStatus(paymentId, eventType, data) {
     }
 
     const orderId = snapshot.docs[0].id;
+    const now = new Date().toISOString();
+
+    // On refund.processed: void entitlements atomically and mark order as refunded
+    if (eventType === "refund.processed") {
+        await db.runTransaction(async (tx) => {
+            const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
+            tx.update(orderRef, {
+                status: "refunded",
+                refundStatus: eventType,
+                refundDetails: data,
+                updatedAt: now,
+            });
+
+            const bundlesSnap = await tx.get(
+                db.collection("share_bundles").where("orderId", "==", orderId)
+            );
+            bundlesSnap.forEach(d => tx.update(d.ref, { status: "cancelled", updatedAt: now }));
+
+            const assignmentsSnap = await tx.get(
+                db.collection("ticket_assignments").where("orderId", "==", orderId)
+            );
+            assignmentsSnap.forEach(d => tx.update(d.ref, { status: "voided", updatedAt: now }));
+        });
+
+        const updatedDoc = await db.collection(ORDERS_COLLECTION).doc(orderId).get();
+        return { status: "refunded", order: { id: orderId, ...updatedDoc.data() } };
+    }
+
+    // For other refund events (created, failed, speed_changed): record metadata only
     const updates = {
         refundStatus: eventType,
         refundDetails: data,
-        updatedAt: new Date().toISOString()
+        updatedAt: now,
     };
 
     await db.collection(ORDERS_COLLECTION).doc(orderId).update(updates);

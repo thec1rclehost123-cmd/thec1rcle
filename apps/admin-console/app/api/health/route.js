@@ -15,10 +15,6 @@ async function handler(req) {
             database: 'Unknown',
             audit_pipeline: 'Unknown'
         },
-        env: {
-            projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-            nodeEnv: process.env.NODE_ENV
-        }
     };
 
     try {

@@ -9,15 +9,31 @@ import { withAdminAuth } from "@/lib/server/adminMiddleware";
 
 export const dynamic = 'force-dynamic';
 
+const ALLOWED_REFUND_STATUSES = ['pending', 'approved', 'rejected', 'processing', 'all'];
+
 async function handler(request) {
     try {
         const { searchParams } = new URL(request.url);
         const status = searchParams.get('status') || 'pending';
-        const limit = parseInt(searchParams.get('limit') || '50');
+        const rawLimit = parseInt(searchParams.get('limit') || '50', 10);
 
-        const refunds = await adminStore.getRefunds({ status, limit });
+        if (!ALLOWED_REFUND_STATUSES.includes(status)) {
+            return NextResponse.json({ error: "Invalid status filter" }, { status: 400 });
+        }
+        if (isNaN(rawLimit) || rawLimit <= 0) {
+            return NextResponse.json({ error: "Invalid limit" }, { status: 400 });
+        }
+        const limit = Math.min(rawLimit, 50);
+        const cursor = searchParams.get('cursor') || null;
 
-        return NextResponse.json({ refunds, total: refunds.length });
+        const result = await adminStore.getRefunds({ status, limit, cursor });
+
+        return NextResponse.json({
+            refunds: result.refunds,
+            hasMore: result.hasMore,
+            nextCursor: result.nextCursor,
+            total: result.refunds.length
+        });
     } catch (error) {
         console.error("GET /api/admin/refunds error:", error);
         return NextResponse.json(

@@ -103,12 +103,12 @@ const sortComparators = {
   "Price Low to High": (a, b) => getStartingPrice(a) - getStartingPrice(b)
 };
 
-export default function ExploreClient({ initialEvents = [] }) {
-  // Seed Zustand store synchronously from server-rendered props.
-  // Runs only on the first render (seedRef guard). If the store already has
-  // fresh data (return visitor with localStorage cache), seeding is skipped.
+export default function ExploreClient({ initialEvents = [], initialFeaturedEvents = [] }) {
+  // Seed Zustand store from server-rendered props on first client render only.
+  // The guard prevents this from running during SSR where localStorage is unavailable.
   const seedRef = useRef(false);
-  if (!seedRef.current) {
+  useEffect(() => {
+    if (seedRef.current) return;
     seedRef.current = true;
     if (initialEvents.length > 0) {
       const { lastFetchedAt, events: storeEvents } = useExploreStore.getState();
@@ -123,7 +123,7 @@ export default function ExploreClient({ initialEvents = [] }) {
         });
       }
     }
-  }
+  }, [initialEvents]);
 
   const [activeSort, setActiveSort] = useState(sortTabs[0]);
 
@@ -275,23 +275,14 @@ export default function ExploreClient({ initialEvents = [] }) {
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [events]);
 
-  const heroEvents = useMemo(() => {
+  const featuredSlides = useMemo(() => {
+    if (initialFeaturedEvents.length > 0) return initialFeaturedEvents;
     if (!events.length) return [];
-    const comparator = sortComparators.Trending;
-    const sorted = [...events].sort(comparator);
 
-    const priorityIndex = sorted.findIndex(e =>
-      e.title?.toLowerCase().includes("after dark az") &&
-      e.title?.toLowerCase().includes("mansion party")
-    );
-
-    if (priorityIndex > -1) {
-      const [priorityEvent] = sorted.splice(priorityIndex, 1);
-      sorted.unshift(priorityEvent);
-    }
-
-    return sorted.slice(0, 6);
-  }, [events]);
+    return [...events]
+      .sort(sortComparators.Trending)
+      .slice(0, 6);
+  }, [initialFeaturedEvents, events]);
 
   const cityDropdownOptions = useMemo(() => {
     if (!cityOptions.length) {
@@ -452,29 +443,37 @@ export default function ExploreClient({ initialEvents = [] }) {
     setSearchTerm("");
   };
 
-  const heroSection = heroEvents.length ? (
-    <ExploreCarouselHeader slides={heroEvents} />
+  const heroSection = featuredSlides.length ? (
+    <ExploreCarouselHeader slides={featuredSlides} />
   ) : (
     <HeroSkeleton status={status} error={error} />
   );
 
   return (
-    <div className="relative bg-white dark:bg-[#0A0A0A]">
+    <div className="relative bg-white dark:bg-[#0A0A0A] min-h-screen">
       <div className="relative z-10">
-        {heroSection}
+        {/* Soft Rectangle Hero Wrapper */}
+        <section className="px-4 py-4 lg:px-8 lg:py-6">
+          <div className="relative overflow-hidden rounded-[32px] sm:rounded-[48px] border border-black/5 dark:border-white/10 shadow-2xl bg-black">
+            {heroSection}
+          </div>
+        </section>
 
-        <div className="w-full bg-white/80 dark:bg-[#0A0A0A]/80 backdrop-blur-xl border-y border-black/5 dark:border-white/5 py-4 transition-all duration-300">
-          <ExploreFilterBar
-            sort={activeSort}
-            setSort={setActiveSort}
-            date={filters.datePreset}
-            setDate={(val) => handleFilterChange("datePreset", val)}
-            city={selectedCity}
-            setCity={setSelectedCity}
-            cityOptions={cityDropdownOptions}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-          />
+        {/* Search/Filter Bar - Overlapping the Hero bottom */}
+        <div className="relative z-[20] -mt-12 mb-16 flex justify-center px-4">
+          <div className="w-fit max-w-full">
+            <ExploreFilterBar
+              sort={activeSort}
+              setSort={setActiveSort}
+              date={filters.datePreset}
+              setDate={(val) => handleFilterChange("datePreset", val)}
+              city={selectedCity}
+              setCity={setSelectedCity}
+              cityOptions={cityDropdownOptions}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+            />
+          </div>
         </div>
 
         <section className="mx-auto w-full max-w-[1600px] px-4 pb-10 sm:px-6 lg:px-12">
@@ -637,9 +636,9 @@ function HeroSkeleton({ status, error }) {
     );
   }
   return (
-    <section className="relative w-full py-12">
-      <div className="mx-auto w-full max-w-[1600px] px-6">
-        <div className="relative overflow-hidden rounded-[40px] border border-black/5 dark:border-white/5 bg-gradient-to-br from-black/5 to-transparent dark:from-white/5 dark:to-transparent min-h-[50vh] lg:min-h-[750px] h-auto flex items-center justify-center">
+    <section className="relative w-full py-4 lg:py-6">
+      <div className="mx-auto w-full px-4 sm:px-6">
+        <div className="relative overflow-hidden rounded-[32px] sm:rounded-[48px] border border-black/5 dark:border-white/5 bg-gradient-to-br from-black/5 to-transparent dark:from-white/5 dark:to-transparent min-h-[400px] lg:min-h-[600px] h-auto flex items-center justify-center">
           <div className="absolute inset-0 bg-gradient-to-r from-black/5 dark:from-white/5 via-transparent to-transparent shimmer-block" />
           <div className="relative z-10 text-center space-y-4">
             <div className="w-16 h-16 border-4 border-black/10 dark:border-white/10 border-t-black dark:border-t-white rounded-full animate-spin mx-auto" />

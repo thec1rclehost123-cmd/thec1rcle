@@ -54,7 +54,7 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
                     requestedStartTime: body.startTime,
                     requestedEndTime: body.endTime,
                     notes: `Event creation request: ${body.title}`,
-                }, token);
+                }, token, { uid: auth.uid, role: auth.role });
             } catch (slotError) {
                 console.error("[POST /api/events/create] slot request failed:", slotError);
             }

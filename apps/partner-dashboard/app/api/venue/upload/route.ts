@@ -18,6 +18,11 @@ export const POST = withAuth(async (req: NextRequest) => {
         const type = formData.get("type") as string;
 
         if (!file || !venueId || !type) return fail("Missing required fields", 400);
+        
+        // Security: Whitelist the 'type' to prevent path traversal in storage bucket
+        const ALLOWED_TYPES = ["logo", "cover", "gallery", "doc", "menu"];
+        if (!ALLOWED_TYPES.includes(type)) return fail("Invalid upload type", 400);
+
         if (!(ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(file.type)) return fail("Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.", 400);
         if (file.size > MAX_UPLOAD_SIZE_BYTES) return fail("File too large. Maximum size is 10 MB.", 400);
 

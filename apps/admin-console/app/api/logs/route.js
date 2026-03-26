@@ -1,14 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getApiClient } from "@/lib/server/apiClient";
-import { verifyAuth } from "@/lib/server/auth";
+import { withAdminAuth } from "@/lib/server/adminMiddleware";
 
-export async function GET(req) {
+export const dynamic = 'force-dynamic';
+
+async function handler(req) {
     try {
-        const decodedToken = await verifyAuth(req);
-        if (!decodedToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const client = getApiClient(token);
 
@@ -20,3 +17,5 @@ export async function GET(req) {
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }
+
+export const GET = withAdminAuth(handler);

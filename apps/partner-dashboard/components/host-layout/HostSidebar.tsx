@@ -37,7 +37,7 @@ export default function HostSidebar() {
             category: "events",
             items: [
                 { icon: CalendarDays, label: "my_events", href: "/host/events" },
-                { icon: PlusCircle, label: "create", href: "/host/create" },
+                { icon: PlusCircle, label: "create", href: "/host/create/select-venue" },
                 { icon: ShieldCheck, label: "security", href: "/host/ops" },
             ]
         },

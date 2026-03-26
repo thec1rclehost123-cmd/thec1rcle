@@ -4,8 +4,18 @@ import { getAuth } from "firebase-admin/auth";
 
 /**
  * THE C1RCLE - Admin Authorization Middleware (Hardened)
+ *
+ * Auth transport: Bearer token only (Authorization: Bearer <firebase_id_token>).
+ * No session cookies are used for admin routes, so CSRF is not applicable here.
+ * If cookies are ever added to admin auth, add SameSite=Strict + CSRF token validation.
+ *
+ * Tenant isolation model: admin role is the tenant boundary.
+ * Admins operate across all tenants by design. Resource-level checks (entity exists,
+ * correct collection, valid status) are enforced inside adminStore methods.
+ *
  * - Cryptographically verifies Firebase ID tokens
  * - Enforces mandatory 'admin' and 'admin_role' claims
+ * - Rejects tokens missing admin_role (no silent downgrade)
  * - Returns generic 404s to unauthorized requests (Red-Team Obscurity)
  */
 export function withAdminAuth(handler, requiredRole = 'admin') {
@@ -69,13 +79,19 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
             const userAgent = req.headers.get("user-agent") || "unknown";
             const requestId = `REQ_${Math.random().toString(36).substring(2, 15)}_${Date.now()}`;
 
+            // Reject tokens missing admin_role claim — do not silently downgrade
+            if (!admin_role) {
+                console.error(`[SECURITY] Admin token missing admin_role claim for UID: ${decodedToken.uid}`);
+                return genericNotFound();
+            }
+
             // Bind enhanced context to request
             req.user = {
                 ...decodedToken,
                 ipAddress,
                 userAgent,
                 requestId,
-                admin_role: admin_role || 'readonly'
+                admin_role
             };
 
             return handler(req, ...args);

@@ -46,7 +46,7 @@ interface SlotRequest {
 }
 
 export default function HostSlotRequestsPage() {
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
     const [requests, setRequests] = useState<SlotRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [isError, setIsError] = useState(false);
@@ -67,7 +67,10 @@ export default function HostSlotRequestsPage() {
         setIsError(false);
         try {
             const statusFilter = activeTab !== "all" ? `&status=${activeTab}` : "";
-            const res = await fetch(`/api/slots?hostId=${hostId}${statusFilter}`);
+            const token = user ? await user.getIdToken() : "";
+            const res = await fetch(`/api/slots?hostId=${hostId}${statusFilter}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
             const data = await res.json();
 
             // Enrich with event details — deduplicate by eventId to avoid N+1 fetches

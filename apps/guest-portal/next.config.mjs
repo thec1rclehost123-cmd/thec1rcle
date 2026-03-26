@@ -16,15 +16,12 @@ const nextConfig = {
       "firebase/firestore",
       "firebase/storage"
     ],
-    instrumentationHook: true,
   },
   productionBrowserSourceMaps: false,
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // eslint linting during builds is disabled via `next build --no-lint`
   images: {
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',
@@ -71,18 +68,23 @@ const nextConfig = {
   }
 };
 
-export default withSentryConfig(
-  nextConfig,
-  {
-    silent: true,
-    org: process.env.SENTRY_ORG || "c1rcle",
-    project: process.env.SENTRY_PROJECT || "guest-portal",
-  },
-  {
-    widenClientFileUpload: true,
-    transpileClientSDK: true,
-    hideSourceMaps: true,
-    disableLogger: true,
-    automaticVercelMonitors: true,
-  }
-);
+// Skip Sentry wrapping in development — it adds compilation overhead and network calls.
+const finalConfig = process.env.NODE_ENV === 'development'
+  ? nextConfig
+  : withSentryConfig(
+      nextConfig,
+      {
+        silent: true,
+        org: process.env.SENTRY_ORG || "c1rcle",
+        project: process.env.SENTRY_PROJECT || "guest-portal",
+      },
+      {
+        widenClientFileUpload: true,
+        transpileClientSDK: true,
+        hideSourceMaps: true,
+        disableLogger: true,
+        automaticVercelMonitors: true,
+      }
+    );
+
+export default finalConfig;

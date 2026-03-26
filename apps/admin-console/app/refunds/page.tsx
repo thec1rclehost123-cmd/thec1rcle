@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
     RefreshCw,
     Check,
@@ -44,20 +44,30 @@ export default function RefundsPage() {
     const [selectedRefund, setSelectedRefund] = useState<RefundRequest | null>(null);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [processing, setProcessing] = useState<string | null>(null);
+    const [cursor, setCursor] = useState<string | null>(null);
+    const [hasMore, setHasMore] = useState(false);
+    const [cursorStack, setCursorStack] = useState<string[]>([]); // for prev navigation
 
     useEffect(() => {
-        if (user) fetchRefundRequests();
+        // Reset pagination when filter changes
+        setCursor(null);
+        setCursorStack([]);
+        if (user) fetchRefundRequests(null);
     }, [user, filter]);
 
-    const fetchRefundRequests = async () => {
+    const fetchRefundRequests = useCallback(async (pageCursor: string | null) => {
         setLoading(true);
         try {
             const token = await user.getIdToken();
-            const res = await fetch(`/api/admin/refunds?status=${filter}`, {
+            const params = new URLSearchParams({ status: filter, limit: '25' });
+            if (pageCursor) params.set('cursor', pageCursor);
+            const res = await fetch(`/api/admin/refunds?${params}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
             setRefundRequests(data.refunds || []);
+            setHasMore(data.hasMore || false);
+            setCursor(data.nextCursor || null);
         } catch (error) {
             console.error('Failed to fetch refund requests:', error);
             // Mock data for development
@@ -100,6 +110,20 @@ export default function RefundsPage() {
         } finally {
             setLoading(false);
         }
+    }, [user, filter]);
+
+    const handleNextPage = () => {
+        if (!hasMore || !cursor) return;
+        setCursorStack(prev => [...prev, cursor]);
+        fetchRefundRequests(cursor);
+    };
+
+    const handlePrevPage = () => {
+        if (cursorStack.length === 0) return;
+        const newStack = [...cursorStack];
+        const prevCursor = newStack.pop() || null;
+        setCursorStack(newStack);
+        fetchRefundRequests(prevCursor);
     };
 
     const handleApprove = async (refundId: string) => {
@@ -115,7 +139,7 @@ export default function RefundsPage() {
             });
 
             if (res.ok) {
-                fetchRefundRequests();
+                fetchRefundRequests(cursorStack[cursorStack.length - 1] || null);
             }
         } catch (error) {
             console.error('Failed to approve refund:', error);
@@ -138,7 +162,7 @@ export default function RefundsPage() {
             });
 
             if (res.ok) {
-                fetchRefundRequests();
+                fetchRefundRequests(cursorStack[cursorStack.length - 1] || null);
             }
         } catch (error) {
             console.error('Failed to reject refund:', error);
@@ -285,7 +309,7 @@ export default function RefundsPage() {
                         Export History
                     </button>
                     <button
-                        onClick={fetchRefundRequests}
+                        onClick={() => fetchRefundRequests(null)}
                         disabled={loading}
                         className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-zinc-400 text-[11px] font-bold uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all"
                     >
@@ -346,7 +370,7 @@ export default function RefundsPage() {
                 ))}
             </div>
 
-            <DataTable 
+            <DataTable
                 columns={columns}
                 data={filteredRefunds}
                 searchPlaceholder="Search by Customer, Event or Order ID..."
@@ -355,6 +379,29 @@ export default function RefundsPage() {
                     setIsDrawerOpen(true);
                 }}
             />
+
+            {/* Pagination controls */}
+            <div className="flex items-center justify-between px-1 pt-2 pb-1">
+                <p className="text-[11px] text-zinc-500 font-medium">
+                    Showing {refundRequests.length} refund{refundRequests.length !== 1 ? 's' : ''}
+                </p>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handlePrevPage}
+                        disabled={cursorStack.length === 0 || loading}
+                        className="h-8 px-3 rounded-lg text-[11px] font-bold uppercase tracking-widest border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                        Prev
+                    </button>
+                    <button
+                        onClick={handleNextPage}
+                        disabled={!hasMore || loading}
+                        className="h-8 px-3 rounded-lg text-[11px] font-bold uppercase tracking-widest border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                        Next <ChevronRight className="w-3 h-3" />
+                    </button>
+                </div>
+            </div>
 
             <ActionDrawer
                 isOpen={isDrawerOpen}

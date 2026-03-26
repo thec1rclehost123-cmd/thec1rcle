@@ -1,10 +1,6 @@
 import { getAdminDb, getAdminApp, isFirebaseConfigured } from "../firebase/admin";
 import { getAuth } from "firebase-admin/auth";
-import { getUserOrders } from "./orderStore";
-import { getEvent } from "./eventStore";
 import { createHmac } from "node:crypto";
-import { getUserClaimedTickets, getOrderShareBundles, getOrderAssignments, getCoupleAssignment, getPendingTransfers } from "./ticketShareStore";
-import { PUBLIC_LIFECYCLE_STATES } from "@c1rcle/core/events";
 
 const USERS_COLLECTION = "users";
 
@@ -27,20 +23,19 @@ export async function getUserProfile(userId) {
 
     let data = doc.exists ? doc.data() : {};
 
-    // Hybrid fetch: if Firestore is missing photo, check Firebase Auth
+    // Hybrid fetch: if Firestore is missing photo, check Firebase Auth (3s timeout)
     if (!data.photoURL && !data.avatar) {
         try {
             const auth = getAuth(getAdminApp());
-            const userRecord = await auth.getUser(userId);
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000));
+            const userRecord = await Promise.race([auth.getUser(userId), timeout]);
             if (userRecord.photoURL) {
                 data.photoURL = userRecord.photoURL;
-                // Proactively sync back to Firestore for faster future reads
-                if (doc.exists) {
-                    await db.collection(USERS_COLLECTION).doc(userId).update({ photoURL: userRecord.photoURL, avatar: userRecord.photoURL });
-                }
+                // Fire-and-forget sync back — don't block the response
+                db.collection(USERS_COLLECTION).doc(userId).update({ photoURL: userRecord.photoURL, avatar: userRecord.photoURL }).catch(() => {});
             }
         } catch (e) {
-            console.warn(`[ProfileStore] Auth fallback failed for ${userId}:`, e.message);
+            if (e.message !== "timeout") console.warn(`[ProfileStore] Auth fallback failed for ${userId}:`, e.message);
         }
     }
 
@@ -92,6 +87,7 @@ export async function getUserEvents(profileUserId, viewerUserId) {
     const db = getAdminDb();
 
     // 1. Fetch orders (tickets)
+    const { getUserOrders } = await import("./orderStore");
     const orders = await getUserOrders(profileUserId);
 
     // 2. Fetch profile for RSVPs and status
@@ -179,6 +175,7 @@ export async function getUserEvents(profileUserId, viewerUserId) {
         });
     });
 
+    const { PUBLIC_LIFECYCLE_STATES } = await import("@c1rcle/core/events");
     const now = new Date();
     const upcoming = [];
     const attended = [];
@@ -297,6 +294,7 @@ export async function getUserTickets(userId) {
 
     // 3. Fetch Claimed Tickets (from other people's shares or transfers)
     console.log(`[ProfileStore] Fetching claimed tickets...`);
+    const { getUserClaimedTickets, getPendingTransfers, getOrderShareBundles, getOrderAssignments } = await import("./ticketShareStore");
     const claimedTickets = await getUserClaimedTickets(userId);
 
     // 4. Fetch Pending Transfers (Sent or Received)

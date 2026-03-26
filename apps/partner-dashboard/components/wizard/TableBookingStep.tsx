@@ -250,7 +250,7 @@ function TablePackageCard({
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[15px] font-bold text-[#86868b]">₹</span>
                                         <input
                                             type="number"
-                                            value={table.price}
+                                            value={table.price ?? ""}
                                             onChange={(e) => onUpdate({ price: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
                                             placeholder="0"
                                             className="w-full pl-8 pr-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] font-bold text-[#1d1d1f] focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all"
@@ -265,7 +265,7 @@ function TablePackageCard({
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[15px] font-bold text-[#86868b]">₹</span>
                                         <input
                                             type="number"
-                                            value={table.minimumSpend}
+                                            value={table.minimumSpend ?? ""}
                                             onChange={(e) => onUpdate({ minimumSpend: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
                                             placeholder="0"
                                             className="w-full pl-8 pr-4 py-3 rounded-xl bg-[#f5f5f7] border border-transparent text-[15px] text-[#1d1d1f] focus:outline-none focus:border-[#007aff] focus:bg-surface-elevated transition-all"
@@ -399,7 +399,7 @@ function TablePackageCard({
 
                                         <input
                                             type="number"
-                                            value={table.promoterCommission}
+                                            value={table.promoterCommission ?? ""}
                                             onChange={(e) => onUpdate({ promoterCommission: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
                                             placeholder={eventDefaultCommission ? String(eventDefaultCommission) : "0"}
                                             className="w-full bg-transparent py-3 pl-16 pr-4 text-[18px] font-bold text-[#1d1d1f] focus:outline-none"
@@ -481,7 +481,7 @@ function TablePackageCard({
 
                                                 <input
                                                     type="number"
-                                                    value={table.promoterDiscount}
+                                                    value={table.promoterDiscount ?? ""}
                                                     onChange={(e) => onUpdate({ promoterDiscount: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) })}
                                                     placeholder="10"
                                                     className="w-full bg-transparent py-3 pl-16 pr-4 text-[18px] font-bold text-[#1d1d1f] focus:outline-none"

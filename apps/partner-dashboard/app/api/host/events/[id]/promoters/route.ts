@@ -6,10 +6,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireHostAccess, writeAuditLog } from "@/lib/server/hostAuthMiddleware";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { randomBytes } from "node:crypto";
 
 // Generates a short alphanumeric code for tracking links
 function generateShortCode(): string {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
+    return randomBytes(3).toString("hex").toUpperCase();
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -1,4 +1,5 @@
-export const dynamic = "force-dynamic";
+// Explore page fetches data client-side (Zustand store), no need for force-dynamic.
+export const revalidate = 300;
 
 export const metadata = {
     title: "Explore Events",

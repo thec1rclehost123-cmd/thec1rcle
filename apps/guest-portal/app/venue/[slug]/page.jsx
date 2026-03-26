@@ -13,7 +13,7 @@ export const revalidate = 0; // Disable caching for real-time updates during deb
  */
 
 export async function generateMetadata({ params }) {
-    const { slug } = params;
+    const { slug } = await params;
     const venue = await getVenueBySlug(slug);
     if (!venue) return { title: "Venue Not Found" };
 
@@ -29,7 +29,7 @@ export async function generateMetadata({ params }) {
 }
 
 export default async function VenuePublicPage({ params }) {
-    const { slug } = params;
+    const { slug } = await params;
 
     // Fetch venue details using slug (which contains venue_id)
     const venue = await getVenueBySlug(slug);

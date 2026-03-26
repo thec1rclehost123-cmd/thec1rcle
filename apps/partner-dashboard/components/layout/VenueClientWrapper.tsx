@@ -104,7 +104,7 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
     const pathname = usePathname();
     const router = useRouter();
 
-    const venuePrimaryAction = { label: "+ Create Event", href: "/venue/create", icon: PlusCircle };
+    const venuePrimaryAction = { label: "+ Create Event", href: "/venue/create/select-venue", icon: PlusCircle };
 
     // Use server-resolved tabVisibility from auth context (works for all staff roles)
     // Falls back to null (show all) for owners who have no tab restrictions

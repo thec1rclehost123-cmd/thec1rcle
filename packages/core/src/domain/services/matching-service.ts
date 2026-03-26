@@ -111,7 +111,7 @@ export class MatchingService {
         // Analytics instrumentation
         try {
             // @ts-ignore
-            const { trackInteraction } = await import('../../analytics-service.js');
+            const { trackInteraction } = await import('../../../analytics-service.js');
             await trackInteraction(userId, targetId, 'swipe', { targetType, direction });
         } catch (e) {
             console.error('Analytics tracking failed:', e);
@@ -127,8 +127,11 @@ export class MatchingService {
         try {
             let targetGenres: string[] = [];
             if (targetType === 'event') {
-            const { id: _, ...dataWithoutId } = (await this.eventRepo.getById(targetId, workspaceId)) as any;
-            targetGenres = dataWithoutId?.genres || [];
+                const event = await this.eventRepo.getById(targetId, workspaceId);
+                if (event) {
+                    const { id: _, ...dataWithoutId } = event as any;
+                    targetGenres = dataWithoutId?.genres || [];
+                }
             }
 
             for (const genre of targetGenres) {

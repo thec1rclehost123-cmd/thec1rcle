@@ -23,6 +23,71 @@ const serialize = (obj) => {
     }));
 };
 
+const slugifyPartnerValue = (value) => {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/^@/, "")
+        .replace(/[^\w\s-]/g, "")
+        .replace(/[\s_]+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+};
+
+const buildPartnerSnapshot = (doc, type, fallbackName) => {
+    if (!doc?.exists) return null;
+    const data = doc.data() || {};
+    const name =
+        data.name ||
+        data.displayName ||
+        data.venueName ||
+        data.hostName ||
+        fallbackName ||
+        doc.id;
+
+    const handle = data.handle || null;
+    const slug =
+        data.slug ||
+        slugifyPartnerValue(handle || name || doc.id) ||
+        doc.id;
+
+    const photoURL = data.photoURL || data.avatar || data.image || data.logo || null;
+    const coverURL = data.coverURL || data.cover || data.image || null;
+
+    return {
+        id: doc.id,
+        type,
+        slug,
+        handle,
+        name,
+        avatar: data.avatar || photoURL,
+        photoURL,
+        image: data.image || photoURL,
+        cover: data.cover || coverURL,
+        coverURL,
+        verified: Boolean(data.verified),
+        role: data.role || type,
+        city: data.city || null,
+        neighborhood: data.neighborhood || null,
+    };
+};
+
+async function resolvePartnerSnapshots(db, payload = {}) {
+    const normalizedRole = payload.creatorRole === "club" ? "venue" : payload.creatorRole;
+    const hostDocId = payload.hostId || (normalizedRole === "host" ? payload.creatorId : null);
+    const venueDocId = payload.venueId || (normalizedRole === "venue" ? payload.creatorId : null);
+
+    const [hostDoc, venueDoc] = await Promise.all([
+        hostDocId ? db.collection("hosts").doc(hostDocId).get().catch(() => null) : Promise.resolve(null),
+        venueDocId ? db.collection("venues").doc(venueDocId).get().catch(() => null) : Promise.resolve(null),
+    ]);
+
+    return {
+        hostData: buildPartnerSnapshot(hostDoc, "host", payload.host || payload.hostName),
+        venueData: buildPartnerSnapshot(venueDoc, "venue", payload.venueName || payload.venue),
+    };
+}
+
 /**
  * List events for the partner dashboard.
  * Queries Firestore directly; secondary filters applied client-side to avoid
@@ -32,17 +97,30 @@ export async function listEvents({ city, limit, sort, search, host, venueId, lif
     const db = getAdminDb();
     let ref = db.collection(EVENT_COLLECTION);
 
-    // Use a single equality filter as the primary Firestore predicate
+    // Use a single equality filter as the primary Firestore predicate.
+    // For host queries, also query by hostId to catch events created before the
+    // creatorId bug fix (those have hostId=partnerId but creatorId=firebaseUid).
+    let events;
     if (creatorId) {
-        ref = ref.where("creatorId", "==", creatorId);
+        const [byCreator, byHost] = await Promise.all([
+            ref.where("creatorId", "==", creatorId).limit(300).get(),
+            ref.where("hostId", "==", creatorId).limit(300).get(),
+        ]);
+        const seen = new Set();
+        events = [...byCreator.docs, ...byHost.docs]
+            .filter(d => !seen.has(d.id) && seen.add(d.id))
+            .map(d => ({ id: d.id, ...d.data() }));
     } else if (venueId) {
-        ref = ref.where("venueId", "==", venueId);
+        const snapshot = await ref.where("venueId", "==", venueId).limit(300).get();
+        events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } else if (host) {
-        ref = ref.where("host", "==", host);
+        const snapshot = await ref.where("host", "==", host).limit(300).get();
+        events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } else {
+        const snapshot = await ref.limit(300).get();
+        events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     }
 
-    const snapshot = await ref.limit(300).get();
-    let events = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
 
     // Secondary filters applied client-side
     if (lifecycle && lifecycle !== "all") {
@@ -117,6 +195,7 @@ export async function createEvent(payload, token) {
     const db = getAdminDb();
 
     const built = buildEvent(payload);
+    const snapshots = await resolvePartnerSnapshots(db, payload);
 
     // Merge partner-dashboard wizard fields that buildEvent doesn't map
     const event = {
@@ -138,8 +217,8 @@ export async function createEvent(payload, token) {
         venueName: payload.venueName || built.venue || "",
         promotersEnabled: payload.promotersEnabled ?? false,
         // Denormalized snapshots for guest-portal display (no extra reads)
-        hostData: payload.hostData || null,
-        venueData: payload.venueData || null,
+        hostData: payload.hostData || snapshots.hostData || null,
+        venueData: payload.venueData || snapshots.venueData || null,
         // Ensure endDate has a time component so guest-portal date range comparisons work correctly
         endDate: built.endDate && built.endDate.length === 10
             ? built.endDate + "T23:59:59.999Z"
@@ -169,7 +248,17 @@ export async function updateEvent(eventId, payload, token) {
         throw new Error("Invalid event ID — documentPath must be a non-empty string");
     }
     const db = getAdminDb();
+    const snapshots = await resolvePartnerSnapshots(db, payload);
     const updates = { ...payload, updatedAt: new Date().toISOString() };
+
+    if (payload.hostData !== undefined || snapshots.hostData) {
+        updates.hostData = payload.hostData || snapshots.hostData || null;
+    }
+
+    if (payload.venueData !== undefined || snapshots.venueData) {
+        updates.venueData = payload.venueData || snapshots.venueData || null;
+    }
+
     await db.collection(EVENT_COLLECTION).doc(eventId).update(updates);
     return serialize({ id: eventId, ...updates });
 }

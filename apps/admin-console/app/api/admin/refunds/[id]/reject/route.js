@@ -5,11 +5,16 @@
 import { NextResponse } from "next/server";
 import { adminStore } from "@/lib/server/adminStore";
 import { withAdminAuth } from "@/lib/server/adminMiddleware";
+import { rateLimit } from "@/lib/server/rateLimit";
 
 export const dynamic = 'force-dynamic';
 
 async function handler(request, { params }) {
     try {
+        if (!await rateLimit(request, 5)) {
+            return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
+        }
+
         const refundId = params.id;
         const admin = request.user;
         const body = await request.json();

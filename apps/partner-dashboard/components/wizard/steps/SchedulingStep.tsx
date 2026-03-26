@@ -35,10 +35,10 @@ export function SchedulingStep({ formData, updateFormData, validationErrors, rol
     const fetchVenueCalendar = async (venueId: string) => {
         setIsLoadingCalendar(true);
         try {
-            const res = await authedFetch(`/api/venue/calendar?venueId=${venueId}`);
+            const res = await authedFetch(`/api/host/venue-calendar?venueId=${venueId}`);
             if (res.ok) {
                 const data = await res.json();
-                setVenueCalendar(data.dates || []);
+                setVenueCalendar(data.calendar || []);
             }
         } catch (err) {
             console.error("Failed to fetch calendar", err);

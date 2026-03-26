@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import clsx from "clsx";
+import { formatEventDate, formatEventTime } from "@c1rcle/core/time";
 
 export default function ExploreCarouselHeader({ slides = [] }) {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -36,7 +37,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
 
   return (
     <section
-      className="relative w-full overflow-hidden min-h-[50vh] lg:min-h-[750px] flex flex-col lg:flex-row items-start lg:items-center justify-start lg:justify-center pt-20 lg:pt-32 pb-12 lg:pb-0"
+      className="relative w-full overflow-hidden flex flex-col lg:flex-row items-center justify-center pt-12 lg:pt-16 pb-12 lg:pb-16"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
@@ -70,7 +71,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIGJhc2VGcmVxdWVuY3k9Ii43NSIgc3RpdGNoVGlsZXM9InN0aXRjaCIgdHlwZT0iZnJhY3RhbE5vaXNlIi8+PGZlQ29sb3JNYXRyaXggdHlwZT0ic2F0dXJhdGUiIHZhbHVlcz0iMCIvPjwvZmlsdGVyPjxwYXRoIGQ9Ik0wIDBoMzAwdjMwMEgweiIgZmlsdGVyPSJ1cmwoI2EpIiBvcGFjaXR5PSIuMDUiLz48L3N2Zz4=')]" />
       </div>
 
-      <div className="relative z-10 w-full max-w-[1600px] px-6 lg:px-12 py-4 lg:py-16">
+      <div className="relative z-10 w-full px-6 lg:px-20 py-4 lg:py-8">
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
           {/* Left: Content */}
           <motion.div
@@ -80,19 +81,6 @@ export default function ExploreCarouselHeader({ slides = [] }) {
             transition={{ duration: 0.7, delay: 0.2 }}
             className="space-y-5 lg:space-y-8 text-center lg:text-left order-2 lg:order-1"
           >
-            {/* Category Badge */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="inline-block"
-            >
-              <div className="px-4 py-1.5 lg:px-6 lg:py-2 rounded-full bg-[#F44A22]/20 border border-[#F44A22]/40 backdrop-blur-md">
-                <p className="text-xs lg:text-sm font-black uppercase tracking-[0.3em] text-[#F44A22]">
-                  {activeEvent.category || "Featured Event"}
-                </p>
-              </div>
-            </motion.div>
 
             {/* Title - Extra Bold and Dramatic */}
             <motion.h1
@@ -119,14 +107,14 @@ export default function ExploreCarouselHeader({ slides = [] }) {
                   <svg className="w-4 h-4 sm:w-6 sm:h-6 text-[#F44A22]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  <span>{activeEvent.date}</span>
+                  <span>{activeEvent.date || formatEventDate(activeEvent.startDate)}</span>
                 </div>
                 <div className="hidden sm:block text-black/40 dark:text-white/40">•</div>
                 <div className="flex items-center gap-2 justify-center lg:justify-start">
                   <svg className="w-4 h-4 sm:w-6 sm:h-6 text-[#F44A22]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span>{activeEvent.time}</span>
+                  <span>{activeEvent.time || formatEventTime(activeEvent.startTime, activeEvent.startDate)}</span>
                 </div>
               </div>
 
@@ -177,14 +165,14 @@ export default function ExploreCarouselHeader({ slides = [] }) {
             initial={{ opacity: 0, scale: 0.9, rotateY: -15 }}
             animate={{ opacity: 1, scale: 1, rotateY: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="relative order-1 lg:order-2 group perspective-1000 w-full max-w-[220px] lg:max-w-[500px] mx-auto mb-8 lg:mb-0"
+            className="relative order-1 lg:order-2 group perspective-1000 w-full max-w-[180px] lg:max-w-[420px] mx-auto mb-8 lg:mb-0"
           >
-            <div className="relative aspect-[3/4] w-full max-w-[500px] mx-auto rounded-[32px] overflow-hidden shadow-[0_25px_80px_rgba(0,0,0,0.6)] border border-white/20 transform transition-all duration-500 group-hover:scale-[1.02] group-hover:shadow-[0_30px_100px_rgba(244,74,34,0.4)]">
+            <div className="relative aspect-[3/4] w-full max-w-[420px] mx-auto rounded-[32px] overflow-hidden shadow-[0_25px_80px_rgba(0,0,0,0.6)] border border-white/20 transform transition-all duration-500 group-hover:scale-[1.02] group-hover:shadow-[0_30px_100px_rgba(244,74,34,0.4)]">
               <Image
                 src={activeEvent.image}
                 alt={activeEvent.title}
                 fill
-                sizes="(max-width: 1024px) 100vw, 500px"
+                sizes="(max-width: 1024px) 100vw, 420px"
                 className="object-cover transition-transform duration-700 group-hover:scale-110"
                 priority
               />
@@ -249,24 +237,6 @@ export default function ExploreCarouselHeader({ slides = [] }) {
           </div>
         </motion.div>
 
-        {/* Scroll Down Indicator */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1, duration: 0.8 }}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20"
-        >
-          <div className="flex flex-col items-center gap-2">
-            <span className="text-[10px] uppercase tracking-[0.3em] text-black/50 dark:text-white/50">Scroll</span>
-            <motion.div
-              animate={{ y: [0, 10, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              className="w-6 h-10 rounded-full border border-black/20 dark:border-white/20 flex justify-center p-1"
-            >
-              <motion.div className="w-1 h-2 bg-black/50 dark:bg-white/50 rounded-full" />
-            </motion.div>
-          </div>
-        </motion.div>
       </div>
     </section>
   );

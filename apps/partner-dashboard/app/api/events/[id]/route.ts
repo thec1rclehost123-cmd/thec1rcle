@@ -60,7 +60,7 @@ export const PATCH = withAuth(async (req: NextRequest, auth, ctx) => {
 
             latestEvent = await updateEvent(id, {
                 ...cleanUpdates,
-                creatorId: actor.uid,
+                creatorId: actor.partnerId || actor.uid,
                 creatorRole: actor.role,
                 partnerId: actor.partnerId
             }, token);

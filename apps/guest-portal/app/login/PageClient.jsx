@@ -95,7 +95,10 @@ function LoginForm() {
     const [submitting, setSubmitting] = useState(false);
     const [phoneVerified, setPhoneVerified] = useState(false);
 
-    const redirectUrl = useMemo(() => searchParams.get("returnUrl") || searchParams.get("next") || "/profile", [searchParams]);
+    const redirectUrl = useMemo(
+        () => searchParams.get("returnUrl") || searchParams.get("next") || searchParams.get("redirect") || "/profile",
+        [searchParams]
+    );
 
     // ── Persist step/form/flags to sessionStorage ─────────────────────────
     useEffect(() => {

@@ -31,22 +31,25 @@ export async function verifyAuth(request) {
     console.log("[verifyAuth] Authorization header present:", !!authHeader);
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        console.log("[verifyAuth] Missing or invalid Authorization header");
+        console.warn("[verifyAuth] Missing or invalid Authorization header");
         return null;
     }
 
     const token = authHeader.split("Bearer ")[1];
     console.log("[verifyAuth] Token length:", token?.length || 0);
+    if (token) {
+        console.log("[verifyAuth] Token preview (first 10 chars):", token.substring(0, 10) + "...");
+    }
 
     try {
         const app = getAdminApp();
+        if (!app) throw new Error("Firebase Admin App not initialized");
         console.log("[verifyAuth] Admin app initialized, project:", app.options?.projectId || "unknown");
 
         const auth = getAuth(app);
         console.log("[verifyAuth] Verifying ID token...");
 
         // Verify the token - Don't check for revocation to speed up verification
-        // and avoid potential network issues with the revocation check
         const decodedToken = await auth.verifyIdToken(token, false);
 
         console.log("[verifyAuth] Token verified successfully for uid:", decodedToken.uid);

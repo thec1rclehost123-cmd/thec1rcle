@@ -133,9 +133,9 @@ export function PromoCodeInput({
                 <button
                     onClick={handleApply}
                     disabled={!code.trim() || isLoading || disabled}
-                    className={`px-6 py-3.5 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all ${!code.trim() || isLoading || disabled
-                        ? "bg-white/5 text-white/10 cursor-not-allowed"
-                        : "bg-white text-black hover:scale-[1.02] active:scale-95 shadow-xl shadow-white/5"
+                    className={`min-w-[120px] px-6 py-3.5 rounded-[24px] border text-center font-black uppercase tracking-[0.22em] text-[10px] transition-all ${!code.trim() || isLoading || disabled
+                        ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/20 shadow-none"
+                        : "border-orange/60 bg-[linear-gradient(135deg,#ff5a2a_0%,#ff7a4f_45%,#ff9c7a_100%)] text-black hover:scale-[1.02] hover:brightness-105 active:scale-95 shadow-[0_18px_36px_rgba(255,98,48,0.26)]"
                         }`}
                 >
                     {isLoading ? (

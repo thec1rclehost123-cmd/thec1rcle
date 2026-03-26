@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
         // Generic message — never reveal whether email/phone exists
         return NextResponse.json({ message: "If valid, a verification code has been sent." });
     } catch (err: any) {
-        return NextResponse.json({ error: err.message || "Failed to send verification code." }, { status: 500 });
+        console.error("[OTP Send Error]", err);
+        return NextResponse.json({ error: "Failed to send verification code." }, { status: 500 });
     }
 }

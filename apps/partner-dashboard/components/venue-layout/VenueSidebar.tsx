@@ -126,7 +126,7 @@ const MENU_GROUPS: MenuGroup[] = [
             { label: "Ledger",           href: "/venue/finance/ledger",   icon: ReceiptText, minPlan: "basic",  badge: null, tabKey: "finance"  },
             { label: "Payout Settings",  href: "/venue/finance/payouts",  icon: CreditCard,  minPlan: "basic",  badge: null, tabKey: "finance"  },
             { label: "Reports",          href: "/venue/finance/reports",  icon: TrendingUp,  minPlan: "basic",  badge: null, tabKey: "finance"  },
-            { label: "Create Event",     href: "/venue/create",           icon: Sparkles,    minPlan: "basic",  badge: null, tabKey: "events"   },
+            { label: "Create Event",     href: "/venue/create/select-venue", icon: Sparkles,    minPlan: "basic",  badge: null, tabKey: "events"   },
             { label: "Calendar",         href: "/venue/calendar",         icon: CalendarDays,minPlan: "basic",  badge: null, tabKey: "calendar" },
         ],
     },

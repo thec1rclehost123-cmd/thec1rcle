@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     BarChart3,
     Building2,
@@ -112,6 +112,7 @@ export default function AdminConsoleShell({ children }) {
     const [envStatus, setEnvStatus] = useState({ verified: false, isNonProd: false });
     const [alerts, setAlerts] = useState([]);
     const [mounted, setMounted] = useState(false);
+    const alertErrorCountRef = useRef(0);
 
     useEffect(() => {
         setMounted(true);
@@ -123,7 +124,7 @@ export default function AdminConsoleShell({ children }) {
 
     useEffect(() => {
         const fetchAlerts = async () => {
-            if (!user) return;
+            if (!user || document.hidden) return;
             try {
                 const token = await user.getIdToken();
                 const res = await fetch('/api/snapshot', {
@@ -131,15 +132,28 @@ export default function AdminConsoleShell({ children }) {
                 });
                 const data = await res.json();
                 if (data.alerts) setAlerts(data.alerts);
+                alertErrorCountRef.current = 0; // reset backoff on success
             } catch (err) {
-                console.error("Failed to fetch alerts", err);
+                alertErrorCountRef.current += 1;
+                console.error(`Failed to fetch alerts (attempt ${alertErrorCountRef.current})`, err);
+                // After 3 consecutive failures, stop polling silently — admin can refresh manually
+                if (alertErrorCountRef.current >= 3) {
+                    console.warn("[AdminConsoleShell] Alert polling suspended after 3 failures. Reload to resume.");
+                }
             }
         };
 
         if (mounted) {
             fetchAlerts();
-            const interval = setInterval(fetchAlerts, 60000);
-            return () => clearInterval(interval);
+            // Poll every 5 minutes; skip when tab is hidden to avoid background Firestore reads
+            const interval = setInterval(() => {
+                if (alertErrorCountRef.current < 3) fetchAlerts();
+            }, 5 * 60 * 1000);
+            document.addEventListener('visibilitychange', fetchAlerts);
+            return () => {
+                clearInterval(interval);
+                document.removeEventListener('visibilitychange', fetchAlerts);
+            };
         }
     }, [user, mounted]);
 

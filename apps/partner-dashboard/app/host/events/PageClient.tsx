@@ -70,7 +70,7 @@ const TAB_DEFS: { id: EventTab; label: string; icon: any; color: string }[] = [
 
 export default function HostEventsPage() {
     const { activeTab: hubTab, setTab: setHubTab } = useHubTab("events");
-    const { profile, getIdToken } = useDashboardAuth() as any;
+    const { profile, user } = useDashboardAuth();
     const [events, setEvents] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<EventTab>("all");
     const [loading, setLoading] = useState(true);
@@ -79,11 +79,11 @@ export default function HostEventsPage() {
 
     const fetchEvents = useCallback(async () => {
         const hostId = profile?.activeMembership?.partnerId;
-        if (!hostId) { setLoading(false); return; }
+        if (!hostId || !user) { setLoading(false); return; }
         setLoading(true);
         setError(false);
         try {
-            const token = typeof getIdToken === "function" ? await getIdToken() : "";
+            const token = await user.getIdToken();
             const res = await fetch(`/api/host/events?hostId=${hostId}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
@@ -97,7 +97,7 @@ export default function HostEventsPage() {
         } finally {
             setLoading(false);
         }
-    }, [profile, getIdToken]);
+    }, [profile, user]);
 
     useEffect(() => { fetchEvents(); }, [fetchEvents]);
 

@@ -163,12 +163,15 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
             const admissionToken = sessionStorage.getItem(`admission_token_${event.id}`);
             if (!admissionToken) {
               const queryParams = new URLSearchParams();
-              if (data.tickets) {
+              if (data?.tickets) {
                 data.tickets.forEach(t => queryParams.append(`t_${t.id}`, t.quantity));
               }
               if (promoterCode) queryParams.append("ref", promoterCode);
 
-              const returnTo = `/checkout/${event.id}?${queryParams.toString()}`;
+              const queryString = queryParams.toString();
+              const returnTo = queryString
+                ? `/checkout/${event.id}?${queryString}`
+                : `/checkout/${event.id}`;
               router.push(`/event/${event.id}/queue?returnTo=${encodeURIComponent(returnTo)}`);
               return;
             }
@@ -177,12 +180,13 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
           console.warn("[EventRSVP] Surge check failed, proceeding with caution", err);
         }
 
-        if (data.tickets) {
-          const queryParams = new URLSearchParams();
+        const queryParams = new URLSearchParams();
+        if (data?.tickets) {
           data.tickets.forEach(t => queryParams.append(`t_${t.id}`, t.quantity));
-          if (promoterCode) queryParams.append("ref", promoterCode);
-          router.push(`/checkout/${event.id}?${queryParams.toString()}`);
         }
+        if (promoterCode) queryParams.append("ref", promoterCode);
+        const queryString = queryParams.toString();
+        router.push(queryString ? `/checkout/${event.id}?${queryString}` : `/checkout/${event.id}`);
         break;
 
       case "RSVP":

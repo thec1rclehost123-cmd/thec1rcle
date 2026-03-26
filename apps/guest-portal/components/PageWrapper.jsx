@@ -5,6 +5,7 @@ import RouteTransition from "./RouteTransition";
 
 export default function PageWrapper({ children }) {
     const pathname = usePathname();
+    const isEventDetail = /^\/event\/[^/]+$/.test(pathname || "");
     const isLandingOrHero = pathname === "/" ||
         pathname === "/app" ||
         pathname === "/login" ||
@@ -13,7 +14,8 @@ export default function PageWrapper({ children }) {
         pathname?.startsWith("/hosts") ||
         pathname?.startsWith("/venues") ||
         pathname?.startsWith("/profile") ||
-        pathname?.startsWith("/tickets");
+        pathname?.startsWith("/tickets") ||
+        isEventDetail;
 
     return (
         <main
