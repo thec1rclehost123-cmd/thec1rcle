@@ -1,6 +1,6 @@
 import "../global.css";
 import { useEffect, useCallback, useRef, useState } from "react";
-import { Stack, router, useSegments, useRootNavigationState } from "expo-router";
+import { Stack, router, useSegments, useRootNavigationState, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
@@ -64,10 +64,11 @@ function useProtectedRoute(user: unknown) {
         // Wait for navigation + onboarding check to be ready
         if (!navigationState?.key || !onboardingChecked) return;
 
+        const currentPath = segments.join("/");
         const inAuthGroup = segments[0] === "(auth)";
         const inOnboarding = segments[0] === "onboarding";
         const inScanner = segments[0] === "scanner";
-        const inProfileSetup = segments[0] === "profile-setup";
+        const inProfileSetup = currentPath === "profile-setup";
 
         // Scanner routes are public — no auth needed (security staff)
         if (inScanner) return;
@@ -78,12 +79,17 @@ function useProtectedRoute(user: unknown) {
             return;
         }
 
+        if (user && profileSetupChecked && needsProfileSetup && !inProfileSetup) {
+            router.replace("/profile-setup" as Href);
+            return;
+        }
+
         if (!user && !inAuthGroup && !inOnboarding) {
             router.replace("/(auth)/login");
         } else if (user && (inAuthGroup || inOnboarding)) {
             // Just authenticated — check profile setup
             if (profileSetupChecked && needsProfileSetup) {
-                router.replace("/profile-setup");
+                router.replace("/profile-setup" as Href);
             } else if (profileSetupChecked) {
                 router.replace("/(tabs)/explore");
             }
@@ -101,6 +107,7 @@ function useProtectedRoute(user: unknown) {
 export default function RootLayout() {
     const { initialized, user } = useAuthStore();
     const appState = useRef(AppState.currentState);
+    const RootGestureHandlerView = GestureHandlerRootView as any;
 
     // Load custom fonts (empty for now - using system fonts)
     const [fontsLoaded] = useFonts({});
@@ -207,12 +214,6 @@ export default function RootLayout() {
     // Use auth-based navigation guard
     useProtectedRoute(user);
 
-    // Show nothing while loading (splash screen is visible)
-    if (!fontsLoaded || !initialized) {
-        return null;
-    }
-
-    // ─── ORDER RECOVERY ───
     // If the app was killed mid-payment, check for a pending order on cold start.
     useEffect(() => {
         if (!initialized || !user) return;
@@ -223,7 +224,7 @@ export default function RootLayout() {
         apiFetch(`/api/orders/${pendingOrderId}`)
             .then((order: any) => {
                 if (order?.status === "confirmed" || order?.status === "checked_in") {
-                    useCartStore.getState().setPendingPaymentOrderId(null);
+                    useCartStore.getState().clearPendingReservation();
                     useCartStore.getState().clearCart();
                     router.replace({
                         pathname: "/checkout/success",
@@ -234,20 +235,24 @@ export default function RootLayout() {
                     order?.status === "refunded" ||
                     order?.status === "payment_failed"
                 ) {
-                    useCartStore.getState().setPendingPaymentOrderId(null);
+                    useCartStore.getState().clearPendingReservation();
                 }
-                // If still payment_pending — leave the pendingOrderId in place; user can retry
             })
             .catch(() => {
                 // Network error during recovery check — leave pending order, retry next session
             });
     }, [initialized, user]);
 
+    // Show nothing while loading (splash screen is visible)
+    if (!fontsLoaded || !initialized) {
+        return null;
+    }
+
     return (
         <QueryProvider>
             <ErrorBoundary>
                 <SafeAreaProvider>
-                    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+                    <RootGestureHandlerView style={{ flex: 1 }} onLayout={onLayoutRootView}>
                         <View style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}>
                             <StatusBar style="light" backgroundColor={colors.base.DEFAULT} />
 
@@ -444,7 +449,7 @@ export default function RootLayout() {
                                 />
                             </Stack>
                         </View>
-                    </GestureHandlerRootView>
+                    </RootGestureHandlerView>
                 </SafeAreaProvider>
             </ErrorBoundary>
         </QueryProvider>

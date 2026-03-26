@@ -4,15 +4,15 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useVenueOverviewSummary } from "@/lib/hooks/useVenueQueries";
 import { formatINRCompact, formatNumberCompact } from "@/lib/utils/format";
 
-export default function KPIGridModule() {
+export default function KPIGridModule({ range }: { range?: string }) {
     const { profile } = useDashboardAuth();
     const venueId = profile?.activeMembership?.partnerId;
-    const { data: summary } = useVenueOverviewSummary(venueId);
+    const { data: summary } = useVenueOverviewSummary(venueId, range);
 
     return (
         <KPIGrid columns={4}>
             <KPITile
-                label="Weekend Revenue"
+                label="Revenue"
                 value={formatINRCompact(summary?.weekendRevenue || 0)}
                 trend={summary?.revenueTrend && summary.weekendRevenue > 0 ? {
                     value: summary.revenueTrend,

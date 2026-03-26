@@ -69,12 +69,12 @@ export function VenuePageShell({
                         paddingBottom: "10px",
                     }}
                 >
-                    <div className="flex items-center justify-between gap-4">
-                        <div className="min-w-0 flex-1">
+                    <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between gap-3">
+                        <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide">
                             {filterBar}
                         </div>
                         {actions && (
-                            <div className="flex items-center gap-3 shrink-0">
+                            <div className="flex items-center gap-2 shrink-0 overflow-x-auto scrollbar-hide">
                                 {actions}
                             </div>
                         )}
@@ -139,11 +139,11 @@ interface VenueFilterTabsProps {
 
 export function VenueFilterTabs({ tabs, active, onChange, variant = "default", trailing }: VenueFilterTabsProps) {
     return (
-        <div className="flex items-center gap-2">
-            <div 
-                className="flex items-center gap-1 p-1 rounded-2xl w-fit"
-                style={{ 
-                    background: "var(--v-card)", 
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide min-w-0">
+            <div
+                className="flex items-center gap-1 p-1 rounded-2xl flex-shrink-0"
+                style={{
+                    background: "var(--v-card)",
                     border: "1px solid var(--v-border)",
                     boxShadow: "var(--v-shadow-card)",
                     backdropFilter: "blur(20px)"
@@ -191,7 +191,7 @@ export function VenueFilterTabs({ tabs, active, onChange, variant = "default", t
                     );
                 })}
             </div>
-            {trailing}
+            {trailing && <div className="flex-shrink-0">{trailing}</div>}
         </div>
     );
 }

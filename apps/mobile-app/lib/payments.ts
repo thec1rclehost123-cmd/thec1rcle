@@ -7,16 +7,12 @@
  * All pricing, order creation, and payment verification happens server-side.
  */
 
-import { Alert, Platform } from "react-native";
-import { useAuthStore } from "@/store/authStore";
+import { Alert } from "react-native";
 import { useCartStore } from "@/store/cartStore";
 import {
     reserveTickets,
     initiateCheckout,
     verifyPayment,
-    cancelOrder,
-    type ReserveResponse,
-    type InitiateCheckoutResponse,
 } from "./api";
 
 // Razorpay key for the frontend SDK (public key only — secret stays on server)
@@ -61,6 +57,17 @@ export interface CheckoutResult {
     requiresPayment?: boolean;
 }
 
+function matchesReservationSelection(
+    reservation: { eventId: string; items: { tierId: string; quantity: number }[] } | null,
+    params: CheckoutParams
+): boolean {
+    if (!reservation || reservation.eventId !== params.eventId) {
+        return false;
+    }
+
+    return JSON.stringify(reservation.items) === JSON.stringify(params.items);
+}
+
 // ─── Main Checkout Flow ──────────────────────────────────────────
 
 /**
@@ -81,14 +88,45 @@ export async function processFullCheckout(
         // ── Step 1: Reserve Inventory ──
         onStatusChange?.("reserving");
 
-        const reservation = await reserveTickets({
-            eventId: params.eventId,
-            items: params.items,
-        });
+        const cartState = useCartStore.getState();
+        const existingReservation = cartState.pendingReservation;
+        const canReuseReservation =
+            Boolean(existingReservation) &&
+            matchesReservationSelection(existingReservation, params) &&
+            new Date(existingReservation!.expiresAt).getTime() > Date.now();
+
+        const reservation = canReuseReservation
+            ? {
+                success: true,
+                reservationId: existingReservation!.reservationId,
+                items: existingReservation!.items,
+                expiresAt: existingReservation!.expiresAt,
+                expiresInSeconds: Math.max(
+                    0,
+                    Math.floor((new Date(existingReservation!.expiresAt).getTime() - Date.now()) / 1000)
+                ),
+            }
+            : await reserveTickets({
+                eventId: params.eventId,
+                items: params.items,
+            });
 
         if (!reservation.success) {
             throw new Error("Failed to reserve tickets. They may no longer be available.");
         }
+
+        useCartStore.getState().setPendingReservation({
+            reservationId: reservation.reservationId,
+            eventId: params.eventId,
+            eventTitle: params.eventTitle,
+            expiresAt: reservation.expiresAt,
+            items: params.items,
+            userName: params.userName,
+            userEmail: params.userEmail,
+            userPhone: params.userPhone,
+            promoCode: params.promoCode,
+            promoterCode: params.promoterCode,
+        });
 
         // ── Step 2: Initiate Checkout (server creates order + Razorpay order) ──
         onStatusChange?.("initiating");
@@ -103,12 +141,18 @@ export async function processFullCheckout(
         });
 
         if (!checkout.success) {
+            if (String((checkout as any).error || "").toLowerCase().includes("expired")) {
+                useCartStore.getState().clearPendingReservation();
+            }
             throw new Error("Failed to initiate checkout.");
         }
 
         // ── Step 3: Branch — Free vs Paid ──
         if (!checkout.requiresPayment) {
             // Free order — already confirmed server-side
+            useCartStore.getState().clearPendingReservation();
+            useCartStore.getState().setPendingPaymentOrderId(null);
+            useCartStore.getState().clearCart();
             onStatusChange?.("confirmed");
             return {
                 success: true,
@@ -136,16 +180,11 @@ export async function processFullCheckout(
         });
 
         if (!paymentResult.success) {
-            // User cancelled or payment failed — clear recovery & release inventory
-            useCartStore.getState().setPendingPaymentOrderId(null);
-            try {
-                await cancelOrder(checkout.order.id);
-            } catch (e) {
-                console.error("[Checkout] Failed to cancel order after payment failure:", e);
-            }
             onStatusChange?.("cancelled");
             return {
                 success: false,
+                orderId: checkout.order.id,
+                requiresPayment: true,
                 error: paymentResult.error || "Payment was cancelled",
             };
         }
@@ -165,6 +204,7 @@ export async function processFullCheckout(
         }
 
         // SUCCESS: Clear recovery state and cart
+        useCartStore.getState().clearPendingReservation();
         useCartStore.getState().setPendingPaymentOrderId(null);
         useCartStore.getState().clearCart();
 

@@ -74,7 +74,7 @@ export default function ProfileClient({ upcomingEvents, pastEvents, posts, highl
     };
 
     return (
-        <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24 pb-32">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-16 xl:px-24 pb-24 sm:pb-32">
             {/* Highlights - Story Style */}
             {highlights && highlights.length > 0 && (
                 <div className="flex gap-8 overflow-x-auto py-10 no-scrollbar mb-10 max-w-7xl mx-auto px-2">
@@ -101,13 +101,13 @@ export default function ProfileClient({ upcomingEvents, pastEvents, posts, highl
             )}
 
             {/* Apple Style Segmented Tabs */}
-            <div className="flex justify-center mb-16">
-                <div className="flex p-1 bg-[var(--surface-2)] rounded-2xl border border-[var(--border-secondary)]">
+            <div className="overflow-x-auto scrollbar-hide mb-12 sm:mb-16">
+                <div className="flex p-1 bg-[var(--surface-2)] rounded-2xl border border-[var(--border-secondary)] min-w-max mx-auto w-fit">
                     {tabs.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 py-2.5 px-6 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all ${activeTab === tab.id
+                            className={`flex items-center gap-2 py-2.5 px-3 sm:px-6 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all ${activeTab === tab.id
                                 ? "bg-[var(--surface-1)] text-[var(--text-primary)] shadow-sm"
                                 : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
                                 }`}
@@ -144,12 +144,12 @@ export default function ProfileClient({ upcomingEvents, pastEvents, posts, highl
                                                 <div key={event.id} className="relative group cursor-pointer overflow-hidden rounded-[3rem] border border-white/10 aspect-[16/9]">
                                                     <Image src={event.image || event.coverImage} fill className="object-cover transition-transform duration-1000 group-hover:scale-105" alt="" sizes="(max-width: 768px) 100vw, 50vw" />
                                                     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-                                                    <div className="absolute bottom-8 left-10 right-10 flex items-end justify-between">
+                                                    <div className="absolute bottom-4 sm:bottom-8 left-4 sm:left-10 right-4 sm:right-10 flex items-end justify-between gap-3">
                                                         <div>
                                                             <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-[9px] font-black uppercase tracking-widest text-white mb-3 inline-block">Featured</span>
-                                                            <h4 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">{event.name}</h4>
+                                                            <h4 className="text-xl sm:text-3xl font-black text-white uppercase tracking-tighter leading-none">{event.name}</h4>
                                                         </div>
-                                                        <button className="px-6 py-3 bg-white text-black rounded-full text-[10px] font-black uppercase tracking-widest">Book Now</button>
+                                                        <button className="shrink-0 px-4 sm:px-6 py-2 sm:py-3 bg-white text-black rounded-full text-[10px] font-black uppercase tracking-widest">Book Now</button>
                                                     </div>
                                                 </div>
                                             ))}
@@ -194,7 +194,7 @@ export default function ProfileClient({ upcomingEvents, pastEvents, posts, highl
                                         </div>
                                     )}
 
-                                    <div className="p-8 space-y-6">
+                                    <div className="p-5 sm:p-8 space-y-4 sm:space-y-6">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
                                                 <div className="h-6 w-6 rounded-full bg-[var(--surface-2)] border border-[var(--border-primary)] flex items-center justify-center text-[10px] font-bold">

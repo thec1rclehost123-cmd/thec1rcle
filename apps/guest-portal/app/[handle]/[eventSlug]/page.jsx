@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getPromoterByUsername } from "../../../lib/server/promoterStore";
 import { getEvent } from "../../../lib/server/eventStore";
 import { PUBLIC_LIFECYCLE_STATES } from "@c1rcle/core/events";
+import EventGlow from "./EventGlow";
 
 export async function generateMetadata({ params }) {
     const handle = decodeURIComponent(params.handle).toLowerCase();
@@ -75,9 +76,13 @@ export default async function VanityEventPage({ params }) {
         : `/checkout/${event.id}`;
 
     return (
-        <div className="min-h-screen bg-[#050508] text-white">
+        <div className="min-h-screen text-white relative" style={{ background: "#050508" }}>
+
+            {/* Poster-tinted atmospheric glow — client component, fixed behind everything */}
+            <EventGlow posterUrl={poster} />
+
             {/* Hero — full bleed poster */}
-            <div className="relative w-full" style={{ minHeight: "70vh" }}>
+            <div className="relative z-10 w-full" style={{ minHeight: "70vh" }}>
                 {poster ? (
                     <>
                         <img
@@ -85,8 +90,8 @@ export default async function VanityEventPage({ params }) {
                             alt={title}
                             className="absolute inset-0 w-full h-full object-cover"
                         />
-                        {/* Dark gradient overlay — bottom heavy */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#050508] via-[#050508]/60 to-[#050508]/20" />
+                        {/* Gradient overlay — heavy at bottom to dissolve into glow, light at top so poster shows */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#050508] via-[#050508]/50 to-transparent" />
                     </>
                 ) : (
                     <div className="absolute inset-0 bg-gradient-to-br from-violet-950 via-indigo-950 to-[#050508]" />
@@ -156,7 +161,7 @@ export default async function VanityEventPage({ params }) {
             </div>
 
             {/* Content */}
-            <div className="max-w-lg mx-auto px-5 pb-24 space-y-10">
+            <div className="relative z-10 max-w-lg mx-auto px-5 pb-24 space-y-10">
 
                 {/* Tickets */}
                 {tiers.length > 0 && (
@@ -172,7 +177,8 @@ export default async function VanityEventPage({ params }) {
                                 return (
                                     <div
                                         key={tierId}
-                                        className="flex items-center justify-between p-5 rounded-2xl bg-white/[0.03] border border-white/[0.07] hover:border-white/[0.12] transition-all"
+                                        className="flex items-center justify-between p-5 rounded-2xl bg-white/[0.03] border border-white/[0.08] hover:border-violet-500/30 transition-all"
+                                        style={{ boxShadow: "0 0 0 0px transparent, 0 4px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" }}
                                     >
                                         <div>
                                             <p className="text-sm font-bold text-white">{tierName}</p>
@@ -205,7 +211,8 @@ export default async function VanityEventPage({ params }) {
                         {/* Primary CTA if no tiers selected */}
                         <Link
                             href={checkoutBase}
-                            className="mt-4 flex items-center justify-center w-full py-4 rounded-2xl bg-white text-black text-[12px] font-black uppercase tracking-[0.2em] hover:bg-white/90 transition-all shadow-2xl shadow-white/10"
+                            className="mt-4 flex items-center justify-center w-full py-4 rounded-2xl bg-white text-black text-[12px] font-black uppercase tracking-[0.2em] hover:bg-white/90 transition-all"
+                                style={{ boxShadow: "0 0 40px rgba(139,92,246,0.25), 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.9)" }}
                         >
                             Get Tickets
                         </Link>
@@ -215,7 +222,8 @@ export default async function VanityEventPage({ params }) {
                 {tiers.length === 0 && (
                     <Link
                         href={checkoutBase}
-                        className="flex items-center justify-center w-full py-5 rounded-2xl bg-white text-black text-[12px] font-black uppercase tracking-[0.2em] hover:bg-white/90 transition-all shadow-2xl shadow-white/10"
+                        className="flex items-center justify-center w-full py-5 rounded-2xl bg-white text-black text-[12px] font-black uppercase tracking-[0.2em] hover:bg-white/90 transition-all"
+                    style={{ boxShadow: "0 0 40px rgba(139,92,246,0.25), 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.9)" }}
                     >
                         Get Tickets
                     </Link>
@@ -233,7 +241,7 @@ export default async function VanityEventPage({ params }) {
                 {promoter && (
                     <div>
                         <SectionLabel>Promoted by</SectionLabel>
-                        <Link href={`/${handle}`} className="flex items-center gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-white/[0.12] transition-all">
+                        <Link href={`/${handle}`} className="flex items-center gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] hover:border-violet-500/30 transition-all" style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)" }}>
                             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center text-base font-black text-white flex-shrink-0">
                                 {promoterName[0]?.toUpperCase()}
                             </div>

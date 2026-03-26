@@ -47,11 +47,13 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 function TicketTierCard({
     tier,
     event,
+    promoterCode,
     isPopular,
     index,
 }: {
     tier: TicketTier;
     event: Event;
+    promoterCode?: string;
     isPopular?: boolean;
     index: number;
 }) {
@@ -81,7 +83,7 @@ function TicketTierCard({
     };
 
     const handleAddToCart = () => {
-        addItem({
+        const result = addItem({
             eventId: event.id,
             eventTitle: event.title,
             eventDate: event.startDate,
@@ -89,11 +91,20 @@ function TicketTierCard({
             eventCoverImage: event.coverImage,
             tier,
             quantity,
+            promoterCode,
         });
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setAdded(true);
         scale.value = withSpring(1.02, { damping: 10 });
+
+        if (result?.replacedEventTitle) {
+            Alert.alert(
+                "Started A New Booking",
+                `${result.replacedEventTitle} was removed from your cart. Checkout supports one event at a time, just like the guest portal.`
+            );
+        }
+
         setTimeout(() => {
             scale.value = withSpring(1);
             setAdded(false);
@@ -172,9 +183,15 @@ function TicketTierCard({
                     </Pressable>
                 </View>
             ) : (
-                <View style={styles.soldOutButton}>
-                    <Text style={styles.soldOutText}>Sold Out</Text>
-                </View>
+                <Pressable
+                    onPress={() => {
+                        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push(`/waitlist/${event.id}` as never);
+                    }}
+                    style={styles.soldOutButton}
+                >
+                    <Text style={styles.soldOutText}>Join Waitlist</Text>
+                </Pressable>
             )}
         </Animated.View>
     );
@@ -205,9 +222,11 @@ function HeaderButton({
 }
 
 export default function EventDetailScreen() {
-    const { id } = useLocalSearchParams<{ id: string }>();
+    const { id, ref } = useLocalSearchParams<{ id: string; ref?: string }>();
     const { getEventById } = useEventsStore();
-    const { getItemCount } = useCartStore();
+    const cartCount = useCartStore((state) =>
+        state.items.reduce((sum, item) => sum + item.quantity, 0)
+    );
     const insets = useSafeAreaInsets();
 
     const [event, setEvent] = useState<Event | null>(null);
@@ -220,7 +239,6 @@ export default function EventDetailScreen() {
     const miniMapRef = useRef<MapView>(null);
 
     const scrollY = useSharedValue(0);
-    const cartCount = getItemCount();
 
     useEffect(() => {
         trackScreen("EventDetail");
@@ -314,6 +332,8 @@ export default function EventDetailScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         if (cartCount > 0) {
             router.push("/checkout");
+        } else if (!event?.tickets?.some((tier) => tier.remaining > 0)) {
+            router.push(`/waitlist/${event?.id || id}` as never);
         } else {
             Alert.alert("Select Tickets", "Add at least one ticket to your cart first");
         }
@@ -360,6 +380,7 @@ export default function EventDetailScreen() {
     const lowestPrice = event.tickets?.reduce((min, tier) => {
         return tier.price < min ? tier.price : min;
     }, event.tickets[0]?.price || 0) || 0;
+    const hasAvailableTickets = event.tickets?.some((tier) => tier.remaining > 0) ?? false;
 
     return (
         <View style={styles.container}>
@@ -660,13 +681,14 @@ export default function EventDetailScreen() {
                         >
                             <Text style={styles.sectionTitle}>🎟️ Select Tickets</Text>
                             {event.tickets.map((tier, index) => (
-                                <TicketTierCard
-                                    key={tier.id}
-                                    tier={tier}
-                                    event={event}
-                                    isPopular={index === 0}
-                                    index={index}
-                                />
+                            <TicketTierCard
+                                key={tier.id}
+                                tier={tier}
+                                event={event}
+                                promoterCode={typeof ref === "string" ? ref : undefined}
+                                isPopular={index === 0}
+                                index={index}
+                            />
                             ))}
                         </Animated.View>
                     )}
@@ -690,7 +712,11 @@ export default function EventDetailScreen() {
                 <View style={styles.bottomBarContent}>
                     <View style={styles.bottomBarPricing}>
                         <Text style={styles.bottomBarLabel}>
-                            {cartCount > 0 ? `${cartCount} in cart` : "Starting from"}
+                            {cartCount > 0
+                                ? `${cartCount} in cart`
+                                : hasAvailableTickets
+                                    ? "Starting from"
+                                    : "Sold out"}
                         </Text>
                         <Text style={styles.bottomBarPrice}>
                             {lowestPrice === 0 ? "Free" : `₹${lowestPrice}`}
@@ -699,13 +725,17 @@ export default function EventDetailScreen() {
 
                     <Pressable onPress={handleGetTickets}>
                         <LinearGradient
-                            colors={cartCount > 0 ? gradients.primary as [string, string] : ["rgba(244, 74, 34, 0.7)", "rgba(244, 74, 34, 0.5)"]}
+                            colors={
+                                cartCount > 0 || !hasAvailableTickets
+                                    ? gradients.primary as [string, string]
+                                    : ["rgba(244, 74, 34, 0.7)", "rgba(244, 74, 34, 0.5)"]
+                            }
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
                             style={styles.bottomBarButton}
                         >
                             <Text style={styles.bottomBarButtonText}>
-                                {cartCount > 0 ? "Checkout" : "Get Tickets"}
+                                {cartCount > 0 ? "Checkout" : hasAvailableTickets ? "Get Tickets" : "Join Waitlist"}
                             </Text>
                             <Text style={styles.bottomBarButtonArrow}>→</Text>
                         </LinearGradient>

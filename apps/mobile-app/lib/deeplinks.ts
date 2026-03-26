@@ -168,7 +168,10 @@ export function handleDeepLink(
     switch (type) {
         case "event":
             if (params.id) {
-                navigation.navigate("event/[id]", { id: params.id });
+                navigation.navigate("event/[id]", {
+                    id: params.id,
+                    ...(params.ref ? { ref: params.ref } : {}),
+                });
             }
             break;
         case "ticket":

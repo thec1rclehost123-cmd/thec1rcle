@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Link2 } from "lucide-react";
+import Link from "next/link";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -104,7 +105,14 @@ export function PromoterClientWrapper({ children, menuSections }: PromoterClient
                         <span className="w-7 h-7 rounded-lg bg-text-primary flex items-center justify-center text-text-inverse text-[11px] font-bold">C</span>
                         <span className="text-[13px] font-bold text-text-primary tracking-wide">C1RCLE</span>
                     </div>
-                    <div className="w-9" />
+                    <Link
+                        href="/promoter/links"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+                        style={{ background: "var(--c1rcle-orange)" }}
+                        title="New Link"
+                    >
+                        <Link2 className="h-4 w-4 text-white" />
+                    </Link>
                 </header>
 
                 {/* Mobile Sidebar Overlay */}

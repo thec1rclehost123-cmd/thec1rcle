@@ -1,2201 +1,1118 @@
 "use client";
 
-import { useEffect, useState, Suspense, lazy } from "react";
-import type { ReactNode } from "react";
+/**
+ * THE C1RCLE — Analytics Sections v4 (Visual Overhaul)
+ *
+ * Bold, bright, large-format analytics. Every section is designed for
+ * instant readability on a dark dashboard — big numbers, vivid colors,
+ * generous spacing, and clear visual hierarchy.
+ *
+ * 1. SummarySection  → "How did this event do?"
+ * 2. FunnelSection   → "Where am I losing people?"
+ * 3. RevenueSection  → "Where's the money?"
+ * 4. CrowdSection    → "Who showed up?" — gender split with avg age, age bands
+ * 5. DoorSection     → "How did the night run?"
+ * 6. CompareSection  → "How does this stack up?"
+ */
+
+import { useState, lazy, Suspense } from "react";
 import {
-    TrendingUp, DollarSign, Users, Activity, Ticket,
-    ListChecks, PercentCircle, CalendarCheck, RefreshCw,
-    Repeat2, Banknote, Download, Info,
-    Sparkles, ArrowUpRight, Target, Shield, Zap, Award,
+    TrendingUp, TrendingDown, Minus,
+    DollarSign, Users, Ticket, BarChart3,
+    Target, ArrowDownRight, Zap, Shield, Clock,
+    UserCheck, UserX, Repeat2, Star, Crown,
 } from "lucide-react";
-import { useParams, useSearchParams } from "next/navigation";
-import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { formatINR, formatINRCompact, formatPercent, formatNumberCompact } from "@/lib/utils/format";
-import StudioShell from "@/components/studio/StudioShell";
-import { useQuery } from "@tanstack/react-query";
-type DateRange = { from: Date; to: Date } | undefined;
-function subDays(date: Date, days: number): Date {
-    return new Date(date.getTime() - days * 86_400_000);
-}
-import { BentoCard, KPIBento } from "@/components/ui/BentoCard";
-import { VenueChart, ChartSkeleton } from "@/components/ui/VenueChart";
-import { VenueStatStrip } from "@/components/ui/VenueStatStrip";
-import {
-    normalizeAnalyticsData,
-    HEATMAP_DAYS,
-    HEATMAP_HOURS,
-    type AnalyticsDisplayModel,
-} from "@/lib/analytics/zeroState";
+import type { AnalyticsV2, MetricCell } from "@/lib/analytics/types";
+import { ChartSkeleton } from "@/components/ui/VenueChart";
+import { formatINRCompact, formatNumberCompact } from "@/lib/utils/format";
 
-function cn(...inputs: any[]) {
-    return inputs.filter(Boolean).join(" ");
-}
-
-// ── Recharts lazy loaders (advanced chart types) ──────────────────────────────
-
-const LazyComposedRevenue = lazy(() =>
-    (import("recharts") as any).then((m: any) => ({
-        default: function ComposedRevChart({
-            data,
-            height,
-        }: {
-            data: { date: string; revenue: number; tickets: number }[];
-            height: number;
-        }) {
-            const { ComposedChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } = m;
-            const Defs = "defs" as any;
-            const LinearGradient = "linearGradient" as any;
-            const Stop = "stop" as any;
-            return (
-                <div role="img" aria-label="Revenue & Tickets Overlay Chart">
-                    <ResponsiveContainer width="100%" height={height}>
-                        <ComposedChart data={data} margin={{ top: 8, right: 14, left: -20, bottom: 0 }}>
-                            <Defs>
-                                <LinearGradient id="comp-rev-grad" x1="0" y1="0" x2="0" y2="1">
-                                    <Stop offset="5%" stopColor="var(--v-chart-1)" stopOpacity={0.28} />
-                                    <Stop offset="95%" stopColor="var(--v-chart-1)" stopOpacity={0} />
-                                </LinearGradient>
-                            </Defs>
-                            <CartesianGrid stroke="rgba(128,128,128,0.12)" vertical={false} />
-                            <XAxis
-                                dataKey="date"
-                                tick={{ fontSize: 10, fill: "#9B9B9F" }}
-                                axisLine={false}
-                                tickLine={false}
-                            />
-                            <YAxis
-                                yAxisId="rev"
-                                tick={{ fontSize: 10, fill: "#9B9B9F" }}
-                                axisLine={false}
-                                tickLine={false}
-                            />
-                            <YAxis
-                                yAxisId="tix"
-                                orientation="right"
-                                tick={{ fontSize: 10, fill: "#9B9B9F" }}
-                                axisLine={false}
-                                tickLine={false}
-                            />
-                            <Tooltip
-                                contentStyle={{
-                                    background: "var(--v-card)",
-                                    border: "1px solid var(--v-border)",
-                                    borderRadius: 12,
-                                    fontSize: 12,
-                                    color: "var(--v-text-primary)",
-                                }}
-                                cursor={{ stroke: "rgba(128,128,128,0.20)" }}
-                            />
-                            <Area
-                                yAxisId="rev"
-                                type="monotone"
-                                dataKey="revenue"
-                                stroke="var(--v-chart-1)"
-                                strokeWidth={2}
-                                fill="url(#comp-rev-grad)"
-                                isAnimationActive
-                                name="Revenue (₹)"
-                            />
-                            <Line
-                                yAxisId="tix"
-                                type="monotone"
-                                dataKey="tickets"
-                                stroke="var(--v-chart-2)"
-                                strokeWidth={1.5}
-                                dot={false}
-                                strokeDasharray="5 4"
-                                isAnimationActive
-                                name="Tickets"
-                            />
-                        </ComposedChart>
-                    </ResponsiveContainer>
-                </div>
-            );
-        },
-    }))
-);
+// ── Lazy chart loaders ──────────────────────────────────────────────────────
 
 const LazyDonut = lazy(() =>
     (import("recharts") as any).then((m: any) => ({
-        default: function DonutChart({
-            data,
-            colors,
-        }: {
-            data: { name: string; value: number }[];
-            colors: string[];
-        }) {
-            const { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } = m;
+        default: function DonutChart({ data, colors, size = 220 }: { data: { name: string; value: number }[]; colors: string[]; size?: number }) {
+            const { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } = m;
             return (
-                <div role="img" aria-label="Gender Distribution Donut">
-                    <ResponsiveContainer width="100%" height={180}>
-                        <PieChart>
-                            <Pie
-                                data={data}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={46}
-                                outerRadius={72}
-                                paddingAngle={3}
-                                dataKey="value"
-                                strokeWidth={0}
-                            >
-                                {data.map((_: any, i: number) => (
-                                    <Cell key={i} fill={colors[i % colors.length]} />
-                                ))}
-                            </Pie>
-                            <Tooltip
-                                contentStyle={{
-                                    background: "var(--v-card)",
-                                    border: "1px solid var(--v-border)",
-                                    borderRadius: 12,
-                                    fontSize: 12,
-                                    color: "var(--v-text-primary)",
-                                }}
-                            />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </div>
+                <ResponsiveContainer width="100%" height={size}>
+                    <PieChart>
+                        <Pie data={data} cx="50%" cy="50%" innerRadius={size * 0.28} outerRadius={size * 0.42}
+                             paddingAngle={4} dataKey="value" stroke="none" cornerRadius={4}>
+                            {data.map((_: any, i: number) => (
+                                <Cell key={i} fill={colors[i % colors.length]} />
+                            ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ background: "#18181b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, fontSize: 13, fontWeight: 600, color: "#fff", padding: "10px 16px" }} />
+                    </PieChart>
+                </ResponsiveContainer>
             );
         },
     }))
 );
 
-const LazyScatter = lazy(() =>
+const LazyBar = lazy(() =>
     (import("recharts") as any).then((m: any) => ({
-        default: function ScatterPlot({
-            data,
-            height,
-        }: {
-            data: { title: string; issued: number; revenue: number; conversion: number }[];
-            height: number;
-        }) {
-            const { ScatterChart, Scatter, XAxis, YAxis, ZAxis, Tooltip, ResponsiveContainer, CartesianGrid } = m;
-            const scatterData = data.map((d: any) => ({
-                x: d.issued,
-                y: d.revenue,
-                z: Math.max(d.conversion * 5, 20),
-                name: d.title,
-            }));
+        default: function BarChart({ data, xKey, yKey, color, height }: { data: any[]; xKey: string; yKey: string; color: string; height: number }) {
+            const { BarChart: BC, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } = m;
             return (
-                <div role="img" aria-label="Events Scatter Plot">
-                    <ResponsiveContainer width="100%" height={height}>
-                        <ScatterChart margin={{ top: 12, right: 12, left: -20, bottom: 24 }}>
-                            <CartesianGrid stroke="rgba(128,128,128,0.12)" />
-                            <XAxis
-                                type="number"
-                                dataKey="x"
-                                name="Attendance"
-                                tick={{ fontSize: 10, fill: "#9B9B9F" }}
-                                axisLine={false}
-                                tickLine={false}
-                                label={{
-                                    value: "← Attendance →",
-                                    position: "insideBottom",
-                                    fontSize: 9,
-                                    fill: "#9B9B9F",
-                                    offset: -14,
-                                }}
-                            />
-                            <YAxis
-                                type="number"
-                                dataKey="y"
-                                name="Revenue"
-                                tick={{ fontSize: 10, fill: "#9B9B9F" }}
-                                axisLine={false}
-                                tickLine={false}
-                            />
-                            <ZAxis type="number" dataKey="z" range={[40, 360]} />
-                            <Tooltip
-                                contentStyle={{
-                                    background: "var(--v-card)",
-                                    border: "1px solid var(--v-border)",
-                                    borderRadius: 12,
-                                    fontSize: 12,
-                                    color: "var(--v-text-primary)",
-                                }}
-                                cursor={{ strokeDasharray: "3 3", stroke: "rgba(128,128,128,0.25)" }}
-                                formatter={(val: any, name: any) =>
-                                    name === "Revenue"
-                                        ? [formatINR(Number(val)), name]
-                                        : [val, name]
-                                }
-                            />
-                            <Scatter data={scatterData} fill="var(--v-orange)" opacity={0.82} />
-                        </ScatterChart>
-                    </ResponsiveContainer>
-                </div>
+                <ResponsiveContainer width="100%" height={height}>
+                    <BC data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                        <CartesianGrid stroke="rgba(128,128,128,0.06)" vertical={false} />
+                        <XAxis dataKey={xKey} tick={{ fontSize: 11, fill: "#71717A", fontWeight: 600 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: "#71717A", fontWeight: 600 }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={{ background: "#18181b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, fontSize: 13, fontWeight: 600, color: "#fff", padding: "10px 16px" }} />
+                        <Bar dataKey={yKey} fill={color} radius={[6, 6, 0, 0]} maxBarSize={36} />
+                    </BC>
+                </ResponsiveContainer>
             );
         },
     }))
 );
 
-const LazyRadialBar = lazy(() =>
+const LazyArea = lazy(() =>
     (import("recharts") as any).then((m: any) => ({
-        default: function RadialBarWidget({
-            data,
-            height,
-        }: {
-            data: { name: string; value: number; fill: string }[];
-            height: number;
-        }) {
-            const { RadialBarChart, RadialBar, Tooltip, ResponsiveContainer } = m;
+        default: function AreaChart({ data, xKey, yKey, color, height }: { data: any[]; xKey: string; yKey: string; color: string; height: number }) {
+            const { AreaChart: AC, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } = m;
+            const Defs = "defs" as any;
+            const LG = "linearGradient" as any;
+            const Stop = "stop" as any;
             return (
-                <div role="img" aria-label="Source Breakdown Radial">
-                    <ResponsiveContainer width="100%" height={height}>
-                        <RadialBarChart
-                            cx="50%"
-                            cy="50%"
-                            innerRadius="18%"
-                            outerRadius="90%"
-                            barSize={10}
-                            data={data}
-                            startAngle={180}
-                            endAngle={-180}
-                        >
-                            <RadialBar
-                                minAngle={8}
-                                clockWise
-                                dataKey="value"
-                                background={{ fill: "rgba(128,128,128,0.08)" }}
-                            />
-                            <Tooltip
-                                contentStyle={{
-                                    background: "var(--v-card)",
-                                    border: "1px solid var(--v-border)",
-                                    borderRadius: 12,
-                                    fontSize: 12,
-                                    color: "var(--v-text-primary)",
-                                }}
-                                formatter={(val: any) => [`${Number(val).toFixed(1)}%`, "Share"]}
-                            />
-                        </RadialBarChart>
-                    </ResponsiveContainer>
-                </div>
+                <ResponsiveContainer width="100%" height={height}>
+                    <AC data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                        <Defs>
+                            <LG id={`grad-${yKey}`} x1="0" y1="0" x2="0" y2="1">
+                                <Stop offset="0%" stopColor={color} stopOpacity={0.35} />
+                                <Stop offset="100%" stopColor={color} stopOpacity={0} />
+                            </LG>
+                        </Defs>
+                        <CartesianGrid stroke="rgba(128,128,128,0.06)" vertical={false} />
+                        <XAxis dataKey={xKey} tick={{ fontSize: 11, fill: "#71717A", fontWeight: 600 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: "#71717A", fontWeight: 600 }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={{ background: "#18181b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, fontSize: 13, fontWeight: 600, color: "#fff", padding: "10px 16px" }} />
+                        <Area type="monotone" dataKey={yKey} stroke={color} strokeWidth={2.5} fill={`url(#grad-${yKey})`} />
+                    </AC>
+                </ResponsiveContainer>
             );
         },
     }))
 );
 
-// ── Formatter ─────────────────────────────────────────────────────────────────
+// ── Shared helpers ──────────────────────────────────────────────────────────
 
-function fmt(n: number, type: "currency" | "percent" | "number" = "number"): string {
-    if (type === "currency") return formatINRCompact(n);
-    if (type === "percent")  return formatPercent(n);
-    return formatNumberCompact(n);
-}
-
-// ── Global Category Config ───────────────────────────────────────────────────
-
-const CATEGORY_MAP: Record<string, { title: string; desc: string }> = {
-    overview: {
-        title: "Analytics Overview",
-        desc: "Complete performance summary — revenue, attendance, funnel, and operations."
-    },
-    timeline: {
-        title: "Timing Intelligence",
-        desc: "Deep dive into booking windows, peak hours, and seasonal trends."
-    },
-    reach: {
-        title: "Demand & Reach",
-        desc: "Analyze purchase intent, ticket sales trends, and source performance."
-    },
-    engagement: {
-        title: "Turnout & Engagement",
-        desc: "Track fill rates, attendance consistency, and no-show analysis."
-    },
-    revenue: {
-        title: "Money Intelligence",
-        desc: "Detailed breakdown of revenue, platform fees, and finance status."
-    },
-    audience: {
-        title: "Crowd & Audience",
-        desc: "Demographics, loyalty patterns, and guest quality scores."
-    },
-    ops: {
-        title: "Gate & Operations",
-        desc: "Scanner efficiency, entry velocity, and door management metrics."
-    },
-    attribution: {
-        title: "Partner Attribution",
-        desc: "Performance tracking for hosts, promoters, and external sources."
-    }
-};
-
-
-// ── Section: KPI Grid ─────────────────────────────────────────────────────────
-
-export function KPISection({ data, loading, category }: { data: AnalyticsDisplayModel; loading: boolean; category: string }) {
-    const kpis = [
-        {
-            label: "TOTAL REVENUE",
-            category: ["overview", "revenue"],
-            value: fmt(data.totalRevenue, "currency"),
-            trend: { value: data.revenueTrend, direction: data.revenueTrendDir },
-            icon: <DollarSign className="w-4 h-4" style={{ color: "var(--v-orange)" }} />,
-            iconBg: "var(--v-orange-dim)",
-        },
-        {
-            label: "TICKETS SOLD",
-            category: ["overview", "reach"],
-            value: fmt(data.ticketsSold),
-            trend: { value: data.ticketsTrend, direction: data.ticketsTrendDir },
-            icon: <Ticket className="w-4 h-4" style={{ color: "var(--v-info)" }} />,
-            iconBg: "var(--v-info-bg)",
-        },
-        {
-            label: "GUESTLIST SIGNUPS",
-            category: ["overview", "reach"],
-            value: fmt(data.guestlistSignups),
-            icon: <ListChecks className="w-4 h-4" style={{ color: "var(--v-success)" }} />,
-            iconBg: "var(--v-success-bg)",
-        },
-        {
-            label: "CHECK-INS",
-            category: ["overview", "engagement", "ops", "timeline"],
-            value: fmt(data.checkins),
-            trend: { value: data.checkinsTrend, direction: data.checkinsTrendDir },
-            icon: <CalendarCheck className="w-4 h-4" style={{ color: "var(--v-success)" }} />,
-            iconBg: "var(--v-success-bg)",
-        },
-        {
-            label: "CONVERSION RATE",
-            category: ["overview", "reach"],
-            value: fmt(data.conversionRate, "percent"),
-            icon: <PercentCircle className="w-4 h-4" style={{ color: "var(--v-warning)" }} />,
-            iconBg: "var(--v-warning-bg)",
-        },
-        {
-            label: "ACTIVE EVENTS",
-            category: ["overview", "timeline", "attribution"],
-            value: fmt(data.activeEvents),
-            icon: <Activity className="w-4 h-4" style={{ color: "var(--v-chart-5)" }} />,
-            iconBg: "rgba(244,114,182,0.10)",
-        },
-        {
-            label: "AVG TICKET PRICE",
-            category: ["overview", "reach", "revenue"],
-            value: fmt(data.avgTicketPrice, "currency"),
-            icon: <TrendingUp className="w-4 h-4" style={{ color: "var(--v-info)" }} />,
-            iconBg: "var(--v-info-bg)",
-        },
-        {
-            label: "REFUNDS",
-            category: ["overview", "revenue", "ops"],
-            value: fmt(data.refunds),
-            icon: <RefreshCw className="w-4 h-4" style={{ color: "var(--v-error)" }} />,
-            iconBg: "var(--v-error-bg)",
-        },
-        {
-            label: "PAYOUTS PROCESSED",
-            category: ["overview", "revenue"],
-            value: fmt(data.payoutsProcessed, "currency"),
-            icon: <Banknote className="w-4 h-4" style={{ color: "var(--v-success)" }} />,
-            iconBg: "var(--v-success-bg)",
-        },
-        {
-            label: "REPEAT GUEST RATE",
-            category: ["overview", "engagement", "audience"],
-            value: fmt(data.repeatGuestRate, "percent"),
-            icon: <Repeat2 className="w-4 h-4" style={{ color: "var(--v-warning)" }} />,
-            iconBg: "var(--v-warning-bg)",
-        },
-    ];
-
-    const filteredKpis = category === "overview" ? kpis : kpis.filter(k => k.category.includes(category));
-
+function SectionTitle({ title, description, icon: Icon, accent = "#F44A22" }: { title: string; description: string; icon?: any; accent?: string }) {
     return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {filteredKpis.map(k => (
-                <KPIBento
-                    key={k.label}
-                    label={k.label}
-                    value={k.value}
-                    trend={k.trend as any}
-                    icon={k.icon}
-                    iconBg={k.iconBg}
-                    loading={loading}
-                />
-            ))}
+        <div className="mb-8 relative">
+            {/* Top accent line */}
+            <div className="h-px w-full mb-6"
+                 style={{ background: `linear-gradient(90deg, ${accent}, ${accent}40, transparent)` }} />
+
+            <div className="flex items-center gap-4 mb-3">
+                {Icon && (
+                    <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+                         style={{ background: `${accent}18`, border: `1px solid ${accent}25`, boxShadow: `0 0 20px ${accent}15` }}>
+                        <Icon className="w-5 h-5" style={{ color: accent }} />
+                    </div>
+                )}
+                <h2 className="text-[26px] sm:text-[30px] font-black tracking-tight" style={{ color: "var(--v-text-primary)" }}>
+                    {title}
+                </h2>
+            </div>
+            <p className="text-[14px] font-medium pl-1" style={{ color: "rgba(255,255,255,0.38)" }}>
+                {description}
+            </p>
         </div>
     );
 }
 
-// ── Section: Performance Score Rings ──────────────────────────────────────────
-
-export function PerformanceRingsSection({ data, loading, category }: { data: AnalyticsDisplayModel; loading: boolean; category: string }) {
-    const scannerEfficiency =
-        data.totalScans > 0 ? (data.successfulScans / data.totalScans) * 100 : 0;
-
-    const rings = [
-        {
-            label: "Conversion Rate",
-            category: ["overview", "reach", "revenue"],
-            value: data.conversionRate,
-            color: "var(--v-chart-1)",
-            icon: <PercentCircle className="w-3.5 h-3.5" />,
-            sublabel: "purchases / page views",
-        },
-        {
-            label: "Fill Rate",
-            category: ["overview", "engagement"],
-            value: data.avgTurnout,
-            color: "var(--v-chart-2)",
-            icon: <Target className="w-3.5 h-3.5" />,
-            sublabel: "attendance vs capacity",
-        },
-        {
-            label: "Scanner Efficiency",
-            category: ["overview", "ops"],
-            value: scannerEfficiency,
-            color: "var(--v-success)",
-            icon: <Shield className="w-3.5 h-3.5" />,
-            sublabel: "successful / total scans",
-        },
-        {
-            label: "Repeat Rate",
-            category: ["overview", "engagement", "audience"],
-            value: data.repeatGuestRate,
-            color: "var(--v-warning)",
-            icon: <Repeat2 className="w-3.5 h-3.5" />,
-            sublabel: "returning guests",
-        },
-    ];
-
-    const filteredRings = category === "overview" ? rings : rings.filter(r => r.category.includes(category));
-    if (filteredRings.length === 0) return null;
+function HeroMetric({
+    label, metric, prefix, suffix, accentColor, icon: Icon,
+}: {
+    label: string;
+    metric: MetricCell;
+    prefix?: string;
+    suffix?: string;
+    accentColor?: string;
+    icon?: any;
+}) {
+    const TrendIcon = metric.trendDir === "up" ? TrendingUp : metric.trendDir === "down" ? TrendingDown : Minus;
+    const trendColor = metric.isPositiveGood
+        ? (metric.trendDir === "up" ? "#34D399" : metric.trendDir === "down" ? "#F87171" : "#71717A")
+        : (metric.trendDir === "up" ? "#F87171" : metric.trendDir === "down" ? "#34D399" : "#71717A");
+    const trendBg = metric.isPositiveGood
+        ? (metric.trendDir === "up" ? "rgba(52,211,153,0.12)" : metric.trendDir === "down" ? "rgba(248,113,113,0.12)" : "rgba(113,113,122,0.12)")
+        : (metric.trendDir === "up" ? "rgba(248,113,113,0.12)" : metric.trendDir === "down" ? "rgba(52,211,153,0.12)" : "rgba(113,113,122,0.12)");
 
     return (
-        <BentoCard
-            loading={loading}
-            header={
-                <div className="flex items-center gap-2">
-                    <Award className="w-4 h-4" style={{ color: "var(--v-orange)" }} />
-                    <span className="v-label">PERFORMANCE SCORES</span>
-                </div>
-            }
-        >
-            {!loading && (
-                <div className={cn(
-                    "grid gap-6 py-4",
-                    filteredRings.length === 4 ? "grid-cols-2 sm:grid-cols-4" :
-                    filteredRings.length === 3 ? "grid-cols-1 sm:grid-cols-3" :
-                    filteredRings.length === 2 ? "grid-cols-2" : "grid-cols-1"
-                )}>
-                    {filteredRings.map(ring => (
-                        <RadialRing key={ring.label} {...ring} />
-                    ))}
-                </div>
+        <div className="rounded-2xl p-5 sm:p-6 flex flex-col gap-3 relative overflow-hidden"
+             style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
+            {/* Accent glow */}
+            {accentColor && (
+                <div className="absolute top-0 right-0 w-32 h-32 opacity-[0.07] rounded-full"
+                     style={{ background: accentColor, filter: "blur(40px)", transform: "translate(30%, -30%)" }} />
             )}
-        </BentoCard>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                    {Icon && (
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                             style={{ background: `${accentColor || "var(--v-orange)"}20` }}>
+                            <Icon className="w-4 h-4" style={{ color: accentColor || "var(--v-orange)" }} />
+                        </div>
+                    )}
+                    <span className="text-[11px] sm:text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: "rgba(255,255,255,0.45)" }}>
+                        {label}
+                    </span>
+                </div>
+                {metric.deltaPct !== 0 && (
+                    <span className="flex items-center gap-1 text-[12px] font-bold px-2.5 py-1 rounded-full"
+                          style={{ color: trendColor, background: trendBg }}>
+                        <TrendIcon className="w-3.5 h-3.5" />
+                        {metric.deltaPct > 0 ? "+" : ""}{metric.deltaPct.toFixed(1)}%
+                    </span>
+                )}
+            </div>
+            <span className="text-[36px] sm:text-[42px] font-black tabular-nums leading-none tracking-tight"
+                  style={{ color: "var(--v-text-primary)" }}>
+                {prefix}{metric.formatted}{suffix}
+            </span>
+        </div>
     );
 }
 
-export function RadialRing({
-    label,
-    value,
-    color,
-    icon,
-    sublabel,
-}: {
-    label: string;
-    value: number;
-    color: string;
-    icon: ReactNode;
-    sublabel: string;
-}) {
-    const SIZE = 96;
-    const STROKE = 7;
-    const R = (SIZE - STROKE) / 2;
+function Ring({ value, label, color, size = 110 }: { value: number; label: string; color: string; size?: number }) {
+    const S = 8;
+    const R = (size - S) / 2;
     const C = 2 * Math.PI * R;
     const pct = Math.min(value / 100, 1);
-    const offset = C - pct * C;
-
     return (
-        <div className="flex flex-col items-center gap-2">
-            <div className="relative" style={{ width: SIZE, height: SIZE }}>
-                <svg
-                    width={SIZE}
-                    height={SIZE}
-                    viewBox={`0 0 ${SIZE} ${SIZE}`}
-                    style={{ transform: "rotate(-90deg)" }}
-                >
-                    <circle
-                        cx={SIZE / 2}
-                        cy={SIZE / 2}
-                        r={R}
-                        fill="none"
-                        stroke="rgba(128,128,128,0.15)"
-                        strokeWidth={STROKE}
-                    />
-                    <circle
-                        cx={SIZE / 2}
-                        cy={SIZE / 2}
-                        r={R}
-                        fill="none"
-                        stroke={color}
-                        strokeWidth={STROKE}
-                        strokeLinecap="round"
-                        strokeDasharray={C}
-                        strokeDashoffset={offset}
-                        style={{ transition: "stroke-dashoffset 0.9s cubic-bezier(0.4,0,0.2,1)", filter: `drop-shadow(0 0 6px ${color})` }}
-                    />
+        <div className="flex flex-col items-center gap-3">
+            <div className="relative" style={{ width: size, height: size }}>
+                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
+                    <circle cx={size/2} cy={size/2} r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={S} />
+                    <circle cx={size/2} cy={size/2} r={R} fill="none" stroke={color} strokeWidth={S}
+                            strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C - pct * C}
+                            style={{ transition: "stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1)", filter: `drop-shadow(0 0 6px ${color}60)` }} />
                 </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span
-                        className="text-[18px] font-bold tabular-nums leading-none"
-                        style={{ color: "var(--v-text-primary)" }}
-                    >
-                        {value.toFixed(0)}%
-                    </span>
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-[20px] font-black tabular-nums" style={{ color }}>{value.toFixed(1)}%</span>
                 </div>
             </div>
-            <div className="flex items-center gap-1.5">
-                <span style={{ color }}>{icon}</span>
-                <p
-                    className="text-[10px] font-bold uppercase tracking-widest text-center"
-                    style={{ color: "var(--v-text-secondary)" }}
-                >
-                    {label}
-                </p>
-            </div>
-            <p className="text-[10px] text-center" style={{ color: "var(--v-text-muted)" }}>
-                {sublabel}
-            </p>
-        </div>
-    );
-}
-
-// ── Section: Revenue Chart ─────────────────────────────────────────────────────
-
-export function RevenueSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
-    const [gran, setGran] = useState<"day" | "week" | "month">("day");
-    const [chartMode, setChartMode] = useState<"single" | "overlay">("single");
-
-    const summary = [
-        { label: "GROSS REVENUE", value: fmt(data.grossSales, "currency"), color: "var(--v-orange)" },
-        { label: "NET PAYABLE",   value: fmt(data.netSales, "currency"),   color: "var(--v-success)" },
-        { label: "PLATFORM FEE",  value: fmt(data.platformFees, "currency"), color: "var(--v-error)" },
-        { label: "AVG TURNOUT",   value: fmt(data.avgTurnout, "percent"),  color: "var(--v-info)" },
-    ];
-
-    const mergedTimeline = data.revenueTimeline.map((r, i) => ({
-        date: r.date,
-        revenue: r.revenue,
-        tickets: data.ticketsTimeline[i]?.tickets ?? 0,
-    }));
-
-    return (
-        <BentoCard
-            loading={loading}
-            header={
-                <div className="flex items-center justify-between w-full flex-wrap gap-2">
-                    <span className="v-label">REVENUE ANALYTICS</span>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <div
-                            className="flex items-center gap-1 p-0.5 rounded-xl border border-[var(--v-border)]"
-                            style={{ background: "var(--v-elevated)" }}
-                        >
-                            {(["single", "overlay"] as const).map(m => (
-                                <button
-                                    key={m}
-                                    onClick={() => setChartMode(m)}
-                                    className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
-                                    style={{
-                                        background: chartMode === m ? "var(--v-card)" : "transparent",
-                                        color: chartMode === m ? "var(--v-text-primary)" : "var(--v-text-muted)",
-                                        boxShadow: chartMode === m ? "var(--v-shadow-card)" : "none",
-                                    }}
-                                >
-                                    {m === "single" ? "Revenue" : "Rev + Tickets"}
-                                </button>
-                            ))}
-                        </div>
-                        <div
-                            className="flex items-center gap-1 p-0.5 rounded-xl border border-[var(--v-border)]"
-                            style={{ background: "var(--v-elevated)" }}
-                        >
-                            {(["day", "week", "month"] as const).map(g => (
-                                <button
-                                    key={g}
-                                    onClick={() => setGran(g)}
-                                    className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
-                                    style={{
-                                        background: gran === g ? "var(--v-card)" : "transparent",
-                                        color: gran === g ? "var(--v-text-primary)" : "var(--v-text-muted)",
-                                        boxShadow: gran === g ? "var(--v-shadow-card)" : "none",
-                                    }}
-                                >
-                                    {g}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            }
-        >
-            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-[var(--v-border)] mb-4 rounded-xl overflow-hidden border border-[var(--v-border)]">
-                {summary.map(s => (
-                    <div key={s.label} className="px-4 py-3" style={{ borderTop: `2px solid ${s.color}` }}>
-                        <p className="v-label mb-1">{s.label}</p>
-                        <p
-                            className="text-[20px] font-bold tabular-nums leading-none"
-                            style={{ color: loading ? "var(--v-text-muted)" : s.color }}
-                        >
-                            {loading ? "—" : s.value}
-                        </p>
-                    </div>
-                ))}
-            </div>
-
-            {!loading && (
-                <>
-                    {chartMode === "overlay" ? (
-                        <>
-                            <div className="flex items-center gap-4 mb-3">
-                                <LegendDot color="var(--v-chart-1)" label="Revenue (left axis)" />
-                                <LegendDot
-                                    color="var(--v-chart-2)"
-                                    label="Tickets (right axis)"
-                                    dashed
-                                />
-                            </div>
-                            <Suspense fallback={<ChartSkeleton height={260} />}>
-                                <LazyComposedRevenue data={mergedTimeline} height={260} />
-                            </Suspense>
-                        </>
-                    ) : (
-                        <VenueChart
-                            type="area"
-                            data={data.revenueTimeline}
-                            config={{
-                                dataKey: "revenue",
-                                xKey: "date",
-                                color: "var(--v-chart-1)",
-                                gradientId: "overview-rev",
-                            }}
-                            height={260}
-                            title="Revenue Timeline"
-                        />
-                    )}
-                    {!data.hasData && (
-                        <p
-                            className="text-center text-[11px] mt-2 font-medium uppercase tracking-widest"
-                            style={{ color: "var(--v-text-muted)" }}
-                        >
-                            Revenue will plot here after your first ticket sale
-                        </p>
-                    )}
-                </>
-            )}
-        </BentoCard>
-    );
-}
-
-// ── Section: Ticket Sales + Guestlist ────────────────────────────────────────
-
-export function TicketsGuestlistSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
-    const genderTotal =
-        data.genderRatio.female + data.genderRatio.male + data.genderRatio.other || 1;
-    const hasGenderData = genderTotal > 1;
-
-    const genderSplit = [
-        { name: "Female", value: data.genderRatio.female, color: "var(--v-chart-2)" },
-        { name: "Male", value: data.genderRatio.male, color: "var(--v-chart-1)" },
-        { name: "Other", value: data.genderRatio.other, color: "var(--v-chart-3)" },
-    ];
-
-    const donutData = hasGenderData
-        ? genderSplit.map(g => ({ name: g.name, value: g.value }))
-        : [{ name: "No data", value: 1 }];
-
-    const donutColors = hasGenderData
-        ? genderSplit.map(g => g.color)
-        : ["rgba(128,128,128,0.15)"];
-
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            <BentoCard
-                className="lg:col-span-2"
-                loading={loading}
-                header={
-                    <div className="flex items-center justify-between w-full">
-                        <span className="v-label">TICKET SALES OVER TIME</span>
-                        <div className="flex items-center gap-3">
-                            <LegendDot color="var(--v-chart-1)" label="Paid" />
-                            <LegendDot color="var(--v-chart-2)" label="Guestlist" />
-                        </div>
-                    </div>
-                }
-            >
-                {!loading && (
-                    <>
-                        <VenueChart
-                            type="bar"
-                            data={data.ticketsTimeline}
-                            config={{ dataKey: "tickets", xKey: "date", color: "var(--v-chart-1)" }}
-                            height={220}
-                            title="Ticket Sales Over Time"
-                        />
-                        {!data.hasData && (
-                            <p
-                                className="text-center text-[11px] mt-2 font-medium uppercase tracking-widest"
-                                style={{ color: "var(--v-text-muted)" }}
-                            >
-                                No ticket sales in selected range
-                            </p>
-                        )}
-                    </>
-                )}
-            </BentoCard>
-
-            <BentoCard loading={loading} header={<span className="v-label">GUESTLIST & AUDIENCE</span>}>
-                {!loading && (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-2">
-                            {[
-                                { label: "Signups", value: fmt(data.guestlistSignups) },
-                                { label: "Check-ins", value: fmt(data.checkins) },
-                                {
-                                    label: "No-show",
-                                    value: fmt(Math.max(0, data.guestlistSignups - data.checkins)),
-                                },
-                                { label: "Conversion", value: fmt(data.conversionRate, "percent") },
-                            ].map(m => (
-                                <div
-                                    key={m.label}
-                                    className="px-3 py-2.5 rounded-xl"
-                                    style={{ background: "var(--v-elevated)" }}
-                                >
-                                    <p className="v-label mb-0.5">{m.label}</p>
-                                    <p
-                                        className="text-[18px] font-bold tabular-nums leading-none"
-                                        style={{ color: "var(--v-text-primary)" }}
-                                    >
-                                        {m.value}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div>
-                            <p className="v-label mb-2">GENDER SPLIT</p>
-                            <div className="relative">
-                                <Suspense fallback={<ChartSkeleton height={180} />}>
-                                    <LazyDonut data={donutData} colors={donutColors} />
-                                </Suspense>
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                    <div className="text-center">
-                                        <p
-                                            className="text-[11px] font-bold"
-                                            style={{ color: "var(--v-text-muted)" }}
-                                        >
-                                            {hasGenderData ? "Total" : "No data"}
-                                        </p>
-                                        {hasGenderData && (
-                                            <p
-                                                className="text-[15px] font-bold tabular-nums"
-                                                style={{ color: "var(--v-text-primary)" }}
-                                            >
-                                                {fmt(genderTotal)}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                            {hasGenderData && (
-                                <div className="flex justify-center gap-4 mt-2">
-                                    {genderSplit.map(g => (
-                                        <div key={g.name} className="flex items-center gap-1.5">
-                                            <div
-                                                className="w-2 h-2 rounded-full"
-                                                style={{ background: g.color }}
-                                            />
-                                            <span
-                                                className="text-[10px] font-semibold"
-                                                style={{ color: "var(--v-text-muted)" }}
-                                            >
-                                                {g.name}{" "}
-                                                {((g.value / genderTotal) * 100).toFixed(0)}%
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-            </BentoCard>
-        </div>
-    );
-}
-
-// ── Section: Audience Intelligence ────────────────────────────────────────────
-
-const AGE_COLORS = [
-    "var(--v-chart-1)",
-    "var(--v-chart-2)",
-    "var(--v-chart-3)",
-    "var(--v-chart-4)",
-    "var(--v-chart-5)",
-];
-
-export function AudienceSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
-    const ageBandEntries = Object.entries(data.ageBands);
-    const totalAge = ageBandEntries.reduce((sum, [, v]) => sum + v, 0) || 1;
-
-    const peakInterestDay = data.hasData
-        ? data.interestTimeline.reduce(
-              (a, b) => (b.count > a.count ? b : a),
-              data.interestTimeline[0] ?? { date: "—", count: 0 }
-          ).date
-        : "—";
-
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {/* Age demographics */}
-            <BentoCard
-                loading={loading}
-                header={
-                    <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4" style={{ color: "var(--v-orange)" }} />
-                        <span className="v-label">AGE DEMOGRAPHICS</span>
-                    </div>
-                }
-            >
-                {!loading && (
-                    <div className="space-y-5 pt-2">
-                        {ageBandEntries.map(([band, count], i) => {
-                            const pct = (count / totalAge) * 100;
-                            const displayPct = data.hasData ? pct : 0;
-                            return (
-                                <div key={band}>
-                                    <div className="flex items-end justify-between mb-1.5">
-                                        <div className="flex items-center gap-2">
-                                            <div
-                                                className="w-2.5 h-2.5 rounded-sm"
-                                                style={{ background: AGE_COLORS[i % AGE_COLORS.length] }}
-                                            />
-                                            <span
-                                                className="text-[13px] font-semibold"
-                                                style={{ color: "var(--v-text-primary)" }}
-                                            >
-                                                {band}
-                                            </span>
-                                        </div>
-                                        <div className="text-right">
-                                            <span
-                                                className="text-[12px] font-bold tabular-nums"
-                                                style={{ color: "var(--v-text-secondary)" }}
-                                            >
-                                                {data.hasData ? fmt(count) : "0"} guests
-                                            </span>
-                                            <span
-                                                className="text-[11px] ml-2 font-bold"
-                                                style={{ color: AGE_COLORS[i % AGE_COLORS.length] }}
-                                            >
-                                                {displayPct.toFixed(1)}%
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div
-                                        className="relative h-3 w-full rounded-full overflow-hidden"
-                                        style={{ background: "var(--v-elevated)" }}
-                                    >
-                                        <div
-                                            className="absolute left-0 top-0 h-full rounded-full transition-all duration-700"
-                                            style={{
-                                                width: `${displayPct}%`,
-                                                background: `linear-gradient(90deg, ${AGE_COLORS[i % AGE_COLORS.length]}, ${AGE_COLORS[(i + 1) % AGE_COLORS.length]})`,
-                                                minWidth: displayPct > 0 ? 4 : 0,
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        })}
-                        {!data.hasData && (
-                            <p className="text-[11px]" style={{ color: "var(--v-text-muted)" }}>
-                                Age data populates after guests complete profiles
-                            </p>
-                        )}
-                    </div>
-                )}
-            </BentoCard>
-
-            {/* Interest timeline */}
-            <BentoCard
-                loading={loading}
-                header={
-                    <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-2">
-                            <Zap className="w-4 h-4" style={{ color: "var(--v-orange)" }} />
-                            <span className="v-label">INTEREST TREND</span>
-                        </div>
-                        <span
-                            className="text-[10px] font-semibold uppercase tracking-widest px-2 py-1 rounded-lg"
-                            style={{ background: "var(--v-elevated)", color: "var(--v-text-muted)" }}
-                        >
-                            30 days
-                        </span>
-                    </div>
-                }
-            >
-                {!loading && (
-                    <>
-                        <div className="flex gap-6 mb-4">
-                            {[
-                                {
-                                    label: "TOTAL INTEREST",
-                                    value: fmt(
-                                        data.interestTimeline.reduce((s, d) => s + d.count, 0)
-                                    ),
-                                },
-                                { label: "PEAK DAY", value: peakInterestDay },
-                            ].map(s => (
-                                <div key={s.label}>
-                                    <p className="v-label mb-0.5">{s.label}</p>
-                                    <p
-                                        className="text-[18px] font-bold tabular-nums"
-                                        style={{ color: "var(--v-text-primary)" }}
-                                    >
-                                        {s.value}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-                        <VenueChart
-                            type="area"
-                            data={data.interestTimeline}
-                            config={{
-                                dataKey: "count",
-                                xKey: "date",
-                                color: "var(--v-chart-3)",
-                                gradientId: "interest-grad",
-                            }}
-                            height={180}
-                            title="Interest Trend"
-                        />
-                        {!data.hasData && (
-                            <p
-                                className="text-center text-[11px] mt-2 font-medium uppercase tracking-widest"
-                                style={{ color: "var(--v-text-muted)" }}
-                            >
-                                Interest signals appear when guests view or save events
-                            </p>
-                        )}
-                    </>
-                )}
-            </BentoCard>
-        </div>
-    );
-}
-
-// ── Section: Conversion Funnel ────────────────────────────────────────────────
-
-const FUNNEL_COLORS = [
-    "var(--v-chart-1)",
-    "var(--v-chart-2)",
-    "var(--v-chart-3)",
-    "var(--v-chart-4)",
-    "var(--v-chart-5)",
-    "var(--v-success)",
-];
-
-export function FunnelSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
-    const maxCount = Math.max(...data.funnel.map(f => f.count), 1);
-
-    return (
-        <BentoCard loading={loading} header={<span className="v-label">CONVERSION FUNNEL</span>}>
-            {!loading && (
-                <div className="flex flex-col items-center gap-2 py-4 max-w-2xl mx-auto w-full">
-                    {data.funnel.map((step, i) => {
-                        const widthPct = 100 - i * 13;
-                        const prevCount = i === 0 ? step.count : data.funnel[i - 1].count;
-                        const dropPct =
-                            prevCount > 0
-                                ? (((prevCount - step.count) / prevCount) * 100).toFixed(0)
-                                : "0";
-                        const color = FUNNEL_COLORS[i % FUNNEL_COLORS.length];
-                        const barPct = maxCount > 0 ? (step.count / maxCount) * 100 : 5;
-
-                        return (
-                            <div key={step.stage} className="w-full flex flex-col items-center">
-                                {i > 0 && (
-                                    <div className="flex items-center gap-2 my-1">
-                                        <div
-                                            className="h-4 w-px"
-                                            style={{ background: "var(--v-border)" }}
-                                        />
-                                        <span
-                                            className="text-[10px] font-bold uppercase tracking-widest"
-                                            style={{ color: "var(--v-text-muted)" }}
-                                        >
-                                            {data.hasData ? `−${dropPct}% drop` : "0% drop"}
-                                        </span>
-                                    </div>
-                                )}
-                                <div
-                                    className="flex items-center justify-between px-6 py-3.5 rounded-2xl transition-all"
-                                    style={{
-                                        width: `${widthPct}%`,
-                                        background: `linear-gradient(90deg, ${color}1f 0%, var(--v-elevated) 55%)`,
-                                        border: `1px solid ${color}28`,
-                                        borderLeft: `3px solid ${color}`,
-                                    }}
-                                >
-                                    <span
-                                        className="text-[11px] font-bold uppercase tracking-widest"
-                                        style={{ color }}
-                                    >
-                                        {step.stage}
-                                    </span>
-                                    <div className="flex items-center gap-4">
-                                        <div
-                                            className="h-1.5 w-20 rounded-full overflow-hidden"
-                                            style={{ background: "var(--v-border)" }}
-                                        >
-                                            <div
-                                                className="h-full rounded-full transition-all duration-700"
-                                                style={{
-                                                    width: `${data.hasData ? barPct : 3}%`,
-                                                    background: color,
-                                                }}
-                                            />
-                                        </div>
-                                        <span
-                                            className="text-[22px] font-bold tabular-nums leading-none"
-                                            style={{ color: "var(--v-text-primary)" }}
-                                        >
-                                            {step.count > 0 ? step.count.toLocaleString() : "0"}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                    {!data.hasData && (
-                        <p
-                            className="text-[11px] mt-3 font-medium uppercase tracking-widest"
-                            style={{ color: "var(--v-text-muted)" }}
-                        >
-                            Funnel will populate after discovery & booking activity begins
-                        </p>
-                    )}
-                </div>
-            )}
-        </BentoCard>
-    );
-}
-
-// ── Section: Entry / Scanner ──────────────────────────────────────────────────
-
-export function ScannerSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
-    const scannerEfficiency =
-        data.totalScans > 0 ? (data.successfulScans / data.totalScans) * 100 : 0;
-
-    const scanRows = [
-        {
-            label: "Successful Entries",
-            value: data.successfulScans,
-            color: "var(--v-success)",
-            bg: "var(--v-success-bg)",
-        },
-        {
-            label: "Rejected Scans",
-            value: data.rejectedScans,
-            color: "var(--v-error)",
-            bg: "var(--v-error-bg)",
-        },
-        {
-            label: "Duplicate Attempts",
-            value: data.duplicateScans,
-            color: "var(--v-warning)",
-            bg: "var(--v-warning-bg)",
-        },
-    ];
-
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            <BentoCard
-                className="lg:col-span-2"
-                loading={loading}
-                header={<span className="v-label">ENTRY VELOCITY BY HOUR</span>}
-            >
-                {!loading && (
-                    <>
-                        <VenueStatStrip
-                            stats={[
-                                { label: "TOTAL SCANS", value: fmt(data.totalScans) },
-                                {
-                                    label: "PEAK HOUR",
-                                    value:
-                                        data.peakEntryHour != null ? `${data.peakEntryHour}:00` : "—",
-                                },
-                                {
-                                    label: "AVG/MIN",
-                                    value:
-                                        data.avgEntryVelocity > 0
-                                            ? `${data.avgEntryVelocity.toFixed(1)}/min`
-                                            : "—",
-                                },
-                            ]}
-                            columns={3}
-                        />
-                        <div className="mt-4">
-                            <VenueChart
-                                type="bar"
-                                data={data.entryCurve}
-                                config={{
-                                    dataKey: "count",
-                                    xKey: "hour",
-                                    color: "var(--v-success)",
-                                }}
-                                height={200}
-                                title="Entry Velocity by Hour"
-                            />
-                        </div>
-                        {!data.hasData && (
-                            <p
-                                className="text-center text-[11px] mt-2 font-medium uppercase tracking-widest"
-                                style={{ color: "var(--v-text-muted)" }}
-                            >
-                                No check-ins available — hourly entry flow will appear here
-                            </p>
-                        )}
-                    </>
-                )}
-            </BentoCard>
-
-            <BentoCard loading={loading} header={<span className="v-label">SCAN OUTCOMES</span>}>
-                {!loading && (
-                    <div className="space-y-3 pt-1">
-                        {/* Arc gauge */}
-                        <div className="flex justify-center pt-2 pb-1">
-                            <SVGGauge
-                                value={scannerEfficiency}
-                                label="Scanner Efficiency"
-                                color="var(--v-success)"
-                            />
-                        </div>
-
-                        {scanRows.map(row => (
-                            <div
-                                key={row.label}
-                                className="flex items-center justify-between px-4 py-3 rounded-2xl"
-                                style={{ background: row.bg }}
-                            >
-                                <span
-                                    className="text-[12px] font-semibold"
-                                    style={{ color: row.color }}
-                                >
-                                    {row.label}
-                                </span>
-                                <span
-                                    className="text-[20px] font-bold tabular-nums"
-                                    style={{ color: row.color }}
-                                >
-                                    {fmt(row.value)}
-                                </span>
-                            </div>
-                        ))}
-
-                        {[
-                            {
-                                label: "Peak Entry Hour",
-                                value:
-                                    data.peakEntryHour != null ? `${data.peakEntryHour}:00` : "—",
-                            },
-                            {
-                                label: "Avg Entry Velocity",
-                                value:
-                                    data.avgEntryVelocity > 0
-                                        ? `${data.avgEntryVelocity.toFixed(1)}/min`
-                                        : "—",
-                            },
-                        ].map(row => (
-                            <div
-                                key={row.label}
-                                className="flex items-center justify-between py-2.5"
-                                style={{ borderBottom: "1px solid var(--v-border)" }}
-                            >
-                                <span
-                                    className="text-[12px]"
-                                    style={{ color: "var(--v-text-secondary)" }}
-                                >
-                                    {row.label}
-                                </span>
-                                <span
-                                    className="text-[13px] font-bold tabular-nums"
-                                    style={{ color: "var(--v-text-primary)" }}
-                                >
-                                    {row.value}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </BentoCard>
-        </div>
-    );
-}
-
-// SVG arc gauge (semi-circle speedometer style)
-function SVGGauge({ value, label, color }: { value: number; label: string; color: string }) {
-    const R = 52;
-    const totalLen = Math.PI * R;
-    const pct = Math.min(value / 100, 1);
-    const dashArray = `${pct * totalLen} ${totalLen}`;
-
-    return (
-        <div className="flex flex-col items-center gap-1">
-            <svg width={130} height={78} viewBox="0 0 130 78">
-                <path
-                    d="M 13 66 A 52 52 0 0 1 117 66"
-                    fill="none"
-                    stroke="rgba(128,128,128,0.15)"
-                    strokeWidth={9}
-                    strokeLinecap="round"
-                />
-                <path
-                    d="M 13 66 A 52 52 0 0 1 117 66"
-                    fill="none"
-                    stroke={color}
-                    strokeWidth={9}
-                    strokeLinecap="round"
-                    strokeDasharray={dashArray}
-                    style={{ transition: "stroke-dasharray 0.9s cubic-bezier(0.4,0,0.2,1)", filter: `drop-shadow(0 0 5px ${color})` }}
-                />
-                <text
-                    x="65"
-                    y="58"
-                    textAnchor="middle"
-                    fontSize={18}
-                    fontWeight="700"
-                    fill="var(--v-text-primary)"
-                    fontFamily="inherit"
-                >
-                    {value.toFixed(0)}%
-                </text>
-                <text
-                    x="13"
-                    y="78"
-                    textAnchor="middle"
-                    fontSize={9}
-                    fill="#9B9B9F"
-                    fontFamily="inherit"
-                >
-                    0
-                </text>
-                <text
-                    x="117"
-                    y="78"
-                    textAnchor="middle"
-                    fontSize={9}
-                    fill="#9B9B9F"
-                    fontFamily="inherit"
-                >
-                    100
-                </text>
-            </svg>
-            <p
-                className="text-[10px] font-bold uppercase tracking-widest text-center"
-                style={{ color: "var(--v-text-muted)" }}
-            >
-                {label}
-            </p>
-        </div>
-    );
-}
-
-// ── Section: Event Performance Comparison ─────────────────────────────────────
-
-type EventSortKey = "revenue" | "checkins" | "conversion" | "issued" | "bubble";
-
-export function EventComparisonSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
-    const [sortKey, setSortKey] = useState<EventSortKey>("revenue");
-
-    const sortTabs: { key: EventSortKey; label: string }[] = [
-        { key: "revenue", label: "Revenue" },
-        { key: "issued", label: "Attendance" },
-        { key: "conversion", label: "Conversion" },
-        { key: "checkins", label: "Check-ins" },
-        { key: "bubble", label: "Bubble" },
-    ];
-
-    const sorted = [...data.topEvents].sort((a, b) => {
-        if (sortKey === "bubble") return 0;
-        return (
-            (b[sortKey as Exclude<EventSortKey, "bubble">] ?? 0) -
-            (a[sortKey as Exclude<EventSortKey, "bubble">] ?? 0)
-        );
-    });
-
-    const rows =
-        sorted.length > 0
-            ? sorted
-            : Array.from({ length: 5 }, (_, i) => ({
-                  id: `placeholder-${i}`,
-                  title: "No event data yet",
-                  revenue: 0,
-                  issued: 0,
-                  checkins: 0,
-                  conversion: 0,
-              }));
-
-    // Scatter seed data for zero-state (shows shape of chart)
-    const scatterData =
-        data.topEvents.length > 0
-            ? data.topEvents
-            : Array.from({ length: 6 }, (_, i) => ({
-                  id: `zero-${i}`,
-                  title: "—",
-                  issued: i * 40,
-                  revenue: i * 1200,
-                  conversion: 5 + i * 3,
-              }));
-
-    return (
-        <BentoCard
-            loading={loading}
-            header={
-                <div className="flex items-center justify-between w-full">
-                    <span className="v-label">EVENT PERFORMANCE COMPARISON</span>
-                    <div
-                        className="flex items-center gap-1 p-0.5 rounded-xl border border-[var(--v-border)]"
-                        style={{ background: "var(--v-elevated)" }}
-                    >
-                        {sortTabs.map(tab => (
-                            <button
-                                key={tab.key}
-                                onClick={() => setSortKey(tab.key)}
-                                className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
-                                style={{
-                                    background:
-                                        sortKey === tab.key ? "var(--v-card)" : "transparent",
-                                    color:
-                                        sortKey === tab.key
-                                            ? "var(--v-text-primary)"
-                                            : "var(--v-text-muted)",
-                                    boxShadow:
-                                        sortKey === tab.key ? "var(--v-shadow-card)" : "none",
-                                }}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            }
-        >
-            {!loading && (
-                <>
-                    {sortKey === "bubble" ? (
-                        <div>
-                            <p className="text-[11px] mb-3" style={{ color: "var(--v-text-muted)" }}>
-                                Each bubble = one event · X: attendance · Y: revenue · Size: conversion rate
-                            </p>
-                            <Suspense fallback={<ChartSkeleton height={280} />}>
-                                <LazyScatter data={scatterData} height={280} />
-                            </Suspense>
-                            {!data.hasData && (
-                                <p
-                                    className="text-center text-[11px] mt-2 font-medium uppercase tracking-widest"
-                                    style={{ color: "var(--v-text-muted)" }}
-                                >
-                                    Bubble plot will populate with real event data
-                                </p>
-                            )}
-                        </div>
-                    ) : (
-                        <>
-                            <div
-                                className="grid grid-cols-5 text-[10px] font-black uppercase tracking-widest px-4 py-2 mb-1 rounded-xl"
-                                style={{ background: "var(--v-elevated)", color: "var(--v-text-muted)" }}
-                            >
-                                <span className="col-span-2">Event</span>
-                                <span className="text-right">Revenue</span>
-                                <span className="text-right">Issued</span>
-                                <span className="text-right">Conversion</span>
-                            </div>
-
-                            <div className="space-y-0.5">
-                                {rows.map((event, i) => {
-                                    const maxVal =
-                                        (rows[0] as any)[sortKey as Exclude<EventSortKey, "bubble">] ?? 0;
-                                    const eventVal =
-                                        (event as any)[sortKey as Exclude<EventSortKey, "bubble">] ?? 0;
-                                    const barPct = maxVal > 0 ? (eventVal / maxVal) * 100 : 0;
-
-                                    return (
-                                        <div
-                                            key={event.id}
-                                            className="grid grid-cols-5 items-center px-4 py-3 rounded-xl transition-colors relative overflow-hidden"
-                                            style={{
-                                                background:
-                                                    i === 0 && sorted.length > 0
-                                                        ? "var(--v-elevated)"
-                                                        : "transparent",
-                                                borderBottom:
-                                                    i < rows.length - 1
-                                                        ? "1px solid var(--v-border)"
-                                                        : "none",
-                                            }}
-                                        >
-                                            {data.hasData && (
-                                                <div
-                                                    className="absolute left-0 top-0 h-full rounded-xl transition-all duration-500"
-                                                    style={{
-                                                        width: `${barPct}%`,
-                                                        background: `${FUNNEL_COLORS[i % FUNNEL_COLORS.length]}14`,
-                                                        pointerEvents: "none",
-                                                    }}
-                                                />
-                                            )}
-                                            <div className="col-span-2 flex items-center gap-3 relative z-10">
-                                                <span
-                                                    className="text-[11px] font-black w-5 tabular-nums"
-                                                    style={{
-                                                        color:
-                                                            i === 0 && sorted.length > 0
-                                                                ? FUNNEL_COLORS[0]
-                                                                : "var(--v-text-muted)",
-                                                    }}
-                                                >
-                                                    {i + 1}
-                                                </span>
-                                                <span
-                                                    className="text-[13px] font-semibold truncate"
-                                                    style={{
-                                                        color:
-                                                            sorted.length > 0
-                                                                ? "var(--v-text-primary)"
-                                                                : "var(--v-text-muted)",
-                                                    }}
-                                                >
-                                                    {event.title}
-                                                </span>
-                                            </div>
-                                            <span
-                                                className="text-[13px] font-bold tabular-nums text-right relative z-10"
-                                                style={{ color: "var(--v-text-primary)" }}
-                                            >
-                                                {fmt(event.revenue, "currency")}
-                                            </span>
-                                            <span
-                                                className="text-[13px] font-medium tabular-nums text-right relative z-10"
-                                                style={{ color: "var(--v-text-secondary)" }}
-                                            >
-                                                {fmt(event.issued)}
-                                            </span>
-                                            <span
-                                                className="text-[13px] font-medium tabular-nums text-right relative z-10"
-                                                style={{ color: "var(--v-text-secondary)" }}
-                                            >
-                                                {fmt(event.conversion, "percent")}
-                                            </span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                            {!data.hasData && (
-                                <p
-                                    className="text-center text-[11px] mt-3 font-medium uppercase tracking-widest"
-                                    style={{ color: "var(--v-text-muted)" }}
-                                >
-                                    Event rankings will appear after your first event completes
-                                </p>
-                            )}
-                        </>
-                    )}
-                </>
-            )}
-        </BentoCard>
-    );
-}
-
-// ── Section: Source Split + Heatmap ──────────────────────────────────────────
-
-export function SourceHeatmapSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
-    const [sourceView, setSourceView] = useState<"bars" | "radial">("bars");
-
-    const radialData = data.sources.map((s, i) => ({
-        name: s.name,
-        value: data.hasData ? s.pct : 100 / data.sources.length,
-        fill: FUNNEL_COLORS[i % FUNNEL_COLORS.length],
-    }));
-
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <BentoCard
-                loading={loading}
-                header={
-                    <div className="flex items-center justify-between w-full">
-                        <span className="v-label">AUDIENCE SOURCE SPLIT</span>
-                        <div
-                            className="flex items-center gap-1 p-0.5 rounded-xl border border-[var(--v-border)]"
-                            style={{ background: "var(--v-elevated)" }}
-                        >
-                            {(["bars", "radial"] as const).map(v => (
-                                <button
-                                    key={v}
-                                    onClick={() => setSourceView(v)}
-                                    className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
-                                    style={{
-                                        background:
-                                            sourceView === v ? "var(--v-card)" : "transparent",
-                                        color:
-                                            sourceView === v
-                                                ? "var(--v-text-primary)"
-                                                : "var(--v-text-muted)",
-                                        boxShadow:
-                                            sourceView === v ? "var(--v-shadow-card)" : "none",
-                                    }}
-                                >
-                                    {v}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                }
-            >
-                {!loading && (
-                    <>
-                        {sourceView === "radial" ? (
-                            <div>
-                                <Suspense fallback={<ChartSkeleton height={260} />}>
-                                    <LazyRadialBar data={radialData} height={260} />
-                                </Suspense>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2">
-                                    {radialData.map(s => (
-                                        <div key={s.name} className="flex items-center gap-2">
-                                            <div
-                                                className="w-2 h-2 rounded-sm shrink-0"
-                                                style={{ background: s.fill }}
-                                            />
-                                            <span
-                                                className="text-[10px] font-semibold truncate"
-                                                style={{ color: "var(--v-text-muted)" }}
-                                            >
-                                                {s.name}
-                                                {data.hasData ? ` · ${s.value.toFixed(0)}%` : ""}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-4 pt-1">
-                                {data.sources.map((s, i) => (
-                                    <div key={s.name}>
-                                        <div className="flex justify-between mb-1.5">
-                                            <div className="flex items-center gap-2">
-                                                <div
-                                                    className="w-2 h-2 rounded-sm"
-                                                    style={{
-                                                        background:
-                                                            FUNNEL_COLORS[i % FUNNEL_COLORS.length],
-                                                    }}
-                                                />
-                                                <span
-                                                    className="text-[12px] font-semibold"
-                                                    style={{ color: "var(--v-text-secondary)" }}
-                                                >
-                                                    {s.name}
-                                                </span>
-                                            </div>
-                                            <span
-                                                className="text-[12px] font-bold tabular-nums"
-                                                style={{ color: "var(--v-text-primary)" }}
-                                            >
-                                                {data.hasData ? `${s.pct.toFixed(1)}%` : "0%"}
-                                            </span>
-                                        </div>
-                                        <div
-                                            className="h-2 w-full rounded-full overflow-hidden"
-                                            style={{ background: "var(--v-elevated)" }}
-                                        >
-                                            <div
-                                                className="h-full rounded-full transition-all duration-500"
-                                                style={{
-                                                    width: `${data.hasData ? s.pct : 0}%`,
-                                                    background:
-                                                        FUNNEL_COLORS[i % FUNNEL_COLORS.length],
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                                {!data.hasData && (
-                                    <p
-                                        className="text-[11px] mt-1"
-                                        style={{ color: "var(--v-text-muted)" }}
-                                    >
-                                        Traffic source breakdown will appear after discovery activity
-                                        begins
-                                    </p>
-                                )}
-                            </div>
-                        )}
-                    </>
-                )}
-            </BentoCard>
-
-            <BentoCard
-                loading={loading}
-                header={<span className="v-label">DEMAND HEATMAP — DAY × HOUR</span>}
-            >
-                {!loading && <HeatmapGrid data={data} />}
-            </BentoCard>
-        </div>
-    );
-}
-
-function HeatmapGrid({ data }: { data: AnalyticsDisplayModel }) {
-    const maxVal = Math.max(...data.heatmap.map(h => h.value), 1);
-
-    return (
-        <div className="overflow-x-auto">
-            <div style={{ minWidth: 340 }}>
-                <div className="flex gap-0.5 mb-0.5 pl-8">
-                    {HEATMAP_HOURS.map(h => (
-                        <div
-                            key={h}
-                            className="flex-1 text-center text-[9px] font-bold uppercase tracking-widest"
-                            style={{ color: "var(--v-text-muted)" }}
-                        >
-                            {h.slice(0, 2)}
-                        </div>
-                    ))}
-                </div>
-
-                {HEATMAP_DAYS.map(day => (
-                    <div key={day} className="flex items-center gap-0.5 mb-0.5">
-                        <span
-                            className="w-8 text-[9px] font-bold uppercase tracking-widest shrink-0"
-                            style={{ color: "var(--v-text-muted)" }}
-                        >
-                            {day}
-                        </span>
-                        {HEATMAP_HOURS.map(hour => {
-                            const cell = data.heatmap.find(
-                                h => h.day === day && h.hour === hour
-                            );
-                            const intensity =
-                                cell && maxVal > 1 ? cell.value / maxVal : 0;
-                            return (
-                                <div
-                                    key={hour}
-                                    className="flex-1 rounded-sm transition-all"
-                                    style={{
-                                        height: 28,
-                                        background:
-                                            intensity > 0
-                                                ? `rgba(244,74,34,${0.1 + intensity * 0.8})`
-                                                : "var(--v-elevated)",
-                                        border: "1px solid var(--v-border)",
-                                    }}
-                                    title={`${day} ${hour}: ${cell?.value ?? 0}`}
-                                />
-                            );
-                        })}
-                    </div>
-                ))}
-            </div>
-
-            <div className="flex items-center gap-2 mt-3">
-                <span className="text-[10px]" style={{ color: "var(--v-text-muted)" }}>
-                    Low
-                </span>
-                <div className="flex gap-0.5">
-                    {[0.1, 0.3, 0.5, 0.7, 0.9].map(i => (
-                        <div
-                            key={i}
-                            className="h-3 w-5 rounded-sm"
-                            style={{ background: `rgba(244,74,34,${i})` }}
-                        />
-                    ))}
-                </div>
-                <span className="text-[10px]" style={{ color: "var(--v-text-muted)" }}>
-                    High
-                </span>
-                {!data.hasData && (
-                    <span className="ml-2 text-[10px]" style={{ color: "var(--v-text-muted)" }}>
-                        · Demand patterns will populate after activity
-                    </span>
-                )}
-            </div>
-        </div>
-    );
-}
-
-// ── Section: Finance / Payouts ────────────────────────────────────────────────
-
-export function FinanceSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
-    const financeRows = [
-        { label: "Gross Sales", value: data.grossSales, isDeduction: false, isTotal: false, color: "var(--v-chart-1)" },
-        { label: "Refunds", value: data.refundAmount, isDeduction: true, isTotal: false, color: "var(--v-error)" },
-        { label: "Platform Fee", value: data.platformFees, isDeduction: true, isTotal: false, color: "var(--v-error)" },
-        { label: "Net Payable", value: data.netSales, isDeduction: false, isTotal: true, color: "var(--v-orange)" },
-        { label: "Pending Payout", value: data.pendingPayout, isDeduction: false, isTotal: false, color: "var(--v-warning)" },
-        { label: "Completed Payout", value: data.completedPayout, isDeduction: false, isTotal: false, color: "var(--v-success)" },
-    ];
-
-    const maxBarVal = data.grossSales || 1;
-    const payoutTotal = data.completedPayout + data.pendingPayout;
-    const paidPct =
-        payoutTotal > 0 ? (data.completedPayout / payoutTotal) * 100 : 0;
-
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <BentoCard loading={loading} header={<span className="v-label">REVENUE BREAKDOWN</span>}>
-                {!loading && (
-                    <div className="space-y-1 pt-1">
-                        {financeRows.map((row, i) => {
-                            const barPct = Math.min((row.value / maxBarVal) * 100, 100);
-                            const displayVal = row.isDeduction
-                                ? `−${fmt(row.value, "currency")}`
-                                : fmt(row.value, "currency");
-
-                            return (
-                                <div
-                                    key={row.label}
-                                    className="rounded-xl px-4 py-3"
-                                    style={{
-                                        background: row.isTotal ? "var(--v-elevated)" : "transparent",
-                                        borderTop:
-                                            i > 0 && !row.isTotal
-                                                ? "1px solid var(--v-border)"
-                                                : "none",
-                                        marginTop: row.isTotal ? 8 : 0,
-                                    }}
-                                >
-                                    <div className="flex items-center justify-between mb-1.5">
-                                        <span
-                                            className="text-[12px] font-medium"
-                                            style={{
-                                                color: row.isTotal
-                                                    ? "var(--v-text-primary)"
-                                                    : "var(--v-text-secondary)",
-                                            }}
-                                        >
-                                            {row.label}
-                                        </span>
-                                        <span
-                                            className="text-[13px] font-bold tabular-nums"
-                                            style={{ color: row.color }}
-                                        >
-                                            {displayVal}
-                                        </span>
-                                    </div>
-                                    <div
-                                        className="h-1.5 w-full rounded-full overflow-hidden"
-                                        style={{ background: "var(--v-border)" }}
-                                    >
-                                        <div
-                                            className="h-full rounded-full transition-all duration-700"
-                                            style={{
-                                                width: `${data.hasData ? barPct : 2}%`,
-                                                background: row.color,
-                                                opacity: row.isDeduction ? 0.7 : 1,
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        })}
-
-                        {/* Payout progress */}
-                        <div
-                            className="mt-3 p-4 rounded-2xl"
-                            style={{ background: "var(--v-elevated)" }}
-                        >
-                            <p className="v-label mb-3">PAYOUT STATUS</p>
-                            <div
-                                className="h-3 w-full rounded-full overflow-hidden"
-                                style={{ background: "var(--v-border)" }}
-                            >
-                                <div
-                                    className="h-full rounded-full transition-all duration-700"
-                                    style={{
-                                        width: `${data.hasData ? paidPct : 0}%`,
-                                        background: "linear-gradient(90deg, var(--v-info), var(--v-success))",
-                                    }}
-                                />
-                            </div>
-                            <div className="flex justify-between mt-2">
-                                <div className="flex items-center gap-1.5">
-                                    <div
-                                        className="w-2 h-2 rounded-full"
-                                        style={{ background: "var(--v-success)" }}
-                                    />
-                                    <span
-                                        className="text-[10px] font-semibold"
-                                        style={{ color: "var(--v-text-muted)" }}
-                                    >
-                                        Paid {fmt(data.completedPayout, "currency")}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <div
-                                        className="w-2 h-2 rounded-full"
-                                        style={{ background: "var(--v-warning)" }}
-                                    />
-                                    <span
-                                        className="text-[10px] font-semibold"
-                                        style={{ color: "var(--v-text-muted)" }}
-                                    >
-                                        Pending {fmt(data.pendingPayout, "currency")}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {!data.hasData && (
-                            <p className="text-[11px] mt-2" style={{ color: "var(--v-text-muted)" }}>
-                                No payout data available yet
-                            </p>
-                        )}
-                    </div>
-                )}
-            </BentoCard>
-
-            <BentoCard
-                loading={loading}
-                header={<span className="v-label">RECENT PAYOUTS</span>}
-                empty={!loading && data.recentPayouts.length === 0}
-                emptyTitle="No payouts processed yet"
-            >
-                {!loading && data.recentPayouts.length > 0 && (
-                    <div className="space-y-2 pt-1">
-                        {data.recentPayouts.map((p, i) => (
-                            <div
-                                key={p.id || i}
-                                className="flex items-center justify-between px-4 py-3 rounded-2xl"
-                                style={{ background: "var(--v-elevated)" }}
-                            >
-                                <div>
-                                    <p
-                                        className="text-[13px] font-semibold"
-                                        style={{ color: "var(--v-text-primary)" }}
-                                    >
-                                        Payout #{p.id}
-                                    </p>
-                                    <p
-                                        className="text-[11px] uppercase tracking-widest mt-0.5"
-                                        style={{ color: "var(--v-text-muted)" }}
-                                    >
-                                        {p.date}
-                                    </p>
-                                </div>
-                                <div className="text-right">
-                                    <p
-                                        className="text-[13px] font-bold tabular-nums"
-                                        style={{ color: "var(--v-text-primary)" }}
-                                    >
-                                        {fmt(p.amount, "currency")}
-                                    </p>
-                                    <span
-                                        className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
-                                        style={{
-                                            background: "var(--v-success-bg)",
-                                            color: "var(--v-success)",
-                                        }}
-                                    >
-                                        {p.status}
-                                    </span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </BentoCard>
-        </div>
-    );
-}
-
-// ── Section: Analytics Table ──────────────────────────────────────────────────
-
-const TABLE_COLS = [
-    "Date",
-    "Event",
-    "Revenue",
-    "Tickets",
-    "Guestlist",
-    "Entries",
-    "Conv %",
-    "Refunds",
-    "Payout",
-    "Status",
-];
-
-export function TableSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
-    return (
-        <BentoCard
-            loading={loading}
-            header={
-                <div className="flex items-center justify-between w-full">
-                    <span className="v-label">EVENT-LEVEL ANALYTICS TABLE</span>
-                    <button
-                        className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
-                        style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)" }}
-                    >
-                        <Download className="w-3.5 h-3.5" />
-                        Export CSV
-                    </button>
-                </div>
-            }
-        >
-            {!loading && (
-                <div className="overflow-x-auto -mx-2">
-                    <table className="w-full text-left" style={{ minWidth: 900 }}>
-                        <thead>
-                            <tr style={{ borderBottom: "1px solid var(--v-border)" }}>
-                                {TABLE_COLS.map(col => (
-                                    <th
-                                        key={col}
-                                        className="px-3 py-2.5 text-[10px] font-black uppercase tracking-widest whitespace-nowrap"
-                                        style={{ color: "var(--v-text-muted)" }}
-                                    >
-                                        {col}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.tableRows.map((row, i) => (
-                                <tr
-                                    key={i}
-                                    className="transition-colors"
-                                    style={{
-                                        borderBottom: "1px solid var(--v-border)",
-                                        opacity: !data.hasData ? 0.45 : 1,
-                                    }}
-                                >
-                                    <td
-                                        className="px-3 py-3 text-[12px] tabular-nums whitespace-nowrap"
-                                        style={{ color: "var(--v-text-secondary)" }}
-                                    >
-                                        {row.date}
-                                    </td>
-                                    <td
-                                        className="px-3 py-3 text-[12px] font-medium max-w-[160px] truncate"
-                                        style={{ color: "var(--v-text-primary)" }}
-                                    >
-                                        {row.event}
-                                    </td>
-                                    <td
-                                        className="px-3 py-3 text-[12px] font-semibold tabular-nums"
-                                        style={{ color: "var(--v-text-primary)" }}
-                                    >
-                                        {fmt(row.revenue, "currency")}
-                                    </td>
-                                    <td
-                                        className="px-3 py-3 text-[12px] tabular-nums"
-                                        style={{ color: "var(--v-text-secondary)" }}
-                                    >
-                                        {fmt(row.tickets)}
-                                    </td>
-                                    <td
-                                        className="px-3 py-3 text-[12px] tabular-nums"
-                                        style={{ color: "var(--v-text-secondary)" }}
-                                    >
-                                        {fmt(row.guestlist)}
-                                    </td>
-                                    <td
-                                        className="px-3 py-3 text-[12px] tabular-nums"
-                                        style={{ color: "var(--v-text-secondary)" }}
-                                    >
-                                        {fmt(row.entries)}
-                                    </td>
-                                    <td
-                                        className="px-3 py-3 text-[12px] tabular-nums"
-                                        style={{ color: "var(--v-text-secondary)" }}
-                                    >
-                                        {fmt(row.conversion, "percent")}
-                                    </td>
-                                    <td
-                                        className="px-3 py-3 text-[12px] tabular-nums"
-                                        style={{ color: "var(--v-text-secondary)" }}
-                                    >
-                                        {fmt(row.refunds)}
-                                    </td>
-                                    <td
-                                        className="px-3 py-3 text-[12px] font-semibold tabular-nums"
-                                        style={{ color: "var(--v-text-primary)" }}
-                                    >
-                                        {fmt(row.payout, "currency")}
-                                    </td>
-                                    <td className="px-3 py-3">
-                                        <span
-                                            className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
-                                            style={{
-                                                background:
-                                                    row.status === "completed" ? "var(--v-success-bg)"
-                                                    : row.status === "pending"   ? "var(--v-warning-bg)"
-                                                    : row.status === "cancelled" ? "var(--v-error-bg)"
-                                                    : "var(--v-elevated)",
-                                                color:
-                                                    row.status === "completed" ? "var(--v-success)"
-                                                    : row.status === "pending"   ? "var(--v-warning)"
-                                                    : row.status === "cancelled" ? "var(--v-error)"
-                                                    : "var(--v-text-muted)",
-                                            }}
-                                        >
-                                            {row.status}
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-
-                    <div
-                        className="flex items-center justify-between px-3 py-3 mt-1 rounded-xl"
-                        style={{ background: "var(--v-elevated)" }}
-                    >
-                        <span className="text-[11px]" style={{ color: "var(--v-text-muted)" }}>
-                            {data.hasData
-                                ? `Showing ${data.tableRows.length} events`
-                                : "No events to display"}
-                        </span>
-                        <div className="flex items-center gap-1">
-                            {[1, 2, 3].map(p => (
-                                <button
-                                    key={p}
-                                    className="w-7 h-7 rounded-lg text-[11px] font-bold transition-all"
-                                    style={{
-                                        background:
-                                            p === 1 ? "var(--v-card)" : "transparent",
-                                        color:
-                                            p === 1
-                                                ? "var(--v-text-primary)"
-                                                : "var(--v-text-muted)",
-                                    }}
-                                >
-                                    {p}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
-        </BentoCard>
-    );
-}
-
-// ── Section: Insight Cards ────────────────────────────────────────────────────
-
-const INSIGHT_ACCENTS = [
-    { color: "var(--v-chart-1)", bg: "rgba(244,74,34,0.12)" },
-    { color: "var(--v-chart-2)", bg: "rgba(129,140,248,0.12)" },
-    { color: "var(--v-chart-3)", bg: "rgba(52,211,153,0.12)" },
-    { color: "var(--v-chart-4)", bg: "rgba(251,191,36,0.12)" },
-];
-
-export function InsightsSection({ data, loading }: { data: AnalyticsDisplayModel; loading: boolean }) {
-    return (
-        <BentoCard
-            loading={loading}
-            header={
-                <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" style={{ color: "var(--v-orange)" }} />
-                    <span className="v-label">SMART INSIGHTS</span>
-                </div>
-            }
-        >
-            {!loading && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-                    {data.insights.map((insight, i) => {
-                        const accent = INSIGHT_ACCENTS[i % INSIGHT_ACCENTS.length];
-                        return (
-                        <div
-                            key={i}
-                            className="rounded-2xl p-5 flex flex-col gap-3"
-                            style={{
-                                background: insight.placeholder ? "var(--v-elevated)" : "var(--v-card)",
-                                border: `1px solid ${insight.placeholder ? "var(--v-border)" : accent.color + "40"}`,
-                                opacity: insight.placeholder ? 0.75 : 1,
-                            }}
-                        >
-                            <div
-                                className="w-8 h-8 rounded-xl flex items-center justify-center"
-                                style={{
-                                    background: insight.placeholder ? "var(--v-card)" : accent.bg,
-                                }}
-                            >
-                                <Sparkles
-                                    className="w-4 h-4"
-                                    style={{
-                                        color: insight.placeholder ? "var(--v-text-muted)" : accent.color,
-                                    }}
-                                />
-                            </div>
-                            <p
-                                className="text-[13px] font-semibold leading-snug"
-                                style={{
-                                    color: insight.placeholder
-                                        ? "var(--v-text-tertiary)"
-                                        : "var(--v-text-primary)",
-                                }}
-                            >
-                                {insight.title}
-                            </p>
-                            {insight.body && (
-                                <p
-                                    className="text-[12px] leading-relaxed"
-                                    style={{ color: "var(--v-text-muted)" }}
-                                >
-                                    {insight.body}
-                                </p>
-                            )}
-                            {!insight.placeholder && (
-                                <button
-                                    className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest mt-auto"
-                                    style={{ color: accent.color }}
-                                >
-                                    View Detail
-                                    <ArrowUpRight className="w-3 h-3" />
-                                </button>
-                            )}
-                        </div>
-                        );
-                    })}
-                </div>
-            )}
-        </BentoCard>
-    );
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function LegendDot({
-    color,
-    label,
-    dashed,
-}: {
-    color: string;
-    label: string;
-    dashed?: boolean;
-}) {
-    return (
-        <div className="flex items-center gap-1.5">
-            {dashed ? (
-                <div
-                    className="w-5 h-px"
-                    style={{
-                        background: `repeating-linear-gradient(90deg, ${color} 0, ${color} 4px, transparent 4px, transparent 8px)`,
-                        borderTop: `1.5px dashed ${color}`,
-                    }}
-                />
-            ) : (
-                <div className="w-2 h-2 rounded-full" style={{ background: color }} />
-            )}
-            <span
-                className="text-[10px] font-semibold uppercase tracking-widest"
-                style={{ color: "var(--v-text-muted)" }}
-            >
+            <span className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: "rgba(255,255,255,0.45)" }}>
                 {label}
             </span>
         </div>
     );
 }
+
+function StatPill({ label, value, color }: { label: string; value: string; color?: string }) {
+    return (
+        <div className="flex items-center justify-between py-3 px-4 rounded-xl"
+             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+            <span className="text-[13px] font-semibold" style={{ color: "rgba(255,255,255,0.5)" }}>{label}</span>
+            <span className="text-[16px] font-black tabular-nums" style={{ color: color || "var(--v-text-primary)" }}>{value}</span>
+        </div>
+    );
+}
+
+function EmptyHint({ text }: { text: string }) {
+    return (
+        <div className="flex items-center justify-center py-12 rounded-2xl"
+             style={{ background: "rgba(255,255,255,0.02)", border: "2px dashed rgba(255,255,255,0.06)" }}>
+            <p className="text-[13px] font-semibold uppercase tracking-widest text-center"
+               style={{ color: "rgba(255,255,255,0.2)" }}>
+                {text}
+            </p>
+        </div>
+    );
+}
+
+function HBar({ value, max, color, height = 10 }: { value: number; max: number; color: string; height?: number }) {
+    const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+    return (
+        <div className="rounded-full overflow-hidden flex-1" style={{ height, background: "rgba(255,255,255,0.06)" }}>
+            <div className="h-full rounded-full transition-all duration-700"
+                 style={{ width: `${pct}%`, background: color, boxShadow: pct > 5 ? `0 0 8px ${color}40` : "none" }} />
+        </div>
+    );
+}
+
+function SectionCard({ children, className }: { children: React.ReactNode; className?: string }) {
+    return (
+        <div className={`rounded-2xl p-6 sm:p-7 ${className || ""}`}
+             style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
+            {children}
+        </div>
+    );
+}
+
+function CardLabel({ children }: { children: string }) {
+    return (
+        <span className="text-[11px] font-bold uppercase tracking-[0.14em] block mb-4"
+              style={{ color: "rgba(255,255,255,0.4)" }}>{children}</span>
+    );
+}
+
+type SectionProps = { data: AnalyticsV2; loading: boolean };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1. SUMMARY — "How did this event do?"
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function SummarySection({ data, loading }: SectionProps) {
+    const ex = data.executive;
+
+    if (loading) {
+        return (
+            <div>
+                <SectionTitle title="Summary" description="Key metrics at a glance" icon={BarChart3} accent="#F44A22" />
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[1,2,3,4].map(i => (
+                        <div key={i} className="rounded-2xl p-6 animate-pulse" style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
+                            <div className="h-3 w-20 rounded bg-white/5 mb-3" />
+                            <div className="h-10 w-28 rounded bg-white/5" />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    // Derive tickets per day from revenue series + avg ticket price
+    const avgPrice = ex.avgTicketPrice.raw || 1;
+    const ticketsByDay = data.revenueIntelligence.series.revenueByDay.map(d => ({
+        date: d.date,
+        tickets: avgPrice > 0 ? Math.round(d.gross / avgPrice) : 0,
+    }));
+
+    return (
+        <div>
+            <SectionTitle title="Summary" description="Key metrics at a glance" icon={BarChart3} accent="#F44A22" />
+
+            {/* Hero KPI strip */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <HeroMetric label="Gross Revenue" metric={ex.grossRevenue} icon={DollarSign} accentColor="#F44A22" />
+                <HeroMetric label="Tickets Sold" metric={ex.ticketsSold} icon={Ticket} accentColor="#818CF8" />
+                <HeroMetric label="Check-ins" metric={ex.confirmedCheckins} icon={UserCheck} accentColor="#34D399" />
+                <HeroMetric label="Avg Ticket Price" metric={ex.avgTicketPrice} icon={Target} accentColor="#FBBF24" />
+            </div>
+
+            {/* Performance rings + Tickets per day side by side */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+                <SectionCard>
+                    <CardLabel>Performance Rings</CardLabel>
+                    <div className="flex items-center justify-center gap-8 sm:gap-12 py-4">
+                        <Ring value={ex.occupancyRate.raw} label="Fill Rate" color="#818CF8" />
+                        <Ring value={data.conversionFunnel.viewToPurchase} label="Conversion" color="#F44A22" />
+                        <Ring value={ex.sellThroughRate.raw} label="Sell-through" color="#34D399" />
+                    </div>
+                </SectionCard>
+
+                <SectionCard>
+                    <div className="flex items-center justify-between mb-4">
+                        <CardLabel>Daily Ticket Sales</CardLabel>
+                        <span className="text-[11px] font-bold px-2.5 py-1 rounded-full"
+                              style={{ background: "rgba(129,140,248,0.12)", color: "#818CF8" }}>
+                            Est. from avg price
+                        </span>
+                    </div>
+                    {ticketsByDay.some(d => d.tickets > 0) ? (
+                        <Suspense fallback={<ChartSkeleton height={180} />}>
+                            <LazyBar data={ticketsByDay} xKey="date" yKey="tickets" color="#818CF8" height={180} />
+                        </Suspense>
+                    ) : (
+                        <EmptyHint text="Ticket sales chart populates after first sale" />
+                    )}
+                </SectionCard>
+            </div>
+
+            {/* Secondary metrics */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <StatPill label="No-show Rate" value={`${ex.noShowRate.raw.toFixed(1)}%`} color={ex.noShowRate.raw > 15 ? "#F87171" : "#34D399"} />
+                <StatPill label="Refund Rate" value={`${ex.refundRate.raw.toFixed(1)}%`} color={ex.refundRate.raw > 5 ? "#F87171" : "#34D399"} />
+                <StatPill label="Repeat Guests" value={`${ex.repeatGuestRate.raw.toFixed(1)}%`} color="#818CF8" />
+                <StatPill label="Rev / Attendee" value={ex.avgRevenuePerAttendee.formatted} color="#FBBF24" />
+            </div>
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2. FUNNEL — "Where am I losing people?"
+// ═══════════════════════════════════════════════════════════════════════════
+
+const FUNNEL_COLORS = [
+    "#F44A22",   // orange — impressions
+    "#818CF8",   // indigo — page views
+    "#A78BFA",   // violet — interested
+    "#FBBF24",   // amber — checkout
+    "#34D399",   // emerald — purchase
+    "#22D3EE",   // cyan — check-in
+];
+
+const FUNNEL_LABELS: Record<string, string> = {
+    "Impressions": "Impressions",
+    "Page Views": "Page Views",
+    "Guestlist Starts": "Interested",
+    "Ticket Starts": "Checkout Started",
+    "Purchases": "Ticket Bought",
+    "Arrived & Checked In": "Checked In",
+};
+
+export function FunnelSection({ data, loading }: SectionProps) {
+    const stages = data.conversionFunnel.stages;
+    const maxCount = Math.max(...stages.map(s => s.count), 1);
+    const cf = data.conversionFunnel;
+
+    if (loading) {
+        return (
+            <div>
+                <SectionTitle title="Conversion Funnel" description="Where guests drop off from discovery to check-in" icon={Target} accent="#A78BFA" />
+
+                <div className="rounded-2xl p-8 animate-pulse" style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
+                    <div className="space-y-6">{[1,2,3,4,5].map(i => <div key={i} className="h-12 rounded-xl bg-white/5" />)}</div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <SectionTitle title="Conversion Funnel" description="Where guests drop off from discovery to check-in" icon={Target} accent="#A78BFA" />
+
+            {/* Quick conversion stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                {[
+                    { label: "View → Purchase", value: cf.viewToPurchase, color: "#F44A22" },
+                    { label: "Checkout Abandon", value: cf.checkoutAbandonRate, color: "#F87171" },
+                    { label: "Purchase → Arrival", value: cf.purchaseToArrival, color: "#34D399" },
+                    { label: "Guestlist → Arrival", value: cf.guestlistToArrival, color: "#818CF8" },
+                ].map(s => (
+                    <div key={s.label} className="rounded-2xl p-5"
+                         style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.12em] mb-2"
+                             style={{ color: "rgba(255,255,255,0.4)" }}>{s.label}</div>
+                        <div className="text-[32px] font-black tabular-nums leading-none" style={{ color: s.color }}>
+                            {s.value.toFixed(1)}<span className="text-[18px]">%</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Funnel steps */}
+            <SectionCard>
+                <CardLabel>Funnel Stages</CardLabel>
+                <div className="flex flex-col gap-1.5 max-w-4xl mx-auto">
+                    {stages.map((step, i) => {
+                        // barPct intentionally unused — HBar handles its own width calculation
+                        const color = FUNNEL_COLORS[i % FUNNEL_COLORS.length];
+                        const displayName = FUNNEL_LABELS[step.name] ?? step.name;
+
+                        return (
+                            <div key={step.name}>
+                                {/* Drop indicator */}
+                                {i > 0 && step.dropPct > 0 && (
+                                    <div className="flex items-center gap-2.5 py-1.5 pl-8">
+                                        <ArrowDownRight className="w-4 h-4" style={{ color: "#F87171" }} />
+                                        <span className="text-[12px] font-bold tabular-nums" style={{ color: "#F87171" }}>
+                                            {data.hasData ? `${step.dropPct.toFixed(0)}% drop` : "0% drop"}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* Step row */}
+                                <div className="flex items-center gap-4 sm:gap-6 px-5 py-4 rounded-xl transition-colors"
+                                     style={{ background: `${color}08`, borderLeft: `4px solid ${color}` }}>
+                                    <span className="text-[12px] sm:text-[13px] font-bold uppercase tracking-[0.10em] w-36 sm:w-44 shrink-0"
+                                          style={{ color }}>{displayName}</span>
+                                    <div className="flex-1">
+                                        <HBar value={step.count} max={maxCount} color={color} height={12} />
+                                    </div>
+                                    <span className="text-[22px] sm:text-[26px] font-black tabular-nums w-20 text-right"
+                                          style={{ color: "var(--v-text-primary)" }}>
+                                        {step.count > 0 ? step.count.toLocaleString() : "0"}
+                                    </span>
+                                </div>
+                            </div>
+                        );
+                    })}
+
+                    {!data.hasData && <EmptyHint text="Funnel populates after discovery & booking activity begins" />}
+                </div>
+            </SectionCard>
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3. REVENUE — "Where's the money?"
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function RevenueSection({ data, loading }: SectionProps) {
+    const ri = data.revenueIntelligence;
+    const fin = data.finance;
+    const bd = ri.breakdown;
+
+    const breakdownRows = [
+        { label: "Gross Ticket Revenue", value: bd.grossTicketRevenue, color: "#F44A22" },
+        { label: "Net Ticket Revenue",   value: bd.netTicketRevenue,   color: "#34D399" },
+        { label: "Platform Fee",         value: bd.platformFee,        color: "#FBBF24" },
+        { label: "Refund Value",         value: bd.refundValue,        color: "#F87171" },
+        { label: "Discount Value",       value: bd.discountValue,      color: "#818CF8" },
+    ];
+    const maxBd = Math.max(...breakdownRows.map(r => r.value), 1);
+
+    const payoutTotal = fin.pendingPayout + fin.completedPayout;
+    const payoutPct = payoutTotal > 0 ? (fin.completedPayout / payoutTotal) * 100 : 0;
+
+    // Ticket type revenue
+    const ticketTypeRevenue = ri.series.revenueByTicketType.filter(t => t.revenue > 0);
+    const maxTicketRev = Math.max(...ticketTypeRevenue.map(t => t.revenue), 1);
+
+    if (loading) {
+        return (
+            <div>
+                <SectionTitle title="Revenue" description="Revenue breakdown, ticket types, and payout status" icon={DollarSign} accent="#34D399" />
+
+                <div className="rounded-2xl p-8 animate-pulse" style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
+                    <div className="h-64 rounded-xl bg-white/5" />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <SectionTitle title="Revenue" description="Revenue breakdown, ticket types, and payout status" icon={DollarSign} accent="#34D399" />
+
+            {/* Revenue chart — full width */}
+            <SectionCard className="mb-6">
+                <CardLabel>Revenue Over Time</CardLabel>
+                <Suspense fallback={<ChartSkeleton height={280} />}>
+                    <LazyArea
+                        data={ri.series.revenueByDay.map(d => ({ date: d.date, revenue: d.gross }))}
+                        xKey="date" yKey="revenue" color="#F44A22" height={280}
+                    />
+                </Suspense>
+                {!data.hasData && <EmptyHint text="Revenue chart populates after your first ticket sale" />}
+            </SectionCard>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+                {/* Revenue breakdown */}
+                <SectionCard>
+                    <CardLabel>Breakdown</CardLabel>
+                    <div className="space-y-4">
+                        {breakdownRows.map(row => (
+                            <div key={row.label}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: row.color }} />
+                                        <span className="text-[13px] font-semibold" style={{ color: "rgba(255,255,255,0.6)" }}>
+                                            {row.label}
+                                        </span>
+                                    </div>
+                                    <span className="text-[16px] font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                        {formatINRCompact(row.value)}
+                                    </span>
+                                </div>
+                                <HBar value={row.value} max={maxBd} color={row.color} height={8} />
+                            </div>
+                        ))}
+                    </div>
+                </SectionCard>
+
+                {/* Payout status */}
+                <SectionCard>
+                    <CardLabel>Payout Status</CardLabel>
+
+                    <div className="grid grid-cols-2 gap-5 mb-6">
+                        <div className="rounded-xl p-4" style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.12)" }}>
+                            <div className="text-[11px] font-bold uppercase tracking-[0.12em] mb-1.5" style={{ color: "#34D399" }}>Completed</div>
+                            <div className="text-[28px] font-black tabular-nums leading-none" style={{ color: "#34D399" }}>
+                                {formatINRCompact(fin.completedPayout)}
+                            </div>
+                        </div>
+                        <div className="rounded-xl p-4" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.12)" }}>
+                            <div className="text-[11px] font-bold uppercase tracking-[0.12em] mb-1.5" style={{ color: "#FBBF24" }}>Pending</div>
+                            <div className="text-[28px] font-black tabular-nums leading-none" style={{ color: "#FBBF24" }}>
+                                {formatINRCompact(fin.pendingPayout)}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="mb-5">
+                        <div className="h-4 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                            <div className="h-full rounded-full transition-all duration-1000"
+                                 style={{ width: `${payoutPct}%`, background: "linear-gradient(90deg, #34D399, #22D3EE)", boxShadow: "0 0 12px rgba(52,211,153,0.4)" }} />
+                        </div>
+                        <div className="flex justify-between mt-2">
+                            <span className="text-[12px] font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                {payoutPct.toFixed(0)}% settled
+                            </span>
+                            <span className="text-[12px] font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                Total: {formatINRCompact(payoutTotal)}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Settlement splits */}
+                    <div className="space-y-2.5 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                        {[
+                            { label: "Venue Settlement", value: fin.venueSettlement, color: "#F44A22" },
+                            { label: "Host Settlement",  value: fin.hostSettlement, color: "#818CF8" },
+                            { label: "Promoter Commissions", value: fin.promoterCommissions, color: "#34D399" },
+                        ].filter(s => s.value > 0).map(s => (
+                            <div key={s.label} className="flex items-center justify-between py-2">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full" style={{ background: s.color }} />
+                                    <span className="text-[13px] font-semibold" style={{ color: "rgba(255,255,255,0.5)" }}>{s.label}</span>
+                                </div>
+                                <span className="text-[15px] font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                    {formatINRCompact(s.value)}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </SectionCard>
+            </div>
+
+            {/* Ticket Type Revenue */}
+            {ticketTypeRevenue.length > 0 && (
+                <SectionCard>
+                    <CardLabel>Revenue by Ticket Type</CardLabel>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {ticketTypeRevenue.map((t, i) => {
+                            const typeColors = ["#F44A22", "#818CF8", "#34D399", "#FBBF24", "#22D3EE", "#A78BFA"];
+                            const color = typeColors[i % typeColors.length];
+                            return (
+                                <div key={t.type} className="rounded-xl p-4 relative overflow-hidden"
+                                     style={{ background: `${color}08`, border: `1px solid ${color}20` }}>
+                                    <div className="absolute bottom-0 left-0 h-1 transition-all duration-700"
+                                         style={{ width: `${(t.revenue / maxTicketRev) * 100}%`, background: color }} />
+                                    <div className="text-[12px] font-bold uppercase tracking-[0.10em] mb-2" style={{ color }}>{t.type}</div>
+                                    <div className="text-[24px] font-black tabular-nums leading-none" style={{ color: "var(--v-text-primary)" }}>
+                                        {formatINRCompact(t.revenue)}
+                                    </div>
+                                    {t.pct > 0 && (
+                                        <div className="text-[12px] font-bold mt-1 tabular-nums" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                            {t.pct.toFixed(1)}% of total
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </SectionCard>
+            )}
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. CROWD — "Who showed up?" — Gender split with avg ages + demographics
+// ═══════════════════════════════════════════════════════════════════════════
+
+const GENDER_COLORS = ["#EC4899", "#6366F1", "#A78BFA"];
+const AGE_COLORS = ["#F44A22", "#818CF8", "#34D399", "#FBBF24", "#22D3EE", "#A78BFA"];
+
+export function CrowdSection({ data, loading }: SectionProps) {
+    const au = data.audience;
+    const genderTotal = au.genderRatio.female + au.genderRatio.male + au.genderRatio.other;
+
+    const ageBands = Object.entries(au.ageBands).map(([band, count]) => ({ band, count }));
+    const maxAge = Math.max(...ageBands.map(a => a.count), 1);
+
+    const genderData = [
+        { name: "Female", value: au.genderRatio.female },
+        { name: "Male",   value: au.genderRatio.male },
+        { name: "Other",  value: au.genderRatio.other },
+    ].filter(g => g.value > 0);
+
+    // Calculate avg age per gender from age bands (approximate midpoints)
+    const ageMidpoints: Record<string, number> = {
+        "18-21": 19.5, "18-24": 21, "21-25": 23, "22-27": 24.5,
+        "25-30": 27.5, "25-34": 29.5, "28-35": 31.5, "30-35": 32.5,
+        "35-40": 37.5, "35-44": 39.5, "40-45": 42.5, "45-50": 47.5,
+        "45+": 50, "50+": 55, "55+": 60,
+    };
+
+    // We don't have per-gender age data from the backend, so we show overall avg age
+    const totalCount = ageBands.reduce((sum, a) => sum + a.count, 0);
+    const avgAge = totalCount > 0
+        ? ageBands.reduce((sum, a) => sum + (ageMidpoints[a.band] || 25) * a.count, 0) / totalCount
+        : 0;
+
+    if (loading) {
+        return (
+            <div>
+                <SectionTitle title="Crowd & Demographics" description="Gender split, age distribution, and guest composition" icon={Users} accent="#EC4899" />
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {[1,2].map(i => (
+                        <div key={i} className="rounded-2xl p-8 animate-pulse" style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
+                            <div className="h-48 rounded-xl bg-white/5" />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <SectionTitle title="Crowd & Demographics" description="Gender split, age distribution, and guest composition" icon={Users} accent="#EC4899" />
+            {/* Top row: Gender + Age */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+                {/* Gender Split — large donut */}
+                <SectionCard>
+                    <CardLabel>Gender Split</CardLabel>
+
+                    {genderTotal > 0 ? (
+                        <div>
+                            <Suspense fallback={<ChartSkeleton height={240} />}>
+                                <LazyDonut data={genderData} colors={GENDER_COLORS} size={240} />
+                            </Suspense>
+
+                            {/* Gender legend with counts and percentages */}
+                            <div className="flex justify-center gap-6 mt-4">
+                                {genderData.map((g, i) => {
+                                    const pct = genderTotal > 0 ? ((g.value / genderTotal) * 100).toFixed(0) : "0";
+                                    return (
+                                        <div key={g.name} className="flex flex-col items-center gap-1">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 rounded-full" style={{ background: GENDER_COLORS[i] }} />
+                                                <span className="text-[14px] font-bold" style={{ color: "var(--v-text-primary)" }}>
+                                                    {g.name}
+                                                </span>
+                                            </div>
+                                            <span className="text-[24px] font-black tabular-nums" style={{ color: GENDER_COLORS[i] }}>
+                                                {pct}%
+                                            </span>
+                                            <span className="text-[12px] font-semibold tabular-nums" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                                {g.value.toLocaleString()} guests
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Avg age (overall since we don't have per-gender age data) */}
+                            {avgAge > 0 && (
+                                <div className="mt-6 pt-4 flex justify-center" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                                    <div className="flex items-center gap-6">
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-[11px] font-bold uppercase tracking-[0.12em] mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+                                                Avg Age
+                                            </span>
+                                            <span className="text-[28px] font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                                {avgAge.toFixed(0)}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-[11px] font-bold uppercase tracking-[0.12em] mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+                                                Avg Party Size
+                                            </span>
+                                            <span className="text-[28px] font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                                {au.avgPartySize > 0 ? au.avgPartySize.toFixed(1) : "—"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <EmptyHint text="Gender data appears after check-ins begin" />
+                    )}
+                </SectionCard>
+
+                {/* Age Distribution — horizontal bars */}
+                <SectionCard>
+                    <CardLabel>Age Distribution</CardLabel>
+                    {ageBands.length > 0 ? (
+                        <div className="space-y-3.5">
+                            {ageBands.map((a, i) => {
+                                const pct = totalCount > 0 ? ((a.count / totalCount) * 100).toFixed(0) : "0";
+                                const color = AGE_COLORS[i % AGE_COLORS.length];
+                                return (
+                                    <div key={a.band}>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className="text-[14px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                                {a.band}
+                                            </span>
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-[13px] font-bold tabular-nums" style={{ color: "rgba(255,255,255,0.5)" }}>
+                                                    {a.count.toLocaleString()}
+                                                </span>
+                                                <span className="text-[12px] font-bold tabular-nums px-2 py-0.5 rounded-full"
+                                                      style={{ background: `${color}15`, color }}>
+                                                    {pct}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <HBar value={a.count} max={maxAge} color={color} height={12} />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <EmptyHint text="Age data appears after check-ins begin" />
+                    )}
+                </SectionCard>
+            </div>
+
+            {/* Guest composition */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                {/* New vs Repeat vs VIP */}
+                {[
+                    { label: "New Guests", value: au.newGuests, icon: UserCheck, color: "#34D399", desc: "First time at your venue" },
+                    { label: "Repeat Guests", value: au.repeatGuests, icon: Repeat2, color: "#818CF8", desc: "Have attended before" },
+                    { label: "VIP Guests", value: au.vipGuests, icon: Crown, color: "#FBBF24", desc: "High-value regulars" },
+                ].map(item => (
+                    <div key={item.label} className="rounded-2xl p-5 relative overflow-hidden"
+                         style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
+                        <div className="absolute top-0 right-0 w-24 h-24 opacity-[0.06] rounded-full"
+                             style={{ background: item.color, filter: "blur(30px)", transform: "translate(30%, -30%)" }} />
+                        <div className="flex items-center gap-2.5 mb-3">
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                                 style={{ background: `${item.color}15` }}>
+                                <item.icon className="w-4.5 h-4.5" style={{ color: item.color }} />
+                            </div>
+                            <span className="text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: "rgba(255,255,255,0.45)" }}>
+                                {item.label}
+                            </span>
+                        </div>
+                        <div className="text-[36px] font-black tabular-nums leading-none mb-1" style={{ color: "var(--v-text-primary)" }}>
+                            {item.value.toLocaleString()}
+                        </div>
+                        <span className="text-[12px] font-medium" style={{ color: "rgba(255,255,255,0.3)" }}>{item.desc}</span>
+                    </div>
+                ))}
+            </div>
+
+            {/* Loyalty tiers */}
+            {au.loyaltyDistribution.length > 0 && (
+                <SectionCard className="mt-6">
+                    <CardLabel>Loyalty Tiers</CardLabel>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        {au.loyaltyDistribution.map((tier, i) => {
+                            const color = AGE_COLORS[i % AGE_COLORS.length];
+                            return (
+                                <div key={tier.tier} className="rounded-xl p-4 text-center"
+                                     style={{ background: `${color}08`, border: `1px solid ${color}15` }}>
+                                    <div className="text-[12px] font-bold uppercase tracking-[0.10em] mb-2" style={{ color }}>
+                                        {tier.tier}
+                                    </div>
+                                    <div className="text-[28px] font-black tabular-nums leading-none" style={{ color: "var(--v-text-primary)" }}>
+                                        {tier.count}
+                                    </div>
+                                    {tier.pct > 0 && (
+                                        <div className="text-[12px] font-bold mt-1 tabular-nums" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                            {tier.pct.toFixed(0)}%
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </SectionCard>
+            )}
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. DOOR — "How did the night run?"
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function DoorSection({ data, loading }: SectionProps) {
+    const ops = data.doorOps;
+
+    const scanBreakdown = [
+        { label: "Successful",  value: ops.successfulScans, color: "#34D399", icon: Shield },
+        { label: "Rejected",    value: ops.rejectedScans,   color: "#F87171", icon: UserX },
+        { label: "Duplicates",  value: ops.duplicateScans,  color: "#FBBF24", icon: Repeat2 },
+    ];
+    const maxScan = Math.max(...scanBreakdown.map(s => s.value), 1);
+
+    if (loading) {
+        return (
+            <div>
+                <SectionTitle title="Door & Operations" description="Entry velocity, scanner performance, and gate activity" icon={Zap} accent="#22D3EE" />
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {[1,2].map(i => (
+                        <div key={i} className="rounded-2xl p-8 animate-pulse" style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
+                            <div className="h-56 rounded-xl bg-white/5" />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <SectionTitle title="Door & Operations" description="Entry velocity, scanner performance, and gate activity" icon={Zap} accent="#22D3EE" />
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+                {/* Entry velocity chart */}
+                <SectionCard>
+                    <div className="flex items-center justify-between mb-4">
+                        <CardLabel>Entry Velocity by Hour</CardLabel>
+                        {ops.peakEntryHour != null && (
+                            <span className="text-[12px] font-bold px-3 py-1.5 rounded-full"
+                                  style={{ background: "rgba(244,74,34,0.12)", color: "#F44A22" }}>
+                                Peak: {String(ops.peakEntryHour).padStart(2, "0")}:00
+                            </span>
+                        )}
+                    </div>
+                    <Suspense fallback={<ChartSkeleton height={260} />}>
+                        <LazyBar data={ops.entryCurve} xKey="hour" yKey="count" color="#818CF8" height={260} />
+                    </Suspense>
+                    {!data.hasData && <EmptyHint text="Entry curve appears after your first event night" />}
+                </SectionCard>
+
+                {/* Scanner efficiency */}
+                <SectionCard>
+                    <CardLabel>Scanner Performance</CardLabel>
+
+                    <div className="flex items-center gap-8 mb-6">
+                        <Ring value={ops.scanSuccessRate} label="Success Rate" color="#34D399" size={120} />
+                        <div className="flex-1">
+                            <div className="text-[13px] font-bold mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Total Scans</div>
+                            <div className="text-[36px] font-black tabular-nums leading-none mb-2" style={{ color: "var(--v-text-primary)" }}>
+                                {ops.totalScans.toLocaleString()}
+                            </div>
+                            {ops.peakEntryVelocity > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                    <Zap className="w-3.5 h-3.5" style={{ color: "#FBBF24" }} />
+                                    <span className="text-[13px] font-bold" style={{ color: "#FBBF24" }}>
+                                        {ops.peakEntryVelocity} guests/hr peak
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Scan breakdown */}
+                    <div className="space-y-3.5">
+                        {scanBreakdown.map(s => (
+                            <div key={s.label}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+                                             style={{ background: `${s.color}15` }}>
+                                            <s.icon className="w-3.5 h-3.5" style={{ color: s.color }} />
+                                        </div>
+                                        <span className="text-[13px] font-semibold" style={{ color: "rgba(255,255,255,0.55)" }}>
+                                            {s.label}
+                                        </span>
+                                    </div>
+                                    <span className="text-[16px] font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>
+                                        {s.value.toLocaleString()}
+                                    </span>
+                                </div>
+                                <HBar value={s.value} max={maxScan} color={s.color} height={8} />
+                            </div>
+                        ))}
+                    </div>
+                </SectionCard>
+            </div>
+
+            {/* Quick ops metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                    { label: "Capacity Used", value: `${ops.capacityUtilization.toFixed(0)}%`, color: ops.capacityUtilization > 80 ? "#34D399" : "#FBBF24", icon: Users },
+                    { label: "Late Arrivals", value: `${ops.lateArrivalPct.toFixed(0)}%`, color: ops.lateArrivalPct > 30 ? "#F87171" : "#818CF8", icon: Clock },
+                    { label: "Re-entries", value: ops.reEntryCount.toLocaleString(), color: "#A78BFA", icon: Repeat2 },
+                    { label: "Manual Overrides", value: ops.manualOverrides.toLocaleString(), color: ops.manualOverrides > 10 ? "#F87171" : "#71717A", icon: Shield },
+                ].map(m => (
+                    <div key={m.label} className="rounded-2xl p-5 relative overflow-hidden"
+                         style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+                                 style={{ background: `${m.color}15` }}>
+                                <m.icon className="w-3.5 h-3.5" style={{ color: m.color }} />
+                            </div>
+                            <span className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                                {m.label}
+                            </span>
+                        </div>
+                        <div className="text-[28px] font-black tabular-nums leading-none" style={{ color: m.color }}>
+                            {m.value}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6. COMPARE — "How does this stack up?"
+// ═══════════════════════════════════════════════════════════════════════════
+
+type CompareMetric = "revenue" | "attendance" | "occupancy" | "sellThrough";
+
+const COMPARE_DEFS: { key: CompareMetric; label: string; fmt: (v: number) => string }[] = [
+    { key: "revenue",     label: "Revenue",       fmt: formatINRCompact },
+    { key: "attendance",  label: "Attendance",     fmt: (v) => formatNumberCompact(v) },
+    { key: "occupancy",   label: "Fill Rate",      fmt: (v) => `${v.toFixed(1)}%` },
+    { key: "sellThrough", label: "Sell-through",   fmt: (v) => `${v.toFixed(1)}%` },
+];
+
+const RANK_COLORS = ["#F44A22", "#818CF8", "#34D399", "#FBBF24", "#22D3EE", "#A78BFA"];
+
+export function CompareSection({ data, loading }: SectionProps) {
+    const [focus, setFocus] = useState<CompareMetric>("revenue");
+    const cards = data.eventScorecards;
+    const sorted = [...cards].sort((a, b) => (b[focus] ?? 0) - (a[focus] ?? 0));
+    const primary = sorted[0];
+    const rest = sorted.slice(1, 6);
+
+    const maxVal = Math.max(...sorted.map(e => e[focus] ?? 0), 1);
+    const focusDef = COMPARE_DEFS.find(d => d.key === focus)!;
+
+    if (loading) {
+        return (
+            <div>
+                <SectionTitle title="Event Comparison" description="How this event stacks up against your past events" icon={Star} accent="#FBBF24" />
+                <div className="rounded-2xl p-8 animate-pulse" style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
+                    <div className="h-80 rounded-xl bg-white/5" />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <SectionTitle title="Event Comparison" description="How this event stacks up against your past events" icon={Star} accent="#FBBF24" />
+
+            <SectionCard>
+                {/* Metric tabs */}
+                <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+                    <span className="text-[12px] font-bold uppercase tracking-[0.12em]"
+                          style={{ color: "rgba(255,255,255,0.4)" }}>Ranked by</span>
+                    <div className="flex items-center gap-1 p-1 rounded-xl"
+                         style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        {COMPARE_DEFS.map(d => (
+                            <button
+                                key={d.key}
+                                onClick={() => setFocus(d.key)}
+                                className="px-4 py-2 rounded-lg text-[12px] font-bold uppercase tracking-[0.08em] transition-all"
+                                style={{
+                                    background: focus === d.key ? "var(--v-card)" : "transparent",
+                                    color: focus === d.key ? "var(--v-text-primary)" : "rgba(255,255,255,0.35)",
+                                    boxShadow: focus === d.key ? "0 2px 8px rgba(0,0,0,0.3)" : "none",
+                                }}
+                            >
+                                {d.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Primary event — #1 */}
+                {primary && (
+                    <div className="rounded-2xl p-6 mb-6 relative overflow-hidden"
+                         style={{ background: "rgba(244,74,34,0.06)", border: "1px solid rgba(244,74,34,0.2)" }}>
+                        {/* Glow */}
+                        <div className="absolute top-0 left-0 w-48 h-48 opacity-[0.08]"
+                             style={{ background: "#F44A22", filter: "blur(60px)", borderRadius: "50%" }} />
+
+                        <div className="flex items-start justify-between gap-4 mb-5 relative">
+                            <div>
+                                <div className="text-[11px] font-black uppercase tracking-[0.16em] mb-2 flex items-center gap-2"
+                                     style={{ color: "#F44A22" }}>
+                                    <Star className="w-4 h-4" fill="currentColor" />
+                                    #1 — Best {focusDef.label}
+                                </div>
+                                <div className="text-[20px] sm:text-[22px] font-black" style={{ color: "var(--v-text-primary)" }}>
+                                    {primary.title}
+                                </div>
+                                {primary.date !== "—" && (
+                                    <div className="text-[13px] font-semibold mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                        {primary.date}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="text-right shrink-0">
+                                <div className="text-[36px] sm:text-[42px] font-black tabular-nums leading-none"
+                                     style={{ color: "#F44A22" }}>
+                                    {focusDef.fmt(primary[focus] ?? 0)}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            {COMPARE_DEFS.map(d => (
+                                <div key={d.key} className="rounded-xl p-3"
+                                     style={{ background: "rgba(255,255,255,0.04)" }}>
+                                    <div className="text-[11px] font-bold uppercase tracking-[0.10em] mb-1"
+                                         style={{ color: "rgba(255,255,255,0.4)" }}>{d.label}</div>
+                                    <div className="text-[20px] font-black tabular-nums"
+                                         style={{ color: d.key === focus ? "#F44A22" : "var(--v-text-primary)" }}>
+                                        {d.fmt(primary[d.key] ?? 0)}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Comparison rows */}
+                {rest.length > 0 && (
+                    <div className="space-y-2">
+                        {rest.map((event, i) => {
+                            const val = event[focus] ?? 0;
+                            const color = RANK_COLORS[(i + 1) % RANK_COLORS.length];
+                            return (
+                                <div key={event.id}
+                                     className="flex items-center gap-4 px-5 py-4 rounded-xl transition-colors"
+                                     style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+                                    <span className="text-[14px] font-black tabular-nums w-8 shrink-0"
+                                          style={{ color: "rgba(255,255,255,0.3)" }}>#{i + 2}</span>
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-[15px] font-bold truncate block"
+                                              style={{ color: data.hasData ? "var(--v-text-primary)" : "rgba(255,255,255,0.3)" }}>
+                                            {event.title}
+                                        </span>
+                                        {event.date !== "—" && (
+                                            <span className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.25)" }}>
+                                                {event.date}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="w-32 sm:w-48 hidden sm:block">
+                                        <HBar value={val} max={maxVal} color={color} height={8} />
+                                    </div>
+                                    <span className="text-[18px] font-black tabular-nums w-20 text-right shrink-0"
+                                          style={{ color }}>
+                                        {focusDef.fmt(val)}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {!data.hasData && <EmptyHint text="Event comparison appears after your first event completes" />}
+            </SectionCard>
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Legacy re-exports (keep backward compat for host/promoter analytics pages)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+    SummarySection as KPISection,
+    SummarySection as PerformanceRingsSection,
+    RevenueSection as TicketsGuestlistSection,
+    CrowdSection as AudienceSection,
+    DoorSection as ScannerSection,
+    CompareSection as EventComparisonSection,
+    RevenueSection as FinanceSection,
+    RevenueSection as SourceHeatmapSection,
+    CompareSection as TableSection,
+    DoorSection as InsightsSection,
+};

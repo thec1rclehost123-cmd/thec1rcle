@@ -292,11 +292,17 @@ export default function SearchScreen() {
             const venueMap = new Map<string, SearchResult>();
             eventResults.forEach((r) => {
                 if (r.subtitle && !venueMap.has(r.subtitle)) {
+                    const eventData = r.data as Event & { venueId?: string };
                     venueMap.set(r.subtitle, {
-                        id: `venue-${r.subtitle}`,
+                        id: eventData.venueId || `venue-${r.subtitle}`,
                         type: "venue",
                         title: r.subtitle,
                         subtitle: `${events.filter(e => e.venue === r.subtitle).length} events`,
+                        imageUrl: r.imageUrl,
+                        data: {
+                            venueId: eventData.venueId,
+                            query: r.subtitle,
+                        },
                     });
                 }
             });
@@ -327,9 +333,13 @@ export default function SearchScreen() {
         if (result.type === "event") {
             router.push({ pathname: "/event/[id]", params: { id: result.id } });
         } else if (result.type === "venue") {
-            // Could navigate to venue page
-            setQuery(result.title);
-            performSearch(result.title);
+            const venueId = result.data?.venueId as string | undefined;
+            if (venueId) {
+                router.push(`/venue/${venueId}` as never);
+            } else {
+                setQuery(result.title);
+                performSearch(result.title);
+            }
         }
     };
 

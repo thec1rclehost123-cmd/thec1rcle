@@ -61,7 +61,8 @@ export function PromoterPayoutsClient() {
                 <div className="px-4 py-3 border-b border-border-default">
                     <h3 className="text-sm font-semibold text-text-secondary">All Settlements</h3>
                 </div>
-                <table className="w-full">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px]">
                     <thead>
                         <tr className="border-b border-border-subtle">
                             {["Promoter", "Event", "Date", "Net Due", "Status", "Settled", "Note"].map((h) => (
@@ -103,6 +104,7 @@ export function PromoterPayoutsClient() {
                         )}
                     </tbody>
                 </table>
+                </div>
             </div>
         </VenuePageShell>
     );

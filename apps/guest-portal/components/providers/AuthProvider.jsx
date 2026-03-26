@@ -48,14 +48,14 @@ export function AuthProvider({ children }) {
   const profileRef = useRef(profile);
   useEffect(() => { profileRef.current = profile; }, [profile]);
 
-  const ensureProfile = useCallback(async (firebaseUser) => {
+  const ensureProfile = useCallback(async (firebaseUser, overrides = {}) => {
     try {
       const token = await firebaseUser.getIdToken();
       const res = await fetch('/api/auth/me', {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      const payload = buildProfilePayload(firebaseUser);
+      const payload = buildProfilePayload(firebaseUser, overrides);
 
       if (res.ok) {
         const data = await res.json();
@@ -152,16 +152,17 @@ export function AuthProvider({ children }) {
     return { user: credential.user, profile };
   }, [ensureProfile]);
 
-  const register = useCallback(async (email, password, displayName) => {
+  const register = useCallback(async (email, password, displayName, gender, age) => {
     const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth");
     const auth = await getFirebaseAuth();
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     if (displayName) {
       await updateProfile(credential.user, { displayName });
     }
-    await ensureProfile({
-      ...credential.user,
-      displayName: displayName || credential.user.displayName
+    await ensureProfile(credential.user, {
+      displayName: displayName || credential.user.displayName,
+      gender,
+      age: parseInt(age, 10) || age
     });
     return credential.user;
   }, [ensureProfile]);

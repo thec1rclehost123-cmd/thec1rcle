@@ -16,7 +16,6 @@ import Animated, {
     interpolate,
     interpolateColor,
     Easing,
-    useAnimatedProps,
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -24,9 +23,6 @@ import Svg, { Defs, RadialGradient, Stop, Ellipse, Circle, Rect, G } from "react
 import { colors } from "@/lib/design/theme";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
-const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
-const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
 // ============================================
 // 1. LIQUID GLASS CARD

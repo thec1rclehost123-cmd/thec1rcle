@@ -28,7 +28,7 @@ import {
 import { getFirebaseDb } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
-import { useEventsStore } from "@/store/eventsStore";
+import { Event, useEventsStore } from "@/store/eventsStore";
 import { colors, radii, gradients } from "@/lib/design/theme";
 
 export default function WaitlistScreen() {
@@ -37,13 +37,30 @@ export default function WaitlistScreen() {
     const { getEventById } = useEventsStore();
     const insets = useSafeAreaInsets();
 
-    const event = eventId ? getEventById(eventId) : null;
-
     const [joining, setJoining] = useState(false);
     const [position, setPosition] = useState<number | null>(null);
     const [alreadyJoined, setAlreadyJoined] = useState(false);
     const [checking, setChecking] = useState(true);
     const [totalWaiting, setTotalWaiting] = useState(0);
+    const [event, setEvent] = useState<Event | null>(null);
+
+    useEffect(() => {
+        if (!eventId) {
+            setEvent(null);
+            return;
+        }
+
+        let cancelled = false;
+        void getEventById(eventId).then((eventData) => {
+            if (!cancelled) {
+                setEvent(eventData);
+            }
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [eventId, getEventById]);
 
     // Check if user is already on the waitlist
     useEffect(() => {

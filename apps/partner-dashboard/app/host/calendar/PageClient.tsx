@@ -209,7 +209,7 @@ function DayCell({
         <button
             onClick={onClick}
             disabled={isPast && !slots.length}
-            className={`relative min-h-[100px] p-4 rounded-2xl border text-left transition-all group ${isSelected
+            className={`relative min-h-[60px] sm:min-h-[100px] p-2 sm:p-4 rounded-xl sm:rounded-2xl border text-left transition-all group ${isSelected
                 ? "bg-[var(--v-elevated)] border-[var(--v-orange)] ring-1 ring-[var(--v-orange)]/20"
                 : isPast
                     ? "bg-transparent border-border-subtle opacity-30 cursor-default"
@@ -456,42 +456,41 @@ export default function HostCalendarPage() {
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             <div className="lg:col-span-2 space-y-6">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-6">
-                                        <h2 className="text-[28px] font-black text-text-primary tracking-tighter">{MONTHS[month]} {year}</h2>
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                        <h2 className="text-[22px] sm:text-[28px] font-black text-text-primary tracking-tighter">{MONTHS[month]} {year}</h2>
                                         <div className="flex items-center gap-2">
-                                            <button onClick={() => navigate(-1)} className="w-12 h-12 rounded-2xl bg-[var(--v-card)] border border-[var(--v-border)] flex items-center justify-center hover:bg-[var(--v-elevated)] transition-all">
-                                                <ChevronLeft className="w-6 h-6" />
+                                            <button onClick={() => navigate(-1)} className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[var(--v-card)] border border-[var(--v-border)] flex items-center justify-center hover:bg-[var(--v-elevated)] transition-all">
+                                                <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6" />
                                             </button>
-                                            <button onClick={() => navigate(1)} className="w-12 h-12 rounded-2xl bg-[var(--v-card)] border border-[var(--v-border)] flex items-center justify-center hover:bg-[var(--v-elevated)] transition-all">
-                                                <ChevronRight className="w-6 h-6" />
+                                            <button onClick={() => navigate(1)} className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[var(--v-card)] border border-[var(--v-border)] flex items-center justify-center hover:bg-[var(--v-elevated)] transition-all">
+                                                <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6" />
                                             </button>
                                         </div>
                                     </div>
-                                    <div className="flex gap-4">
-                                        <div className="px-5 py-2 rounded-2xl bg-[var(--v-orange)]/10 border border-[var(--v-orange)]/20 text-[var(--v-orange)] font-black text-[13px] uppercase tracking-widest">
-                                            {monthStats.open} Open Spots
-                                        </div>
+                                    <div className="px-4 py-1.5 sm:px-5 sm:py-2 rounded-2xl bg-[var(--v-orange)]/10 border border-[var(--v-orange)]/20 text-[var(--v-orange)] font-black text-[11px] sm:text-[13px] uppercase tracking-widest">
+                                        {monthStats.open} Open
                                     </div>
                                 </div>
 
-                                <div className="p-8 rounded-[40px] bg-[var(--v-card)] border border-[var(--v-border)]">
-                                    <div className="grid grid-cols-7 gap-3 mb-6">
+                                <div className="overflow-x-auto scrollbar-hide -mx-1">
+                                <div className="p-3 sm:p-8 rounded-[24px] sm:rounded-[40px] bg-[var(--v-card)] border border-[var(--v-border)] min-w-[340px]">
+                                    <div className="grid grid-cols-7 gap-1 sm:gap-3 mb-3 sm:mb-6">
                                         {DAYS.map(d => (
-                                            <div key={d} className="text-center text-[13px] font-black uppercase tracking-widest text-[var(--v-text-muted)]">{d}</div>
+                                            <div key={d} className="text-center text-[9px] sm:text-[13px] font-black uppercase tracking-widest text-[var(--v-text-muted)]">{d.slice(0, 1)}<span className="hidden sm:inline">{d.slice(1)}</span></div>
                                         ))}
                                     </div>
 
                                     {loading ? (
-                                        <div className="grid grid-cols-7 gap-3">
+                                        <div className="grid grid-cols-7 gap-1 sm:gap-3">
                                             {Array.from({ length: 31 }).map((_, i) => (
-                                                <div key={i} className="h-24 rounded-2xl animate-pulse bg-[var(--v-elevated)]" />
+                                                <div key={i} className="h-14 sm:h-24 rounded-xl sm:rounded-2xl animate-pulse bg-[var(--v-elevated)]" />
                                             ))}
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-7 gap-3">
+                                        <div className="grid grid-cols-7 gap-1 sm:gap-3">
                                             {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-                                                <div key={`empty-${i}`} className="h-24" />
+                                                <div key={`empty-${i}`} className="h-14 sm:h-24" />
                                             ))}
                                             {Array.from({ length: daysInMonth }).map((_, i) => {
                                                 const day = i + 1;
@@ -525,6 +524,7 @@ export default function HostCalendarPage() {
                                             })}
                                         </div>
                                     )}
+                                </div>
                                 </div>
                             </div>
 

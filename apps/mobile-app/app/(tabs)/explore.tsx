@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { FlashList } from "@shopify/flash-list";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
     View,
     Text,
@@ -12,6 +13,8 @@ import {
     StyleSheet,
     Dimensions,
     Platform,
+    type NativeSyntheticEvent,
+    type NativeScrollEvent,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -46,6 +49,7 @@ const HERO_CARD_WIDTH = SCREEN_WIDTH - 48;
 
 // Animated Pressable
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const CarouselFlatList = FlatList as any;
 
 // Premium Search Bar
 function SearchBar({
@@ -417,22 +421,173 @@ const CATEGORIES = [
     { id: "comedy", label: "Comedy", icon: "😂" },
 ];
 
+const SORT_OPTIONS = ["Trending", "This Week", "New", "Soonest", "Price Low to High"] as const;
+const DATE_OPTIONS = [
+    { id: "any", label: "Any Date" },
+    { id: "today", label: "Today" },
+    { id: "weekend", label: "This Weekend" },
+] as const;
+const PRICE_OPTIONS = [
+    { id: "all", label: "All Prices" },
+    { id: "free", label: "Free RSVP" },
+    { id: "paid", label: "Paid" },
+] as const;
+
+type SortOption = typeof SORT_OPTIONS[number];
+type DateOption = typeof DATE_OPTIONS[number]["id"];
+type PriceOption = typeof PRICE_OPTIONS[number]["id"];
+
+const EXPLORE_PREFERENCES_KEY = "@explore_preferences";
+
+type DerivedEvent = Event & {
+    _searchHaystack: string;
+    _parsedDate: Date | null;
+    _parsedTime: number;
+    _startingPrice: number;
+    _cityValue: string;
+    _cityLabel: string;
+    _createdTime: number;
+    _heatScore: number;
+};
+
+function normalizeLocationValue(value?: string) {
+    return String(value || "other")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || "other";
+}
+
+function getCityLabel(event: Event) {
+    return String((event as any).cityLabel || event.city || event.location || event.venue || "Other Locations");
+}
+
+function getCityValue(event: Event) {
+    return normalizeLocationValue(String((event as any).cityKey || event.city || event.location || event.venue || "other"));
+}
+
+function getStartingPrice(event: Event) {
+    return event.tickets?.reduce((min, tier) =>
+        tier.price < min ? tier.price : min,
+        event.tickets[0]?.price || 0
+    ) || 0;
+}
+
+function getCreatedTime(event: Event) {
+    const rawValue = (event as any).createdAt;
+    const parsed = safeDate(rawValue);
+    return parsed?.getTime() ?? 0;
+}
+
+function getHeatScore(event: Event) {
+    return Number(
+        event.heatScore ??
+        event.stats?.views ??
+        event.stats?.rsvps ??
+        event.stats?.shares ??
+        0
+    );
+}
+
+function isSameDay(left: Date, right: Date) {
+    return (
+        left.getFullYear() === right.getFullYear() &&
+        left.getMonth() === right.getMonth() &&
+        left.getDate() === right.getDate()
+    );
+}
+
+function isWeekend(date: Date) {
+    const day = date.getDay();
+    return day === 0 || day === 6;
+}
+
+const sortComparators: Record<SortOption, (a: DerivedEvent, b: DerivedEvent) => number> = {
+    Trending: (a, b) => b._heatScore - a._heatScore,
+    "This Week": (a, b) => {
+        const now = Date.now();
+        const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
+        const aInWeek = a._parsedTime >= now && a._parsedTime <= weekAhead;
+        const bInWeek = b._parsedTime >= now && b._parsedTime <= weekAhead;
+        if (aInWeek && !bInWeek) return -1;
+        if (!aInWeek && bInWeek) return 1;
+        return a._parsedTime - b._parsedTime;
+    },
+    New: (a, b) => b._createdTime - a._createdTime,
+    Soonest: (a, b) => a._parsedTime - b._parsedTime,
+    "Price Low to High": (a, b) => a._startingPrice - b._startingPrice,
+};
+
+function FilterPill({
+    label,
+    isActive,
+    onPress,
+}: {
+    label: string;
+    isActive: boolean;
+    onPress: () => void;
+}) {
+    return (
+        <Pressable onPress={onPress}>
+            <View style={[styles.filterPill, isActive && styles.filterPillActive]}>
+                <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
+                    {label}
+                </Text>
+            </View>
+        </Pressable>
+    );
+}
+
 export default function ExploreScreen() {
-    const { events, featuredEvents, loading, error, fetchEvents, fetchFeaturedEvents } = useEventsStore();
+    const { events, featuredEvents, loading, error, hasMore, fetchEvents, fetchFeaturedEvents, loadMoreEvents } = useEventsStore();
     const insets = useSafeAreaInsets();
 
     const [searchQuery, setSearchQuery] = useState("");
     const [activeCategory, setActiveCategory] = useState("all");
+    const [activeSort, setActiveSort] = useState<SortOption>("Trending");
+    const [activeCity, setActiveCity] = useState("all");
+    const [activeDate, setActiveDate] = useState<DateOption>("any");
+    const [activePrice, setActivePrice] = useState<PriceOption>("all");
     const [isOffline, setIsOffline] = useState(false);
     const [cachedEvents, setCachedEvents] = useState<Event[]>([]);
     const [lastSync, setLastSync] = useState<Date | null>(null);
     const [carouselIndex, setCarouselIndex] = useState(0);
+    const [loadingMore, setLoadingMore] = useState(false);
     const carouselRef = useRef<FlatList>(null);
+    const preferencesLoadedRef = useRef(false);
 
     useEffect(() => {
         trackScreen("Explore");
-        loadData();
+        void restorePreferences();
+        void loadData();
     }, []);
+
+    const restorePreferences = async () => {
+        try {
+            const stored = await AsyncStorage.getItem(EXPLORE_PREFERENCES_KEY);
+            if (!stored) {
+                return;
+            }
+
+            const parsed = JSON.parse(stored) as Partial<{
+                activeCategory: string;
+                activeSort: SortOption;
+                activeCity: string;
+                activeDate: DateOption;
+                activePrice: PriceOption;
+            }>;
+
+            if (parsed.activeCategory) setActiveCategory(parsed.activeCategory);
+            if (parsed.activeSort && SORT_OPTIONS.includes(parsed.activeSort)) setActiveSort(parsed.activeSort);
+            if (parsed.activeCity) setActiveCity(parsed.activeCity);
+            if (parsed.activeDate && DATE_OPTIONS.some((option) => option.id === parsed.activeDate)) setActiveDate(parsed.activeDate);
+            if (parsed.activePrice && PRICE_OPTIONS.some((option) => option.id === parsed.activePrice)) setActivePrice(parsed.activePrice);
+        } catch (error) {
+            console.error("Failed to restore explore preferences:", error);
+        } finally {
+            preferencesLoadedRef.current = true;
+        }
+    };
 
     const loadData = async () => {
         const cached = await getCachedEvents();
@@ -448,6 +603,7 @@ export default function ExploreScreen() {
             if (store.events.length > 0) {
                 await cacheEvents(store.events);
                 await updateLastSyncTime();
+                setLastSync(new Date());
                 setIsOffline(false);
             }
         } catch (err) {
@@ -460,58 +616,160 @@ export default function ExploreScreen() {
         await loadData();
     }, []);
 
-    // Filter events
+    const sourceEvents = useMemo(() => (
+        events.length > 0 ? events : cachedEvents
+    ), [events, cachedEvents]);
+
+    const cityOptions = useMemo(() => {
+        const counts = new Map<string, { value: string; label: string; count: number }>();
+
+        sourceEvents.forEach((event) => {
+            const value = getCityValue(event);
+            const label = getCityLabel(event);
+            const existing = counts.get(value);
+            counts.set(value, {
+                value,
+                label,
+                count: (existing?.count || 0) + 1,
+            });
+        });
+
+        return [
+            { value: "all", label: "All Locations", count: sourceEvents.length },
+            ...Array.from(counts.values()).sort((a, b) => b.count - a.count),
+        ];
+    }, [sourceEvents]);
+
+    useEffect(() => {
+        if (!cityOptions.some((option) => option.value === activeCity)) {
+            setActiveCity("all");
+        }
+    }, [cityOptions, activeCity]);
+
+    useEffect(() => {
+        if (!preferencesLoadedRef.current) {
+            return;
+        }
+
+        void AsyncStorage.setItem(
+            EXPLORE_PREFERENCES_KEY,
+            JSON.stringify({
+                activeCategory,
+                activeSort,
+                activeCity,
+                activeDate,
+                activePrice,
+            })
+        ).catch((error) => {
+            console.error("Failed to save explore preferences:", error);
+        });
+    }, [activeCategory, activeSort, activeCity, activeDate, activePrice]);
+
+    const processedEvents = useMemo<DerivedEvent[]>(() => (
+        sourceEvents.map((event) => {
+            const parsedDate = safeDate(event.startDate);
+            const searchHaystack = [
+                event.title,
+                event.description,
+                event.venue,
+                event.location,
+                event.city,
+                event.hostName,
+                ...(event.tags || []),
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase();
+
+            return {
+                ...event,
+                _searchHaystack: searchHaystack,
+                _parsedDate: parsedDate,
+                _parsedTime: parsedDate?.getTime() ?? Number.MAX_SAFE_INTEGER,
+                _startingPrice: getStartingPrice(event),
+                _cityValue: getCityValue(event),
+                _cityLabel: getCityLabel(event),
+                _createdTime: getCreatedTime(event),
+                _heatScore: getHeatScore(event),
+            };
+        })
+    ), [sourceEvents]);
+
     const filteredEvents = useMemo(() => {
-        const sourceEvents = events.length > 0 ? events : cachedEvents;
-        let result = sourceEvents;
+        const now = new Date();
+        const comparator = sortComparators[activeSort] || sortComparators.Trending;
+        const query = searchQuery.trim().toLowerCase();
 
-        if (activeCategory !== "all") {
-            result = result.filter((event) =>
-                event.category?.toLowerCase() === activeCategory ||
-                event.type?.toLowerCase() === activeCategory
-            );
-        }
+        return [...processedEvents]
+            .filter((event) => {
+                const endDate = safeDate(event.endDate || event.startDate);
+                if (endDate && endDate < now) return false;
 
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
-            result = result.filter((event) =>
-                event.title.toLowerCase().includes(query) ||
-                event.venue?.toLowerCase().includes(query) ||
-                event.location?.toLowerCase().includes(query) ||
-                event.city?.toLowerCase().includes(query)
-            );
-        }
+                if (activeCategory !== "all") {
+                    const matchesCategory =
+                        event.category?.toLowerCase() === activeCategory ||
+                        event.type?.toLowerCase() === activeCategory ||
+                        event.tags?.some((tag) => tag.toLowerCase() === activeCategory);
+                    if (!matchesCategory) return false;
+                }
 
-        return result;
-    }, [events, cachedEvents, activeCategory, searchQuery]);
+                if (activeCity !== "all" && event._cityValue !== activeCity) {
+                    return false;
+                }
+
+                if (activePrice === "free" && event._startingPrice > 0) {
+                    return false;
+                }
+
+                if (activePrice === "paid" && event._startingPrice <= 0) {
+                    return false;
+                }
+
+                if (activeDate !== "any" && event._parsedDate) {
+                    if (activeDate === "today" && !isSameDay(event._parsedDate, now)) {
+                        return false;
+                    }
+                    if (activeDate === "weekend" && !isWeekend(event._parsedDate)) {
+                        return false;
+                    }
+                }
+
+                if (query && !event._searchHaystack.includes(query)) {
+                    return false;
+                }
+
+                return true;
+            })
+            .sort(comparator);
+    }, [processedEvents, activeCategory, activeCity, activePrice, activeDate, activeSort, searchQuery]);
 
     // Group events
     const displayEvents = useMemo(() => {
         const now = new Date();
         const thisWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const filteredFeatured = [...filteredEvents].sort(sortComparators.Trending).slice(0, 5);
 
         return {
-            featured: featuredEvents.slice(0, 5),
+            featured: filteredFeatured,
             thisWeek: filteredEvents.filter((e) => {
-                const date = safeDate(e.startDate);
+                const date = e._parsedDate;
                 return date !== null && date >= now && date <= thisWeek;
             }).slice(0, 5),
-            upcoming: filteredEvents.slice(0, 10),
+            upcoming: filteredEvents,
         };
-    }, [filteredEvents, featuredEvents]);
+    }, [filteredEvents]);
 
     // Count live events (status === "live" or startDate is today)
     const liveCount = useMemo(() => {
         const now = new Date();
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const todayEnd = new Date(todayStart.getTime() + 86_400_000);
-        const source = events.length > 0 ? events : cachedEvents;
-        return source.filter((e) => {
+        return sourceEvents.filter((e) => {
             if ((e as any).status === "live") return true;
             const d = safeDate(e.startDate);
             return d !== null && d >= todayStart && d < todayEnd;
         }).length;
-    }, [events, cachedEvents]);
+    }, [sourceEvents]);
 
     // "Tonight" mode: after 6 PM, surface top tonight event
     const isTonightMode = new Date().getHours() >= 18;
@@ -519,14 +777,13 @@ export default function ExploreScreen() {
         if (!isTonightMode) return undefined;
         const now = new Date();
         const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        const source = events.length > 0 ? events : cachedEvents;
-        const tonight = source.filter((e) => {
+        const tonight = sourceEvents.filter((e) => {
             const d = safeDate(e.startDate);
             return d !== null && d >= now && d < midnight;
         });
         // Return the one with the highest heatScore (or first)
         return tonight.sort((a, b) => ((b as any).heatScore ?? 0) - ((a as any).heatScore ?? 0))[0]?.title;
-    }, [events, cachedEvents, isTonightMode]);
+    }, [sourceEvents, isTonightMode]);
 
     // Auto-advance hero carousel every 5 seconds
     useEffect(() => {
@@ -541,8 +798,43 @@ export default function ExploreScreen() {
         return () => clearInterval(interval);
     }, [displayEvents.featured.length]);
 
-    const showNoResults = !loading && filteredEvents.length === 0 && searchQuery;
-    const showEmpty = !loading && events.length === 0 && cachedEvents.length === 0 && !searchQuery;
+    const hasActiveFilters =
+        !!searchQuery.trim() ||
+        activeCategory !== "all" ||
+        activeCity !== "all" ||
+        activeDate !== "any" ||
+        activePrice !== "all";
+    const showNoResults = !loading && filteredEvents.length === 0 && hasActiveFilters;
+    const showEmpty = !loading && events.length === 0 && cachedEvents.length === 0 && !hasActiveFilters;
+    const activeCityLabel = cityOptions.find((option) => option.value === activeCity)?.label || "all locations";
+
+    const resetFilters = () => {
+        setSearchQuery("");
+        setActiveCategory("all");
+        setActiveSort("Trending");
+        setActiveCity("all");
+        setActiveDate("any");
+        setActivePrice("all");
+    };
+
+    const handleLoadMore = useCallback(async () => {
+        if (!hasMore || loadingMore) {
+            return;
+        }
+
+        setLoadingMore(true);
+        try {
+            await loadMoreEvents();
+            const store = useEventsStore.getState();
+            if (store.events.length > 0) {
+                await cacheEvents(store.events);
+                await updateLastSyncTime();
+                setLastSync(new Date());
+            }
+        } finally {
+            setLoadingMore(false);
+        }
+    }, [hasMore, loadingMore, loadMoreEvents]);
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -564,7 +856,9 @@ export default function ExploreScreen() {
                         <View>
                             <Text style={styles.headerTitle}>Explore</Text>
                             <Text style={styles.headerSubtitle}>
-                                Discover events near you
+                                {activeCity === "all"
+                                    ? "Discover events across locations"
+                                    : `What's on in ${activeCityLabel}`}
                             </Text>
                         </View>
 
@@ -596,6 +890,79 @@ export default function ExploreScreen() {
                         onChangeText={setSearchQuery}
                         onClear={() => setSearchQuery("")}
                     />
+
+                    <View style={styles.filterStack}>
+                        <View style={styles.filterRowHeader}>
+                            <Text style={styles.filterLabel}>Sort</Text>
+                            {(activeCity !== "all" || activeDate !== "any" || activePrice !== "all" || activeCategory !== "all" || searchQuery.trim()) && (
+                                <Pressable onPress={resetFilters}>
+                                    <Text style={styles.filterResetText}>Reset</Text>
+                                </Pressable>
+                            )}
+                        </View>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.filterRow}
+                        >
+                            {SORT_OPTIONS.map((sort) => (
+                                <FilterPill
+                                    key={sort}
+                                    label={sort}
+                                    isActive={activeSort === sort}
+                                    onPress={() => setActiveSort(sort)}
+                                />
+                            ))}
+                        </ScrollView>
+
+                        <Text style={styles.filterLabel}>Locations</Text>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.filterRow}
+                        >
+                            {cityOptions.map((option) => (
+                                <FilterPill
+                                    key={option.value}
+                                    label={`${option.label} (${option.count})`}
+                                    isActive={activeCity === option.value}
+                                    onPress={() => setActiveCity(option.value)}
+                                />
+                            ))}
+                        </ScrollView>
+
+                        <Text style={styles.filterLabel}>When</Text>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.filterRow}
+                        >
+                            {DATE_OPTIONS.map((option) => (
+                                <FilterPill
+                                    key={option.id}
+                                    label={option.label}
+                                    isActive={activeDate === option.id}
+                                    onPress={() => setActiveDate(option.id)}
+                                />
+                            ))}
+                        </ScrollView>
+
+                        <Text style={styles.filterLabel}>Price</Text>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.filterRow}
+                        >
+                            {PRICE_OPTIONS.map((option) => (
+                                <FilterPill
+                                    key={option.id}
+                                    label={option.label}
+                                    isActive={activePrice === option.id}
+                                    onPress={() => setActivePrice(option.id)}
+                                />
+                            ))}
+                        </ScrollView>
+                    </View>
 
                     {/* Categories */}
                     <ScrollView
@@ -641,9 +1008,13 @@ export default function ExploreScreen() {
                 {showNoResults && (
                     <EmptyState
                         type="no-search-results"
-                        message={`No events match "${searchQuery}"`}
-                        actionLabel="Clear Search"
-                        onAction={() => setSearchQuery("")}
+                        message={
+                            searchQuery.trim()
+                                ? `No events match "${searchQuery}"`
+                                : "No events match your current filters"
+                        }
+                        actionLabel="Reset Filters"
+                        onAction={resetFilters}
                     />
                 )}
 
@@ -661,21 +1032,21 @@ export default function ExploreScreen() {
                 {!searchQuery && displayEvents.featured.length > 0 && (
                     <View style={styles.section}>
                         <SectionHeader title="Featured" emoji="🔥" />
-                        <FlatList
+                        <CarouselFlatList
                             ref={carouselRef}
                             data={displayEvents.featured}
-                            keyExtractor={(e) => e.id}
+                            keyExtractor={(e: Event) => e.id}
                             horizontal
                             showsHorizontalScrollIndicator={false}
                             pagingEnabled={false}
                             snapToInterval={HERO_CARD_WIDTH + 16}
                             decelerationRate="fast"
                             contentContainerStyle={styles.heroCarousel}
-                            renderItem={({ item, index }) => (
+                            renderItem={({ item, index }: { item: Event; index: number }) => (
                                 <HeroEventCard event={item} index={index} />
                             )}
                             onScrollToIndexFailed={() => {}}
-                            onMomentumScrollEnd={(e) => {
+                            onMomentumScrollEnd={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
                                 const idx = Math.round(
                                     e.nativeEvent.contentOffset.x / (HERO_CARD_WIDTH + 16)
                                 );
@@ -712,6 +1083,10 @@ export default function ExploreScreen() {
                         <SectionHeader
                             title={searchQuery ? `Results (${filteredEvents.length})` : "All Events"}
                             emoji={searchQuery ? undefined : "🎭"}
+                            action={!searchQuery ? {
+                                label: "Map View",
+                                onPress: () => router.push("/map" as any),
+                            } : undefined}
                         />
                         <FlashList
                             data={searchQuery ? filteredEvents : displayEvents.upcoming}
@@ -722,6 +1097,19 @@ export default function ExploreScreen() {
                             )}
                             scrollEnabled={false}
                         />
+                        {hasMore ? (
+                            <Pressable
+                                onPress={() => {
+                                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    void handleLoadMore();
+                                }}
+                                style={styles.loadMoreButton}
+                            >
+                                <Text style={styles.loadMoreButtonText}>
+                                    {loadingMore ? "Loading More..." : "Load More Events"}
+                                </Text>
+                            </Pressable>
+                        ) : null}
                     </View>
                 )}
 
@@ -856,6 +1244,54 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
 
+    filterStack: {
+        marginBottom: 8,
+    },
+    filterRowHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 8,
+    },
+    filterLabel: {
+        color: colors.goldMetallic,
+        fontSize: 11,
+        fontWeight: "700",
+        letterSpacing: 1.2,
+        textTransform: "uppercase",
+        marginBottom: 8,
+    },
+    filterResetText: {
+        color: colors.iris,
+        fontSize: 13,
+        fontWeight: "600",
+    },
+    filterRow: {
+        paddingRight: 20,
+        marginBottom: 12,
+    },
+    filterPill: {
+        backgroundColor: colors.base[50],
+        borderRadius: radii.pill,
+        paddingVertical: 9,
+        paddingHorizontal: 14,
+        borderWidth: 1,
+        borderColor: colors.base[200],
+        marginRight: 8,
+    },
+    filterPillActive: {
+        backgroundColor: "rgba(244, 74, 34, 0.18)",
+        borderColor: "rgba(244, 74, 34, 0.45)",
+    },
+    filterPillText: {
+        color: colors.goldMetallic,
+        fontSize: 13,
+        fontWeight: "600",
+    },
+    filterPillTextActive: {
+        color: colors.gold,
+    },
+
     // Categories
     categoriesContainer: {
         paddingRight: 20,
@@ -898,6 +1334,23 @@ const styles = StyleSheet.create({
     // Section
     section: {
         marginTop: 24,
+    },
+    loadMoreButton: {
+        marginTop: 14,
+        alignSelf: "center",
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        borderRadius: radii.pill,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.12)",
+        backgroundColor: "rgba(255,255,255,0.05)",
+    },
+    loadMoreButtonText: {
+        color: colors.gold,
+        fontSize: 12,
+        fontWeight: "800",
+        textTransform: "uppercase",
+        letterSpacing: 0.7,
     },
     sectionHeader: {
         flexDirection: "row",

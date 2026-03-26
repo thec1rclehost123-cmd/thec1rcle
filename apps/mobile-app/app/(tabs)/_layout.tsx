@@ -94,6 +94,7 @@ function PremiumTabIcon({
         opacity: interpolate(translateY.value, [0, -6], [0.6, 1]),
         transform: [{ scale: interpolate(translateY.value, [0, -6], [0.9, 1]) }],
     }));
+    const TabIcon = Icon as any;
 
     return (
         <View style={styles.tabIconContainer}>
@@ -103,7 +104,7 @@ function PremiumTabIcon({
 
             {/* Icon with animation */}
             <Animated.View style={[styles.iconWrapper, iconStyle]}>
-                <Icon
+                <TabIcon
                     size={focused ? 26 : 22}
                     color={focused ? colors.iris : colors.goldMetallic}
                     strokeWidth={focused ? 2.2 : 1.8}

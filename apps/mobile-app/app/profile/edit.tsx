@@ -29,9 +29,10 @@ import Animated, {
     withSpring,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import { updateProfile as updateAuthProfile } from "firebase/auth";
 import { useAuthStore } from "@/store/authStore";
-import { getFirebaseDb, getFirebaseStorage } from "@/lib/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import { useProfileStore } from "@/store/profileStore";
+import { getFirebaseAuth, getFirebaseStorage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { colors, radii, gradients } from "@/lib/design/theme";
 import { trackScreen, track } from "@/lib/analytics";
@@ -121,7 +122,12 @@ function CitySelector({
 
 export default function EditProfileScreen() {
     const { user, setUser } = useAuthStore();
+    const profile = useProfileStore((state) => state.profile);
+    const profileLoading = useProfileStore((state) => state.loading);
+    const loadProfile = useProfileStore((state) => state.loadProfile);
+    const updateProfile = useProfileStore((state) => state.updateProfile);
     const insets = useSafeAreaInsets();
+    const hydratedUserId = useRef<string | null>(null);
 
     // Form state
     const [displayName, setDisplayName] = useState(user?.displayName || "");
@@ -137,14 +143,24 @@ export default function EditProfileScreen() {
 
     useEffect(() => {
         trackScreen("EditProfile");
-        loadUserProfile();
     }, []);
 
-    const loadUserProfile = async () => {
+    useEffect(() => {
         if (!user?.uid) return;
-        // Load additional user data from Firestore if needed
-        // For now, using authStore data
-    };
+        hydratedUserId.current = null;
+        void loadProfile(user.uid);
+    }, [user?.uid, loadProfile]);
+
+    useEffect(() => {
+        if (!user?.uid || hydratedUserId.current === user.uid) return;
+        if (profileLoading && (!profile || profile.uid !== user.uid)) return;
+
+        setDisplayName(profile?.displayName ?? user.displayName ?? "");
+        setBio(profile?.bio ?? "");
+        setCity(profile?.city ?? "");
+        setPhotoURL(profile?.photoURL ?? user.photoURL ?? "");
+        hydratedUserId.current = user.uid;
+    }, [user?.uid, user?.displayName, user?.photoURL, profile, profileLoading]);
 
     const handlePickImage = async () => {
         try {
@@ -255,18 +271,25 @@ export default function EditProfileScreen() {
                 bio: bio.trim(),
                 city: city.trim(),
                 photoURL,
-                updatedAt: new Date(),
             };
 
-            // Update Firestore
-            await updateDoc(doc(getFirebaseDb(), "users", user.uid), updates);
-
-            // Update local state
-            setUser({
-                ...user,
-                displayName: updates.displayName,
-                photoURL: updates.photoURL,
+            const success = await updateProfile(user.uid, {
+                email: user.email ?? profile?.email ?? "",
+                ...updates,
             });
+
+            if (!success) {
+                throw new Error("Profile update failed");
+            }
+
+            const authUser = getFirebaseAuth().currentUser;
+            if (authUser) {
+                await updateAuthProfile(authUser, {
+                    displayName: updates.displayName,
+                    photoURL: updates.photoURL || null,
+                });
+                setUser(getFirebaseAuth().currentUser);
+            }
 
             track("profile_updated", { hasPhoto: !!photoURL, hasCity: !!city });
 
@@ -412,7 +435,7 @@ export default function EditProfileScreen() {
                         <Text style={styles.sectionTitle}>Account Info</Text>
                         <View style={styles.readOnlyItem}>
                             <Text style={styles.readOnlyLabel}>Email</Text>
-                            <Text style={styles.readOnlyValue}>{user?.email}</Text>
+                            <Text style={styles.readOnlyValue}>{profile?.email || user?.email}</Text>
                         </View>
                         <Text style={styles.readOnlyHint}>
                             Contact support to change your email address

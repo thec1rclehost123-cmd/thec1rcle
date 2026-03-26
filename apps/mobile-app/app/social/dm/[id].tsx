@@ -198,7 +198,7 @@ export default function DirectMessageScreen() {
         const unsubConvo = onSnapshot(convoRef, async (snapshot) => {
             if (snapshot.exists()) {
                 const data = snapshot.data() as PrivateConversation;
-                setConversation({ id: snapshot.id, ...data });
+                setConversation({ ...data, id: snapshot.id });
 
                 // Get other user's name
                 const otherUserId = data.participants.find(p => p !== user.uid);

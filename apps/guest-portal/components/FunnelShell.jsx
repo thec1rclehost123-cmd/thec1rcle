@@ -18,7 +18,7 @@ export default function FunnelShell({ children, title, backHref, showLogo = true
 
             {/* Minimal Sub-Header - Adjusted for Global Navbar */}
             <header className="relative z-40 w-full pt-[40px] sm:pt-[60px]">
-                <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-8 md:px-12">
+                <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-4 sm:px-8 md:px-12">
                     <div className="flex items-center gap-6">
                         <button
                             onClick={() => router.back()}
@@ -39,7 +39,7 @@ export default function FunnelShell({ children, title, backHref, showLogo = true
             </header>
 
             {/* Content Area - Centered and Viewport Constrained */}
-            <main className="flex-1 flex flex-col relative z-10 w-full max-w-[1400px] mx-auto px-8 md:px-12">
+            <main className="flex-1 flex flex-col relative z-10 w-full max-w-[1400px] mx-auto px-4 sm:px-8 md:px-12">
                 <motion.div
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}

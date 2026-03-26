@@ -95,7 +95,7 @@ export default function OrderConfirmationDetails({ order, event }) {
                                 <h2 className="text-2xl font-black uppercase tracking-tight text-white leading-tight">{event.title}</h2>
                             </div>
 
-                            <div className="flex justify-center gap-12">
+                            <div className="flex justify-center gap-3 sm:gap-10">
                                 <div className="space-y-1">
                                     <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Event Date</p>
                                     <p className="text-xs font-black text-white uppercase">{event.date?.split(',')[0] ?? 'TBD'}</p>

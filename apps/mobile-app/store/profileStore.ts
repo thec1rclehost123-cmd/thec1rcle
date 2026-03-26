@@ -4,8 +4,8 @@
  */
 
 import { create } from "zustand";
-import { getFirebaseDb } from "@/lib/firebase";
-import { doc, getDoc, setDoc, updateDoc, onSnapshot } from "firebase/firestore";
+import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
+import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 
 export interface UserProfile {
     uid: string;
@@ -45,6 +45,37 @@ interface ProfileState {
     clearProfile: () => void;
 }
 
+function omitUndefined<T extends Record<string, any>>(value: T): T {
+    return Object.fromEntries(
+        Object.entries(value).filter(([, entry]) => entry !== undefined)
+    ) as T;
+}
+
+function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProfile {
+    const authUser = getFirebaseAuth().currentUser;
+    const now = new Date().toISOString();
+    const rawData = (data ?? {}) as Record<string, any>;
+
+    return {
+        uid: userId,
+        email: rawData.email ?? authUser?.email ?? "",
+        displayName: rawData.displayName ?? rawData.name ?? authUser?.displayName ?? "",
+        photoURL: rawData.photoURL ?? rawData.avatar ?? authUser?.photoURL ?? "",
+        bio: rawData.bio ?? "",
+        city: rawData.city ?? "",
+        phone: rawData.phone ?? rawData.phoneNumber ?? authUser?.phoneNumber ?? "",
+        gender: data?.gender,
+        dateOfBirth: data?.dateOfBirth,
+        createdAt: rawData.createdAt ?? authUser?.metadata.creationTime ?? now,
+        updatedAt: rawData.updatedAt ?? now,
+        eventsAttended: data?.eventsAttended,
+        connections: data?.connections,
+        vibeTags: data?.vibeTags,
+        isVerified: data?.isVerified,
+        isPremium: data?.isPremium,
+    };
+}
+
 export const useProfileStore = create<ProfileState>((set, get) => ({
     profile: null,
     loading: false,
@@ -60,25 +91,13 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
             const snapshot = await getDoc(profileRef);
 
             if (snapshot.exists()) {
-                const data = snapshot.data();
                 set({
-                    profile: {
-                        uid: userId,
-                        ...data,
-                    } as UserProfile,
+                    profile: normalizeProfile(userId, snapshot.data()),
                     loading: false,
                 });
             } else {
-                // Create initial profile
-                const initialProfile: UserProfile = {
-                    uid: userId,
-                    email: "",
-                    displayName: "",
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                };
-
-                await setDoc(profileRef, initialProfile);
+                const initialProfile = normalizeProfile(userId);
+                await setDoc(profileRef, initialProfile, { merge: true });
                 set({ profile: initialProfile, loading: false });
             }
         } catch (error: any) {
@@ -89,26 +108,27 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
     updateProfile: async (userId: string, updates: Partial<UserProfile>) => {
         const { profile } = get();
+        const now = new Date().toISOString();
+        const nextProfile = normalizeProfile(userId, {
+            ...(profile ?? {}),
+            ...updates,
+            updatedAt: now,
+        });
 
         // Optimistic update
-        if (profile) {
-            set({
-                profile: {
-                    ...profile,
-                    ...updates,
-                    updatedAt: new Date().toISOString(),
-                },
-            });
-        }
+        set({ profile: nextProfile, error: null });
 
         try {
             const db = getFirebaseDb();
             const profileRef = doc(db, "users", userId);
-
-            await updateDoc(profileRef, {
+            const payload = omitUndefined({
+                ...nextProfile,
                 ...updates,
-                updatedAt: new Date().toISOString(),
+                uid: userId,
+                updatedAt: now,
             });
+
+            await setDoc(profileRef, payload, { merge: true });
 
             return true;
         } catch (error: any) {
@@ -134,10 +154,13 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         const unsubscribe = onSnapshot(profileRef, (snapshot) => {
             if (snapshot.exists()) {
                 set({
-                    profile: {
-                        uid: userId,
-                        ...snapshot.data(),
-                    } as UserProfile,
+                    profile: normalizeProfile(userId, snapshot.data()),
+                    loading: false,
+                });
+            } else {
+                set({
+                    profile: normalizeProfile(userId),
+                    loading: false,
                 });
             }
         }, (error) => {

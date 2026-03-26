@@ -12,7 +12,7 @@ import { useToast } from "./providers/ToastProvider";
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     const { login, register, loginWithGoogle } = useAuth();
     const [mode, setMode] = useState("login"); // "login" | "register" | "email_otp"
-    const [form, setForm] = useState({ email: "", password: "", name: "", gender: "" });
+    const [form, setForm] = useState({ email: "", password: "", name: "", gender: "", age: "" });
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -47,7 +47,22 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                     });
                     throw new Error("Select a gender to continue.");
                 }
-                await register(form.email, form.password, form.name, form.gender);
+                if (!form.age) {
+                    toast({
+                        type: "error",
+                        message: "Age is required."
+                    });
+                    throw new Error("Age is required.");
+                }
+                const ageNum = parseInt(form.age, 10);
+                if (isNaN(ageNum) || ageNum < 18 || ageNum > 100) {
+                    toast({
+                        type: "error",
+                        message: "Please enter a valid age (18+)."
+                    });
+                    throw new Error("Please enter a valid age (18+).");
+                }
+                await register(form.email, form.password, form.name, form.gender, form.age);
             }
             handleSuccess();
         } catch (err) {
@@ -87,8 +102,9 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 <div className="absolute -bottom-24 -right-24 h-48 w-48 rounded-full bg-emerald-500/10 blur-[80px]" />
 
                 <button
+                    type="button"
                     onClick={onClose}
-                    className="absolute right-4 top-4 p-4 text-white/40 transition hover:bg-white/5 rounded-full hover:text-white"
+                    className="absolute right-4 top-4 z-50 p-4 text-white/40 transition hover:bg-white/5 rounded-full hover:text-white"
                     aria-label="Close"
                 >
                     <X size={24} />
@@ -105,13 +121,15 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                     </div>
 
                     {error && (
-                        <div className="mb-6 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-center text-sm text-red-400">
+                        <div className="mb-6 relative overflow-hidden rounded-2xl border border-orange/20 bg-orange/10 p-4 text-center text-sm text-orange shadow-[0_0_20px_rgba(244,74,34,0.1)]">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-orange to-transparent opacity-50"></div>
                             {error}
                         </div>
                     )}
 
                     <div className="space-y-4">
                         <button
+                            type="button"
                             onClick={handleGoogleLogin}
                             disabled={loading}
                             className="flex w-full items-center justify-center gap-4 h-14 rounded-2xl bg-white text-black font-black uppercase tracking-[0.2em] text-[10px] hover:bg-zinc-100 active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_0_20px_rgba(255,255,255,0.05)]"
@@ -161,6 +179,19 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                                             className="w-full rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-white placeholder:text-white/20 focus:border-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all"
                                         />
                                     </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] uppercase tracking-[0.2em] text-white/40 ml-4">Age</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            min="18"
+                                            max="100"
+                                            placeholder="18"
+                                            value={form.age}
+                                            onChange={(e) => setForm({ ...form, age: e.target.value })}
+                                            className="w-full rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-white placeholder:text-white/20 focus:border-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all"
+                                        />
+                                    </div>
                                     <GenderSelector
                                         value={form.gender}
                                         onChange={(val) => setForm({ ...form, gender: val })}
@@ -203,6 +234,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
                         <div className="mt-8 text-center">
                             <button
+                                type="button"
                                 onClick={() => setMode(mode === "login" ? "register" : "login")}
                                 className="text-xs font-medium text-white/40 transition hover:text-white py-3 px-6 rounded-xl hover:bg-white/5"
                             >

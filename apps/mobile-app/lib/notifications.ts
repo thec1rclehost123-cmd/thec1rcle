@@ -12,6 +12,8 @@ const PUSH_TOKEN_KEY = "@c1rcle/pushToken";
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
         shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
         shouldPlaySound: true,
         shouldSetBadge: true,
     }),
@@ -117,7 +119,10 @@ export async function scheduleEventReminder(
         `🎉 ${eventTitle} starts soon!`,
         `Your event starts in ${hoursBeforeEvent} hour${hoursBeforeEvent > 1 ? "s" : ""}. Get ready!`,
         { eventId, type: "event_reminder" },
-        { date: reminderTime }
+        {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: reminderTime,
+        }
     );
 
     return id;

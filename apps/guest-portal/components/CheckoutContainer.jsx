@@ -391,6 +391,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     }, [displayFees]);
 
     const handleTicketChange = (ticketId, delta) => {
+        const totalFreeQuantity = selectedTickets.reduce((sum, st) => sum + (Number(st.price || 0) === 0 ? st.quantity : 0), 0);
         const updated = displayTiers.map(t => {
             const sel = selectedTickets.find(st => st.id === t.id);
             const currentQty = sel ? sel.quantity : 0;
@@ -400,7 +401,15 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                     return { ...t, quantity: currentQty };
                 }
                 newQty = Math.max(0, currentQty + delta);
-                const available = t._liveAvailable ?? Number(t.remaining ?? t.quantity ?? 10);
+                const isFree = Number(t.price || 0) === 0;
+                const rawAvailable = t._liveAvailable ?? Number(t.remaining ?? t.quantity ?? 10);
+                
+                let limit = isFree ? 1 : (event.maxTicketsPerOrder || 10);
+                if (isFree) {
+                    limit = Math.max(0, Math.min(1, currentQty + (1 - totalFreeQuantity)));
+                }
+
+                const available = Math.min(rawAvailable, limit);
                 if (newQty > available) newQty = available;
             }
             return { ...t, id: t.id, quantity: newQty, price: Number(t.price || 0), name: t.name };
@@ -600,7 +609,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
 
     return (
         <div className="flex-1 flex items-center justify-center w-full pb-6 md:pb-10">
-            <div className="w-full max-w-[1200px] grid grid-cols-1 md:grid-cols-[1fr_380px] gap-8 lg:gap-16 items-center px-6">
+            <div className="w-full max-w-[1200px] grid grid-cols-1 md:grid-cols-[1fr_380px] gap-8 lg:gap-16 items-center px-3 sm:px-6">
 
                 {/* Main Action Area */}
                 <div className="relative flex flex-col h-full overflow-hidden">
@@ -627,26 +636,35 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                             <motion.div key="step1" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-8 flex flex-col">
                                 <div className="space-y-4">
                                     <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Step 01</h2>
-                                    <h1 className="text-4xl font-black uppercase tracking-tight text-white leading-[0.9]">Select your <br />Tickets</h1>
+                                    <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-white leading-[0.9]">Select your <br />Tickets</h1>
                                 </div>
                                 <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1 py-1">
                                     {displayTiers.map((ticket) => {
                                         const sel = selectedTickets.find(st => st.id === ticket.id);
                                         const qty = sel ? sel.quantity : 0;
-                                        const available = ticket._liveAvailable ?? Number(ticket.remaining ?? ticket.quantity ?? 0);
-                                        const isSoldOut = available <= 0;
-                                        const isLow = !isSoldOut && available <= 5;
+                                        const totalFreeQuantity = selectedTickets.reduce((sum, st) => sum + (Number(st.price || 0) === 0 ? st.quantity : 0), 0);
+                                        const isFree = Number(ticket.price || 0) === 0;
+                                        const rawAvailable = ticket._liveAvailable ?? Number(ticket.remaining ?? ticket.quantity ?? 0);
+                                        
+                                        let ticketLimit = isFree ? 1 : (event.maxTicketsPerOrder || 10);
+                                        if (isFree) {
+                                            ticketLimit = Math.max(0, Math.min(1, qty + (1 - totalFreeQuantity)));
+                                        }
+                                        
+                                        const available = Math.min(rawAvailable, ticketLimit);
+                                        const isSoldOut = rawAvailable <= 0;
+                                        const isLow = !isSoldOut && rawAvailable <= 5;
                                         return (
-                                            <div key={ticket.id} className={`p-5 rounded-[28px] border transition-all duration-500 ${isSoldOut ? "border-red-500/30 bg-red-500/[0.03] opacity-60" : qty > 0 ? "border-orange/40 bg-orange/5" : "border-white/5 bg-white/[0.02]"}`}>
+                                            <div key={ticket.id} className={`p-5 rounded-[28px] border transition-all duration-500 ${isSoldOut ? "border-red-500/30 bg-red-500/[0.03] opacity-60" : qty > 0 ? "border-orange/20 bg-orange/5" : "border-white/5 bg-white/[0.02]"}`}>
                                                 <div className="flex items-center justify-between gap-4">
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2">
-                                                            <h3 className="text-lg font-black uppercase text-white truncate">{ticket.name}</h3>
+                                                            <h3 className="text-[16px] font-black uppercase text-white truncate">{ticket.name}</h3>
                                                             {isSoldOut && (
                                                                 <span className="text-[9px] font-black uppercase tracking-widest text-red-400 border border-red-500/40 px-2 py-0.5 rounded-full shrink-0">Gone</span>
                                                             )}
                                                             {isLow && (
-                                                                <span className="text-[9px] font-black uppercase tracking-widest text-orange border border-orange/40 px-2 py-0.5 rounded-full shrink-0">{available} left</span>
+                                                                <span className="text-[9px] font-black uppercase tracking-widest text-orange border border-orange/40 px-2 py-0.5 rounded-full shrink-0">{rawAvailable} left</span>
                                                             )}
                                                         </div>
                                                         <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-0.5">₹{(ticket.price || 0).toLocaleString('en-IN')} • {ticket.description || "Limited Access"}</p>
@@ -654,10 +672,10 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                                     {isSoldOut ? (
                                                         <span className="text-[10px] font-black uppercase tracking-widest text-red-400/60">Sold Out</span>
                                                     ) : (
-                                                        <div className="flex items-center gap-4 bg-white/5 p-1 rounded-full border border-white/5">
-                                                            <button onClick={() => handleTicketChange(ticket.id, -1)} disabled={qty === 0} className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-20">-</button>
-                                                            <span className="w-4 text-center font-bold text-sm text-white">{qty}</span>
-                                                            <button onClick={() => handleTicketChange(ticket.id, 1)} disabled={qty >= available} className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-20">+</button>
+                                                        <div className="flex items-center gap-3 bg-white/[0.03] p-1 rounded-full border border-white/[0.04]">
+                                                            <button onClick={() => handleTicketChange(ticket.id, -1)} disabled={qty === 0} className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-20">-</button>
+                                                            <span className="w-5 text-center font-bold text-[14px] text-white">{qty}</span>
+                                                            <button onClick={() => handleTicketChange(ticket.id, 1)} disabled={qty >= available} className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-20">+</button>
                                                         </div>
                                                     )}
                                                 </div>
@@ -672,9 +690,12 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     {isAboveMax && (
                                         <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest text-center">Maximum {maxTickets} tickets allowed per account</p>
                                     )}
-                                    <button onClick={() => setStep(2)} disabled={!canProceedStep1} className="w-full h-16 flex items-center justify-center rounded-full bg-white text-black font-black uppercase tracking-[0.3em] transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-30 group shadow-[0_20px_40px_rgba(255,255,255,0.1)]">
-                                        Continue to Details
-                                        <ArrowRight className="ml-3 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                                    <button 
+                                        onClick={() => setStep(2)} 
+                                        disabled={!canProceedStep1} 
+                                        className="w-full h-[64px] flex items-center justify-center rounded-full bg-[#CA3E22] text-white font-black uppercase tracking-[0.3em] transition-all hover:bg-[#D44426] hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:hover:scale-100 disabled:hover:bg-[#CA3E22] shadow-[0_4px_30px_rgba(202,62,34,0.3)] text-[12px]"
+                                    >
+                                        CONTINUE • ₹{subtotal.toLocaleString('en-IN')}
                                     </button>
                                 </div>
                             </motion.div>
@@ -687,20 +708,20 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                         <button onClick={() => setStep(1)} className="text-white/40 hover:text-white transition-colors"><ArrowLeft className="h-5 w-5" /></button>
                                         <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Step 02</h2>
                                     </div>
-                                    <h1 className="text-4xl font-black uppercase tracking-tight text-white leading-[0.9]">Enter your <br />Details</h1>
+                                    <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-white leading-[0.9]">Enter your <br />Details</h1>
                                 </div>
                                 <div className="space-y-6 flex-1 flex flex-col justify-center">
                                     <div className="space-y-2 group">
                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-orange ml-1">Full Name</label>
-                                        <input type="text" value={attendeeDetails.name} onChange={(e) => setAttendeeDetails({ ...attendeeDetails, name: e.target.value })} placeholder="Full Name" className="w-full bg-white/5 border-b border-white/10 p-4 text-sm font-bold tracking-widest text-white placeholder:text-white/10 focus:outline-none focus:border-orange transition-all duration-500" />
+                                        <input type="text" value={attendeeDetails.name} onChange={(e) => setAttendeeDetails({ ...attendeeDetails, name: e.target.value })} placeholder="Full Name" className="w-full bg-white/5 border-b border-white/10 p-4 text-[16px] font-bold tracking-widest text-white placeholder:text-white/10 focus:outline-none focus:border-orange transition-all duration-500" />
                                     </div>
                                     <div className="space-y-2 group">
                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-orange ml-1">Email Address</label>
-                                        <input type="email" value={attendeeDetails.email} onChange={(e) => setAttendeeDetails({ ...attendeeDetails, email: e.target.value })} placeholder="Email" className="w-full bg-white/5 border-b border-white/10 p-4 text-sm font-bold tracking-widest text-white placeholder:text-white/10 focus:outline-none focus:border-orange transition-all duration-500" />
+                                        <input type="email" value={attendeeDetails.email} onChange={(e) => setAttendeeDetails({ ...attendeeDetails, email: e.target.value })} placeholder="Email" className="w-full bg-white/5 border-b border-white/10 p-4 text-[16px] font-bold tracking-widest text-white placeholder:text-white/10 focus:outline-none focus:border-orange transition-all duration-500" />
                                     </div>
                                     <div className="space-y-2 group">
                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-orange ml-1">Phone Number (Opt)</label>
-                                        <input type="tel" value={attendeeDetails.phone} onChange={(e) => setAttendeeDetails({ ...attendeeDetails, phone: e.target.value })} placeholder="+91" className="w-full bg-white/5 border-b border-white/10 p-4 text-sm font-bold tracking-widest text-white placeholder:text-white/10 focus:outline-none focus:border-orange transition-all duration-500" />
+                                        <input type="tel" value={attendeeDetails.phone} onChange={(e) => setAttendeeDetails({ ...attendeeDetails, phone: e.target.value })} placeholder="+91" className="w-full bg-white/5 border-b border-white/10 p-4 text-[16px] font-bold tracking-widest text-white placeholder:text-white/10 focus:outline-none focus:border-orange transition-all duration-500" />
                                     </div>
                                 </div>
                                 <button onClick={() => setStep(3)} disabled={!canProceedStep2} className="w-full h-16 flex items-center justify-center rounded-full bg-white text-black font-black uppercase tracking-[0.3em] transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-30 group shadow-[0_20px_40px_rgba(255,255,255,0.1)]">
@@ -717,7 +738,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                         <button onClick={() => setStep(2)} className="text-white/40 hover:text-white transition-colors"><ArrowLeft className="h-5 w-5" /></button>
                                         <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Step 03</h2>
                                     </div>
-                                    <h1 className="text-4xl font-black uppercase tracking-tight text-white leading-[0.9]">Payment & <br />Checkout</h1>
+                                    <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-white leading-[0.9]">Payment & <br />Checkout</h1>
                                 </div>
                                 {!isFreeOrder && (
                                     <div className="space-y-8 flex-1 flex flex-col justify-center">

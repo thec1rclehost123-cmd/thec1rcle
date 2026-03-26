@@ -12,6 +12,8 @@ import {
     StyleSheet,
     Dimensions,
     FlatList,
+    type NativeSyntheticEvent,
+    type NativeScrollEvent,
     type ListRenderItemInfo,
     type ViewToken,
 } from "react-native";
@@ -31,6 +33,7 @@ import { Compass, Ticket, Shield } from "lucide-react-native";
 import { colors } from "@/lib/design/theme";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const SlidesFlatList = FlatList as any;
 
 const ONBOARDING_KEY = "c1rcle_onboarding_complete";
 
@@ -201,17 +204,17 @@ export default function OnboardingScreen() {
             )}
 
             {/* Slides */}
-            <FlatList
+            <SlidesFlatList
                 ref={flatListRef}
                 data={SLIDES}
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
                 bounces={false}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item: OnboardingSlide) => item.id}
                 onViewableItemsChanged={onViewableItemsChanged}
                 viewabilityConfig={viewabilityConfig}
-                onScroll={(e) => {
+                onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
                     scrollX.value = e.nativeEvent.contentOffset.x;
                 }}
                 scrollEventThrottle={16}

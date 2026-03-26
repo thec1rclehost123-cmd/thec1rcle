@@ -269,7 +269,8 @@ export function OperatingCalendar() {
             </div>
 
             {/* Unified Calendar Block */}
-            <div className="flex flex-col lg:flex-row bg-surface-base border border-border-strong rounded-[2.5rem] overflow-hidden shadow-2xl flex-1 min-h-0">
+            <div className="overflow-x-auto scrollbar-hide -mx-1">
+            <div className="flex flex-col lg:flex-row bg-surface-base border border-border-strong rounded-[2.5rem] overflow-hidden shadow-2xl flex-1 min-h-0 min-w-[360px]">
                 
                 {/* Calendar Side */}
                 <div className="lg:flex-[2.2] flex flex-col border-b lg:border-b-0 lg:border-r border-border-subtle">
@@ -372,6 +373,7 @@ export function OperatingCalendar() {
                         )}
                     </AnimatePresence>
                 </div>
+            </div>
             </div>
         </div>
     );

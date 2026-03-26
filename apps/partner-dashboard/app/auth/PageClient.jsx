@@ -99,9 +99,10 @@ function AuthContent() {
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
-                        className={`mb-6 overflow-hidden rounded-2xl border ${status.type === "error" ? "border-red-500/20 bg-red-500/10 text-red-400" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-                            } px-4 py-3 text-sm text-center`}
+                        className={`mb-6 relative overflow-hidden rounded-2xl border px-4 py-3 text-[13px] font-semibold text-center backdrop-blur-md ${status.type === "error" ? "border-orange-500/30 bg-orange-500/10 text-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.15)]" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+                            }`}
                     >
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-current to-transparent opacity-40"></div>
                         {status.message}
                     </motion.div>
                 )}

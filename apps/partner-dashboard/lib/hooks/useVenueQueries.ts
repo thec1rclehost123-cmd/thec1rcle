@@ -30,13 +30,14 @@ function useAuthenticatedQuery<T = any>(
 
 /**
  * Hook: Venue KPI overview summary
- * Used by KPIGridModule
+ * Used by KPIGridModule — range can be "today", "7d", "30d", "custom:YYYY-MM-DD:YYYY-MM-DD"
  */
-export function useVenueOverviewSummary(venueId: string | undefined) {
+export function useVenueOverviewSummary(venueId: string | undefined, range?: string) {
+    const rangeParam = range ? `&range=${encodeURIComponent(range)}` : "";
     return useAuthenticatedQuery(
-        ["venue-overview-summary", venueId || ""],
-        `/api/venue/overview/summary?venueId=${venueId}`,
-        { enabled: !!venueId, staleTime: 5 * 60 * 1000 }
+        ["venue-overview-summary", venueId || "", range || "30d"],
+        `/api/venue/overview/summary?venueId=${venueId}${rangeParam}`,
+        { enabled: !!venueId, staleTime: 2 * 60 * 1000 }
     );
 }
 

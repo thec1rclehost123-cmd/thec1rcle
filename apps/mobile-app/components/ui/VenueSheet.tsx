@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { router } from "expo-router";
 import { apiFetch } from "@/lib/api";
 import { colors, radii } from "@/lib/design/theme";
 
@@ -174,8 +175,24 @@ export function VenueSheet({
                         )}
 
                         {/* Directions CTA */}
-                        {(coords || displayArea) && (
-                            <Animated.View entering={FadeInDown.delay(200).springify()}>
+                        {(coords || displayArea || venueId) && (
+                            <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.ctaStack}>
+                                {venueId ? (
+                                    <Pressable
+                                        onPress={() => {
+                                            onClose();
+                                            router.push(`/venue/${venueId}` as never);
+                                        }}
+                                        style={styles.directionBtn}
+                                    >
+                                        <LinearGradient
+                                            colors={["rgba(255,255,255,0.1)", "rgba(255,255,255,0.04)"]}
+                                            style={styles.directionGradient}
+                                        >
+                                            <Text style={styles.directionBtnText}>✨  View Venue Page</Text>
+                                        </LinearGradient>
+                                    </Pressable>
+                                ) : null}
                                 <Pressable onPress={openInMaps} style={styles.directionBtn}>
                                     <LinearGradient
                                         colors={["rgba(244,74,34,0.2)", "rgba(244,74,34,0.08)"]}
@@ -229,6 +246,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 24,
         paddingBottom: 60,
+    },
+    ctaStack: {
+        gap: 12,
     },
     hero: {
         alignItems: "center",

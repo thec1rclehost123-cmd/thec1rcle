@@ -139,8 +139,8 @@ const TransferAction = ({ action, onAccept, onDecline }) => {
     const isGenderMismatch = error?.toLowerCase().includes("gender mismatch");
 
     return (
-        <div className="relative group overflow-hidden bg-white dark:bg-zinc-900 border border-black/5 dark:border-white/5 rounded-[32px] p-6 mb-8 transition-all hover:shadow-2xl">
-            <div className="flex gap-6 items-center">
+        <div className="relative group overflow-hidden bg-white dark:bg-zinc-900 border border-black/5 dark:border-white/5 rounded-[32px] p-4 sm:p-6 mb-8 transition-all hover:shadow-2xl">
+            <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 sm:items-center">
                 <div className="relative w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0">
                     <ShimmerImage src={action.posterUrl || "/events/placeholder.svg"} fill sizes="(max-width: 768px) 100vw, 200px" className="object-cover" alt="" />
                 </div>
@@ -154,9 +154,9 @@ const TransferAction = ({ action, onAccept, onDecline }) => {
                         Sent by {action.transfer?.senderName || 'C1RCLE User'}
                     </p>
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 sm:ml-auto">
                     {error ? (
-                        <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-red-500/10 border border-red-500/20 max-w-[200px]">
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-red-500/10 border border-red-500/20 max-w-full sm:max-w-[200px]">
                             <svg className="w-3 h-3 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                             </svg>

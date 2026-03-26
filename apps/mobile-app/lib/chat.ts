@@ -156,7 +156,7 @@ export async function sendEventMessage(
             eventChatId,
             senderId,
             senderName,
-            senderAvatar: senderAvatar || null,
+            senderAvatar: senderAvatar || undefined,
             content,
             type: "text",
             createdAt: serverTimestamp(),
@@ -291,7 +291,7 @@ export async function startDirectChat(
         // Create new direct chat
         const chatData: Omit<DirectChat, "id"> = {
             participants: [userId, otherUserId],
-            eventId: eventId || null,
+            eventId: eventId || undefined,
             createdAt: serverTimestamp(),
         };
 

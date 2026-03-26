@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     View,
     Text,
@@ -14,6 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTicketsStore, Order } from "@/store/ticketsStore";
 import { useAuthStore } from "@/store/authStore";
+import { useCartStore } from "@/store/cartStore";
 import { cacheUserOrders, getCachedUserOrders } from "@/lib/cache";
 import { shareEventLink } from "@/lib/deeplinks";
 import { addToWallet, isWalletAvailable, PassData } from "@/lib/wallet";
@@ -34,6 +35,7 @@ import { ErrorState, NetworkError } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/Skeleton";
 import { safeDate, formatEventDate, formatEventTime } from "@/lib/utils/date";
 import { trackScreen } from "@/lib/analytics";
+import { buildCalendarEventUrl } from "@/lib/calendar";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -76,6 +78,12 @@ function QRModal({ visible, order, onClose }: {
             " at " + d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
     })();
     const shortId = order.id.replace(/-/g, "").substring(0, 8).toUpperCase();
+    const calendarUrl = buildCalendarEventUrl({
+        title: order.eventTitle || "THE C1RCLE Event",
+        startDate: order.eventStartDate || order.eventDate,
+        location: order.venueLocation,
+        description: `${ticketType} · ${totalTickets} ticket${totalTickets > 1 ? "s" : ""}`,
+    });
 
     const handleTransfer = () => {
         onClose();
@@ -212,7 +220,11 @@ function QRModal({ visible, order, onClose }: {
                             <ActionRow
                                 icon="📅"
                                 label="Add to Calendar"
-                                onPress={() => {/* expo-calendar — Phase 8 */ }}
+                                onPress={() => {
+                                    if (calendarUrl) {
+                                        Linking.openURL(calendarUrl);
+                                    }
+                                }}
                             />
                             {walletAvailable && (
                                 <>
@@ -470,9 +482,24 @@ function TabButton({
     );
 }
 
+function getOrderGroupLabel(order: Order): string {
+    const date = safeDate(order.eventDate || order.eventStartDate || order.createdAt);
+    if (!date) {
+        return "Flexible Plans";
+    }
+
+    return date.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+    });
+}
+
 export default function TicketsScreen() {
     const { orders, loading, error, fetchUserOrders } = useTicketsStore();
     const { user } = useAuthStore();
+    const pendingReservation = useCartStore((state) => state.pendingReservation);
+    const pendingPaymentOrderId = useCartStore((state) => state.pendingPaymentOrderId);
+    const clearPendingReservation = useCartStore((state) => state.clearPendingReservation);
     const insets = useSafeAreaInsets();
     const { orderId } = useLocalSearchParams<{ orderId?: string }>();
 
@@ -532,6 +559,29 @@ export default function TicketsScreen() {
         return (safeDate(o.eventDate)?.getTime() ?? 0) < nowMs;
     });
     const displayedOrders = activeTab === "upcoming" ? upcomingOrders : pastOrders;
+    const showPendingReservationBanner =
+        Boolean(pendingReservation) &&
+        Boolean(pendingPaymentOrderId) &&
+        new Date(pendingReservation!.expiresAt).getTime() > Date.now();
+    const groupedDisplayedOrders = useMemo(() => {
+        const groups = new Map<string, Order[]>();
+
+        displayedOrders.forEach((order) => {
+            const label = getOrderGroupLabel(order);
+            const current = groups.get(label) || [];
+            current.push(order);
+            groups.set(label, current);
+        });
+
+        return [...groups.entries()].map(([label, groupedOrders]) => ({
+            label,
+            orders: groupedOrders.sort((left, right) => {
+                const leftTime = safeDate(left.eventDate || left.eventStartDate || left.createdAt)?.getTime() ?? 0;
+                const rightTime = safeDate(right.eventDate || right.eventStartDate || right.createdAt)?.getTime() ?? 0;
+                return activeTab === "upcoming" ? leftTime - rightTime : rightTime - leftTime;
+            }),
+        }));
+    }, [activeTab, displayedOrders]);
 
     // If opened via deep link, auto-open the order sheet.
     useEffect(() => {
@@ -599,6 +649,25 @@ export default function TicketsScreen() {
                         </LinearGradient>
                     </Pressable>
 
+                    {showPendingReservationBanner && pendingReservation ? (
+                        <View style={styles.pendingReservationCard}>
+                            <View style={styles.pendingReservationCopy}>
+                                <Text style={styles.pendingReservationEyebrow}>Incomplete Payment</Text>
+                                <Text style={styles.pendingReservationTitle}>
+                                    {pendingReservation.eventTitle || "Your reserved tickets are waiting"}
+                                </Text>
+                            </View>
+                            <View style={styles.pendingReservationActions}>
+                                <Pressable onPress={clearPendingReservation}>
+                                    <Text style={styles.pendingReservationDismiss}>Dismiss</Text>
+                                </Pressable>
+                                <Pressable onPress={() => router.push("/checkout")} style={styles.pendingReservationButton}>
+                                    <Text style={styles.pendingReservationButtonText}>Resume</Text>
+                                </Pressable>
+                            </View>
+                        </View>
+                    ) : null}
+
                     {/* Tabs */}
                     <View style={styles.tabContainer}>
                         <TabButton
@@ -646,15 +715,24 @@ export default function TicketsScreen() {
 
                 {/* Tickets */}
                 <View style={styles.ticketsList}>
-                    {displayedOrders.map((order, index) => (
-                        <TicketCard
-                            key={order.id}
-                            order={order}
-                            onShowQR={() => {
-                                router.push({ pathname: "/ticket/[id]", params: { id: order.id } } as any);
-                            }}
-                            index={index}
-                        />
+                    {groupedDisplayedOrders.map((group, groupIndex) => (
+                        <View key={group.label} style={styles.ticketGroup}>
+                            <View style={styles.ticketGroupHeader}>
+                                <Text style={styles.ticketGroupTitle}>{group.label}</Text>
+                                <Text style={styles.ticketGroupMeta}>{group.orders.length} order{group.orders.length === 1 ? "" : "s"}</Text>
+                            </View>
+
+                            {group.orders.map((order, index) => (
+                                <TicketCard
+                                    key={order.id}
+                                    order={order}
+                                    onShowQR={() => {
+                                        router.push({ pathname: "/ticket/[id]", params: { id: order.id } } as any);
+                                    }}
+                                    index={groupIndex * 3 + index}
+                                />
+                            ))}
+                        </View>
                     ))}
                 </View>
 
@@ -841,6 +919,58 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: "600",
     },
+    pendingReservationCard: {
+        marginBottom: 20,
+        paddingHorizontal: 18,
+        paddingVertical: 16,
+        borderRadius: radii.xl,
+        borderWidth: 1,
+        borderColor: "rgba(244, 74, 34, 0.24)",
+        backgroundColor: "rgba(244, 74, 34, 0.08)",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+    },
+    pendingReservationCopy: {
+        flex: 1,
+    },
+    pendingReservationEyebrow: {
+        color: colors.iris,
+        fontSize: 10,
+        fontWeight: "800",
+        textTransform: "uppercase",
+        letterSpacing: 1,
+    },
+    pendingReservationTitle: {
+        color: "#fff",
+        fontSize: 13,
+        fontWeight: "700",
+        marginTop: 4,
+    },
+    pendingReservationActions: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+    },
+    pendingReservationDismiss: {
+        color: "rgba(255,255,255,0.55)",
+        fontSize: 12,
+        fontWeight: "700",
+    },
+    pendingReservationButton: {
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: radii.pill,
+        backgroundColor: colors.iris,
+    },
+    pendingReservationButtonText: {
+        color: "#fff",
+        fontSize: 12,
+        fontWeight: "800",
+        textTransform: "uppercase",
+        letterSpacing: 0.6,
+    },
 
     // Tabs
     tabContainer: {
@@ -877,6 +1007,28 @@ const styles = StyleSheet.create({
     // Ticket list
     ticketsList: {
         paddingHorizontal: 20,
+        gap: 18,
+    },
+    ticketGroup: {
+        gap: 14,
+    },
+    ticketGroupHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+    },
+    ticketGroupTitle: {
+        color: "#fff",
+        fontSize: 15,
+        fontWeight: "800",
+        letterSpacing: 0.2,
+    },
+    ticketGroupMeta: {
+        color: "rgba(255,255,255,0.45)",
+        fontSize: 12,
+        fontWeight: "700",
+        textTransform: "uppercase",
+        letterSpacing: 0.7,
     },
 
     // Full-bleed boarding-pass ticket card

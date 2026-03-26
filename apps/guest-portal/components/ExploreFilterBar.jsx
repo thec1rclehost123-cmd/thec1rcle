@@ -257,12 +257,12 @@ export default function ExploreFilterBar({
     ];
 
     return (
-        <div className="flex justify-center w-full px-4">
+        <div className="w-full overflow-x-auto scrollbar-hide px-4">
             <motion.div
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
-                className="inline-flex items-center gap-1.5 p-2 rounded-full border border-white/10 bg-[#0A0A0A] shadow-[0_20px_50px_rgba(0,0,0,0.5),0_0_40px_rgba(244,74,34,0.15)] backdrop-blur-3xl"
+                className="inline-flex min-w-max items-center gap-1.5 p-2 rounded-full border border-white/10 bg-[#0A0A0A] shadow-[0_20px_50px_rgba(0,0,0,0.5),0_0_40px_rgba(244,74,34,0.15)] backdrop-blur-3xl"
             >
                 {setSearchTerm && (
                     <>

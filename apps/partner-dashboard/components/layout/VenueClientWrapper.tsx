@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { Menu, X, PlusCircle } from "lucide-react";
+import Link from "next/link";
 import {
     LayoutDashboard,
     Zap,
@@ -155,7 +156,14 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
                             <span className="w-7 h-7 rounded-lg bg-text-primary flex items-center justify-center text-text-inverse text-[11px] font-bold">C</span>
                             <span className="text-[13px] font-bold text-text-primary tracking-wide">C1RCLE</span>
                         </div>
-                        <div className="w-9" />
+                        <Link
+                            href="/venue/create"
+                            className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+                            style={{ background: "var(--c1rcle-orange)" }}
+                            title="Create Event"
+                        >
+                            <PlusCircle className="h-4 w-4 text-white" />
+                        </Link>
                     </header>
 
                     {/* Mobile Sidebar Overlay */}

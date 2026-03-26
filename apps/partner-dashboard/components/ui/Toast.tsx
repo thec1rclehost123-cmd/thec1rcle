@@ -121,15 +121,15 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
     const Icon = icons[toast.type];
 
     const typeStyles = {
-        success: "border-l-[var(--state-success)] bg-green-500/10/50",
-        error: "border-l-[var(--state-error)] bg-red-500/10/50",
-        warning: "border-l-[var(--state-warning)] bg-yellow-500/10/50",
-        info: "border-l-[var(--state-info)] bg-blue-500/10/50",
+        success: "border-green-500/30 bg-green-500/10 shadow-[0_0_20px_rgba(34,197,94,0.15)] backdrop-blur-xl",
+        error: "border-orange-500/30 bg-orange-500/10 shadow-[0_0_20px_rgba(249,115,22,0.15)] backdrop-blur-xl",
+        warning: "border-yellow-500/30 bg-yellow-500/10 shadow-[0_0_20px_rgba(234,179,8,0.15)] backdrop-blur-xl",
+        info: "border-blue-500/30 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.15)] backdrop-blur-xl",
     };
 
     const iconStyles = {
-        success: "text-accent-primary",
-        error: "text-red-500",
+        success: "text-green-500",
+        error: "text-orange-500",
         warning: "text-yellow-500",
         info: "text-blue-500",
     };
@@ -142,7 +142,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
             className={cn(
-                "toast min-w-[320px] max-w-[420px] border-l-4",
+                "toast flex items-start p-4 gap-3 relative overflow-hidden min-w-[320px] max-w-[420px] border rounded-2xl",
                 typeStyles[toast.type]
             )}
         >
@@ -197,21 +197,21 @@ export default function Toast({
     const Icon = icons[type];
 
     const typeStyles = {
-        success: "border-l-[var(--state-success)]",
-        error: "border-l-[var(--state-error)]",
-        warning: "border-l-[var(--state-warning)]",
-        info: "border-l-[var(--state-info)]",
+        success: "border-green-500/30 bg-green-500/10 shadow-[0_0_20px_rgba(34,197,94,0.15)] backdrop-blur-xl",
+        error: "border-orange-500/30 bg-orange-500/10 shadow-[0_0_20px_rgba(249,115,22,0.15)] backdrop-blur-xl",
+        warning: "border-yellow-500/30 bg-yellow-500/10 shadow-[0_0_20px_rgba(234,179,8,0.15)] backdrop-blur-xl",
+        info: "border-blue-500/30 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.15)] backdrop-blur-xl",
     };
 
     const iconStyles = {
-        success: "text-accent-primary",
-        error: "text-red-500",
+        success: "text-green-500",
+        error: "text-orange-500",
         warning: "text-yellow-500",
         info: "text-blue-500",
     };
 
     return (
-        <div className={cn("toast border-l-4", typeStyles[type], className)}>
+        <div className={cn("toast flex items-start gap-3 p-4 relative overflow-hidden border rounded-2xl", typeStyles[type], className)}>
             <div className={cn("flex-shrink-0 mt-0.5", iconStyles[type])}>
                 <Icon className="w-5 h-5" />
             </div>

@@ -6,22 +6,33 @@ import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { Venue } from "@/store/venuesStore";
 import { colors } from "@/lib/design/theme";
+import {
+    formatCompactCount,
+    formatDistance,
+    getVenueDisplayName,
+    getVenueLocationLabel,
+} from "@/lib/venueDiscovery";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width - 40;
 const ASPECT_RATIO = 4 / 5;
 const CARD_HEIGHT = CARD_WIDTH / ASPECT_RATIO;
 
-export function VenueCard({ venue, onPress }: { venue: Venue; onPress: () => void }) {
+type VenueCardVenue = Venue & {
+    distanceKm?: number | null;
+};
+
+export function VenueCard({ venue, onPress }: { venue: VenueCardVenue; onPress: () => void }) {
     const handlePress = () => {
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
     };
 
-    const displayName = venue.displayName || venue.name || "Venue";
-    const displayArea = venue.neighborhood || venue.area || venue.city || "";
-    const imageUrl = venue.coverImage || venue.coverURL || venue.photoURL || venue.image;
+    const displayName = getVenueDisplayName(venue);
+    const displayArea = getVenueLocationLabel(venue);
+    const imageUrl = venue.coverImage || venue.coverURL || venue.bannerImage || venue.photoURL || venue.image;
     const tags = (venue.genres || venue.vibes || venue.tags || []).slice(0, 3);
+    const distanceLabel = formatDistance(venue.distanceKm);
 
     return (
         <Pressable onPress={handlePress} style={styles.container}>
@@ -43,6 +54,11 @@ export function VenueCard({ venue, onPress }: { venue: Venue; onPress: () => voi
                             <Text style={[styles.badgeText, { color: colors.iris }]}>VERIFIED</Text>
                         </BlurView>
                     )}
+                    {venue.venueType ? (
+                        <BlurView intensity={30} tint="dark" style={styles.badge}>
+                            <Text style={styles.badgeText}>{venue.venueType}</Text>
+                        </BlurView>
+                    ) : null}
                     {venue.tablesAvailable && (
                         <BlurView intensity={30} tint="dark" style={[styles.badge, styles.specialBadge]}>
                             <Text style={styles.badgeText}>Tables</Text>
@@ -63,6 +79,30 @@ export function VenueCard({ venue, onPress }: { venue: Venue; onPress: () => voi
                             ))}
                         </View>
                     )}
+
+                    <View style={styles.statsRow}>
+                        <View style={styles.statPill}>
+                            <Text style={styles.statValue}>{formatCompactCount(venue.followers)}</Text>
+                            <Text style={styles.statLabel}>Following</Text>
+                        </View>
+                        {venue.upcomingEventsCount ? (
+                            <View style={styles.statPill}>
+                                <Text style={styles.statValue}>{venue.upcomingEventsCount}</Text>
+                                <Text style={styles.statLabel}>Upcoming</Text>
+                            </View>
+                        ) : null}
+                        {distanceLabel ? (
+                            <View style={styles.statPill}>
+                                <Text style={styles.statValue}>{distanceLabel}</Text>
+                            </View>
+                        ) : null}
+                    </View>
+
+                    {venue.nextEventTitle ? (
+                        <Text style={styles.nextEventText} numberOfLines={1}>
+                            Next: {venue.nextEventTitle}
+                        </Text>
+                    ) : null}
                 </View>
             </View>
         </Pressable>
@@ -170,5 +210,37 @@ const styles = StyleSheet.create({
         textTransform: "uppercase",
         letterSpacing: 0.5,
     },
+    statsRow: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+        marginTop: 14,
+    },
+    statPill: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 999,
+        backgroundColor: "rgba(255,255,255,0.1)",
+    },
+    statValue: {
+        color: "#fff",
+        fontSize: 11,
+        fontWeight: "800",
+    },
+    statLabel: {
+        color: "rgba(255,255,255,0.55)",
+        fontSize: 10,
+        fontWeight: "700",
+        textTransform: "uppercase",
+        letterSpacing: 0.4,
+    },
+    nextEventText: {
+        color: "rgba(255,255,255,0.75)",
+        fontSize: 11,
+        fontWeight: "700",
+        marginTop: 10,
+    },
 });
-

@@ -9,13 +9,16 @@ import {
     Switch,
     StyleSheet,
     Dimensions,
+    Linking,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import { router } from "expo-router";
+import * as Notifications from "expo-notifications";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthStore } from "@/store/authStore";
+import { useProfileStore } from "@/store/profileStore";
 import { useTicketsStore } from "@/store/ticketsStore";
 import { registerPushToken } from "@/lib/notifications";
 import * as Haptics from "expo-haptics";
@@ -143,6 +146,10 @@ export default function ProfileScreen() {
     const { user } = useAuthStore();
     const { signOut, loading: authLoading } = useAuth();
     const { orders, fetchUserOrders } = useTicketsStore();
+    const profile = useProfileStore((state) => state.profile);
+    const profileLoading = useProfileStore((state) => state.loading);
+    const loadProfile = useProfileStore((state) => state.loadProfile);
+    const subscribeToProfile = useProfileStore((state) => state.subscribeToProfile);
     const insets = useSafeAreaInsets();
 
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -163,10 +170,37 @@ export default function ProfileScreen() {
     }, []);
 
     useEffect(() => {
-        if (user?.uid) {
-            fetchUserOrders(user.uid);
+        if (!user?.uid) {
+            setNotificationsEnabled(false);
+            return;
         }
-    }, [user?.uid]);
+
+        let isMounted = true;
+
+        const syncScreenState = async () => {
+            await Promise.allSettled([
+                fetchUserOrders(user.uid),
+                loadProfile(user.uid),
+            ]);
+
+            const permissions = await Notifications.getPermissionsAsync();
+            if (!isMounted) return;
+
+            setNotificationsEnabled(
+                permissions.granted ||
+                permissions.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
+            );
+        };
+
+        void syncScreenState();
+
+        const unsubscribe = subscribeToProfile(user.uid);
+
+        return () => {
+            isMounted = false;
+            unsubscribe?.();
+        };
+    }, [user?.uid, fetchUserOrders, loadProfile, subscribeToProfile]);
 
     const avatarAnimatedStyle = useAnimatedStyle(() => ({
         transform: [{ scale: avatarScale.value }],
@@ -191,29 +225,54 @@ export default function ProfileScreen() {
         );
     };
 
-    const toggleNotifications = async () => {
+    const promptNotificationSettings = () => {
+        Alert.alert(
+            "Manage Notifications",
+            "Notification permissions are controlled in your device settings.",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Open Settings",
+                    onPress: () => {
+                        void Linking.openSettings();
+                    },
+                },
+            ]
+        );
+    };
+
+    const toggleNotifications = async (nextValue: boolean) => {
         if (!user?.uid) return;
+
+        if (!nextValue) {
+            promptNotificationSettings();
+            return;
+        }
 
         setLoadingNotifs(true);
         const success = await registerPushToken(user.uid);
-        setNotificationsEnabled(success);
+        const permissions = await Notifications.getPermissionsAsync();
+        setNotificationsEnabled(
+            success && (
+                permissions.granted ||
+                permissions.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
+            )
+        );
         setLoadingNotifs(false);
 
         if (!success) {
-            Alert.alert(
-                "Notifications Disabled",
-                "Enable notifications in your device settings to receive event reminders"
-            );
+            promptNotificationSettings();
         }
     };
 
-    // Stats
     const nowMs = Date.now();
     const thisYear = new Date().getFullYear();
+    const pastOrders = [...orders]
+        .filter((o) => o.eventDate && (safeDate(o.eventDate)?.getTime() ?? 0) < nowMs)
+        .sort((a, b) => (safeDate(b.eventDate)?.getTime() ?? 0) - (safeDate(a.eventDate)?.getTime() ?? 0));
     const upcomingEvents = orders.filter(o =>
         o.eventDate && (safeDate(o.eventDate)?.getTime() ?? 0) > nowMs
     ).length;
-    const totalEvents = orders.length;
     const thisYearEvents = orders.filter(o => {
         const d = safeDate(o.eventDate);
         return d && d.getFullYear() === thisYear && d.getTime() < nowMs;
@@ -221,14 +280,17 @@ export default function ProfileScreen() {
 
     // Activity feed — past events newest first, 3 shown by default
     const [storyExpanded, setStoryExpanded] = useState(false);
-    const pastOrders = [...orders]
-        .filter(o => o.eventDate && (safeDate(o.eventDate)?.getTime() ?? 0) < nowMs)
-        .sort((a, b) => (safeDate(b.eventDate)?.getTime() ?? 0) - (safeDate(a.eventDate)?.getTime() ?? 0));
     const storyItems = storyExpanded ? pastOrders : pastOrders.slice(0, 3);
+    const displayName = profile?.displayName?.trim() || user?.displayName || "Party Enthusiast";
+    const displayEmail = profile?.email || user?.email || "No email connected";
+    const displayPhoto = profile?.photoURL || user?.photoURL || "";
+    const displayCity = profile?.city?.trim() || "";
+    const displayBio = profile?.bio?.trim() || "";
+    const connectionsCount = profile?.connections ?? 0;
 
     // Get initials
-    const initials = user?.displayName
-        ? user.displayName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
+    const initials = displayName
+        ? displayName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
         : "?";
 
     return (
@@ -287,9 +349,9 @@ export default function ProfileScreen() {
                                 colors={gradients.primary as [string, string]}
                                 style={styles.avatarGradient}
                             >
-                                {user?.photoURL ? (
+                                {displayPhoto ? (
                                     <Image
-                                        source={{ uri: user.photoURL }}
+                                        source={{ uri: displayPhoto }}
                                         style={styles.avatarPhoto}
                                         contentFit="cover"
                                     />
@@ -309,9 +371,16 @@ export default function ProfileScreen() {
 
                     {/* User Info */}
                     <Text style={styles.userName}>
-                        {user?.displayName || "Party Enthusiast"}
+                        {displayName}
                     </Text>
-                    <Text style={styles.userEmail}>{user?.email}</Text>
+                    <Text style={styles.userEmail}>{displayEmail}</Text>
+                    {(displayCity || displayBio || profileLoading) && (
+                        <Text style={styles.userMeta}>
+                            {profileLoading && !displayCity && !displayBio
+                                ? "Syncing your profile..."
+                                : [displayCity, displayBio].filter(Boolean).join(" • ")}
+                        </Text>
+                    )}
 
                     {/* Member badge */}
                     <View style={styles.memberBadge}>
@@ -326,11 +395,11 @@ export default function ProfileScreen() {
 
                 {/* Stats Row */}
                 <View style={styles.statsRow}>
-                    <StatsCard value={totalEvents} label="Attended" delay={200} />
+                    <StatsCard value={pastOrders.length} label="Attended" delay={200} />
                     <View style={styles.statsDivider} />
                     <StatsCard value={thisYearEvents} label="This Year" accent delay={240} />
                     <View style={styles.statsDivider} />
-                    <StatsCard value={0} label="Friends" delay={280} />
+                    <StatsCard value={connectionsCount} label="Friends" delay={280} />
                     <View style={styles.statsDivider} />
                     <StatsCard value={upcomingEvents} label="Upcoming" delay={320} />
                 </View>
@@ -622,6 +691,12 @@ const styles = StyleSheet.create({
     userEmail: {
         color: colors.goldMetallic,
         fontSize: 15,
+        marginBottom: 6,
+    },
+    userMeta: {
+        color: colors.goldMetallic,
+        fontSize: 13,
+        textAlign: "center",
         marginBottom: 16,
     },
     memberBadge: {},

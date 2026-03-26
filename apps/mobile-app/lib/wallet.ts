@@ -9,7 +9,7 @@
  */
 
 import { Alert, Linking, Platform } from "react-native";
-import * as FileSystem from "expo-file-system/legacy";
+import * as FileSystem from "expo-file-system/build/legacy";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 

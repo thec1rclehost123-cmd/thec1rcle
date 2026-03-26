@@ -34,6 +34,7 @@ import {
     formatTypingText,
     createTypingHandler,
     TypingStatus,
+    initiateDMRequest,
 } from "@/lib/social";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, FadeInDown, SlideInUp } from "react-native-reanimated";
@@ -373,10 +374,18 @@ export default function EventGroupChatScreen() {
                 },
                 message.senderId !== user?.uid && {
                     text: "Send DM",
-                    onPress: () => router.push({
-                        pathname: "/social/dm",
-                        params: { userId: message.senderId, eventId }
-                    })
+                    onPress: async () => {
+                        if (!user?.uid || !eventId) return;
+                        const result = await initiateDMRequest(user.uid, message.senderId, eventId);
+                        if (result.success && result.conversationId) {
+                            router.push({
+                                pathname: "/social/dm/[id]",
+                                params: { id: result.conversationId, eventId }
+                            });
+                        } else {
+                            Alert.alert("Unable to start DM", result.error || "This user can't be messaged right now.");
+                        }
+                    }
                 },
                 message.senderId !== user?.uid && {
                     text: "Report",

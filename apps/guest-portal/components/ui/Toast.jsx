@@ -5,7 +5,7 @@ import { useEffect, useCallback, useState } from "react";
 
 const icons = {
     success: <Check className="w-5 h-5 text-emerald-400" />,
-    error: <AlertCircle className="w-5 h-5 text-red-400" />,
+    error: <AlertCircle className="w-5 h-5 text-orange" />,
     info: <Info className="w-5 h-5 text-blue-400" />,
 };
 
@@ -30,16 +30,16 @@ export default function Toast({ id, type = "info", message, duration = 4000, onR
 
     return (
         <div
-            className={`pointer-events-auto relative flex w-full max-w-sm items-center gap-4 overflow-hidden rounded-2xl border border-white/10 bg-black/80 p-4 shadow-2xl backdrop-blur-xl dark:bg-white/10 ${exiting ? "toast-exit" : "toast-enter"}`}
+            className={`pointer-events-auto relative flex w-full max-w-sm items-center gap-4 overflow-hidden rounded-2xl border ${type === 'error' ? 'border-orange/20 bg-orange/5' : 'border-white/10 bg-black/80'} p-4 shadow-2xl backdrop-blur-xl dark:bg-white/10 ${exiting ? "toast-exit" : "toast-enter"}`}
             onAnimationEnd={handleAnimationEnd}
         >
             {/* Progress Bar — duration driven by CSS animation */}
             <div
-                className={`toast-progress absolute bottom-0 left-0 h-1 ${type === "success" ? "bg-emerald-500" : type === "error" ? "bg-red-500" : "bg-blue-500"}`}
+                className={`toast-progress absolute bottom-0 left-0 h-1 ${type === "success" ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : type === "error" ? "bg-orange shadow-[0_0_10px_rgba(244,74,34,0.5)]" : "bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"}`}
                 style={{ animationDuration: `${duration}ms` }}
             />
 
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10">
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/5 ring-1 ${type === 'error' ? 'ring-orange/30 shadow-[0_0_15px_rgba(244,74,34,0.2)]' : 'ring-white/10'}`}>
                 {icons[type]}
             </div>
 

@@ -1,83 +1,52 @@
-
 "use client";
 
 import { useState } from "react";
 import { Info, RefreshCw } from "lucide-react";
-import { useParams, useSearchParams } from "next/navigation";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import StudioShell from "@/components/studio/StudioShell";
+import StudioShell, { type SectionDef } from "@/components/studio/StudioShell";
 import { useQuery } from "@tanstack/react-query";
-import { normalizeAnalyticsData } from "@/lib/analytics/zeroState";
+import { normalizeAnalyticsV2 } from "@/lib/analytics/zeroState";
+import type { AnalyticsV2 } from "@/lib/analytics/types";
 
 import {
-    KPISection,
-    PerformanceRingsSection,
-    RevenueSection,
-    TicketsGuestlistSection,
-    AudienceSection,
+    SummarySection,
     FunnelSection,
-    ScannerSection,
-    EventComparisonSection,
-    SourceHeatmapSection,
-    FinanceSection,
-    TableSection,
-    InsightsSection
+    RevenueSection,
+    CrowdSection,
+    DoorSection,
+    CompareSection,
 } from "./sections";
 
-type DateRange = { from: Date; to: Date } | undefined;
-function subDays(date: Date, days: number): Date {
-    return new Date(date.getTime() - days * 86_400_000);
-}
+/* ── Section definitions (drives nav strip) ─────────────────────────────── */
 
-const CATEGORY_MAP: Record<string, { title: string; desc: string }> = {
-    overview: { title: "Analytics Overview", desc: "Complete performance summary — revenue, attendance, funnel, and operations." },
-    timeline: { title: "Timing Intelligence", desc: "Deep dive into booking windows, peak hours, and seasonal trends." },
-    reach: { title: "Demand & Reach", desc: "Analyze purchase intent, ticket sales trends, and source performance." },
-    engagement: { title: "Turnout & Engagement", desc: "Track fill rates, attendance consistency, and no-show analysis." },
-    revenue: { title: "Money Intelligence", desc: "Detailed breakdown of revenue, platform fees, and finance status." },
-    audience: { title: "Crowd & Audience", desc: "Demographics, loyalty patterns, and guest quality scores." },
-    ops: { title: "Gate & Operations", desc: "Scanner efficiency, entry velocity, and door management metrics." },
-    attribution: { title: "Partner Attribution", desc: "Performance tracking for hosts, promoters, and external sources." }
-};
+const SECTIONS: SectionDef[] = [
+    { id: "summary",  label: "Summary" },
+    { id: "funnel",   label: "Funnel" },
+    { id: "revenue",  label: "Revenue" },
+    { id: "crowd",    label: "Crowd" },
+    { id: "door",     label: "Door" },
+    { id: "compare",  label: "Compare" },
+];
 
-// ── Main client ───────────────────────────────────────────────────────────────
+/* ── Main ────────────────────────────────────────────────────────────────── */
 
 export default function UnifiedAnalyticsClient({
     role,
-    idParam
+    idParam,
 }: {
     role: "venue" | "host" | "promoter";
     idParam: string;
 }) {
-    const params = useParams();
-    const searchParams = useSearchParams();
-
-    // Determine category from props, path param, or search param
-    const category = (params.category || searchParams.get("tab") || "overview") as string;
-    const catConfig = CATEGORY_MAP[category] || CATEGORY_MAP.overview;
-
     const { profile, getIdToken } = useDashboardAuth() as any;
     const entityId = profile?.activeMembership?.partnerId;
-
-    const [range, setRange] = useState<DateRange | undefined>({
-        from: subDays(new Date(), 30),
-        to: new Date(),
-    });
     const [eventId, setEventId] = useState<string>("all");
 
-    // Derive a stable range string for the API and query key
-    const rangeStr = !range ? "30d"
-        : (range.to.getTime() - range.from.getTime()) <= 8 * 86_400_000 ? "7d"
-        : (range.to.getTime() - range.from.getTime()) <= 31 * 86_400_000 ? "30d"
-        : (range.to.getTime() - range.from.getTime()) <= 91 * 86_400_000 ? "90d"
-        : "ytd";
-
-    const { data: analyticsData, isLoading, isError } = useQuery({
-        queryKey: [role, "analytics", entityId, eventId, rangeStr],
+    const { data: raw, isLoading, isError } = useQuery({
+        queryKey: [role, "analytics-v2", entityId, eventId],
         queryFn: async () => {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
             const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-            const url = `/api/${role}/analytics/overview?${idParam}=${entityId}&eventId=${eventId}&range=${rangeStr}`;
+            const url = `/api/${role}/analytics/overview?${idParam}=${entityId}&eventId=${eventId}`;
             const r = await fetch(url, { headers });
             if (!r.ok) return null;
             return r.json();
@@ -87,102 +56,78 @@ export default function UnifiedAnalyticsClient({
         refetchOnWindowFocus: true,
     });
 
-    const data = normalizeAnalyticsData(analyticsData);
-
-    const shouldShow = (sectionCat: string | string[]) => {
-        if (category === "overview") return true;
-        if (Array.isArray(sectionCat)) return sectionCat.includes(category);
-        return sectionCat === category;
-    };
+    const data: AnalyticsV2 = normalizeAnalyticsV2(raw);
 
     return (
         <StudioShell
             role={role}
-            title={catConfig.title}
-            description={catConfig.desc}
-            onRangeChange={(r) => {
-                const days = parseInt(r) || 30;
-                setRange({ from: subDays(new Date(), days), to: new Date() });
-            }}
-            onEventChange={setEventId}
+            title="Analytics"
+            subtitle="Event-level performance metrics. Select an event to drill down."
+            sections={SECTIONS}
+            onEventChange={(id) => setEventId(id ?? "all")}
         >
-            <div className="space-y-4 pb-20">
-                {/* Zero-data notice */}
-                {!isLoading && !data.hasData && (
-                    <div
-                        className="flex items-center gap-3 px-5 py-3 rounded-2xl border"
-                        style={{ background: "var(--v-elevated)", borderColor: "var(--v-border)" }}
-                    >
-                        <Info className="w-4 h-4 shrink-0" style={{ color: "var(--v-text-muted)" }} />
-                        <p className="text-[13px]" style={{ color: "var(--v-text-secondary)" }}>
-                            No analytics recorded yet — all metrics will populate after your first event goes live.
-                            Values below show the exact structure that real data will fill.
+            {/* Notices */}
+            {!isLoading && !data.hasData && (
+                <div
+                    className="flex items-center gap-4 px-6 py-4 rounded-2xl mb-8"
+                    style={{
+                        background: "rgba(129,140,248,0.06)",
+                        border: "1px solid rgba(129,140,248,0.15)",
+                    }}
+                >
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                         style={{ background: "rgba(129,140,248,0.15)" }}>
+                        <Info className="w-4.5 h-4.5" style={{ color: "#818CF8" }} />
+                    </div>
+                    <div>
+                        <p className="text-[14px] font-bold" style={{ color: "var(--v-text-primary)" }}>
+                            No analytics recorded yet
+                        </p>
+                        <p className="text-[12px] font-medium mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                            Metrics will populate after your first event goes live.
                         </p>
                     </div>
-                )}
-
-                {/* Error notice */}
-                {isError && (
-                    <div
-                        className="flex items-center gap-3 px-5 py-3 rounded-2xl border"
-                        style={{ background: "var(--v-error-bg)", borderColor: "var(--v-error)" }}
-                    >
-                        <RefreshCw className="w-4 h-4" style={{ color: "var(--v-error)" }} />
-                        <p className="text-[13px]" style={{ color: "var(--v-error)" }}>
-                            Could not load analytics data. Showing last-known values.
-                        </p>
+                </div>
+            )}
+            {isError && (
+                <div
+                    className="flex items-center gap-4 px-6 py-4 rounded-2xl mb-8"
+                    style={{
+                        background: "rgba(248,113,113,0.06)",
+                        border: "1px solid rgba(248,113,113,0.15)",
+                    }}
+                >
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                         style={{ background: "rgba(248,113,113,0.15)" }}>
+                        <RefreshCw className="w-4.5 h-4.5" style={{ color: "#F87171" }} />
                     </div>
-                )}
+                    <p className="text-[14px] font-semibold" style={{ color: "#F87171" }}>
+                        Could not load analytics. Showing last-known values.
+                    </p>
+                </div>
+            )}
 
-                {shouldShow(["overview", "timeline", "reach", "revenue", "ops", "engagement"]) && (
-                    <KPISection data={data} loading={isLoading} category={category} />
-                )}
-
-                {shouldShow(["overview", "reach", "engagement", "audience", "ops"]) && (
-                    <PerformanceRingsSection data={data} loading={isLoading} category={category} />
-                )}
-
-                {shouldShow(["overview", "revenue", "reach"]) && (
-                    <RevenueSection data={data} loading={isLoading} />
-                )}
-
-                {shouldShow(["overview", "reach", "timeline"]) && (
-                    <TicketsGuestlistSection data={data} loading={isLoading} />
-                )}
-
-                {shouldShow(["overview", "audience"]) && (
-                    <AudienceSection data={data} loading={isLoading} />
-                )}
-
-                {shouldShow(["overview", "reach"]) && (
+            {/* Sections */}
+            <div className="space-y-16">
+                <div id="summary" className="scroll-mt-20">
+                    <SummarySection data={data} loading={isLoading} />
+                </div>
+                <div id="funnel" className="scroll-mt-20">
                     <FunnelSection data={data} loading={isLoading} />
-                )}
-
-                {shouldShow(["overview", "ops", "engagement"]) && (
-                    <ScannerSection data={data} loading={isLoading} />
-                )}
-
-                {shouldShow(["overview", "timeline"]) && (
-                    <EventComparisonSection data={data} loading={isLoading} />
-                )}
-
-                {shouldShow(["overview", "reach", "timeline", "attribution"]) && (
-                    <SourceHeatmapSection data={data} loading={isLoading} />
-                )}
-
-                {shouldShow(["overview", "revenue"]) && (
-                    <FinanceSection data={data} loading={isLoading} />
-                )}
-
-                {shouldShow(["overview", "attribution", "revenue"]) && (
-                    <TableSection data={data} loading={isLoading} />
-                )}
-
-                {shouldShow("overview") && (
-                    <InsightsSection data={data} loading={isLoading} />
-                )}
+                </div>
+                <div id="revenue" className="scroll-mt-20">
+                    <RevenueSection data={data} loading={isLoading} />
+                </div>
+                <div id="crowd" className="scroll-mt-20">
+                    <CrowdSection data={data} loading={isLoading} />
+                </div>
+                <div id="door" className="scroll-mt-20">
+                    <DoorSection data={data} loading={isLoading} />
+                </div>
+                <div id="compare" className="scroll-mt-20">
+                    <CompareSection data={data} loading={isLoading} />
+                </div>
             </div>
         </StudioShell>
     );
 }
-

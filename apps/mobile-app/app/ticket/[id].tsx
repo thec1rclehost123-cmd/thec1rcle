@@ -37,6 +37,7 @@ import { shareEventLink } from "@/lib/deeplinks";
 import { addToWallet, isWalletAvailable, type PassData } from "@/lib/wallet";
 import { safeDate, formatEventTime } from "@/lib/utils/date";
 import { type Order, type OrderTicket, useTicketsStore } from "@/store/ticketsStore";
+import { buildCalendarEventUrl } from "@/lib/calendar";
 
 type ActiveSheet = "share" | "transfer" | null;
 
@@ -126,6 +127,12 @@ export default function TicketDetailScreen() {
     const activeQr = qrCodes[Math.min(activeQrIndex, Math.max(qrCodes.length - 1, 0))];
     const flattenedTickets = useMemo(() => (order ? flattenTickets(order.tickets) : []), [order]);
     const dateLabel = order ? formatDateLabel(order) : "";
+    const calendarUrl = buildCalendarEventUrl({
+        title: order?.eventTitle || "THE C1RCLE Event",
+        startDate: order?.eventStartDate || order?.eventDate,
+        location: order?.venueLocation,
+        description: order?.tickets?.map((ticket) => `${ticket.tierName} x${ticket.quantity}`).join(", "),
+    });
 
     const handleAddToWallet = async () => {
         if (!order) return;
@@ -400,6 +407,19 @@ export default function TicketDetailScreen() {
                         <Pressable onPress={() => Linking.openURL(`maps://search?q=${encodeURIComponent(order.venueLocation || order.eventTitle || "Event")}`)} style={styles.actionCard}>
                             <Ionicons name="navigate-outline" size={18} color={colors.iris} />
                             <Text style={styles.actionCardText}>Directions</Text>
+                        </Pressable>
+                        {calendarUrl ? (
+                            <Pressable onPress={() => Linking.openURL(calendarUrl)} style={styles.actionCard}>
+                                <Ionicons name="calendar-outline" size={18} color={colors.iris} />
+                                <Text style={styles.actionCardText}>Calendar</Text>
+                            </Pressable>
+                        ) : null}
+                        <Pressable
+                            onPress={() => router.push({ pathname: "/checkout/success", params: { orderId: order.id } } as any)}
+                            style={styles.actionCard}
+                        >
+                            <Ionicons name="receipt-outline" size={18} color={colors.iris} />
+                            <Text style={styles.actionCardText}>Confirmation</Text>
                         </Pressable>
                         {walletAvailable ? (
                             <Pressable onPress={() => void handleAddToWallet()} style={styles.actionCard}>
@@ -692,10 +712,11 @@ const styles = StyleSheet.create({
     },
     actionGrid: {
         flexDirection: "row",
+        flexWrap: "wrap",
         gap: 10,
     },
     actionCard: {
-        flex: 1,
+        width: "48%",
         minHeight: 82,
         borderRadius: 20,
         alignItems: "center",

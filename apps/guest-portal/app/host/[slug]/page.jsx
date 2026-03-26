@@ -123,7 +123,7 @@ export default async function HostPublicPage({ params }) {
 
                                 {/* Name */}
                                 <div className="space-y-3">
-                                    <h1 className="text-5xl md:text-7xl lg:text-8xl font-black uppercase tracking-tighter leading-[0.9]">
+                                    <h1 className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-black uppercase tracking-tighter leading-[0.9]">
                                         {hostProfile.name || hostProfile.displayName}
                                     </h1>
 
@@ -135,7 +135,7 @@ export default async function HostPublicPage({ params }) {
                                 </div>
 
                                 {/* Location & Handle */}
-                                <div className="flex items-center gap-6 text-white/50 text-sm font-bold uppercase tracking-widest">
+                                <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-white/50 text-sm font-bold uppercase tracking-widest">
                                     <div className="flex items-center gap-2">
                                         <MapPin className="h-4 w-4" />
                                         {hostProfile.neighborhood ? `${hostProfile.neighborhood}, ${hostProfile.city}` : (hostProfile.city || hostProfile.location || "India")}

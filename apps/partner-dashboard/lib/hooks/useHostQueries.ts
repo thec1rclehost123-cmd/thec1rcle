@@ -31,10 +31,21 @@ function useAuthenticatedQuery<T = any>(
  * Hook: Host overview summary
  * Used by host/PageClient.tsx overview hero
  */
-export function useHostOverviewSummary(hostId: string | undefined) {
+export function useHostOverviewSummary(
+    hostId: string | undefined,
+    range: string = "7d",
+    startDate?: string,
+    endDate?: string
+) {
+    const params = new URLSearchParams({ hostId: hostId || "", range });
+    if (range === "custom" && startDate && endDate) {
+        params.set("startDate", startDate);
+        params.set("endDate", endDate);
+    }
+
     return useAuthenticatedQuery(
-        ["host-overview-summary", hostId || ""],
-        `/api/host/overview/summary?hostId=${hostId}`,
+        ["host-overview-summary", hostId || "", range, startDate || "", endDate || ""],
+        `/api/host/overview/summary?${params.toString()}`,
         { enabled: !!hostId }
     );
 }

@@ -18,6 +18,10 @@ interface CrashScreenProps {
 }
 
 export function CrashScreen({ error, onRetry, onGoHome }: CrashScreenProps) {
+    const AlertTriangleIcon = AlertTriangle as any;
+    const RotateCcwIcon = RotateCcw as any;
+    const HomeIcon = Home as any;
+
     return (
         <SafeAreaView style={styles.container}>
             <LinearGradient
@@ -31,7 +35,7 @@ export function CrashScreen({ error, onRetry, onGoHome }: CrashScreenProps) {
                 {/* Icon */}
                 <View style={styles.iconContainer}>
                     <View style={styles.iconGlow} />
-                    <AlertTriangle size={48} color={colors.iris} strokeWidth={1.5} />
+                    <AlertTriangleIcon size={48} color={colors.iris} strokeWidth={1.5} />
                 </View>
 
                 {/* Title */}
@@ -57,7 +61,7 @@ export function CrashScreen({ error, onRetry, onGoHome }: CrashScreenProps) {
                             style={styles.primaryButton}
                             onPress={onRetry}
                         >
-                            <RotateCcw size={18} color="#fff" strokeWidth={2} />
+                            <RotateCcwIcon size={18} color="#fff" strokeWidth={2} />
                             <Text style={styles.primaryButtonText}>Try Again</Text>
                         </Pressable>
                     )}
@@ -67,7 +71,7 @@ export function CrashScreen({ error, onRetry, onGoHome }: CrashScreenProps) {
                             style={styles.secondaryButton}
                             onPress={onGoHome}
                         >
-                            <Home size={18} color={colors.goldMetallic} strokeWidth={2} />
+                            <HomeIcon size={18} color={colors.goldMetallic} strokeWidth={2} />
                             <Text style={styles.secondaryButtonText}>Go Home</Text>
                         </Pressable>
                     )}

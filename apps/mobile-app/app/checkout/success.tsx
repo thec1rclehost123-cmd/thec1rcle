@@ -3,13 +3,14 @@ import { View, Text, Pressable, ActivityIndicator, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase";
+import { useAuthStore } from "@/store/authStore";
+import { Order, useTicketsStore } from "@/store/ticketsStore";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withSpring,
-    withSequence,
     withDelay
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
@@ -17,8 +18,8 @@ import * as Haptics from "expo-haptics";
 interface OrderDetails {
     id: string;
     eventTitle: string;
-    eventDate: string;
-    venueLocation: string;
+    eventDate?: string;
+    venueLocation?: string;
     totalAmount: number;
     status: string;
     items: Array<{
@@ -29,6 +30,8 @@ interface OrderDetails {
 
 export default function CheckoutSuccessScreen() {
     const { orderId } = useLocalSearchParams<{ orderId: string }>();
+    const { user } = useAuthStore();
+    const { fetchUserOrders, getOrderById } = useTicketsStore();
     const [order, setOrder] = useState<OrderDetails | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -44,9 +47,34 @@ export default function CheckoutSuccessScreen() {
         scale.value = withSpring(1, { damping: 12 });
         checkScale.value = withDelay(300, withSpring(1, { damping: 10 }));
 
-        // Fetch order details
-        fetchOrder();
-    }, []);
+        void fetchOrder();
+    }, [orderId, user?.uid]);
+
+    const mapStoreOrder = (storeOrder: Order): OrderDetails => ({
+        id: storeOrder.id,
+        eventTitle: storeOrder.eventTitle || "Event",
+        eventDate: storeOrder.eventStartDate || storeOrder.eventDate,
+        venueLocation: storeOrder.venueLocation,
+        totalAmount: storeOrder.totalAmount || 0,
+        status: storeOrder.status,
+        items: storeOrder.tickets.map((ticket) => ({
+            tierName: ticket.tierName || "Ticket",
+            quantity: ticket.quantity || 1,
+        })),
+    });
+
+    const mapFirestoreOrder = (id: string, data: any): OrderDetails => ({
+        id,
+        eventTitle: data.eventTitle || data.eventName || "Event",
+        eventDate: data.eventStartDate || data.eventDate || data.startDate,
+        venueLocation: data.venueLocation || data.eventLocation || data.location,
+        totalAmount: Number(data.totalAmount ?? data.total ?? 0),
+        status: data.status || "confirmed",
+        items: (data.tickets || data.items || []).map((item: any) => ({
+            tierName: item.tierName || item.name || "Ticket",
+            quantity: Number(item.quantity) || 1,
+        })),
+    });
 
     const fetchOrder = async () => {
         if (!orderId) {
@@ -55,28 +83,22 @@ export default function CheckoutSuccessScreen() {
         }
 
         try {
+            if (user?.uid) {
+                await fetchUserOrders(user.uid).catch(() => {});
+            }
+
+            const storeOrder = await getOrderById(orderId).catch(() => null);
+            if (storeOrder) {
+                setOrder(mapStoreOrder(storeOrder));
+                return;
+            }
+
             const db = getFirebaseDb();
             const orderRef = doc(db, "orders", orderId);
             const orderDoc = await getDoc(orderRef);
 
             if (orderDoc.exists()) {
-                const data = orderDoc.data();
-                setOrder({
-                    id: orderDoc.id,
-                    eventTitle: data.eventTitle,
-                    eventDate: data.eventDate,
-                    venueLocation: data.venueLocation,
-                    totalAmount: data.totalAmount,
-                    status: data.status,
-                    items: data.items,
-                });
-
-                // Update order status to confirmed (simulating payment success)
-                await updateDoc(orderRef, {
-                    status: "confirmed",
-                    confirmedAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                });
+                setOrder(mapFirestoreOrder(orderDoc.id, orderDoc.data()));
             }
         } catch (error) {
             console.error("Error fetching order:", error);
@@ -150,11 +172,11 @@ export default function CheckoutSuccessScreen() {
                         <View className="flex-row justify-between mb-2">
                             <Text className="text-gold-stone">Date</Text>
                             <Text className="text-gold">
-                                {new Date(order.eventDate).toLocaleDateString("en-IN", {
+                                {order.eventDate ? new Date(order.eventDate).toLocaleDateString("en-IN", {
                                     weekday: "short",
                                     month: "short",
                                     day: "numeric",
-                                })}
+                                }) : "TBA"}
                             </Text>
                         </View>
 

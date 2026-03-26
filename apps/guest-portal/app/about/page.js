@@ -250,7 +250,7 @@ function HeroSection() {
           transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
           className="relative"
         >
-          <h1 className="font-heading text-7xl sm:text-9xl font-black tracking-tighter text-white leading-[0.85] mix-blend-overlay opacity-90">
+          <h1 className="font-heading text-5xl sm:text-7xl md:text-9xl font-black tracking-tighter text-white leading-[0.85] mix-blend-overlay opacity-90">
             BUILD THE<br />IMPOSSIBLE
           </h1>
           <motion.div

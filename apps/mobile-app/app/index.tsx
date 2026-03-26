@@ -1,7 +1,10 @@
-import { Redirect } from "expo-router";
+import { Redirect, type Href } from "expo-router";
+import { useEffect, useState } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { View, ActivityIndicator } from "react-native";
 import { colors } from "@/lib/design/theme";
+import { hasCompletedOnboarding } from "./onboarding";
+import { hasCompletedProfileSetup } from "./profile-setup";
 
 /**
  * Index Route - Entry Point
@@ -14,9 +17,36 @@ import { colors } from "@/lib/design/theme";
  */
 export default function Index() {
     const { initialized, user } = useAuthStore();
+    const [checksReady, setChecksReady] = useState(false);
+    const [needsOnboarding, setNeedsOnboarding] = useState(false);
+    const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
+
+    useEffect(() => {
+        let mounted = true;
+        setChecksReady(false);
+
+        const runChecks = async () => {
+            const [onboardingComplete, profileSetupComplete] = await Promise.all([
+                hasCompletedOnboarding(),
+                user ? hasCompletedProfileSetup() : Promise.resolve(false),
+            ]);
+
+            if (!mounted) return;
+
+            setNeedsOnboarding(!onboardingComplete);
+            setNeedsProfileSetup(!!user && !profileSetupComplete);
+            setChecksReady(true);
+        };
+
+        void runChecks();
+
+        return () => {
+            mounted = false;
+        };
+    }, [user?.uid]);
 
     // Still initializing - show loading state
-    if (!initialized) {
+    if (!initialized || !checksReady) {
         return (
             <View
                 style={{
@@ -31,10 +61,17 @@ export default function Index() {
         );
     }
 
+    if (!user) {
+        return <Redirect href={needsOnboarding ? "/onboarding" : "/(auth)/login"} />;
+    }
+
+    if (needsProfileSetup) {
+        return <Redirect href={"/profile-setup" as Href} />;
+    }
+
     // Redirect based on auth state
     if (user) {
         return <Redirect href="/(tabs)/explore" />;
     }
-
-    return <Redirect href="/(auth)/login" />;
+    return null;
 }

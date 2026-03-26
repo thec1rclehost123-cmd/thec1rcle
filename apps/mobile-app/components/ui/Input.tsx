@@ -28,6 +28,8 @@ export function Input({
     ...props
 }: InputProps) {
     const isFocused = useSharedValue(0);
+    const hasLeftIcon = Boolean(icon && iconPosition === "left");
+    const hasRightIcon = Boolean(icon && iconPosition === "right");
 
     const animatedBorderStyle = useAnimatedStyle(() => ({
         borderColor: interpolateColor(
@@ -64,14 +66,14 @@ export function Input({
                     onBlur={() => { isFocused.value = withTiming(0, { duration: 200 }); }}
                     style={[
                         styles.input,
-                        icon && iconPosition === "left" && styles.inputWithIconLeft,
-                        icon && iconPosition === "right" && styles.inputWithIconRight,
+                        hasLeftIcon ? styles.inputWithIconLeft : null,
+                        hasRightIcon ? styles.inputWithIconRight : null,
                         style,
                     ]}
                     {...props}
                 />
 
-                {icon && iconPosition === "right" && (
+                {hasRightIcon && (
                     <View style={styles.iconRight}>{icon}</View>
                 )}
             </AnimatedView>

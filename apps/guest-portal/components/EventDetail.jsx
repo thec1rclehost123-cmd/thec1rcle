@@ -7,13 +7,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { formatEventDate } from "@c1rcle/core/time";
+import { selectInterestedUsersForDisplay } from "../lib/server/eventAudienceUtils";
 import {
   ArrowUpRight,
-  Bookmark,
-  CalendarDays,
-  ChevronRight,
-  Clock3,
-  ExternalLink,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
   Instagram,
   MapPin,
   Minus,
@@ -21,7 +20,11 @@ import {
   Share2,
   Sparkles,
   Ticket,
+  TrendingUp,
+  Users,
 } from "lucide-react";
+
+/* ─── Utility helpers ────────────────────────────────────────────────────── */
 
 function formatINR(amount) {
   const value = Number(amount || 0);
@@ -104,16 +107,15 @@ function formatTimeLabel(event) {
 }
 
 function buildHostUrl(host) {
-  const target = host?.slug || host?.id;
-  if (!target) return "/hosts";
-  return host?.type === "venue" ? `/venue/${encodeURIComponent(target)}` : `/host/${encodeURIComponent(target)}`;
+  const target = host?.username || host?.handle || host?.slug || host?.id;
+  if (!target) return "/explore";
+  return host?.type === "venue" ? `/venue/${encodeURIComponent(target)}` : `/${encodeURIComponent(target)}`;
 }
 
 function buildPosterGradient(event) {
   if (event?.gradientStart && event?.gradientEnd) {
     return `linear-gradient(160deg, ${event.gradientStart} 0%, ${event.gradientEnd} 100%)`;
   }
-
   const category = String(event?.category || "").toLowerCase();
   if (category.includes("fashion")) {
     return "linear-gradient(160deg, #ff9a62 0%, #f44a22 42%, #2a0805 100%)";
@@ -139,7 +141,7 @@ function buildGoingLabel(interestedData) {
 function buildTagline(event, venueLabel) {
   const primary = truncateCopy(event?.summary || parseParagraphs(event?.description)?.[0], 110);
   if (primary) return primary;
-  return `${event?.title || "This event"} at ${venueLabel}.`;
+  return "";
 }
 
 function getAvailability(ticket) {
@@ -199,8 +201,8 @@ function getAvailability(ticket) {
   };
 }
 
-function getTierLimit(ticket) {
-  const maxPerOrder = Number(ticket?.maxPerOrder || 6);
+function getTierLimit(ticket, pendingTotalFree = 0, currentQty = 0) {
+  const maxPerOrder = Number(ticket?.maxPerOrder || 10);
   const remaining =
     ticket?.remaining !== undefined
       ? Number(ticket.remaining)
@@ -210,8 +212,15 @@ function getTierLimit(ticket) {
           ? Number(ticket.quantity)
           : maxPerOrder;
 
+  const isFree = Number(ticket?.price || 0) === 0;
+  let computedMax = maxPerOrder;
+
+  if (isFree) {
+    computedMax = Math.max(0, Math.min(1, currentQty + (1 - pendingTotalFree)));
+  }
+
   if (remaining > 0) {
-    return Math.max(0, Math.min(maxPerOrder, remaining));
+    return Math.max(0, Math.min(computedMax, remaining));
   }
   if (ticket?.quantity === 0 || ticket?.remaining === 0 || ticket?.remainingQuantity === 0) {
     return 0;
@@ -236,10 +245,6 @@ function getTierBadge(ticket, startingPrice) {
     return { label: "Early", classes: "border-white/[0.15] bg-white/[0.08] text-white" };
   }
   return null;
-}
-
-function buildInfoChips(event) {
-  return [event?.category || null].filter(Boolean).slice(0, 1);
 }
 
 function resolveInstagramProfile(host) {
@@ -269,27 +274,137 @@ function resolveInstagramProfile(host) {
   };
 }
 
+function formatDateShort(event) {
+  if (!event?.startDate) return "Date TBA";
+  try {
+    const d = new Date(event.startDate);
+    const day = d.toLocaleDateString("en-US", { weekday: "short", timeZone: "Asia/Kolkata" });
+    const month = d.toLocaleDateString("en-US", { month: "short", timeZone: "Asia/Kolkata" });
+    const date = d.toLocaleDateString("en-US", { day: "2-digit", timeZone: "Asia/Kolkata" });
+    return `${day}, ${month} ${date}`;
+  } catch {
+    return "Date TBA";
+  }
+}
+
+function formatTimeShort(event) {
+  if (event?.startTime) return event.startTime;
+  if (!event?.startDate) return "";
+  try {
+    return new Intl.DateTimeFormat("en-IN", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "Asia/Kolkata",
+    }).format(new Date(event.startDate));
+  } catch {
+    return "";
+  }
+}
+
+/* ─── Extract dominant color from image for glow effect ──────────────────── */
+
+const _colorCache = {};
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+  return [h * 360, s * 100, l * 100];
+}
+
+function hslToRgb(h, s, l) {
+  h /= 360; s /= 100; l /= 100;
+  if (s === 0) { const v = Math.round(l * 255); return [v, v, v]; }
+  const hue2rgb = (p, q, t) => { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1/6) return p + (q - p) * 6 * t; if (t < 1/2) return q; if (t < 2/3) return p + (q - p) * (2/3 - t) * 6; return p; };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return [Math.round(hue2rgb(p, q, h + 1/3) * 255), Math.round(hue2rgb(p, q, h) * 255), Math.round(hue2rgb(p, q, h - 1/3) * 255)];
+}
+
+function clampColor(r, g, b) {
+  let [h, s, l] = rgbToHsl(r, g, b);
+  s = Math.min(s, 70);
+  l = Math.min(l, 55);
+  const [cr, cg, cb] = hslToRgb(h, s, l);
+  return `${cr}, ${cg}, ${cb}`;
+}
+
+function useDominantColor(imageUrl) {
+  const [color, setColor] = useState(() => (imageUrl && _colorCache[imageUrl]) || null);
+
+  useEffect(() => {
+    if (!imageUrl) return;
+    if (_colorCache[imageUrl]) { setColor(_colorCache[imageUrl]); return; }
+    const img = new window.Image();
+    img.crossOrigin = "anonymous";
+    img.src = imageUrl;
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 40;
+        canvas.height = 40;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, 40, 40);
+        const data = ctx.getImageData(0, 0, 40, 40).data;
+
+        let rTotal = 0, gTotal = 0, bTotal = 0, count = 0;
+        for (let i = 0; i < data.length; i += 16) {
+          const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+          if (a < 128) continue;
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const saturation = max === 0 ? 0 : (max - min) / max;
+          const weight = 0.3 + saturation * 0.7;
+          rTotal += r * weight;
+          gTotal += g * weight;
+          bTotal += b * weight;
+          count += weight;
+        }
+
+        if (count > 0) {
+          const result = clampColor(Math.round(rTotal / count), Math.round(gTotal / count), Math.round(bTotal / count));
+          _colorCache[imageUrl] = result;
+          setColor(result);
+        }
+      } catch {
+        setColor("244, 74, 34");
+      }
+    };
+    img.onerror = () => setColor("244, 74, 34");
+  }, [imageUrl]);
+
+  return color || "244, 74, 34";
+}
+
+/* ─── Sub-components ─────────────────────────────────────────────────────── */
+
 function MiniAvatar({ person, size }) {
   const image = person?.photoURL || person?.avatar;
   const initials = String(person?.initials || person?.name || person?.displayName || "C")
     .slice(0, 2)
     .toUpperCase();
-  const sizeClass = size === "xl" ? "h-full w-full" : "h-14 w-14 sm:h-16 sm:w-16";
+  const sizeClass = size === "xl" ? "h-full w-full" : size === "lg" ? "h-20 w-20 text-[20px]" : size === "sm" ? "h-8 w-8 text-[9px]" : "h-10 w-10 text-[10px]";
 
   return (
-    <div className={`relative ${sizeClass} overflow-hidden rounded-full border border-white/[0.2] bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.04))] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_18px_40px_rgba(0,0,0,0.34)]`}>
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-1/2 bg-[linear-gradient(180deg,rgba(255,255,255,0.26),transparent)]" />
+    <div className={`relative ${sizeClass} shrink-0 overflow-hidden rounded-full border border-white/20 bg-white/10 shadow-lg`}>
       {image ? (
         <Image
           src={image}
           alt={person?.name || person?.displayName || ""}
-          width={64}
-          height={64}
+          width={48}
+          height={48}
           className="h-full w-full object-cover"
           unoptimized
         />
       ) : (
-        <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),rgba(255,255,255,0.03)_62%,rgba(0,0,0,0.14))] text-sm font-semibold text-white">
+        <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-white/15 to-white/5 font-bold text-white/80">
           {initials}
         </div>
       )}
@@ -297,37 +412,51 @@ function MiniAvatar({ person, size }) {
   );
 }
 
-function SectionLabel({ children }) {
+function SectionLabel({ children, className = "" }) {
   return (
-    <div className="text-[11px] font-black uppercase tracking-[0.28em] text-white/[0.45]">
+    <div className={`text-[10px] font-black uppercase tracking-[0.28em] text-white/40 ${className}`}>
       {children}
     </div>
   );
 }
 
-function DetailStat({ icon: Icon, label, value, helper }) {
-  return (
-    <div className="flex items-start gap-4">
-      <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04]">
-        <Icon className="h-4 w-4 text-white/[0.62]" />
-      </div>
+/* ─── Glass Card wrapper ─────────────────────────────────────────────────── */
 
-      <div className="min-w-0">
-        <div className="text-[10px] font-black uppercase tracking-[0.24em] text-white/[0.42]">
-          {label}
-        </div>
-        <div className="mt-1 text-[17px] font-semibold tracking-[-0.02em] text-white">
-          {value}
-        </div>
-        {helper && (
-          <div className="mt-1 text-sm text-white/[0.48]">
-            {helper}
-          </div>
-        )}
+function GlassCard({ children, className = "", glowColor, onClick, as = "div", style }) {
+  const Tag = as;
+  const extraProps = {};
+
+  if (as === "button") {
+    extraProps.type = "button";
+  }
+
+  return (
+    <Tag
+      {...extraProps}
+      onClick={onClick}
+      className={`group relative overflow-hidden rounded-[24px] border border-solid bg-black/60 backdrop-blur-xl transition-all duration-300 ${onClick ? "cursor-pointer hover:-translate-y-0.5" : ""} ${className}`}
+      style={{
+        borderColor: glowColor ? `rgba(${glowColor}, 0.3)` : "rgba(255,255,255,0.08)",
+        boxShadow: glowColor 
+          ? `0 24px 60px rgba(0,0,0,0.4), inset 0 0 40px rgba(${glowColor}, 0.1), inset 0 0 2px 1px rgba(${glowColor}, 0.2)`
+          : "0 24px 60px rgba(0,0,0,0.4)",
+        ...style,
+      }}
+    >
+      <div 
+        className="pointer-events-none absolute inset-x-0 top-0 h-[1.5px] opacity-70" 
+        style={{
+          background: glowColor ? `linear-gradient(90deg, transparent, rgba(${glowColor}, 0.8), transparent)` : "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)"
+        }}
+      />
+      <div className="relative z-10 h-full">
+        {children}
       </div>
-    </div>
+    </Tag>
   );
 }
+
+/* ─── MAIN COMPONENT ─────────────────────────────────────────────────────── */
 
 export default function EventDetail({
   event,
@@ -338,12 +467,12 @@ export default function EventDetail({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const [saved, setSaved] = useState(false);
   const [quantities, setQuantities] = useState({});
   const [crowdModalOpen, setCrowdModalOpen] = useState(false);
   const [waitlistState, setWaitlistState] = useState({});
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
-  // Track impression and promoter link click on mount
+  // Track impression on mount
   useEffect(() => {
     if (!event?.id) return;
     const promoterRef = searchParams?.get("ref") || null;
@@ -352,17 +481,16 @@ export default function EventDetail({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).catch(() => {}); // fire-and-forget, never block render
+    }).catch(() => {});
   }, [event?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const posterArtwork = useMemo(() => resolveBackdropPoster(event) || resolveEventImage(event), [event]);
   const eventImage = posterArtwork;
-  const backdropPoster = posterArtwork;
+  const dominantColor = useDominantColor(eventImage);
   const venueLabel =
     event?.venue || event?.location || event?.venueName || event?.address || "Venue to be announced";
   const addressLabel = event?.address || venueLabel;
   const timeLabel = formatTimeLabel(event);
-  const tagline = buildTagline(event, venueLabel);
   const goingLabel = buildGoingLabel(interestedData);
   const hostName = host?.name || event?.host || "THE C1RCLE";
   const hostUrl = buildHostUrl(host);
@@ -372,8 +500,12 @@ export default function EventDetail({
   const mapEmbed = `https://maps.google.com/maps?q=${encodeURIComponent(addressLabel)}&z=14&ie=UTF8&iwloc=&output=embed`;
   const hostAvatar = host?.avatar || host?.photoURL || eventImage;
   const hostInstagram = resolveInstagramProfile(host);
-  const infoChips = buildInfoChips(event);
   const displayTitle = formatDisplayTitle(event?.title);
+  const dateShort = formatDateShort(event);
+  const timeShort = formatTimeShort(event);
+  const description = event?.description || event?.summary || "";
+  const descriptionParagraphs = parseParagraphs(description);
+  const aboutText = event?.summary || descriptionParagraphs[0] || "";
 
   const tickets = useMemo(() => {
     if (!Array.isArray(event?.tickets)) return [];
@@ -406,17 +538,20 @@ export default function EventDetail({
     }, 0);
   }, [tickets, quantities]);
 
-  const crowdPeople = useMemo(() => {
-    if (interestedData?.users?.length) return interestedData.users.slice(0, 12);
-    return Array.from({ length: 12 }, (_, index) => ({
-      id: `fallback-${index}`,
-      name: `Guest ${index + 1}`,
-    }));
-  }, [interestedData]);
-  const visibleCrowdPeople = crowdPeople.slice(0, 7);
+  const totalFreeSelected = useMemo(() => {
+    return tickets.reduce((sum, ticket) => {
+      const isFree = Number(ticket?.price || 0) === 0;
+      return sum + (isFree ? Number(quantities[ticket.id] || 0) : 0);
+    }, 0);
+  }, [tickets, quantities]);
 
-  const eventCount = host?.eventCount || host?.stats?.events || 1;
-  const attendeeCount = host?.attendeeCount || interestedData?.count || 0;
+  const crowdPeople = useMemo(() => {
+    if (interestedData?.users?.length) {
+      return selectInterestedUsersForDisplay(interestedData.users, 12);
+    }
+    return [];
+  }, [interestedData]);
+  const visibleCrowdPeople = crowdPeople.slice(0, 5);
 
   const handleNotifyMe = useCallback(async (ticket) => {
     if (!user) {
@@ -458,467 +593,481 @@ export default function EventDetail({
     onAction?.("BOOK", {});
   };
 
-  const handleSave = () => {
-    setSaved((current) => !current);
-    onAction?.("LIKE");
-  };
-
-  const handleShare = () => {
-    onAction?.("SHARE", { id: "copy" });
-  };
+  /* ─── Schedule helper ──────────────────────────────────────────────────── */
+  const scheduleDate = event?.startDate ? formatEventDate(event.startDate) : "Date soon";
+  const scheduleDoorNote = event?.doorPolicy || (timeShort ? `Doors into your sector for 30 minutes past start time.` : "");
+  const tagline = buildTagline(event, venueLabel);
+  const cityLabel = event?.cityLabel || event?.city || host?.city || "";
+  const isFreeEntry = tickets.length > 0 && tickets.every((ticket) => Number(ticket?.price || 0) === 0);
+  const startsFree = tickets.length > 0 && Number(startingPrice || 0) === 0;
+  const entryLabel = tickets.length > 0 ? (isFreeEntry ? "Free RSVP" : startsFree ? "From Free" : `From ${formatINR(startingPrice)}`) : "Tickets Soon";
+  const ticketLeadCopy = tickets.length > 0
+    ? "Reserve your spot."
+    : "Ticket tiers will appear here once the drop is live.";
+  const noteLabel = event?.doorPolicy ? "Door policy" : event?.dressCode ? "Dress code" : "Heads up";
+  const noteValue = event?.doorPolicy || (event?.dressCode ? String(event.dressCode).replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) : "Arrive early for the smoothest entry window.");
+  const stickySupportLabel = [venueLabel, timeLabel || dateShort].filter(Boolean).join(" · ");
+  const primaryActionLabel = selectedTickets.length > 0
+    ? `Continue • ${formatINR(totalPrice)}`
+    : tickets.length > 0
+      ? isFreeEntry
+        ? "Get On The List"
+        : "Get Tickets"
+      : "Get Tickets";
 
   return (
-    <div className="relative min-h-screen bg-[#050506] text-white">
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute inset-0 bg-[#050506]" />
+    <div 
+      className="relative min-h-screen overflow-x-hidden bg-[#0A0A0A] text-white"
+      style={{ "--event-accent": dominantColor }}
+    >
+      <div className="pointer-events-none fixed inset-0 z-0">
+        {/* Layer 1: Base Black */}
+        <div className="absolute inset-0 bg-black" />
+        
+        {/* Layer 2: Primary centralized glow from dominant color */}
+        <div
+          className="absolute inset-0 opacity-100 mix-blend-screen"
+          style={{
+            background: `radial-gradient(ellipse at 50% 30%, rgba(var(--event-accent), 0.9), transparent 85%)`,
+          }}
+        />
 
-        <div className="absolute inset-x-0 top-0 h-[130vh] overflow-hidden">
-          {backdropPoster && (
-            <Image
-              src={backdropPoster}
-              alt=""
-              fill
-              priority
-              unoptimized
-              className="object-cover object-center opacity-[0.5] blur-[20px] saturate-[1.4] brightness-[0.6] scale-[1.15]"
-            />
-          )}
+        {/* Layer 3: Secondary diffuse glow */}
+        <div
+          className="absolute inset-0 opacity-80 mix-blend-screen"
+          style={{
+            background: `radial-gradient(circle at 50% 50%, rgba(var(--event-accent), 0.5), transparent 85%)`,
+          }}
+        />
 
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,transparent_40%,rgba(5,5,6,0.35)_58%,rgba(5,5,6,0.7)_76%,#050506_100%)]" />
-        </div>
+        {/* Layer 4: Grain/Noise */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")", backgroundRepeat: "repeat", backgroundSize: "256px 256px" }} />
+
+        {/* Layer 5: Black Vignette Gradients from all 4 sides (focusing light to center) */}
+        <div className="absolute left-0 right-0 top-0 h-[15vh] bg-gradient-to-b from-black via-black/60 to-transparent" />
+        <div className="absolute left-0 right-0 bottom-0 h-[40vh] bg-gradient-to-t from-black via-black/90 to-transparent" />
+        <div className="absolute top-0 bottom-0 left-0 w-[25vw] bg-gradient-to-r from-black via-black/80 to-transparent" />
+        <div className="absolute top-0 bottom-0 right-0 w-[25vw] bg-gradient-to-l from-black via-black/80 to-transparent" />
       </div>
 
-      <div className="relative z-10 px-4 pb-44 pt-16 sm:px-6 sm:pb-36 sm:pt-24 lg:px-8 lg:pb-[34rem] lg:pt-32 xl:px-10">
-        <div className="mx-auto max-w-[1380px]">
-          <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,380px)] lg:items-start lg:gap-12">
-            <main className="min-w-0 lg:pr-2">
-              <div className="pt-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex min-w-0 items-center gap-4">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.08] text-[12px] font-black uppercase text-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                      {hostName.charAt(0)}
+      <div className="relative z-10 px-3 pb-20 pt-5 sm:px-6 sm:pb-24 sm:pt-7 lg:px-8 lg:pb-40 lg:pt-8">
+        <div className="mx-auto max-w-[1160px]">
+          <div>
+            <div aria-hidden="true" className="h-[40px] sm:h-[48px]" />
+
+            <div className="sticky top-5 z-30 mt-2">
+              <GlassCard
+                className="rounded-[24px] p-4 sm:px-5 sm:py-4"
+                glowColor={dominantColor}
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <SectionLabel>Get on the list</SectionLabel>
+                    <div className="mt-2 text-[clamp(1.15rem,2vw,1.45rem)] font-semibold leading-tight text-white">
+                      {tickets.length > 0
+                        ? isFreeEntry
+                          ? "Free RSVP is open now."
+                          : startsFree
+                            ? "Entry starts free."
+                            : `Tickets start at ${formatINR(startingPrice)}.`
+                        : "Ticket drop coming soon."}
                     </div>
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/[0.38]">
-                        THE C1RCLE PRESENTS
-                      </div>
-                      <div className="truncate text-[15px] font-bold tracking-tight text-white">
-                        {hostName}
-                      </div>
+                    <div className="mt-2 truncate text-[14px] text-white/48">
+                      {stickySupportLabel}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     <button
                       type="button"
-                      onClick={handleSave}
-                      className={`rounded-full border px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md transition ${
-                        saved
-                          ? "border-white/20 bg-white text-black"
-                          : "border-white/10 bg-white/[0.05] text-white/70 hover:bg-white/[0.08] hover:text-white"
-                      }`}
+                      onClick={() => setCrowdModalOpen(true)}
+                      className="hidden sm:inline-flex rounded-full border border-white/10 bg-white/[0.06] px-5 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white/70 shadow-[0_0_12px_rgba(255,255,255,0.06)] transition hover:border-white/20 hover:bg-white/[0.1] hover:text-white hover:shadow-[0_0_16px_rgba(255,255,255,0.12)]"
                     >
-                      <Bookmark className={`h-[16px] w-[16px] ${saved ? "fill-current" : ""}`} />
+                      View Guestlist
                     </button>
                     <button
                       type="button"
-                      onClick={handleShare}
-                      className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md transition hover:bg-white/[0.08] hover:text-white"
+                      onClick={handlePrimaryAction}
+                      className="rounded-full px-5 sm:px-6 py-3 sm:py-3.5 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-[0_0_16px_rgba(255,255,255,0.15)] transition-all hover:scale-[1.02] hover:brightness-110"
+                      style={{
+                        background: `linear-gradient(135deg, rgba(${dominantColor}, 0.98) 0%, rgba(${dominantColor}, 0.74) 100%)`,
+                        boxShadow: `0 16px 46px rgba(${dominantColor}, 0.34), inset 0 1px 0 rgba(255,255,255,0.24), 0 0 20px rgba(${dominantColor}, 0.4)`,
+                      }}
                     >
-                      <Share2 className="h-[16px] w-[16px]" />
+                      {primaryActionLabel}
                     </button>
                   </div>
                 </div>
-              </div>
+              </GlassCard>
+            </div>
 
-              <div className="mt-7">
-                <h1 className="max-w-3xl font-heading text-[clamp(3rem,6.9vw,5.4rem)] font-black uppercase leading-[0.88] tracking-[-0.075em] text-white">
-                  {displayTitle}
-                </h1>
+            <div className="mt-2 grid items-start gap-2.5 sm:gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="flex flex-col gap-2.5 sm:gap-3 order-2 lg:order-1">
+              <GlassCard
+                className="p-5 sm:p-6 lg:p-7"
+                glowColor={dominantColor}
+              >
+                <div className="min-w-0">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.26em] text-white/60">
+                    <Sparkles className="h-3 w-3" />
+                    {event?.category || "Announcement"}
+                  </div>
 
-                <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                  <button
-                    type="button"
-                    onClick={handlePrimaryAction}
-                    className="inline-flex min-h-[56px] items-center justify-center rounded-full bg-gradient-to-r from-[#f44a22] via-[#ff6a3f] to-[#ff9b7c] px-8 text-[13px] font-black uppercase tracking-[0.18em] text-black shadow-[inset_0_1px_0_rgba(255,255,255,0.42),0_18px_40px_rgba(244,74,34,0.2)] transition hover:scale-[1.01] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.48),0_20px_44px_rgba(244,74,34,0.3)] sm:min-w-[280px]"
-                  >
-                    {selectedTickets.length > 0
-                      ? `Continue • ${formatINR(totalPrice)}`
-                      : tickets.length > 0
-                        ? `Book from ${formatINR(startingPrice)}`
-                        : "Get Tickets"}
-                  </button>
+                  <h1 className="mt-4 max-w-4xl font-heading text-[clamp(1.75rem,7vw,4.5rem)] font-black uppercase leading-[0.9] tracking-tight text-white">
+                    {displayTitle}
+                  </h1>
 
-                  <a
-                    href="#event-location"
-                    className="inline-flex min-h-[56px] items-center justify-center rounded-full border border-white/12 bg-white/[0.05] px-8 text-[12px] font-black uppercase tracking-[0.22em] text-white/[0.78] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md transition hover:bg-white/[0.09] hover:text-white"
-                  >
-                    See Venue
-                  </a>
-                </div>
-              </div>
+                  {tagline ? (
+                    <p className="mt-4 max-w-[58ch] text-[15px] leading-7 text-white/65 sm:text-[16px]">
+                      {tagline}
+                    </p>
+                  ) : null}
 
-              <div className="mt-8 grid gap-5 border-y border-white/10 py-5 sm:grid-cols-3 sm:gap-6">
-                <DetailStat
-                  icon={CalendarDays}
-                  label="Date"
-                  value={event?.startDate ? formatEventDate(event.startDate) : "Date to be announced"}
-                />
-                <DetailStat
-                  icon={Clock3}
-                  label="Time"
-                  value={timeLabel || "Timing drops soon"}
-                />
-                <DetailStat
-                  icon={MapPin}
-                  label="Venue"
-                  value={venueLabel}
-                  helper={event?.cityLabel || event?.city || ""}
-                />
-              </div>
-
-              <div className="mt-8 border-b border-white/10 pb-8">
-                <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.028)_18%,rgba(255,255,255,0.018))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_48px_rgba(0,0,0,0.2)] backdrop-blur-2xl">
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),transparent)]" />
-                  <div className="relative">
-                    <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/[0.38]">
-                          Going
+                  <div className="mt-5 flex flex-wrap items-center gap-4">
+                    <Link href={hostUrl} className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2.5 transition hover:border-white/20 hover:bg-white/[0.1]">
+                      <div className="h-9 w-9 overflow-hidden rounded-full border border-white/15 bg-white/10">
+                        {hostAvatar ? (
+                          <Image
+                            src={hostAvatar}
+                            alt={hostName}
+                            width={36}
+                            height={36}
+                            className="h-full w-full object-cover"
+                            unoptimized
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-[10px] font-bold text-white/70">
+                            {hostName.charAt(0)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">
+                          Hosted by
                         </div>
-                        {goingLabel ? (
-                          <div className="mt-1 text-[16px] font-bold tracking-tight text-white sm:text-[18px]">
-                            {goingLabel}
-                          </div>
-                        ) : null}
+                        <div className="truncate text-[14px] font-semibold text-white/82">
+                          {hostName}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        {interestedData?.count > 0 ? (
-                          <div className="inline-flex h-10 items-center rounded-full border border-white/10 bg-white/[0.05] px-4 text-[11px] font-black uppercase tracking-[0.22em] text-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
-                            {interestedData.count.toLocaleString("en-IN")} going
-                          </div>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => setCrowdModalOpen(true)}
-                          className="inline-flex h-10 items-center rounded-full border border-white/12 bg-white/[0.08] px-5 text-[11px] font-black uppercase tracking-[0.22em] text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm transition hover:bg-white/[0.12] hover:text-white"
-                        >
-                          View more
-                        </button>
+                    </Link>
+
+                    <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2.5">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white/70">
+                        <Calendar className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">
+                          Date & Time
+                        </div>
+                        <div className="truncate text-[14px] font-semibold text-white/82">
+                          {timeShort ? `${dateShort} · ${timeShort}` : dateShort}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="mt-6 flex flex-wrap items-center gap-3.5 sm:gap-4">
-                      {visibleCrowdPeople.map((person) => (
-                        <MiniAvatar key={person.id || person.name} person={person} />
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => setCrowdModalOpen(true)}
-                        className="inline-flex h-14 w-14 items-center justify-center rounded-full border border-white/[0.2] bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.04))] text-[26px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_18px_40px_rgba(0,0,0,0.34)] transition hover:scale-[1.03] hover:bg-white/[0.08] sm:h-16 sm:w-16"
+                    {hostInstagram ? (
+                      <a
+                        href={hostInstagram.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.2em] text-white/55 transition hover:border-white/20 hover:bg-white/[0.09] hover:text-white"
                       >
-                        +
-                      </button>
+                        <Instagram className="h-3.5 w-3.5" />
+                        {hostInstagram.label}
+                      </a>
+                    ) : null}
+                  </div>
+
+                  {crowdPeople.length > 0 && (
+                    <div className={`mt-6 flex flex-col gap-3.5 rounded-[22px] border border-white/10 bg-black/30 p-4 backdrop-blur-md`}>
+                      <div className="flex items-center gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[14px] font-semibold text-white">
+                            {goingLabel || "The line is forming"}
+                          </div>
+                          <div className="text-[11px] uppercase tracking-[0.2em] text-white/40">
+                            Verified interest on THE C1RCLE
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {crowdPeople.map((person) => (
+                          <MiniAvatar key={person.id || person.name} person={person} />
+                        ))}
+                      </div>
+
+                      {interestedData?.count > 0 ? (
+                        <div
+                          className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white"
+                          style={{
+                            background: `rgba(${dominantColor}, 0.22)`,
+                            borderColor: `rgba(${dominantColor}, 0.28)`,
+                          }}
+                        >
+                          <TrendingUp className="h-3.5 w-3.5" />
+                          Trending
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              </GlassCard>
+
+              {/* Left Column content continues without extra wrapper */}
+                <GlassCard className="p-5 sm:p-6" glowColor={dominantColor}>
+                  <SectionLabel>About the event</SectionLabel>
+
+                  <div className={`mt-4 space-y-3 ${!isDescriptionExpanded ? "line-clamp-4" : ""}`}>
+                    {(descriptionParagraphs.length ? descriptionParagraphs : [aboutText || "Details coming soon."]).map((paragraph) => (
+                      <p key={paragraph} className="text-[14px] leading-7 text-white/66">
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+
+                  {event?.artists?.length > 0 && isDescriptionExpanded && (
+                    <div className="mt-6 border-t border-white/10 pt-5">
+                      <SectionLabel>Lineup</SectionLabel>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {event.artists.map((artist, idx) => (
+                          <span key={idx} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[12px] font-semibold text-white/80">
+                            {artist.name || artist}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {descriptionParagraphs.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                      className="mt-3 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-white/50 transition hover:text-white"
+                    >
+                      {isDescriptionExpanded ? (
+                        <>Show Less <ChevronUp className="h-3.5 w-3.5" /></>
+                      ) : (
+                        <>View More <ChevronDown className="h-3.5 w-3.5" /></>
+                      )}
+                    </button>
+                  )}
+
+                  <div
+                    className="mt-5 rounded-[22px] border border-white/10 bg-black/20 px-4 py-3"
+                    style={{ boxShadow: `0 0 28px rgba(${dominantColor}, 0.08)` }}
+                  >
+                    <div className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">
+                      {noteLabel}
+                    </div>
+                    <div className="mt-2 text-[13px] leading-6 text-white/62">
+                      {noteValue}
                     </div>
                   </div>
-                </div>
+                </GlassCard>
+
+                {crowdPeople.length > 0 && (
+                  <GlassCard className="p-5 sm:p-6" glowColor={dominantColor}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <SectionLabel className="flex items-center gap-2">
+                          <Users className="h-3.5 w-3.5" />
+                          Guestlist
+                        </SectionLabel>
+                        <div className="mt-3 text-[24px] font-black tracking-[-0.04em] text-white">
+                          Who&apos;s Going
+                        </div>
+                        <div className="mt-2 text-[13px] text-white/48">
+                          {goingLabel || "Community arrivals show up here first."}
+                        </div>
+                      </div>
+
+                      <a
+                        href={appUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/60 transition hover:border-white/20 hover:bg-white/[0.09] hover:text-white"
+                      >
+                        View All
+                      </a>
+                    </div>
+
+                    <div className="mt-5 rounded-[22px] border border-white/[0.08] bg-black/20 p-5">
+                      <div className="flex flex-wrap gap-3">
+                        {crowdPeople.map((person) => (
+                          <MiniAvatar key={person.id || person.name} person={person} size="lg" />
+                        ))}
+                      </div>
+                    </div>
+                  </GlassCard>
+                )}
+
+                <section id="event-location">
+                  <GlassCard className="overflow-hidden" glowColor={dominantColor}>
+                    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-5">
+                      <div>
+                        <SectionLabel>Location</SectionLabel>
+                        <div className="mt-3 text-[22px] font-black tracking-[-0.04em] text-white">
+                          {venueLabel}
+                        </div>
+                        {addressLabel ? (
+                          <div className="mt-2 flex items-center gap-2 text-[13px] text-white/50">
+                            <MapPin className="h-3.5 w-3.5 shrink-0" />
+                            {addressLabel}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <a
+                        href={mapHref}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/65 transition hover:border-white/20 hover:bg-white/[0.1] hover:text-white"
+                      >
+                        Open Maps
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                      </a>
+                    </div>
+
+                    <div className="relative h-[320px] w-full">
+                      <iframe
+                        title={`${event?.title || "Event"} location`}
+                        src={mapEmbed}
+                        loading="lazy"
+                        referrerPolicy="no-referrer-when-downgrade"
+                        className="absolute inset-0 h-full w-full grayscale contrast-125 brightness-[0.74]"
+                      />
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                    </div>
+                  </GlassCard>
+                </section>
+
               </div>
 
-              <section id="event-location" className="mt-10 border-b border-white/10 pb-10">
-                <div className="flex items-center justify-between gap-4">
-                  <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/[0.38]">
-                    Location
-                  </h2>
-                  <a
-                    href={mapHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-white/12 bg-white/[0.08] px-5 text-[11px] font-black uppercase tracking-[0.22em] text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm transition hover:bg-white/[0.12] hover:text-white"
-                  >
-                    Open Maps <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
-
-                <div className="mt-5 overflow-hidden rounded-[28px] border border-white/10 bg-[#111216] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_48px_rgba(0,0,0,0.24)]">
-                  <iframe
-                    title={`${event?.title || "Event"} location`}
-                    src={mapEmbed}
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                    className="h-[320px] w-full grayscale contrast-125 brightness-75"
-                  />
-                  {addressLabel && (
-                    <div className="px-5 py-4 text-sm text-white/60">
-                      {addressLabel}
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section className="mt-10 pb-10">
-                <Link
-                  href={hostUrl}
-                  className="group relative flex items-center gap-5 overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#0e0e10] p-5 shadow-[0_2px_24px_rgba(0,0,0,0.5)] transition hover:border-white/[0.14] sm:gap-7 sm:p-7"
+              <aside className="relative flex flex-col gap-2.5 sm:gap-3 order-1 lg:order-2">
+                {/* Ambient glow specifically behind the poster element */}
+                <div 
+                  className="pointer-events-none absolute -inset-20 z-[-1] opacity-60 blur-[80px] transition-opacity duration-700"
+                  style={{ background: `radial-gradient(circle, rgba(var(--event-accent), 0.5) 0%, transparent 60%)` }}
+                />
+                <GlassCard
+                  className="p-3 sm:p-4"
+                  glowColor={dominantColor}
                 >
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/[0.12] to-transparent" />
-
-                  <div className="relative shrink-0">
-                    <div className="h-[88px] w-[88px] overflow-hidden rounded-full border border-white/10 bg-[#1a1a1d] shadow-[0_12px_40px_rgba(0,0,0,0.5)] sm:h-[108px] sm:w-[108px]">
-                      {hostAvatar ? (
-                        <Image
-                          src={hostAvatar}
-                          alt={hostName}
-                          width={108}
-                          height={108}
-                          className="h-full w-full object-cover"
-                          unoptimized
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#f44a22]/20 to-transparent text-[28px] font-black uppercase tracking-[-0.06em] text-white">
-                          {hostName.slice(0, 2)}
+                  <div className="relative aspect-[0.78] overflow-hidden rounded-[24px] border border-white/10">
+                    <div className="absolute inset-0" style={{ background: posterGradient }} />
+                    {eventImage ? (
+                      <Image
+                        src={eventImage}
+                        alt={event?.title || ""}
+                        fill
+                        priority
+                        unoptimized
+                        className="object-cover"
+                      />
+                    ) : null}
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,8,10,0.06),rgba(8,8,10,0.38)_48%,rgba(8,8,10,0.8)_100%)]" />
+                    <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 p-4">
+                      <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.22em] text-white/70 backdrop-blur-md">
+                        {event?.category || "Event"}
+                      </span>
+                      <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.22em] text-white/70 backdrop-blur-md">
+                        {dateShort}
+                      </span>
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 p-4">
+                      <div className="rounded-[20px] border border-white/10 bg-black/35 p-4 backdrop-blur-md">
+                        <div className="mt-1 text-[18px] font-black uppercase leading-[0.96] tracking-[-0.05em] text-white">
+                          {displayTitle}
                         </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[10px] font-black uppercase tracking-[0.26em] text-white/[0.36]">
-                      Hosted by
-                    </div>
-                    <div className="mt-1.5 truncate text-[22px] font-black tracking-[-0.04em] text-white sm:text-[26px]">
-                      {hostName}
-                    </div>
-
-                    <div className="mt-3 flex items-center gap-4">
-                      <div>
-                        <span className="text-[18px] font-bold tabular-nums tracking-[-0.03em] text-white">
-                          {eventCount}
-                        </span>
-                        <span className="ml-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-white/[0.38]">
-                          Events
-                        </span>
-                      </div>
-                      <div className="h-3 w-px bg-white/[0.12]" />
-                      <div>
-                        <span className="text-[18px] font-bold tabular-nums tracking-[-0.03em] text-white">
-                          {attendeeCount > 0 ? attendeeCount.toLocaleString("en-IN") : "—"}
-                        </span>
-                        <span className="ml-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-white/[0.38]">
-                          Reached
-                        </span>
-                      </div>
-                      {hostInstagram && (
-                        <>
-                          <div className="h-3 w-px bg-white/[0.12]" />
-                          <a
-                            href={hostInstagram.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-white/50 transition hover:text-white/90"
-                          >
-                            <Instagram className="h-3.5 w-3.5" />
-                            {hostInstagram.label}
-                          </a>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="shrink-0 text-white/30 transition group-hover:translate-x-0.5 group-hover:text-white/70">
-                    <ChevronRight className="h-5 w-5" />
-                  </div>
-                </Link>
-
-                <section className="relative mt-5 flex h-full min-h-[360px] flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(23,24,29,0.96)_18%,rgba(23,24,29,0.98))] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_54px_rgba(0,0,0,0.24)] backdrop-blur-2xl sm:p-7">
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),transparent)]" />
-                  <div className="relative flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-orange/20">
-                      <img src="/logo-circle.jpg" alt="The C1rcle" className="h-full w-full object-cover" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-heading text-sm font-black uppercase tracking-[0.18em] text-white">
-                        THE C1RCLE
-                      </div>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-white/[0.42]">
-                        App Access
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="relative mt-8 grid flex-1 gap-8 lg:grid-cols-[minmax(0,1fr)_190px] lg:items-center">
-                    <div className="min-w-0">
-                      <div className="max-w-[11ch] text-[clamp(2.6rem,4vw,4.2rem)] font-semibold leading-[0.94] tracking-[-0.06em] text-white">
-                        Move faster at the door.
-                      </div>
-                      <div className="mt-5 max-w-[24ch] text-[19px] leading-8 text-white/[0.58]">
-                        Ticket vault, direct transfers, cleaner checkout.
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-start justify-center lg:items-end">
-                      <div className="rounded-[18px] bg-white p-3 shadow-[0_20px_60px_rgba(0,0,0,0.32)]">
-                        <QRCodeSVG value={appUrl} size={172} bgColor="#ffffff" fgColor="#000000" />
-                      </div>
-                      <div className="mt-4 pl-1 text-sm text-white/[0.55] lg:pr-2">Scan to download</div>
-                    </div>
-                  </div>
-
-                  <div className="relative mt-8 grid grid-cols-3 gap-3 border-t border-white/10 pt-4 text-center text-[12px] text-white/[0.65]">
-                    <div className="flex flex-col items-center gap-2">
-                      <Ticket className="h-4 w-4 text-white/90" />
-                      Instant access
-                    </div>
-                    <div className="flex flex-col items-center gap-2">
-                      <Share2 className="h-4 w-4 text-white/90" />
-                      Cleaner transfers
-                    </div>
-                    <div className="flex flex-col items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-white/90" />
-                      Better curation
-                    </div>
-                  </div>
-                </section>
-              </section>
-            </main>
-
-            <aside className="h-fit self-start">
-              <div className="space-y-8 lg:sticky lg:top-24">
-                <div className="relative">
-                  {eventImage && (
-                    <Image
-                      src={eventImage}
-                      alt=""
-                      fill
-                      priority
-                      unoptimized
-                      className="pointer-events-none absolute inset-x-5 inset-y-10 h-auto w-auto rounded-[36px] object-cover opacity-[0.34] blur-[34px] saturate-[1.2] brightness-[0.78] scale-[1.06]"
-                    />
-                  )}
-                  <div
-                    className="pointer-events-none absolute inset-x-8 inset-y-14 rounded-[34px] opacity-40 blur-[36px]"
-                    style={{ background: posterGradient }}
-                  />
-                  <div className="relative overflow-hidden rounded-[30px] border border-white/[0.12] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(0,0,0,0.18)_28%,rgba(0,0,0,0.28))] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_24px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
-                    <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-[linear-gradient(180deg,rgba(255,255,255,0.18),transparent)]" />
-                    <div className="relative aspect-[0.78] overflow-hidden rounded-[24px] border border-white/10">
-                      <div className="absolute inset-0" style={{ background: posterGradient }} />
-                      {eventImage && (
-                        <Image
-                          src={eventImage}
-                          alt={event?.title || ""}
-                          fill
-                          priority
-                          unoptimized
-                          className="object-cover opacity-[0.88]"
-                        />
-                      )}
-                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,5,6,0.08),rgba(5,5,6,0.54)_72%,rgba(5,5,6,0.84))]" />
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.16),transparent_42%)]" />
-
-                      <div className="absolute inset-x-0 top-0 p-[18px]">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/[0.28] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.24em] text-white/[0.82] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md">
-                            THE C1RCLE
-                          </div>
-                          <div className="rounded-full border border-white/10 bg-black/[0.28] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-white/[0.74] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md">
-                            {event?.startDate ? formatEventDate(event.startDate) : "Date soon"}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="absolute inset-x-0 bottom-0 p-4">
-                        <div className="rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(0,0,0,0.34)_20%,rgba(0,0,0,0.44))] p-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-lg">
-                          <div className="text-[10px] font-black uppercase tracking-[0.28em] text-white/[0.6]">
-                            {event?.category || "Event"}
-                          </div>
-                          <div className="mt-2.5 text-[26px] font-black uppercase leading-[0.94] tracking-[-0.08em] text-white">
-                            {displayTitle}
-                          </div>
-                          <div className="mt-4 flex items-center justify-between gap-4 text-[10px] font-bold uppercase tracking-[0.24em] text-white/[0.58]">
-                            <span className="truncate">{venueLabel}</span>
-                            <span>{tickets.length > 0 ? formatINR(startingPrice) : "Soon"}</span>
-                          </div>
+                        <div className="mt-3 text-[11px] uppercase tracking-[0.18em] text-white/46">
+                          {venueLabel}
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                </GlassCard>
 
-                <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(17,18,22,0.96)_18%,rgba(17,18,22,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_16px_54px_rgba(0,0,0,0.26)] backdrop-blur-2xl">
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),transparent)]" />
-                  <div className="border-b border-white/10 px-5 py-4">
+                <GlassCard glowColor={dominantColor}>
+                  <div className="border-b border-white/[0.08] px-5 py-5">
                     <SectionLabel>Tickets</SectionLabel>
-                    <div className="mt-2.5 text-[30px] font-black uppercase tracking-[-0.05em] text-white">
-                      {tickets.length > 0 ? `From ${formatINR(startingPrice)}` : "Tickets Soon"}
+                    <div className="mt-3 text-[28px] font-black uppercase tracking-[-0.04em] text-white">
+                      {entryLabel}
                     </div>
-                    <div className="mt-1.5 text-[11px] font-black uppercase tracking-[0.24em] text-white/[0.42]">
-                      {tickets.length > 0 ? "Choose your tier" : "Inventory pending"}
+                    <div className="mt-2 max-w-[28ch] text-[13px] leading-6 text-white/48">
+                      {ticketLeadCopy}
                     </div>
                   </div>
 
-                  <div className="space-y-2.5 px-4 py-3.5">
-                    {tickets.length === 0 && (
-                      <div className="rounded-[20px] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm leading-6 text-white/[0.58]">
+                  <div className="flex flex-col gap-3 px-5 py-5">
+                    {tickets.length === 0 ? (
+                      <div className="rounded-[18px] border border-white/[0.06] bg-white/[0.03] px-4 py-4 text-[13px] leading-6 text-white/50">
                         Door list drops soon.
                       </div>
-                    )}
+                    ) : null}
 
                     {tickets.map((ticket) => {
                       const availability = getAvailability(ticket);
                       const badge = getTierBadge(ticket, startingPrice);
                       const quantity = Number(quantities[ticket.id] || 0);
-                      const limit = getTierLimit(ticket);
+                      const limit = getTierLimit(ticket, totalFreeSelected, quantity);
                       const isSelected = quantity > 0;
 
                       return (
                         <div
                           key={ticket.id}
-                          className={`rounded-[22px] border px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-md transition ${
+                          className={`relative overflow-hidden rounded-[20px] border px-5 py-5 transition-all duration-300 ${
                             isSelected
-                              ? "border-orange/35 bg-[linear-gradient(180deg,rgba(244,74,34,0.18),rgba(244,74,34,0.08))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_16px_44px_rgba(244,74,34,0.12)]"
-                              : "border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))]"
-                          } ${availability.isSoldOut ? "opacity-70" : ""}`}
+                              ? "border-white/20 bg-white/[0.08] shadow-lg"
+                              : "border-white/[0.06] bg-black/40 hover:bg-black/60"
+                          } ${availability.isSoldOut ? "opacity-60 grayscale" : ""}`}
+                          style={
+                            isSelected
+                              ? {
+                                  borderColor: `rgba(${dominantColor}, 0.3)`,
+                                  boxShadow: `0 12px 36px rgba(${dominantColor}, 0.12)`,
+                                }
+                              : undefined
+                          }
                         >
-                          <div className="flex items-start justify-between gap-4">
+                          {/* Top Section */}
+                          <div className="flex items-start justify-between gap-3 relative z-10">
                             <div>
                               {badge ? (
-                                <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${badge.classes}`}>
+                                <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-[0.2em] ${badge.classes}`}>
                                   {badge.label}
                                 </span>
                               ) : null}
-                              <div className={`${badge ? "mt-2.5" : ""} text-[19px] font-semibold text-white`}>
+                              <div className={`${badge ? "mt-2" : ""} text-[16px] font-bold tracking-wide text-white`}>
                                 {ticket.name || "Entry Tier"}
                               </div>
-                              <div className="mt-1.5 text-[11px] font-black uppercase tracking-[0.22em] text-white/[0.5]">
+                              <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">
+                                <div className={`h-1.5 w-1.5 rounded-full ${availability.isSoldOut ? "bg-red-500/50" : availability.fill > 0.8 ? "bg-amber-500/80" : "bg-emerald-500/80"}`} />
                                 {availability.label}
                               </div>
                             </div>
 
                             <div className="text-right">
-                              <div className="text-[26px] font-black tracking-[-0.05em] text-white">
+                              <div className="text-[20px] font-black tracking-[-0.04em] text-white">
                                 {Number(ticket.price || 0) === 0 ? "Free" : formatINR(ticket.price)}
                               </div>
-                              <div className="mt-1 text-[10px] font-black uppercase tracking-[0.24em] text-white/[0.34]">
-                                {limit > 0 ? `Limit ${limit}` : "Closed"}
+                              <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.2em] text-white/30">
+                                {Number(ticket.price || 0) === 0 ? (quantity >= 1 || (totalFreeSelected >= 1 && quantity === 0) ? "Limit Reached" : "Limit 1") : limit > 0 ? `Limit ${limit}` : "Closed"}
                               </div>
                             </div>
                           </div>
 
-                          <div className="mt-3.5 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
-                            <div
-                              className={`h-full rounded-full ${availability.barClass}`}
-                              style={{ width: `${Math.max(6, availability.fill * 100)}%` }}
-                            />
-                          </div>
-
-                          <div className="mt-3.5 flex items-center justify-end gap-4">
+                          {/* Bottom Section */}
+                          <div className="mt-4 flex items-center justify-between border-t border-white/[0.06] pt-4 relative z-10">
+                            <div className="text-[11px] font-semibold text-white/40">
+                              {isSelected ? "Selected" : "Select Quantity"}
+                            </div>
+                            
                             {availability.isSoldOut ? (
                               <button
                                 type="button"
                                 onClick={() => handleNotifyMe(ticket)}
                                 disabled={waitlistState[ticket.id] === "loading" || waitlistState[ticket.id] === "joined"}
-                                className="w-full rounded-xl border border-white/10 py-2.5 text-[11px] font-black uppercase tracking-[0.18em] text-white/60 transition hover:border-white/20 hover:text-white/80 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="rounded-xl border border-white/8 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/50 transition hover:border-white/15 hover:text-white/70 disabled:cursor-not-allowed disabled:opacity-40"
                               >
                                 {waitlistState[ticket.id] === "joined"
                                   ? "You're on the list"
@@ -927,43 +1076,50 @@ export default function EventDetail({
                                     : "Notify Me"}
                               </button>
                             ) : (
-                              <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-black/20 px-3 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md">
+                              <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-black/40 px-1 py-1 backdrop-blur-md">
                                 <button
                                   type="button"
                                   onClick={() => setQuantity(ticket, quantity - 1)}
                                   disabled={quantity <= 0}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.08] text-white transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-35"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-30"
                                 >
-                                  <Minus className="h-4 w-4" />
+                                  <Minus className="h-3.5 w-3.5" />
                                 </button>
-
-                                <span className="min-w-[20px] text-center text-sm font-semibold text-white">
+                                <span className="w-4 text-center text-[14px] font-bold text-white">
                                   {quantity}
                                 </span>
-
                                 <button
                                   type="button"
                                   onClick={() => setQuantity(ticket, quantity + 1)}
                                   disabled={quantity >= limit}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-black transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-35"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-black transition hover:scale-105 hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-30"
                                 >
-                                  <Plus className="h-4 w-4" />
+                                  <Plus className="h-3.5 w-3.5" />
                                 </button>
                               </div>
                             )}
                           </div>
+                          
+                          {/* Ambient fill for progress - absolutely positioned at bottom so it doesn't interrupt flow */}
+                          <div
+                            className="absolute bottom-0 left-0 h-1 bg-white/10 transition-all duration-500"
+                            style={{ 
+                              width: `${Math.max(2, availability.fill * 100)}%`, 
+                              background: isSelected ? `rgba(${dominantColor}, 0.8)` : undefined 
+                            }}
+                          />
                         </div>
                       );
                     })}
                   </div>
 
-                  <div className="border-t border-white/10 px-5 py-4">
+                  <div className="border-t border-white/[0.08] px-5 py-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.24em] text-white/[0.42]">
+                        <div className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">
                           Cart
                         </div>
-                        <div className="mt-1 text-sm font-semibold text-white">
+                        <div className="mt-0.5 text-[13px] font-semibold text-white/70">
                           {selectedTickets.length > 0
                             ? `${totalSelected} selected`
                             : tickets.length > 0
@@ -971,28 +1127,81 @@ export default function EventDetail({
                               : "Join the waitlist"}
                         </div>
                       </div>
-                      <div className="text-lg font-black text-white">
-                        {selectedTickets.length > 0 ? formatINR(totalPrice) : tickets.length > 0 ? formatINR(startingPrice) : "--"}
+                      <div className="text-[17px] font-black text-white">
+                        {selectedTickets.length > 0 ? formatINR(totalPrice) : tickets.length > 0 ? (isFreeEntry ? "Free" : formatINR(startingPrice)) : "--"}
                       </div>
                     </div>
 
                     <button
                       type="button"
                       onClick={handlePrimaryAction}
-                      className="mt-4 inline-flex w-full items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#f44a22] via-[#ff6a3f] to-[#ff9b7c] px-6 py-4 text-[11px] font-black uppercase tracking-[0.22em] text-black shadow-[inset_0_1px_0_rgba(255,255,255,0.42),0_18px_40px_rgba(244,74,34,0.2)] transition hover:scale-[1.01] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.48),0_20px_44px_rgba(244,74,34,0.3)]"
+                      className="mt-3.5 inline-flex w-full items-center justify-center gap-2.5 rounded-full py-3.5 text-[11px] font-black uppercase tracking-[0.2em] text-white transition-all hover:scale-[1.01] hover:brightness-110"
+                      style={{
+                        background: `linear-gradient(135deg, rgba(${dominantColor}, 0.9) 0%, rgba(${dominantColor}, 0.65) 100%)`,
+                        boxShadow: `0 14px 44px rgba(${dominantColor}, 0.25), inset 0 1px 0 rgba(255,255,255,0.18)`,
+                      }}
                     >
                       <Ticket className="h-4 w-4" />
-                      {selectedTickets.length > 0 ? "Continue To Checkout" : tickets.length > 0 ? "Get Tickets" : "Get Notified"}
+                      {selectedTickets.length > 0 ? "Continue To Checkout" : primaryActionLabel}
                     </button>
                   </div>
-                </div>
-              </div>
-            </aside>
+                </GlassCard>
+
+                <GlassCard
+                  className="p-5"
+                  glowColor={dominantColor}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/15">
+                      <img src="/logo-circle.jpg" alt="The C1rcle" className="h-full w-full object-cover" />
+                    </div>
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-[0.24em] text-white/36">
+                        App Access
+                      </div>
+                      <div className="mt-1 text-[14px] font-semibold text-white">
+                        Download the app
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex items-start justify-between gap-4">
+                    <div className="max-w-[13rem]">
+                      <div className="text-[18px] font-semibold leading-tight text-white">
+                        Move faster at the door.
+                      </div>
+                      <div className="mt-2 text-[13px] leading-6 text-white/52">
+                        Ticket vault, direct transfers, cleaner checkout.
+                      </div>
+                    </div>
+
+                    <div className="rounded-[16px] bg-white p-2.5 shadow-xl">
+                      <QRCodeSVG value={appUrl} size={96} bgColor="#ffffff" fgColor="#000000" />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/8 pt-4 text-center text-[10px] text-white/46">
+                    <div className="flex flex-col items-center gap-1.5">
+                      <Ticket className="h-3.5 w-3.5 text-white/72" />
+                      Instant access
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <Share2 className="h-3.5 w-3.5 text-white/72" />
+                      Transfers
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-white/72" />
+                      Curated entry
+                    </div>
+                  </div>
+                </GlassCard>
+              </aside>
+            </div>
           </div>
         </div>
       </div>
 
-      {crowdModalOpen && (
+      {crowdModalOpen ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center px-4 py-12">
           <button
             type="button"
@@ -1000,19 +1209,21 @@ export default function EventDetail({
             onClick={() => setCrowdModalOpen(false)}
             className="absolute inset-0 bg-black/70 backdrop-blur-md"
           />
-          <div className="relative z-10 w-full max-w-[920px] overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(12,13,18,0.96)_18%,rgba(10,10,14,0.98))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.48)] backdrop-blur-3xl sm:p-7">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent)]" />
+
+          <div
+            className="relative z-10 w-full max-w-[920px] overflow-hidden rounded-[30px] border border-white/10 bg-[#0c0c10]/95 p-5 shadow-[0_30px_120px_rgba(0,0,0,0.48)] backdrop-blur-3xl sm:p-7"
+            style={{ boxShadow: `0 0 100px rgba(${dominantColor}, 0.1)` }}
+          >
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/[0.15] to-transparent" />
             <div className="relative">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.28em] text-white/[0.42]">
-                    Going
-                  </div>
-                  <div className="mt-2 text-[30px] font-semibold tracking-[-0.05em] text-white sm:text-[36px]">
+                  <SectionLabel>Going</SectionLabel>
+                  <div className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-white sm:text-[34px]">
                     Guest list
                   </div>
                   {interestedData?.count > 0 ? (
-                    <div className="mt-2 text-sm text-white/[0.64]">
+                    <div className="mt-2 text-[13px] text-white/50">
                       {interestedData.count.toLocaleString("en-IN")} people going
                     </div>
                   ) : null}
@@ -1020,7 +1231,7 @@ export default function EventDetail({
                 <button
                   type="button"
                   onClick={() => setCrowdModalOpen(false)}
-                  className="inline-flex rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[11px] font-black uppercase tracking-[0.22em] text-white/[0.72] transition hover:bg-white/[0.08] hover:text-white"
+                  className="inline-flex rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/60 transition hover:bg-white/[0.08] hover:text-white"
                 >
                   Close
                 </button>
@@ -1030,7 +1241,7 @@ export default function EventDetail({
                 {crowdPeople.map((person) => (
                   <div
                     key={`crowd-modal-${person.id || person.name}`}
-                    className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-full border-2 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.4)] sm:h-24 sm:w-24"
+                    className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-full border-2 border-white/15 shadow-lg sm:h-24 sm:w-24"
                   >
                     <MiniAvatar person={person} size="xl" />
                   </div>
@@ -1039,25 +1250,8 @@ export default function EventDetail({
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
-      <div className="fixed inset-x-0 bottom-8 z-[70] flex justify-center px-4 lg:hidden">
-        <button
-          type="button"
-          onClick={handlePrimaryAction}
-          className="group relative flex min-h-[60px] w-full max-w-[420px] items-center justify-center overflow-hidden rounded-full bg-gradient-to-r from-[#d35400] to-[#e67e22] px-8 py-4 text-[13px] font-black uppercase tracking-[0.15em] text-white shadow-[0_24px_48px_rgba(211,84,0,0.35),inset_0_1px_0_rgba(255,255,255,0.3)] transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] sm:text-[14px]"
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent opacity-50" />
-
-          <span className="relative z-10 drop-shadow-sm">
-            {selectedTickets.length > 0
-              ? `Continue • ${formatINR(totalPrice)}`
-              : tickets.length > 0
-                ? `Buy tickets from ${formatINR(startingPrice)}`
-                : "Get Tickets"}
-          </span>
-        </button>
-      </div>
     </div>
   );
 }

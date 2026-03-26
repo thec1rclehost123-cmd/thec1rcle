@@ -28,7 +28,7 @@ export function AssistantButton() {
                 transition={{ delay: 0.8, duration: 0.2 }}
                 onClick={() => setPanelOpen(true)}
                 className={`
-                    fixed bottom-6 right-5 z-[150]
+                    fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] right-5 z-[150]
                     w-10 h-10 rounded-full
                     bg-surface-tertiary border border-border-subtle
                     flex items-center justify-center

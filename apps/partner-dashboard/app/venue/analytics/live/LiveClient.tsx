@@ -431,7 +431,8 @@ export default function LiveClient() {
         <StudioShell
             role="venue"
             title="Live Operations"
-            description="Real-time view of your event in progress."
+            subtitle="Real-time view of your event in progress."
+            sections={[]}
         >
             <div className="pb-20">
                 {isLoading ? (

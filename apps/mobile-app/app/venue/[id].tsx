@@ -21,6 +21,9 @@ import { colors, radii } from "@/lib/design/theme";
 import { EventCard } from "@/components/ui/EventCard";
 import { PremiumButton } from "@/components/ui/PremiumButton";
 import { getFacilityEmoji, type VenueHighlight, useVenuePageStore } from "@/store/venuePageStore";
+import { formatCompactCount } from "@/lib/venueDiscovery";
+
+const AnyFlatList = FlatList as any;
 
 export default function VenuePageScreen() {
     const { id } = useLocalSearchParams<{ id?: string }>();
@@ -76,7 +79,14 @@ export default function VenuePageScreen() {
     };
 
     const handleDirections = async () => {
+        const coordinates = venue?.coordinates;
         const target = venue?.address || primaryLocation || venueName;
+        if (coordinates) {
+            await Linking.openURL(
+                `https://www.google.com/maps/dir/?api=1&destination=${coordinates.latitude},${coordinates.longitude}`
+            );
+            return;
+        }
         if (!target) return;
         await Linking.openURL(`maps://search?q=${encodeURIComponent(target)}`);
     };
@@ -130,6 +140,11 @@ export default function VenuePageScreen() {
                                     <Text style={styles.badgeText}>Verified</Text>
                                 </View>
                             ) : null}
+                            {venue.venueType ? (
+                                <View style={styles.badgeMuted}>
+                                    <Text style={styles.badgeMutedText}>{venue.venueType}</Text>
+                                </View>
+                            ) : null}
                             {primaryLocation ? (
                                 <View style={styles.badgeMuted}>
                                     <Text style={styles.badgeMutedText}>{primaryLocation}</Text>
@@ -144,6 +159,16 @@ export default function VenuePageScreen() {
                                 <Text style={styles.timingsText}>{timingsText}</Text>
                             </View>
                         ) : null}
+                        <View style={styles.statRow}>
+                            <View style={styles.statChip}>
+                                <Text style={styles.statChipValue}>{formatCompactCount(venue.followers)}</Text>
+                                <Text style={styles.statChipLabel}>Followers</Text>
+                            </View>
+                            <View style={styles.statChip}>
+                                <Text style={styles.statChipValue}>{venue.upcomingEventsCount || 0}</Text>
+                                <Text style={styles.statChipLabel}>Upcoming</Text>
+                            </View>
+                        </View>
                     </View>
                 </View>
 
@@ -153,6 +178,12 @@ export default function VenuePageScreen() {
                             <PremiumButton fullWidth onPress={handleReservation} style={styles.ctaPrimary}>
                                 {venue.primaryCta || "Get Reservation"}
                             </PremiumButton>
+                            <Pressable
+                                onPress={() => router.push({ pathname: "/map", params: { mode: "venues", venueId: venue.id } })}
+                                style={styles.ctaSecondary}
+                            >
+                                <Ionicons name="map-outline" size={18} color="#fff" />
+                            </Pressable>
                             <Pressable onPress={handleDirections} style={styles.ctaSecondary}>
                                 <Ionicons name="location-outline" size={18} color="#fff" />
                             </Pressable>
@@ -231,13 +262,13 @@ export default function VenuePageScreen() {
                                 </View>
                             )
                         ) : menu.length > 0 ? (
-                            <FlatList
+                            <AnyFlatList
                                 data={menu}
                                 scrollEnabled={false}
-                                keyExtractor={(item) => item.id}
+                                keyExtractor={(item: typeof menu[number]) => item.id}
                                 numColumns={2}
                                 columnWrapperStyle={styles.menuGridRow}
-                                renderItem={({ item, index }) => (
+                                renderItem={({ item, index }: { item: typeof menu[number]; index: number }) => (
                                     <Pressable onPress={() => setMenuModalIndex(index)} style={styles.menuCard}>
                                         <Image source={{ uri: item.imageUrl }} style={styles.menuImage} contentFit="cover" />
                                         {item.title ? <Text style={styles.menuTitle}>{item.title}</Text> : null}
@@ -254,13 +285,13 @@ export default function VenuePageScreen() {
                     {gallery.length > 0 ? (
                         <Animated.View entering={FadeInDown.delay(200)} style={styles.section}>
                             <Text style={styles.sectionTitle}>Vibe Gallery</Text>
-                            <FlatList
+                            <AnyFlatList
                                 data={gallery}
                                 scrollEnabled={false}
                                 numColumns={3}
-                                keyExtractor={(item) => item.id}
+                                keyExtractor={(item: typeof gallery[number]) => item.id}
                                 columnWrapperStyle={styles.galleryGridRow}
-                                renderItem={({ item }) => (
+                                renderItem={({ item }: { item: typeof gallery[number] }) => (
                                     <Image source={{ uri: item.imageUrl }} style={styles.galleryImage} contentFit="cover" />
                                 )}
                             />
@@ -465,6 +496,34 @@ const styles = StyleSheet.create({
     timingsText: {
         color: "rgba(255,255,255,0.7)",
         fontSize: 13,
+    },
+    statRow: {
+        flexDirection: "row",
+        gap: 10,
+        marginTop: 16,
+    },
+    statChip: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+        backgroundColor: "rgba(255,255,255,0.08)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+    },
+    statChipValue: {
+        color: "#fff",
+        fontSize: 13,
+        fontWeight: "800",
+    },
+    statChipLabel: {
+        color: "rgba(255,255,255,0.55)",
+        fontSize: 11,
+        fontWeight: "700",
+        textTransform: "uppercase",
+        letterSpacing: 0.4,
     },
     body: {
         paddingHorizontal: 20,

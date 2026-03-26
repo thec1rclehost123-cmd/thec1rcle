@@ -3,12 +3,14 @@ import { View, Text, ScrollView, Pressable, TextInput, Alert, ActivityIndicator,
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useAuthStore } from "@/store/authStore";
+import { useTicketsStore } from "@/store/ticketsStore";
 import { initiateTransfer, acceptTransfer } from "@/lib/transfers";
 import * as Haptics from "expo-haptics";
 
 export default function TransferScreen() {
     const { orderId, ticketName } = useLocalSearchParams<{ orderId?: string; ticketName?: string }>();
     const { user } = useAuthStore();
+    const { fetchUserOrders } = useTicketsStore();
 
     const [mode, setMode] = useState<"send" | "receive">("send");
     const [recipientEmail, setRecipientEmail] = useState("");
@@ -55,6 +57,9 @@ export default function TransferScreen() {
         setLoading(false);
 
         if (result.success) {
+            if (user?.uid) {
+                await fetchUserOrders(user.uid).catch(() => {});
+            }
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             Alert.alert(
                 "Success! 🎉",

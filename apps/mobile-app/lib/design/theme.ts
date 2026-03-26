@@ -29,9 +29,14 @@ export const colors = {
     goldDark: "#E4E2E3",
     goldMetallic: "#A8AAAC",
     goldStone: "#A8AAAC",
+    goldMuted: "#A8AAAC",
 
     // Legacy aliases
     midnight: "#161616",
+    midnight100: "#292929",
+    midnight200: "#3D3D3D",
+    midnight300: "#525252",
+    midnight400: "#666666",
     silver: "#FEF8E8",
     grey: "#E4E2E3",
     stone: "#A8AAAC",

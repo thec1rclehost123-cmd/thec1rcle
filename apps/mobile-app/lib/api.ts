@@ -136,10 +136,25 @@ export interface PricingResult {
     success: boolean;
     pricing: {
         subtotal: number;
-        discount: number;
-        platformFee: number;
+        discount?: number;
+        discountTotal?: number;
+        discounts?: Array<{
+            code?: string;
+            label?: string;
+            amount?: number;
+        }>;
+        fees?: {
+            platform?: number;
+            platformFee?: number;
+            payment?: number;
+            paymentFee?: number;
+            gst?: number;
+            total?: number;
+        };
+        platformFee?: number;
         grandTotal: number;
         items: any[];
+        isFree?: boolean;
     };
 }
 
@@ -259,6 +274,7 @@ export async function validatePromoCode(
 ): Promise<ValidatePromoResponse> {
     return apiFetch<ValidatePromoResponse>("/api/checkout/promo", {
         method: "POST",
+        requireAuth: false,
         body: JSON.stringify(payload),
     });
 }

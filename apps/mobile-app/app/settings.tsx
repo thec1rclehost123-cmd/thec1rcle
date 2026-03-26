@@ -1,10 +1,9 @@
 /**
  * Settings Screen
  * Central hub for all personal, app, and safety controls
- * TODO: Migrate to useSettingsStore for backend sync
  */
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import {
     View,
     Text,
@@ -26,26 +25,12 @@ import Animated, {
     withSpring,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useAuthStore } from "@/store/authStore";
 import { useAuth } from "@/hooks/useAuth";
+import { useSettings } from "@/hooks/useSettings";
 import { colors, radii } from "@/lib/design/theme";
 import { trackScreen } from "@/lib/analytics";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-// Settings storage keys
-const SETTINGS_KEYS = {
-    NOTIFICATIONS_TICKETS: "@settings_notif_tickets",
-    NOTIFICATIONS_EVENTS: "@settings_notif_events",
-    NOTIFICATIONS_CHAT: "@settings_notif_chat",
-    NOTIFICATIONS_DM: "@settings_notif_dm",
-    NOTIFICATIONS_PROMO: "@settings_notif_promo",
-    THEME: "@settings_theme",
-    REDUCE_MOTION: "@settings_reduce_motion",
-    HAPTICS: "@settings_haptics",
-    DM_PRIVACY: "@settings_dm_privacy",
-};
 
 // Settings MenuItem
 function MenuItem({
@@ -154,63 +139,22 @@ function SectionHeader({ title, delay = 0 }: { title: string; delay?: number }) 
 }
 
 export default function SettingsScreen() {
-    const { user } = useAuthStore();
     const { signOut } = useAuth();
     const insets = useSafeAreaInsets();
-
-    // Notification settings
-    const [notifTickets, setNotifTickets] = useState(true);
-    const [notifEvents, setNotifEvents] = useState(true);
-    const [notifChat, setNotifChat] = useState(true);
-    const [notifDM, setNotifDM] = useState(true);
-    const [notifPromo, setNotifPromo] = useState(false);
-
-    // Appearance settings
-    const [theme, setTheme] = useState<"system" | "light" | "dark">("dark");
-    const [reduceMotion, setReduceMotion] = useState(false);
-    const [hapticsEnabled, setHapticsEnabled] = useState(true);
-
-    // Privacy settings
-    const [dmPrivacy, setDmPrivacy] = useState<"anyone" | "event" | "contacts" | "none">("event");
+    const {
+        notifications,
+        privacy,
+        appearance,
+        syncing,
+        lastSyncedAt,
+        setNotificationSetting,
+        setPrivacySetting,
+        setAppearanceSetting,
+    } = useSettings();
 
     useEffect(() => {
         trackScreen("Settings");
-        loadSettings();
     }, []);
-
-    const loadSettings = async () => {
-        try {
-            const storedNotifTickets = await AsyncStorage.getItem(SETTINGS_KEYS.NOTIFICATIONS_TICKETS);
-            const storedNotifEvents = await AsyncStorage.getItem(SETTINGS_KEYS.NOTIFICATIONS_EVENTS);
-            const storedNotifChat = await AsyncStorage.getItem(SETTINGS_KEYS.NOTIFICATIONS_CHAT);
-            const storedNotifDM = await AsyncStorage.getItem(SETTINGS_KEYS.NOTIFICATIONS_DM);
-            const storedNotifPromo = await AsyncStorage.getItem(SETTINGS_KEYS.NOTIFICATIONS_PROMO);
-            const storedTheme = await AsyncStorage.getItem(SETTINGS_KEYS.THEME);
-            const storedReduceMotion = await AsyncStorage.getItem(SETTINGS_KEYS.REDUCE_MOTION);
-            const storedHaptics = await AsyncStorage.getItem(SETTINGS_KEYS.HAPTICS);
-            const storedDmPrivacy = await AsyncStorage.getItem(SETTINGS_KEYS.DM_PRIVACY);
-
-            if (storedNotifTickets !== null) setNotifTickets(storedNotifTickets === "true");
-            if (storedNotifEvents !== null) setNotifEvents(storedNotifEvents === "true");
-            if (storedNotifChat !== null) setNotifChat(storedNotifChat === "true");
-            if (storedNotifDM !== null) setNotifDM(storedNotifDM === "true");
-            if (storedNotifPromo !== null) setNotifPromo(storedNotifPromo === "true");
-            if (storedTheme) setTheme(storedTheme as any);
-            if (storedReduceMotion !== null) setReduceMotion(storedReduceMotion === "true");
-            if (storedHaptics !== null) setHapticsEnabled(storedHaptics === "true");
-            if (storedDmPrivacy) setDmPrivacy(storedDmPrivacy as any);
-        } catch (error) {
-            console.error("Failed to load settings:", error);
-        }
-    };
-
-    const saveSetting = async (key: string, value: string) => {
-        try {
-            await AsyncStorage.setItem(key, value);
-        } catch (error) {
-            console.error("Failed to save setting:", error);
-        }
-    };
 
     const handleLogout = () => {
         Alert.alert(
@@ -239,22 +183,19 @@ export default function SettingsScreen() {
                 {
                     text: "Anyone in same event",
                     onPress: () => {
-                        setDmPrivacy("event");
-                        saveSetting(SETTINGS_KEYS.DM_PRIVACY, "event");
+                        setPrivacySetting("dmPrivacy", "event");
                     },
                 },
                 {
                     text: "Only saved contacts",
                     onPress: () => {
-                        setDmPrivacy("contacts");
-                        saveSetting(SETTINGS_KEYS.DM_PRIVACY, "contacts");
+                        setPrivacySetting("dmPrivacy", "contacts");
                     },
                 },
                 {
                     text: "No one",
                     onPress: () => {
-                        setDmPrivacy("none");
-                        saveSetting(SETTINGS_KEYS.DM_PRIVACY, "none");
+                        setPrivacySetting("dmPrivacy", "none");
                     },
                 },
                 { text: "Cancel", style: "cancel" },
@@ -263,7 +204,7 @@ export default function SettingsScreen() {
     };
 
     const getDMPrivacyLabel = () => {
-        switch (dmPrivacy) {
+        switch (privacy.dmPrivacy) {
             case "event": return "Same event attendees";
             case "contacts": return "Saved contacts only";
             case "none": return "No one";
@@ -282,7 +223,16 @@ export default function SettingsScreen() {
                 <Pressable onPress={() => router.back()} style={styles.backButton}>
                     <Text style={styles.backIcon}>←</Text>
                 </Pressable>
-                <Text style={styles.headerTitle}>Settings</Text>
+                <View style={styles.headerCenter}>
+                    <Text style={styles.headerTitle}>Settings</Text>
+                    <Text style={styles.headerSubtitle}>
+                        {syncing
+                            ? "Syncing preferences..."
+                            : lastSyncedAt
+                                ? `Synced ${lastSyncedAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`
+                                : "Preferences sync across your account"}
+                    </Text>
+                </View>
                 <View style={{ width: 40 }} />
             </Animated.View>
 
@@ -310,79 +260,100 @@ export default function SettingsScreen() {
                     />
                 </View>
 
+                {/* App Navigation */}
+                <SectionHeader title="App Navigation" delay={225} />
+                <View style={styles.section}>
+                    <MenuItem
+                        icon="✨"
+                        label="Explore Events"
+                        sublabel="Trending, soonest, and new drops"
+                        onPress={() => router.push("/(tabs)/explore")}
+                        delay={250}
+                    />
+                    <View style={styles.divider} />
+                    <MenuItem
+                        icon="🎟️"
+                        label="My Tickets"
+                        sublabel="Upcoming passes and past bookings"
+                        onPress={() => router.push("/(tabs)/tickets")}
+                        delay={275}
+                    />
+                    <View style={styles.divider} />
+                    <MenuItem
+                        icon="📍"
+                        label="Browse Map"
+                        sublabel="Open events by location"
+                        onPress={() => router.push("/map")}
+                        delay={300}
+                    />
+                    <View style={styles.divider} />
+                    <MenuItem
+                        icon="🏟️"
+                        label="Venue Guide"
+                        sublabel="Jump into venue pages and neighborhoods"
+                        onPress={() => router.push("/(tabs)/venues" as any)}
+                        delay={325}
+                    />
+                </View>
+
                 {/* Notifications Section */}
-                <SectionHeader title="Notifications" delay={250} />
+                <SectionHeader title="Notifications" delay={350} />
                 <View style={styles.section}>
                     <ToggleItem
                         icon="🎟️"
                         label="Ticket Updates"
                         sublabel="Purchase confirmations, transfers"
-                        value={notifTickets}
-                        onValueChange={(val) => {
-                            setNotifTickets(val);
-                            saveSetting(SETTINGS_KEYS.NOTIFICATIONS_TICKETS, val.toString());
-                        }}
-                        delay={300}
+                        value={notifications.tickets}
+                        onValueChange={(val) => setNotificationSetting("tickets", val)}
+                        delay={400}
                     />
                     <View style={styles.divider} />
                     <ToggleItem
                         icon="⏰"
                         label="Event Reminders"
                         sublabel="Starting soon, changes"
-                        value={notifEvents}
-                        onValueChange={(val) => {
-                            setNotifEvents(val);
-                            saveSetting(SETTINGS_KEYS.NOTIFICATIONS_EVENTS, val.toString());
-                        }}
-                        delay={350}
+                        value={notifications.events}
+                        onValueChange={(val) => setNotificationSetting("events", val)}
+                        delay={450}
                     />
                     <View style={styles.divider} />
                     <ToggleItem
                         icon="💬"
                         label="Chat Activity"
                         sublabel="Messages in event chats"
-                        value={notifChat}
-                        onValueChange={(val) => {
-                            setNotifChat(val);
-                            saveSetting(SETTINGS_KEYS.NOTIFICATIONS_CHAT, val.toString());
-                        }}
-                        delay={400}
+                        value={notifications.chat}
+                        onValueChange={(val) => setNotificationSetting("chat", val)}
+                        delay={500}
                     />
                     <View style={styles.divider} />
                     <ToggleItem
                         icon="📨"
                         label="DM Requests"
                         sublabel="New message requests"
-                        value={notifDM}
-                        onValueChange={(val) => {
-                            setNotifDM(val);
-                            saveSetting(SETTINGS_KEYS.NOTIFICATIONS_DM, val.toString());
-                        }}
-                        delay={450}
+                        value={notifications.dm}
+                        onValueChange={(val) => setNotificationSetting("dm", val)}
+                        delay={550}
                     />
                     <View style={styles.divider} />
                     <ToggleItem
                         icon="📢"
                         label="Recommendations"
                         sublabel="Events you might like"
-                        value={notifPromo}
-                        onValueChange={(val) => {
-                            setNotifPromo(val);
-                            saveSetting(SETTINGS_KEYS.NOTIFICATIONS_PROMO, val.toString());
-                        }}
-                        delay={500}
+                        value={notifications.promo}
+                        onValueChange={(val) => setNotificationSetting("promo", val)}
+                        delay={600}
                     />
                 </View>
 
                 {/* Privacy & Safety Section */}
-                <SectionHeader title="Privacy & Safety" delay={550} />
+                <SectionHeader title="Privacy & Safety" delay={650} />
                 <View style={styles.section}>
                     <MenuItem
                         icon="🚫"
                         label="Blocked Users"
                         sublabel="Manage blocked accounts"
                         onPress={() => Alert.alert("Coming Soon", "Blocked users will be available soon")}
-                        delay={600}
+                        delay={700}
                     />
                     <View style={styles.divider} />
                     <MenuItem
@@ -390,7 +361,7 @@ export default function SettingsScreen() {
                         label="Who Can DM Me"
                         sublabel={getDMPrivacyLabel()}
                         onPress={handleDMPrivacy}
-                        delay={650}
+                        delay={750}
                     />
                     <View style={styles.divider} />
                     <MenuItem
@@ -398,93 +369,96 @@ export default function SettingsScreen() {
                         label="Location Sharing"
                         sublabel="Manage Party Buddy settings"
                         onPress={() => router.push("/safety")}
-                        delay={700}
+                        delay={800}
                     />
                 </View>
 
                 {/* Appearance Section */}
-                <SectionHeader title="Appearance" delay={750} />
+                <SectionHeader title="Appearance" delay={850} />
                 <View style={styles.section}>
                     <MenuItem
                         icon="🌙"
                         label="Theme"
-                        sublabel="Dark (default)"
-                        onPress={() => Alert.alert("Theme", "Dark theme is the default. Light theme coming soon!")}
-                        delay={800}
+                        sublabel={appearance.theme === "dark" ? "Dark" : appearance.theme === "light" ? "Light" : "System"}
+                        onPress={() => Alert.alert(
+                            "Theme",
+                            "Choose how THE C1RCLE should look.",
+                            [
+                                { text: "System", onPress: () => setAppearanceSetting("theme", "system") },
+                                { text: "Dark", onPress: () => setAppearanceSetting("theme", "dark") },
+                                { text: "Light", onPress: () => setAppearanceSetting("theme", "light") },
+                                { text: "Cancel", style: "cancel" },
+                            ]
+                        )}
+                        delay={900}
                     />
                     <View style={styles.divider} />
                     <ToggleItem
                         icon="✨"
                         label="Reduce Motion"
                         sublabel="Minimize animations"
-                        value={reduceMotion}
-                        onValueChange={(val) => {
-                            setReduceMotion(val);
-                            saveSetting(SETTINGS_KEYS.REDUCE_MOTION, val.toString());
-                        }}
-                        delay={850}
+                        value={appearance.reduceMotion}
+                        onValueChange={(val) => setAppearanceSetting("reduceMotion", val)}
+                        delay={950}
                     />
                     <View style={styles.divider} />
                     <ToggleItem
                         icon="📳"
                         label="Haptic Feedback"
                         sublabel="Vibrations on actions"
-                        value={hapticsEnabled}
-                        onValueChange={(val) => {
-                            setHapticsEnabled(val);
-                            saveSetting(SETTINGS_KEYS.HAPTICS, val.toString());
-                        }}
-                        delay={900}
+                        value={appearance.haptics}
+                        onValueChange={(val) => setAppearanceSetting("haptics", val)}
+                        delay={1000}
                     />
                 </View>
 
                 {/* Legal & About Section */}
-                <SectionHeader title="Legal & About" delay={950} />
+                <SectionHeader title="Legal & About" delay={1050} />
                 <View style={styles.section}>
                     <MenuItem
                         icon="📜"
                         label="Terms of Service"
                         onPress={() => router.push("/legal/terms")}
-                        delay={1000}
+                        delay={1100}
                     />
                     <View style={styles.divider} />
                     <MenuItem
                         icon="🔐"
                         label="Privacy Policy"
                         onPress={() => router.push("/legal/privacy")}
-                        delay={1050}
+                        delay={1150}
                     />
                     <View style={styles.divider} />
                     <MenuItem
                         icon="💰"
                         label="Refund Policy"
                         onPress={() => router.push("/legal/refunds")}
-                        delay={1100}
+                        delay={1200}
                     />
                     <View style={styles.divider} />
                     <MenuItem
                         icon="👥"
                         label="Community Guidelines"
                         onPress={() => router.push("/legal/guidelines")}
-                        delay={1150}
+                        delay={1250}
                     />
                     <View style={styles.divider} />
                     <MenuItem
                         icon="🛡️"
                         label="Safety Policy"
                         onPress={() => router.push("/legal/safety")}
-                        delay={1200}
+                        delay={1300}
                     />
                 </View>
 
                 {/* Support Section */}
-                <SectionHeader title="Support" delay={1250} />
+                <SectionHeader title="Support" delay={1350} />
                 <View style={styles.section}>
                     <MenuItem
                         icon="❓"
                         label="Help & FAQ"
                         onPress={() => openLink("https://thec1rcle.com/help")}
-                        delay={1300}
+                        delay={1400}
                     />
                     <View style={styles.divider} />
                     <MenuItem
@@ -492,14 +466,14 @@ export default function SettingsScreen() {
                         label="Contact Support"
                         sublabel="support@thec1rcle.com"
                         onPress={() => openLink("mailto:support@thec1rcle.com")}
-                        delay={1350}
+                        delay={1450}
                     />
                     <View style={styles.divider} />
                     <MenuItem
                         icon="🐛"
                         label="Report a Bug"
                         onPress={() => Alert.alert("Report Bug", "Send details to bugs@thec1rcle.com and we'll fix it!")}
-                        delay={1400}
+                        delay={1500}
                     />
                 </View>
 
@@ -510,12 +484,12 @@ export default function SettingsScreen() {
                         label="Sign Out"
                         danger
                         onPress={handleLogout}
-                        delay={1450}
+                        delay={1550}
                     />
                 </View>
 
                 {/* App Version */}
-                <Animated.View entering={FadeIn.delay(1500)} style={styles.versionInfo}>
+                <Animated.View entering={FadeIn.delay(1600)} style={styles.versionInfo}>
                     <LinearGradient
                         colors={["rgba(244, 74, 34, 0.15)", "rgba(244, 74, 34, 0.05)"]}
                         style={styles.versionLogo}
@@ -548,6 +522,18 @@ const styles = StyleSheet.create({
         color: colors.gold,
         fontSize: 17,
         fontWeight: "600",
+    },
+    headerCenter: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 8,
+    },
+    headerSubtitle: {
+        color: colors.goldMetallic,
+        fontSize: 11,
+        marginTop: 2,
+        textAlign: "center",
     },
     backButton: {
         width: 40,

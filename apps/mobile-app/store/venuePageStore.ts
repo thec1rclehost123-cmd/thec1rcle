@@ -10,6 +10,11 @@ import {
     where,
 } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase";
+import {
+    type Coordinates,
+    findKnownVenueCoordinates,
+    resolveVenueCoordinates,
+} from "@/lib/venueDiscovery";
 
 export interface VenueHighlight {
     id: string;
@@ -66,6 +71,13 @@ export interface VenuePageData {
     isVerified?: boolean;
     primaryCta?: string;
     hasReservation?: boolean;
+    venueType?: string;
+    followers?: number;
+    tags?: string[];
+    vibes?: string[];
+    genres?: string[];
+    coordinates?: Coordinates | null;
+    upcomingEventsCount?: number;
 }
 
 interface VenuePageState {
@@ -163,13 +175,40 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
                 ).catch(() => ({ docs: [] as any[] })),
             ]);
 
+            const upcomingEvents = eventsSnap.docs.map((item: any) => ({ id: item.id, ...item.data() }));
+            const leadEventWithCoords = upcomingEvents.find((event: any) => resolveVenueCoordinates(event));
+
             set({
-                venue: venueDoc,
+                venue: {
+                    ...venueDoc,
+                    followers:
+                        typeof venueDoc.followers === "number"
+                            ? venueDoc.followers
+                            : typeof venueDoc.followersCount === "number"
+                                ? venueDoc.followersCount
+                                : 0,
+                    hasReservation:
+                        Boolean(venueDoc.hasReservation) ||
+                        Boolean(venueDoc.tablesAvailable) ||
+                        Boolean(venueDoc.whatsapp) ||
+                        Boolean(venueDoc.phone),
+                    coordinates:
+                        resolveVenueCoordinates(venueDoc) ||
+                        (leadEventWithCoords ? resolveVenueCoordinates(leadEventWithCoords) : null) ||
+                        findKnownVenueCoordinates(
+                            venueDoc.displayName,
+                            venueDoc.name,
+                            venueDoc.neighborhood,
+                            venueDoc.city,
+                            venueDoc.address
+                        ),
+                    upcomingEventsCount: upcomingEvents.length,
+                },
                 highlights: highlightsSnap.docs.map((item: any) => ({ id: item.id, ...item.data() })) as VenueHighlight[],
                 gallery: gallerySnap.docs.map((item: any) => ({ id: item.id, ...item.data() })) as VenueGalleryPhoto[],
                 menu: menuSnap.docs.map((item: any) => ({ id: item.id, ...item.data() })) as VenueMenuItem[],
                 facilities: facilitiesSnap.docs.map((item: any) => ({ id: item.id, ...item.data() })) as VenueFacility[],
-                upcomingEvents: eventsSnap.docs.map((item: any) => ({ id: item.id, ...item.data() })),
+                upcomingEvents,
                 loading: false,
             });
         } catch (error: any) {

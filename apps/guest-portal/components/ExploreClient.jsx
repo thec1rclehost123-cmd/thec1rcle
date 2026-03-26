@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const ExploreCarouselHeader = dynamic(() => import("./ExploreCarouselHeader"), {
   ssr: true,
-  loading: () => <div className="h-[50vh] bg-black/5 animate-pulse rounded-[40px] mx-12 mt-12" />
+  loading: () => <div className="h-[40vh] sm:h-[50vh] bg-black/5 animate-pulse rounded-[32px] sm:rounded-[40px] mx-4 sm:mx-12 mt-4 sm:mt-12" />
 });
 import ExploreFilterBar from "./ExploreFilterBar";
 import ExploreEventGrid from "./ExploreEventGrid";
@@ -460,8 +460,8 @@ export default function ExploreClient({ initialEvents = [], initialFeaturedEvent
         </section>
 
         {/* Search/Filter Bar - Overlapping the Hero bottom */}
-        <div className="relative z-[20] -mt-12 mb-16 flex justify-center px-4">
-          <div className="w-fit max-w-full">
+        <div className="relative z-[20] -mt-12 mb-16 flex justify-center">
+          <div className="w-full overflow-x-auto scrollbar-hide">
             <ExploreFilterBar
               sort={activeSort}
               setSort={setActiveSort}
@@ -486,7 +486,7 @@ export default function ExploreClient({ initialEvents = [], initialFeaturedEvent
                     Explore Events
                   </p>
                 </div>
-                <h2 className="text-4xl md:text-5xl lg:text-6xl font-heading font-black uppercase tracking-tight text-black dark:text-white leading-tight">
+                <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-heading font-black uppercase tracking-tight text-black dark:text-white leading-tight">
                   What&apos;s on in{" "}
                   <span className="inline-block bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] bg-clip-text text-transparent">
                     {activeCityLabel}
