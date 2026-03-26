@@ -187,8 +187,8 @@ export default function EventAnalyticsClient({
                         </div>
                     )}
 
-                    <KPISection data={data} loading={isLoading} category="overview" />
-                    <PerformanceRingsSection data={data} loading={isLoading} category="overview" />
+                    <KPISection data={data} loading={isLoading} />
+                    <PerformanceRingsSection data={data} loading={isLoading} />
                     <RevenueSection data={data} loading={isLoading} />
                     <TicketsGuestlistSection data={data} loading={isLoading} />
                     <AudienceSection data={data} loading={isLoading} />
