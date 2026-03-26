@@ -7,86 +7,13 @@
  */
 
 import { getAdminDb } from "../firebase/admin";
-import { buildEvent } from "@c1rcle/core/event-engine";
+import { buildEvent, filterAndSortEvents } from "@c1rcle/core/event-engine";
+import { mapEventForClient, buildPartnerSnapshot, resolvePartnerSnapshots } from "@c1rcle/core/events";
 
 export const DEFAULT_CITY = process.env.NEXT_PUBLIC_DEFAULT_CITY || "Pune";
 
 const EVENT_COLLECTION = "events";
 
-const serialize = (obj) => {
-    if (!obj) return null;
-    return JSON.parse(JSON.stringify(obj, (key, value) => {
-        if (value && typeof value === "object" && value.seconds !== undefined && value.nanoseconds !== undefined) {
-            return new Date(value.seconds * 1000).toISOString();
-        }
-        return value;
-    }));
-};
-
-const slugifyPartnerValue = (value) => {
-    return String(value || "")
-        .trim()
-        .toLowerCase()
-        .replace(/^@/, "")
-        .replace(/[^\w\s-]/g, "")
-        .replace(/[\s_]+/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "");
-};
-
-const buildPartnerSnapshot = (doc, type, fallbackName) => {
-    if (!doc?.exists) return null;
-    const data = doc.data() || {};
-    const name =
-        data.name ||
-        data.displayName ||
-        data.venueName ||
-        data.hostName ||
-        fallbackName ||
-        doc.id;
-
-    const handle = data.handle || null;
-    const slug =
-        data.slug ||
-        slugifyPartnerValue(handle || name || doc.id) ||
-        doc.id;
-
-    const photoURL = data.photoURL || data.avatar || data.image || data.logo || null;
-    const coverURL = data.coverURL || data.cover || data.image || null;
-
-    return {
-        id: doc.id,
-        type,
-        slug,
-        handle,
-        name,
-        avatar: data.avatar || photoURL,
-        photoURL,
-        image: data.image || photoURL,
-        cover: data.cover || coverURL,
-        coverURL,
-        verified: Boolean(data.verified),
-        role: data.role || type,
-        city: data.city || null,
-        neighborhood: data.neighborhood || null,
-    };
-};
-
-async function resolvePartnerSnapshots(db, payload = {}) {
-    const normalizedRole = payload.creatorRole === "club" ? "venue" : payload.creatorRole;
-    const hostDocId = payload.hostId || (normalizedRole === "host" ? payload.creatorId : null);
-    const venueDocId = payload.venueId || (normalizedRole === "venue" ? payload.creatorId : null);
-
-    const [hostDoc, venueDoc] = await Promise.all([
-        hostDocId ? db.collection("hosts").doc(hostDocId).get().catch(() => null) : Promise.resolve(null),
-        venueDocId ? db.collection("venues").doc(venueDocId).get().catch(() => null) : Promise.resolve(null),
-    ]);
-
-    return {
-        hostData: buildPartnerSnapshot(hostDoc, "host", payload.host || payload.hostName),
-        venueData: buildPartnerSnapshot(venueDoc, "venue", payload.venueName || payload.venue),
-    };
-}
 
 /**
  * List events for the partner dashboard.
@@ -122,52 +49,14 @@ export async function listEvents({ city, limit, sort, search, host, venueId, lif
     }
 
 
-    // Secondary filters applied client-side
-    if (lifecycle && lifecycle !== "all") {
-        if (lifecycle === "approved") {
-            events = events.filter(e => e.lifecycle === "approved" || e.lifecycle === "scheduled");
-        } else {
-            events = events.filter(e => e.lifecycle === lifecycle);
-        }
-    }
-    if (city) {
-        const c = city.toLowerCase();
-        events = events.filter(e =>
-            e.city?.toLowerCase().includes(c) || e.cityKey?.toLowerCase() === c
-        );
-    }
-    if (search) {
-        const q = search.toLowerCase();
-        events = events.filter(e =>
-            e.title?.toLowerCase().includes(q) ||
-            e.description?.toLowerCase().includes(q) ||
-            e.venue?.toLowerCase().includes(q)
-        );
-    }
+    // 2. Apply shared filtering and sorting
+    const results = filterAndSortEvents(events, { city, sort, search, host });
+    
+    // 3. Final map for client (normalization)
+    const mapped = results.map(e => mapEventForClient(e));
 
-    const now = new Date();
-    events.sort((a, b) => {
-        const dateA = a.startDate ? new Date(a.startDate) : null;
-        const dateB = b.startDate ? new Date(b.startDate) : null;
-
-        const isFutureA = dateA && dateA > now && a.lifecycle !== 'draft';
-        const isFutureB = dateB && dateB > now && b.lifecycle !== 'draft';
-
-        // 1. Future events first
-        if (isFutureA && !isFutureB) return -1;
-        if (!isFutureA && isFutureB) return 1;
-
-        // 2. Both are future: sort by date ascending (soonest first)
-        if (isFutureA && isFutureB) {
-            return dateA - dateB;
-        }
-
-        // 3. Both are past or drafts: sort by createdAt descending (newest first)
-        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-    });
-    if (limit) events = events.slice(0, limit);
-
-    return { events: serialize(events), hasMore: false, nextCursor: null };
+    if (limit) return { events: mapped.slice(0, limit), hasMore: false };
+    return { events: mapped, hasMore: false, nextCursor: null };
 }
 
 /**
@@ -179,7 +68,7 @@ export async function getEvent(eventId, token) {
     try {
         const doc = await db.collection(EVENT_COLLECTION).doc(eventId).get();
         if (!doc.exists) return null;
-        return serialize({ id: doc.id, ...doc.data() });
+        return mapEventForClient(doc.data(), doc.id);
     } catch (error) {
         console.error("[EventStore] getEvent failed:", error.message);
         return null;
@@ -235,7 +124,7 @@ export async function createEvent(payload, token) {
     } else {
         await db.collection(EVENT_COLLECTION).doc(event.id).set(event);
     }
-    return serialize(event);
+    return mapEventForClient(event);
 }
 
 /**
@@ -260,7 +149,7 @@ export async function updateEvent(eventId, payload, token) {
     }
 
     await db.collection(EVENT_COLLECTION).doc(eventId).update(updates);
-    return serialize({ id: eventId, ...updates });
+    return mapEventForClient({ id: eventId, ...updates });
 }
 
 /**
@@ -335,7 +224,7 @@ export async function getEventGuestlist(eventId, limit = 50, token) {
             .where("status", "==", "confirmed")
             .limit(limit)
             .get();
-        return serialize(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch {
         return [];
     }
@@ -394,7 +283,7 @@ export async function listEventsForPromoter({ promoterId, city, limit = 20 } = {
             const dateB = b.startDate ? new Date(b.startDate) : new Date(0);
             return dateA - dateB;
         });
-        return serialize(events.slice(0, limit));
+        return events.slice(0, limit).map(e => mapEventForClient(e));
     } catch (error) {
         console.error("[EventStore] listEventsForPromoter failed:", error.message);
         return [];

@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getVenueCalendar, getDateAvailability } from "@/lib/server/calendarStore";
+import { getHostVenueCalendar, getVenueCalendar, getDateAvailability } from "@/lib/server/calendarStore";
 import { validatePartnership } from "@/lib/rbac/validatePartnership";
 import { isFirebaseConfigured } from "@/lib/firebase/admin";
 import { withAuth } from "@/lib/server/withAuth";
@@ -45,7 +45,7 @@ export const GET = withAuth(async (request: NextRequest) => {
             const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
             const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString().split("T")[0];
 
-            const calendar = await getVenueCalendar(venueId, defaultStart, defaultEnd, hostId || undefined);
+            const calendar = await getHostVenueCalendar(venueId, defaultStart, defaultEnd, hostId || null);
             return NextResponse.json({
                 calendar,
                 startDate: defaultStart,
@@ -54,7 +54,7 @@ export const GET = withAuth(async (request: NextRequest) => {
             });
         }
 
-        const calendar = await getVenueCalendar(venueId, startDate, endDate, hostId || undefined);
+        const calendar = await getHostVenueCalendar(venueId, startDate, endDate, hostId || null);
 
         return NextResponse.json({
             calendar,

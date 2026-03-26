@@ -89,7 +89,7 @@ export class MatchingService {
         // Analytics instrumentation
         try {
             // @ts-ignore
-            const { trackInteraction } = await import('../../analytics-service.js');
+            const { trackInteraction } = await import('../../../analytics-service.js');
             await trackInteraction(userId, targetId, 'swipe', { targetType, direction });
         }
         catch (e) {
@@ -103,8 +103,11 @@ export class MatchingService {
         try {
             let targetGenres = [];
             if (targetType === 'event') {
-                const { id: _, ...dataWithoutId } = (await this.eventRepo.getById(targetId, workspaceId));
-                targetGenres = dataWithoutId?.genres || [];
+                const event = await this.eventRepo.getById(targetId, workspaceId);
+                if (event) {
+                    const { id: _, ...dataWithoutId } = event;
+                    targetGenres = dataWithoutId?.genres || [];
+                }
             }
             for (const genre of targetGenres) {
                 // Increment boost score for this genre (TTL 24h)

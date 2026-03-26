@@ -4,6 +4,9 @@ import { calculatePricing } from '@c1rcle/core/pricing-engine';
 import { createReservation, releaseReservation } from '@c1rcle/core/inventory-engine';
 // @ts-ignore
 import { sendEvent, Events } from '@c1rcle/core/inngest-client';
+// @ts-ignore
+import { getAdminDb } from '@c1rcle/core/admin';
+import { FieldValue } from 'firebase-admin/firestore';
 async function fetchWithRetry(url, options, maxRetries = 3) {
     for (let i = 0; i < maxRetries; i++) {
         try {
@@ -226,6 +229,20 @@ export class CheckoutService {
         });
         // Trigger fulfillment workflow (fallback for missed webhooks)
         if (finalOrder) {
+            // Fire-and-forget: update event stats so analytics are current
+            (async () => {
+                try {
+                    const db = getAdminDb();
+                    const ticketsCount = (finalOrder.tickets || []).reduce((s, t) => s + (t.quantity || 1), 0) || 1;
+                    await db.collection('events').doc(finalOrder.eventId).update({
+                        'stats.ticketsSold': FieldValue.increment(ticketsCount),
+                        'stats.totalRevenue': FieldValue.increment(finalOrder.totalAmount || 0),
+                    });
+                }
+                catch (e) {
+                    console.error('[checkout] event stats update failed:', e.message);
+                }
+            })();
             (async () => {
                 try {
                     sendEvent(Events.TICKET_PURCHASED, {

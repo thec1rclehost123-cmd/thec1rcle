@@ -49,6 +49,7 @@
         "./analytics-engine": "./analytics-engine.js",
         "./table-engine": "./table-engine.js",
         "./waitlist-engine": "./waitlist-engine.js",
+        "./slot-engine": "./slot-engine.js",
         "./calendar-engine": "./calendar-engine.js",
         "./cms-engine": "./cms-engine.js",
         "./auth-domain": "./dist/domain/auth/interfaces.js",

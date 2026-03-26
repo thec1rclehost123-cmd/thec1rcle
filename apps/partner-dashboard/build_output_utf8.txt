@@ -1,0 +1,121 @@
+﻿
+> @c1rcle/partner-dashboard@0.1.0 build
+> next build
+
+node.exe : ΓÜá `experimental.instrumentationHook` 
+is no longer needed, because `instrumentation.js` 
+is available by default. You can remove it from 
+next.config.mjs.
+At C:\Program Files\nodejs\npm.ps1:29 char:3
++   & $NODE_EXE $NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ΓÜá  
+   `experiment...ext.config.mjs.:String) [], Rem  
+  oteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ΓÜá `eslint` configuration in next.config.mjs is 
+no longer supported. See more info here: https://n
+extjs.org/docs/app/api-reference/cli/next#next-lin
+t-options
+ΓÜá Invalid next.config.mjs options detected: 
+ΓÜá     Unrecognized key(s) in object: 
+'instrumentationHook' at "experimental"
+ΓÜá     Unrecognized key(s) in object: 'eslint'
+ΓÜá See more info here: https://nextjs.org/docs/me
+ssages/invalid-next-config
+ΓÜá Warning: Next.js inferred your workspace 
+root, but it may not be correct.
+ We detected multiple lockfiles and selected the 
+directory of C:\Users\Gauri\package-lock.json as 
+the root directory.
+ To silence this warning, set `turbopack.root` in 
+your Next.js config, or consider removing one of 
+the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/c
+onfig/next-config-js/turbopack#root-directory for 
+more information.
+ Detected additional lockfiles: 
+   * C:\Users\Gauri\Desktop\Sagar\Circle\thec1rcle
+\package-lock.json
+
+Γû▓ Next.js 16.1.7 (Turbopack)
+- Environments: .env.local, .env.production
+- Experiments (use with caution):
+  ┬╖ clientTraceMetadata
+  ? instrumentationHook (invalid experimental key)
+  ┬╖ optimizePackageImports
+
+  Creating an optimized production build ...
+
+> Build error occurred
+Error: Turbopack build failed with 1 errors:
+./Desktop/Sagar/Circle/thec1rcle/apps/partner-dash
+board/lib/server/availabilitySlotStore.ts:20:1
+Module not found: Can't resolve 
+'@c1rcle/core/slot-engine'
+[0m [90m 18 |[39m [36mimport[39m { 
+getAdminDb[33m,[39m isFirebaseConfigured } 
+[36mfrom[39m 
+[32m"../firebase/admin"[39m[33m;[39m
+ [90m 19 |[39m [90m// @ts-ignore[39m
+[31m[1m>[22m[39m[90m 20 |[39m 
+[36mimport[39m slotEngine [36mfrom[39m 
+[32m"@c1rcle/core/slot-engine"[39m[33m;[39m
+ [90m    |[39m [31m[1m^[22m[39m[31m[1m^[2
+2m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[3
+1m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[2
+2m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[3
+1m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[2
+2m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[3
+1m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[2
+2m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[3
+1m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[2
+2m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[3
+1m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[2
+2m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[3
+1m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[2
+2m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[3
+1m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[2
+2m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[3
+1m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[2
+2m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[3
+1m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[2
+2m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[3
+1m[1m^[22m[39m
+ [90m 21 |[39m [36mimport[39m type {
+ [90m 22 |[39m     
+[33mAvailabilitySlot[39m[33m,[39m
+ [90m 23 |[39m     
+[33mSlotStatus[39m[33m,[39m[0m
+
+
+
+Import trace:
+  App Route:
+    ./Desktop/Sagar/Circle/thec1rcle/apps/partner-
+dashboard/lib/server/availabilitySlotStore.ts
+    ./Desktop/Sagar/Circle/thec1rcle/apps/partner-
+dashboard/app/api/venue/slots/route.ts
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+    at <unknown> (./Desktop/Sagar/Circle/thec1rcle
+/apps/partner-dashboard/lib/server/availabilitySlo
+tStore.ts:20:1)
+    at <unknown> (https://nextjs.org/docs/messages
+/module-not-found)
+npm error Lifecycle script `build` failed with 
+error:
+npm error code 1
+npm error path C:\Users\Gauri\Desktop\Sagar\Circle
+\thec1rcle\apps\partner-dashboard
+npm error workspace 
+@c1rcle/partner-dashboard@0.1.0
+npm error location C:\Users\Gauri\Desktop\Sagar\Ci
+rcle\thec1rcle\apps\partner-dashboard
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d 
+/s /c next build
+

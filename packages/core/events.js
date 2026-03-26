@@ -160,7 +160,63 @@ export function getCityLabel(key) {
     return found ? found.label : "Other City, IN";
 }
 
-// --- 5. Canonical Media Resolver ---
+// --- 5. Partner Normalization ---
+export const slugifyPartnerValue = (value) => {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/^@/, "")
+        .replace(/[^\w\s-]/g, "")
+        .replace(/[\s_]+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+};
+
+/**
+ * Normalizes a Partner (Venue or Host) document into a standard snapshot.
+ * Used for denormalized storage in events and orders.
+ */
+export function buildPartnerSnapshot(doc, type, fallbackName) {
+    // If doc is already a snapshot/data object, use it directly
+    const data = (doc && typeof doc.data === "function") ? doc.data() : (doc || {});
+    const id = (doc && doc.id) || data.id || "";
+    
+    const name =
+        data.name ||
+        data.displayName ||
+        data.venueName ||
+        data.hostName ||
+        fallbackName ||
+        id;
+
+    const handle = data.handle || null;
+    const slug =
+        data.slug ||
+        slugifyPartnerValue(handle || name || id) ||
+        id;
+
+    const photoURL = data.photoURL || data.avatar || data.image || data.logo || null;
+    const coverURL = data.coverURL || data.cover || data.image || null;
+
+    return {
+        id,
+        type,
+        slug,
+        handle,
+        name,
+        avatar: data.avatar || photoURL,
+        photoURL,
+        image: data.image || photoURL,
+        cover: data.cover || coverURL,
+        coverURL,
+        verified: Boolean(data.verified),
+        role: data.role || type,
+        city: data.city || null,
+        neighborhood: data.neighborhood || null,
+    };
+}
+
+// --- 6. Canonical Media Resolver ---
 export function resolvePoster(event) {
     if (!event) return "/events/placeholder.svg";
 
@@ -249,7 +305,27 @@ export function mapEventForClient(data, id) {
         settings,
         createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
         updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt,
-        // Visibility flag helper for easy template logic
+    // Visibility flag helper for easy template logic
         isPublic: PUBLIC_LIFECYCLE_STATES.includes(lifecycle)
+    };
+}
+
+/**
+ * Resolves Host and Venue snapshots from a payload containing IDs.
+ * Used for server-side normalization of partner metadata.
+ */
+export async function resolvePartnerSnapshots(db, payload = {}) {
+    const normalizedRole = payload.creatorRole === "club" ? "venue" : payload.creatorRole;
+    const hostDocId = payload.hostId || (normalizedRole === "host" ? payload.creatorId : null);
+    const venueDocId = payload.venueId || (normalizedRole === "venue" ? payload.creatorId : null);
+
+    const [hostDoc, venueDoc] = await Promise.all([
+        hostDocId ? db.collection("hosts").doc(hostDocId).get().catch(() => null) : Promise.resolve(null),
+        venueDocId ? db.collection("venues").doc(venueDocId).get().catch(() => null) : Promise.resolve(null),
+    ]);
+
+    return {
+        hostData: buildPartnerSnapshot(hostDoc, "host", payload.host || payload.hostName),
+        venueData: buildPartnerSnapshot(venueDoc, "venue", payload.venueName || payload.venue),
     };
 }

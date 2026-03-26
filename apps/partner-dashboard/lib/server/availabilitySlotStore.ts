@@ -16,6 +16,8 @@
 
 import { randomUUID } from "node:crypto";
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+// @ts-ignore
+import slotEngine from "@c1rcle/core/slot-engine";
 import type {
     AvailabilitySlot,
     SlotStatus,
@@ -52,70 +54,15 @@ export async function getSlotCalendar(
     startDate: string,
     endDate: string
 ): Promise<SlotCalendarResponse> {
-    let rawSlots: AvailabilitySlot[];
-
     if (!isFirebaseConfigured()) {
-        rawSlots = Array.from(_slots.values()).filter(
+        // Fallback to local memory if Firebase is not configured (mock mode)
+        const rawSlots = Array.from(_slots.values()).filter(
             (s) => s.venueId === venueId && s.date >= startDate && s.date <= endDate
         );
-    } else {
-        const snap = await slotsRef(venueId)
-            .where("date", ">=", startDate)
-            .where("date", "<=", endDate)
-            .orderBy("date")
-            .orderBy("startTime")
-            .get();
-        rawSlots = snap.docs.map((d) => ({ id: d.id, ...d.data() } as AvailabilitySlot));
+        return { venueId, startDate, endDate, days: [] }; // Simplified fallback
     }
 
-    // Group by date
-    const byDate = new Map<string, AvailabilitySlot[]>();
-    for (const s of rawSlots) {
-        const list = byDate.get(s.date) ?? [];
-        list.push(s);
-        byDate.set(s.date, list);
-    }
-
-    // Build day objects for every date in range
-    const days: CalendarDaySlots[] = [];
-    const cur = new Date(startDate);
-    const end = new Date(endDate);
-    while (cur <= end) {
-        const dateStr = cur.toISOString().slice(0, 10);
-        const slots = byDate.get(dateStr) ?? [];
-
-        const fullyBlocked =
-            slots.some(
-                (s) => s.status === "blocked" && s.startTime === null
-            ) ||
-            slots.some(
-                (s) => s.status === "booked" && s.startTime === null
-            );
-
-        const partiallyBlocked = !fullyBlocked && slots.some(
-            (s) =>
-                (s.status === "blocked" || s.status === "booked") &&
-                s.startTime !== null
-        );
-
-        const openCount = slots.filter((s) => s.status === "open").length;
-        const pendingCount = slots.filter((s) => s.status === "pending_review").length;
-        const confirmedCount = slots.filter((s) => s.status === "booked").length;
-
-        days.push({
-            date: dateStr,
-            slots,
-            fullyBlocked,
-            partiallyBlocked,
-            openCount,
-            pendingCount,
-            confirmedCount,
-        });
-
-        cur.setDate(cur.getDate() + 1);
-    }
-
-    return { venueId, startDate, endDate, days };
+    return (await slotEngine.getSlotCalendar(venueId, startDate, endDate)) as SlotCalendarResponse;
 }
 
 /** Slots visible to hosts during booking (open only, no blocked detail) */
@@ -163,47 +110,21 @@ export async function blockSlot(
     req: SlotBlockRequest,
     actor: { uid: string }
 ): Promise<AvailabilitySlot> {
-    // Conflict check: reject if a booked slot already covers the same window
-    const conflicts = await detectConflicts(
-        req.venueId,
-        req.date,
-        req.startTime ?? null,
-        req.endTime ?? null,
-        ["booked", "hold"]
-    );
-    if (conflicts.length > 0) {
-        throw new Error(
-            `Conflict: ${conflicts.length} booked slot(s) overlap this window`
-        );
-    }
-
-    const id = randomUUID();
-    const now = new Date().toISOString();
-    const isPartial = !!(req.startTime && req.endTime);
-
-    const slot: AvailabilitySlot = {
-        id,
-        venueId: req.venueId,
-        date: req.date,
-        startTime: req.startTime ?? null,
-        endTime: req.endTime ?? null,
-        status: "blocked",
-        source: isPartial ? "partial_block" : "manual_block",
-        linkedEventId: null,
-        note: req.note ?? "",
-        createdBy: actor.uid,
-        updatedBy: actor.uid,
-        createdAt: now,
-        updatedAt: now,
-    };
-
     if (!isFirebaseConfigured()) {
+        const id = randomUUID();
+        const slot = { id, ...req, status: "blocked" as SlotStatus } as AvailabilitySlot;
         _slots.set(id, slot);
         return slot;
     }
 
-    await slotsRef(req.venueId).doc(id).set(slot);
-    return slot;
+    return (await slotEngine.createBlockedSlot(
+        req.venueId,
+        req.date,
+        req.startTime,
+        req.endTime,
+        actor.uid,
+        req.note
+    )) as AvailabilitySlot;
 }
 
 export async function unblockSlot(
@@ -263,44 +184,14 @@ export async function consumeSlotForEvent(
     endTime: string | null,
     actor: { uid: string }
 ): Promise<AvailabilitySlot> {
-    const id = randomUUID();
-    const now = new Date().toISOString();
-
-    const slot: AvailabilitySlot = {
-        id,
-        venueId,
-        date,
-        startTime,
-        endTime,
-        status: "booked",
-        source: "event_confirmed",
-        linkedEventId: eventId,
-        note: "",
-        createdBy: actor.uid,
-        updatedBy: actor.uid,
-        createdAt: now,
-        updatedAt: now,
-    };
-
     if (!isFirebaseConfigured()) {
+        const id = randomUUID();
+        const slot = { id, venueId, eventId, date, status: "booked" as SlotStatus } as unknown as AvailabilitySlot;
         _slots.set(id, slot);
         return slot;
     }
 
-    const db = getAdminDb();
-    const batch = db.batch();
-
-    // Write the booked slot
-    batch.set(slotsRef(venueId).doc(id), slot);
-
-    // Remove overlapping open slots
-    const overlapping = await detectConflicts(venueId, date, startTime, endTime, ["open"]);
-    for (const s of overlapping) {
-        batch.delete(slotsRef(venueId).doc(s.id));
-    }
-
-    await batch.commit();
-    return slot;
+    return (await slotEngine.consumeSlotForEvent(venueId, eventId, date, startTime, endTime, actor.uid)) as AvailabilitySlot;
 }
 
 /**
@@ -352,24 +243,6 @@ async function detectConflicts(
     endTime: string | null,
     statusFilter: SlotStatus[]
 ): Promise<AvailabilitySlot[]> {
-    let slots: AvailabilitySlot[];
-
-    if (!isFirebaseConfigured()) {
-        slots = Array.from(_slots.values()).filter(
-            (s) => s.venueId === venueId && s.date === date
-        );
-    } else {
-        const snap = await slotsRef(venueId).where("date", "==", date).get();
-        slots = snap.docs.map((d) => ({ id: d.id, ...d.data() } as AvailabilitySlot));
-    }
-
-    return slots.filter((s) => {
-        if (!statusFilter.includes(s.status)) return false;
-
-        // Full-day slot conflicts with everything
-        if (s.startTime === null || startTime === null) return true;
-
-        // Time overlap: A starts before B ends AND A ends after B starts
-        return s.startTime < (endTime ?? "23:59") && (s.endTime ?? "23:59") > startTime;
-    });
+    if (!isFirebaseConfigured()) return [];
+    return await slotEngine.detectConflicts(venueId, date, startTime, endTime, statusFilter);
 }
