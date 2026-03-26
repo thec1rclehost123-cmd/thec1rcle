@@ -42,9 +42,44 @@ export async function GET(req: NextRequest) {
 
         const token = req.headers.get("Authorization")?.replace("Bearer ", "").trim() || "";
 
-        const pageData = isDashboard
+        let pageData = isDashboard
             ? await getVenuePageDataForDashboard(venueId, token)
             : await getVenuePageData(venueId, token);
+
+        // Gateway fallback: read directly from Firestore when gateway is unreachable
+        if (!pageData) {
+            try {
+                const { getAdminDb } = await import("@/lib/firebase/admin");
+                const db = getAdminDb();
+                const docSnap = await db.collection("venues").doc(venueId).get();
+                if (docSnap.exists) {
+                    const data = docSnap.data() as Record<string, any>;
+                    // Serialize Timestamps to ISO strings for RSC safety
+                    Object.keys(data).forEach(k => {
+                        if (data[k] && typeof data[k].toDate === "function") {
+                            data[k] = data[k].toDate().toISOString();
+                        }
+                    });
+                    // Build gallery in the shape EnhancedVenueEditor expects
+                    // (array of { id, imageUrl, order }) to avoid undefined prop defaults
+                    const rawPhotos: string[] = data.photos || data.gallery || [];
+                    const gallery = rawPhotos.map((url: string, i: number) => ({
+                        id: `photo-${i}`,
+                        imageUrl: url,
+                        order: i
+                    }));
+                    pageData = {
+                        venue: { id: docSnap.id, ...data },
+                        highlights: data.highlights || [],
+                        gallery,
+                        menu: data.menu || [],
+                        facilities: data.facilities || []
+                    };
+                }
+            } catch (fbErr: any) {
+                console.error("[API /venue/page GET] Firestore fallback failed:", fbErr.message);
+            }
+        }
 
         if (!pageData) return fail("Venue not found", 404);
 

@@ -16,6 +16,7 @@ import VenueDetails from "./VenueDetails";
 import VenueCtaBar from "./VenueCtaBar";
 import VenuePastEvents from "./VenuePastEvents";
 import ReservationCalendarModal from "./ReservationCalendarModal";
+import VenuePresenceSection from "./VenuePresenceSection";
 
 /**
  * VenuePageClient - Main client component for the venue page
@@ -105,8 +106,10 @@ export default function VenuePageClient({
     const facilities = venue.facilities || [];
     const amenities = venue.amenities || [];
 
-    // Extract gallery photos
-    const galleryPhotos = venue.photos || venue.gallery || [];
+    // Extract gallery photos — presenceConfig.images takes priority if set by venue owner
+    const galleryPhotos = (venue.presenceConfig?.images?.length > 0)
+        ? venue.presenceConfig.images
+        : (venue.photos || venue.gallery || []);
 
     return (
         <>
@@ -167,7 +170,13 @@ export default function VenuePageClient({
                 />
             )}
 
-            {/* 8. COMPLETE VENUE DETAILS */}
+            {/* 8. PRESENCE SECTION — description, price & table booking from Partner Dashboard */}
+            <VenuePresenceSection
+                presenceConfig={venue.presenceConfig}
+                venueName={venue.name}
+            />
+
+            {/* 9. COMPLETE VENUE DETAILS */}
             <VenueDetails venue={venue} />
 
             {/* Sticky CTA Bar */}

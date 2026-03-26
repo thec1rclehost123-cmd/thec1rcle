@@ -8,7 +8,7 @@ const defaultSizes = "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw";
 export default function ShimmerImage({ className = "", wrapperClassName = "", onLoad, onLoadingComplete, ...props }) {
   const imgRef = useRef(null);
   const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState(!props.src);
   const isDiceBear = typeof props.src === "string" && props.src.includes("dicebear.com");
 
   function handleLoad(event) {

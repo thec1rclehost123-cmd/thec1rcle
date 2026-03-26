@@ -413,7 +413,7 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
   }
 
   const results = filterAndSortEvents(
-    snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+    snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })),
     { city, sort, search, host }
   ).map(e => mapEventForClient(e, e.id));
 

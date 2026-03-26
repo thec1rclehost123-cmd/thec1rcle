@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, ShieldAlert } from "lucide-react";
+import { Loader2, ShieldAlert, Layout } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import dynamic from "next/dynamic";
 
@@ -129,20 +129,25 @@ export default function VenuePageManagement() {
     if (!data?.venue) {
         return (
             <div className="py-24 max-w-xl mx-auto text-center space-y-6">
-                <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto">
-                    <ShieldAlert className="w-10 h-10 text-red-500" />
+                <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto" style={{ background: "var(--v-warning-bg)" }}>
+                    <Layout className="w-10 h-10" style={{ color: "var(--v-warning)" }} />
                 </div>
                 <div className="space-y-2">
-                    <h2 className="text-2xl font-black text-text-primary uppercase tracking-tight">Venue Not Accessible</h2>
-                    <p className="text-text-tertiary">We couldn't retrieve the configuration for your venue. This might be due to incorrect permissions or the venue ID not being linked to your account.</p>
+                    <h2 className="text-2xl font-black text-text-primary uppercase tracking-tight">Venue Profile Not Set Up</h2>
+                    <p className="text-text-tertiary">
+                        Your venue profile hasn&apos;t been configured yet. Use the{" "}
+                        <strong className="text-text-secondary">Public Page</strong> tab to set up your venue name, description, images, and table booking — then return here.
+                    </p>
                 </div>
                 {error && <div className="p-4 bg-red-500/5 text-red-500 text-xs font-mono rounded-xl border border-red-500/10">{error}</div>}
-                <button
-                    onClick={() => window.location.reload()}
-                    className="btn btn-secondary"
-                >
-                    Retry Connection
-                </button>
+                <div className="flex items-center justify-center gap-3">
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="btn btn-secondary"
+                    >
+                        Retry
+                    </button>
+                </div>
             </div>
         );
     }

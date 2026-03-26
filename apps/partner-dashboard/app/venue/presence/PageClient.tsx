@@ -1,24 +1,27 @@
 "use client";
 
 import { Suspense } from "react";
-import { Globe, UtensilsCrossed } from "lucide-react";
+import { Globe, UtensilsCrossed, Layout } from "lucide-react";
 import { HubTabBar } from "@/components/shared/HubTabBar";
 import { useHubTab } from "@/lib/hooks/useHubTab";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 import VenuePageClient from "../page-management/PageClient";
 import MenuPageClient from "../menu/PageClient";
+import PresenceConfigEditor from "@/components/venue-management/PresenceConfigEditor";
 
 const TABS = [
-    { key: "page", label: "Venue Page", icon: Globe },
-    { key: "menu", label: "Menu",       icon: UtensilsCrossed },
+    { key: "page",   label: "Venue Page",  icon: Globe },
+    { key: "menu",   label: "Menu",        icon: UtensilsCrossed },
+    { key: "public", label: "Public Page", icon: Layout },
 ];
 
 function TabContent({ activeTab }: { activeTab: string }) {
     switch (activeTab) {
-        case "page": return <VenuePageClient />;
-        case "menu": return <MenuPageClient />;
-        default:     return <VenuePageClient />;
+        case "page":   return <VenuePageClient />;
+        case "menu":   return <MenuPageClient />;
+        case "public": return <PresenceConfigEditor />;
+        default:       return <VenuePageClient />;
     }
 }
 

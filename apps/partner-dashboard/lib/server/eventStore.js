@@ -42,7 +42,7 @@ export async function listEvents({ city, limit, sort, search, host, venueId, lif
     }
 
     const snapshot = await ref.limit(300).get();
-    let events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    let events = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
 
     // Secondary filters applied client-side
     if (lifecycle && lifecycle !== "all") {
@@ -151,6 +151,8 @@ export async function createEvent(payload, token) {
         console.error("[Firestore] Invalid event.id in createEvent — using addDoc:", event.id);
         const docRef = await db.collection(EVENT_COLLECTION).add(event);
         event.id = docRef.id;
+        // Patch the stored doc so data.id matches the actual document path
+        await docRef.update({ id: docRef.id, slug: event.slug || docRef.id });
     } else {
         await db.collection(EVENT_COLLECTION).doc(event.id).set(event);
     }
