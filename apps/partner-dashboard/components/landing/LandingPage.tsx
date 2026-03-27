@@ -80,21 +80,56 @@ export default function LandingPage() {
       {/* Layer 3: HTML content — only visible after pan completes */}
       {panDone && (
         <div className="relative z-10 flex flex-col items-center justify-end h-full pb-20 px-6 text-center">
-          {/* Main headline */}
-          <motion.h1
-            variants={fadeUp}
-            initial="hidden"
-            animate="visible"
-            transition={{ duration: 0.9, delay: 0, ease: [0.4, 0, 0.2, 1] }}
-            className="text-[clamp(36px,8vw,72px)] font-black uppercase tracking-tight leading-[1.0] text-white mb-5"
-            style={{
-              textShadow: "0 0 60px rgba(244,74,34,0.35), 0 2px 40px rgba(0,0,0,0.8)",
-            }}
-          >
-            Command Your
+          {/* Main headline — each word bursts in with a shiny glow */}
+          <h1 className="text-[clamp(36px,8vw,72px)] font-black uppercase tracking-tight leading-[1.0] text-white mb-5">
+            {[
+              { word: "Command", color: "#FFFFFF", delay: 0 },
+              { word: "Your",    color: "#FFFFFF", delay: 0.13 },
+            ].map(({ word, color, delay }) => (
+              <motion.span
+                key={word}
+                initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
+                animate={{
+                  opacity: [0, 1, 1],
+                  y: [18, -2, 0],
+                  filter: ["blur(6px)", "blur(0px)", "blur(0px)"],
+                  textShadow: [
+                    "0 0 0px rgba(255,255,255,0)",
+                    "0 0 40px rgba(255,255,255,0.95), 0 0 80px rgba(255,200,120,0.7), 0 0 120px rgba(244,74,34,0.5)",
+                    "0 0 20px rgba(255,255,255,0.15), 0 0 40px rgba(244,74,34,0.2)",
+                  ],
+                }}
+                transition={{ duration: 0.75, delay, times: [0, 0.35, 1], ease: "easeOut" }}
+                style={{ color, display: "inline-block", marginRight: "0.28em" }}
+              >
+                {word}
+              </motion.span>
+            ))}
             <br />
-            <span style={{ color: "#F44A22" }}>Nightlife Empire</span>
-          </motion.h1>
+            {[
+              { word: "Nightlife", color: "#F44A22", delay: 0.26 },
+              { word: "Empire",    color: "#F44A22", delay: 0.39 },
+            ].map(({ word, color, delay }) => (
+              <motion.span
+                key={word}
+                initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
+                animate={{
+                  opacity: [0, 1, 1],
+                  y: [18, -2, 0],
+                  filter: ["blur(6px)", "blur(0px)", "blur(0px)"],
+                  textShadow: [
+                    "0 0 0px rgba(244,74,34,0)",
+                    "0 0 40px rgba(255,120,60,0.95), 0 0 80px rgba(244,74,34,0.8), 0 0 130px rgba(244,74,34,0.5)",
+                    "0 0 20px rgba(244,74,34,0.3), 0 0 40px rgba(244,74,34,0.15)",
+                  ],
+                }}
+                transition={{ duration: 0.75, delay, times: [0, 0.35, 1], ease: "easeOut" }}
+                style={{ color, display: "inline-block", marginRight: "0.28em" }}
+              >
+                {word}
+              </motion.span>
+            ))}
+          </h1>
 
           {/* Tagline */}
           <motion.p

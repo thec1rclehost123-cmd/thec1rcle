@@ -133,7 +133,7 @@ export default function GeneralClient({ setActions }: { setActions: (actions: Re
                                             <FormGroup label="Admin Email" description="Used for technical alerts and billing audits">
                                                 <input 
                                                     type="email" 
-                                                    defaultValue="admin@highspirits.com" 
+                                                    defaultValue=""
                                                     style={inputStyle} 
                                                     onChange={() => setHasChanges(true)}
                                                     className="focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10"
@@ -142,7 +142,7 @@ export default function GeneralClient({ setActions }: { setActions: (actions: Re
                                             <FormGroup label="Support Hotline" description="Publicly available for customer assistance">
                                                 <input 
                                                     type="text" 
-                                                    defaultValue="+91 98765 43210" 
+                                                    defaultValue=""
                                                     style={inputStyle} 
                                                     onChange={() => setHasChanges(true)}
                                                     className="focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10"

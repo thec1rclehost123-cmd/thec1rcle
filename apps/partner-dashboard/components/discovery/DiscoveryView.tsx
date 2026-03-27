@@ -105,8 +105,8 @@ export function DiscoveryView({
                 body: JSON.stringify({
                     requesterId: partnerId,
                     requesterType: role,
-                    requesterName: profile?.activeMembership?.partnerName || profile?.displayName,
-                    requesterEmail: profile?.email,
+                    requesterName: profile?.activeMembership?.partnerName || profile?.displayName || undefined,
+                    requesterEmail: profile?.email ?? undefined,
                     targetId: partner.id,
                     targetType: partner.type,
                     targetName: partner.name

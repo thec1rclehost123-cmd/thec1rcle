@@ -172,7 +172,7 @@ export function OperatingCalendar() {
 
         try {
             const token = await user?.getIdToken();
-            const res = await fetch('/api/venue/calendar', {
+            const res = await fetch(`/api/venue/calendar?venueId=${profile.activeMembership.partnerId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

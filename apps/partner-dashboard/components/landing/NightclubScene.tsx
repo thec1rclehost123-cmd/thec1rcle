@@ -546,6 +546,42 @@ export default function NightclubScene() {
     // Monitor bounce — warm uplight from screen
     addPoint(0, BOOTH_Y + 1.1, BOOTH_Z - 0.4, "#3060FF", 30, 3);
 
+    // ── LED screen on back wall behind DJ ─────────────────────────────
+    const WALL_Z = -12.92;
+    // Black outer frame
+    addMesh(
+      new THREE.BoxGeometry(7.4, 5.0, 0.20),
+      new THREE.MeshStandardMaterial({ color: "#080808", metalness: 0.7, roughness: 0.3 }),
+      [0, 4.2, WALL_Z]
+    );
+    // Inner bezel
+    addMesh(
+      new THREE.BoxGeometry(6.8, 4.4, 0.12),
+      new THREE.MeshStandardMaterial({ color: "#030303", metalness: 0.3, roughness: 0.8 }),
+      [0, 4.2, WALL_Z + 0.05]
+    );
+    // LED pixel grid — static orange-red glow
+    const LED_COLS = 18, LED_ROWS = 10;
+    const ledW = 6.4 / LED_COLS, ledH = 4.0 / LED_ROWS;
+    const ledGeo = new THREE.PlaneGeometry(ledW * 0.76, ledH * 0.76);
+    for (let row = 0; row < LED_ROWS; row++) {
+      for (let col = 0; col < LED_COLS; col++) {
+        const t = col / (LED_COLS - 1);
+        const mat = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(0.35, 0.05 + t * 0.06, 0.0),
+          emissive: new THREE.Color(1.0, 0.12 + t * 0.14, 0.02),
+          emissiveIntensity: 2.8,
+        });
+        const px = (col / (LED_COLS - 1) - 0.5) * 6.4;
+        const py = 4.2 + (0.5 - row / (LED_ROWS - 1)) * 4.0;
+        const led = new THREE.Mesh(ledGeo, mat);
+        led.position.set(px, py, WALL_Z + 0.12);
+        scene.add(led);
+      }
+    }
+    // Screen glow
+    addPoint(0, 4.5, WALL_Z + 1.5, "#FF5500", 40, 6);
+
     // ── Coins — MeshPhongMaterial + Z-drift ───────────────────────────
     const coinMesh = new THREE.InstancedMesh(
       new THREE.CylinderGeometry(0.22, 0.22, 0.03, 28),

@@ -209,7 +209,7 @@ export function DonutChartPlaceholder({ title, segments = DEFAULT_SEGMENTS }: Do
 
     let cumulative = 0;
     const arcs = segments.map((seg) => {
-        const fraction = seg.value / total;
+        const fraction = total > 0 ? seg.value / total : 0;
         const strokeDasharray = `${fraction * circumference} ${circumference}`;
         const strokeDashoffset = -cumulative * circumference;
         cumulative += fraction;
