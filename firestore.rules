@@ -189,7 +189,13 @@ service cloud.firestore {
     }
 
     // --- 🔔 PARTNER NOTIFICATIONS ---
-    
+
+    // Notifications: Real-time alerts for venue/host/promoter partners
+    match /notifications/{notifId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.targetId == request.auth.token.partnerId);
+      allow write: if false; // Created and updated only by server-side Admin SDK
+    }
+
     // Notification Reads: Track which notifications partners have seen
     match /notification_reads/{readId} {
       allow read: if isAdmin() || (isSignedIn() && 

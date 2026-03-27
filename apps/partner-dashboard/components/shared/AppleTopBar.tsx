@@ -1,14 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Search, X, Command, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { NotificationCenter } from "./NotificationCenter";
-import { useDashboardAuth } from "../providers/DashboardAuthProvider";
-import { usePathname, useRouter } from "next/navigation";
 import { parseAsIST } from "@c1rcle/core/time";
-import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
 
 interface AppleTopBarProps {
     title?: string;
@@ -20,15 +15,8 @@ interface AppleTopBarProps {
 }
 
 export function AppleTopBar({ title, primaryAction }: AppleTopBarProps) {
-    const { profile } = useDashboardAuth();
-    const pathname = usePathname();
-    const router = useRouter();
-    const [searchOpen, setSearchOpen] = useState(false);
-    const [searchQuery, setSearchQuery] = useState("");
     const [currentTime, setCurrentTime] = useState<Date | null>(null);
-    const now = new Date();
 
-    // Update time every minute
     useEffect(() => {
         setCurrentTime(parseAsIST(null));
         const interval = setInterval(() => {
@@ -51,206 +39,42 @@ export function AppleTopBar({ title, primaryAction }: AppleTopBarProps) {
         timeZone: 'Asia/Kolkata'
     }) || '---';
 
-    // Determine role context
-    const roleContext = pathname.startsWith('/venue') ? 'Venue' :
-        pathname.startsWith('/host') ? 'Host' :
-            pathname.startsWith('/promoter') ? 'Promoter' : '';
-
-    // Keyboard shortcuts
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            // Cmd/Ctrl + K for search
-            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-                e.preventDefault();
-                setSearchOpen(true);
-            }
-            // Also support / for search
-            if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
-                e.preventDefault();
-                setSearchOpen(true);
-            }
-            if (e.key === 'Escape') {
-                setSearchOpen(false);
-                setSearchQuery("");
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
-
     return (
-        <>
-            <header className="h-16 bg-surface-base/80 backdrop-blur-xl border-b border-border-subtle sticky top-0 z-40 px-6 lg:px-8 flex items-center justify-between">
-                {/* Left - Status & Time */}
-                <div className="flex items-center gap-4 lg:gap-6">
-                    {/* System Status */}
-                    <div className="live-indicator">
-                        <span className="text-[10px] font-bold text-c1rcle-orange uppercase tracking-widest">Live</span>
-                    </div>
-
-                    {/* Time Display */}
-                    <div className="hidden md:flex items-center gap-4">
-                        <span className="text-[14px] font-semibold text-text-primary tabular-nums">
-                            {timeStr}
-                        </span>
-                        <div className="w-px h-4 bg-[var(--border-default)]" />
-                        <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">
-                            {dateStr}
-                        </span>
-                    </div>
+        <header className="h-16 bg-surface-base/80 backdrop-blur-xl border-b border-border-subtle sticky top-0 z-40 px-6 lg:px-8 flex items-center justify-between">
+            {/* Left — Status, Time & Notifications */}
+            <div className="flex items-center gap-4 lg:gap-5">
+                {/* System Status */}
+                <div className="live-indicator">
+                    <span className="text-[10px] font-bold text-c1rcle-orange uppercase tracking-widest">Live</span>
                 </div>
 
-                {/* Right - Search & Actions */}
-                <div className="flex items-center gap-3 lg:gap-4">
-                    {/* Primary CTA */}
-                    {primaryAction && (
-                        <Link
-                            href={primaryAction.href}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--c1rcle-orange)] hover:bg-[var(--c1rcle-orange-dim)] text-white text-[13px] font-bold tracking-wide transition-all shadow-[0_0_20px_var(--c1rcle-orange-glow)] hover:shadow-[0_0_30px_var(--c1rcle-orange-glow)] active:scale-[0.97]"
-                        >
-                            {primaryAction.icon && <primaryAction.icon className="w-4 h-4" />}
-                            {primaryAction.label}
-                        </Link>
-                    )}
+                {/* Time Display */}
+                <div className="hidden md:flex items-center gap-4">
+                    <span className="text-[14px] font-semibold text-text-primary tabular-nums">
+                        {timeStr}
+                    </span>
+                    <div className="w-px h-4 bg-[var(--border-default)]" />
+                    <span className="text-[12px] font-medium text-text-tertiary uppercase tracking-wide">
+                        {dateStr}
+                    </span>
+                </div>
 
-                    {/* Calendar Link */}
-                    <div className="relative">
-                        <Link
-                            href={
-                                pathname.startsWith('/host') ? '/host/calendar' :
-                                pathname.startsWith('/venue') ? '/venue/calendar' :
-                                '/promoter/events'
-                            }
-                            className={cn(
-                                "flex items-center justify-center w-9 h-9 rounded-xl bg-surface-secondary hover:bg-surface-tertiary border border-border-subtle transition-all",
-                                (pathname.endsWith('/calendar')) ? "text-[var(--c1rcle-orange)] border-[var(--c1rcle-orange-dim)] bg-[var(--c1rcle-orange-dim)]/5" : "text-text-tertiary"
-                            )}
-                            aria-label="View calendar"
-                        >
-                            <Calendar className="w-4 h-4" />
-                        </Link>
-                    </div>
+                {/* Notifications — moved to left */}
+                <NotificationCenter />
+            </div>
 
-                    {/* Quick Search */}
-                    <button
-                        onClick={() => setSearchOpen(true)}
-                        className="flex items-center gap-3 px-4 py-2.5 bg-surface-secondary hover:bg-surface-tertiary border border-border-subtle rounded-xl transition-all group"
+            {/* Right — Primary CTA only */}
+            <div className="flex items-center gap-3">
+                {primaryAction && (
+                    <Link
+                        href={primaryAction.href}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--c1rcle-orange)] hover:bg-[var(--c1rcle-orange-dim)] text-white text-[13px] font-bold tracking-wide transition-all shadow-[0_0_20px_var(--c1rcle-orange-glow)] hover:shadow-[0_0_30px_var(--c1rcle-orange-glow)] active:scale-[0.97]"
                     >
-                        <Search className="w-4 h-4 text-text-placeholder group-hover:text-text-tertiary" />
-                        <span className="hidden lg:block text-[13px] text-text-placeholder font-medium">
-                            Search...
-                        </span>
-                        <div className="hidden lg:flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-tertiary border border-border-subtle">
-                            <Command className="w-3 h-3 text-text-placeholder" />
-                            <span className="text-[10px] font-semibold text-text-placeholder">K</span>
-                        </div>
-                    </button>
-
-                    {/* Notifications */}
-                    <NotificationCenter />
-
-                </div>
-            </header>
-
-            {/* Global Search Modal */}
-            <AnimatePresence>
-                {searchOpen && (
-                    <>
-                        {/* Backdrop */}
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => {
-                                setSearchOpen(false);
-                                setSearchQuery("");
-                            }}
-                            className="fixed inset-0 bg-black/40 dark:bg-black/50 backdrop-blur-sm z-[100]"
-                        />
-
-                        {/* Search Panel */}
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.98, y: -10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.98, y: -10 }}
-                            transition={{ duration: 0.15 }}
-                            className="fixed top-24 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl z-[101]"
-                        >
-                            <div className="bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl overflow-hidden">
-                                {/* Search Input */}
-                                <div className="flex items-center gap-4 px-6 py-4 border-b border-border-subtle">
-                                    <Search className="w-5 h-5 text-text-tertiary" />
-                                    <input
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder="Search events, guests, reports..."
-                                        autoFocus
-                                        className="flex-1 bg-transparent text-[16px] text-text-primary placeholder:text-text-placeholder outline-none"
-                                    />
-                                    <button
-                                        onClick={() => {
-                                            setSearchOpen(false);
-                                            setSearchQuery("");
-                                        }}
-                                        className="p-1.5 rounded-lg hover:bg-surface-tertiary text-text-tertiary"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                </div>
-
-                                {/* Quick Actions */}
-                                <div className="px-4 py-3 border-b border-border-subtle">
-                                    <p className="text-label-sm text-text-tertiary px-2 mb-2">Quick Actions</p>
-                                    <div className="space-y-1">
-                                        {[
-                                            { label: "Create New Event", href: `/${roleContext.toLowerCase()}/create` },
-                                            { label: "View Calendar", href: roleContext?.toLowerCase() === 'promoter' ? '/promoter/events' : `/${roleContext?.toLowerCase()}/calendar` },
-                                            { label: "Manage Events", href: `/${roleContext.toLowerCase()}/events` },
-                                        ].map((action, i) => (
-                                            <button
-                                                key={i}
-                                                onClick={() => {
-                                                    router.push(action.href);
-                                                    setSearchOpen(false);
-                                                }}
-                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-surface-tertiary transition-colors"
-                                            >
-                                                <span className="text-[14px] text-text-primary">{action.label}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Recent Searches */}
-                                <div className="px-4 py-3">
-                                    <p className="text-label-sm text-text-tertiary px-2 mb-2">Recent</p>
-                                    <div className="flex items-center justify-center py-8">
-                                        <p className="text-caption text-text-placeholder">
-                                            {searchQuery ? "No results found" : "Type to search..."}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Footer */}
-                                <div className="px-6 py-3 bg-surface-secondary border-t border-border-subtle flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-[11px] text-text-tertiary flex items-center gap-1">
-                                            <kbd className="px-1.5 py-0.5 rounded bg-surface-base border border-border-subtle text-[10px] font-mono">↵</kbd>
-                                            to select
-                                        </span>
-                                        <span className="text-[11px] text-text-tertiary flex items-center gap-1">
-                                            <kbd className="px-1.5 py-0.5 rounded bg-surface-base border border-border-subtle text-[10px] font-mono">esc</kbd>
-                                            to close
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </>
+                        {primaryAction.icon && <primaryAction.icon className="w-4 h-4" />}
+                        {primaryAction.label}
+                    </Link>
                 )}
-            </AnimatePresence>
-        </>
+            </div>
+        </header>
     );
 }
-

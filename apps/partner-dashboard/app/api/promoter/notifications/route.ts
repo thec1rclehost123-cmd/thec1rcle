@@ -1,12 +1,11 @@
 /**
- * GET   /api/host/notifications?hostId=   — Fetch notifications for host
- * PATCH /api/host/notifications           — Mark notifications as read
+ * GET   /api/promoter/notifications?promoterId=  — Fetch notifications for promoter
+ * PATCH /api/promoter/notifications              — Mark notifications as read
  */
-import { NextRequest } from "next/server";
-import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
+import { NextRequest, NextResponse } from "next/server";
+import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
 import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
 import { ok, fail } from "@/lib/server/apiResponse";
-import { NextResponse } from "next/server";
 
 function relativeTime(isoStr: string): string {
     const diffMs   = Date.now() - new Date(isoStr).getTime();
@@ -21,9 +20,9 @@ function relativeTime(isoStr: string): string {
 }
 
 export async function GET(req: NextRequest) {
-    const ctx = await requireHostAccess(req);
+    const ctx = await requirePromoterAccess(req);
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-    const { hostId } = ctx as any;
+    const { promoterId } = ctx as any;
 
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "40"), 100);
@@ -33,9 +32,8 @@ export async function GET(req: NextRequest) {
     const db = getAdminDb();
 
     try {
-        // Query by targetId (written by discovery POST) — avoid orderBy to skip composite index
         const snap = await db.collection("notifications")
-            .where("targetId", "==", hostId)
+            .where("targetId", "==", promoterId)
             .limit(limit * 2)
             .get();
 
@@ -60,13 +58,13 @@ export async function GET(req: NextRequest) {
 
         return ok({ notifications });
     } catch (err: any) {
-        console.error("[host/notifications] GET:", err.message);
+        console.error("[promoter/notifications] GET:", err.message);
         return NextResponse.json({ error: "Failed to load notifications" }, { status: 500 });
     }
 }
 
 export async function PATCH(req: NextRequest) {
-    const ctx = await requireHostAccess(req);
+    const ctx = await requirePromoterAccess(req);
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
     if (!isFirebaseConfigured()) return ok({ success: true });
@@ -88,7 +86,7 @@ export async function PATCH(req: NextRequest) {
 
         return fail("Unsupported action", 400);
     } catch (err: any) {
-        console.error("[host/notifications] PATCH:", err.message);
+        console.error("[promoter/notifications] PATCH:", err.message);
         return NextResponse.json({ error: "Failed to update notifications" }, { status: 500 });
     }
 }

@@ -42,17 +42,19 @@ const LIFECYCLE_CONFIG: Record<string, { label: string; color: string; bg: strin
 };
 
 export default function VenueDashboardHome() {
-    const { profile } = useDashboardAuth();
+    const { profile, getIdToken } = useDashboardAuth();
     const venueId = profile?.activeMembership?.partnerId;
     const shouldReduceMotion = useReducedMotion();
 
     // ── 📊 Data Queries (Replacing useEffect) ──
-    
+
     // 1. Alerts
     const { data: alertsData } = useQuery({
         queryKey: ['venue', venueId, 'alerts'],
         queryFn: async () => {
-            const res = await fetch(`/api/venue/notifications?venueId=${venueId}&limit=3`);
+            const token = await getIdToken();
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const res = await fetch(`/api/venue/notifications?venueId=${venueId}&limit=3`, { headers });
             return res.json();
         },
         enabled: !!venueId,
@@ -63,7 +65,9 @@ export default function VenueDashboardHome() {
     const { data: summaryData, isLoading: summaryLoading, isError: summaryError } = useQuery({
         queryKey: ['venue', venueId, 'summary'],
         queryFn: async () => {
-            const res = await fetch(`/api/venue/overview/summary?venueId=${venueId}`);
+            const token = await getIdToken();
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const res = await fetch(`/api/venue/overview/summary?venueId=${venueId}`, { headers });
             return res.json();
         },
         enabled: !!venueId,
@@ -74,7 +78,9 @@ export default function VenueDashboardHome() {
     const { data: eventsData, isLoading: eventsLoading, isError: eventsError } = useQuery({
         queryKey: ['venue', venueId, 'events'],
         queryFn: async () => {
-            const res = await fetch(`/api/venue/events?venueId=${venueId}`);
+            const token = await getIdToken();
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const res = await fetch(`/api/venue/events?venueId=${venueId}`, { headers });
             const data = await res.json();
             return (data.events || []).map((e: any) => ({
                 ...e,
@@ -95,7 +101,9 @@ export default function VenueDashboardHome() {
     const { data: tonight, isLoading: tonightLoading } = useQuery({
         queryKey: ['venue', venueId, 'tonight', tonightEvent?.id],
         queryFn: async () => {
-            const res = await fetch(`/api/venue/overview/tonight?eventId=${tonightEvent?.id}`);
+            const token = await getIdToken();
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const res = await fetch(`/api/venue/overview/tonight?eventId=${tonightEvent?.id}`, { headers });
             return res.json();
         },
         enabled: !!tonightEvent?.id,

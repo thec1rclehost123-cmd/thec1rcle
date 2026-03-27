@@ -226,6 +226,26 @@ export const POST = withAuth(async (req: NextRequest) => {
                 id, hostId, venueId, hostName, venueName,
                 status: "pending", initiatedBy: requesterType, createdAt: now, updatedAt: now,
             });
+            // Notify the TARGET party
+            const notifTargetId   = requesterType === "host"  ? venueId  : hostId;
+            const notifTargetType = requesterType === "host"  ? "venue"  : "host";
+            const notifTitle      = requesterType === "host"
+                ? `${requesterName || "A host"} wants to partner`
+                : `${requesterName || "A venue"} wants to partner`;
+            const notifDesc = `New ${requesterType} partnership request${message ? `: "${message}"` : "."}`;
+            const nid = randomUUID();
+            await db.collection("notifications").doc(nid).set({
+                id: nid,
+                targetId: notifTargetId,
+                targetType: notifTargetType,
+                type: "host_request",
+                title: notifTitle,
+                description: notifDesc,
+                createdAt: now,
+                isRead: false,
+                actionable: true,
+                data: { connectionId: id, requesterId, requesterType, requesterName: requesterName || "" },
+            });
             return ok({ id });
         }
 
@@ -250,6 +270,19 @@ export const POST = withAuth(async (req: NextRequest) => {
             targetId: connTargetId, targetType: connTargetType, targetName: connTargetName,
             message: message || "",
             status: "pending", initiatedBy: requesterType, createdAt: now, updatedAt: now,
+        });
+        const notifId = randomUUID();
+        await db.collection("notifications").doc(notifId).set({
+            id: notifId,
+            targetId: connTargetId,
+            targetType: connTargetType,
+            type: "promoter_request",
+            title: `${promoterName || "A promoter"} wants to connect`,
+            description: `New promoter connection request${message ? `: "${message}"` : "."}`,
+            createdAt: now,
+            isRead: false,
+            actionable: true,
+            data: { connectionId: id, requesterId: promoterId, requesterType: "promoter", requesterName: promoterName || "" },
         });
         return ok({ id });
     } catch (error: any) {

@@ -71,20 +71,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 createdAt: now.toISOString(),
             });
 
-        // Create notification for venue
+        // Create notification for venue — fields must match venue/notifications GET query (targetId, isRead)
         if (ev.venueId) {
-            await db.collection("notifications").add({
-                recipientPartnerId: ev.venueId,
-                recipientType: "venue",
+            const nid = db.collection("notifications").doc().id;
+            await db.collection("notifications").doc(nid).set({
+                id: nid,
+                targetId: ev.venueId,
+                targetType: "venue",
                 type: "event_submitted",
-                title: "New event submission",
-                message: `${ev.title || "A host"} has submitted an event for review.`,
-                eventId,
-                eventName: ev.title || ev.name,
-                hostId,
-                read: false,
+                title: `New event submission`,
+                description: `${ev.hostName || ev.hostId || "A host"} submitted "${ev.title || ev.name || "an event"}" for review.`,
+                isRead: false,
+                actionable: false,
                 createdAt: now.toISOString(),
-                timestamp: now.getTime(),
+                data: { eventId, eventName: ev.title || ev.name || "", hostId },
             });
         }
 

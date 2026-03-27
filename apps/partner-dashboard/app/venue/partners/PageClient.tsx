@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import {
-    CheckCircle2, Clock, XCircle, Search, Loader2,
+    CheckCircle2, Clock, XCircle, Compass, Loader2,
     UserCircle, ChevronRight, Handshake, Zap, X, Bell,
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
@@ -38,7 +38,7 @@ const mp = (delay: number) => ({
 
 export default function VenuePartnersPage() {
     const { profile, user } = useDashboardAuth();
-    const [activeTab, setActiveTab] = useState<Tab>("discover");
+    const [activeTab, setActiveTab] = useState<Tab>("active");
     const [connections, setConnections] = useState<Connection[]>([]);
     const [loading, setLoading] = useState(true);
     const [profileTarget, setProfileTarget] = useState<NetworkProfile | null>(null);
@@ -104,10 +104,9 @@ export default function VenuePartnersPage() {
     const declined = connections.filter(c => c.status === "rejected");
 
     const TABS: { id: Tab; label: string; count?: number }[] = [
-        { id: "discover", label: "Discover" },
+        { id: "active", label: "Active", count: active.length },
         { id: "incoming", label: "Incoming", count: pendingIncoming.length },
         { id: "pending", label: "Pending", count: pendingOutgoing.length },
-        { id: "active", label: "Active", count: active.length },
         { id: "declined", label: "Declined", count: declined.length },
     ];
 
@@ -116,7 +115,7 @@ export default function VenuePartnersPage() {
             title="Partners"
             subtitle="Hosts and promoters who operate with your venue"
             actions={
-                <div className="flex gap-3">
+                <div className="flex items-center gap-3">
                     <div className="px-5 py-3 rounded-2xl text-center" style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
                         <p className="text-[20px] font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>{active.length}</p>
                         <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>Active</p>
@@ -125,6 +124,16 @@ export default function VenuePartnersPage() {
                         <p className="text-[20px] font-black tabular-nums" style={{ color: "#f59e0b" }}>{allPending.length}</p>
                         <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>Pending</p>
                     </div>
+                    <button
+                        onClick={() => setActiveTab(activeTab === "discover" ? "active" : "discover")}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[12px] font-bold uppercase tracking-widest transition-all shrink-0"
+                        style={activeTab === "discover"
+                            ? { background: "var(--v-orange-glow)", color: "var(--v-orange)", border: "1px solid rgba(244,74,34,0.3)" }
+                            : { background: "var(--v-card)", color: "var(--v-text-secondary)", border: "1px solid var(--v-border)" }}
+                    >
+                        <Compass className="w-3.5 h-3.5" />
+                        Discover
+                    </button>
                 </div>
             }
         >
@@ -169,10 +178,9 @@ export default function VenuePartnersPage() {
                                 ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" }
                                 : { color: "var(--v-text-tertiary)" }}
                         >
-                            {tab.id === "discover" && <Search className={`w-4 h-4 ${activeTab === tab.id ? "text-[#818cf8]" : ""}`} />}
+                            {tab.id === "active" && <CheckCircle2 className={`w-4 h-4 ${activeTab === tab.id ? "text-[#34d399]" : ""}`} />}
                             {tab.id === "incoming" && <Bell className={`w-4 h-4 ${activeTab === tab.id ? "text-[#F44A22]" : ""}`} />}
                             {tab.id === "pending" && <Clock className={`w-4 h-4 ${activeTab === tab.id ? "text-[#f59e0b]" : ""}`} />}
-                            {tab.id === "active" && <CheckCircle2 className={`w-4 h-4 ${activeTab === tab.id ? "text-[#34d399]" : ""}`} />}
                             {tab.id === "declined" && <XCircle className="w-4 h-4" />}
                             {tab.label}
                             {tab.count !== undefined && tab.count > 0 && (
