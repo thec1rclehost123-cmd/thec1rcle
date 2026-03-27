@@ -1,236 +1,205 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
-    ChevronLeft,
-    ChevronRight,
-    Calendar,
-    Clock,
-    Lock,
-    CheckCircle2,
-    AlertTriangle,
-    X,
-    Loader2,
-    Building2,
-    ArrowLeft
+    ChevronLeft, ChevronRight, ChevronDown, Calendar, Clock, Lock,
+    X, Building2, ArrowLeft, Music,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
-interface CalendarDay {
-    date: string;
-    status: "available" | "blocked" | "booked" | "partial" | "my_request";
-    reason?: string;
-    slots?: {
-        startTime: string;
-        endTime: string;
-        status: string;
-    }[];
-}
+// ── Color system — mirrors OperatingCalendar ────────────────────────────────
+const C = {
+    surface: "#1c1c22",
+    surfaceWeekend: "#1f1f28",
+    surfacePast: "#141417",
+    surfaceEvent: "#0d2119",
+    surfaceBlocked: "#1e0d0d",
+    surfacePending: "#1e1a0b",
+    surfaceToday: "#281510",
+    surfaceSelected: "#2e1008",
+    borderDefault: "rgba(255,255,255,0.08)",
+    borderEvent: "rgba(52,211,153,0.4)",
+    borderBlocked: "rgba(248,113,113,0.35)",
+    borderPending: "rgba(251,191,36,0.3)",
+    borderToday: "rgba(244,74,34,0.55)",
+    borderSelected: "#F44A22",
+    teal: "#34D399",
+    amber: "#FBBF24",
+    red: "#F87171",
+    orange: "#F44A22",
+};
 
 const MONTHS = [
     "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
+    "July", "August", "September", "October", "November", "December",
 ];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// Times selectable in picker: 2 PM through 4 AM in 30-min steps (matches Calendar tab)
+const BLOCK_TIMES: string[] = (() => {
+    const out: string[] = [];
+    for (let h = 14; h < 24; h++) ["00", "30"].forEach(m => out.push(`${String(h).padStart(2, "0")}:${m}`));
+    for (let h = 0; h <= 4; h++) ["00", "30"].forEach(m => out.push(`${String(h).padStart(2, "0")}:${m}`));
+    return out;
+})();
 
-const timeOverlaps = (start1: string, end1: string, start2: string, end2: string) => {
-    const toMinutes = (time: string) => {
-        const [h, m] = time.split(":").map(Number);
-        return h * 60 + m;
-    };
-    let s1 = toMinutes(start1);
-    let e1 = toMinutes(end1);
-    let s2 = toMinutes(start2);
-    let e2 = toMinutes(end2);
-    if (e1 < s1) e1 += 24 * 60;
-    if (e2 < s2) e2 += 24 * 60;
-    return !(e1 <= s2 || s1 >= e2);
-};
+const EXCLUDED_LIFECYCLE = ["draft", "deleted", "cancelled", "denied"];
 
-const TIME_SLOTS = [
-    { label: "Evening (17:00 – 21:00)", startTime: "17:00", endTime: "21:00" },
-    { label: "Night (21:00 – 01:00)", startTime: "21:00", endTime: "01:00" },
-    { label: "Late Night (23:00 – 04:00)", startTime: "23:00", endTime: "04:00" },
-    { label: "Full Night (21:00 – 04:00)", startTime: "21:00", endTime: "04:00" },
-];
-
-const formatDate = (date: Date) => {
+function formatDate(date: Date) {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, "0");
     const d = String(date.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
-};
+}
+
+function fmt12(t: string): string {
+    if (!t) return "";
+    const [h, m] = t.split(":").map(Number);
+    const h12 = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+}
+
+function toMins(t: string) {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+}
+
+function timeOverlaps(s1: string, e1: string, s2: string, e2: string) {
+    let a = toMins(s1), b = toMins(e1), c = toMins(s2), d = toMins(e2);
+    if (b < a) b += 1440;
+    if (d < c) d += 1440;
+    return !(b <= c || a >= d);
+}
+
+function filterVisible(events: any[]) {
+    return (events || []).filter(
+        (e: any) => !EXCLUDED_LIFECYCLE.includes(e.lifecycle || e.status || "draft")
+    );
+}
+
+// ── Timeline helpers (mirrors OperatingCalendar) ────────────────────────────
+const TIMELINE_HOURS = [
+    { label: "2 PM", mins: 0 },
+    { label: "4 PM", mins: 120 },
+    { label: "6 PM", mins: 240 },
+    { label: "8 PM", mins: 360 },
+    { label: "10 PM", mins: 480 },
+    { label: "12 AM", mins: 600 },
+    { label: "2 AM", mins: 720 },
+    { label: "4 AM", mins: 840 },
+];
+const TOTAL_MINS = 840;
+
+function timeToMins(t: string): number {
+    if (!t) return 0;
+    const [h, m] = t.split(":").map(Number);
+    let mins = h * 60 + m;
+    if (h < 14) mins += 1440;
+    return mins - 840;
+}
+
+function pct(mins: number) {
+    return `${Math.max(0, Math.min(100, (mins / TOTAL_MINS) * 100))}%`;
+}
+
+// ── Main component ──────────────────────────────────────────────────────────
 
 export function VenueEventCalendar() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user } = useDashboardAuth();
+    const rm = useReducedMotion();
 
     const venueId = searchParams.get("venueId") || "";
     const venueName = searchParams.get("venueName") || "Your Venue";
 
     const [currentMonth, setCurrentMonth] = useState(() => new Date());
-    const [calendar, setCalendar] = useState<CalendarDay[]>([]);
+    const [calendarData, setCalendarData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
-    const [selectedTimeSlot, setSelectedTimeSlot] = useState<{ startTime: string; endTime: string } | null>(null);
-    const [dateAvailability, setDateAvailability] = useState<any>(null);
-    const [loadingAvailability, setLoadingAvailability] = useState(false);
 
-    // Authenticated fetch helper
-    const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+    const authedFetch = useCallback(async (url: string) => {
         if (!user) throw new Error("Not authenticated");
         const token = await user.getIdToken(true);
-        return fetch(url, {
-            ...options,
-            headers: {
-                ...options.headers,
-                "Authorization": `Bearer ${token}`,
-            },
-        });
+        return fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     }, [user]);
 
-    // Fetch calendar data using the venue's own calendar API
+    // Fetch operating calendar (same endpoint as Calendar tab)
     useEffect(() => {
         if (!venueId) return;
-        async function fetchCalendar() {
+        const load = async () => {
             setLoading(true);
             try {
                 const startDate = formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1));
                 const endDate = formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0));
-
                 const res = await authedFetch(
                     `/api/venue/calendar?venueId=${venueId}&view=operating&startDate=${startDate}&endDate=${endDate}`
                 );
                 const data = await res.json();
-                setCalendar(data.calendar || data.days || []);
+                // Operating view returns a raw array (not wrapped in .calendar / .days)
+                setCalendarData(Array.isArray(data) ? data : []);
             } catch (err) {
                 console.error("Failed to fetch venue calendar:", err);
+                setCalendarData([]);
             } finally {
                 setLoading(false);
             }
-        }
-        fetchCalendar();
+        };
+        load();
     }, [venueId, currentMonth, authedFetch]);
 
-    // Fetch specific date availability when selected
-    useEffect(() => {
-        if (!selectedDate || !venueId) {
-            setDateAvailability(null);
-            return;
-        }
+    const today = formatDate(new Date());
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
 
-        const cachedDay = calendar.find(d => d.date === selectedDate);
-        if (cachedDay?.slots && cachedDay.slots.length > 0) {
-            setDateAvailability({ slots: cachedDay.slots });
-            return;
-        }
+    const firstDayIdx = useMemo(() => new Date(year, month, 1).getDay(), [year, month]);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const weeks = Math.ceil((firstDayIdx + daysInMonth) / 7);
+    const dataMap = useMemo(() => new Map(calendarData.map(d => [d.date, d])), [calendarData]);
 
-        async function fetchAvailability() {
-            setLoadingAvailability(true);
-            try {
-                const res = await authedFetch(
-                    `/api/venue/calendar?venueId=${venueId}&startDate=${selectedDate}&endDate=${selectedDate}`
-                );
-                const data = await res.json();
-                setDateAvailability(data.availability || data);
-            } catch (err) {
-                console.error("Failed to fetch date availability:", err);
-            } finally {
-                setLoadingAvailability(false);
-            }
-        }
-        fetchAvailability();
-    }, [venueId, selectedDate, calendar, authedFetch]);
-
-    // Calendar grid
-    const calendarGrid = useMemo(() => {
-        const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-        const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
-        const startOffset = firstDay.getDay();
-        const totalDays = lastDay.getDate();
-
-        const calendarMap = new Map(calendar.map(d => [d.date, d]));
-        const today = formatDate(new Date());
-
-        const days: any[] = [];
-        for (let i = 0; i < startOffset; i++) {
-            days.push({ empty: true });
-        }
-
-        for (let day = 1; day <= totalDays; day++) {
-            const dateStr = formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day));
-            const dayData = calendarMap.get(dateStr);
-            const isPast = dateStr < today;
-
-            days.push({
-                day,
-                date: dateStr,
-                isPast,
-                status: isPast ? "past" : (dayData?.status || "available"),
-                reason: dayData?.reason
+    const grid = useMemo(() => {
+        const g: any[] = [];
+        for (let i = 0; i < firstDayIdx; i++) g.push(null);
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = formatDate(new Date(year, month, d));
+            const raw = dataMap.get(dateStr);
+            const col = firstDayIdx + d - 1;
+            g.push({
+                day: d,
+                dateStr,
+                isPast: dateStr < today,
+                isWeekend: col % 7 === 0 || col % 7 === 6,
+                state: raw?.state || "OPEN",
+                events: filterVisible(raw?.events),
+                slots: raw?.slots || [],
+                stats: raw?.stats || { eventCount: 0, pendingSlots: 0 },
+                block: raw?.block || null,
             });
         }
+        return g;
+    }, [calendarData, year, month, daysInMonth, firstDayIdx, today, dataMap]);
 
-        return days;
-    }, [currentMonth, calendar]);
+    const selectedDayData = useMemo(
+        () => grid.find(d => d?.dateStr === selectedDate),
+        [grid, selectedDate]
+    );
+
+    const stats = useMemo(() => ({
+        events: calendarData.filter(d => filterVisible(d.events).length > 0).length,
+        blocked: calendarData.filter(d => d.state === "BLOCKED").length,
+    }), [calendarData]);
 
     const navigateMonth = (delta: number) => {
         setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
         setSelectedDate(null);
     };
 
-    const handleDateClick = (day: any) => {
-        if (day.empty || day.isPast || day.status === "blocked" || day.status === "booked") {
-            return;
-        }
-        setSelectedDate(day.date);
-        setSelectedTimeSlot(null);
-    };
-
-    const handleConfirm = () => {
-        if (selectedDate && selectedTimeSlot) {
-            const params = new URLSearchParams({
-                venue: venueId,
-                venueName: venueName,
-                date: selectedDate,
-                startTime: selectedTimeSlot.startTime,
-                endTime: selectedTimeSlot.endTime,
-            });
+    const handleConfirm = (startTime: string, endTime: string) => {
+        if (selectedDate) {
+            const params = new URLSearchParams({ venue: venueId, venueName, date: selectedDate, startTime, endTime });
             router.push(`/venue/create?${params.toString()}`);
-        }
-    };
-
-    const getStatusStyle = (status: string) => {
-        switch (status) {
-            case "available":
-                return "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/20 cursor-pointer";
-            case "blocked":
-                return "bg-white/[0.03] text-white/20 cursor-not-allowed";
-            case "booked":
-                return "bg-rose-500/10 text-rose-400/60 cursor-not-allowed";
-            case "partial":
-                return "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border-amber-500/20 cursor-pointer";
-            case "past":
-                return "bg-white/[0.02] text-white/15 cursor-not-allowed";
-            default:
-                return "bg-white/[0.04] text-white/70 hover:bg-white/[0.08] cursor-pointer";
-        }
-    };
-
-    const getStatusIcon = (status: string) => {
-        switch (status) {
-            case "blocked":
-                return <Lock className="w-3 h-3" />;
-            case "booked":
-                return <X className="w-3 h-3" />;
-            case "partial":
-                return <AlertTriangle className="w-3 h-3" />;
-            default:
-                return null;
         }
     };
 
@@ -238,10 +207,11 @@ export function VenueEventCalendar() {
         return (
             <div className="min-h-[60vh] flex items-center justify-center">
                 <div className="text-center">
-                    <p className="text-text-tertiary">No venue selected.</p>
+                    <p style={{ color: "rgba(255,255,255,0.35)" }}>No venue selected.</p>
                     <button
                         onClick={() => router.push("/venue/create/select-venue")}
-                        className="mt-4 btn btn-primary"
+                        className="mt-4 px-6 py-3 rounded-xl text-sm font-black text-white uppercase tracking-wider"
+                        style={{ background: C.orange }}
                     >
                         Go Back
                     </button>
@@ -251,216 +221,869 @@ export function VenueEventCalendar() {
     }
 
     return (
-        <div className="max-w-6xl mx-auto">
-            {/* Header */}
-            <div className="mb-8">
+        <div className="max-w-7xl mx-auto flex flex-col gap-5">
+            {/* ── Header ──────────────────────────────────────────────────── */}
+            <div className="flex flex-col gap-4">
                 <button
                     onClick={() => router.push("/venue/create/select-venue")}
-                    className="flex items-center gap-2 text-text-tertiary hover:text-text-primary transition-colors mb-4"
+                    className="flex items-center gap-2 self-start transition-all"
+                    style={{ color: "rgba(255,255,255,0.35)" }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.7)")}
+                    onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.35)")}
                 >
                     <ArrowLeft className="w-4 h-4" />
-                    <span className="text-[11px] font-bold uppercase tracking-widest">Back to Venues</span>
+                    <span className="text-[11px] font-black uppercase tracking-widest">Back to Venues</span>
                 </button>
-                <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500/20 to-rose-600/20 flex items-center justify-center border border-white/10">
-                        <Building2 className="w-7 h-7 text-orange-500" />
+
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    {/* Venue identity */}
+                    <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+                            style={{ background: "rgba(244,74,34,0.15)", border: "1px solid rgba(244,74,34,0.25)" }}>
+                            <Building2 className="w-7 h-7" style={{ color: C.orange }} />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-black text-white uppercase tracking-tight">{venueName}</h1>
+                            <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                Select an available date and time for your event
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-2xl font-black text-text-primary uppercase tracking-tight">{venueName}</h1>
-                        <p className="text-sm text-text-tertiary mt-0.5">Select an available date and time for your event</p>
+
+                    {/* Toolbar: stats + month nav */}
+                    <div className="flex items-center gap-3">
+                        {stats.events > 0 && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black border"
+                                style={{ background: "rgba(52,211,153,.12)", color: C.teal, borderColor: "rgba(52,211,153,.25)" }}>
+                                <span className="tabular-nums text-[11px]">{stats.events}</span>
+                                <span className="uppercase tracking-widest opacity-70">Events</span>
+                            </div>
+                        )}
+                        {stats.blocked > 0 && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black border"
+                                style={{ background: "rgba(248,113,113,.12)", color: C.red, borderColor: "rgba(248,113,113,.25)" }}>
+                                <span className="tabular-nums text-[11px]">{stats.blocked}</span>
+                                <span className="uppercase tracking-widest opacity-70">Blocked</span>
+                            </div>
+                        )}
+
+                        {/* Month picker */}
+                        <div className="flex items-center rounded-2xl overflow-hidden"
+                            style={{ background: C.surface, border: `1px solid ${C.borderDefault}` }}>
+                            <button
+                                onClick={() => navigateMonth(-1)}
+                                className="w-10 h-10 flex items-center justify-center transition-colors hover:bg-white/5"
+                                style={{ color: "rgba(255,255,255,0.4)" }}
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <span
+                                className="px-4 text-[13px] font-black tracking-tight uppercase text-white min-w-[150px] text-center"
+                                style={{ borderLeft: `1px solid ${C.borderDefault}`, borderRight: `1px solid ${C.borderDefault}` }}
+                            >
+                                {MONTHS[month]} {year}
+                            </span>
+                            <button
+                                onClick={() => navigateMonth(1)}
+                                className="w-10 h-10 flex items-center justify-center transition-colors hover:bg-white/5"
+                                style={{ color: "rgba(255,255,255,0.4)" }}
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Main Layout */}
-            <div className="flex flex-col lg:flex-row gap-6">
-                {/* Calendar Section */}
-                <div className="flex-[1.5] bg-white/[0.02] rounded-[2rem] border border-white/[0.06] p-8">
-                    {/* Month Navigation */}
-                    <div className="flex items-center justify-between mb-6">
-                        <button
-                            onClick={() => navigateMonth(-1)}
-                            className="p-2 rounded-xl hover:bg-white/[0.06] transition-colors"
-                        >
-                            <ChevronLeft className="w-5 h-5 text-text-secondary" />
-                        </button>
-                        <h3 className="text-lg font-bold text-text-primary">
-                            {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-                        </h3>
-                        <button
-                            onClick={() => navigateMonth(1)}
-                            className="p-2 rounded-xl hover:bg-white/[0.06] transition-colors"
-                        >
-                            <ChevronRight className="w-5 h-5 text-text-secondary" />
-                        </button>
-                    </div>
-
-                    {/* Weekday Headers */}
-                    <div className="grid grid-cols-7 gap-1 mb-2">
-                        {WEEKDAYS.map(day => (
-                            <div key={day} className="text-center text-xs font-semibold text-text-tertiary py-2">
-                                {day}
+            {/* ── Main two-panel card ──────────────────────────────────────── */}
+            <div
+                className="flex flex-col lg:flex-row rounded-[28px] overflow-hidden"
+                style={{
+                    background: "#16161b",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    boxShadow: "0 32px 80px rgba(0,0,0,0.6)",
+                    minHeight: 540,
+                }}
+            >
+                {/* ══ CALENDAR PANEL ══ */}
+                <div className="lg:flex-[2.4] flex flex-col" style={{ borderRight: "1px solid rgba(255,255,255,0.07)" }}>
+                    {/* Weekday headers */}
+                    <div className="grid grid-cols-7 px-4 pt-5 pb-3 flex-shrink-0">
+                        {DAYS.map((d, i) => (
+                            <div
+                                key={d}
+                                className="text-center text-[9px] font-black uppercase tracking-[0.15em] py-1"
+                                style={{ color: (i === 0 || i === 6) ? "rgba(244,74,34,0.6)" : "rgba(255,255,255,0.28)" }}
+                            >
+                                {d}
                             </div>
                         ))}
                     </div>
 
-                    {/* Calendar Grid */}
-                    {loading ? (
-                        <div className="flex items-center justify-center h-64">
-                            <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-7 gap-1">
-                            {calendarGrid.map((day, idx) => (
+                    {/* Date cells */}
+                    <div
+                        className="flex-1 min-h-0 px-4 pb-4 grid grid-cols-7 gap-2"
+                        style={{ gridTemplateRows: `repeat(${weeks}, 1fr)` }}
+                    >
+                        {loading
+                            ? Array.from({ length: 35 }).map((_, i) => (
                                 <div
-                                    key={idx}
-                                    onClick={() => !day.empty && handleDateClick(day)}
-                                    className={`
-                                        aspect-square rounded-xl flex flex-col items-center justify-center relative
-                                        text-sm font-medium transition-all border border-transparent
-                                        ${day.empty ? "bg-transparent" : getStatusStyle(day.status)}
-                                        ${selectedDate === day.date ? "ring-2 ring-orange-500 ring-offset-2 ring-offset-[var(--v-canvas)]" : ""}
-                                    `}
-                                >
-                                    {!day.empty && (
-                                        <>
-                                            <span>{day.day}</span>
-                                            {getStatusIcon(day.status) && (
-                                                <span className="absolute bottom-1">
-                                                    {getStatusIcon(day.status)}
-                                                </span>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                                    key={i}
+                                    className="rounded-2xl animate-pulse"
+                                    style={{ background: C.surface, minHeight: 56 }}
+                                />
+                            ))
+                            : grid.map((cell, idx) => {
+                                if (!cell) return <div key={`e-${idx}`} />;
+
+                                const isToday = cell.dateStr === today;
+                                const isSel = cell.dateStr === selectedDate;
+                                const evCount = cell.events.length;
+                                const hasPending = (cell.stats?.pendingSlots || 0) > 0;
+                                const isBlocked = cell.state === "BLOCKED";
+                                const isPast = cell.isPast;
+                                const hasEvents = evCount > 0;
+
+                                let bg = isPast ? C.surfacePast : cell.isWeekend ? C.surfaceWeekend : C.surface;
+                                let border = `1px solid ${isPast ? "rgba(255,255,255,0.05)" : C.borderDefault}`;
+                                let shadow = "none";
+
+                                if (isSel) {
+                                    bg = C.surfaceSelected;
+                                    border = `2px solid ${C.borderSelected}`;
+                                    shadow = "0 0 32px rgba(244,74,34,0.3), 0 8px 24px rgba(244,74,34,0.15)";
+                                } else if (isToday) {
+                                    bg = C.surfaceToday;
+                                    border = `2px solid ${C.borderToday}`;
+                                    shadow = "0 0 20px rgba(244,74,34,0.12)";
+                                } else if (isBlocked) {
+                                    bg = C.surfaceBlocked;
+                                    border = `1px solid ${C.borderBlocked}`;
+                                } else if (hasEvents && !isPast) {
+                                    bg = C.surfaceEvent;
+                                    border = `1px solid ${C.borderEvent}`;
+                                    shadow = "0 4px 20px rgba(52,211,153,0.1)";
+                                } else if (hasPending) {
+                                    bg = C.surfacePending;
+                                    border = `1px solid ${C.borderPending}`;
+                                }
+
+                                const numColor = isToday ? "white"
+                                    : isSel ? C.orange
+                                        : isBlocked ? C.red
+                                            : hasEvents && !isPast ? C.teal
+                                                : isPast ? "rgba(255,255,255,0.28)"
+                                                    : "rgba(255,255,255,0.82)";
+
+                                return (
+                                    <button
+                                        key={cell.dateStr}
+                                        onClick={() => !isPast && (() => {
+                                            setSelectedDate(cell.dateStr);
+                                        })()}
+                                        disabled={isPast}
+                                        className="relative rounded-2xl flex flex-col items-center justify-center gap-1 transition-all duration-100"
+                                        style={{
+                                            background: bg,
+                                            border,
+                                            boxShadow: shadow,
+                                            cursor: isPast ? "not-allowed" : "pointer",
+                                            opacity: isPast ? 0.42 : 1,
+                                            minHeight: 56,
+                                        }}
+                                        onMouseEnter={e => {
+                                            if (!isPast && !isSel && !isToday)
+                                                (e.currentTarget as HTMLElement).style.filter = "brightness(1.15)";
+                                        }}
+                                        onMouseLeave={e => {
+                                            (e.currentTarget as HTMLElement).style.filter = "";
+                                        }}
+                                    >
+                                        {/* Top stripe for event cells */}
+                                        {hasEvents && !isSel && !isPast && (
+                                            <div
+                                                className="absolute inset-x-0 top-0 h-[3px] rounded-t-2xl"
+                                                style={{ background: `linear-gradient(90deg, ${C.teal}, rgba(52,211,153,0.3))` }}
+                                            />
+                                        )}
+                                        {/* Diagonal stripes for past */}
+                                        {isPast && (
+                                            <div
+                                                className="absolute inset-0 rounded-2xl pointer-events-none"
+                                                style={{
+                                                    backgroundImage: "repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 8px)",
+                                                }}
+                                            />
+                                        )}
+                                        {/* Day number */}
+                                        {isToday ? (
+                                            <span
+                                                className="inline-flex items-center justify-center w-[26px] h-[26px] rounded-full text-[11px] font-black text-white tabular-nums"
+                                                style={{ background: C.orange, boxShadow: "0 0 16px rgba(244,74,34,0.8)" }}
+                                            >
+                                                {cell.day}
+                                            </span>
+                                        ) : (
+                                            <span className="text-[15px] font-black tabular-nums" style={{ color: numColor }}>
+                                                {cell.day}
+                                            </span>
+                                        )}
+                                        {/* Status dots */}
+                                        {(hasEvents || hasPending || isBlocked) && !isPast && (
+                                            <div className="flex items-center gap-[3px]">
+                                                {hasEvents && Array.from({ length: Math.min(evCount, 3) }).map((_, i) => (
+                                                    <span key={i} className="w-1 h-1 rounded-full" style={{ background: C.teal }} />
+                                                ))}
+                                                {hasPending && (
+                                                    <span className="w-1 h-1 rounded-full animate-pulse" style={{ background: C.amber }} />
+                                                )}
+                                                {isBlocked && (
+                                                    <span className="w-1 h-1 rounded-full" style={{ background: C.red }} />
+                                                )}
+                                            </div>
+                                        )}
+                                    </button>
+                                );
+                            })
+                        }
+                    </div>
 
                     {/* Legend */}
-                    <div className="mt-6 flex flex-wrap gap-4 text-xs">
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                            <span className="text-text-tertiary">Available</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-amber-500" />
-                            <span className="text-text-tertiary">Partial</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-rose-400" />
-                            <span className="text-text-tertiary">Booked</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-white/20" />
-                            <span className="text-text-tertiary">Blocked</span>
-                        </div>
+                    <div
+                        className="flex-shrink-0 flex items-center gap-6 px-6 py-3"
+                        style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.2)" }}
+                    >
+                        {[
+                            { color: C.teal, label: "Confirmed", bg: C.surfaceEvent },
+                            { color: C.amber, label: "Pending", bg: C.surfacePending },
+                            { color: C.red, label: "Blocked", bg: C.surfaceBlocked },
+                        ].map(({ color, label, bg }) => (
+                            <div key={label} className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-md" style={{ background: bg, border: `1px solid ${color}40` }} />
+                                <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.3)" }}>
+                                    {label}
+                                </span>
+                            </div>
+                        ))}
                     </div>
                 </div>
 
-                {/* Time Slot Selection Panel */}
-                <div className="w-full lg:w-96 bg-white/[0.02] rounded-[2rem] border border-white/[0.06] p-8 lg:sticky lg:top-4 self-start">
+                {/* ══ RIGHT PANEL ══ */}
+                <div className="lg:flex-[1] flex flex-col overflow-hidden" style={{ background: "#0f0f13" }}>
                     <AnimatePresence mode="wait">
-                        {selectedDate ? (
+                        {selectedDate && selectedDayData ? (
                             <motion.div
-                                key="time-selection"
-                                initial={{ opacity: 0, x: 20 }}
+                                key={selectedDate}
+                                initial={rm ? {} : { opacity: 0, x: 16 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                className="space-y-6"
+                                exit={rm ? {} : { opacity: 0, x: -8 }}
+                                transition={{ duration: 0.15 }}
+                                className="flex flex-col h-full"
                             >
-                                <div>
-                                    <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest mb-2">Selected Date</p>
-                                    <p className="text-lg font-bold text-text-primary">
-                                        {new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-IN", {
-                                            weekday: "long",
-                                            day: "numeric",
-                                            month: "long",
-                                            year: "numeric"
-                                        })}
-                                    </p>
-                                </div>
-
-                                {loadingAvailability ? (
-                                    <div className="flex items-center justify-center py-8">
-                                        <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest">Select Time Slot</p>
-                                        {TIME_SLOTS.map(slot => {
-                                            const isSelected = selectedTimeSlot?.startTime === slot.startTime &&
-                                                selectedTimeSlot?.endTime === slot.endTime;
-
-                                            const isUnavailable = dateAvailability?.slots?.some((s: any) =>
-                                                s.status !== "available" &&
-                                                timeOverlaps(s.startTime, s.endTime, slot.startTime, slot.endTime)
-                                            );
-
-                                            return (
-                                                <button
-                                                    key={slot.label}
-                                                    onClick={() => !isUnavailable && setSelectedTimeSlot(slot)}
-                                                    disabled={isUnavailable}
-                                                    className={`
-                                                        w-full p-4 rounded-xl text-left transition-all
-                                                        ${isUnavailable
-                                                            ? "bg-white/[0.03] text-white/20 cursor-not-allowed"
-                                                            : isSelected
-                                                                ? "bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-lg shadow-orange-500/20"
-                                                                : "bg-white/[0.04] text-text-secondary hover:bg-white/[0.08] border border-white/[0.06]"
-                                                        }
-                                                    `}
-                                                >
-                                                    <div className="flex items-center justify-between">
-                                                        <div>
-                                                            <p className="font-semibold text-sm">{slot.label}</p>
-                                                            <p className={`text-xs mt-0.5 ${isSelected ? "text-white/70" : "text-text-tertiary"}`}>
-                                                                {slot.startTime} – {slot.endTime}
-                                                            </p>
-                                                        </div>
-                                                        {isSelected && <CheckCircle2 className="w-5 h-5" />}
-                                                        {isUnavailable && <Lock className="w-4 h-4" />}
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-
-                                {/* Confirm Button */}
-                                <button
-                                    onClick={handleConfirm}
-                                    disabled={!selectedTimeSlot}
-                                    className={`
-                                        w-full py-4 rounded-xl font-bold text-sm transition-all uppercase tracking-wider
-                                        ${selectedTimeSlot
-                                            ? "bg-gradient-to-r from-orange-500 to-rose-600 text-white hover:shadow-lg hover:shadow-orange-500/20 hover:scale-[1.02] active:scale-95"
-                                            : "bg-white/[0.06] text-white/20 cursor-not-allowed"
-                                        }
-                                    `}
-                                >
-                                    Continue to Create Event
-                                </button>
+                                <RightPanel
+                                    dateStr={selectedDate}
+                                    data={selectedDayData}
+                                    onClose={() => setSelectedDate(null)}
+                                    onConfirm={handleConfirm}
+                                />
                             </motion.div>
                         ) : (
                             <motion.div
-                                key="empty-state"
-                                initial={{ opacity: 0 }}
+                                key="idle"
+                                initial={rm ? {} : { opacity: 0 }}
                                 animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="flex flex-col items-center justify-center h-full text-center py-12"
+                                className="flex-1 flex flex-col items-center justify-center gap-6 p-10"
                             >
-                                <div className="w-16 h-16 rounded-full bg-white/[0.04] flex items-center justify-center mb-4">
-                                    <Calendar className="w-8 h-8 text-text-tertiary" />
+                                {/* Concentric rings idle state (matches OperatingCalendar) */}
+                                <div className="relative">
+                                    {[40, 32, 24].map((size, i) => (
+                                        <div
+                                            key={size}
+                                            className="absolute rounded-full"
+                                            style={{
+                                                width: size * 2,
+                                                height: size * 2,
+                                                top: "50%",
+                                                left: "50%",
+                                                transform: "translate(-50%, -50%)",
+                                                border: `1px solid rgba(255,255,255,${0.03 + i * 0.015})`,
+                                            }}
+                                        />
+                                    ))}
+                                    <div
+                                        className="relative w-14 h-14 rounded-2xl flex items-center justify-center"
+                                        style={{ background: C.surface, border: "1px solid rgba(255,255,255,0.1)" }}
+                                    >
+                                        <Calendar className="w-6 h-6" style={{ color: "rgba(244,74,34,0.6)" }} />
+                                    </div>
                                 </div>
-                                <p className="text-text-secondary font-medium">Select a date</p>
-                                <p className="text-text-tertiary text-sm mt-1">
-                                    Choose an available date on the calendar to see time slots
-                                </p>
+                                <div className="text-center">
+                                    <p className="text-[11px] font-black uppercase tracking-widest mb-2"
+                                        style={{ color: "rgba(255,255,255,0.4)" }}>
+                                        Select a Date
+                                    </p>
+                                    <p className="text-[11px] leading-relaxed max-w-[160px] mx-auto"
+                                        style={{ color: "rgba(255,255,255,0.18)" }}>
+                                        Choose a date on the calendar to see time slots
+                                    </p>
+                                </div>
                             </motion.div>
                         )}
                     </AnimatePresence>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Right Panel ─────────────────────────────────────────────────────────────
+
+function RightPanel({ dateStr, data, onClose, onConfirm }: {
+    dateStr: string;
+    data: any;
+    onClose: () => void;
+    onConfirm: (startTime: string, endTime: string) => void;
+}) {
+    const isBlocked = data?.state === "BLOCKED";
+    const events = filterVisible(data?.events);
+    const evCount = events.length;
+
+    // Custom time picker state — defaults match a typical late-night event
+    const [startTime, setStartTime] = useState("21:00");
+    const [endTime, setEndTime] = useState("04:00");
+
+    // Times that fall inside any existing event's window → blocked in FROM picker
+    const fromDisabled = useMemo<Set<string>>(() => {
+        const disabled = new Set<string>();
+        BLOCK_TIMES.forEach(t => {
+            const tMins = timeToMins(t);
+            if (events.some((e: any) => {
+                const sMins = timeToMins(e.startTime || "21:00");
+                const eMins = timeToMins(e.endTime || "04:00");
+                return tMins >= sMins && tMins < eMins;
+            })) disabled.add(t);
+        });
+        return disabled;
+    }, [events]);
+
+    // Times that would make [startTime → t] overlap with any event → blocked in UNTIL picker
+    const untilDisabled = useMemo<Set<string>>(() => {
+        const disabled = new Set<string>();
+        BLOCK_TIMES.forEach(t => {
+            if (events.some((e: any) =>
+                timeOverlaps(startTime, t, e.startTime || "21:00", e.endTime || "04:00")
+            )) disabled.add(t);
+        });
+        return disabled;
+    }, [events, startTime]);
+
+    // When FROM changes: if current UNTIL is now blocked, advance UNTIL to first free time
+    const handleStartChange = (t: string) => {
+        setStartTime(t);
+        const newUntilDisabled = new Set<string>();
+        BLOCK_TIMES.forEach(u => {
+            if (events.some((e: any) =>
+                timeOverlaps(t, u, e.startTime || "21:00", e.endTime || "04:00")
+            )) newUntilDisabled.add(u);
+        });
+        if (newUntilDisabled.has(endTime)) {
+            const next = BLOCK_TIMES.find(u => !newUntilDisabled.has(u) && timeToMins(u) > timeToMins(t));
+            if (next) setEndTime(next);
+        }
+    };
+
+    // Final overlap guard (safety net — should rarely fire with disabled pickers)
+    const hasOverlap = events.some((e: any) =>
+        timeOverlaps(e.startTime || "21:00", e.endTime || "04:00", startTime, endTime)
+    );
+
+    const stateColor = isBlocked ? C.red : evCount > 0 ? C.teal : "rgba(255,255,255,0.3)";
+    const stateBg = isBlocked ? C.surfaceBlocked : evCount > 0 ? C.surfaceEvent : "rgba(255,255,255,0.04)";
+    const stateBorder = isBlocked ? C.borderBlocked : evCount > 0 ? C.borderEvent : "rgba(255,255,255,0.08)";
+    const stateLabel = isBlocked ? "Blocked" : evCount > 0 ? `${evCount} Event${evCount > 1 ? "s" : ""}` : "Available";
+
+    const d = new Date(`${dateStr}T00:00:00`);
+    const dayNum = d.getDate();
+    const dayName = d.toLocaleDateString("en-US", { weekday: "long" });
+    const monthStr = d.toLocaleDateString("en-US", { month: "long" });
+    const yearStr = d.getFullYear();
+
+    // NOW indicator (only shown for today/last-night dates)
+    const [now, setNow] = useState(() => new Date());
+    useEffect(() => {
+        const t = setInterval(() => setNow(new Date()), 60_000);
+        return () => clearInterval(t);
+    }, []);
+
+    const { nowPct, isActive, nowTimeStr } = useMemo(() => {
+        const todayStr = formatDate(now);
+        const yest = formatDate(new Date(now.getTime() - 86_400_000));
+        const h = now.getHours(), m = now.getMinutes();
+        const active = (h >= 14 && dateStr === todayStr) || (h < 4 && dateStr === yest);
+        const mins = timeToMins(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+        const h12 = h % 12 || 12;
+        return {
+            nowPct: pct(mins),
+            isActive: active && mins >= 0 && mins <= TOTAL_MINS,
+            nowTimeStr: `${h12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`,
+        };
+    }, [now, dateStr]);
+
+    return (
+        <div className="flex flex-col h-full overflow-hidden">
+            {/* ── Date hero header ── */}
+            <div
+                className="flex-shrink-0 relative overflow-hidden px-6 pt-6 pb-5"
+                style={{
+                    background: isBlocked
+                        ? "linear-gradient(160deg, #1e0d0d 0%, #0f0f13 70%)"
+                        : evCount > 0
+                            ? "linear-gradient(160deg, #0d2119 0%, #0f0f13 70%)"
+                            : "linear-gradient(160deg, #1a100a 0%, #0f0f13 70%)",
+                }}
+            >
+                {/* Corner glow */}
+                <div
+                    className="absolute top-0 right-0 w-40 h-40 pointer-events-none"
+                    style={{
+                        background: isBlocked
+                            ? "radial-gradient(circle at top right, rgba(248,113,113,0.18), transparent 65%)"
+                            : evCount > 0
+                                ? "radial-gradient(circle at top right, rgba(52,211,153,0.15), transparent 65%)"
+                                : "radial-gradient(circle at top right, rgba(244,74,34,0.12), transparent 65%)",
+                    }}
+                />
+                <div className="flex items-start justify-between relative z-10">
+                    <div>
+                        {/* Status pill */}
+                        <div
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full mb-4 border text-[9px] font-black uppercase tracking-widest"
+                            style={{ background: stateBg, borderColor: stateBorder, color: stateColor }}
+                        >
+                            <span className="w-[5px] h-[5px] rounded-full" style={{ background: stateColor, boxShadow: `0 0 6px ${stateColor}` }} />
+                            {stateLabel}
+                        </div>
+                        {/* Big date */}
+                        <div className="flex items-end gap-3">
+                            <span className="text-[52px] font-black leading-none tabular-nums" style={{ color: "rgba(255,255,255,0.95)", letterSpacing: "-0.04em" }}>
+                                {dayNum}
+                            </span>
+                            <div className="pb-1">
+                                <p className="text-[16px] font-black leading-tight text-white">{dayName}</p>
+                                <p className="text-[12px] font-medium leading-tight" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                    {monthStr} {yearStr}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:bg-white/10 border border-transparent hover:border-white/10"
+                        style={{ color: "rgba(255,255,255,0.3)" }}
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.08) 30%, rgba(255,255,255,0.08) 70%, transparent)" }} />
+            </div>
+
+            {/* ── Scrollable content ── */}
+            <div
+                className="flex-1 min-h-0 overflow-y-auto"
+                style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}
+            >
+                {isBlocked ? (
+                    /* ── Blocked: show block info + timeline ── */
+                    <div className="px-5 pt-5 pb-4 space-y-4">
+                        {/* Block detail card */}
+                        <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(220,38,38,0.12)", border: "1px solid rgba(248,113,113,0.25)" }}>
+                            <div className="px-4 py-4 flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(220,38,38,0.3)", border: "1px solid rgba(248,113,113,0.5)" }}>
+                                    <Lock className="w-4 h-4" style={{ color: "#FCA5A5" }} />
+                                </div>
+                                <div>
+                                    <p className="text-[12px] font-black text-white">{data?.block?.reason || "Venue Blocked"}</p>
+                                    <p className="text-[10px] font-black tabular-nums mt-0.5" style={{ color: "rgba(248,113,113,0.7)" }}>
+                                        {data?.block?.startTime ? `${fmt12(data.block.startTime)} — ${fmt12(data.block.endTime)}` : "All Day"}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Timeline for blocked date */}
+                        <NightScheduleTimeline events={[]} blockData={data?.block} isActive={isActive} nowPct={nowPct} nowTimeStr={nowTimeStr} />
+
+                        <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.25)" }}>
+                            This date is blocked. Manage blocks from the Calendar tab.
+                        </p>
+                    </div>
+                ) : (
+                    /* ── Available: timeline + time slot picker ── */
+                    <div className="px-5 pt-5 pb-4 space-y-5">
+                        {/* Night schedule timeline */}
+                        <NightScheduleTimeline events={events} blockData={null} isActive={isActive} nowPct={nowPct} nowTimeStr={nowTimeStr} />
+
+                        {/* Custom time picker — FROM / UNTIL */}
+                        <div
+                            className="rounded-2xl p-4 space-y-4"
+                            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
+                        >
+                            {/* Header row */}
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: "rgba(244,74,34,0.15)", border: "1px solid rgba(244,74,34,0.3)" }}>
+                                        <Clock className="w-3.5 h-3.5" style={{ color: C.orange }} />
+                                    </div>
+                                    <span className="text-[11px] font-black uppercase tracking-widest text-white">Select Time</span>
+                                </div>
+                                {/* Live time range pill */}
+                                <div
+                                    className="px-3 py-1 rounded-full text-[10px] font-black tabular-nums"
+                                    style={{
+                                        background: hasOverlap ? "rgba(248,113,113,0.12)" : "rgba(244,74,34,0.12)",
+                                        color: hasOverlap ? C.red : C.orange,
+                                        border: `1px solid ${hasOverlap ? "rgba(248,113,113,0.3)" : "rgba(244,74,34,0.3)"}`,
+                                    }}
+                                >
+                                    {fmt12(startTime)} — {fmt12(endTime)}
+                                </div>
+                            </div>
+
+                            {/* FROM / UNTIL pickers */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <TimePicker label="FROM" value={startTime} onChange={handleStartChange} disabledTimes={fromDisabled} />
+                                <TimePicker label="UNTIL" value={endTime} onChange={setEndTime} disabledTimes={untilDisabled} />
+                            </div>
+
+                            {/* Overlap warning */}
+                            {hasOverlap && (
+                                <div
+                                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+                                    style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}
+                                >
+                                    <Lock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.red }} />
+                                    <p className="text-[10px] font-black" style={{ color: "rgba(248,113,113,0.8)" }}>
+                                        Overlaps with an existing event — adjust your times
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* ── Bottom action bar (matches Calendar tab) ── */}
+            <div
+                className="flex-shrink-0 flex items-center gap-3 px-5 py-4"
+                style={{ borderTop: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.2)" }}
+            >
+                {!isBlocked && (
+                    <button
+                        onClick={() => onConfirm(startTime, endTime)}
+                        disabled={hasOverlap}
+                        className="flex-1 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-150"
+                        style={{
+                            background: hasOverlap ? "rgba(255,255,255,0.06)" : C.orange,
+                            color: hasOverlap ? "rgba(255,255,255,0.2)" : "white",
+                            cursor: hasOverlap ? "not-allowed" : "pointer",
+                            boxShadow: hasOverlap ? "none" : "0 4px 20px rgba(244,74,34,0.35)",
+                        }}
+                    >
+                        Continue to Create Event
+                    </button>
+                )}
+                <button
+                    onClick={onClose}
+                    className="px-5 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-colors hover:bg-white/5"
+                    style={{
+                        color: "rgba(255,255,255,0.4)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        flex: isBlocked ? 1 : "none",
+                    }}
+                >
+                    Close
+                </button>
+            </div>
+        </div>
+    );
+}
+
+// ── Time Picker (mirrors OperatingCalendar's TimePicker exactly) ────────────
+
+function TimePicker({ label, value, onChange, disabledTimes = new Set() }: {
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    disabledTimes?: Set<string>;
+}) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    useEffect(() => {
+        if (!open || !listRef.current) return;
+        const sel = listRef.current.querySelector("[data-selected='true']") as HTMLElement | null;
+        if (sel) sel.scrollIntoView({ block: "center" });
+    }, [open]);
+
+    return (
+        <div ref={ref} className="relative">
+            <label className="block text-[9px] font-black uppercase tracking-widest mb-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                {label}
+            </label>
+            <button
+                type="button"
+                onClick={() => setOpen(o => !o)}
+                className="w-full flex items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 text-[13px] font-black text-white border transition-colors"
+                style={{
+                    background: "#0f0f14",
+                    borderColor: open ? "rgba(244,74,34,0.5)" : "rgba(255,255,255,0.08)",
+                    boxShadow: open ? "0 0 0 3px rgba(244,74,34,0.08)" : "none",
+                }}
+            >
+                <span className="tabular-nums">{fmt12(value)}</span>
+                <ChevronDown
+                    className="w-3.5 h-3.5 flex-shrink-0 transition-transform"
+                    style={{ color: "rgba(255,255,255,0.4)", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+                />
+            </button>
+
+            {open && (
+                <div
+                    className="absolute left-0 right-0 z-50 rounded-2xl border overflow-hidden"
+                    style={{
+                        bottom: "calc(100% + 6px)",
+                        background: "#1a1a22",
+                        borderColor: "rgba(255,255,255,0.1)",
+                        boxShadow: "0 -16px 40px rgba(0,0,0,0.6)",
+                    }}
+                >
+                    <div
+                        ref={listRef}
+                        className="overflow-y-auto"
+                        style={{ maxHeight: 200, scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.08) transparent" }}
+                    >
+                        {BLOCK_TIMES.map(t => {
+                            const isSel = t === value;
+                            const isDisabled = disabledTimes.has(t);
+                            return (
+                                <button
+                                    key={t}
+                                    data-selected={isSel}
+                                    type="button"
+                                    disabled={isDisabled}
+                                    onClick={() => { if (!isDisabled) { onChange(t); setOpen(false); } }}
+                                    className="w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors relative"
+                                    style={{
+                                        background: isSel ? "rgba(244,74,34,0.15)" : "transparent",
+                                        color: isDisabled ? "rgba(255,255,255,0.18)" : isSel ? "#F44A22" : "rgba(255,255,255,0.7)",
+                                        cursor: isDisabled ? "not-allowed" : "pointer",
+                                    }}
+                                    onMouseEnter={e => { if (!isSel && !isDisabled) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)"; }}
+                                    onMouseLeave={e => { if (!isSel && !isDisabled) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                                >
+                                    <span className="text-[13px] font-black tabular-nums">{fmt12(t)}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[9px] font-black opacity-40 tabular-nums">{t}</span>
+                                        {isDisabled && (
+                                            <Lock className="w-2.5 h-2.5 flex-shrink-0" style={{ color: "rgba(248,113,113,0.5)" }} />
+                                        )}
+                                        {isSel && !isDisabled && (
+                                            <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#F44A22", boxShadow: "0 0 6px rgba(244,74,34,0.8)" }} />
+                                        )}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Night Schedule Timeline (shared visual, mirrors OperatingCalendar) ───────
+
+function NightScheduleTimeline({ events, blockData, isActive, nowPct, nowTimeStr }: {
+    events: any[];
+    blockData: any;
+    isActive: boolean;
+    nowPct: string;
+    nowTimeStr: string;
+}) {
+    const isBlocked = !!blockData;
+
+    return (
+        <div>
+            {/* Label row */}
+            <div className="flex items-center gap-2 mb-4">
+                <Clock className="w-3 h-3 flex-shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />
+                <span className="text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.25)" }}>
+                    Night Schedule
+                </span>
+                <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+                <span className="text-[9px] font-black" style={{ color: "rgba(255,255,255,0.2)" }}>2 PM — 4 AM</span>
+            </div>
+
+            {/* Timeline with left gutter */}
+            <div className="flex gap-3">
+                {/* Hour labels */}
+                <div className="flex-shrink-0 w-10 relative" style={{ height: 340 }}>
+                    {TIMELINE_HOURS.map(({ label, mins }) => (
+                        <div
+                            key={label}
+                            className="absolute right-0 flex items-center justify-end"
+                            style={{ top: `${(mins / TOTAL_MINS) * 100}%`, transform: "translateY(-50%)" }}
+                        >
+                            <span
+                                className="text-[8px] font-black uppercase leading-none"
+                                style={{
+                                    color: mins % 240 === 0 ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.22)",
+                                    letterSpacing: "0.04em",
+                                }}
+                            >
+                                {label}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Timeline grid */}
+                <div
+                    className="flex-1 relative rounded-2xl overflow-hidden"
+                    style={{ height: 340, background: "#141418", border: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                    {/* Alternating bands */}
+                    {TIMELINE_HOURS.slice(0, -1).map(({ mins }, i) => {
+                        const nextMins = TIMELINE_HOURS[i + 1].mins;
+                        return (
+                            <div
+                                key={`b-${i}`}
+                                className="absolute left-0 right-0 pointer-events-none"
+                                style={{
+                                    top: `${(mins / TOTAL_MINS) * 100}%`,
+                                    height: `${((nextMins - mins) / TOTAL_MINS) * 100}%`,
+                                    background: i % 2 === 0 ? "rgba(255,255,255,0.025)" : "transparent",
+                                }}
+                            />
+                        );
+                    })}
+
+                    {/* Hour lines */}
+                    {TIMELINE_HOURS.map(({ mins }) => (
+                        <div
+                            key={`l-${mins}`}
+                            className="absolute left-0 right-0 h-px pointer-events-none"
+                            style={{
+                                top: `${(mins / TOTAL_MINS) * 100}%`,
+                                background: mins % 240 === 0 ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.05)",
+                            }}
+                        />
+                    ))}
+
+                    {/* NOW indicator */}
+                    {isActive && (
+                        <div className="absolute left-0 right-0 z-30 pointer-events-none" style={{ top: nowPct }}>
+                            <div className="absolute left-0 right-0 h-[1.5px]" style={{ background: `linear-gradient(90deg, ${C.orange} 40%, transparent)` }} />
+                            <div className="absolute -left-1 w-[10px] h-[10px] rounded-full -translate-y-1/2" style={{ background: C.orange, boxShadow: `0 0 0 3px rgba(244,74,34,0.25), 0 0 14px rgba(244,74,34,0.6)` }} />
+                            <div className="absolute right-2 -translate-y-1/2 flex items-center gap-1 px-2 py-[3px] rounded-full" style={{ background: C.orange, boxShadow: "0 2px 12px rgba(244,74,34,0.4)" }}>
+                                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
+                                <span className="text-[8px] font-black text-white tracking-wide">{nowTimeStr}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Blocked fill */}
+                    {isBlocked && (() => {
+                        const blockStart = blockData?.startTime || "20:00";
+                        const blockEnd = blockData?.endTime || "04:00";
+                        const sMin = timeToMins(blockStart);
+                        const eMin = timeToMins(blockEnd);
+                        const blockH = Math.max(8, ((eMin - sMin) / TOTAL_MINS) * 100);
+                        return (
+                            <div
+                                className="absolute left-0 right-0 z-10 flex flex-col items-center justify-center gap-2"
+                                style={{
+                                    top: pct(sMin),
+                                    height: `${blockH}%`,
+                                    background: "rgba(220,38,38,0.28)",
+                                    borderTop: "2px solid rgba(248,113,113,0.8)",
+                                    borderBottom: "2px solid rgba(248,113,113,0.8)",
+                                    backgroundImage: "repeating-linear-gradient(135deg, rgba(248,113,113,0.12) 0px, rgba(248,113,113,0.12) 2px, transparent 2px, transparent 12px)",
+                                }}
+                            >
+                                <div className="flex flex-col items-center gap-1 px-3 text-center">
+                                    <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: "rgba(220,38,38,0.4)", border: "1.5px solid rgba(248,113,113,0.7)" }}>
+                                        <Lock className="w-3.5 h-3.5" style={{ color: "#FCA5A5" }} />
+                                    </div>
+                                    <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#FCA5A5" }}>
+                                        {blockData?.reason || "Blocked"}
+                                    </span>
+                                    <span className="text-[8px] font-black tabular-nums" style={{ color: "rgba(248,113,113,0.65)" }}>
+                                        {fmt12(blockStart)} — {fmt12(blockEnd)}
+                                    </span>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Empty state */}
+                    {events.length === 0 && !isBlocked && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
+                            <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: "rgba(244,74,34,0.08)", border: "1px solid rgba(244,74,34,0.18)" }}>
+                                <Music className="w-4 h-4" style={{ color: "rgba(244,74,34,0.55)" }} />
+                            </div>
+                            <div className="text-center">
+                                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)" }}>No events</p>
+                                <p className="text-[8px] mt-0.5" style={{ color: "rgba(255,255,255,0.12)" }}>Night is open</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Event blocks */}
+                    {events.map((e: any, i: number) => {
+                        const sMin = timeToMins(e.startTime || "21:00");
+                        const eMin = timeToMins(e.endTime || "04:00");
+                        const h = Math.max(5, ((eMin - sMin) / TOTAL_MINS) * 100);
+
+                        return (
+                            <div
+                                key={e.id || i}
+                                className="absolute left-1 right-1 rounded-xl overflow-hidden z-20"
+                                style={{
+                                    top: pct(sMin),
+                                    height: `${h}%`,
+                                    background: "linear-gradient(135deg, rgba(52,211,153,0.16), rgba(52,211,153,0.06))",
+                                    border: "1px solid rgba(52,211,153,0.25)",
+                                }}
+                            >
+                                <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: C.teal }} />
+                                <div className="h-full pl-3.5 pr-3 py-2 flex items-start gap-2">
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] font-black text-white tracking-tight truncate uppercase">
+                                            {e.title || "Reserved"}
+                                        </p>
+                                        <p className="text-[8px] font-black tabular-nums uppercase mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                            {e.startTime} — {e.endTime}
+                                        </p>
+                                    </div>
+                                    {e.posterUrl && (
+                                        <div className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0 border border-white/10">
+                                            <img src={e.posterUrl} alt="" className="w-full h-full object-cover" />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         </div>
