@@ -12,6 +12,7 @@ import {
     BarChart2,
     Banknote,
     Settings,
+    Layout,
 } from "lucide-react";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
@@ -34,6 +35,7 @@ const MENU_SECTIONS = [
             { icon: Users,           label: "Audience",  href: "/host/audience" },
             { icon: BarChart2,       label: "Analytics", href: "/host/analytics" },
             { icon: Banknote,        label: "Finance",   href: "/host/finance" },
+            { icon: Layout,          label: "Presence",  href: "/host/presence" },
             { icon: Settings,        label: "Settings",  href: "/host/settings" },
         ],
     },
@@ -48,6 +50,7 @@ const HOST_HREF_TO_TAB: Record<string, string> = {
     "/host/audience":   "audience",
     "/host/analytics":  "analytics",
     "/host/finance":    "finance",
+    "/host/presence":   "presence",
     "/host/settings":   "settings",
 };
 

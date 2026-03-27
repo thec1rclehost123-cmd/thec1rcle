@@ -57,7 +57,7 @@ export default function HostSidebar() {
         {
             category: "personal",
             items: [
-                { icon: Layout, label: "profile", href: "/host/page" },
+                { icon: Layout, label: "presence", href: "/host/presence" },
                 { icon: Settings, label: "settings", href: "/host/settings" },
             ]
         }
