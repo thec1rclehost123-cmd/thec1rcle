@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
             posts = [];
         }
 
-        const host = { id: docSnap.id, ...data };
+        const host = { id: docSnap.id, ...data } as any;
 
         const stats = {
             followersCount: host.followersCount || 0,

@@ -162,7 +162,8 @@ export async function getOperatingCalendar(db, partnerId, role, startDate, endDa
             .get();
         blocks = calSnap.docs
             .map(doc => ({ id: doc.id, ...doc.data() }))
-            .filter(entry => entry.date >= startDate && entry.date <= endDate);
+            // Only explicit venue blocks — "tentative" and "booked" are slot states, not blocks
+            .filter(entry => entry.date >= startDate && entry.date <= endDate && entry.status === "blocked");
     }
 
     // 2. Fetch events

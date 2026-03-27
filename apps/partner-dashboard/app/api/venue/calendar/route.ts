@@ -5,7 +5,8 @@ import { fail } from "@/lib/server/apiResponse";
 
 export async function GET(req: NextRequest) {
     try {
-        const ctx = await requireVenueAccess(req, "calendar:read");
+        // No action restriction — any active venue member can read the calendar
+        const ctx = await requireVenueAccess(req);
         if ("error" in ctx) {
             console.warn("[Calendar API] Access denied:", ctx.error);
             return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -33,7 +34,8 @@ export async function GET(req: NextRequest) {
 
 
 export async function POST(req: NextRequest) {
-    const ctx = await requireVenueAccess(req, "calendar:block_slot");
+    // No action restriction — any active venue member can manage the calendar
+    const ctx = await requireVenueAccess(req);
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
     try {

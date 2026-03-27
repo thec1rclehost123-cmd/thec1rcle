@@ -144,6 +144,22 @@ export async function requireVenueAccess(
     };
 
     if (requiredAction && !canDo(requiredAction)) {
+        // Last-resort owner check: a stale/wrong-role partner_memberships entry may exist
+        // even though this user IS the venue owner per their users doc.
+        const userDoc = await db.collection("users").doc(user.uid).get();
+        const userData = userDoc.exists ? userDoc.data() : null;
+        if (userData?.activeMembership?.partnerId === venueId) {
+            return {
+                uid: user.uid,
+                venueId,
+                membershipId: "owner-doc-fallback",
+                baseRole: "OWNER",
+                piiPolicy: OWNER_PII_POLICY,
+                guestlistScope: "editable",
+                eventScope: null,
+                canDo: () => true,
+            };
+        }
         return { error: "Insufficient permissions", status: 403 };
     }
 
