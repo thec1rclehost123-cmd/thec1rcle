@@ -4,6 +4,7 @@
  */
 
 import { createHmac } from "node:crypto";
+import { MAGIC_TICKET_THRESHOLD } from "@c1rcle/core/entitlement-engine";
 
 // Secret key for HMAC signing (should be in env vars in production)
 const QR_SECRET = process.env.QR_SECRET_KEY || "c1rcle-qr-secret-2024";
@@ -153,39 +154,68 @@ export function parseQRCode(scanData) {
 }
 
 /**
- * Generate all QR codes for an order
- * Returns an array of QR payloads, one per ticket in the order
+ * Generate all QR codes for an order.
+ *
+ * Smart Ticket filter:
+ *   price > MAGIC_TICKET_THRESHOLD (₹5,000) → qrMode:'magic'
+ *     No static QR payload is generated. The mobile app generates the live
+ *     rotating QR from entitlementId (linked by the Inngest fulfillment pipeline).
+ *     Screenshots become invalid within 30 seconds.
+ *
+ *   price ≤ MAGIC_TICKET_THRESHOLD or RSVP → qrMode:'static'
+ *     Classic signed HMAC QR. Screenshot-friendly. Single-use enforced at scan time.
  */
 export function generateOrderQRCodes(order, event) {
     const qrCodes = [];
     const isRSVP = event?.isRSVP || order.isRSVP || order.id.startsWith("RSVP");
 
     for (const ticket of order.tickets) {
-        // Generate one QR per quantity unit if needed
-        // For simplicity, we generate one QR per ticket tier with quantity
-        const payload = generateQRPayload({
-            orderId: order.id,
-            eventId: order.eventId,
-            ticketId: ticket.ticketId,
-            ticketTierName: ticket.name,
-            userId: order.userId,
-            quantity: ticket.quantity,
-            entryType: ticket.entryType || "general",
-            isRSVP: isRSVP
-        });
+        const ticketPrice = Number(ticket.price ?? ticket.unitPrice ?? 0);
+        // RSVP tickets are always free → always static. Never magic-ticket an RSVP.
+        const isMagic = !isRSVP && ticketPrice > MAGIC_TICKET_THRESHOLD;
 
-        const qrData = generateQRCodeData(payload);
+        if (isMagic) {
+            // Magic Ticket: entitlementId populated by Inngest after payment confirmation.
+            // Mobile app calls generateEntitlementQR(entitlementId) every 30s to render QR.
+            qrCodes.push({
+                ticketId: ticket.ticketId,
+                ticketName: ticket.name,
+                quantity: ticket.quantity,
+                entryType: ticket.entryType || "general",
+                isRSVP: false,
+                qrMode: 'magic',
+                entitlementIds: [],   // Array — one per quantity unit, filled by Inngest
+                qrPayload: null,
+                qrData: null,
+                shortCode: null
+            });
+        } else {
+            // Static Ticket: signed HMAC payload, single-use enforced at scanner.
+            const payload = generateQRPayload({
+                orderId: order.id,
+                eventId: order.eventId,
+                ticketId: ticket.ticketId,
+                ticketTierName: ticket.name,
+                userId: order.userId,
+                quantity: ticket.quantity,
+                entryType: ticket.entryType || "general",
+                isRSVP
+            });
 
-        qrCodes.push({
-            ticketId: ticket.ticketId,
-            ticketName: ticket.name,
-            quantity: ticket.quantity,
-            entryType: ticket.entryType || "general",
-            isRSVP: isRSVP,
-            qrPayload: payload,
-            qrData: qrData.rawData,
-            shortCode: qrData.shortData
-        });
+            const qrData = generateQRCodeData(payload);
+
+            qrCodes.push({
+                ticketId: ticket.ticketId,
+                ticketName: ticket.name,
+                quantity: ticket.quantity,
+                entryType: ticket.entryType || "general",
+                isRSVP,
+                qrMode: 'static',
+                qrPayload: payload,
+                qrData: qrData.rawData,
+                shortCode: qrData.shortData
+            });
+        }
     }
 
     return qrCodes;

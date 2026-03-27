@@ -36,12 +36,16 @@ export async function calculateEffectiveInventory(tier, event, excludeReservatio
     // 1. Unlimited inventory
     if (inventory.type === 'unlimited') return Infinity;
 
-    // 2. Get base remaining quantity
+    // 2. Get base remaining quantity.
+    // Priority: sharded soldQuantity > inventory.soldQuantity/tier.sold > tier.remaining (legacy direct-decrement path).
     let totalCapacity = Number(inventory.totalQuantity ?? tier.quantity ?? 0);
-    let sold = Number(inventory.soldQuantity ?? tier.sold ?? 0);
 
-    // 3. Fallback to sharded counters if db provided (Functions mode)
+    let remaining;
+    const hasSoldQuantity = inventory.soldQuantity !== undefined || tier.sold !== undefined;
+
     if (db) {
+        // 3a. Sharded counters (Functions mode) — authoritative sold count
+        let sold = Number(inventory.soldQuantity ?? tier.sold ?? 0);
         const shardsRef = db.collection('events').doc(event.id).collection('ticket_shards')
             .where('tierId', '==', tier.id);
         const snapshot = await shardsRef.get();
@@ -49,9 +53,18 @@ export async function calculateEffectiveInventory(tier, event, excludeReservatio
             const data = doc.data();
             sold += (data.soldQuantity || 0);
         });
+        remaining = totalCapacity - sold;
+    } else if (hasSoldQuantity) {
+        // 3b. Non-sharded with explicit sold counter
+        const sold = Number(inventory.soldQuantity ?? tier.sold ?? 0);
+        remaining = totalCapacity - sold;
+    } else if (tier.remaining !== undefined) {
+        // 3c. Legacy path: commitInventory decrements `remaining` directly.
+        // Use it as the base so committed sales are reflected correctly.
+        remaining = Number(tier.remaining);
+    } else {
+        remaining = totalCapacity;
     }
-
-    let remaining = totalCapacity - sold;
 
     // 4. Subtract active holdbacks
     if (inventory.holdbacks && Array.isArray(inventory.holdbacks)) {

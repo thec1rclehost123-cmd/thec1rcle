@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { LayoutDashboard, CreditCard, Building2, Users, BookOpen, FileBarChart, Banknote, ShieldCheck, Clock, TrendingUp, Handshake } from "lucide-react";
+import { LayoutDashboard, CreditCard, Building2, Users, BookOpen, FileBarChart, Banknote, ShieldCheck, Clock, TrendingUp, Handshake, Wallet } from "lucide-react";
 import { VenueExecutiveHeader } from "@/components/venue-layout/VenueExecutiveHeader";
 import { useHubTab } from "@/lib/hooks/useHubTab";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -13,6 +13,7 @@ import { HostPayoutsClient } from "./host-payouts/PageClient";
 import { PromoterPayoutsClient } from "./promoter-payouts/PageClient";
 import LedgerClient from "./ledger/PageClient";
 import ReportsClient from "./reports/PageClient";
+import { CoverReconClient } from "./cover/PageClient";
 
 const EXECUTIVE_TABS = [
     { key: "overview",          label: "Summary",          icon: LayoutDashboard },
@@ -22,6 +23,7 @@ const EXECUTIVE_TABS = [
     { key: "promoter-payouts",  label: "Promoter Rewards", icon: Banknote },
     { key: "ledger",            label: "Ledger",           icon: BookOpen },
     { key: "reports",           label: "Reports",          icon: FileBarChart },
+    { key: "cover",             label: "Cover Charge",     icon: Wallet },
 ];
 
 const PERIODS = [
@@ -45,6 +47,7 @@ function TabContent({ activeTab, period, onPeriodChange }: {
         case "promoter-payouts": return <PromoterPayoutsClient />;
         case "ledger":           return <LedgerClient />;
         case "reports":          return <ReportsClient />;
+        case "cover":            return <CoverReconClient />;
         default:                 return <OverviewClient period={period as any} onPeriodChange={onPeriodChange} />;
     }
 }

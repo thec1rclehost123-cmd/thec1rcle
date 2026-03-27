@@ -187,40 +187,45 @@ export function LedgerTable({
                 </div>
             </div>
 
-            {/* Column Headers */}
-            <div
-                className="grid items-center px-5 py-3"
-                style={{
-                    gridTemplateColumns: "120px 1fr 110px 120px 130px 100px 32px",
-                    background: "var(--v-elevated)",
-                    borderBottom: "1px solid var(--v-border)",
-                }}
-            >
-                {["TXN ID", "DESCRIPTION", "AMOUNT", "CATEGORY", "STATUS", "DATE", ""].map((h) => (
-                    <span key={h} className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>
-                        {h}
-                    </span>
-                ))}
-            </div>
+            {/* Column Headers + Rows (scrollable on mobile) */}
+            <div className="overflow-x-auto scrollbar-hide">
+                <div style={{ minWidth: 700 }}>
+                    {/* Column Headers */}
+                    <div
+                        className="grid items-center px-5 py-3"
+                        style={{
+                            gridTemplateColumns: "120px 1fr 110px 120px 130px 100px 32px",
+                            background: "var(--v-elevated)",
+                            borderBottom: "1px solid var(--v-border)",
+                        }}
+                    >
+                        {["TXN ID", "DESCRIPTION", "AMOUNT", "CATEGORY", "STATUS", "DATE", ""].map((h) => (
+                            <span key={h} className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>
+                                {h}
+                            </span>
+                        ))}
+                    </div>
 
-            {/* Rows */}
-            <div>
-                {loading ? (
-                    <LedgerSkeleton />
-                ) : error ? (
-                    <LedgerError onRetry={onRetry} />
-                ) : transactions.length === 0 ? (
-                    <LedgerEmpty />
-                ) : (
-                    transactions.map((tx) => (
-                        <LedgerRow
-                            key={tx.id}
-                            tx={tx}
-                            expanded={expandedRow === tx.id}
-                            onToggle={() => setExpandedRow(expandedRow === tx.id ? null : tx.id)}
-                        />
-                    ))
-                )}
+                    {/* Rows */}
+                    <div>
+                        {loading ? (
+                            <LedgerSkeleton />
+                        ) : error ? (
+                            <LedgerError onRetry={onRetry} />
+                        ) : transactions.length === 0 ? (
+                            <LedgerEmpty />
+                        ) : (
+                            transactions.map((tx) => (
+                                <LedgerRow
+                                    key={tx.id}
+                                    tx={tx}
+                                    expanded={expandedRow === tx.id}
+                                    onToggle={() => setExpandedRow(expandedRow === tx.id ? null : tx.id)}
+                                />
+                            ))
+                        )}
+                    </div>
+                </div>
             </div>
 
             {/* Pagination */}

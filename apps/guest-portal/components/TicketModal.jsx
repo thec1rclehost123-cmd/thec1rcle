@@ -73,7 +73,7 @@ export default function TicketModal({ open, onClose, tickets = [], eventId, prom
                 className="flex items-center justify-center p-2 -mr-2 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
                 id="close-ticket-modal"
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.06] dark:border-white/10 hover:bg-black/10 dark:hover:bg-white/10">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/5 dark:bg-white/5 border border-black/[0.06] dark:border-white/10 hover:bg-black/10 dark:hover:bg-white/10">
                   <span className="sr-only">Close</span>
                   <Minus className="w-4 h-4 rotate-45" />
                 </div>

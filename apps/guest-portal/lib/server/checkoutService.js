@@ -181,7 +181,23 @@ export async function validateAndCalculatePromoDiscount(eventId, code, items, us
         };
     }
 
-    // 2. Fallback: Check event document for embedded codes
+    // Only fall back to embedded codes when the promo_codes collection has no record of this
+    // code at all. If the code was found but rejected for a business reason (expired, usage
+    // limit, tier mismatch) we must NOT fall back — doing so would bypass Redis rate-limiting
+    // and allow over-redemption during concurrent checkouts.
+    const foundButRejected = result.error && (
+        result.error.includes('expired') ||
+        result.error.includes('limit') ||
+        result.error.includes('not active') ||
+        result.error.includes('not yet') ||
+        result.error.includes('not apply') ||
+        result.error.includes('not valid')
+    );
+    if (foundButRejected) {
+        return { valid: false, error: result.error };
+    }
+
+    // 2. Fallback: Check event document for embedded codes (only when code is truly absent from primary store)
     const event = await getEvent(eventId);
     const promoCodes = event?.ticketCatalog?.promoCodes || event?.promoCodes || [];
     const promoCode = promoCodes.find(

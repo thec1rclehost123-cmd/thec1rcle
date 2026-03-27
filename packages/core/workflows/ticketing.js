@@ -1,6 +1,9 @@
 import { inngest, Events } from "../inngest-client.js";
 import { getAdminDb } from "../admin.js";
-import { generateEntitlementQR, issueEntitlements } from "../entitlement-engine.js";
+import { issueEntitlements } from "../entitlement-engine.js";
+// NOTE: generateEntitlementQR is intentionally NOT imported here.
+// The rotating QR is generated live by the mobile app at display time.
+// Pre-generating it server-side produces a snapshot that expires in 30s.
 
 /**
  * Dead-letter handler: called after a ticketing workflow exhausts all retries.
@@ -54,7 +57,7 @@ export const handleTicketFulfillment = inngest.createFunction(
         const { orderId, userId, userEmail, eventId, tickets, totalAmount, promoterCode } = event.data;
         const db = getAdminDb();
 
-        // Step 1: Issue entitlements and generate QR codes
+        // Step 1: Issue entitlements (one per human unit / quantity)
         const entitlements = await step.run("issue-entitlements", async () => {
             const order = { id: orderId, userId, eventId };
             const items = tickets.map(t => ({
@@ -64,20 +67,34 @@ export const handleTicketFulfillment = inngest.createFunction(
                 entryType: t.entryType || 'general',
                 genderRequirement: t.genderRequirement
             }));
-
-            const issuedEntitlements = await issueEntitlements(order, items);
-
-            // Generate QR payloads for each entitlement
-            return issuedEntitlements.map(ent => ({
-                ...ent,
-                qrPayload: generateEntitlementQR(ent.id)
-            }));
+            return await issueEntitlements(order, items);
         });
 
-        // Step 2: Update order with entitlement IDs
+        // Step 2: Link entitlementIds back to the order.
+        // For magic-mode qrCode entries, populate entitlementIds[] so the mobile app
+        // can call generateEntitlementQR(id) live at display time.
         await step.run("link-entitlements-to-order", async () => {
+            const orderDoc = await db.collection("orders").doc(orderId).get();
+            const existingQrCodes = orderDoc.data()?.qrCodes || [];
+
+            // Build a per-tierId bucket of entitlement IDs
+            const entsByTier = {};
+            for (const ent of entitlements) {
+                const tierId = ent.metadata?.tierId;
+                if (!tierId) continue;
+                if (!entsByTier[tierId]) entsByTier[tierId] = [];
+                entsByTier[tierId].push(ent.id);
+            }
+
+            // Inject entitlementIds into each magic-mode qrCode entry
+            const updatedQrCodes = existingQrCodes.map(qr => {
+                if (qr.qrMode !== 'magic') return qr;
+                return { ...qr, entitlementIds: entsByTier[qr.ticketId] || [] };
+            });
+
             await db.collection("orders").doc(orderId).update({
                 entitlementIds: entitlements.map(e => e.id),
+                qrCodes: updatedQrCodes,
                 fulfilledAt: new Date().toISOString(),
                 fulfillmentStatus: "completed"
             });
@@ -122,7 +139,7 @@ export const handleTicketFulfillment = inngest.createFunction(
                     ticketCount: entitlements.length,
                     totalAmount,
                     pdfUrl: pdfResult.pdfUrl,
-                    qrCodes: entitlements.map(e => e.qrPayload)
+                    entitlementIds: entitlements.map(e => e.id)
                 }
             };
 

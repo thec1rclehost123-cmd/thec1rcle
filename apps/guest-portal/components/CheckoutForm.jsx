@@ -109,7 +109,7 @@ export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
                 {/* Payment Methods */}
                 <div className="space-y-4">
                     <h3 className="text-sm uppercase tracking-widest text-white/40">Payment Method</h3>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <PaymentMethodOption
                             id="card"
                             label="Card"

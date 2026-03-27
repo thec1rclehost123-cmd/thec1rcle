@@ -20,7 +20,8 @@ import {
     DollarSign,
     Tag,
     Settings2,
-    Layers
+    Layers,
+    Wallet
 } from "lucide-react";
 import { ScheduledPricing } from "./components/ScheduledPricing";
 import { PromoCodeManager } from "./components/PromoCodeManager";
@@ -66,6 +67,13 @@ interface TicketTier {
     discounts?: any[];
     hidden?: boolean;
     scheduledPrices?: ScheduledPrice[];
+    coverChargeConfig?: {
+        enabled: boolean;
+        walletAmountPaise: number;
+        terminationHour: number;
+        terminationPolicy: "forfeit" | "partial_refund";
+        presetItems: Array<{ id: string; name: string; amountPaise: number; isAvailable: boolean }>;
+    };
 }
 
 interface TicketTierStepProps {
@@ -126,6 +134,211 @@ function Toggle({ on, onToggle, color = "bg-green-500" }: { on: boolean; onToggl
                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
             />
         </button>
+    );
+}
+
+// ─── CoverChargeConfig ────────────────────────────────────────────────────────
+function CoverChargeConfig({ config, onChange }: {
+    config?: TicketTier["coverChargeConfig"];
+    onChange: (cfg: TicketTier["coverChargeConfig"]) => void;
+}) {
+    const [open, setOpen] = useState(false);
+
+    const defaultConfig = (): NonNullable<TicketTier["coverChargeConfig"]> => ({
+        enabled: true,
+        walletAmountPaise: 0,
+        terminationHour: 5,
+        terminationPolicy: "forfeit",
+        presetItems: [],
+    });
+
+    const cfg = config ?? defaultConfig();
+    const isEnabled = cfg.enabled;
+
+    const update = (patch: Partial<NonNullable<TicketTier["coverChargeConfig"]>>) =>
+        onChange({ ...cfg, ...patch });
+
+    const HOUR_LABELS = Array.from({ length: 24 }, (_, h) => {
+        const suffix = h < 12 ? "AM" : "PM";
+        const display = h === 0 ? "12 AM" : h === 12 ? "12 PM" : `${h % 12} ${suffix}`;
+        return { value: h, label: display };
+    });
+
+    const addPresetItem = () => {
+        const id = typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `item-${Date.now()}`;
+        update({
+            presetItems: [...cfg.presetItems, { id, name: "", amountPaise: 0, isAvailable: true }],
+        });
+    };
+
+    const updatePreset = (idx: number, patch: Partial<NonNullable<TicketTier["coverChargeConfig"]>["presetItems"][0]>) => {
+        const items = [...cfg.presetItems];
+        items[idx] = { ...items[idx], ...patch };
+        update({ presetItems: items });
+    };
+
+    const removePreset = (idx: number) => {
+        update({ presetItems: cfg.presetItems.filter((_, i) => i !== idx) });
+    };
+
+    const walletRupees = cfg.walletAmountPaise > 0
+        ? `= ₹${(cfg.walletAmountPaise / 100).toFixed(2)}`
+        : null;
+
+    return (
+        <div className={`rounded-xl overflow-hidden transition-all ${isEnabled ? "bg-violet-500/5 border border-violet-500/20" : "bg-surface-tertiary"}`}>
+            {/* Header row */}
+            <button
+                onClick={() => {
+                    if (!config) onChange(defaultConfig());
+                    else update({ enabled: !isEnabled });
+                    setOpen(v => !v);
+                }}
+                className="w-full p-3 flex items-center justify-between text-left"
+            >
+                <div className="flex items-center gap-2">
+                    <Wallet className="w-4 h-4 text-violet-500" />
+                    <span className="text-[11px] font-black text-violet-500 uppercase tracking-widest">Financial Configuration</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest ${isEnabled ? "bg-violet-500 text-white" : "bg-surface-elevated text-text-tertiary border border-border-subtle"}`}>
+                        {isEnabled ? "WALLET ON" : "DISABLED"}
+                    </span>
+                </div>
+                <span className="text-[11px] text-text-tertiary font-bold uppercase tracking-widest">
+                    {isEnabled && cfg.walletAmountPaise > 0 ? `₹${(cfg.walletAmountPaise / 100).toFixed(0)}` : "Configure"}
+                </span>
+            </button>
+
+            {/* Expanded body */}
+            <AnimatePresence>
+                {open && isEnabled && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="border-t border-violet-500/20"
+                    >
+                        <div className="p-3 space-y-3">
+                            {/* Wallet Amount */}
+                            <div className="space-y-1">
+                                <AppleInput
+                                    label="Wallet Credit Amount"
+                                    type="number"
+                                    prefix="₹"
+                                    value={cfg.walletAmountPaise === 0 ? "" : String(cfg.walletAmountPaise)}
+                                    onChange={(e: any) => {
+                                        const raw = parseInt(e.target.value) || 0;
+                                        update({ walletAmountPaise: raw });
+                                    }}
+                                    placeholder="e.g. 100000 for ₹1,000"
+                                    min="0"
+                                />
+                                <p className="text-[10px] font-bold text-text-tertiary pl-1">
+                                    Enter amount in <span className="text-violet-500">paise</span> (100 = ₹1).{" "}
+                                    {walletRupees && <span className="text-violet-400">{walletRupees}</span>}
+                                </p>
+                            </div>
+
+                            {/* Termination Hour */}
+                            <div className="space-y-1.5">
+                                <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
+                                    Wallet Expires At
+                                </label>
+                                <select
+                                    value={cfg.terminationHour}
+                                    onChange={(e) => update({ terminationHour: parseInt(e.target.value) })}
+                                    className="w-full px-3 py-2.5 rounded-xl bg-surface-secondary border border-border-subtle text-[14px] text-text-primary focus:outline-none focus:border-violet-500/50 transition-all"
+                                >
+                                    {HOUR_LABELS.map(h => (
+                                        <option key={h.value} value={h.value}>{h.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Termination Policy */}
+                            <div className="space-y-1.5">
+                                <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
+                                    Unspent Balance Policy
+                                </label>
+                                <div className="flex gap-2">
+                                    {([
+                                        { value: "forfeit", label: "Forfeit", desc: "Club keeps remainder" },
+                                        { value: "partial_refund", label: "Refund", desc: "Return to guest" },
+                                    ] as const).map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => update({ terminationPolicy: opt.value })}
+                                            className={`flex-1 px-3 py-2.5 rounded-xl border text-left transition-all ${cfg.terminationPolicy === opt.value
+                                                ? "border-violet-500 bg-violet-500/10"
+                                                : "border-border-subtle hover:border-violet-500/30 bg-surface-secondary"
+                                            }`}
+                                        >
+                                            <p className={`text-[12px] font-black uppercase tracking-wider ${cfg.terminationPolicy === opt.value ? "text-violet-400" : "text-text-primary"}`}>
+                                                {opt.label}
+                                            </p>
+                                            <p className="text-[10px] text-text-tertiary mt-0.5">{opt.desc}</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Preset Items */}
+                            <div className="space-y-1.5">
+                                <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
+                                    Quick-Tap Preset Items
+                                </label>
+                                <div className="space-y-1.5">
+                                    {cfg.presetItems.map((item, idx) => (
+                                        <div key={item.id} className="flex items-center gap-2">
+                                            <input
+                                                type="text"
+                                                value={item.name}
+                                                onChange={(e) => updatePreset(idx, { name: e.target.value })}
+                                                placeholder="e.g. Vodka Shot"
+                                                className="flex-1 px-3 py-2 rounded-xl bg-surface-secondary border border-border-subtle text-[13px] placeholder:text-text-tertiary/50 focus:outline-none focus:border-violet-500/50 transition-all"
+                                            />
+                                            <div className="relative w-28 flex-shrink-0">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary font-bold text-[12px]">₹</span>
+                                                <input
+                                                    type="number"
+                                                    value={item.amountPaise === 0 ? "" : String(item.amountPaise)}
+                                                    onChange={(e) => updatePreset(idx, { amountPaise: parseInt(e.target.value) || 0 })}
+                                                    placeholder="40000"
+                                                    min="0"
+                                                    className="w-full pl-7 pr-2 py-2 rounded-xl bg-surface-secondary border border-border-subtle text-[13px] focus:outline-none focus:border-violet-500/50 transition-all"
+                                                />
+                                            </div>
+                                            <Toggle
+                                                on={item.isAvailable}
+                                                onToggle={() => updatePreset(idx, { isAvailable: !item.isAvailable })}
+                                                color="bg-violet-500"
+                                            />
+                                            <button
+                                                onClick={() => removePreset(idx)}
+                                                className="w-8 h-8 rounded-lg hover:bg-rose-50 flex items-center justify-center text-text-tertiary hover:text-rose-500 transition-all flex-shrink-0"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {cfg.presetItems.length === 0 && (
+                                        <p className="text-[11px] text-text-tertiary py-1">No presets yet — bartenders can still enter custom amounts.</p>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={addPresetItem}
+                                    className="flex items-center gap-1.5 text-[11px] font-bold text-violet-500 hover:text-violet-400 transition-colors mt-1"
+                                >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    Add Preset Item
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
     );
 }
 
@@ -371,6 +584,14 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                     autoCapitalize="sentences"
                                 />
                             </div>
+
+                            {/* Financial Configuration — Cover Charge only */}
+                            {tier.entryType === "cover" && (
+                                <CoverChargeConfig
+                                    config={tier.coverChargeConfig}
+                                    onChange={(cfg) => onUpdate({ coverChargeConfig: cfg })}
+                                />
+                            )}
 
                             {/* Per-tier Promoter toggle — shown only if promoters globally enabled */}
                             {promotersEnabled && (

@@ -50,6 +50,12 @@ const CancelOrderModal = dynamic(
     { ssr: false }
 );
 
+// CoverTicketCard: Only loaded when user has a cover charge ticket.
+const CoverTicketCard = dynamic(
+    () => import("../../components/CoverTicketCard").then(m => ({ default: m.CoverTicketCard })),
+    { ssr: false }
+);
+
 // --- Hooks ---
 
 const useDominantColor = (imageUrl) => {
@@ -1407,6 +1413,8 @@ function TicketsContent() {
     const [partnerTicket, setPartnerTicket] = useState(null);
     const [transferTicket, setTransferTicket] = useState(null);
     const [cancellingOrder, setCancellingOrder] = useState(null);
+    // cover wallets keyed by orderId: { [orderId]: { id, state, currentBalancePaise, ... }[] }
+    const [coverWallets, setCoverWallets] = useState({});
 
     // ⚡ FIX: Pull tickets from Zustand cache store instead of local state.
     // loadTickets() is a no-op if the same user's data was fetched < 2 min ago.
@@ -1447,6 +1455,25 @@ function TicketsContent() {
             loadTickets(user.uid);
         }
     }, [user?.uid, loadTickets]);
+
+    // Fetch cover wallets for tickets with cover entry type
+    useEffect(() => {
+        if (ticketStatus !== "ready" || !user?.uid) return;
+        const coverTickets = tickets.upcomingTickets.filter(
+            t => t.tickets?.some(slot => slot.entryType === "cover")
+        );
+        coverTickets.forEach(async (ticket) => {
+            const orderId = ticket.orderId || ticket.tickets?.[0]?.orderId;
+            if (!orderId || coverWallets[orderId] !== undefined) return;
+            try {
+                const res = await fetch(`/api/tickets/cover-wallet?orderId=${orderId}`);
+                if (res.ok) {
+                    const { wallets } = await res.json();
+                    setCoverWallets(prev => ({ ...prev, [orderId]: wallets || [] }));
+                }
+            } catch (_) {}
+        });
+    }, [ticketStatus, tickets.upcomingTickets, user?.uid]);
 
     // Handle deep link: open specific ticket from URL ?eventId=
     useEffect(() => {
@@ -1848,16 +1875,27 @@ function TicketsContent() {
                                         )}
 
                                         <div className="grid gap-10 sm:grid-cols-2">
-                                            {tickets.upcomingTickets.map((ticket) => (
-                                                <TicketCard
-                                                    key={ticket.ticketId}
-                                                    ticket={ticket}
-                                                    onClick={setSelectedTicket}
-                                                    onShare={() => setSharingTicket(ticket)}
-                                                    onPartner={setPartnerTicket}
-                                                    onTransfer={setTransferTicket}
-                                                />
-                                            ))}
+                                            {tickets.upcomingTickets.map((ticket) => {
+                                                const orderId = ticket.orderId || ticket.tickets?.[0]?.orderId;
+                                                const wallets = orderId ? (coverWallets[orderId] || []) : [];
+                                                return (
+                                                    <div key={ticket.ticketId}>
+                                                        <TicketCard
+                                                            ticket={ticket}
+                                                            onClick={setSelectedTicket}
+                                                            onShare={() => setSharingTicket(ticket)}
+                                                            onPartner={setPartnerTicket}
+                                                            onTransfer={setTransferTicket}
+                                                        />
+                                                        {wallets.map(wallet => (
+                                                            <CoverTicketCard
+                                                                key={wallet.id}
+                                                                walletId={wallet.id}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 ) : (

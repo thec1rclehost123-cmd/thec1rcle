@@ -48,6 +48,7 @@
         "./promoter-engine": "./promoter-engine.js",
         "./analytics-engine": "./analytics-engine.js",
         "./table-engine": "./table-engine.js",
+        "./cover-charge-engine": "./cover-charge-engine.js",
         "./waitlist-engine": "./waitlist-engine.js",
         "./slot-engine": "./slot-engine.js",
         "./calendar-engine": "./calendar-engine.js",

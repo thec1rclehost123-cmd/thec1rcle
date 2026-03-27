@@ -1211,7 +1211,7 @@ export default function EventDetail({
           />
 
           <div
-            className="relative z-10 w-full max-w-[920px] overflow-hidden rounded-[30px] border border-white/10 bg-[#0c0c10]/95 p-5 shadow-[0_30px_120px_rgba(0,0,0,0.48)] backdrop-blur-3xl sm:p-7"
+            className="relative z-10 w-full max-w-[920px] overflow-hidden rounded-[30px] border border-white/10 bg-[#0c0c10]/95 p-5 shadow-[0_30px_120px_rgba(0,0,0,0.48)] backdrop-blur-3xl sm:p-7 max-h-[90vh] overflow-y-auto"
             style={{ boxShadow: `0 0 100px rgba(${dominantColor}, 0.1)` }}
           >
             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/[0.15] to-transparent" />

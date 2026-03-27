@@ -361,7 +361,9 @@ export default function ReservationCalendarModal({
                                     </button>
                                 </div>
 
-                                {/* Day Headers */}
+                                {/* Day Headers + Calendar Grid (scrollable on very small screens) */}
+                                <div className="overflow-x-auto scrollbar-hide">
+                                <div style={{ minWidth: 280 }}>
                                 <div className="grid grid-cols-7 gap-1 mb-2">
                                     {DAYS.map(day => (
                                         <div key={day} className="text-center text-[9px] font-bold text-white/30 uppercase tracking-widest py-2">
@@ -428,6 +430,8 @@ export default function ReservationCalendarModal({
                                         <div className="w-2 h-2 rounded-full bg-white/20" />
                                         <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Open</span>
                                     </div>
+                                </div>
+                                </div>
                                 </div>
                             </motion.div>
                         )}
@@ -727,7 +731,7 @@ export default function ReservationCalendarModal({
                                     <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] flex items-center gap-2">
                                         <Clock className="h-3 w-3" /> Preferred Time
                                     </label>
-                                    <div className="grid grid-cols-4 gap-2">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                         {["12:00", "13:00", "14:00", "18:00", "19:00", "20:00", "21:00", "22:00"].map(t => (
                                             <button
                                                 key={t}

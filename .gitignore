@@ -16,3 +16,4 @@ dist
 .vercel
 .turbo
 functions/lib
+tsc_output*.txt

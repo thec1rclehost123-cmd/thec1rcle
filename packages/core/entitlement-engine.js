@@ -5,6 +5,12 @@ import { getQrSecret } from "./scan-secret.js";
 const ENTITLEMENT_COLLECTION = "entitlements";
 const SCAN_LEDGER_COLLECTION = "scan_ledger";
 
+/**
+ * Price threshold (INR) above which tickets use the rotating "Magic Ticket" QR.
+ * Exported so qrStore, mobile app, and scanner all read from one place.
+ */
+export const MAGIC_TICKET_THRESHOLD = 5000;
+
 let _QR_SECRET = null;
 function QR_SECRET() {
     if (!_QR_SECRET) _QR_SECRET = getQrSecret();

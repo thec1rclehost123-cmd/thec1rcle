@@ -673,9 +673,9 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                                         <span className="text-[10px] font-black uppercase tracking-widest text-red-400/60">Sold Out</span>
                                                     ) : (
                                                         <div className="flex items-center gap-3 bg-white/[0.03] p-1 rounded-full border border-white/[0.04]">
-                                                            <button onClick={() => handleTicketChange(ticket.id, -1)} disabled={qty === 0} className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-20">-</button>
+                                                            <button onClick={() => handleTicketChange(ticket.id, -1)} disabled={qty === 0} className="h-11 w-11 flex items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-20">-</button>
                                                             <span className="w-5 text-center font-bold text-[14px] text-white">{qty}</span>
-                                                            <button onClick={() => handleTicketChange(ticket.id, 1)} disabled={qty >= available} className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-20">+</button>
+                                                            <button onClick={() => handleTicketChange(ticket.id, 1)} disabled={qty >= available} className="h-11 w-11 flex items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-20">+</button>
                                                         </div>
                                                     )}
                                                 </div>
@@ -742,7 +742,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                 </div>
                                 {!isFreeOrder && (
                                     <div className="space-y-8 flex-1 flex flex-col justify-center">
-                                        <div className="grid grid-cols-3 gap-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                             {[
                                                 { id: "card", label: "CREDIT", icon: CreditCard },
                                                 { id: "upi", label: "UPI", icon: Smartphone },

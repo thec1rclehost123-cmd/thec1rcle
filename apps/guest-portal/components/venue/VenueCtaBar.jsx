@@ -111,7 +111,7 @@ export default function VenueCtaBar({
 
                     {/* Expanded Actions */}
                     {expanded && (
-                        <div className="grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-black/5 dark:border-white/5">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-black/5 dark:border-white/5">
                             <button onClick={openCall} className="flex flex-col items-center gap-2 py-3">
                                 <div className="w-12 h-12 rounded-xl bg-black/5 dark:bg-white/5 flex items-center justify-center">
                                     <Phone className="h-5 w-5 text-black/60 dark:text-white/60" />

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { issueWallet } from "@c1rcle/core/cover-charge-engine";
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin.js";
 import { getEvent } from "./eventStore.js";
 import { getPromoterLinkByCode, recordConversion } from "./promoterStore.js";
@@ -306,7 +307,7 @@ export async function createOrder(payload) {
     let discountAmount = 0;
     if (promoterDiscount > 0) {
         const fullSubtotal = calculateOrderTotal(orderTickets);
-        discountAmount = Math.round(fullSubtotal * (promoterDiscount / 100));
+        discountAmount = Math.round((fullSubtotal * (promoterDiscount / 100)) * 100) / 100;
         // Apply discount proportionally to each ticket
         orderTickets.forEach(ticket => {
             const ticketDiscount = Math.round(ticket.subtotal * (promoterDiscount / 100));
@@ -755,21 +756,45 @@ export async function cancelOrder(orderId) {
 
         if (eventDoc.exists) {
             const currentEvent = eventDoc.data();
-            const updatedTickets = [...(currentEvent.tickets || [])];
+            // Handle both ticketCatalog.tiers (new) and tickets (legacy) structures.
+            // IMPORTANT: never read from the wrong array — writing tickets:[] to a
+            // ticketCatalog event corrupts the document.
+            const usesTicketCatalog = !!currentEvent.ticketCatalog;
+            const sourceTiers = usesTicketCatalog
+                ? (currentEvent.ticketCatalog.tiers || [])
+                : (currentEvent.tickets || []);
+            const updatedTiers = [...sourceTiers];
 
             // Restore ticket inventory
             order.tickets.forEach(orderTicket => {
-                const ticketIndex = updatedTickets.findIndex(t => t.id === orderTicket.ticketId);
-                if (ticketIndex >= 0) {
-                    const currentRemaining = Number(updatedTickets[ticketIndex].remaining ?? updatedTickets[ticketIndex].quantity) || 0;
-                    updatedTickets[ticketIndex].remaining = currentRemaining + orderTicket.quantity;
+                const tierIndex = updatedTiers.findIndex(t => t.id === orderTicket.ticketId);
+                if (tierIndex >= 0) {
+                    const tier = updatedTiers[tierIndex];
+                    const inv = tier.inventory || {};
+                    if (inv.soldQuantity !== undefined) {
+                        // soldQuantity-tracked path: reverse the commit
+                        updatedTiers[tierIndex] = {
+                            ...tier,
+                            inventory: {
+                                ...inv,
+                                soldQuantity: Math.max(0, (inv.soldQuantity || 0) - orderTicket.quantity)
+                            }
+                        };
+                    } else {
+                        // Legacy remaining-tracked path
+                        updatedTiers[tierIndex] = {
+                            ...tier,
+                            remaining: (Number(tier.remaining ?? tier.quantity) || 0) + orderTicket.quantity
+                        };
+                    }
                 }
             });
 
-            transaction.update(eventRef, {
-                tickets: updatedTickets,
-                updatedAt: now,
-            });
+            if (usesTicketCatalog) {
+                transaction.update(eventRef, { 'ticketCatalog.tiers': updatedTiers, updatedAt: now });
+            } else {
+                transaction.update(eventRef, { tickets: updatedTiers, updatedAt: now });
+            }
         }
 
         // Update order status
@@ -1032,6 +1057,47 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
         } catch (err) {
             console.error("[OrderStore] Failed to publish sale notification:", err);
         }
+    }
+
+    // Cover Wallet issuance — fire-and-forget after transaction
+    // Iterate tickets and issue wallets for any tier with coverChargeConfig.enabled
+    if (isFirebaseConfigured()) {
+        (async () => {
+            for (let tierIndex = 0; tierIndex < order.tickets.length; tierIndex++) {
+                const tier = order.tickets[tierIndex];
+                if (!tier.coverChargeConfig?.enabled) continue;
+                try {
+                    await issueWallet({
+                        orderId,
+                        eventId: order.eventId,
+                        venueId: event.venueId || null,
+                        userId: order.userId,
+                        tierConfig: tier.coverChargeConfig,
+                        eventStartIso: event.startDate,
+                        tzOffset: '+05:30',
+                        termsAcceptedAt: now,
+                    });
+                    console.log(`[OrderStore] Cover wallet issued for order ${orderId} tier ${tierIndex}`);
+                } catch (err) {
+                    console.error(`[OrderStore] Cover wallet issuance failed for order ${orderId} tier ${tierIndex}:`, err);
+                    try {
+                        const db = getAdminDb();
+                        await db.collection("cover_wallet_issuance_failures").add({
+                            orderId,
+                            userId: order.userId,
+                            eventId: order.eventId,
+                            tierIndex,
+                            error: err.message,
+                            status: "pending",
+                            retryCount: 0,
+                            createdAt: new Date().toISOString(),
+                        });
+                    } catch (outboxErr) {
+                        console.error("[OrderStore] Failed to write cover_wallet_issuance_failures:", outboxErr);
+                    }
+                }
+            }
+        })().catch(err => console.error("[OrderStore] Cover wallet loop failed:", err));
     }
 
     return { ...order, ...updates };
