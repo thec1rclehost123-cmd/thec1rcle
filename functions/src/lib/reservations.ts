@@ -72,7 +72,7 @@ export async function releaseInventory(reservationId: string) {
     const resData = resDoc.exists ? resDoc.data() : null;
 
     // 2. Release from Redis (best-effort; may return success:false if TTL expired)
-    const result = await coreReleaseReservation(reservationId);
+    await coreReleaseReservation(reservationId);
 
     // 3. Mark Firestore reservation as expired regardless of Redis state
     await db.collection(RESERVATIONS_COLLECTION).doc(reservationId).update({
