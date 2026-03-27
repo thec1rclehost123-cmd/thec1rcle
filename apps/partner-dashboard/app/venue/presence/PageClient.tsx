@@ -6,7 +6,7 @@ import { HubTabBar } from "@/components/shared/HubTabBar";
 import { useHubTab } from "@/lib/hooks/useHubTab";
 import { Skeleton } from "@/components/ui/Skeleton";
 
-import VenuePageClient from "../page-management/PageClient";
+import VenuePresencePageClient from "./VenuePresencePageClient";
 import MenuPageClient from "../menu/PageClient";
 import PresenceConfigEditor from "@/components/venue-management/PresenceConfigEditor";
 
@@ -18,10 +18,10 @@ const TABS = [
 
 function TabContent({ activeTab }: { activeTab: string }) {
     switch (activeTab) {
-        case "page":   return <VenuePageClient />;
+        case "page":   return <VenuePresencePageClient />;
         case "menu":   return <MenuPageClient />;
         case "public": return <PresenceConfigEditor />;
-        default:       return <VenuePageClient />;
+        default:       return <VenuePresencePageClient />;
     }
 }
 
