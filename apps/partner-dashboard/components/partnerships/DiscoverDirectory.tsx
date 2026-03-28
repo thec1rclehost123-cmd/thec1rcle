@@ -49,18 +49,27 @@ interface DiscoverDirectoryProps {
     allowedTypes: PartnerFilterType[];
     partnerId: string | undefined;
     role: string;
+    // Controlled mode: when passed, hides the internal search bar
+    searchQuery?: string;
+    filterType?: PartnerFilterType;
+    filterCity?: string;
+    refreshTrigger?: number;
 }
 
-export function DiscoverDirectory({ allowedTypes, partnerId, role }: DiscoverDirectoryProps) {
+export function DiscoverDirectory({ allowedTypes, partnerId, role, searchQuery: ctrlSearch, filterType: ctrlType, filterCity: ctrlCity, refreshTrigger }: DiscoverDirectoryProps) {
     const { profile, user } = useDashboardAuth();
     const [partners, setPartners] = useState<DiscoveredPartner[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const isControlled = ctrlSearch !== undefined;
     const [searchQuery, setSearchQuery] = useState("");
     const [filterType, setFilterType] = useState<PartnerFilterType>(
         allowedTypes.includes("all") ? "all" : allowedTypes[0]
     );
     const [filterCity, setFilterCity] = useState("");
+    const effectiveSearch = isControlled ? (ctrlSearch ?? "") : searchQuery;
+    const effectiveType = isControlled ? (ctrlType ?? filterType) : filterType;
+    const effectiveCity = isControlled ? (ctrlCity ?? "") : filterCity;
     const [selectedProfile, setSelectedProfile] = useState<NetworkProfile | null>(null);
     const [requestingId, setRequestingId] = useState<string | null>(null);
 
@@ -76,9 +85,9 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role }: DiscoverDir
                 action: "discover",
                 limit: "30",
             });
-            if (filterType !== "all") params.set("type", filterType);
-            if (filterCity) params.set("city", filterCity);
-            if (searchQuery) params.set("search", searchQuery);
+            if (effectiveType !== "all") params.set("type", effectiveType);
+            if (effectiveCity) params.set("city", effectiveCity);
+            if (effectiveSearch) params.set("search", effectiveSearch);
 
             const res = await fetch(`/api/discovery?${params}`, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -92,11 +101,11 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role }: DiscoverDir
         } finally {
             setLoading(false);
         }
-    }, [partnerId, role, user, filterType, filterCity, searchQuery]);
+    }, [partnerId, role, user, effectiveType, effectiveCity, effectiveSearch]);
 
     useEffect(() => {
         if (partnerId) fetchPartners();
-    }, [partnerId, fetchPartners]);
+    }, [partnerId, fetchPartners, refreshTrigger]);
 
     const handleRequestPartnership = async (targetId: string) => {
         if (!partnerId) return;
@@ -157,8 +166,8 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role }: DiscoverDir
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Search bar */}
-            <div className="flex flex-col md:flex-row gap-3 p-3 bg-surface-elevated/80 backdrop-blur-xl border border-border-default rounded-[2rem] shadow-sm">
+            {/* Search bar — hidden when controlled externally via tab bar */}
+            {!isControlled && <div className="flex flex-col md:flex-row gap-3 p-3 bg-surface-elevated/80 backdrop-blur-xl border border-border-default rounded-[2rem] shadow-sm">
                 <div className="flex-1 relative group">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary group-focus-within:text-text-primary transition-colors" />
                     <input
@@ -201,7 +210,7 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role }: DiscoverDir
                         <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
                     </button>
                 </div>
-            </div>
+            </div>}
 
             {/* Grid */}
             {loading ? (
