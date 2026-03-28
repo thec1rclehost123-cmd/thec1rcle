@@ -13,21 +13,21 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { EVENT_LIFECYCLE } from "@c1rcle/core/events";
 
-const DAYS    = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS  = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 const EXCLUDED_LIFECYCLE = [EVENT_LIFECYCLE.DRAFT, EVENT_LIFECYCLE.DELETED, EVENT_LIFECYCLE.CANCELLED, EVENT_LIFECYCLE.DENIED];
 
 // Timeline: 2 PM → 4 AM (14 h)
 const TIMELINE_HOURS = [
-    { label: "2 PM",  mins: 0   },
-    { label: "4 PM",  mins: 120 },
-    { label: "6 PM",  mins: 240 },
-    { label: "8 PM",  mins: 360 },
+    { label: "2 PM", mins: 0 },
+    { label: "4 PM", mins: 120 },
+    { label: "6 PM", mins: 240 },
+    { label: "8 PM", mins: 360 },
     { label: "10 PM", mins: 480 },
     { label: "12 AM", mins: 600 },
-    { label: "2 AM",  mins: 720 },
-    { label: "4 AM",  mins: 840 },
+    { label: "2 AM", mins: 720 },
+    { label: "4 AM", mins: 840 },
 ];
 const TOTAL_MINS = 840;
 
@@ -47,52 +47,52 @@ function pct(mins: number) {
 
 // ─── Solid surface colours — no more rgba transparency fog ─────────────────────
 const C = {
-    base:            "#111114",
-    surface:         "#1c1c22",
-    surfaceWeekend:  "#1f1f28",
-    surfacePast:     "#141417",
-    surfaceEvent:    "#0d2119",
-    surfaceBlocked:  "#1e0d0d",
-    surfacePending:  "#1e1a0b",
-    surfaceToday:    "#281510",
+    base: "#111114",
+    surface: "#1c1c22",
+    surfaceWeekend: "#1f1f28",
+    surfacePast: "#141417",
+    surfaceEvent: "#0d2119",
+    surfaceBlocked: "#1e0d0d",
+    surfacePending: "#1e1a0b",
+    surfaceToday: "#281510",
     surfaceSelected: "#2e1008",
-    borderDefault:   "rgba(255,255,255,0.08)",
-    borderEvent:     "rgba(52,211,153,0.4)",
-    borderBlocked:   "rgba(248,113,113,0.35)",
-    borderPending:   "rgba(251,191,36,0.3)",
-    borderToday:     "rgba(244,74,34,0.55)",
-    borderSelected:  "#F44A22",
-    teal:            "#34D399",
-    amber:           "#FBBF24",
-    red:             "#F87171",
-    orange:          "#F44A22",
+    borderDefault: "rgba(255,255,255,0.08)",
+    borderEvent: "rgba(52,211,153,0.4)",
+    borderBlocked: "rgba(248,113,113,0.35)",
+    borderPending: "rgba(251,191,36,0.3)",
+    borderToday: "rgba(244,74,34,0.55)",
+    borderSelected: "#F44A22",
+    teal: "#34D399",
+    amber: "#FBBF24",
+    red: "#F87171",
+    orange: "#F44A22",
 };
 
 export function OperatingCalendar() {
-    const { user, profile }                         = useDashboardAuth();
-    const pathname                                  = usePathname();
-    const rm                                        = useReducedMotion();
+    const { user, profile } = useDashboardAuth();
+    const pathname = usePathname();
+    const rm = useReducedMotion();
     const role = pathname.startsWith("/club") || pathname.startsWith("/venue") ? "venue" : "host";
 
-    const [currentDate, setCurrentDate]   = useState(parseAsIST(null));
-    const [selectedDateStr, setSelected]  = useState<string | null>(null);
+    const [currentDate, setCurrentDate] = useState(parseAsIST(null));
+    const [selectedDateStr, setSelected] = useState<string | null>(null);
     const [calendarData, setCalendarData] = useState<any[]>([]);
-    const [loading, setLoading]           = useState(true);
+    const [loading, setLoading] = useState(true);
 
-    const year  = parseInt(currentDate.toLocaleString("en-US", { year:  "numeric", timeZone: "Asia/Kolkata" }));
+    const year = parseInt(currentDate.toLocaleString("en-US", { year: "numeric", timeZone: "Asia/Kolkata" }));
     const month = parseInt(currentDate.toLocaleString("en-US", { month: "numeric", timeZone: "Asia/Kolkata" })) - 1;
 
     const fetchCalendar = async (silent = false) => {
         if (!profile?.activeMembership?.partnerId) return;
         if (!silent) setLoading(true);
         try {
-            const pid   = profile.activeMembership.partnerId;
-            const start = `${year}-${String(month + 1).padStart(2,"0")}-01`;
-            const last  = new Date(year, month + 1, 0).getDate();
-            const end   = `${year}-${String(month + 1).padStart(2,"0")}-${String(last).padStart(2,"0")}`;
-            const tok   = await user?.getIdToken();
+            const pid = profile.activeMembership.partnerId;
+            const start = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+            const last = new Date(year, month + 1, 0).getDate();
+            const end = `${year}-${String(month + 1).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
+            const tok = await user?.getIdToken();
             const param = role === "venue" ? `venueId=${pid}` : `hostId=${pid}`;
-            const res   = await fetch(
+            const res = await fetch(
                 `/api/venue/calendar?${param}&view=operating&startDate=${start}&endDate=${end}`,
                 { headers: tok ? { Authorization: `Bearer ${tok}` } : {} }
             );
@@ -106,13 +106,13 @@ export function OperatingCalendar() {
                 setCalendarData([]);
             }
         } catch { if (!silent) setCalendarData([]); }
-        finally  { setLoading(false); }
+        finally { setLoading(false); }
     };
 
     useEffect(() => { fetchCalendar(); }, [profile, currentDate]);
 
     const firstDayIdx = useMemo(() => {
-        const d  = parseAsIST(`${year}-${String(month + 1).padStart(2,"0")}-01`);
+        const d = parseAsIST(`${year}-${String(month + 1).padStart(2, "0")}-01`);
         const sh = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "Asia/Kolkata" }).format(d);
         return DAYS.indexOf(sh);
     }, [year, month]);
@@ -122,7 +122,7 @@ export function OperatingCalendar() {
         const g: any[] = [];
         for (let i = 0; i < firstDayIdx; i++) g.push(null);
         for (let d = 1; d <= daysInMonth; d++) {
-            const ds = `${year}-${String(month + 1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+            const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
             g.push({ day: d, dateStr: ds, ...(calendarData.find(x => x.date === ds) || {}) });
         }
         return g;
@@ -133,7 +133,7 @@ export function OperatingCalendar() {
     const navMonth = (delta: number) => {
         const nm = month + delta;
         const ny = nm < 0 ? year - 1 : nm > 11 ? year + 1 : year;
-        setCurrentDate(parseAsIST(`${ny}-${String(((nm % 12) + 12) % 12 + 1).padStart(2,"0")}-01`));
+        setCurrentDate(parseAsIST(`${ny}-${String(((nm % 12) + 12) % 12 + 1).padStart(2, "0")}-01`));
     };
 
     const handleSlotAction = async (slotId: string, action: "approve" | "reject") => {
@@ -185,12 +185,12 @@ export function OperatingCalendar() {
 
     const stats = useMemo(() => ({
         confirmed: calendarData.filter(d => d.state === "CONFIRMED").length,
-        pending:   calendarData.filter(d => d.stats?.pendingSlots > 0).length,
-        blocked:   calendarData.filter(d => d.state === "BLOCKED").length,
+        pending: calendarData.filter(d => d.stats?.pendingSlots > 0).length,
+        blocked: calendarData.filter(d => d.state === "BLOCKED").length,
     }), [calendarData]);
 
     const todayStr = toISODateIST(parseAsIST(null));
-    const weeks    = Math.ceil((firstDayIdx + daysInMonth) / 7);
+    const weeks = Math.ceil((firstDayIdx + daysInMonth) / 7);
 
     return (
         <div className="flex flex-col w-full gap-4" style={{ height: "calc(100vh - 13rem)" }}>
@@ -214,9 +214,9 @@ export function OperatingCalendar() {
                     {/* Stats */}
                     <div className="hidden lg:flex items-center gap-2">
                         {[
-                            { n: stats.confirmed, label: "Booked",   color: C.teal,  bg: "rgba(52,211,153,.12)",  bd: "rgba(52,211,153,.25)"  },
-                            { n: stats.pending,   label: "Pending",  color: C.amber, bg: "rgba(251,191,36,.12)", bd: "rgba(251,191,36,.25)" },
-                            { n: stats.blocked,   label: "Blocked",  color: C.red,   bg: "rgba(248,113,113,.12)", bd: "rgba(248,113,113,.25)" },
+                            { n: stats.confirmed, label: "Booked", color: C.teal, bg: "rgba(52,211,153,.12)", bd: "rgba(52,211,153,.25)" },
+                            { n: stats.pending, label: "Pending", color: C.amber, bg: "rgba(251,191,36,.12)", bd: "rgba(251,191,36,.25)" },
+                            { n: stats.blocked, label: "Blocked", color: C.red, bg: "rgba(248,113,113,.12)", bd: "rgba(248,113,113,.25)" },
                         ].map(s => (
                             <div key={s.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black border" style={{ background: s.bg, color: s.color, borderColor: s.bd }}>
                                 <span className="tabular-nums text-[11px]">{s.n}</span>
@@ -277,46 +277,46 @@ export function OperatingCalendar() {
                                 : grid.map((cell, idx) => {
                                     if (!cell) return <div key={`e-${idx}`} />;
 
-                                    const isToday    = cell.dateStr === todayStr;
-                                    const isSel      = cell.dateStr === selectedDateStr;
-                                    const evCount    = cell.stats?.eventCount || 0;
+                                    const isToday = cell.dateStr === todayStr;
+                                    const isSel = cell.dateStr === selectedDateStr;
+                                    const evCount = cell.stats?.eventCount || 0;
                                     const hasPending = (cell.stats?.pendingSlots || 0) > 0;
-                                    const isBlocked  = cell.state === "BLOCKED";
-                                    const isPast     = cell.dateStr < todayStr;
-                                    const hasEvents  = evCount > 0;
-                                    const isWeekend  = idx % 7 === 0 || idx % 7 === 6;
+                                    const isBlocked = cell.state === "BLOCKED";
+                                    const isPast = cell.dateStr < todayStr;
+                                    const hasEvents = evCount > 0;
+                                    const isWeekend = idx % 7 === 0 || idx % 7 === 6;
 
                                     // Solid surface colours — hierarchy matters
-                                    let bg     = isPast ? C.surfacePast : isWeekend ? C.surfaceWeekend : C.surface;
+                                    let bg = isPast ? C.surfacePast : isWeekend ? C.surfaceWeekend : C.surface;
                                     let border = `1px solid ${isPast ? "rgba(255,255,255,0.05)" : C.borderDefault}`;
                                     let shadow = "none";
 
                                     if (isSel) {
-                                        bg     = C.surfaceSelected;
+                                        bg = C.surfaceSelected;
                                         border = `2px solid ${C.borderSelected}`;
                                         shadow = `0 0 32px rgba(244,74,34,0.3), 0 8px 24px rgba(244,74,34,0.15)`;
                                     } else if (isToday && !isSel) {
-                                        bg     = C.surfaceToday;
+                                        bg = C.surfaceToday;
                                         border = `2px solid ${C.borderToday}`;
                                         shadow = "0 0 20px rgba(244,74,34,0.12)";
                                     } else if (isBlocked) {
-                                        bg     = C.surfaceBlocked;
+                                        bg = C.surfaceBlocked;
                                         border = `1px solid ${C.borderBlocked}`;
                                     } else if (hasEvents && !isPast) {
-                                        bg     = C.surfaceEvent;
+                                        bg = C.surfaceEvent;
                                         border = `1px solid ${C.borderEvent}`;
                                         shadow = "0 4px 20px rgba(52,211,153,0.1)";
                                     } else if (hasPending) {
-                                        bg     = C.surfacePending;
+                                        bg = C.surfacePending;
                                         border = `1px solid ${C.borderPending}`;
                                     }
 
                                     const numColor = isToday ? "white"
-                                        : isSel     ? C.orange
-                                        : isBlocked ? C.red
-                                        : hasEvents && !isPast ? C.teal
-                                        : isPast    ? "rgba(255,255,255,0.28)"
-                                        : "rgba(255,255,255,0.82)";
+                                        : isSel ? C.orange
+                                            : isBlocked ? C.red
+                                                : hasEvents && !isPast ? C.teal
+                                                    : isPast ? "rgba(255,255,255,0.28)"
+                                                        : "rgba(255,255,255,0.82)";
 
                                     return (
                                         <button
@@ -368,7 +368,7 @@ export function OperatingCalendar() {
                                                         <span key={i} className="w-1 h-1 rounded-full" style={{ background: C.teal }} />
                                                     ))}
                                                     {hasPending && <span className="w-1 h-1 rounded-full animate-pulse" style={{ background: C.amber }} />}
-                                                    {isBlocked  && <span className="w-1 h-1 rounded-full" style={{ background: C.red }} />}
+                                                    {isBlocked && <span className="w-1 h-1 rounded-full" style={{ background: C.red }} />}
                                                 </div>
                                             )}
                                         </button>
@@ -383,9 +383,9 @@ export function OperatingCalendar() {
                             style={{ borderTop: `1px solid rgba(255,255,255,0.06)`, background: "rgba(0,0,0,0.2)" }}
                         >
                             {[
-                                { color: C.teal,  label: "Confirmed", bg: C.surfaceEvent    },
-                                { color: C.amber, label: "Pending",   bg: C.surfacePending  },
-                                { color: C.red,   label: "Blocked",   bg: C.surfaceBlocked  },
+                                { color: C.teal, label: "Confirmed", bg: C.surfaceEvent },
+                                { color: C.amber, label: "Pending", bg: C.surfacePending },
+                                { color: C.red, label: "Blocked", bg: C.surfaceBlocked },
                             ].map(({ color, label, bg }) => (
                                 <div key={label} className="flex items-center gap-2">
                                     <div className="w-3 h-3 rounded-md" style={{ background: bg, border: `1px solid ${color}40` }} />
@@ -466,7 +466,7 @@ export function OperatingCalendar() {
 function fmt12(t: string): string {
     if (!t) return "";
     const [h, m] = t.split(":").map(Number);
-    const h12    = h % 12 || 12;
+    const h12 = h % 12 || 12;
     const period = h >= 12 ? "PM" : "AM";
     return `${h12}:${String(m).padStart(2, "0")} ${period}`;
 }
@@ -474,15 +474,15 @@ function fmt12(t: string): string {
 // Times selectable in block picker: 2 PM through 4 AM in 30-min steps
 const BLOCK_TIMES: string[] = (() => {
     const out: string[] = [];
-    for (let h = 14; h < 24; h++) ["00", "30"].forEach(m => out.push(`${String(h).padStart(2,"0")}:${m}`));
-    for (let h = 0;  h <= 4;  h++) ["00", "30"].forEach(m => out.push(`${String(h).padStart(2,"0")}:${m}`));
+    for (let h = 14; h < 24; h++) ["00", "30"].forEach(m => out.push(`${String(h).padStart(2, "0")}:${m}`));
+    for (let h = 0; h <= 4; h++) ["00", "30"].forEach(m => out.push(`${String(h).padStart(2, "0")}:${m}`));
     return out;
 })();
 
 function TimePicker({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
     const [open, setOpen] = useState(false);
-    const ref             = useRef<HTMLDivElement>(null);
-    const listRef         = useRef<HTMLDivElement>(null);
+    const ref = useRef<HTMLDivElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
 
     // Close on outside click
     useEffect(() => {
@@ -567,27 +567,27 @@ function SidePanel({ role, dateStr, data, onClose, onSlotAction, onBlockDate }: 
     onSlotAction: (id: string, a: "approve" | "reject") => Promise<void>;
     onBlockDate: (date: string, a: "block" | "unblock", reason?: string, s?: string, e?: string) => Promise<void>;
 }) {
-    const [isPending,      setIsPending]    = useState(false);
-    const [reason,         setReason]       = useState(data?.block?.reason    || "Private Event / Maintenance");
-    const [startTime,      setStartTime]    = useState(data?.block?.startTime || "20:00");
-    const [endTime,        setEndTime]      = useState(data?.block?.endTime   || "04:00");
+    const [isPending, setIsPending] = useState(false);
+    const [reason, setReason] = useState(data?.block?.reason || "Private Event / Maintenance");
+    const [startTime, setStartTime] = useState(data?.block?.startTime || "20:00");
+    const [endTime, setEndTime] = useState(data?.block?.endTime || "04:00");
     const [isBlockingMode, setBlockingMode] = useState(false);
 
     useEffect(() => {
         if (!isBlockingMode) {
-            setReason(data?.block?.reason       || "Private Event / Maintenance");
+            setReason(data?.block?.reason || "Private Event / Maintenance");
             setStartTime(data?.block?.startTime || "20:00");
-            setEndTime(data?.block?.endTime     || "04:00");
+            setEndTime(data?.block?.endTime || "04:00");
         }
     }, [data, isBlockingMode]);
 
-    const d          = parseAsIST(dateStr);
-    const dayName    = d.toLocaleDateString("en-US", { weekday: "long",   timeZone: "Asia/Kolkata" });
-    const dayNum     = d.toLocaleDateString("en-US", { day: "numeric",    timeZone: "Asia/Kolkata" });
-    const monthStr   = d.toLocaleDateString("en-US", { month: "long",     timeZone: "Asia/Kolkata" });
-    const yearStr    = d.toLocaleDateString("en-US", { year: "numeric",   timeZone: "Asia/Kolkata" });
+    const d = parseAsIST(dateStr);
+    const dayName = d.toLocaleDateString("en-US", { weekday: "long", timeZone: "Asia/Kolkata" });
+    const dayNum = d.toLocaleDateString("en-US", { day: "numeric", timeZone: "Asia/Kolkata" });
+    const monthStr = d.toLocaleDateString("en-US", { month: "long", timeZone: "Asia/Kolkata" });
+    const yearStr = d.toLocaleDateString("en-US", { year: "numeric", timeZone: "Asia/Kolkata" });
 
-    const events       = filterVisibleEvents(data?.events) || [];
+    const events = filterVisibleEvents(data?.events) || [];
     // Deduplicate by eventId — host may have submitted the same slot request multiple times
     const pendingSlots = useMemo(() => {
         const seen = new Set<string>();
@@ -599,13 +599,13 @@ function SidePanel({ role, dateStr, data, onClose, onSlotAction, onBlockDate }: 
             return true;
         });
     }, [data?.slots]);
-    const isBlocked    = data?.state === "BLOCKED";
-    const evCount      = events.length;
+    const isBlocked = data?.state === "BLOCKED";
+    const evCount = events.length;
 
-    const stateColor   = isBlocked ? C.red : evCount > 0 ? C.teal : "rgba(255,255,255,0.3)";
-    const stateBg      = isBlocked ? C.surfaceBlocked : evCount > 0 ? C.surfaceEvent : "rgba(255,255,255,0.04)";
-    const stateBorder  = isBlocked ? C.borderBlocked : evCount > 0 ? C.borderEvent : "rgba(255,255,255,0.08)";
-    const stateLabel   = isBlocked ? "Blocked" : evCount > 0 ? `${evCount} Event${evCount > 1 ? "s" : ""}` : "Open Night";
+    const stateColor = isBlocked ? C.red : evCount > 0 ? C.teal : "rgba(255,255,255,0.3)";
+    const stateBg = isBlocked ? C.surfaceBlocked : evCount > 0 ? C.surfaceEvent : "rgba(255,255,255,0.04)";
+    const stateBorder = isBlocked ? C.borderBlocked : evCount > 0 ? C.borderEvent : "rgba(255,255,255,0.08)";
+    const stateLabel = isBlocked ? "Blocked" : evCount > 0 ? `${evCount} Event${evCount > 1 ? "s" : ""}` : "Open Night";
 
     // NOW indicator
     const [now, setNow] = useState(parseAsIST(null));
@@ -616,18 +616,18 @@ function SidePanel({ role, dateStr, data, onClose, onSlotAction, onBlockDate }: 
 
     const { nowPct, isActive, nowTimeStr } = useMemo(() => {
         const todayStr = toISODateIST(now);
-        const yest     = toISODateIST(new Date(now.getTime() - 86_400_000));
+        const yest = toISODateIST(new Date(now.getTime() - 86_400_000));
         const h = now.getHours(), m = now.getMinutes();
-        const active   = (h >= 14 && dateStr === todayStr) || (h < 4 && dateStr === yest);
-        const mins     = timeToMins(`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`);
-        const h12      = h % 12 || 12;
-        const period   = h >= 12 ? "PM" : "AM";
-        return { nowPct: pct(mins), isActive: active, nowTimeStr: `${h12}:${String(m).padStart(2,"0")} ${period}` };
+        const active = (h >= 14 && dateStr === todayStr) || (h < 4 && dateStr === yest);
+        const mins = timeToMins(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+        const h12 = h % 12 || 12;
+        const period = h >= 12 ? "PM" : "AM";
+        return { nowPct: pct(mins), isActive: active, nowTimeStr: `${h12}:${String(m).padStart(2, "0")} ${period}` };
     }, [now, dateStr]);
 
     const nowMinsCurrent = useMemo(() => {
         const h = now.getHours(), m = now.getMinutes();
-        return timeToMins(`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`);
+        return timeToMins(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
     }, [now]);
 
     const handleBlock = async () => {
@@ -653,8 +653,8 @@ function SidePanel({ role, dateStr, data, onClose, onSlotAction, onBlockDate }: 
                     background: isBlocked
                         ? "linear-gradient(160deg, #1e0d0d 0%, #0f0f13 70%)"
                         : evCount > 0
-                        ? "linear-gradient(160deg, #0d2119 0%, #0f0f13 70%)"
-                        : "linear-gradient(160deg, #1a100a 0%, #0f0f13 70%)",
+                            ? "linear-gradient(160deg, #0d2119 0%, #0f0f13 70%)"
+                            : "linear-gradient(160deg, #1a100a 0%, #0f0f13 70%)",
                 }}
             >
                 {/* Corner glow */}
@@ -662,8 +662,8 @@ function SidePanel({ role, dateStr, data, onClose, onSlotAction, onBlockDate }: 
                     background: isBlocked
                         ? "radial-gradient(circle at top right, rgba(248,113,113,0.18), transparent 65%)"
                         : evCount > 0
-                        ? "radial-gradient(circle at top right, rgba(52,211,153,0.15), transparent 65%)"
-                        : "radial-gradient(circle at top right, rgba(244,74,34,0.12), transparent 65%)",
+                            ? "radial-gradient(circle at top right, rgba(52,211,153,0.15), transparent 65%)"
+                            : "radial-gradient(circle at top right, rgba(244,74,34,0.12), transparent 65%)",
                 }} />
 
                 <div className="flex items-start justify-between relative z-10">
@@ -754,7 +754,7 @@ function SidePanel({ role, dateStr, data, onClose, onSlotAction, onBlockDate }: 
                                         key={`b-${i}`}
                                         className="absolute left-0 right-0 pointer-events-none"
                                         style={{
-                                            top:    `${(mins / TOTAL_MINS) * 100}%`,
+                                            top: `${(mins / TOTAL_MINS) * 100}%`,
                                             height: `${((nextMins - mins) / TOTAL_MINS) * 100}%`,
                                             background: i % 2 === 0 ? "rgba(255,255,255,0.025)" : "transparent",
                                         }}
@@ -768,7 +768,7 @@ function SidePanel({ role, dateStr, data, onClose, onSlotAction, onBlockDate }: 
                                     key={`l-${mins}`}
                                     className="absolute left-0 right-0 h-px pointer-events-none"
                                     style={{
-                                        top:        `${(mins / TOTAL_MINS) * 100}%`,
+                                        top: `${(mins / TOTAL_MINS) * 100}%`,
                                         background: mins % 240 === 0 ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.05)",
                                     }}
                                 />
@@ -789,7 +789,7 @@ function SidePanel({ role, dateStr, data, onClose, onSlotAction, onBlockDate }: 
                             {/* Blocked fill */}
                             {isBlocked && (() => {
                                 const blockStart = data?.block?.startTime || "20:00";
-                                const blockEnd   = data?.block?.endTime   || "04:00";
+                                const blockEnd = data?.block?.endTime || "04:00";
                                 const sMin = timeToMins(blockStart);
                                 const eMin = timeToMins(blockEnd);
                                 const blockH = Math.max(8, ((eMin - sMin) / TOTAL_MINS) * 100);
@@ -838,11 +838,11 @@ function SidePanel({ role, dateStr, data, onClose, onSlotAction, onBlockDate }: 
 
                             {/* Event blocks */}
                             {events.map((e: any) => {
-                                const status      = e.lifecycle || e.status;
+                                const status = e.lifecycle || e.status;
                                 const isConfirmed = [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.LIVE, EVENT_LIFECYCLE.APPROVED].includes(status);
-                                const sMin  = timeToMins(e.startTime || "21:00");
-                                const eMin  = timeToMins(e.endTime   || "04:00");
-                                const h     = Math.max(5, ((eMin - sMin) / TOTAL_MINS) * 100);
+                                const sMin = timeToMins(e.startTime || "21:00");
+                                const eMin = timeToMins(e.endTime || "04:00");
+                                const h = Math.max(5, ((eMin - sMin) / TOTAL_MINS) * 100);
                                 const isNow = isActive && isConfirmed && nowMinsCurrent >= sMin && nowMinsCurrent <= eMin;
                                 const accent = isNow || isConfirmed ? C.teal : C.amber;
 
@@ -856,8 +856,8 @@ function SidePanel({ role, dateStr, data, onClose, onSlotAction, onBlockDate }: 
                                             background: isNow
                                                 ? "linear-gradient(135deg, rgba(52,211,153,0.22), rgba(52,211,153,0.1))"
                                                 : isConfirmed
-                                                ? "linear-gradient(135deg, rgba(52,211,153,0.16), rgba(52,211,153,0.06))"
-                                                : "linear-gradient(135deg, rgba(251,191,36,0.16), rgba(251,191,36,0.06))",
+                                                    ? "linear-gradient(135deg, rgba(52,211,153,0.16), rgba(52,211,153,0.06))"
+                                                    : "linear-gradient(135deg, rgba(251,191,36,0.16), rgba(251,191,36,0.06))",
                                             border: `1px solid ${isNow ? "rgba(52,211,153,0.5)" : isConfirmed ? "rgba(52,211,153,0.25)" : "rgba(251,191,36,0.25)"}`,
                                             boxShadow: isNow ? "0 4px 20px rgba(52,211,153,0.2)" : "none",
                                         }}

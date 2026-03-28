@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import {
     CheckCircle2, Clock, XCircle, Compass, Loader2,
-    UserCircle, ChevronRight, Handshake, Zap, X, Bell,
+    UserCircle, ChevronRight, Handshake, Zap, X, Bell, Search, RefreshCw,
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
@@ -44,6 +44,10 @@ export default function VenuePartnersPage() {
     const [profileTarget, setProfileTarget] = useState<NetworkProfile | null>(null);
     const [tierTarget, setTierTarget] = useState<Connection | null>(null);
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [discoverSearch, setDiscoverSearch] = useState("");
+    const [discoverType, setDiscoverType] = useState("host");
+    const [discoverCity, setDiscoverCity] = useState("");
+    const [discoverRefresh, setDiscoverRefresh] = useState(0);
 
     const venueId = profile?.activeMembership?.partnerId;
     const venueName = profile?.displayName;
@@ -104,6 +108,7 @@ export default function VenuePartnersPage() {
     const declined = connections.filter(c => c.status === "rejected");
 
     const TABS: { id: Tab; label: string; count?: number }[] = [
+        { id: "discover", label: "Discover" },
         { id: "active", label: "Active", count: active.length },
         { id: "incoming", label: "Incoming", count: pendingIncoming.length },
         { id: "pending", label: "Pending", count: pendingOutgoing.length },
@@ -114,28 +119,6 @@ export default function VenuePartnersPage() {
         <VenuePageShell
             title="Partners"
             subtitle="Hosts and promoters who operate with your venue"
-            actions={
-                <div className="flex items-center gap-3">
-                    <div className="px-5 py-3 rounded-2xl text-center" style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
-                        <p className="text-[20px] font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>{active.length}</p>
-                        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>Active</p>
-                    </div>
-                    <div className="px-5 py-3 rounded-2xl text-center" style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
-                        <p className="text-[20px] font-black tabular-nums" style={{ color: "#f59e0b" }}>{allPending.length}</p>
-                        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>Pending</p>
-                    </div>
-                    <button
-                        onClick={() => setActiveTab(activeTab === "discover" ? "active" : "discover")}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[12px] font-bold uppercase tracking-widest transition-all shrink-0"
-                        style={activeTab === "discover"
-                            ? { background: "var(--v-orange-glow)", color: "var(--v-orange)", border: "1px solid rgba(244,74,34,0.3)" }
-                            : { background: "var(--v-card)", color: "var(--v-text-secondary)", border: "1px solid var(--v-border)" }}
-                    >
-                        <Compass className="w-3.5 h-3.5" />
-                        Discover
-                    </button>
-                </div>
-            }
         >
             {/* Hero banner */}
             <motion.div {...mp(0)}>
@@ -166,35 +149,83 @@ export default function VenuePartnersPage() {
                 </div>
             </motion.div>
 
-            {/* Tab bar */}
+            {/* Tab bar + search/filter — separate elements */}
             <motion.div {...mp(0.1)}>
-                <div className="flex items-center p-1.5 rounded-2xl w-fit overflow-x-auto" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    {TABS.map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all shrink-0"
-                            style={activeTab === tab.id
-                                ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" }
-                                : { color: "var(--v-text-tertiary)" }}
-                        >
-                            {tab.id === "active" && <CheckCircle2 className={`w-4 h-4 ${activeTab === tab.id ? "text-[#34d399]" : ""}`} />}
-                            {tab.id === "incoming" && <Bell className={`w-4 h-4 ${activeTab === tab.id ? "text-[#F44A22]" : ""}`} />}
-                            {tab.id === "pending" && <Clock className={`w-4 h-4 ${activeTab === tab.id ? "text-[#f59e0b]" : ""}`} />}
-                            {tab.id === "declined" && <XCircle className="w-4 h-4" />}
-                            {tab.label}
-                            {tab.count !== undefined && tab.count > 0 && (
-                                <span
-                                    className="px-1.5 py-0.5 rounded-md text-[10px] font-black"
-                                    style={activeTab === tab.id
-                                        ? { background: "#F44A22", color: "#fff" }
-                                        : { background: "rgba(255,255,255,0.06)", color: "var(--v-text-tertiary)" }}
-                                >
-                                    {tab.count}
-                                </span>
+                <div className="flex items-center gap-3">
+                    {/* Tab pills */}
+                    <div className="flex items-center p-1.5 rounded-2xl shrink-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        {TABS.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all shrink-0"
+                                style={activeTab === tab.id
+                                    ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" }
+                                    : { color: "var(--v-text-tertiary)" }}
+                            >
+                                {tab.id === "discover" && <Compass className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#F44A22]" : ""}`} />}
+                                {tab.id === "active" && <CheckCircle2 className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#34d399]" : ""}`} />}
+                                {tab.id === "incoming" && <Bell className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#F44A22]" : ""}`} />}
+                                {tab.id === "pending" && <Clock className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#f59e0b]" : ""}`} />}
+                                {tab.id === "declined" && <XCircle className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#f87171]" : ""}`} />}
+                                {tab.label}
+                                {tab.count !== undefined && tab.count > 0 && (
+                                    <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black"
+                                        style={activeTab === tab.id
+                                            ? { background: "#F44A22", color: "#fff" }
+                                            : { background: "rgba(255,255,255,0.08)", color: "var(--v-text-tertiary)" }}>
+                                        {tab.count}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Search + filters — separate */}
+                    <div className="flex items-center gap-2 flex-1">
+                        <div className="flex items-center gap-2 flex-1 px-4 py-2.5 rounded-2xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            <Search className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--v-text-tertiary)" }} />
+                            <input
+                                type="text"
+                                value={discoverSearch}
+                                onChange={e => setDiscoverSearch(e.target.value)}
+                                placeholder="Search hosts & promoters..."
+                                className="flex-1 min-w-0 bg-transparent border-none outline-none text-[13px] font-medium placeholder:opacity-40"
+                                style={{ color: "var(--v-text-primary)" }}
+                            />
+                            {discoverSearch && (
+                                <button onClick={() => setDiscoverSearch("")} className="shrink-0 opacity-40 hover:opacity-70 transition-opacity">
+                                    <X className="w-3.5 h-3.5" style={{ color: "var(--v-text-secondary)" }} />
+                                </button>
                             )}
+                        </div>
+                        <div className="flex items-center gap-0.5 p-1.5 rounded-2xl shrink-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            {[{ value: "host", label: "Hosts" }, { value: "promoter", label: "Promoters" }].map(opt => (
+                                <button key={opt.value} onClick={() => setDiscoverType(opt.value)}
+                                    className="px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
+                                    style={discoverType === opt.value
+                                        ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" }
+                                        : { color: "var(--v-text-tertiary)" }}>
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                        <select value={discoverCity} onChange={e => setDiscoverCity(e.target.value)}
+                            className="border-none outline-none text-[12px] font-semibold cursor-pointer px-4 py-2.5 rounded-2xl shrink-0"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", color: discoverCity ? "var(--v-text-primary)" : "var(--v-text-tertiary)" }}>
+                            <option value="" style={{ background: "#18181B" }}>All Cities</option>
+                            <option value="Pune" style={{ background: "#18181B" }}>Pune</option>
+                            <option value="Mumbai" style={{ background: "#18181B" }}>Mumbai</option>
+                            <option value="Goa" style={{ background: "#18181B" }}>Goa</option>
+                            <option value="Bengaluru" style={{ background: "#18181B" }}>Bengaluru</option>
+                            <option value="Delhi" style={{ background: "#18181B" }}>Delhi</option>
+                        </select>
+                        <button onClick={() => setDiscoverRefresh(n => n + 1)}
+                            className="p-2.5 rounded-2xl flex items-center justify-center transition-all active:scale-95 shrink-0"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", color: "var(--v-text-tertiary)" }}>
+                            <RefreshCw className="w-3.5 h-3.5" />
                         </button>
-                    ))}
+                    </div>
                 </div>
             </motion.div>
 
@@ -203,7 +234,15 @@ export default function VenuePartnersPage() {
                 <AnimatePresence mode="wait">
                     {activeTab === "discover" ? (
                         <motion.div key="discover" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                            <DiscoverDirectory allowedTypes={["host", "promoter"]} partnerId={venueId} role="venue" />
+                            <DiscoverDirectory
+                                allowedTypes={["host", "promoter"]}
+                                partnerId={venueId}
+                                role="venue"
+                                searchQuery={discoverSearch}
+                                filterType={discoverType as any}
+                                filterCity={discoverCity}
+                                refreshTrigger={discoverRefresh}
+                            />
                         </motion.div>
                     ) : activeTab === "incoming" ? (
                         <motion.div key="incoming" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>

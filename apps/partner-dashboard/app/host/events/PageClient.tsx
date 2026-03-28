@@ -183,35 +183,44 @@ export default function HostEventsPage() {
                         </div>
 
                         {/* Filters & Search Row */}
-                        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8">
-                            <div className="flex p-2 bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] overflow-x-auto scrollbar-hide gap-2">
+                        <div className="flex items-center gap-3">
+                            {/* Tab pills */}
+                            <div className="flex items-center p-1.5 rounded-2xl shrink-0 overflow-x-auto scrollbar-hide" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
                                 {TAB_DEFS.map(t => {
                                     const Icon = t.icon;
+                                    const isActive = activeTab === t.id;
                                     return (
                                         <button
                                             key={t.id}
                                             onClick={() => setActiveTab(t.id)}
-                                            className={`px-6 py-3 rounded-[16px] text-[13px] font-black uppercase tracking-wider transition-all flex items-center gap-3 whitespace-nowrap shrink-0 ${activeTab === t.id ? "bg-[var(--v-elevated)] text-text-primary shadow-lg" : "text-[var(--v-text-tertiary)] hover:text-text-primary hover:bg-surface-tertiary"}`}
+                                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all shrink-0 whitespace-nowrap"
+                                            style={isActive ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" } : { color: "var(--v-text-tertiary)" }}
                                         >
-                                            <Icon className="w-4 h-4" style={activeTab === t.id ? { color: t.color } : {}} />
+                                            <Icon className="w-3.5 h-3.5" style={isActive ? { color: t.color } : {}} />
                                             {t.label}
                                             {tabCounts[t.id] > 0 && (
-                                                <span className={`ml-2 px-2 py-0.5 rounded-md text-[11px] font-black tabular-nums ${activeTab === t.id ? "bg-surface-elevated text-text-primary" : "bg-surface-secondary text-text-tertiary"}`}>{tabCounts[t.id]}</span>
+                                                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums" style={{ background: isActive ? "rgba(244,74,34,0.15)" : "rgba(255,255,255,0.06)", color: isActive ? "#F44A22" : "var(--v-text-tertiary)" }}>
+                                                    {tabCounts[t.id]}
+                                                </span>
                                             )}
                                         </button>
                                     );
                                 })}
                             </div>
-
-                            <div className="relative group w-full xl:w-96">
-                                <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--v-text-muted)] group-focus-within:text-[var(--v-orange)] transition-colors" />
+                            {/* Search */}
+                            <div className="flex items-center gap-2 flex-1 px-4 py-2.5 rounded-2xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                                <Search className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--v-text-tertiary)" }} />
                                 <input
                                     type="text"
-                                    placeholder="Locate production..."
+                                    placeholder="Search events..."
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
-                                    className="w-full bg-[var(--v-card)] border border-[var(--v-border)] rounded-[24px] pl-14 pr-6 py-4 text-[15px] text-text-primary placeholder:text-[var(--v-text-muted)] focus:outline-none focus:border-[var(--v-orange)]/50 transition-all font-bold tracking-tight shadow-sm"
+                                    className="flex-1 bg-transparent text-[13px] font-medium outline-none"
+                                    style={{ color: "var(--v-text-primary)" }}
                                 />
+                                {searchQuery && (
+                                    <button onClick={() => setSearchQuery("")} className="shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold transition-all" style={{ background: "rgba(255,255,255,0.1)", color: "var(--v-text-tertiary)" }}>×</button>
+                                )}
                             </div>
                         </div>
 

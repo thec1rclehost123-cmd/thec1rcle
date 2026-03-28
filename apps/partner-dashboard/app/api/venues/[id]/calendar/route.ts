@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getVenueCalendar, getDateAvailability, blockDate, unblockDate } from "@/lib/server/calendarStore";
-import { checkPartnership } from "@/lib/server/partnershipStore";
+import { getVenueCalendar, getDateAvailability, blockDate, unblockDate, getOperatingCalendar } from "@/lib/server/calendarStore";
 import { withAuth } from "@/lib/server/withAuth";
 import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * GET /api/venues/[id]/calendar
- * Get venue availability calendar
+ * Get venue availability calendar.
+ * view=operating → returns the full daily-aggregated operating calendar (events + slots + blocks),
+ *                  same shape as /api/venue/calendar?view=operating. Any authenticated user may read.
+ * (default)      → returns raw blocked-date docs for legacy consumers.
  */
 export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
     try {
@@ -14,32 +16,22 @@ export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
         const venueId = ctx?.params?.id as string;
         const startDate = searchParams.get("startDate");
         const endDate = searchParams.get("endDate");
+        const view = searchParams.get("view");
+
+        const today = new Date();
+        const sDate = startDate || today.toISOString().split("T")[0];
+        const eDate = endDate || new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+        // Operating view: full rich calendar (events + slots + blocks) — any authenticated host can read
+        if (view === "operating") {
+            const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
+            const data = await getOperatingCalendar(venueId, "venue", sDate, eDate, token);
+            return NextResponse.json(data);
+        }
+
+        // Legacy: raw blocked-date docs
         const hostId = searchParams.get("hostId");
-
-        if (!startDate || !endDate) {
-            // Default to next 30 days
-            const today = new Date();
-            const defaultStart = today.toISOString().split("T")[0];
-            const defaultEnd = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
-                .toISOString().split("T")[0];
-
-            const calendar = await getVenueCalendar(venueId, defaultStart, defaultEnd, hostId || undefined);
-            return ok({ calendar });
-        }
-
-        // Security: If not admin/venue staff, must be a host with an active partnership
-        const token = auth as any;
-        if (token.role !== 'admin' && token.role !== 'venue') {
-            const effectiveHostId = hostId || token.partnerId || token.uid;
-            const hasPartnership = await checkPartnership(effectiveHostId, venueId);
-
-            if (!hasPartnership) {
-                return fail("No active partnership with this venue. Access denied.", 403);
-            }
-        }
-
-        const calendar = await getVenueCalendar(venueId, startDate, endDate, hostId || undefined);
-
+        const calendar = await getVenueCalendar(venueId, sDate, eDate, hostId || undefined);
         return ok({ calendar });
     } catch (error: any) {
         console.error("[Calendar API] GET Error:", error);

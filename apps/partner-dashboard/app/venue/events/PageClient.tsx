@@ -5,6 +5,7 @@ import { VirtuosoGrid } from "react-virtuoso";
 import {
     Calendar, DollarSign, Search, Plus, CheckCircle2,
     AlertCircle, Edit, Loader2, BarChart3, ShieldCheck, Play, Pause, List, CalendarDays,
+    Clock, Archive, Radio, FileEdit,
 } from "lucide-react";
 import Link from "next/link";
 import { DashboardEventCard } from "@c1rcle/ui";
@@ -12,7 +13,7 @@ import { EventDetailsModal } from "@/components/venue-layout/EventDetailsModal";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { mapEventForClient, EVENT_LIFECYCLE } from "@c1rcle/core/events";
 import { parseAsIST } from "@c1rcle/core/time";
-import { VenuePageShell, VenueActionButton, VenueFilterTabs } from "@/components/venue-layout/VenuePageShell";
+import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 import { HubTabBar } from "@/components/shared/HubTabBar";
 import { useHubTab } from "@/lib/hooks/useHubTab";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -256,22 +257,46 @@ export default function EventsManagementPage() {
                     </div>
 
                     {/* ── Filter bar ── */}
-                    <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                        <VenueFilterTabs tabs={filterTabs} active={filter} onChange={setFilter} />
-                        <div className="relative flex-1 sm:max-w-xs">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--v-text-muted)" }} />
+                    <div className="flex items-center gap-3">
+                        {/* Tab pills */}
+                        <div className="flex items-center p-1.5 rounded-2xl shrink-0 overflow-x-auto scrollbar-hide" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            {filterTabs.map(t => {
+                                const iconMap: Record<string, any> = { all: List, live: Radio, pending: Clock, approved: CheckCircle2, draft: FileEdit, completed: Archive };
+                                const colorMap: Record<string, string> = { all: "var(--v-orange)", live: "var(--v-success)", pending: "var(--v-warning)", approved: "var(--v-info)", draft: "var(--v-text-tertiary)", completed: "var(--v-text-muted)" };
+                                const Icon = iconMap[t.value] || List;
+                                const isActive = filter === t.value;
+                                return (
+                                    <button
+                                        key={t.value}
+                                        onClick={() => setFilter(t.value)}
+                                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all shrink-0 whitespace-nowrap"
+                                        style={isActive ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" } : { color: "var(--v-text-tertiary)" }}
+                                    >
+                                        <Icon className="w-3.5 h-3.5" style={isActive ? { color: colorMap[t.value] } : {}} />
+                                        {t.label}
+                                        {(t.count ?? 0) > 0 && (
+                                            <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums" style={{ background: isActive ? "rgba(244,74,34,0.15)" : "rgba(255,255,255,0.06)", color: isActive ? "#F44A22" : "var(--v-text-tertiary)" }}>
+                                                {t.count}
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {/* Search */}
+                        <div className="flex items-center gap-2 flex-1 px-4 py-2.5 rounded-2xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            <Search className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--v-text-tertiary)" }} />
                             <input
                                 type="text"
                                 placeholder="Search events or hosts..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2.5 rounded-xl text-[13px] outline-none focus:ring-1"
-                                style={{
-                                    background: "var(--v-card)",
-                                    color: "var(--v-text-primary)",
-                                    border: "1px solid var(--v-border)",
-                                }}
+                                className="flex-1 bg-transparent text-[13px] font-medium outline-none"
+                                style={{ color: "var(--v-text-primary)" }}
                             />
+                            {searchQuery && (
+                                <button onClick={() => setSearchQuery("")} className="shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold transition-all" style={{ background: "rgba(255,255,255,0.1)", color: "var(--v-text-tertiary)" }}>×</button>
+                            )}
                         </div>
                     </div>
 

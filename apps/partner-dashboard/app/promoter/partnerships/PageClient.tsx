@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { RefreshCw } from "lucide-react";
 import {
     Users,
     Clock,
@@ -52,6 +53,10 @@ export default function PromoterPartnershipsPage() {
     const [activeTab, setActiveTab] = useState<Tab>("discover");
     const [profileTarget, setProfileTarget] = useState<NetworkProfile | null>(null);
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [discoverSearch, setDiscoverSearch] = useState("");
+    const [discoverType, setDiscoverType] = useState("venue");
+    const [discoverCity, setDiscoverCity] = useState("");
+    const [discoverRefresh, setDiscoverRefresh] = useState(0);
     const queryClient = useQueryClient();
 
     const promoterId = profile?.activeMembership?.partnerId;
@@ -82,9 +87,9 @@ export default function PromoterPartnershipsPage() {
 
     const TABS: { id: Tab; label: string; count?: number }[] = [
         { id: "discover", label: "Discover" },
+        { id: "active", label: "Active", count: active.length },
         { id: "incoming", label: "Incoming", count: pendingIncoming.length },
         { id: "pending", label: "Pending", count: pendingOutgoing.length },
-        { id: "active", label: "Active", count: active.length },
         { id: "declined", label: "Declined", count: declined.length },
     ];
 
@@ -99,50 +104,6 @@ export default function PromoterPartnershipsPage() {
         <VenuePageShell
             title="Partnerships"
             subtitle="Build your venue and host network to unlock affiliate links and event access"
-            actions={
-                <div className="flex gap-3">
-                    <div
-                        className="px-5 py-3 rounded-2xl text-center"
-                        style={{
-                            background: "var(--v-card)",
-                            border: "1px solid var(--v-border)",
-                        }}
-                    >
-                        <p
-                            className="text-[20px] font-black tabular-nums"
-                            style={{ color: "var(--v-text-primary)" }}
-                        >
-                            {active.length}
-                        </p>
-                        <p
-                            className="text-[10px] font-black uppercase tracking-widest"
-                            style={{ color: "var(--v-text-tertiary)" }}
-                        >
-                            Active
-                        </p>
-                    </div>
-                    <div
-                        className="px-5 py-3 rounded-2xl text-center"
-                        style={{
-                            background: "var(--v-card)",
-                            border: "1px solid var(--v-border)",
-                        }}
-                    >
-                        <p
-                            className="text-[20px] font-black tabular-nums"
-                            style={{ color: "#f59e0b" }}
-                        >
-                            {allPending.length}
-                        </p>
-                        <p
-                            className="text-[10px] font-black uppercase tracking-widest"
-                            style={{ color: "var(--v-text-tertiary)" }}
-                        >
-                            Pending
-                        </p>
-                    </div>
-                </div>
-            }
         >
             {/* ── Hero header ── */}
             <motion.div {...mp(0)}>
@@ -207,68 +168,83 @@ export default function PromoterPartnershipsPage() {
                 </div>
             </motion.div>
 
-            {/* ── Tabs ── */}
+            {/* ── Tab bar + search/filter — separate elements ── */}
             <motion.div {...mp(0.1)}>
-                <div
-                    className="flex items-center p-1.5 rounded-2xl w-fit overflow-x-auto"
-                    style={{
-                        background: "rgba(255,255,255,0.04)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                    }}
-                >
-                    {TABS.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all shrink-0"
-                            style={
-                                activeTab === tab.id
-                                    ? {
-                                          background: "var(--v-elevated)",
-                                          color: "var(--v-text-primary)",
-                                      }
-                                    : { color: "var(--v-text-tertiary)" }
-                            }
-                        >
-                            {tab.id === "discover" && (
-                                <Search
-                                    className={`w-4 h-4 ${activeTab === tab.id ? "text-[#818cf8]" : ""}`}
-                                />
-                            )}
-                            {tab.id === "incoming" && (
-                                <Bell
-                                    className={`w-4 h-4 ${activeTab === tab.id ? "text-[#a78bfa]" : ""}`}
-                                />
-                            )}
-                            {tab.id === "pending" && (
-                                <Clock
-                                    className={`w-4 h-4 ${activeTab === tab.id ? "text-[#f59e0b]" : ""}`}
-                                />
-                            )}
-                            {tab.id === "active" && (
-                                <CheckCircle2
-                                    className={`w-4 h-4 ${activeTab === tab.id ? "text-[#34d399]" : ""}`}
-                                />
-                            )}
-                            {tab.id === "declined" && <XCircle className="w-4 h-4" />}
-                            {tab.label}
-                            {tab.count !== undefined && tab.count > 0 && (
-                                <span
-                                    className="px-1.5 py-0.5 rounded-md text-[10px] font-black"
-                                    style={
-                                        activeTab === tab.id
+                <div className="flex items-center gap-3">
+                    {/* Tab pills */}
+                    <div className="flex items-center p-1.5 rounded-2xl shrink-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        {TABS.map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all shrink-0"
+                                style={activeTab === tab.id
+                                    ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" }
+                                    : { color: "var(--v-text-tertiary)" }}
+                            >
+                                {tab.id === "discover" && <Search className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#818cf8]" : ""}`} />}
+                                {tab.id === "incoming" && <Bell className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#a78bfa]" : ""}`} />}
+                                {tab.id === "pending" && <Clock className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#f59e0b]" : ""}`} />}
+                                {tab.id === "active" && <CheckCircle2 className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#34d399]" : ""}`} />}
+                                {tab.id === "declined" && <XCircle className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#f87171]" : ""}`} />}
+                                {tab.label}
+                                {tab.count !== undefined && tab.count > 0 && (
+                                    <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black"
+                                        style={activeTab === tab.id
                                             ? { background: "#7c3aed", color: "#fff" }
-                                            : {
-                                                  background: "rgba(255,255,255,0.06)",
-                                                  color: "var(--v-text-tertiary)",
-                                              }
-                                    }
-                                >
-                                    {tab.count}
-                                </span>
+                                            : { background: "rgba(255,255,255,0.08)", color: "var(--v-text-tertiary)" }}>
+                                        {tab.count}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Search + filters — separate */}
+                    <div className="flex items-center gap-2 flex-1">
+                        <div className="flex items-center gap-2 flex-1 px-4 py-2.5 rounded-2xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            <Search className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--v-text-tertiary)" }} />
+                            <input
+                                type="text"
+                                value={discoverSearch}
+                                onChange={e => setDiscoverSearch(e.target.value)}
+                                placeholder="Search venues & hosts..."
+                                className="flex-1 min-w-0 bg-transparent border-none outline-none text-[13px] font-medium placeholder:opacity-40"
+                                style={{ color: "var(--v-text-primary)" }}
+                            />
+                            {discoverSearch && (
+                                <button onClick={() => setDiscoverSearch("")} className="shrink-0 opacity-40 hover:opacity-70 transition-opacity">
+                                    <X className="w-3.5 h-3.5" style={{ color: "var(--v-text-secondary)" }} />
+                                </button>
                             )}
+                        </div>
+                        <div className="flex items-center gap-0.5 p-1.5 rounded-2xl shrink-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            {[{ value: "venue", label: "Venues" }, { value: "host", label: "Hosts" }].map(opt => (
+                                <button key={opt.value} onClick={() => setDiscoverType(opt.value)}
+                                    className="px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
+                                    style={discoverType === opt.value
+                                        ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" }
+                                        : { color: "var(--v-text-tertiary)" }}>
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                        <select value={discoverCity} onChange={e => setDiscoverCity(e.target.value)}
+                            className="border-none outline-none text-[12px] font-semibold cursor-pointer px-4 py-2.5 rounded-2xl shrink-0"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", color: discoverCity ? "var(--v-text-primary)" : "var(--v-text-tertiary)" }}>
+                            <option value="" style={{ background: "#18181B" }}>All Cities</option>
+                            <option value="Pune" style={{ background: "#18181B" }}>Pune</option>
+                            <option value="Mumbai" style={{ background: "#18181B" }}>Mumbai</option>
+                            <option value="Goa" style={{ background: "#18181B" }}>Goa</option>
+                            <option value="Bengaluru" style={{ background: "#18181B" }}>Bengaluru</option>
+                            <option value="Delhi" style={{ background: "#18181B" }}>Delhi</option>
+                        </select>
+                        <button onClick={() => setDiscoverRefresh(n => n + 1)}
+                            className="p-2.5 rounded-2xl flex items-center justify-center transition-all active:scale-95 shrink-0"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", color: "var(--v-text-tertiary)" }}>
+                            <RefreshCw className="w-3.5 h-3.5" />
                         </button>
-                    ))}
+                    </div>
                 </div>
             </motion.div>
 
@@ -286,6 +262,10 @@ export default function PromoterPartnershipsPage() {
                                 allowedTypes={["venue", "host"]}
                                 partnerId={promoterId}
                                 role="promoter"
+                                searchQuery={discoverSearch}
+                                filterType={discoverType as any}
+                                filterCity={discoverCity}
+                                refreshTrigger={discoverRefresh}
                             />
                         </motion.div>
                     ) : activeTab === "incoming" ? (
