@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Calendar, Clock, AlertCircle, Check, ChevronDown } from "lucide-react";
+import { Calendar, Clock, AlertCircle, Check, ChevronDown, Lock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatEventDate } from "@c1rcle/core/time";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { useSearchParams } from "next/navigation";
 
 interface SchedulingStepProps {
     formData: any;
@@ -16,6 +17,8 @@ interface SchedulingStepProps {
 
 export function SchedulingStep({ formData, updateFormData, validationErrors, role, profile }: SchedulingStepProps) {
     const { user } = useDashboardAuth();
+    const searchParams = useSearchParams();
+    const fromCalendar = !!(searchParams?.get('startTime') && searchParams?.get('endTime'));
     const [venueCalendar, setVenueCalendar] = useState<any[]>([]);
     const [isLoadingCalendar, setIsLoadingCalendar] = useState(false);
     const [showCalendar, setShowCalendar] = useState(false);
@@ -179,23 +182,45 @@ export function SchedulingStep({ formData, updateFormData, validationErrors, rol
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                        {TIME_FIELDS.map(({ label, key, hint }) => (
-                            <div key={key}>
-                                <div className="flex items-center justify-between mb-1">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">{label}</label>
-                                    <span className={`text-[9px] uppercase tracking-widest font-bold ${hint === 'Required' ? 'text-red-400' : 'text-text-tertiary/50'}`}>{hint}</span>
+                        {TIME_FIELDS.map(({ label, key, hint }) => {
+                            const isLocked = fromCalendar && (key === 'startTime' || key === 'endTime');
+                            return (
+                                <div key={key}>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">{label}</label>
+                                        {isLocked ? (
+                                            <span className="flex items-center gap-1 text-[9px] uppercase tracking-widest font-bold text-emerald-500">
+                                                <Lock className="w-2.5 h-2.5" />
+                                                From Calendar
+                                            </span>
+                                        ) : (
+                                            <span className={`text-[9px] uppercase tracking-widest font-bold ${hint === 'Required' ? 'text-red-400' : 'text-text-tertiary/50'}`}>{hint}</span>
+                                        )}
+                                    </div>
+                                    {isLocked ? (
+                                        <div
+                                            className="flex items-center gap-2 pl-3 pr-3 py-2.5 rounded-xl border"
+                                            style={{ background: "rgba(52,211,153,0.06)", borderColor: "rgba(52,211,153,0.2)" }}
+                                        >
+                                            <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#34D399" }} />
+                                            <span className="text-[13px] font-black tabular-nums" style={{ color: "#34D399" }}>
+                                                {(formData as any)[key] || "—"}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <div className="relative">
+                                            <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary pointer-events-none" />
+                                            <input
+                                                type="time"
+                                                value={(formData as any)[key] || ""}
+                                                onChange={(e) => updateFormData({ [key]: e.target.value })}
+                                                className="w-full pl-8 pr-2 py-2.5 rounded-xl bg-surface-secondary border border-border-subtle text-[13px] text-text-primary focus:outline-none focus:border-amber-400 transition-all"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="relative">
-                                    <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary pointer-events-none" />
-                                    <input
-                                        type="time"
-                                        value={(formData as any)[key] || ""}
-                                        onChange={(e) => updateFormData({ [key]: e.target.value })}
-                                        className="w-full pl-8 pr-2 py-2.5 rounded-xl bg-surface-secondary border border-border-subtle text-[13px] text-text-primary focus:outline-none focus:border-amber-400 transition-all"
-                                    />
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             </div>

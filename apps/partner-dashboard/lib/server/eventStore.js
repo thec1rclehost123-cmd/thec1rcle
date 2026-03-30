@@ -49,9 +49,36 @@ export async function listEvents({ city, limit, sort, search, host, venueId, lif
     }
 
 
-    // 2. Apply shared filtering and sorting
-    const results = filterAndSortEvents(events, { city, sort, search, host });
-    
+    // 2. Filter and sort.
+    // When querying for a venue dashboard (venueId present), we must NOT run
+    // filterAndSortEvents because it strips everything outside PUBLIC_LIFECYCLE_STATES
+    // (i.e. "scheduled" | "live"), which kills "submitted", "draft", "approved" etc.
+    // that the venue dashboard legitimately needs to show.
+    let results;
+    if (venueId) {
+        // Venue-dashboard path: apply only search/sort, keep all lifecycle states
+        results = events;
+        if (search) {
+            const lowerSearch = search.toLowerCase();
+            results = results.filter(e =>
+                e.title?.toLowerCase().includes(lowerSearch) ||
+                e.host?.toLowerCase().includes(lowerSearch)
+            );
+        }
+        if (lifecycle) {
+            results = results.filter(e => e.lifecycle === lifecycle);
+        }
+        // Sort: upcoming first, then by date desc
+        results.sort((a, b) => {
+            const da = new Date(a.startDate || a.date || 0).getTime();
+            const db_ = new Date(b.startDate || b.date || 0).getTime();
+            return db_ - da;
+        });
+    } else {
+        // Public / guest-portal path: use the shared filter (lifecycle whitelist applies)
+        results = filterAndSortEvents(events, { city, sort, search, host });
+    }
+
     // 3. Final map for client (normalization)
     const mapped = results.map(e => mapEventForClient(e));
 

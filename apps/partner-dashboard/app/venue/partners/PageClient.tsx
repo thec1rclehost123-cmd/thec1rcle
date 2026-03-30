@@ -107,6 +107,11 @@ export default function VenuePartnersPage() {
     const pendingOutgoing = allPending.filter(c => c.initiatedBy === "venue");
     const declined = connections.filter(c => c.status === "rejected");
 
+    const filterByUI = (list: Connection[]) =>
+        list
+            .filter(c => c.otherType === discoverType)
+            .filter(c => !discoverSearch || c.otherName.toLowerCase().includes(discoverSearch.toLowerCase()));
+
     const TABS: { id: Tab; label: string; count?: number }[] = [
         { id: "discover", label: "Discover" },
         { id: "active", label: "Active", count: active.length },
@@ -247,7 +252,7 @@ export default function VenuePartnersPage() {
                     ) : activeTab === "incoming" ? (
                         <motion.div key="incoming" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                             <PendingSection
-                                incoming={pendingIncoming}
+                                incoming={filterByUI(pendingIncoming)}
                                 outgoing={[]}
                                 loading={loading}
                                 processingId={processingId}
@@ -260,7 +265,7 @@ export default function VenuePartnersPage() {
                         <motion.div key="pending" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                             <PendingSection
                                 incoming={[]}
-                                outgoing={pendingOutgoing}
+                                outgoing={filterByUI(pendingOutgoing)}
                                 loading={loading}
                                 processingId={processingId}
                                 onAccept={setTierTarget}
@@ -274,11 +279,11 @@ export default function VenuePartnersPage() {
                                 <div className="flex justify-center py-32">
                                     <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#F44A22" }} />
                                 </div>
-                            ) : (activeTab === "active" ? active : declined).length === 0 ? (
+                            ) : (activeTab === "active" ? filterByUI(active) : filterByUI(declined)).length === 0 ? (
                                 <EmptyState tab={activeTab} />
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    {(activeTab === "active" ? active : declined).map(c => (
+                                    {(activeTab === "active" ? filterByUI(active) : filterByUI(declined)).map(c => (
                                         <PartnerCard
                                             key={c.id}
                                             connection={c}

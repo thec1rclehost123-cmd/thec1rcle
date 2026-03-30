@@ -37,6 +37,9 @@ interface Connection {
     createdAt: any;
     updatedAt?: any;
     message?: string;
+    photoURL?: string | null;
+    coverURL?: string | null;
+    city?: string;
 }
 
 export default function VenuePartnershipsPage() {
@@ -75,6 +78,9 @@ export default function VenuePartnershipsPage() {
                 createdAt: c.createdAt,
                 updatedAt: c.updatedAt,
                 message: c.message,
+                photoURL: c.photoURL || null,
+                coverURL: c.coverURL || null,
+                city: c.city || "",
             }));
             setConnections(all);
         } catch (err: any) {
@@ -183,7 +189,9 @@ export default function VenuePartnershipsPage() {
                                 id: conn.otherId,
                                 type: conn.otherType,
                                 name: conn.otherName,
-                                city: "",
+                                city: conn.city || "",
+                                photoURL: conn.photoURL,
+                                coverURL: conn.coverURL,
                                 connectionStatus:
                                     conn.status === "active" ? "active" : "approved",
                             })
@@ -268,8 +276,10 @@ function ActiveRoster({
                         <div className="flex items-center gap-4">
                             <div className="relative">
                                 <div className="absolute inset-0 bg-orange-500/20 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <div className="relative w-14 h-14 rounded-2xl bg-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-text-primary">
-                                    {conn.otherName[0]}
+                                <div className="relative w-14 h-14 rounded-2xl bg-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-text-primary overflow-hidden">
+                                    {conn.photoURL
+                                        ? <img src={conn.photoURL} alt={conn.otherName} className="w-full h-full object-cover" />
+                                        : conn.otherName[0]}
                                 </div>
                             </div>
                             <div>
@@ -378,8 +388,10 @@ function PendingRequests({
                         
                         <div className="relative flex items-center justify-between">
                             <div className="flex items-center gap-5">
-                                <div className="w-14 h-14 rounded-2xl bg-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-text-primary shadow-xl">
-                                    {req.otherName[0]}
+                                <div className="w-14 h-14 rounded-2xl bg-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-text-primary shadow-xl overflow-hidden">
+                                    {req.photoURL
+                                        ? <img src={req.photoURL} alt={req.otherName} className="w-full h-full object-cover" />
+                                        : req.otherName[0]}
                                 </div>
                                 <div>
                                     <h3 className="text-xl font-black text-text-primary tracking-tight">{req.otherName}</h3>

@@ -23,6 +23,8 @@ interface VenuePartner {
     partnershipStatus: "active" | "pending";
     createdAt?: string;
     initiatedBy?: string;
+    photoURL?: string | null;
+    coverURL?: string | null;
 }
 
 interface PromoterConnection {
@@ -32,6 +34,7 @@ interface PromoterConnection {
     status: "active" | "pending";
     initiatedBy?: string;
     createdAt?: string;
+    photoURL?: string | null;
 }
 
 const mp = (delay: number) => ({
@@ -52,6 +55,7 @@ export default function HostNetworkPage() {
     const [profileTarget, setProfileTarget] = useState<NetworkProfile | null>(null);
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [discoverSearch, setDiscoverSearch] = useState("");
+    const [discoverType, setDiscoverType] = useState("venue");
     const [discoverCity, setDiscoverCity] = useState("");
     const [discoverRefresh, setDiscoverRefresh] = useState(0);
 
@@ -80,6 +84,8 @@ export default function HostNetworkPage() {
                 partnershipStatus: (c.status === "active" || c.status === "approved") ? "active" : "pending",
                 createdAt: c.updatedAt || c.createdAt,
                 initiatedBy: c.initiatedBy,
+                photoURL: c.photoURL || null,
+                coverURL: c.coverURL || null,
             })));
 
             const promoterConns = allConns.filter((c: any) =>
@@ -92,6 +98,7 @@ export default function HostNetworkPage() {
                 status: (c.status === "active" || c.status === "approved") ? "active" : "pending",
                 initiatedBy: c.initiatedBy,
                 createdAt: c.updatedAt || c.createdAt,
+                photoURL: c.photoURL || null,
             })));
         } catch {
             setError(true);
@@ -229,7 +236,7 @@ export default function HostNetworkPage() {
                                 type="text"
                                 value={discoverSearch}
                                 onChange={e => setDiscoverSearch(e.target.value)}
-                                placeholder="Search venues..."
+                                placeholder="Search venues & promoters..."
                                 className="flex-1 min-w-0 bg-transparent border-none outline-none text-[13px] font-medium placeholder:opacity-40"
                                 style={{ color: "var(--v-text-primary)" }}
                             />
@@ -240,9 +247,15 @@ export default function HostNetworkPage() {
                             )}
                         </div>
                         <div className="flex items-center gap-0.5 p-1.5 rounded-2xl shrink-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                            <button className="px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all" style={{ background: "var(--v-elevated)", color: "var(--v-text-primary)" }}>
-                                Venues
-                            </button>
+                            {[{ value: "venue", label: "Venues" }, { value: "promoter", label: "Promoters" }].map(opt => (
+                                <button key={opt.value} onClick={() => setDiscoverType(opt.value)}
+                                    className="px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
+                                    style={discoverType === opt.value
+                                        ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" }
+                                        : { color: "var(--v-text-tertiary)" }}>
+                                    {opt.label}
+                                </button>
+                            ))}
                         </div>
                         <select value={discoverCity} onChange={e => setDiscoverCity(e.target.value)}
                             className="border-none outline-none text-[12px] font-semibold cursor-pointer px-4 py-2.5 rounded-2xl shrink-0"
@@ -279,10 +292,11 @@ export default function HostNetworkPage() {
                         {activeTab === "discover" ? (
                             <motion.div key="discover" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                                 <DiscoverDirectory
-                                    allowedTypes={["venue"]}
+                                    allowedTypes={["venue", "promoter"]}
                                     partnerId={hostId}
                                     role="host"
                                     searchQuery={discoverSearch}
+                                    filterType={discoverType as any}
                                     filterCity={discoverCity}
                                     refreshTrigger={discoverRefresh}
                                 />
@@ -294,20 +308,28 @@ export default function HostNetworkPage() {
                                     <div className="flex justify-center py-32">
                                         <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#F44A22" }} />
                                     </div>
-                                ) : pendingIncoming.length === 0 && pendingIncomingPromoters.length === 0 ? (
-                                    <EmptyState icon={<Bell className="w-8 h-8" style={{ color: "#F44A22" }} />} title="No incoming requests" subtitle="Partnership requests from venues and promoters will appear here for your approval." />
-                                ) : (
+                                ) : (() => {
+                                        const filteredVenueIncoming = discoverType === "venue"
+                                            ? pendingIncoming.filter(v => !discoverSearch || v.name.toLowerCase().includes(discoverSearch.toLowerCase()))
+                                            : [];
+                                        const filteredPromoterIncoming = discoverType === "promoter"
+                                            ? pendingIncomingPromoters.filter(p => !discoverSearch || p.name.toLowerCase().includes(discoverSearch.toLowerCase()))
+                                            : [];
+                                        if (filteredVenueIncoming.length === 0 && filteredPromoterIncoming.length === 0) {
+                                            return <EmptyState icon={<Bell className="w-8 h-8" style={{ color: "#F44A22" }} />} title="No incoming requests" subtitle="Partnership requests from venues and promoters will appear here for your approval." />;
+                                        }
+                                        return (
                                     <div className="space-y-8">
                                         {/* Venue requests */}
-                                        {pendingIncoming.length > 0 && (
+                                        {filteredVenueIncoming.length > 0 && (
                                             <div className="space-y-4">
-                                                {pendingIncomingPromoters.length > 0 && (
+                                                {filteredPromoterIncoming.length > 0 && (
                                                     <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-orange-500 pl-4">
                                                         Venues · Awaiting your approval
                                                     </p>
                                                 )}
                                                 <AnimatePresence mode="popLayout">
-                                                    {pendingIncoming.map(v => (
+                                                    {filteredVenueIncoming.map(v => (
                                                         <motion.div key={v.connectionId} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
                                                             className="border border-border-subtle p-6 rounded-[2rem]" style={{ background: "var(--v-card)" }}>
                                                             <div className="flex items-center justify-between">
@@ -352,15 +374,15 @@ export default function HostNetworkPage() {
                                         )}
 
                                         {/* Promoter requests */}
-                                        {pendingIncomingPromoters.length > 0 && (
+                                        {filteredPromoterIncoming.length > 0 && (
                                             <div className="space-y-4">
-                                                {pendingIncoming.length > 0 && (
+                                                {filteredVenueIncoming.length > 0 && (
                                                     <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-[#818cf8] pl-4">
                                                         Promoters · Awaiting your approval
                                                     </p>
                                                 )}
                                                 <AnimatePresence mode="popLayout">
-                                                    {pendingIncomingPromoters.map(p => (
+                                                    {filteredPromoterIncoming.map(p => (
                                                         <motion.div key={p.connectionId} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
                                                             className="border border-border-subtle p-6 rounded-[2rem]" style={{ background: "var(--v-card)" }}>
                                                             <div className="flex items-center justify-between">
@@ -403,7 +425,8 @@ export default function HostNetworkPage() {
                                             </div>
                                         )}
                                     </div>
-                                )}
+                                        );
+                                    })()}
                             </motion.div>
 
                         ) : activeTab === "pending" ? (
@@ -412,11 +435,16 @@ export default function HostNetworkPage() {
                                     <div className="flex justify-center py-32">
                                         <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#F44A22" }} />
                                     </div>
-                                ) : pendingOutgoing.length === 0 ? (
-                                    <EmptyState icon={<Clock className="w-8 h-8" style={{ color: "#f59e0b" }} />} title="No sent requests" subtitle="Requests you've sent to venues awaiting their approval will appear here." />
-                                ) : (
+                                ) : (() => {
+                                    const filteredPendingOutgoing = discoverType === "venue"
+                                        ? pendingOutgoing.filter(v => !discoverSearch || v.name.toLowerCase().includes(discoverSearch.toLowerCase()))
+                                        : [];
+                                    if (filteredPendingOutgoing.length === 0) {
+                                        return <EmptyState icon={<Clock className="w-8 h-8" style={{ color: "#f59e0b" }} />} title="No sent requests" subtitle="Requests you've sent to venues awaiting their approval will appear here." />;
+                                    }
+                                    return (
                                     <div className="space-y-4">
-                                        {pendingOutgoing.map(v => (
+                                        {filteredPendingOutgoing.map(v => (
                                             <motion.div key={v.connectionId} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                                                 className="border border-border-subtle p-6 rounded-[2rem] opacity-75" style={{ background: "var(--v-card)" }}>
                                                 <div className="flex items-center justify-between">
@@ -442,7 +470,8 @@ export default function HostNetworkPage() {
                                             </motion.div>
                                         ))}
                                     </div>
-                                )}
+                                    );
+                                    })()}
                             </motion.div>
 
                         ) : (
@@ -453,48 +482,41 @@ export default function HostNetworkPage() {
                                             <div key={i} className="h-52 rounded-[32px] animate-pulse border border-border-subtle" style={{ background: "var(--v-card)" }} />
                                         ))}
                                     </div>
-                                ) : activeVenues.length === 0 && activePromoters.length === 0 ? (
-                                    <EmptyState
-                                        icon={<Building2 className="w-8 h-8" style={{ color: "#34d399" }} />}
-                                        title="No active partners"
-                                        subtitle="Venues and promoters will appear here once connections are approved."
-                                    />
-                                ) : (
-                                    <div className="space-y-8">
-                                        {activeVenues.length > 0 && (
-                                            <div className="space-y-4">
-                                                {activePromoters.length > 0 && (
-                                                    <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-[#34d399] pl-4">Venues</p>
-                                                )}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                                    {activeVenues.map(v => (
-                                                        <VenueCard
-                                                            key={v.id}
-                                                            venue={v}
-                                                            onViewProfile={() => setProfileTarget({ id: v.id, type: "venue", name: v.name, city: v.city, connectionStatus: "active" })}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {activePromoters.length > 0 && (
-                                            <div className="space-y-4">
-                                                {activeVenues.length > 0 && (
-                                                    <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-[#818cf8] pl-4">Promoters</p>
-                                                )}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                                    {activePromoters.map(p => (
-                                                        <PromoterCard
-                                                            key={p.id}
-                                                            promoter={p}
-                                                            onViewProfile={() => setProfileTarget({ id: p.id, type: "promoter" as any, name: p.name, city: "", connectionStatus: "active" })}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                ) : (() => {
+                                    const filteredVenues = discoverType === "venue"
+                                        ? activeVenues.filter(v => !discoverSearch || v.name.toLowerCase().includes(discoverSearch.toLowerCase()))
+                                        : [];
+                                    const filteredPromoters = discoverType === "promoter"
+                                        ? activePromoters.filter(p => !discoverSearch || p.name.toLowerCase().includes(discoverSearch.toLowerCase()))
+                                        : [];
+                                    if (filteredVenues.length === 0 && filteredPromoters.length === 0) {
+                                        return (
+                                            <EmptyState
+                                                icon={<Building2 className="w-8 h-8" style={{ color: "#34d399" }} />}
+                                                title="No active partners"
+                                                subtitle="Venues and promoters will appear here once connections are approved."
+                                            />
+                                        );
+                                    }
+                                    return (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                            {filteredVenues.map(v => (
+                                                <VenueCard
+                                                    key={v.id}
+                                                    venue={v}
+                                                    onViewProfile={() => setProfileTarget({ id: v.id, type: "venue", name: v.name, city: v.city, connectionStatus: "active" })}
+                                                />
+                                            ))}
+                                            {filteredPromoters.map(p => (
+                                                <PromoterCard
+                                                    key={p.id}
+                                                    promoter={p}
+                                                    onViewProfile={() => setProfileTarget({ id: p.id, type: "promoter" as any, name: p.name, city: "", connectionStatus: "active" })}
+                                                />
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
                             </motion.div>
                         )}
                     </AnimatePresence>

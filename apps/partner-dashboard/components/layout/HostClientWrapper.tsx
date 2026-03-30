@@ -13,6 +13,7 @@ import {
     Banknote,
     Settings,
     Layout,
+    Inbox,
 } from "lucide-react";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
@@ -30,6 +31,7 @@ const MENU_SECTIONS = [
         items: [
             { icon: LayoutDashboard, label: "Overview",  href: "/host" },
             { icon: Zap,             label: "Events",    href: "/host/events" },
+            { icon: Inbox,           label: "Requests",  href: "/host/events/requests" },
             { icon: Calendar,        label: "Calendar",  href: "/host/calendar" },
             { icon: Network,         label: "Network",   href: "/host/network" },
             { icon: Users,           label: "Audience",  href: "/host/audience" },
@@ -44,8 +46,9 @@ const MENU_SECTIONS = [
 // ── Tab-to-href mapping ────────────────────────────────────────────────────────
 const HOST_HREF_TO_TAB: Record<string, string> = {
     "/host":            "overview",
-    "/host/events":     "events",
-    "/host/calendar":   "calendar",
+    "/host/events":          "events",
+    "/host/events/requests": "requests",
+    "/host/calendar":        "calendar",
     "/host/network":    "network",
     "/host/audience":   "audience",
     "/host/analytics":  "analytics",

@@ -183,26 +183,74 @@ export default function EventsManagementPage() {
         } catch (e: any) { alert(e.message); }
     }, [selectedEvent?.id, user]);
 
-    const getStatus = (e: Event) => e.lifecycle || e.status;
+    const getStatus = (e: Event) => (e as any).lifecycle || e.status;
+
+    // An event is "live now" if its lifecycle is "live" OR if it's scheduled/approved
+    // and the current wall-clock time falls within its start→end window.
+    const isEventLiveNow = (e: any): boolean => {
+        const s = getStatus(e);
+        if (s === EVENT_LIFECYCLE.LIVE) return true;
+        if (s !== EVENT_LIFECYCLE.SCHEDULED && s !== EVENT_LIFECYCLE.APPROVED) return false;
+        const startDate: string = e.startDate || e.date || "";
+        const startTime: string = e.startTime || "00:00";
+        const endTime: string = e.endTime || "23:59";
+        if (!startDate) return false;
+        const now = new Date();
+        // Build start datetime in local time
+        const [sh, sm] = startTime.split(":").map(Number);
+        const start = new Date(startDate);
+        start.setHours(sh, sm, 0, 0);
+        // End may be next day if endTime < startTime (nightlife: e.g. 21:00 → 04:00)
+        const [eh, em] = endTime.split(":").map(Number);
+        const end = new Date(startDate);
+        end.setHours(eh, em, 0, 0);
+        if (end <= start) end.setDate(end.getDate() + 1); // crosses midnight
+        return now >= start && now <= end;
+    };
+
+    // An event is "stale" (over) if it ended in the past and is not completed/cancelled/denied
+    const isEventOver = (e: any): boolean => {
+        const s = getStatus(e);
+        if ([EVENT_LIFECYCLE.COMPLETED, EVENT_LIFECYCLE.CANCELLED, EVENT_LIFECYCLE.DENIED, EVENT_LIFECYCLE.DELETED, EVENT_LIFECYCLE.DRAFT].includes(s)) return false;
+        const startDate: string = e.startDate || e.date || "";
+        const endTime: string = e.endTime || "23:59";
+        if (!startDate) return false;
+        const [eh, em] = endTime.split(":").map(Number);
+        const end = new Date(startDate);
+        end.setHours(eh, em, 0, 0);
+        const startTime: string = e.startTime || "00:00";
+        const [sh, sm] = startTime.split(":").map(Number);
+        if (eh * 60 + em < sh * 60 + sm) end.setDate(end.getDate() + 1); // crosses midnight
+        return new Date() > end;
+    };
 
     const filteredEvents = useMemo(() => events.filter((e) => {
         const s = getStatus(e);
-        let match = filter === "all";
-        if (filter === "draft") match = e.eventType === "venue" && s === EVENT_LIFECYCLE.DRAFT;
-        if (filter === "pending") match = e.eventType === "host" && s === EVENT_LIFECYCLE.SUBMITTED;
-        if (filter === "live") match = s === EVENT_LIFECYCLE.LIVE;
-        if (filter === "approved") match = s === EVENT_LIFECYCLE.APPROVED || s === EVENT_LIFECYCLE.SCHEDULED;
-        if (filter === "completed") match = s === EVENT_LIFECYCLE.COMPLETED;
+        let match = false;
+        if (filter === "all") {
+            // "All" excludes deleted/denied/draft-host and past events (show completed separately)
+            match = s !== EVENT_LIFECYCLE.DELETED && s !== EVENT_LIFECYCLE.DENIED && !isEventOver(e);
+        } else if (filter === "draft") {
+            match = e.eventType === "venue" && s === EVENT_LIFECYCLE.DRAFT;
+        } else if (filter === "pending") {
+            match = e.eventType === "host" && s === EVENT_LIFECYCLE.SUBMITTED;
+        } else if (filter === "live") {
+            match = isEventLiveNow(e);
+        } else if (filter === "approved") {
+            match = (s === EVENT_LIFECYCLE.APPROVED || s === EVENT_LIFECYCLE.SCHEDULED) && !isEventLiveNow(e) && !isEventOver(e);
+        } else if (filter === "completed") {
+            match = s === EVENT_LIFECYCLE.COMPLETED || isEventOver(e);
+        }
         return match && (
             e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             e.hostName.toLowerCase().includes(searchQuery.toLowerCase())
         );
     }), [events, filter, searchQuery]);
 
-    const liveCount = useMemo(() => events.filter((e) => getStatus(e) === EVENT_LIFECYCLE.LIVE).length, [events]);
+    const liveCount = useMemo(() => events.filter(isEventLiveNow).length, [events]);
     const pendingCount = useMemo(() => events.filter((e) => e.eventType === "host" && getStatus(e) === EVENT_LIFECYCLE.SUBMITTED).length, [events]);
     const draftCount = useMemo(() => events.filter((e) => e.eventType === "venue" && getStatus(e) === EVENT_LIFECYCLE.DRAFT).length, [events]);
-    const publishedCount = useMemo(() => events.filter((e) => [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.APPROVED].includes(getStatus(e) as string)).length, [events]);
+    const publishedCount = useMemo(() => events.filter((e) => [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.APPROVED].includes(getStatus(e) as string) && !isEventLiveNow(e) && !isEventOver(e)).length, [events]);
     const totalRevenue = useMemo(() => events.reduce((s, e) => s + (e.revenue || 0), 0), [events]);
 
     const filterTabs = [

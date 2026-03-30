@@ -43,6 +43,11 @@ interface DiscoveredPartner {
     noShowRate?: number;
     instagram?: string;
     phone?: string;
+    photoURL?: string | null;
+    coverURL?: string | null;
+    hostsConnected?: number;
+    promotersConnected?: number;
+    ticketsSold?: number;
 }
 
 interface DiscoverDirectoryProps {
@@ -153,6 +158,8 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role, searchQuery: 
             phone: partner.phone,
             isVerified: partner.isVerified,
             connectionStatus: partner.connectionStatus,
+            photoURL: partner.photoURL,
+            coverURL: partner.coverURL,
             capacity: partner.capacity,
             operatingHours: partner.operatingHours,
             soundSystem: partner.soundSystem,
@@ -161,6 +168,9 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role, searchQuery: 
             audienceDemographic: partner.audienceDemographic,
             noShowRate: partner.noShowRate,
             eventsCount: partner.eventsCount,
+            hostsConnected: partner.hostsConnected,
+            promotersConnected: partner.promotersConnected,
+            ticketsSold: partner.ticketsSold,
         });
     };
 
@@ -333,8 +343,10 @@ function DirectoryCard({
 
                 <div className="flex items-start justify-between mb-6 relative z-10">
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-surface-secondary to-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-text-primary shadow-xl group-hover:scale-105 transition-transform">
-                            {partner.name[0]}
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-surface-secondary to-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-text-primary shadow-xl group-hover:scale-105 transition-transform overflow-hidden">
+                            {partner.photoURL ? (
+                                <img src={partner.photoURL} alt={partner.name} className="w-full h-full object-cover" />
+                            ) : partner.name[0]}
                         </div>
                         <div>
                             <h3 className="text-headline-sm font-black text-text-primary leading-none group-hover:text-accent-primary transition-colors">

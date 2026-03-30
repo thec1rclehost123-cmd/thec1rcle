@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
     ChevronLeft, ChevronRight, ChevronDown, Calendar, Clock, Lock,
-    X, Building2, ArrowLeft, Music,
+    X, Building2, ArrowLeft, Music, Check,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
@@ -551,6 +551,8 @@ function RightPanel({ dateStr, data, onClose, onConfirm }: {
     // Custom time picker state — defaults match a typical late-night event
     const [startTime, setStartTime] = useState("21:00");
     const [endTime, setEndTime] = useState("04:00");
+    const [timeModalOpen, setTimeModalOpen] = useState(false);
+    const [timeConfirmed, setTimeConfirmed] = useState(false);
 
     // Times that fall inside any existing event's window → blocked in FROM picker
     const fromDisabled = useMemo<Set<string>>(() => {
@@ -718,56 +720,50 @@ function RightPanel({ dateStr, data, onClose, onConfirm }: {
                         </p>
                     </div>
                 ) : (
-                    /* ── Available: timeline + time slot picker ── */
+                    /* ── Available: timeline + select time trigger ── */
                     <div className="px-5 pt-5 pb-4 space-y-5">
-                        {/* Night schedule timeline */}
                         <NightScheduleTimeline events={events} blockData={null} isActive={isActive} nowPct={nowPct} nowTimeStr={nowTimeStr} />
 
-                        {/* Custom time picker — FROM / UNTIL */}
-                        <div
-                            className="rounded-2xl p-4 space-y-4"
-                            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
+                        {/* Select Time trigger — opens modal */}
+                        <button
+                            onClick={() => setTimeModalOpen(true)}
+                            className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all duration-150 active:scale-[0.99] hover:brightness-110"
+                            style={{
+                                background: timeConfirmed ? "rgba(52,211,153,0.07)" : "rgba(244,74,34,0.07)",
+                                border: timeConfirmed ? "1px solid rgba(52,211,153,0.25)" : "1px solid rgba(244,74,34,0.2)",
+                            }}
                         >
-                            {/* Header row */}
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: "rgba(244,74,34,0.15)", border: "1px solid rgba(244,74,34,0.3)" }}>
-                                        <Clock className="w-3.5 h-3.5" style={{ color: C.orange }} />
-                                    </div>
-                                    <span className="text-[11px] font-black uppercase tracking-widest text-white">Select Time</span>
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{
+                                    background: timeConfirmed ? "rgba(52,211,153,0.15)" : "rgba(244,74,34,0.15)",
+                                    border: timeConfirmed ? "1px solid rgba(52,211,153,0.35)" : "1px solid rgba(244,74,34,0.3)",
+                                }}>
+                                    {timeConfirmed
+                                        ? <Check className="w-3.5 h-3.5" style={{ color: "#34D399" }} />
+                                        : <Clock className="w-3.5 h-3.5" style={{ color: "#F44A22" }} />
+                                    }
                                 </div>
-                                {/* Live time range pill */}
-                                <div
-                                    className="px-3 py-1 rounded-full text-[10px] font-black tabular-nums"
-                                    style={{
-                                        background: hasOverlap ? "rgba(248,113,113,0.12)" : "rgba(244,74,34,0.12)",
-                                        color: hasOverlap ? C.red : C.orange,
-                                        border: `1px solid ${hasOverlap ? "rgba(248,113,113,0.3)" : "rgba(244,74,34,0.3)"}`,
-                                    }}
-                                >
-                                    {fmt12(startTime)} — {fmt12(endTime)}
-                                </div>
-                            </div>
-
-                            {/* FROM / UNTIL pickers */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <TimePicker label="FROM" value={startTime} onChange={handleStartChange} disabledTimes={fromDisabled} />
-                                <TimePicker label="UNTIL" value={endTime} onChange={setEndTime} disabledTimes={untilDisabled} />
-                            </div>
-
-                            {/* Overlap warning */}
-                            {hasOverlap && (
-                                <div
-                                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
-                                    style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}
-                                >
-                                    <Lock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.red }} />
-                                    <p className="text-[10px] font-black" style={{ color: "rgba(248,113,113,0.8)" }}>
-                                        Overlaps with an existing event — adjust your times
+                                <div className="text-left">
+                                    <p className="text-[11px] font-black uppercase tracking-widest text-white">
+                                        {timeConfirmed ? "Time Set" : "Select Time"}
+                                    </p>
+                                    <p className="text-[9px] font-medium mt-0.5" style={{ color: timeConfirmed ? "rgba(52,211,153,0.6)" : "rgba(255,255,255,0.3)" }}>
+                                        {timeConfirmed ? "Tap to change" : "Tap to choose slot"}
                                     </p>
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[12px] font-black tabular-nums px-3 py-1 rounded-full" style={{
+                                    background: timeConfirmed ? "rgba(52,211,153,0.12)" : "rgba(244,74,34,0.15)",
+                                    color: timeConfirmed ? "#34D399" : "#F44A22",
+                                    border: timeConfirmed ? "1px solid rgba(52,211,153,0.25)" : "1px solid rgba(244,74,34,0.25)",
+                                }}>
+                                    {fmt12(startTime)} — {fmt12(endTime)}
+                                </span>
+                                <ChevronRight className="w-4 h-4" style={{ color: timeConfirmed ? "rgba(52,211,153,0.5)" : "rgba(244,74,34,0.5)" }} />
+                            </div>
+                        </button>
+
                     </div>
                 )}
             </div>
@@ -779,17 +775,18 @@ function RightPanel({ dateStr, data, onClose, onConfirm }: {
             >
                 {!isBlocked && (
                     <button
-                        onClick={() => onConfirm(startTime, endTime)}
-                        disabled={hasOverlap}
-                        className="flex-1 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-150"
+                        onClick={() => timeConfirmed && !hasOverlap && onConfirm(startTime, endTime)}
+                        disabled={!timeConfirmed || hasOverlap}
+                        className="flex-1 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
                         style={{
-                            background: hasOverlap ? "rgba(255,255,255,0.06)" : C.orange,
-                            color: hasOverlap ? "rgba(255,255,255,0.2)" : "white",
-                            cursor: hasOverlap ? "not-allowed" : "pointer",
-                            boxShadow: hasOverlap ? "none" : "0 4px 20px rgba(244,74,34,0.35)",
+                            background: (!timeConfirmed || hasOverlap) ? "rgba(255,255,255,0.06)" : "linear-gradient(135deg, #F44A22 0%, #FF6B4A 100%)",
+                            color: (!timeConfirmed || hasOverlap) ? "rgba(255,255,255,0.2)" : "white",
+                            cursor: (!timeConfirmed || hasOverlap) ? "not-allowed" : "pointer",
+                            boxShadow: (!timeConfirmed || hasOverlap) ? "none" : "0 4px 24px rgba(244,74,34,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
                         }}
                     >
-                        Continue to Create Event
+                        {!timeConfirmed && <Lock className="w-3 h-3" />}
+                        {!timeConfirmed ? "Select a Time First" : "Continue to Create Event"}
                     </button>
                 )}
                 <button
@@ -804,11 +801,104 @@ function RightPanel({ dateStr, data, onClose, onConfirm }: {
                     Close
                 </button>
             </div>
+
+            {/* ── Time selection modal ── */}
+            {timeModalOpen && (
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+                    style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
+                    onClick={() => setTimeModalOpen(false)}
+                >
+                    <div
+                        className="w-full max-w-2xl rounded-3xl overflow-hidden"
+                        style={{ background: "#141418", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Modal header */}
+                        <div className="flex items-center justify-between px-6 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                            <div className="flex items-center gap-3.5">
+                                <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "rgba(244,74,34,0.15)", border: "1px solid rgba(244,74,34,0.3)" }}>
+                                    <Clock className="w-5 h-5" style={{ color: "#F44A22" }} />
+                                </div>
+                                <div>
+                                    <p className="text-[16px] font-black text-white">Select Time Slot</p>
+                                    <p className="text-[12px] font-medium mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                                        {dayName}, {monthStr} {dayNum}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setTimeModalOpen(false)}
+                                className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-white/10"
+                                style={{ background: "rgba(255,255,255,0.06)" }}
+                            >
+                                <X className="w-5 h-5" style={{ color: "rgba(255,255,255,0.5)" }} />
+                            </button>
+                        </div>
+
+                        {/* Modal body */}
+                        <div className="px-6 py-5 space-y-5">
+                            {/* FROM */}
+                            <TimePicker label="FROM" value={startTime} onChange={handleStartChange} disabledTimes={fromDisabled} />
+
+                            {/* Range bar */}
+                            {(() => {
+                                const si = BLOCK_TIMES.indexOf(startTime);
+                                const ei = BLOCK_TIMES.indexOf(endTime);
+                                const total = BLOCK_TIMES.length;
+                                const left = (si / total) * 100;
+                                const rawWidth = si <= ei ? ((ei - si) / total) * 100 : ((total - si + ei) / total) * 100;
+                                return (
+                                    <div className="relative h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
+                                        <div
+                                            className="absolute top-0 h-full rounded-full transition-all duration-200"
+                                            style={{
+                                                left: `${left}%`,
+                                                width: `${Math.min(rawWidth, 100 - left)}%`,
+                                                background: hasOverlap ? "rgba(248,113,113,0.7)" : "linear-gradient(90deg, #F44A22, #FF6B4A)",
+                                                boxShadow: hasOverlap ? "0 0 6px rgba(248,113,113,0.4)" : "0 0 10px rgba(244,74,34,0.55)",
+                                            }}
+                                        />
+                                    </div>
+                                );
+                            })()}
+
+                            {/* UNTIL */}
+                            <TimePicker label="UNTIL" value={endTime} onChange={setEndTime} disabledTimes={untilDisabled} />
+
+                            {/* Overlap warning */}
+                            {hasOverlap && (
+                                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
+                                    <Lock className="w-4 h-4 flex-shrink-0" style={{ color: C.red }} />
+                                    <p className="text-[12px] font-black" style={{ color: "rgba(248,113,113,0.8)" }}>
+                                        Overlaps with an existing event — adjust your times
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Confirm button */}
+                            <button
+                                onClick={() => { if (!hasOverlap) { setTimeConfirmed(true); setTimeModalOpen(false); } }}
+                                disabled={hasOverlap}
+                                className="w-full py-4 rounded-2xl text-[14px] font-black uppercase tracking-widest transition-all duration-200 active:scale-[0.98]"
+                                style={{
+                                    background: hasOverlap ? "rgba(255,255,255,0.06)" : "linear-gradient(135deg, #F44A22 0%, #FF6B4A 100%)",
+                                    color: hasOverlap ? "rgba(255,255,255,0.2)" : "white",
+                                    cursor: hasOverlap ? "not-allowed" : "pointer",
+                                    boxShadow: hasOverlap ? "none" : "0 4px 24px rgba(244,74,34,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
+                                }}
+                            >
+                                Confirm Time
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
-// ── Time Picker (mirrors OperatingCalendar's TimePicker exactly) ────────────
+// ── Time Picker (chip-based + AM/PM toggle) ──────────────────────────────────
 
 function TimePicker({ label, value, onChange, disabledTimes = new Set() }: {
     label: string;
@@ -816,96 +906,130 @@ function TimePicker({ label, value, onChange, disabledTimes = new Set() }: {
     onChange: (v: string) => void;
     disabledTimes?: Set<string>;
 }) {
-    const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
-    const listRef = useRef<HTMLDivElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    const getPeriod = (t: string): "AM" | "PM" => parseInt(t.split(":")[0]) >= 12 ? "PM" : "AM";
+    const [period, setPeriod] = useState<"AM" | "PM">(() => getPeriod(value));
+
+    // Keep period in sync when parent changes value externally
+    useEffect(() => { setPeriod(getPeriod(value)); }, [value]);
 
     useEffect(() => {
-        const handler = (e: MouseEvent) => {
-            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-        };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
-    }, []);
+        if (!scrollRef.current) return;
+        const el = scrollRef.current.querySelector("[data-selected='true']") as HTMLElement | null;
+        if (el) el.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    }, [value, period]);
 
-    useEffect(() => {
-        if (!open || !listRef.current) return;
-        const sel = listRef.current.querySelector("[data-selected='true']") as HTMLElement | null;
-        if (sel) sel.scrollIntoView({ block: "center" });
-    }, [open]);
+    const handlePeriodChange = (p: "AM" | "PM") => {
+        setPeriod(p);
+        const inPeriod = BLOCK_TIMES.filter(t => getPeriod(t) === p);
+        if (!inPeriod.includes(value)) {
+            const first = inPeriod.find(t => !disabledTimes.has(t));
+            if (first) onChange(first);
+        }
+    };
+
+    const visibleTimes = BLOCK_TIMES.filter(t => getPeriod(t) === period);
+    const visibleIdx = visibleTimes.indexOf(value);
+    const canPrev = visibleIdx > 0 && !disabledTimes.has(visibleTimes[visibleIdx - 1]);
+    const canNext = visibleIdx < visibleTimes.length - 1 && !disabledTimes.has(visibleTimes[visibleIdx + 1]);
 
     return (
-        <div ref={ref} className="relative">
-            <label className="block text-[9px] font-black uppercase tracking-widest mb-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
-                {label}
-            </label>
-            <button
-                type="button"
-                onClick={() => setOpen(o => !o)}
-                className="w-full flex items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 text-[13px] font-black text-white border transition-colors"
-                style={{
-                    background: "#0f0f14",
-                    borderColor: open ? "rgba(244,74,34,0.5)" : "rgba(255,255,255,0.08)",
-                    boxShadow: open ? "0 0 0 3px rgba(244,74,34,0.08)" : "none",
-                }}
-            >
-                <span className="tabular-nums">{fmt12(value)}</span>
-                <ChevronDown
-                    className="w-3.5 h-3.5 flex-shrink-0 transition-transform"
-                    style={{ color: "rgba(255,255,255,0.4)", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
-                />
-            </button>
-
-            {open && (
-                <div
-                    className="absolute left-0 right-0 z-50 rounded-2xl border overflow-hidden"
-                    style={{
-                        bottom: "calc(100% + 6px)",
-                        background: "#1a1a22",
-                        borderColor: "rgba(255,255,255,0.1)",
-                        boxShadow: "0 -16px 40px rgba(0,0,0,0.6)",
-                    }}
-                >
+        <div className="space-y-3">
+            {/* Row: label | AM/PM toggle | < time > */}
+            <div className="flex items-center justify-between gap-2">
+                <span className="text-[13px] font-black uppercase tracking-widest shrink-0" style={{ color: "rgba(255,255,255,0.35)" }}>
+                    {label}
+                </span>
+                <div className="flex items-center gap-3">
                     <div
-                        ref={listRef}
-                        className="overflow-y-auto"
-                        style={{ maxHeight: 200, scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.08) transparent" }}
+                        className="flex items-center gap-0.5 p-1 rounded-lg"
+                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.06)" }}
                     >
-                        {BLOCK_TIMES.map(t => {
-                            const isSel = t === value;
-                            const isDisabled = disabledTimes.has(t);
-                            return (
-                                <button
-                                    key={t}
-                                    data-selected={isSel}
-                                    type="button"
-                                    disabled={isDisabled}
-                                    onClick={() => { if (!isDisabled) { onChange(t); setOpen(false); } }}
-                                    className="w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors relative"
-                                    style={{
-                                        background: isSel ? "rgba(244,74,34,0.15)" : "transparent",
-                                        color: isDisabled ? "rgba(255,255,255,0.18)" : isSel ? "#F44A22" : "rgba(255,255,255,0.7)",
-                                        cursor: isDisabled ? "not-allowed" : "pointer",
-                                    }}
-                                    onMouseEnter={e => { if (!isSel && !isDisabled) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)"; }}
-                                    onMouseLeave={e => { if (!isSel && !isDisabled) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                                >
-                                    <span className="text-[13px] font-black tabular-nums">{fmt12(t)}</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[9px] font-black opacity-40 tabular-nums">{t}</span>
-                                        {isDisabled && (
-                                            <Lock className="w-2.5 h-2.5 flex-shrink-0" style={{ color: "rgba(248,113,113,0.5)" }} />
-                                        )}
-                                        {isSel && !isDisabled && (
-                                            <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#F44A22", boxShadow: "0 0 6px rgba(244,74,34,0.8)" }} />
-                                        )}
-                                    </div>
-                                </button>
-                            );
-                        })}
+                        {(["PM", "AM"] as const).map(p => (
+                            <button
+                                key={p}
+                                type="button"
+                                onClick={() => handlePeriodChange(p)}
+                                className="px-3 py-1.5 rounded-md text-[11px] font-black uppercase tracking-widest transition-all duration-150"
+                                style={{
+                                    background: period === p ? "#F44A22" : "transparent",
+                                    color: period === p ? "#fff" : "rgba(255,255,255,0.3)",
+                                    boxShadow: period === p ? "0 0 8px rgba(244,74,34,0.35)" : "none",
+                                }}
+                            >
+                                {p}
+                            </button>
+                        ))}
+                    </div>
+                    {/* < time > */}
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            disabled={!canPrev}
+                            onClick={() => canPrev && onChange(visibleTimes[visibleIdx - 1])}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 active:scale-90"
+                            style={{
+                                background: canPrev ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)",
+                                color: canPrev ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.15)",
+                                border: "1px solid rgba(255,255,255,0.07)",
+                                cursor: canPrev ? "pointer" : "not-allowed",
+                            }}
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="text-[17px] font-black tabular-nums min-w-[90px] text-center" style={{ color: "#F44A22", textShadow: "0 0 14px rgba(244,74,34,0.6)" }}>
+                            {fmt12(value)}
+                        </span>
+                        <button
+                            type="button"
+                            disabled={!canNext}
+                            onClick={() => canNext && onChange(visibleTimes[visibleIdx + 1])}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 active:scale-90"
+                            style={{
+                                background: canNext ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)",
+                                color: canNext ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.15)",
+                                border: "1px solid rgba(255,255,255,0.07)",
+                                cursor: canNext ? "pointer" : "not-allowed",
+                            }}
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
                     </div>
                 </div>
-            )}
+            </div>
+            {/* Chip row — only the active period's times */}
+            <div
+                ref={scrollRef}
+                className="flex gap-2.5 overflow-x-auto py-1"
+                style={{ scrollbarWidth: "none" }}
+            >
+                {visibleTimes.map(t => {
+                    const isSel = t === value;
+                    const isDisabled = disabledTimes.has(t);
+                    return (
+                        <button
+                            key={t}
+                            data-selected={isSel}
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => { if (!isDisabled) onChange(t); }}
+                            className="flex-shrink-0 px-4 py-2.5 rounded-full text-[13px] font-black tabular-nums transition-all duration-150 active:scale-95"
+                            style={{
+                                background: isSel ? "#F44A22" : isDisabled ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.05)",
+                                color: isSel ? "#fff" : isDisabled ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.55)",
+                                border: isSel ? "1px solid rgba(244,74,34,0.7)" : isDisabled ? "1px solid rgba(255,255,255,0.03)" : "1px solid rgba(255,255,255,0.07)",
+                                boxShadow: isSel ? "0 0 14px rgba(244,74,34,0.45), inset 0 1px 0 rgba(255,255,255,0.15)" : "none",
+                                cursor: isDisabled ? "not-allowed" : "pointer",
+                                transform: isSel ? "scale(1.06)" : "scale(1)",
+                                whiteSpace: "nowrap",
+                            }}
+                        >
+                            {fmt12(t)}
+                        </button>
+                    );
+                })}
+            </div>
         </div>
     );
 }

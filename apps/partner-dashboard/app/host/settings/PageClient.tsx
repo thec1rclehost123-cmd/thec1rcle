@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, Suspense, type ReactNode } from "react";
 import {
     Loader2, Save, RotateCcw, Lock, Monitor, Smartphone,
     LogOut, Mail, BellRing, MessageSquare, RefreshCw,
@@ -12,7 +12,7 @@ import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/Ven
 import { HubTabBar } from "@/components/shared/HubTabBar";
 import { useHubTab } from "@/lib/hooks/useHubTab";
 import { Skeleton } from "@/components/ui/Skeleton";
-import ProfileClient from "../profile/PageClient";
+import HostProfileClient from "./HostProfileClient";
 import PageManagementClient from "../page-management/PageClient";
 import type { HostSettings, LoginSession } from "@/lib/server/hostSettingsStore";
 
@@ -245,12 +245,7 @@ export default function HostSettingsPage() {
     // Hub-level tab routing — profile and page tabs bypass the settings data load
     if (hubTab === "profile") {
         return (
-            <VenuePageShell title="Settings" subtitle="Organisation configuration">
-                <HubTabBar tabs={HUB_TABS} activeTab={hubTab} onTabChange={setHubTab} />
-                <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
-                    <ProfileClient />
-                </Suspense>
-            </VenuePageShell>
+            <ProfileTabShell hubTab={hubTab} setHubTab={setHubTab} />
         );
     }
 
@@ -517,6 +512,30 @@ export default function HostSettingsPage() {
                     </div>
                 )}
             </AnimatePresence>
+        </VenuePageShell>
+    );
+}
+
+// ─── Profile tab shell — owns the actions state so the Save button wires correctly ──
+
+function ProfileTabShell({
+    hubTab,
+    setHubTab,
+}: {
+    hubTab: string;
+    setHubTab: (t: string) => void;
+}) {
+    const [actions, setActions] = useState<ReactNode>(null);
+    return (
+        <VenuePageShell
+            title="Settings"
+            subtitle="Organisation configuration"
+            filterBar={<HubTabBar tabs={HUB_TABS} activeTab={hubTab} onTabChange={setHubTab} />}
+            actions={actions}
+        >
+            <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
+                <HostProfileClient setActions={setActions} />
+            </Suspense>
         </VenuePageShell>
     );
 }
