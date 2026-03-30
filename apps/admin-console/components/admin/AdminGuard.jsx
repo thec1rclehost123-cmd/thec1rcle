@@ -60,6 +60,14 @@ export default function AdminGuard({ children }) {
         async function verifyAdmin() {
             if (loading) return;
 
+            // 0. Dev-mode bypass: auto-authorize any logged-in user in development
+            //    Mirrors the server-side verifyAuth() pattern in lib/server/auth.js
+            if (process.env.NODE_ENV === "development" && user) {
+                setAuthorized(true);
+                setVerifying(false);
+                return;
+            }
+
             // 1. Check local profile first (fastest)
             if (profile?.role === "admin" || profile?.admin_role) {
                 setAuthorized(true);
@@ -86,13 +94,13 @@ export default function AdminGuard({ children }) {
                 setVerifying(false);
                 const currentPath = window.location.pathname;
                 const isLoginPage = currentPath === "/login";
-                const isNotFoundPage = currentPath === "/not-found";
+                const isLoginRoute = currentPath.startsWith("/login");
 
                 if (!user && !isLoginPage) {
                     router.replace("/login");
-                } else if (user && !authorized && !isNotFoundPage) {
-                    // Logged in but not an admin - show 404 to hide admin existence
-                    router.replace("/not-found");
+                } else if (user && !authorized && !isLoginRoute) {
+                    // Logged in but not an admin - redirect to login
+                    router.replace("/login");
                 }
             }
         }

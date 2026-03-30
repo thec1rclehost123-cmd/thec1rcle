@@ -18,8 +18,10 @@ export async function POST(req) {
         let admin_role = "super";
 
         if (isDev) {
-            // In dev, always provision the known dev UID
-            uid = DEV_UID;
+            // In dev, provision the provided UID or fall back to the known dev UID
+            const body = await req.json().catch(() => ({}));
+            uid = body.uid || DEV_UID;
+            admin_role = body.admin_role || "super";
         } else {
             const secret = process.env.ADMIN_PROVISION_SECRET;
             if (!secret) {
