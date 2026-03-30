@@ -2,14 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 export default function AdminGuard({ children }) {
     const { user, profile, loading, logout } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
     const [authorized, setAuthorized] = useState(false);
     const [mounted, setMounted] = useState(false);
     const [verifying, setVerifying] = useState(true);
+
+    // Skip all auth gating on the login page — show it immediately
+    const isLoginRoute = pathname?.startsWith("/login");
 
     useEffect(() => {
         setMounted(true);
@@ -89,26 +93,25 @@ export default function AdminGuard({ children }) {
                 }
             }
 
-            // 3. If everything fails and we are not loading, redirect
-            if (!loading) {
-                setVerifying(false);
-                const currentPath = window.location.pathname;
-                const isLoginPage = currentPath === "/login";
-                const isLoginRoute = currentPath.startsWith("/login");
-
-                if (!user && !isLoginPage) {
-                    router.replace("/login");
-                } else if (user && !authorized && !isLoginRoute) {
-                    // Logged in but not an admin - redirect to login
-                    router.replace("/login");
-                }
+            // 3. If everything fails, redirect to login
+            setVerifying(false);
+            if (!user) {
+                router.replace("/login");
+            } else if (user && !authorized) {
+                // Logged in but not an admin — redirect to login
+                router.replace("/login");
             }
         }
 
         verifyAdmin();
     }, [user, profile, loading, router, authorized]);
 
-    // During hydration, render nothing or the loader to avoid mismatch
+    // Login page bypasses all auth gating — render immediately (no spinner, no redirect)
+    if (isLoginRoute) {
+        return <>{children}</>;
+    }
+
+    // During hydration, show spinner to avoid SSR mismatch
     if (!mounted) {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-black">
@@ -118,16 +121,6 @@ export default function AdminGuard({ children }) {
                 </div>
             </div>
         );
-    }
-
-    // Now we are on the client and mounted
-    const currentPath = window.location.pathname;
-    const isLoginPage = currentPath === "/login";
-    const isNotFoundPage = currentPath === "/not-found";
-
-    // Excluded pages render children directly — no auth gate, no spinner
-    if (isLoginPage || isNotFoundPage) {
-        return <>{children}</>;
     }
 
     if (loading || verifying || !authorized) {
@@ -141,9 +134,5 @@ export default function AdminGuard({ children }) {
         );
     }
 
-    return (
-        <>
-            {children}
-        </>
-    );
+    return <>{children}</>;
 }
