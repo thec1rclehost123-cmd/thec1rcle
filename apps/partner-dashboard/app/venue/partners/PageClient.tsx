@@ -3,16 +3,15 @@
 import { useState, useCallback, useEffect } from "react";
 import {
     CheckCircle2, Clock, XCircle, Compass, Loader2,
-    UserCircle, ChevronRight, Handshake, Zap, X, Bell, Search, RefreshCw,
+    UserCircle, Handshake, Zap, X, Bell, Search, RefreshCw,
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
-import { DiscoverDirectory } from "@/components/partnerships/DiscoverDirectory";
+import { DiscoverDirectory, StatusCard } from "@/components/partnerships/DiscoverDirectory";
 import { NetworkProfileModal, NetworkProfile } from "@/components/partnerships/NetworkProfileModal";
 import { TierSelectionModal, ContractTier } from "@/components/partnerships/TierSelectionModal";
 import { StatTrendCard } from "@/components/promoter/PlaceholderCharts";
 import { motion, AnimatePresence } from "framer-motion";
-import { formatMonthYear } from "@/lib/utils/format";
 
 type Tab = "discover" | "incoming" | "pending" | "active" | "declined";
 
@@ -28,6 +27,9 @@ interface Connection {
     updatedAt?: any;
     message?: string;
     initiatedBy?: string;
+    city?: string;
+    photoURL?: string | null;
+    coverURL?: string | null;
 }
 
 const mp = (delay: number) => ({
@@ -101,11 +103,49 @@ export default function VenuePartnersPage() {
         } catch { /* */ } finally { setProcessingId(null); }
     };
 
+    const handleReRequest = async (conn: Connection) => {
+        setProcessingId(conn.id);
+        try {
+            const token = await user?.getIdToken();
+            await fetch("/api/discovery", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    requesterId: venueId,
+                    requesterType: "venue",
+                    requesterName: venueName,
+                    requesterEmail: profile?.email,
+                    targetId: conn.otherId,
+                    targetType: conn.otherType,
+                    targetName: conn.otherName,
+                }),
+            });
+            await fetchData();
+        } catch { /* */ } finally { setProcessingId(null); }
+    };
+
+    const handleRemove = async (connectionId: string) => {
+        setProcessingId(connectionId);
+        try {
+            const token = await user?.getIdToken();
+            await fetch("/api/discovery", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ connectionId, action: "remove", role: "venue", partnerId: venueId }),
+            });
+            await fetchData();
+        } catch { /* */ } finally { setProcessingId(null); }
+    };
+
     const active = connections.filter(c => c.status === "approved" || c.status === "active");
     const allPending = connections.filter(c => c.status === "pending");
     const pendingIncoming = allPending.filter(c => c.initiatedBy !== "venue");
     const pendingOutgoing = allPending.filter(c => c.initiatedBy === "venue");
     const declined = connections.filter(c => c.status === "rejected");
+    // venue initiated → they rejected = "They declined you"
+    const declinedByThem = declined.filter(c => c.initiatedBy === "venue");
+    // they initiated → venue rejected = "You declined them"
+    const declinedByVenue = declined.filter(c => c.initiatedBy !== "venue");
 
     const filterByUI = (list: Connection[]) =>
         list
@@ -273,27 +313,79 @@ export default function VenuePartnersPage() {
                                 emptyTab="pending"
                             />
                         </motion.div>
-                    ) : (
-                        <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                    ) : activeTab === "declined" ? (
+                        <motion.div key="declined" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                             {loading ? (
                                 <div className="flex justify-center py-32">
                                     <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#F44A22" }} />
                                 </div>
-                            ) : (activeTab === "active" ? filterByUI(active) : filterByUI(declined)).length === 0 ? (
-                                <EmptyState tab={activeTab} />
+                            ) : filterByUI(declined).length === 0 ? (
+                                <EmptyState tab="declined" />
+                            ) : (
+                                <div className="flex flex-col gap-8">
+                                    {filterByUI(declinedByThem).length > 0 && (
+                                        <div>
+                                            <p className="text-[11px] font-black uppercase tracking-widest mb-4" style={{ color: "var(--v-text-tertiary)" }}>They declined your request</p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                                {filterByUI(declinedByThem).map(c => (
+                                                    <StatusCard
+                                                        key={c.id}
+                                                        name={c.otherName}
+                                                        type={c.otherType}
+                                                        city={c.city}
+                                                        photoURL={c.photoURL}
+                                                        coverURL={c.coverURL}
+                                                        connectionStatus="declined"
+                                                        onReRequest={() => handleReRequest(c)}
+                                                        onViewProfile={() => setProfileTarget({ id: c.otherId, type: c.otherType, name: c.otherName, city: "", connectionStatus: "rejected" })}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {filterByUI(declinedByVenue).length > 0 && (
+                                        <div>
+                                            <p className="text-[11px] font-black uppercase tracking-widest mb-4" style={{ color: "var(--v-text-tertiary)" }}>You declined</p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                                {filterByUI(declinedByVenue).map(c => (
+                                                    <StatusCard
+                                                        key={c.id}
+                                                        name={c.otherName}
+                                                        type={c.otherType}
+                                                        city={c.city}
+                                                        photoURL={c.photoURL}
+                                                        coverURL={c.coverURL}
+                                                        connectionStatus="declined"
+                                                        onRemove={() => handleRemove(c.id)}
+                                                        onViewProfile={() => setProfileTarget({ id: c.otherId, type: c.otherType, name: c.otherName, city: "", connectionStatus: "rejected" })}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </motion.div>
+                    ) : (
+                        <motion.div key="active" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                            {loading ? (
+                                <div className="flex justify-center py-32">
+                                    <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#F44A22" }} />
+                                </div>
+                            ) : filterByUI(active).length === 0 ? (
+                                <EmptyState tab="active" />
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    {(activeTab === "active" ? filterByUI(active) : filterByUI(declined)).map(c => (
-                                        <PartnerCard
+                                    {filterByUI(active).map(c => (
+                                        <StatusCard
                                             key={c.id}
-                                            connection={c}
-                                            onView={() => setProfileTarget({
-                                                id: c.otherId,
-                                                type: c.otherType,
-                                                name: c.otherName,
-                                                city: "",
-                                                connectionStatus: c.status === "active" ? "active" : c.status as any,
-                                            })}
+                                            name={c.otherName}
+                                            type={c.otherType}
+                                            city={c.city}
+                                            photoURL={c.photoURL}
+                                            coverURL={c.coverURL}
+                                            connectionStatus="active"
+                                            onViewProfile={() => setProfileTarget({ id: c.otherId, type: c.otherType, name: c.otherName, city: "", connectionStatus: "active" })}
                                         />
                                     ))}
                                 </div>
@@ -320,75 +412,6 @@ export default function VenuePartnersPage() {
                 )}
             </AnimatePresence>
         </VenuePageShell>
-    );
-}
-
-// ── Partner card (active / declined grid) ──────────────────────────────────────
-
-function PartnerCard({ connection, onView }: { connection: Connection; onView: () => void }) {
-    const isActive = connection.status === "approved" || connection.status === "active";
-    const statusConfig = isActive
-        ? { label: "Active", color: "#34d399", bg: "rgba(52,211,153,0.1)" }
-        : { label: "Declined", color: "#f87171", bg: "rgba(248,113,113,0.1)" };
-
-    return (
-        <motion.div
-            layout
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="group rounded-[32px] p-6 transition-all"
-            style={{ background: "var(--v-card, #1a1a1e)", border: "1px solid var(--v-border)" }}
-            onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(244,74,34,0.3)"}
-            onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = "var(--v-border)"}
-        >
-            <div className="flex items-start justify-between mb-5">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black" style={{ background: "rgba(244,74,34,0.12)", color: "#F44A22" }}>
-                        {connection.otherName[0]}
-                    </div>
-                    <div>
-                        <h3 className="text-[14px] font-bold text-text-primary group-hover:text-[#F44A22] transition-colors">
-                            {connection.otherName}
-                        </h3>
-                        <span className="flex items-center gap-1 text-[11px] text-text-tertiary capitalize mt-0.5">
-                            {connection.otherType === "host" ? <UserCircle className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
-                            {connection.otherType}
-                        </span>
-                    </div>
-                </div>
-                {connection.tier && isActive && (
-                    <span
-                        className="text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest"
-                        style={connection.tier === "trusted"
-                            ? { background: "rgba(244,74,34,0.15)", color: "#F44A22" }
-                            : { background: "rgba(255,255,255,0.06)", color: "var(--v-text-tertiary)" }}
-                    >
-                        {connection.tier === "trusted" ? "Trusted" : "Standard"}
-                    </span>
-                )}
-            </div>
-
-            <div className="flex items-center justify-between mb-5">
-                <span className="text-[11px] text-text-placeholder">
-                    {formatMonthYear(connection.updatedAt || connection.createdAt)}
-                </span>
-                <span
-                    className="flex items-center gap-1.5 text-[11px] font-black px-2.5 py-1 rounded-lg"
-                    style={{ background: statusConfig.bg, color: statusConfig.color }}
-                >
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusConfig.color }} />
-                    {statusConfig.label}
-                </span>
-            </div>
-
-            <button
-                onClick={onView}
-                className="w-full py-3 rounded-xl text-[12px] font-bold transition-all flex items-center justify-center gap-2"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--v-text-secondary)" }}
-            >
-                View Profile <ChevronRight className="w-4 h-4" />
-            </button>
-        </motion.div>
     );
 }
 
@@ -419,114 +442,49 @@ function PendingSection({
 
     return (
         <div className="space-y-8">
-            {/* Incoming — venue approves these */}
             {incoming.length > 0 && (
                 <div className="space-y-4">
                     <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-amber-500 pl-4">
                         Incoming · Awaiting your approval
                     </p>
-                    <AnimatePresence mode="popLayout">
-                        {incoming.map(req => (
-                            <motion.div
-                                key={req.id}
-                                layout
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                className="border border-border-subtle p-6 rounded-[2rem]"
-                                style={{ background: "var(--v-card)" }}
-                            >
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-5">
-                                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black" style={{ background: "rgba(244,74,34,0.12)", color: "#F44A22" }}>
-                                            {(req.otherName?.[0] || "?").toUpperCase()}
-                                        </div>
-                                        <div>
-                                            <h3 className="text-xl font-black text-text-primary tracking-tight">{req.otherName}</h3>
-                                            <div className="flex items-center gap-3 mt-1.5">
-                                                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-orange-500">
-                                                    {req.otherType === "host" ? <UserCircle className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
-                                                    {req.otherType}
-                                                </span>
-                                                <span className="text-[10px] text-text-tertiary font-bold">•</span>
-                                                <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">
-                                                    {new Date(req.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <button
-                                            onClick={() => onAccept(req)}
-                                            disabled={!!processingId}
-                                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-rose-600 hover:from-orange-400 hover:to-rose-500 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-orange-500/20 transition-all active:scale-95 disabled:opacity-50"
-                                        >
-                                            {processingId === req.id
-                                                ? <Loader2 className="w-4 h-4 animate-spin" />
-                                                : <>Accept <CheckCircle2 className="w-3.5 h-3.5" /></>}
-                                        </button>
-                                        <button
-                                            onClick={() => onDecline(req.id)}
-                                            disabled={!!processingId}
-                                            className="h-12 w-12 rounded-xl border border-border-subtle text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
-                                            style={{ background: "var(--v-elevated)" }}
-                                        >
-                                            <X className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                </div>
-                                {req.message && (
-                                    <div className="mt-5 p-4 rounded-2xl border border-border-subtle" style={{ background: "rgba(255,255,255,0.03)" }}>
-                                        <p className="text-[13px] text-text-secondary italic">"{req.message}"</p>
-                                    </div>
-                                )}
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        <AnimatePresence>
+                            {incoming.map(req => (
+                                <StatusCard
+                                    key={req.id}
+                                    name={req.otherName}
+                                    type={req.otherType}
+                                    city={req.city}
+                                    photoURL={req.photoURL}
+                                    coverURL={req.coverURL}
+                                    connectionStatus="incoming"
+                                    onApprove={() => onAccept(req)}
+                                    onReject={() => onDecline(req.id)}
+                                    isProcessing={processingId === req.id}
+                                />
+                            ))}
+                        </AnimatePresence>
+                    </div>
                 </div>
             )}
-
-            {/* Outgoing — awaiting host approval */}
             {outgoing.length > 0 && (
                 <div className="space-y-4">
                     <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-border-default pl-4">
-                        Sent · Awaiting host approval
+                        Sent · Awaiting approval
                     </p>
-                    {outgoing.map(req => (
-                        <motion.div
-                            key={req.id}
-                            layout
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="border border-border-subtle p-6 rounded-[2rem] opacity-75"
-                            style={{ background: "var(--v-card)" }}
-                        >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-5">
-                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black text-text-tertiary" style={{ background: "rgba(255,255,255,0.05)" }}>
-                                        {(req.otherName?.[0] || "?").toUpperCase()}
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-black text-text-primary tracking-tight">{req.otherName}</h3>
-                                        <div className="flex items-center gap-3 mt-1.5">
-                                            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-orange-500">
-                                                {req.otherType === "host" ? <UserCircle className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
-                                                {req.otherType}
-                                            </span>
-                                            <span className="text-[10px] text-text-tertiary font-bold">•</span>
-                                            <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-widest">
-                                                {new Date(req.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.15)" }}>
-                                    <Clock className="w-3.5 h-3.5 text-amber-400" />
-                                    <span className="text-[11px] font-black uppercase tracking-widest text-amber-400">Awaiting approval</span>
-                                </div>
-                            </div>
-                        </motion.div>
-                    ))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {outgoing.map(req => (
+                            <StatusCard
+                                key={req.id}
+                                name={req.otherName}
+                                type={req.otherType}
+                                city={req.city}
+                                photoURL={req.photoURL}
+                                coverURL={req.coverURL}
+                                connectionStatus="pending"
+                            />
+                        ))}
+                    </div>
                 </div>
             )}
         </div>
