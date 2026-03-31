@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
-    Building2, ChevronRight, CheckCircle2, Clock,
+    Building2, CheckCircle2, Clock, XCircle,
     Search, Loader2, Handshake, X, Bell, Zap, RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,28 +10,30 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
 import { NetworkProfileModal, NetworkProfile } from "@/components/partnerships/NetworkProfileModal";
 import { StatTrendCard } from "@/components/promoter/PlaceholderCharts";
-import { DiscoverDirectory } from "@/components/partnerships/DiscoverDirectory";
-import { formatMonthYear } from "@/lib/utils/format";
+import { DiscoverDirectory, StatusCard } from "@/components/partnerships/DiscoverDirectory";
 
-type Tab = "discover" | "incoming" | "pending" | "active";
+type Tab = "discover" | "incoming" | "pending" | "active" | "declined";
 
 interface VenuePartner {
     connectionId: string;
     id: string;
     name: string;
     city: string;
-    partnershipStatus: "active" | "pending";
+    partnershipStatus: "active" | "pending" | "declined";
     createdAt?: string;
     initiatedBy?: string;
+    photoURL?: string | null;
+    coverURL?: string | null;
 }
 
 interface PromoterConnection {
     connectionId: string;
     id: string;
     name: string;
-    status: "active" | "pending";
+    status: "active" | "pending" | "declined";
     initiatedBy?: string;
     createdAt?: string;
+    photoURL?: string | null;
 }
 
 const mp = (delay: number) => ({
@@ -52,6 +54,7 @@ export default function HostNetworkPage() {
     const [profileTarget, setProfileTarget] = useState<NetworkProfile | null>(null);
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [discoverSearch, setDiscoverSearch] = useState("");
+    const [discoverType, setDiscoverType] = useState("venue");
     const [discoverCity, setDiscoverCity] = useState("");
     const [discoverRefresh, setDiscoverRefresh] = useState(0);
 
@@ -70,28 +73,31 @@ export default function HostNetworkPage() {
             const allConns: any[] = data.connections || [];
 
             const venueConns = allConns.filter((c: any) =>
-                c.type === "partnership" && (c.status === "active" || c.status === "approved" || c.status === "pending")
+                c.type === "partnership" && (c.status === "active" || c.status === "approved" || c.status === "pending" || c.status === "declined" || c.status === "rejected")
             );
             setVenues(venueConns.map((c: any) => ({
                 connectionId: c.id,
                 id: c.otherId || c.venueId,
                 name: c.otherName || c.venueName || "Venue",
                 city: c.city || c.venueCity || "",
-                partnershipStatus: (c.status === "active" || c.status === "approved") ? "active" : "pending",
+                partnershipStatus: (c.status === "active" || c.status === "approved") ? "active" : (c.status === "pending") ? "pending" : "declined",
                 createdAt: c.updatedAt || c.createdAt,
                 initiatedBy: c.initiatedBy,
+                photoURL: c.photoURL || null,
+                coverURL: c.coverURL || null,
             })));
 
             const promoterConns = allConns.filter((c: any) =>
-                c.type === "promoter_connection" && (c.status === "active" || c.status === "approved" || c.status === "pending")
+                c.type === "promoter_connection" && (c.status === "active" || c.status === "approved" || c.status === "pending" || c.status === "declined" || c.status === "rejected")
             );
             setPromoterConnections(promoterConns.map((c: any) => ({
                 connectionId: c.id,
                 id: c.otherId || c.promoterId,
                 name: c.otherName || c.promoterName || "Promoter",
-                status: (c.status === "active" || c.status === "approved") ? "active" : "pending",
+                status: (c.status === "active" || c.status === "approved") ? "active" : (c.status === "pending") ? "pending" : "declined",
                 initiatedBy: c.initiatedBy,
                 createdAt: c.updatedAt || c.createdAt,
+                photoURL: c.photoURL || null,
             })));
         } catch {
             setError(true);
@@ -141,6 +147,58 @@ export default function HostNetworkPage() {
         } catch { /* */ } finally { setProcessingId(null); }
     };
 
+    const handleVenueReRequest = async (v: VenuePartner) => {
+        setProcessingId(v.connectionId);
+        try {
+            const token = typeof getIdToken === "function" ? await getIdToken() : await user?.getIdToken();
+            await fetch("/api/discovery", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ requesterId: hostId, requesterType: "host", requesterName: profile?.name || "", targetId: v.id, targetType: "venue", targetName: v.name }),
+            });
+            await fetchData();
+        } catch { /* */ } finally { setProcessingId(null); }
+    };
+
+    const handleVenueRemove = async (connectionId: string) => {
+        setProcessingId(connectionId);
+        try {
+            const token = typeof getIdToken === "function" ? await getIdToken() : await user?.getIdToken();
+            await fetch("/api/discovery", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ connectionId, action: "remove", role: "host", partnerId: hostId }),
+            });
+            await fetchData();
+        } catch { /* */ } finally { setProcessingId(null); }
+    };
+
+    const handlePromoterReRequest = async (p: PromoterConnection) => {
+        setProcessingId(p.connectionId);
+        try {
+            const token = typeof getIdToken === "function" ? await getIdToken() : await user?.getIdToken();
+            await fetch("/api/discovery", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ requesterId: hostId, requesterType: "host", requesterName: profile?.name || "", targetId: p.id, targetType: "promoter", targetName: p.name }),
+            });
+            await fetchData();
+        } catch { /* */ } finally { setProcessingId(null); }
+    };
+
+    const handlePromoterRemove = async (connectionId: string) => {
+        setProcessingId(connectionId);
+        try {
+            const token = typeof getIdToken === "function" ? await getIdToken() : await user?.getIdToken();
+            await fetch("/api/discovery", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ connectionId, action: "remove", role: "host", partnerId: hostId }),
+            });
+            await fetchData();
+        } catch { /* */ } finally { setProcessingId(null); }
+    };
+
     const activeVenues = venues.filter(v => v.partnershipStatus === "active");
     const pendingVenues = venues.filter(v => v.partnershipStatus === "pending");
     const pendingIncoming = pendingVenues.filter(v => v.initiatedBy === "venue");
@@ -149,11 +207,20 @@ export default function HostNetworkPage() {
     const activePromoters = promoterConnections.filter(p => p.status === "active");
     const pendingIncomingPromoters = promoterConnections.filter(p => p.status === "pending" && p.initiatedBy === "promoter");
 
+    const declinedVenues = venues.filter(v => v.partnershipStatus === "declined");
+    const declinedPromoters = promoterConnections.filter(p => p.status === "declined");
+    // "initiatedBy === 'host'" means host sent the request and venue declined it
+    const declinedVenuesByThem = declinedVenues.filter(v => v.initiatedBy === "host");
+    const declinedVenuesByHost = declinedVenues.filter(v => v.initiatedBy !== "host");
+    const declinedPromotersByThem = declinedPromoters.filter(p => p.initiatedBy === "host");
+    const declinedPromotersByHost = declinedPromoters.filter(p => p.initiatedBy !== "host");
+
     const TABS: { id: Tab; label: string; count?: number }[] = [
         { id: "discover", label: "Discover" },
         { id: "active", label: "Active", count: activeVenues.length + activePromoters.length },
         { id: "incoming", label: "Incoming", count: pendingIncoming.length + pendingIncomingPromoters.length },
         { id: "pending", label: "Pending", count: pendingOutgoing.length },
+        { id: "declined", label: "Declined", count: declinedVenues.length + declinedPromoters.length },
     ];
 
     return (
@@ -186,7 +253,7 @@ export default function HostNetworkPage() {
                     <StatTrendCard label="Active Venues" value={activeVenues.length} trendUp={activeVenues.length > 0} color="#34d399" icon={<CheckCircle2 className="w-4 h-4" />} />
                     <StatTrendCard label="Active Promoters" value={activePromoters.length} trendUp={activePromoters.length > 0} color="#818cf8" icon={<Zap className="w-4 h-4" />} />
                     <StatTrendCard label="Pending Requests" value={pendingVenues.length + pendingIncomingPromoters.length} color="#f59e0b" icon={<Clock className="w-4 h-4" />} />
-                    <StatTrendCard label="Total Connected" value={venues.length + promoterConnections.length} color="#F44A22" icon={<Building2 className="w-4 h-4" />} />
+                    <StatTrendCard label="Total Connected" value={activeVenues.length + activePromoters.length} color="#F44A22" icon={<Building2 className="w-4 h-4" />} />
                 </div>
             </motion.div>
 
@@ -208,6 +275,7 @@ export default function HostNetworkPage() {
                                 {tab.id === "incoming" && <Bell className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#F44A22]" : ""}`} />}
                                 {tab.id === "pending" && <Clock className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#f59e0b]" : ""}`} />}
                                 {tab.id === "active" && <CheckCircle2 className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#34d399]" : ""}`} />}
+                                {tab.id === "declined" && <XCircle className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#f87171]" : ""}`} />}
                                 {tab.label}
                                 {tab.count !== undefined && tab.count > 0 && (
                                     <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black"
@@ -229,7 +297,7 @@ export default function HostNetworkPage() {
                                 type="text"
                                 value={discoverSearch}
                                 onChange={e => setDiscoverSearch(e.target.value)}
-                                placeholder="Search venues..."
+                                placeholder="Search venues & promoters..."
                                 className="flex-1 min-w-0 bg-transparent border-none outline-none text-[13px] font-medium placeholder:opacity-40"
                                 style={{ color: "var(--v-text-primary)" }}
                             />
@@ -240,9 +308,15 @@ export default function HostNetworkPage() {
                             )}
                         </div>
                         <div className="flex items-center gap-0.5 p-1.5 rounded-2xl shrink-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                            <button className="px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all" style={{ background: "var(--v-elevated)", color: "var(--v-text-primary)" }}>
-                                Venues
-                            </button>
+                            {[{ value: "venue", label: "Venues" }, { value: "promoter", label: "Promoters" }].map(opt => (
+                                <button key={opt.value} onClick={() => setDiscoverType(opt.value)}
+                                    className="px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
+                                    style={discoverType === opt.value
+                                        ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" }
+                                        : { color: "var(--v-text-tertiary)" }}>
+                                    {opt.label}
+                                </button>
+                            ))}
                         </div>
                         <select value={discoverCity} onChange={e => setDiscoverCity(e.target.value)}
                             className="border-none outline-none text-[12px] font-semibold cursor-pointer px-4 py-2.5 rounded-2xl shrink-0"
@@ -279,10 +353,11 @@ export default function HostNetworkPage() {
                         {activeTab === "discover" ? (
                             <motion.div key="discover" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                                 <DiscoverDirectory
-                                    allowedTypes={["venue"]}
+                                    allowedTypes={["venue", "promoter"]}
                                     partnerId={hostId}
                                     role="host"
                                     searchQuery={discoverSearch}
+                                    filterType={discoverType as any}
                                     filterCity={discoverCity}
                                     refreshTrigger={discoverRefresh}
                                 />
@@ -294,116 +369,48 @@ export default function HostNetworkPage() {
                                     <div className="flex justify-center py-32">
                                         <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#F44A22" }} />
                                     </div>
-                                ) : pendingIncoming.length === 0 && pendingIncomingPromoters.length === 0 ? (
-                                    <EmptyState icon={<Bell className="w-8 h-8" style={{ color: "#F44A22" }} />} title="No incoming requests" subtitle="Partnership requests from venues and promoters will appear here for your approval." />
-                                ) : (
-                                    <div className="space-y-8">
-                                        {/* Venue requests */}
-                                        {pendingIncoming.length > 0 && (
-                                            <div className="space-y-4">
-                                                {pendingIncomingPromoters.length > 0 && (
-                                                    <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-orange-500 pl-4">
-                                                        Venues · Awaiting your approval
-                                                    </p>
-                                                )}
-                                                <AnimatePresence mode="popLayout">
-                                                    {pendingIncoming.map(v => (
-                                                        <motion.div key={v.connectionId} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                                                            className="border border-border-subtle p-6 rounded-[2rem]" style={{ background: "var(--v-card)" }}>
-                                                            <div className="flex items-center justify-between">
-                                                                <div className="flex items-center gap-5">
-                                                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black" style={{ background: "rgba(244,74,34,0.12)", color: "#F44A22" }}>
-                                                                        {v.name[0]}
-                                                                    </div>
-                                                                    <div>
-                                                                        <h3 className="text-xl font-black text-text-primary">{v.name}</h3>
-                                                                        <div className="flex items-center gap-2 mt-1">
-                                                                            <Building2 className="w-3.5 h-3.5 text-orange-500" />
-                                                                            <span className="text-[10px] font-black uppercase tracking-widest text-orange-500">
-                                                                                Venue{v.city ? ` · ${v.city}` : ""}
-                                                                            </span>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center gap-3">
-                                                                    <button
-                                                                        onClick={() => handleApprove(v.connectionId)}
-                                                                        disabled={!!processingId}
-                                                                        className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-rose-600 hover:from-orange-400 hover:to-rose-500 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-orange-500/20 transition-all active:scale-95 disabled:opacity-50"
-                                                                    >
-                                                                        {processingId === v.connectionId
-                                                                            ? <Loader2 className="w-4 h-4 animate-spin" />
-                                                                            : <>Approve <CheckCircle2 className="w-3.5 h-3.5" /></>}
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleReject(v.connectionId)}
-                                                                        disabled={!!processingId}
-                                                                        className="h-12 w-12 rounded-xl border border-border-subtle text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
-                                                                        style={{ background: "var(--v-elevated)" }}
-                                                                    >
-                                                                        <X className="w-5 h-5" />
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </motion.div>
+                                ) : (() => {
+                                        const filteredVenueIncoming = discoverType === "venue"
+                                            ? pendingIncoming.filter(v => !discoverSearch || v.name.toLowerCase().includes(discoverSearch.toLowerCase()))
+                                            : [];
+                                        const filteredPromoterIncoming = discoverType === "promoter"
+                                            ? pendingIncomingPromoters.filter(p => !discoverSearch || p.name.toLowerCase().includes(discoverSearch.toLowerCase()))
+                                            : [];
+                                        if (filteredVenueIncoming.length === 0 && filteredPromoterIncoming.length === 0) {
+                                            return <EmptyState icon={<Bell className="w-8 h-8" style={{ color: "#F44A22" }} />} title="No incoming requests" subtitle="Partnership requests from venues and promoters will appear here for your approval." />;
+                                        }
+                                        return (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                                <AnimatePresence>
+                                                    {filteredVenueIncoming.map(v => (
+                                                        <StatusCard
+                                                            key={v.connectionId}
+                                                            name={v.name}
+                                                            type="venue"
+                                                            city={v.city}
+                                                            photoURL={v.photoURL}
+                                                            coverURL={v.coverURL}
+                                                            connectionStatus="incoming"
+                                                            onApprove={() => handleApprove(v.connectionId)}
+                                                            onReject={() => handleReject(v.connectionId)}
+                                                            isProcessing={processingId === v.connectionId}
+                                                        />
+                                                    ))}
+                                                    {filteredPromoterIncoming.map(p => (
+                                                        <StatusCard
+                                                            key={p.connectionId}
+                                                            name={p.name}
+                                                            type="promoter"
+                                                            connectionStatus="incoming"
+                                                            onApprove={() => handlePromoterAction(p.connectionId, "approve")}
+                                                            onReject={() => handlePromoterAction(p.connectionId, "reject")}
+                                                            isProcessing={processingId === p.connectionId}
+                                                        />
                                                     ))}
                                                 </AnimatePresence>
                                             </div>
-                                        )}
-
-                                        {/* Promoter requests */}
-                                        {pendingIncomingPromoters.length > 0 && (
-                                            <div className="space-y-4">
-                                                {pendingIncoming.length > 0 && (
-                                                    <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-[#818cf8] pl-4">
-                                                        Promoters · Awaiting your approval
-                                                    </p>
-                                                )}
-                                                <AnimatePresence mode="popLayout">
-                                                    {pendingIncomingPromoters.map(p => (
-                                                        <motion.div key={p.connectionId} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                                                            className="border border-border-subtle p-6 rounded-[2rem]" style={{ background: "var(--v-card)" }}>
-                                                            <div className="flex items-center justify-between">
-                                                                <div className="flex items-center gap-5">
-                                                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black" style={{ background: "rgba(129,140,248,0.12)", color: "#818cf8" }}>
-                                                                        {p.name[0]}
-                                                                    </div>
-                                                                    <div>
-                                                                        <h3 className="text-xl font-black text-text-primary">{p.name}</h3>
-                                                                        <div className="flex items-center gap-2 mt-1">
-                                                                            <Zap className="w-3.5 h-3.5 text-[#818cf8]" />
-                                                                            <span className="text-[10px] font-black uppercase tracking-widest text-[#818cf8]">Promoter</span>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center gap-3">
-                                                                    <button
-                                                                        onClick={() => handlePromoterAction(p.connectionId, "approve")}
-                                                                        disabled={!!processingId}
-                                                                        className="flex items-center gap-2 px-6 py-3 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 disabled:opacity-50"
-                                                                        style={{ background: "linear-gradient(135deg, #6366f1, #818cf8)" }}
-                                                                    >
-                                                                        {processingId === p.connectionId
-                                                                            ? <Loader2 className="w-4 h-4 animate-spin" />
-                                                                            : <>Approve <CheckCircle2 className="w-3.5 h-3.5" /></>}
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handlePromoterAction(p.connectionId, "reject")}
-                                                                        disabled={!!processingId}
-                                                                        className="h-12 w-12 rounded-xl border border-border-subtle text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
-                                                                        style={{ background: "var(--v-elevated)" }}
-                                                                    >
-                                                                        <X className="w-5 h-5" />
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </motion.div>
-                                                    ))}
-                                                </AnimatePresence>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                        );
+                                    })()}
                             </motion.div>
 
                         ) : activeTab === "pending" ? (
@@ -412,35 +419,121 @@ export default function HostNetworkPage() {
                                     <div className="flex justify-center py-32">
                                         <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#F44A22" }} />
                                     </div>
-                                ) : pendingOutgoing.length === 0 ? (
-                                    <EmptyState icon={<Clock className="w-8 h-8" style={{ color: "#f59e0b" }} />} title="No sent requests" subtitle="Requests you've sent to venues awaiting their approval will appear here." />
+                                ) : (() => {
+                                    const filteredPendingOutgoing = discoverType === "venue"
+                                        ? pendingOutgoing.filter(v => !discoverSearch || v.name.toLowerCase().includes(discoverSearch.toLowerCase()))
+                                        : [];
+                                    if (filteredPendingOutgoing.length === 0) {
+                                        return <EmptyState icon={<Clock className="w-8 h-8" style={{ color: "#f59e0b" }} />} title="No sent requests" subtitle="Requests you've sent to venues awaiting their approval will appear here." />;
+                                    }
+                                    return (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                            {filteredPendingOutgoing.map(v => (
+                                                <StatusCard
+                                                    key={v.connectionId}
+                                                    name={v.name}
+                                                    type="venue"
+                                                    city={v.city}
+                                                    photoURL={v.photoURL}
+                                                    coverURL={v.coverURL}
+                                                    connectionStatus="pending"
+                                                />
+                                            ))}
+                                        </div>
+                                    );
+                                    })()}
+                            </motion.div>
+
+                        ) : activeTab === "declined" ? (
+                            <motion.div key="declined" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                                {loading ? (
+                                    <div className="flex justify-center py-32">
+                                        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#F44A22" }} />
+                                    </div>
+                                ) : declinedVenues.length + declinedPromoters.length === 0 ? (
+                                    <EmptyState icon={<XCircle className="w-8 h-8" style={{ color: "#f87171" }} />} title="No declined connections" subtitle="Declined partnership requests will appear here." />
                                 ) : (
-                                    <div className="space-y-4">
-                                        {pendingOutgoing.map(v => (
-                                            <motion.div key={v.connectionId} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-                                                className="border border-border-subtle p-6 rounded-[2rem] opacity-75" style={{ background: "var(--v-card)" }}>
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-5">
-                                                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black text-text-tertiary" style={{ background: "rgba(255,255,255,0.05)" }}>
-                                                            {v.name[0]}
-                                                        </div>
+                                    <div className="flex flex-col gap-8">
+                                        {(() => {
+                                            const filteredByThem = discoverType === "venue"
+                                                ? declinedVenuesByThem.filter(v => !discoverSearch || v.name.toLowerCase().includes(discoverSearch.toLowerCase()))
+                                                : declinedPromotersByThem.filter(p => !discoverSearch || p.name.toLowerCase().includes(discoverSearch.toLowerCase()));
+                                            const filteredByHost = discoverType === "venue"
+                                                ? declinedVenuesByHost.filter(v => !discoverSearch || v.name.toLowerCase().includes(discoverSearch.toLowerCase()))
+                                                : declinedPromotersByHost.filter(p => !discoverSearch || p.name.toLowerCase().includes(discoverSearch.toLowerCase()));
+                                            return (
+                                                <>
+                                                    {filteredByThem.length > 0 && (
                                                         <div>
-                                                            <h3 className="text-xl font-black text-text-primary">{v.name}</h3>
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                <Building2 className="w-3.5 h-3.5 text-orange-500" />
-                                                                <span className="text-[10px] font-black uppercase tracking-widest text-orange-500">
-                                                                    Venue{v.city ? ` · ${v.city}` : ""}
-                                                                </span>
+                                                            <p className="text-[11px] font-black uppercase tracking-widest mb-4" style={{ color: "var(--v-text-tertiary)" }}>They declined your request</p>
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                                                {discoverType === "venue"
+                                                                    ? (filteredByThem as VenuePartner[]).map(v => (
+                                                                        <StatusCard
+                                                                            key={v.connectionId}
+                                                                            name={v.name}
+                                                                            type="venue"
+                                                                            city={v.city}
+                                                                            photoURL={v.photoURL}
+                                                                            coverURL={v.coverURL}
+                                                                            connectionStatus="declined"
+                                                                            onReRequest={() => handleVenueReRequest(v)}
+                                                                            isProcessing={processingId === v.connectionId}
+                                                                            onViewProfile={() => setProfileTarget({ id: v.id, type: "venue", name: v.name, city: v.city, connectionStatus: "rejected" })}
+                                                                        />
+                                                                    ))
+                                                                    : (filteredByThem as PromoterConnection[]).map(p => (
+                                                                        <StatusCard
+                                                                            key={p.connectionId}
+                                                                            name={p.name}
+                                                                            type="promoter"
+                                                                            connectionStatus="declined"
+                                                                            onReRequest={() => handlePromoterReRequest(p)}
+                                                                            isProcessing={processingId === p.connectionId}
+                                                                            onViewProfile={() => setProfileTarget({ id: p.id, type: "promoter" as any, name: p.name, city: "", connectionStatus: "rejected" })}
+                                                                        />
+                                                                    ))
+                                                                }
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.15)" }}>
-                                                        <Clock className="w-3.5 h-3.5 text-amber-400" />
-                                                        <span className="text-[11px] font-black uppercase tracking-widest text-amber-400">Awaiting approval</span>
-                                                    </div>
-                                                </div>
-                                            </motion.div>
-                                        ))}
+                                                    )}
+                                                    {filteredByHost.length > 0 && (
+                                                        <div>
+                                                            <p className="text-[11px] font-black uppercase tracking-widest mb-4" style={{ color: "var(--v-text-tertiary)" }}>You declined</p>
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                                                {discoverType === "venue"
+                                                                    ? (filteredByHost as VenuePartner[]).map(v => (
+                                                                        <StatusCard
+                                                                            key={v.connectionId}
+                                                                            name={v.name}
+                                                                            type="venue"
+                                                                            city={v.city}
+                                                                            photoURL={v.photoURL}
+                                                                            coverURL={v.coverURL}
+                                                                            connectionStatus="declined"
+                                                                            onRemove={() => handleVenueRemove(v.connectionId)}
+                                                                            isProcessing={processingId === v.connectionId}
+                                                                            onViewProfile={() => setProfileTarget({ id: v.id, type: "venue", name: v.name, city: v.city, connectionStatus: "rejected" })}
+                                                                        />
+                                                                    ))
+                                                                    : (filteredByHost as PromoterConnection[]).map(p => (
+                                                                        <StatusCard
+                                                                            key={p.connectionId}
+                                                                            name={p.name}
+                                                                            type="promoter"
+                                                                            connectionStatus="declined"
+                                                                            onRemove={() => handlePromoterRemove(p.connectionId)}
+                                                                            isProcessing={processingId === p.connectionId}
+                                                                            onViewProfile={() => setProfileTarget({ id: p.id, type: "promoter" as any, name: p.name, city: "", connectionStatus: "rejected" })}
+                                                                        />
+                                                                    ))
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 )}
                             </motion.div>
@@ -453,48 +546,48 @@ export default function HostNetworkPage() {
                                             <div key={i} className="h-52 rounded-[32px] animate-pulse border border-border-subtle" style={{ background: "var(--v-card)" }} />
                                         ))}
                                     </div>
-                                ) : activeVenues.length === 0 && activePromoters.length === 0 ? (
-                                    <EmptyState
-                                        icon={<Building2 className="w-8 h-8" style={{ color: "#34d399" }} />}
-                                        title="No active partners"
-                                        subtitle="Venues and promoters will appear here once connections are approved."
-                                    />
-                                ) : (
-                                    <div className="space-y-8">
-                                        {activeVenues.length > 0 && (
-                                            <div className="space-y-4">
-                                                {activePromoters.length > 0 && (
-                                                    <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-[#34d399] pl-4">Venues</p>
-                                                )}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                                    {activeVenues.map(v => (
-                                                        <VenueCard
-                                                            key={v.id}
-                                                            venue={v}
-                                                            onViewProfile={() => setProfileTarget({ id: v.id, type: "venue", name: v.name, city: v.city, connectionStatus: "active" })}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {activePromoters.length > 0 && (
-                                            <div className="space-y-4">
-                                                {activeVenues.length > 0 && (
-                                                    <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-[#818cf8] pl-4">Promoters</p>
-                                                )}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                                    {activePromoters.map(p => (
-                                                        <PromoterCard
-                                                            key={p.id}
-                                                            promoter={p}
-                                                            onViewProfile={() => setProfileTarget({ id: p.id, type: "promoter" as any, name: p.name, city: "", connectionStatus: "active" })}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                ) : (() => {
+                                    const filteredVenues = discoverType === "venue"
+                                        ? activeVenues.filter(v => !discoverSearch || v.name.toLowerCase().includes(discoverSearch.toLowerCase()))
+                                        : [];
+                                    const filteredPromoters = discoverType === "promoter"
+                                        ? activePromoters.filter(p => !discoverSearch || p.name.toLowerCase().includes(discoverSearch.toLowerCase()))
+                                        : [];
+                                    if (filteredVenues.length === 0 && filteredPromoters.length === 0) {
+                                        return (
+                                            <EmptyState
+                                                icon={<Building2 className="w-8 h-8" style={{ color: "#34d399" }} />}
+                                                title="No active partners"
+                                                subtitle="Venues and promoters will appear here once connections are approved."
+                                            />
+                                        );
+                                    }
+                                    return (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                            {filteredVenues.map(v => (
+                                                <StatusCard
+                                                    key={v.id}
+                                                    name={v.name}
+                                                    type="venue"
+                                                    city={v.city}
+                                                    photoURL={v.photoURL}
+                                                    coverURL={v.coverURL}
+                                                    connectionStatus="active"
+                                                    onViewProfile={() => setProfileTarget({ id: v.id, type: "venue", name: v.name, city: v.city, connectionStatus: "active" })}
+                                                />
+                                            ))}
+                                            {filteredPromoters.map(p => (
+                                                <StatusCard
+                                                    key={p.id}
+                                                    name={p.name}
+                                                    type="promoter"
+                                                    connectionStatus="active"
+                                                    onViewProfile={() => setProfileTarget({ id: p.id, type: "promoter" as any, name: p.name, city: "", connectionStatus: "active" })}
+                                                />
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -507,98 +600,6 @@ export default function HostNetworkPage() {
                 )}
             </AnimatePresence>
         </VenuePageShell>
-    );
-}
-
-// ── Venue card (active grid) ───────────────────────────────────────────────────
-
-function VenueCard({ venue, onViewProfile }: { venue: VenuePartner; onViewProfile: () => void }) {
-    return (
-        <motion.div
-            layout
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="group rounded-[32px] p-6 transition-all"
-            style={{ background: "var(--v-card, #1a1a1e)", border: "1px solid var(--v-border)" }}
-            onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(244,74,34,0.3)"}
-            onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = "var(--v-border)"}
-        >
-            <div className="flex items-start gap-3 mb-5">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black" style={{ background: "rgba(244,74,34,0.12)", color: "#F44A22" }}>
-                    {venue.name[0]}
-                </div>
-                <div>
-                    <h3 className="text-[14px] font-bold text-text-primary group-hover:text-[#F44A22] transition-colors">
-                        {venue.name}
-                    </h3>
-                    <span className="flex items-center gap-1 text-[11px] text-text-tertiary mt-0.5">
-                        <Building2 className="w-3.5 h-3.5" />
-                        Venue{venue.city ? ` · ${venue.city}` : ""}
-                    </span>
-                </div>
-            </div>
-
-            <div className="flex items-center justify-between mb-5">
-                <span className="text-[11px] text-text-placeholder">{formatMonthYear(venue.createdAt)}</span>
-                <span className="flex items-center gap-1.5 text-[11px] font-black px-2.5 py-1 rounded-lg" style={{ background: "rgba(52,211,153,0.1)", color: "#34d399" }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#34d399]" /> Active
-                </span>
-            </div>
-
-            <button
-                onClick={onViewProfile}
-                className="w-full py-3 rounded-xl text-[12px] font-bold transition-all flex items-center justify-center gap-2"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--v-text-secondary)" }}
-            >
-                View Network Profile <ChevronRight className="w-4 h-4" />
-            </button>
-        </motion.div>
-    );
-}
-
-// ── Promoter card (active grid) ────────────────────────────────────────────────
-
-function PromoterCard({ promoter, onViewProfile }: { promoter: PromoterConnection; onViewProfile: () => void }) {
-    return (
-        <motion.div
-            layout
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="group rounded-[32px] p-6 transition-all"
-            style={{ background: "var(--v-card, #1a1a1e)", border: "1px solid var(--v-border)" }}
-            onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(129,140,248,0.3)"}
-            onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = "var(--v-border)"}
-        >
-            <div className="flex items-start gap-3 mb-5">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black" style={{ background: "rgba(129,140,248,0.12)", color: "#818cf8" }}>
-                    {promoter.name[0]}
-                </div>
-                <div>
-                    <h3 className="text-[14px] font-bold text-text-primary group-hover:text-[#818cf8] transition-colors">
-                        {promoter.name}
-                    </h3>
-                    <span className="flex items-center gap-1 text-[11px] text-text-tertiary mt-0.5">
-                        <Zap className="w-3.5 h-3.5" />
-                        Promoter
-                    </span>
-                </div>
-            </div>
-
-            <div className="flex items-center justify-between mb-5">
-                <span className="text-[11px] text-text-placeholder">{formatMonthYear(promoter.createdAt)}</span>
-                <span className="flex items-center gap-1.5 text-[11px] font-black px-2.5 py-1 rounded-lg" style={{ background: "rgba(52,211,153,0.1)", color: "#34d399" }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#34d399]" /> Active
-                </span>
-            </div>
-
-            <button
-                onClick={onViewProfile}
-                className="w-full py-3 rounded-xl text-[12px] font-bold transition-all flex items-center justify-center gap-2"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--v-text-secondary)" }}
-            >
-                View Profile <ChevronRight className="w-4 h-4" />
-            </button>
-        </motion.div>
     );
 }
 

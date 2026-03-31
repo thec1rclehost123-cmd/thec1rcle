@@ -16,6 +16,7 @@ import {
     Megaphone,
     Loader2,
     Image as ImageIcon,
+    UserCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/Toast";
@@ -86,7 +87,7 @@ const StatPill = ({
 interface Form {
     displayName: string;
     tagline: string;
-    venueType: string;
+    hostType: string;
     city: string;
     website: string;
     instagram: string;
@@ -96,11 +97,11 @@ interface Form {
 interface Stats {
     eventsHosted: number;
     ticketsSold: number;
-    hostsConnected: number;
+    venuesConnected: number;
     promotersConnected: number;
 }
 
-export default function VenueProfileClient({
+export default function HostProfileClient({
     setActions,
 }: {
     setActions: (actions: React.ReactNode) => void;
@@ -108,7 +109,7 @@ export default function VenueProfileClient({
     const { success: toastSuccess, error: toastError } = useToast();
     const { user, profile } = useDashboardAuth();
 
-    const venueId = profile?.activeMembership?.partnerId ?? null;
+    const hostId = profile?.activeMembership?.partnerId ?? null;
     const partnerName = profile?.activeMembership?.partnerName ?? profile?.displayName ?? "";
 
     const [pageLoading, setPageLoading] = useState(true);
@@ -123,7 +124,7 @@ export default function VenueProfileClient({
     const [cropModal, setCropModal] = useState<{ src: string; aspect: number; type: "logo" | "cover" } | null>(null);
     const [isHeroEditing, setIsHeroEditing] = useState(false);
     const [statsLoading, setStatsLoading] = useState(true);
-    const [stats, setStats] = useState<Stats>({ eventsHosted: 0, ticketsSold: 0, hostsConnected: 0, promotersConnected: 0 });
+    const [stats, setStats] = useState<Stats>({ eventsHosted: 0, ticketsSold: 0, venuesConnected: 0, promotersConnected: 0 });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const backdropFileInputRef = useRef<HTMLInputElement>(null);
@@ -131,21 +132,21 @@ export default function VenueProfileClient({
     const [form, setForm] = useState<Form>({
         displayName: partnerName,
         tagline: "",
-        venueType: "",
+        hostType: "",
         city: "",
         website: "",
         instagram: "",
         twitter: "",
     });
 
-    // ── Load existing venue profile data ──────────────────────────────────────
+    // ── Load existing host profile data ───────────────────────────────────────
     useEffect(() => {
-        if (!user || !venueId) return;
+        if (!user || !hostId) return;
 
         const load = async () => {
             try {
                 const token = await user.getIdToken();
-                const res = await fetch(`/api/venue/profile?venueId=${venueId}`, {
+                const res = await fetch(`/api/host/profile?hostId=${hostId}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 if (!res.ok) return;
@@ -158,23 +159,22 @@ export default function VenueProfileClient({
                 setForm({
                     displayName: v.displayName || partnerName,
                     tagline:     v.bio || "",
-                    venueType:   v.venueType || "",
+                    hostType:    v.hostType || "",
                     city:        v.city || "",
                     website:     v.website || "",
                     instagram:   v.socialLinks?.instagram || "",
                     twitter:     v.socialLinks?.twitter || "",
                 });
             } catch {
-                // Non-blocking — form stays with partnerName default
+                // Non-blocking
             } finally {
                 setPageLoading(false);
             }
         };
 
         load();
-    }, [user, venueId]);
+    }, [user, hostId]);
 
-    // Keep displayName seeded from auth if page fetch hasn't set it yet
     useEffect(() => {
         if (partnerName && !form.displayName) {
             setForm((prev) => ({ ...prev, displayName: partnerName }));
@@ -183,7 +183,7 @@ export default function VenueProfileClient({
 
     // ── Fetch real stats ──────────────────────────────────────────────────────
     useEffect(() => {
-        if (!user || !venueId) return;
+        if (!user || !hostId) return;
 
         const fetchStats = async () => {
             setStatsLoading(true);
@@ -191,44 +191,42 @@ export default function VenueProfileClient({
                 const token = await user.getIdToken();
                 const headers = { Authorization: `Bearer ${token}` };
 
-                const [eventsRes, connectionsRes, summaryRes] = await Promise.allSettled([
-                    fetch(`/api/venue/events?venueId=${venueId}&limit=200&status=all`, { headers }),
-                    fetch(`/api/discovery?action=list&partnerId=${venueId}&role=venue`, { headers }),
-                    fetch(`/api/venue/overview/summary?venueId=${venueId}`, { headers }),
+                const [summaryRes, connectionsRes] = await Promise.allSettled([
+                    fetch(`/api/host/overview/summary?hostId=${hostId}`, { headers }),
+                    fetch(`/api/discovery?action=list&partnerId=${hostId}&role=host`, { headers }),
                 ]);
 
-                const eventsData     = eventsRes.status === "fulfilled"      && eventsRes.value.ok      ? await eventsRes.value.json()      : null;
+                const summaryData     = summaryRes.status === "fulfilled"     && summaryRes.value.ok     ? await summaryRes.value.json()     : null;
                 const connectionsData = connectionsRes.status === "fulfilled" && connectionsRes.value.ok ? await connectionsRes.value.json() : null;
-                const summaryData    = summaryRes.status === "fulfilled"      && summaryRes.value.ok     ? await summaryRes.value.json()     : null;
 
                 const active: any[] = (connectionsData?.connections ?? []).filter(
                     (c: any) => c.status === "approved" || c.status === "active"
                 );
 
                 const computed = {
-                    eventsHosted:      Array.isArray(eventsData?.events) ? eventsData.events.length : 0,
-                    ticketsSold:       summaryData?.totalGuestProfiles ?? 0,
-                    hostsConnected:    active.filter((c) => c.otherType === "host").length,
-                    promotersConnected: active.filter((c) => c.otherType === "promoter").length,
+                    eventsHosted:       summaryData?.summary?.upcomingEvents?.length ?? 0,
+                    ticketsSold:        summaryData?.summary?.totalTicketsSold ?? 0,
+                    venuesConnected:    summaryData?.summary?.activeVenuePartnerships ?? active.filter((c) => c.otherType === "venue").length,
+                    promotersConnected: summaryData?.summary?.activePromoterPartnerships ?? active.filter((c) => c.otherType === "promoter").length,
                 };
                 setStats(computed);
 
-                // Write computed stats back to venue doc so discovery API can read real values
-                user.getIdToken().then((token) =>
-                    fetch("/api/venue/profile", {
+                // Write computed stats back to host doc
+                user.getIdToken().then((tk) =>
+                    fetch(`/api/host/profile?hostId=${hostId}`, {
                         method: "PATCH",
-                        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                        headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
                         body: JSON.stringify({
-                            venueId,
+                            hostId,
                             updates: {
-                                eventsCount:       computed.eventsHosted,
-                                hostsConnected:    computed.hostsConnected,
+                                eventsCount:        computed.eventsHosted,
+                                venuesConnected:    computed.venuesConnected,
                                 promotersConnected: computed.promotersConnected,
-                                ticketsSold:       computed.ticketsSold,
+                                ticketsSold:        computed.ticketsSold,
                             },
                         }),
                     })
-                ).catch(() => {}); // fire-and-forget
+                ).catch(() => {});
             } catch {
                 // Stats stay at 0
             } finally {
@@ -237,9 +235,9 @@ export default function VenueProfileClient({
         };
 
         fetchStats();
-    }, [user, venueId]);
+    }, [user, hostId]);
 
-    // ── Open crop modal on file select ───────────────────────────────────────
+    // ── Crop modal ────────────────────────────────────────────────────────────
     const openCropModal = (file: File, type: "logo" | "cover") => {
         const reader = new FileReader();
         reader.onload = (ev) => {
@@ -262,22 +260,15 @@ export default function VenueProfileClient({
         e.target.value = "";
     };
 
-
-
-    // ── Upload after crop confirmed ───────────────────────────────────────────
     const handleCropConfirm = async (dataUrl: string) => {
-        if (!cropModal || !user || !venueId) return;
+        if (!cropModal || !user || !hostId) return;
         const { type } = cropModal;
         setCropModal(null);
 
         const isLogo = type === "logo";
-        if (isLogo) {
-            setPhotoPreview(dataUrl);
-        } else {
-            setBackdropPreview(dataUrl);
-        }
+        if (isLogo) setPhotoPreview(dataUrl);
+        else setBackdropPreview(dataUrl);
 
-        // Convert data URL → File for FormData
         const blob = await (await fetch(dataUrl)).blob();
         const file = new File([blob], `${type}_${Date.now()}.jpg`, { type: "image/jpeg" });
 
@@ -288,10 +279,10 @@ export default function VenueProfileClient({
             const token = await user.getIdToken();
             const formData = new FormData();
             formData.append("file", file);
-            formData.append("venueId", venueId);
+            formData.append("hostId", hostId);
             formData.append("type", type);
 
-            const res = await fetch("/api/venue/upload", {
+            const res = await fetch(`/api/host/upload?hostId=${hostId}`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
                 body: formData,
@@ -317,9 +308,9 @@ export default function VenueProfileClient({
         setHasChanges(true);
     };
 
-    // ── Save all profile fields ───────────────────────────────────────────────
+    // ── Save ──────────────────────────────────────────────────────────────────
     const handleSave = useCallback(async () => {
-        if (!user || !venueId) return;
+        if (!user || !hostId) return;
         setIsSaving(true);
         try {
             const token = await user.getIdToken();
@@ -327,7 +318,7 @@ export default function VenueProfileClient({
                 displayName: form.displayName,
                 name:        form.displayName,
                 bio:         form.tagline,
-                venueType:   form.venueType,
+                hostType:    form.hostType,
                 city:        form.city,
                 website:     form.website,
                 socialLinks: {
@@ -338,28 +329,28 @@ export default function VenueProfileClient({
             if (photoUrl) updates.photoURL = photoUrl;
             if (backdropUrl) {
                 updates.backdropURL = backdropUrl;
-                updates.coverURL = backdropUrl;   // Presence tab reads coverURL
+                updates.coverURL    = backdropUrl;
             }
 
-            const res = await fetch("/api/venue/profile", {
+            const res = await fetch(`/api/host/profile?hostId=${hostId}`, {
                 method: "PATCH",
                 headers: {
                     Authorization: `Bearer ${token}`,
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ venueId, updates }),
+                body: JSON.stringify({ hostId, updates }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Save failed");
 
             setHasChanges(false);
-            toastSuccess("Profile updated", "Your venue profile has been saved.");
+            toastSuccess("Profile updated", "Your host profile has been saved.");
         } catch (err: any) {
             toastError("Save failed", err.message || "Could not save profile.");
         } finally {
             setIsSaving(false);
         }
-    }, [user, venueId, form, photoUrl, backdropUrl, toastSuccess, toastError]);
+    }, [user, hostId, form, photoUrl, backdropUrl, toastSuccess, toastError]);
 
     useEffect(() => {
         if (hasChanges || isSaving) {
@@ -374,13 +365,13 @@ export default function VenueProfileClient({
     }, [hasChanges, isSaving, photoUploading, handleSave, setActions]);
 
     const statItems = [
-        { icon: CalendarDays, value: stats.eventsHosted,       label: "Events Hosted",       color: "bg-indigo-500/10 text-indigo-400" },
-        { icon: Ticket,       value: stats.ticketsSold,        label: "Tickets Sold",        color: "bg-emerald-500/10 text-emerald-400" },
-        { icon: Handshake,    value: stats.hostsConnected,     label: "Hosts Connected",     color: "bg-amber-500/10 text-amber-400" },
-        { icon: Megaphone,    value: stats.promotersConnected, label: "Promoters Connected", color: "bg-orange-500/10 text-orange-400" },
+        { icon: CalendarDays, value: stats.eventsHosted,       label: "Events Hosted",        color: "bg-indigo-500/10 text-indigo-400" },
+        { icon: Ticket,       value: stats.ticketsSold,        label: "Tickets Sold",         color: "bg-emerald-500/10 text-emerald-400" },
+        { icon: Handshake,    value: stats.venuesConnected,    label: "Venues Connected",     color: "bg-amber-500/10 text-amber-400" },
+        { icon: Megaphone,    value: stats.promotersConnected, label: "Promoters Connected",  color: "bg-orange-500/10 text-orange-400" },
     ];
 
-    const displayPhoto = photoPreview || photoUrl;
+    const displayPhoto    = photoPreview    || photoUrl;
     const displayBackdrop = backdropPreview || backdropUrl;
 
     if (pageLoading) {
@@ -393,12 +384,11 @@ export default function VenueProfileClient({
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* ── Profile Hero — same layout as Presence tab ── */}
+            {/* ── Profile Hero ── */}
             <div
                 className="overflow-hidden shadow-2xl"
                 style={{ borderRadius: "var(--v-r-xl)", background: "var(--v-card)", border: "1px solid var(--border-default)" }}
             >
-                {/* Hero image */}
                 <section className="relative w-full group">
                     <div className="relative aspect-[3/4] sm:aspect-[4/5] md:aspect-[16/10] lg:aspect-[21/9] w-full overflow-hidden">
                         {displayBackdrop ? (
@@ -407,11 +397,9 @@ export default function VenueProfileClient({
                             <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, var(--surface-tertiary) 0%, var(--surface-elevated) 50%, var(--surface-secondary) 100%)" }} />
                         )}
 
-                        {/* Presence-identical gradients */}
                         <div className="absolute inset-0 opacity-90" style={{ background: "linear-gradient(to top, var(--surface-base) 0%, transparent 100%)" }} />
                         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent" />
 
-                        {/* Upload spinners (non-blocking overlay) */}
                         {(backdropUploading || photoUploading) && (
                             <div className="absolute top-4 right-4 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/60 backdrop-blur-sm border border-white/10">
                                 <Loader2 size={12} className="text-white animate-spin" />
@@ -419,7 +407,6 @@ export default function VenueProfileClient({
                             </div>
                         )}
 
-                        {/* Edit Hero & Visuals — appears on hover, exactly like Presence */}
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20">
                             <button
                                 onClick={() => setIsHeroEditing(true)}
@@ -430,32 +417,30 @@ export default function VenueProfileClient({
                             </button>
                         </div>
 
-                        {/* Bottom content — logo + name, identical to Presence */}
                         <div className="absolute bottom-0 left-0 right-0 z-10 px-6 sm:px-10 pb-6 sm:pb-8">
                             <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6">
-                                {/* Logo */}
+                                {/* Avatar */}
                                 <div
                                     className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden shadow-2xl flex-shrink-0 bg-surface-elevated/10 backdrop-blur-xl"
                                     style={{ border: "4px solid var(--surface-base)" }}
                                 >
                                     {displayPhoto ? (
-                                        <img src={displayPhoto} className="w-full h-full object-cover" alt="logo" />
+                                        <img src={displayPhoto} className="w-full h-full object-cover" alt="avatar" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center">
-                                            <Building2 className="w-8 h-8 text-white/20" />
+                                            <UserCircle className="w-8 h-8 text-white/20" />
                                         </div>
                                     )}
                                 </div>
 
-                                {/* Name & meta */}
                                 <div className="flex-1 min-w-0">
-                                    {form.venueType && (
+                                    {form.hostType && (
                                         <span className="px-3 py-1 mb-2 inline-block bg-black/20 backdrop-blur-xl border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-white/80">
-                                            {form.venueType}
+                                            {form.hostType}
                                         </span>
                                     )}
                                     <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold uppercase tracking-tighter text-white leading-[0.9] drop-shadow-lg">
-                                        {form.displayName || "Your Venue"}
+                                        {form.displayName || "Your Name"}
                                     </h1>
                                     {form.city && (
                                         <div className="flex items-center gap-1.5 mt-2">
@@ -529,11 +514,11 @@ export default function VenueProfileClient({
                                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                                 >
                                     <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "var(--surface-tertiary)" }}>
-                                        <Building2 size={18} className="text-text-secondary" />
+                                        <UserCircle size={18} className="text-text-secondary" />
                                     </div>
                                     <div className="text-center">
-                                        <p className="text-[13px] font-semibold text-text-primary">Profile Logo</p>
-                                        <p className="text-[11px] text-text-tertiary mt-0.5">Venue logo / avatar</p>
+                                        <p className="text-[13px] font-semibold text-text-primary">Profile Photo</p>
+                                        <p className="text-[11px] text-text-tertiary mt-0.5">Your avatar / logo</p>
                                     </div>
                                 </button>
                             </div>
@@ -558,15 +543,15 @@ export default function VenueProfileClient({
                 <div className="lg:col-span-12 xl:col-span-10 xl:col-start-2">
                     <BentoCard padding="lg" className="shadow-2xl border-border-default">
                         <div className="space-y-10">
-                            {/* Identity */}
+                            {/* Host Identity */}
                             <div className="space-y-6">
                                 <div className="flex items-start gap-4 mb-6">
                                     <div className="p-2.5 rounded-xl bg-surface-tertiary border border-border-default shadow-sm">
-                                        <Building2 size={20} className="text-text-primary" />
+                                        <UserCircle size={20} className="text-text-primary" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-bold text-text-primary leading-tight">Venue Identity</h3>
-                                        <p className="text-sm text-text-tertiary mt-0.5">Public-facing info shown to guests and partners</p>
+                                        <h3 className="text-lg font-bold text-text-primary leading-tight">Host Identity</h3>
+                                        <p className="text-sm text-text-tertiary mt-0.5">Public-facing info shown to venues and guests</p>
                                     </div>
                                 </div>
 
@@ -581,21 +566,22 @@ export default function VenueProfileClient({
                                         />
                                     </FormGroup>
 
-                                    <FormGroup label="Venue Type" description="Best describes your establishment">
+                                    <FormGroup label="Host Type" description="Best describes what you do">
                                         <select
-                                            value={form.venueType}
+                                            value={form.hostType}
                                             style={inputStyle}
-                                            onChange={(e) => handleFieldChange("venueType", e.target.value)}
+                                            onChange={(e) => handleFieldChange("hostType", e.target.value)}
                                             className="focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10 appearance-none"
                                         >
-                                            <option value="">Select venue type</option>
-                                            <option>Nightclub & Live Music</option>
-                                            <option>Lounge & Bar</option>
-                                            <option>Festival Ground</option>
-                                            <option>Rooftop</option>
-                                            <option>Club</option>
-                                            <option>Concert Hall</option>
-                                            <option>Outdoor Amphitheatre</option>
+                                            <option value="">Select host type</option>
+                                            <option>DJ / Music Act</option>
+                                            <option>Event Producer</option>
+                                            <option>Club Night Host</option>
+                                            <option>Concert Promoter</option>
+                                            <option>Brand &amp; Activation</option>
+                                            <option>Artist / Performer</option>
+                                            <option>Nightlife Curator</option>
+                                            <option>Festival Organiser</option>
                                         </select>
                                     </FormGroup>
 
@@ -603,14 +589,14 @@ export default function VenueProfileClient({
                                         <input
                                             type="text"
                                             value={form.city}
-                                            placeholder="e.g. Pune, Maharashtra"
+                                            placeholder="e.g. Mumbai, Maharashtra"
                                             style={inputStyle}
                                             onChange={(e) => handleFieldChange("city", e.target.value)}
                                             className="focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10"
                                         />
                                     </FormGroup>
 
-                                    <FormGroup label="Website" description="Your official website URL">
+                                    <FormGroup label="Website" description="Your official website or booking URL">
                                         <div className="relative">
                                             <Globe size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary" />
                                             <input
@@ -631,7 +617,7 @@ export default function VenueProfileClient({
                                 >
                                     <textarea
                                         value={form.tagline}
-                                        placeholder="Describe your venue in a few words…"
+                                        placeholder="Describe yourself in a few words…"
                                         rows={3}
                                         maxLength={200}
                                         style={{ ...inputStyle, resize: "none", lineHeight: "1.6" }}
@@ -654,7 +640,7 @@ export default function VenueProfileClient({
                                     </div>
                                     <div>
                                         <h3 className="text-lg font-bold text-text-primary leading-tight">Social Links</h3>
-                                        <p className="text-sm text-text-tertiary mt-0.5">Connect your social presence for guest discovery</p>
+                                        <p className="text-sm text-text-tertiary mt-0.5">Connect your social presence for discovery</p>
                                     </div>
                                 </div>
 

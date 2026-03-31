@@ -11,7 +11,6 @@ import {
     Loader2,
     Building2,
     UserCircle,
-    ChevronRight,
     Network,
     Handshake,
     Zap,
@@ -22,11 +21,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { usePromoterPartnerships } from "@/lib/hooks/usePromoterQueries";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
-import { DiscoverDirectory } from "@/components/partnerships/DiscoverDirectory";
+import { DiscoverDirectory, StatusCard } from "@/components/partnerships/DiscoverDirectory";
 import { NetworkProfileModal, NetworkProfile } from "@/components/partnerships/NetworkProfileModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { StatTrendCard } from "@/components/promoter/PlaceholderCharts";
-import { formatDate } from "@/lib/utils/format";
 
 type Tab = "discover" | "incoming" | "pending" | "active" | "declined";
 
@@ -70,7 +68,11 @@ export default function PromoterPartnershipsPage() {
     const active = partnerships.filter(
         (p) => p.status === "approved" || p.status === "active"
     );
-    const declined = partnerships.filter((p) => p.status === "rejected");
+    const declined = partnerships.filter((p) => p.status === "rejected" || p.status === "declined");
+    // initiatedBy === "promoter" → promoter sent the request, partner declined it → show Re-request
+    const declinedByThem = declined.filter((p) => p.initiatedBy === "promoter");
+    // initiatedBy !== "promoter" → partner sent, promoter declined → show Remove
+    const declinedByPromoter = declined.filter((p) => p.initiatedBy !== "promoter");
 
     const handleAction = async (connectionId: string, action: "approve" | "reject") => {
         setProcessingId(connectionId);
@@ -80,6 +82,32 @@ export default function PromoterPartnershipsPage() {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({ connectionId, action, type: "promoter_connection" }),
+            });
+            queryClient.invalidateQueries({ queryKey: ["promoter-partnerships", promoterId || ""] });
+        } catch { /* */ } finally { setProcessingId(null); }
+    };
+
+    const handleReRequest = async (conn: Partnership) => {
+        setProcessingId(conn.id);
+        try {
+            const token = user ? await user.getIdToken() : "";
+            await fetch("/api/discovery", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ requesterId: promoterId, requesterType: "promoter", requesterName: profile?.name || "", targetId: conn.otherId, targetType: conn.otherType, targetName: conn.otherName }),
+            });
+            queryClient.invalidateQueries({ queryKey: ["promoter-partnerships", promoterId || ""] });
+        } catch { /* */ } finally { setProcessingId(null); }
+    };
+
+    const handleRemove = async (connectionId: string) => {
+        setProcessingId(connectionId);
+        try {
+            const token = user ? await user.getIdToken() : "";
+            await fetch("/api/discovery", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ connectionId, action: "remove", role: "promoter", partnerId: promoterId }),
             });
             queryClient.invalidateQueries({ queryKey: ["promoter-partnerships", promoterId || ""] });
         } catch { /* */ } finally { setProcessingId(null); }
@@ -277,46 +305,18 @@ export default function PromoterPartnershipsPage() {
                             ) : pendingIncoming.length === 0 ? (
                                 <EmptyState tab="incoming" />
                             ) : (
-                                <div className="space-y-4">
-                                    <AnimatePresence mode="popLayout">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                    <AnimatePresence>
                                         {pendingIncoming.map(p => (
-                                            <motion.div key={p.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                                                className="border border-border-subtle p-6 rounded-[2rem]" style={{ background: "var(--v-card)" }}>
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-5">
-                                                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black" style={{ background: "rgba(124,58,237,0.15)", color: "#a78bfa" }}>
-                                                            {(p.otherName?.[0] || "?").toUpperCase()}
-                                                        </div>
-                                                        <div>
-                                                            <h3 className="text-xl font-black text-text-primary">{p.otherName}</h3>
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                {p.otherType === "venue" ? <Building2 className="w-3.5 h-3.5 text-[#a78bfa]" /> : <UserCircle className="w-3.5 h-3.5 text-[#a78bfa]" />}
-                                                                <span className="text-[10px] font-black uppercase tracking-widest text-[#a78bfa] capitalize">{p.otherType}</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <button
-                                                            onClick={() => handleAction(p.id, "approve")}
-                                                            disabled={!!processingId}
-                                                            className="flex items-center gap-2 px-6 py-3 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 disabled:opacity-50"
-                                                            style={{ background: "linear-gradient(135deg, #7c3aed, #a78bfa)" }}
-                                                        >
-                                                            {processingId === p.id
-                                                                ? <Loader2 className="w-4 h-4 animate-spin" />
-                                                                : <>Approve <CheckCircle2 className="w-3.5 h-3.5" /></>}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleAction(p.id, "reject")}
-                                                            disabled={!!processingId}
-                                                            className="h-12 w-12 rounded-xl border border-border-subtle text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
-                                                            style={{ background: "var(--v-elevated)" }}
-                                                        >
-                                                            <X className="w-5 h-5" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </motion.div>
+                                            <StatusCard
+                                                key={p.id}
+                                                name={p.otherName}
+                                                type={p.otherType}
+                                                connectionStatus="incoming"
+                                                onApprove={() => handleAction(p.id, "approve")}
+                                                onReject={() => handleAction(p.id, "reject")}
+                                                isProcessing={processingId === p.id}
+                                            />
                                         ))}
                                     </AnimatePresence>
                                 </div>
@@ -331,68 +331,84 @@ export default function PromoterPartnershipsPage() {
                             ) : pendingOutgoing.length === 0 ? (
                                 <EmptyState tab="pending" />
                             ) : (
-                                <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                                     {pendingOutgoing.map(p => (
-                                        <motion.div key={p.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-                                            className="border border-border-subtle p-6 rounded-[2rem] opacity-75" style={{ background: "var(--v-card)" }}>
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-5">
-                                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black text-text-tertiary" style={{ background: "rgba(255,255,255,0.05)" }}>
-                                                        {(p.otherName?.[0] || "?").toUpperCase()}
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="text-xl font-black text-text-primary">{p.otherName}</h3>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            {p.otherType === "venue" ? <Building2 className="w-3.5 h-3.5 text-[#a78bfa]" /> : <UserCircle className="w-3.5 h-3.5 text-[#a78bfa]" />}
-                                                            <span className="text-[10px] font-black uppercase tracking-widest text-[#a78bfa] capitalize">{p.otherType}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.15)" }}>
-                                                    <Clock className="w-3.5 h-3.5 text-amber-400" />
-                                                    <span className="text-[11px] font-black uppercase tracking-widest text-amber-400">Awaiting approval</span>
-                                                </div>
-                                            </div>
-                                        </motion.div>
+                                        <StatusCard
+                                            key={p.id}
+                                            name={p.otherName}
+                                            type={p.otherType}
+                                            connectionStatus="pending"
+                                        />
                                     ))}
                                 </div>
                             )}
                         </motion.div>
-                    ) : (
-                        <motion.div
-                            key={activeTab}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
-                        >
+                    ) : activeTab === "declined" ? (
+                        <motion.div key="declined" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                             {loading ? (
                                 <div className="flex justify-center py-32">
-                                    <Loader2
-                                        className="w-8 h-8 animate-spin"
-                                        style={{ color: "#7c3aed" }}
-                                    />
+                                    <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#7c3aed" }} />
                                 </div>
-                            ) : filtered.length === 0 ? (
-                                <EmptyState tab={activeTab} />
+                            ) : declined.length === 0 ? (
+                                <EmptyState tab="declined" />
+                            ) : (
+                                <div className="flex flex-col gap-8">
+                                    {declinedByThem.length > 0 && (
+                                        <div>
+                                            <p className="text-[11px] font-black uppercase tracking-widest mb-4" style={{ color: "var(--v-text-tertiary)" }}>They declined your request</p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                                {declinedByThem.map(p => (
+                                                    <StatusCard
+                                                        key={p.id}
+                                                        name={p.otherName}
+                                                        type={p.otherType}
+                                                        connectionStatus="declined"
+                                                        onReRequest={() => handleReRequest(p)}
+                                                        isProcessing={processingId === p.id}
+                                                        onViewProfile={() => setProfileTarget({ id: p.otherId, type: p.otherType as any, name: p.otherName, city: "", connectionStatus: "rejected" })}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {declinedByPromoter.length > 0 && (
+                                        <div>
+                                            <p className="text-[11px] font-black uppercase tracking-widest mb-4" style={{ color: "var(--v-text-tertiary)" }}>You declined</p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                                {declinedByPromoter.map(p => (
+                                                    <StatusCard
+                                                        key={p.id}
+                                                        name={p.otherName}
+                                                        type={p.otherType}
+                                                        connectionStatus="declined"
+                                                        onRemove={() => handleRemove(p.id)}
+                                                        isProcessing={processingId === p.id}
+                                                        onViewProfile={() => setProfileTarget({ id: p.otherId, type: p.otherType as any, name: p.otherName, city: "", connectionStatus: "rejected" })}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </motion.div>
+                    ) : (
+                        <motion.div key="active" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                            {loading ? (
+                                <div className="flex justify-center py-32">
+                                    <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#7c3aed" }} />
+                                </div>
+                            ) : active.length === 0 ? (
+                                <EmptyState tab="active" />
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    {filtered.map((p) => (
-                                        <PartnershipCard
+                                    {active.map(p => (
+                                        <StatusCard
                                             key={p.id}
-                                            partnership={p}
-                                            formatDate={formatDate}
-                                            onView={() =>
-                                                setProfileTarget({
-                                                    id: p.otherId,
-                                                    type: p.otherType as any,
-                                                    name: p.otherName,
-                                                    city: "",
-                                                    connectionStatus:
-                                                        p.status === "active"
-                                                            ? "active"
-                                                            : (p.status as any),
-                                                })
-                                            }
+                                            name={p.otherName}
+                                            type={p.otherType}
+                                            connectionStatus="active"
+                                            onViewProfile={() => setProfileTarget({ id: p.otherId, type: p.otherType as any, name: p.otherName, city: "", connectionStatus: "active" })}
                                         />
                                     ))}
                                 </div>
@@ -412,117 +428,6 @@ export default function PromoterPartnershipsPage() {
                 )}
             </AnimatePresence>
         </VenuePageShell>
-    );
-}
-
-function PartnershipCard({
-    partnership,
-    formatDate,
-    onView,
-}: {
-    partnership: Partnership;
-    formatDate: (ts: any) => string;
-    onView: () => void;
-}) {
-    const isActive =
-        partnership.status === "approved" || partnership.status === "active";
-    const isPending = partnership.status === "pending";
-
-    const statusConfig = isActive
-        ? { label: "Active", color: "#34d399", bg: "rgba(52,211,153,0.1)" }
-        : isPending
-        ? { label: "Pending", color: "#f59e0b", bg: "rgba(245,158,11,0.1)" }
-        : { label: "Declined", color: "#f87171", bg: "rgba(248,113,113,0.1)" };
-
-    return (
-        <motion.div
-            layout
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="group rounded-[32px] p-6 transition-all"
-            style={{
-                background: "var(--v-card, #1a1a1e)",
-                border: "1px solid var(--v-border)",
-            }}
-            onMouseEnter={(e) => {
-                (e.currentTarget as HTMLDivElement).style.borderColor =
-                    "rgba(124,58,237,0.3)";
-            }}
-            onMouseLeave={(e) => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = "var(--v-border)";
-            }}
-        >
-            <div className="flex items-start justify-between mb-5">
-                <div className="flex items-center gap-3">
-                    <div
-                        className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black"
-                        style={{ background: "rgba(124,58,237,0.15)", color: "#a78bfa" }}
-                    >
-                        {partnership.otherName[0]}
-                    </div>
-                    <div>
-                        <h3
-                            className="text-[14px] font-bold text-text-primary group-hover:text-[#a78bfa] transition-colors"
-                        >
-                            {partnership.otherName}
-                        </h3>
-                        <span
-                            className="flex items-center gap-1 text-[11px] text-text-tertiary capitalize mt-0.5"
-                        >
-                            {partnership.otherType === "venue" ? (
-                                <Building2 className="w-3.5 h-3.5" />
-                            ) : (
-                                <UserCircle className="w-3.5 h-3.5" />
-                            )}
-                            {partnership.otherType}
-                        </span>
-                    </div>
-                </div>
-                {partnership.tier && isActive && (
-                    <span
-                        className="text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest"
-                        style={
-                            partnership.tier === "trusted"
-                                ? { background: "rgba(124,58,237,0.15)", color: "#a78bfa" }
-                                : {
-                                      background: "rgba(255,255,255,0.06)",
-                                      color: "var(--v-text-tertiary)",
-                                  }
-                        }
-                    >
-                        {partnership.tier === "trusted" ? "Trusted" : "Standard"}
-                    </span>
-                )}
-            </div>
-
-            <div className="flex items-center justify-between mb-5">
-                <span className="text-[11px] text-text-placeholder">
-                    {formatDate(partnership.createdAt)}
-                </span>
-                <span
-                    className="flex items-center gap-1.5 text-[11px] font-black px-2.5 py-1 rounded-lg"
-                    style={{ background: statusConfig.bg, color: statusConfig.color }}
-                >
-                    <span
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ background: statusConfig.color }}
-                    />
-                    {statusConfig.label}
-                </span>
-            </div>
-
-            <button
-                onClick={onView}
-                className="w-full py-3 rounded-xl text-[12px] font-bold transition-all flex items-center justify-center gap-2"
-                style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    color: "var(--v-text-secondary)",
-                }}
-            >
-                View Profile <ChevronRight className="w-4 h-4" />
-            </button>
-        </motion.div>
     );
 }
 

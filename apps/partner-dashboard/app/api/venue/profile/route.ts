@@ -5,7 +5,8 @@ import { getAdminDb } from "@/lib/firebase/admin";
 
 const ALLOWED_FIELDS = [
     "displayName", "name", "bio", "venueType", "city",
-    "website", "socialLinks", "photoURL",
+    "website", "socialLinks", "photoURL", "backdropURL", "coverURL",
+    "eventsCount", "hostsConnected", "promotersConnected", "ticketsSold",
 ];
 
 /**
@@ -30,6 +31,8 @@ export const GET = withAuth(async (req: NextRequest) => {
             city:         data.city || "",
             website:      data.website || "",
             photoURL:     data.photoURL || data.logoImage || data.logo || "",
+            backdropURL:  data.backdropURL || "",
+            coverURL:     data.coverURL || data.backdropURL || data.coverImage || "",
             socialLinks:  data.socialLinks ?? {},
         };
 

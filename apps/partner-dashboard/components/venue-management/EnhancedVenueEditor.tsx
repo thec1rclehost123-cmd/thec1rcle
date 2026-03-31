@@ -80,7 +80,7 @@ export default function EnhancedVenueEditor({
         }
     };
 
-    const coverImage = venue.coverURL || venue.coverImage || venue.bannerImage || venue.image || '/events/neon-nights.jpg';
+    const coverImage = venue.coverURL || venue.backdropURL || venue.coverImage || venue.bannerImage || venue.image || '/events/neon-nights.jpg';
     const logo = venue.photoURL || venue.logoImage || venue.logo;
     const category = venue.venueType || venue.category || venue.type || 'Venue';
     const isVerified = venue.verified || venue.isVerified;

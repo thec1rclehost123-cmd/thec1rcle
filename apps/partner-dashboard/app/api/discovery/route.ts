@@ -84,6 +84,8 @@ export const GET = withAuth(async (req: NextRequest) => {
                         type,
                         name: r.displayName || r.name || "Unknown",
                         avatar: r.profileImage || r.avatar || null,
+                        photoURL: r.photoURL || r.profileImage || r.avatar || null,
+                        coverURL: r.coverURL || r.backdropURL || r.coverImage || null,
                         city: r.city || r.location?.split?.(",")[0]?.trim?.() || "",
                         bio: r.bio || r.summary || r.description || "",
                         tags: r.tags || r.genres || [],
@@ -99,6 +101,9 @@ export const GET = withAuth(async (req: NextRequest) => {
                         noShowRate: r.noShowRate,
                         instagram: r.instagram || r.instagramHandle,
                         phone: r.phone || r.contactPhone,
+                        hostsConnected: r.hostsConnected ?? 0,
+                        promotersConnected: r.promotersConnected ?? 0,
+                        ticketsSold: r.ticketsSold ?? 0,
                     };
                 });
 
@@ -165,6 +170,43 @@ export const GET = withAuth(async (req: NextRequest) => {
                         new Date(b.updatedAt || b.createdAt).getTime() -
                         new Date(a.updatedAt || a.createdAt).getTime()
                 );
+
+                // Enrich connections with live profile photos/city from Firestore
+                if (connections.length > 0) {
+                    const byCollection: Record<string, string[]> = {};
+                    for (const c of connections) {
+                        if (!c.otherId || !c.otherType) continue;
+                        const col = COLLECTION_MAP[c.otherType] || c.otherType;
+                        if (!byCollection[col]) byCollection[col] = [];
+                        if (!byCollection[col].includes(c.otherId)) byCollection[col].push(c.otherId);
+                    }
+
+                    const profileMap = new Map<string, { photoURL?: string; coverURL?: string; city?: string }>();
+                    await Promise.all(
+                        Object.entries(byCollection).map(async ([col, ids]) => {
+                            await Promise.all(
+                                ids.map(async (id) => {
+                                    try {
+                                        const snap = await db.collection(col).doc(id).get();
+                                        if (snap.exists) {
+                                            const d = snap.data() as any;
+                                            profileMap.set(id, {
+                                                photoURL: d.photoURL || d.profileImage || d.avatar || undefined,
+                                                coverURL: d.coverURL || d.backdropURL || d.coverImage || undefined,
+                                                city:     d.city || undefined,
+                                            });
+                                        }
+                                    } catch { /* skip on error */ }
+                                })
+                            );
+                        })
+                    );
+
+                    connections = connections.map((c) => {
+                        const prof = profileMap.get(c.otherId);
+                        return prof ? { ...c, ...prof } : c;
+                    });
+                }
 
                 return ok({ connections });
             }
