@@ -144,8 +144,8 @@ export function NotificationCenter() {
     const [loading, setLoading]           = useState(false);
     const [error, setError]               = useState<string | null>(null);
 
-    // Track previous unread count to detect new notifications
-    const prevUnreadRef = useRef<number | null>(null);
+    // Set of notification IDs already seen — used to detect truly new arrivals
+    const seenIdsRef = useRef<Set<string> | null>(null);
 
     // Play a soft double-chime using Web Audio API — no audio file needed
     const playNotificationSound = useCallback(() => {
@@ -180,13 +180,20 @@ export function NotificationCenter() {
             if (!res.ok) throw new Error(`${res.status}`);
             const data = await res.json();
             const incoming: Notification[] = data.notifications || [];
-            const newUnreadCount = incoming.filter(n => !n.isRead).length;
 
-            // Play sound when new unread notifications arrive (skip on very first load)
-            if (prevUnreadRef.current !== null && newUnreadCount > prevUnreadRef.current) {
-                playNotificationSound();
+            if (seenIdsRef.current === null) {
+                // First load — just record what exists, no sound
+                seenIdsRef.current = new Set(incoming.map(n => n.id));
+            } else {
+                // Play one chime per NEW unread notification that wasn't seen before
+                const newOnes = incoming.filter(n => !n.isRead && !seenIdsRef.current!.has(n.id));
+                for (let i = 0; i < newOnes.length; i++) {
+                    // Stagger multiple chimes slightly so they don't overlap
+                    setTimeout(playNotificationSound, i * 400);
+                }
+                // Merge new IDs into seen set
+                incoming.forEach(n => seenIdsRef.current!.add(n.id));
             }
-            prevUnreadRef.current = newUnreadCount;
 
             setNotifications(incoming);
         } catch (err) {
@@ -207,10 +214,10 @@ export function NotificationCenter() {
         if (isOpen) fetchNotifications();
     }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Poll every 30 seconds in the background for new notifications
+    // Poll every 15 seconds in the background for new notifications
     useEffect(() => {
         if (!partnerId) return;
-        const interval = setInterval(fetchNotifications, 30_000);
+        const interval = setInterval(fetchNotifications, 15_000);
         return () => clearInterval(interval);
     }, [partnerId, fetchNotifications]);
 
